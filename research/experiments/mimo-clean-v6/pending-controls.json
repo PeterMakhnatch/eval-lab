@@ -1,0 +1,4780 @@
+{
+  "schema_version": 1,
+  "generation": "mimo-clean-v6",
+  "captured_utc": "2026-10-15T21:27:59Z",
+  "original_selection": {
+    "path": "selection.json",
+    "sha256": "16217207ae39199fcd7ba4fa25c8c15f1d1d95c16e3a44b3428154fe889ce159",
+    "frozen_task_count": 99,
+    "flagged_count": 49,
+    "sample_count": 50,
+    "unchanged": true
+  },
+  "post_selection_task_ids": [
+    "format-code-task-000236",
+    "format-code-task-000245",
+    "format-code-task-000354",
+    "format-code-task-000792",
+    "format-code-task-001269",
+    "format-code-task-002308"
+  ],
+  "accepted_new_verified_weak_task_ids": [
+    "format-code-task-000354"
+  ],
+  "original_selection_controls_acceptance_complete": false,
+  "full_clean_census_acceptance_complete": false,
+  "remaining_original_task_ids": [
+    "format-code-task-000803",
+    "format-code-task-000838",
+    "format-code-task-000227",
+    "format-code-task-000666",
+    "format-code-task-000363",
+    "format-code-task-000905",
+    "format-code-task-002389",
+    "format-code-task-000371",
+    "format-code-task-002736",
+    "format-code-task-003023",
+    "format-code-task-000471",
+    "format-code-task-001809",
+    "format-code-task-001671",
+    "format-code-task-001770",
+    "format-code-task-001750",
+    "format-code-task-002371",
+    "format-code-task-001804",
+    "format-code-task-000390",
+    "format-code-task-001553",
+    "format-code-task-002976",
+    "format-code-task-002205",
+    "format-code-task-002222",
+    "format-code-task-001686",
+    "format-code-task-001219",
+    "format-code-task-001478",
+    "format-code-task-002394",
+    "format-code-task-000237",
+    "format-code-task-000657",
+    "format-code-task-000511",
+    "format-code-task-000931",
+    "format-code-task-000847",
+    "format-code-task-002188",
+    "format-code-task-002382",
+    "format-code-task-000560",
+    "format-code-task-002742",
+    "format-code-task-000081",
+    "format-code-task-000769",
+    "format-code-task-001985",
+    "format-code-task-000495",
+    "format-code-task-000561",
+    "format-code-task-002680",
+    "format-code-task-002377",
+    "format-code-task-000160",
+    "format-code-task-000651",
+    "format-code-task-002411",
+    "format-code-task-000102",
+    "format-code-task-001835",
+    "format-code-task-002829",
+    "format-code-task-000164",
+    "format-code-task-001248",
+    "format-code-task-002801",
+    "format-code-task-000795",
+    "format-code-task-002601",
+    "format-code-task-001614",
+    "format-code-task-002773",
+    "format-code-task-001946",
+    "format-code-task-002212",
+    "format-code-task-000149",
+    "format-code-task-000143",
+    "format-code-task-001945",
+    "format-code-task-000878",
+    "format-code-task-000732",
+    "format-code-task-001833",
+    "format-code-task-002162",
+    "format-code-task-001987",
+    "format-code-task-002664",
+    "format-code-task-000224",
+    "format-code-task-002304",
+    "format-code-task-001841",
+    "format-code-task-002538",
+    "format-code-task-000079",
+    "format-code-task-000682",
+    "format-code-task-000203",
+    "format-code-task-002521",
+    "format-code-task-002351",
+    "format-code-task-000925",
+    "format-code-task-000215",
+    "format-code-task-000737",
+    "format-code-task-000046",
+    "format-code-task-000048",
+    "format-code-task-000055",
+    "format-code-task-000112",
+    "format-code-task-000208",
+    "format-code-task-000427",
+    "format-code-task-000431",
+    "format-code-task-000460",
+    "format-code-task-000524",
+    "format-code-task-001514",
+    "format-code-task-001675",
+    "format-code-task-001849"
+  ],
+  "remaining_original_controls": [
+    {
+      "task_id": "format-code-task-000803",
+      "final_digest": "sha256:2ea10a95a7f391215c4db84a0ef13dbde2ca12a8535697ca9814c27e1eee48a9",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": false
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "final_digest": "sha256:498a4b0034d9f6323dcc98439c2cecb5b58db9cccc76a118e76ec26633010094",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": false
+    },
+    {
+      "task_id": "format-code-task-000227",
+      "final_digest": "sha256:47372333aa587e5cd83eaf4580aa1b20649c40c6c5f85ca626b78b541139b637",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000666",
+      "final_digest": "sha256:c3779dbf477218c1776c80eeef62253ba75c0901c48f68317cb46c05a27a740e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000363",
+      "final_digest": "sha256:5b0316295cc0430387bd2f0e59ed6d4fec54feedfb9eae874db75f3613a71032",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000905",
+      "final_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002389",
+      "final_digest": "sha256:5c65eba323ca36ca88ec0f32cdbbda4b39e735e5ef7c8d5e33cc8800eec46c65",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000371",
+      "final_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002736",
+      "final_digest": "sha256:ad057b368b687088db019fd15a537876d8941c541307d7a89173c49d01c6f756",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-003023",
+      "final_digest": "sha256:92eb31288102f6646356524f856d4ef6cc6e71aa07065aa2efb05c7c59e4173e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000471",
+      "final_digest": "sha256:60b37ebd1cfa93735b037e7ac8d3da916ded3f9f7ed176ec7a9e3c5e62e61bef",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "final_digest": "sha256:263686c81728eb152dfb1b1ea3a13cfc993fde37bdc112b6dbb17803de328f40",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001671",
+      "final_digest": "sha256:76d7fd1efb60a124e9a473b3e0a1fac2b35457aa35d2505a4143d9bbf6bcc47b",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001770",
+      "final_digest": "sha256:ab0c80cc53764aa86d23d47ab1c83faacd2511d8d3b3fddff8f18efab6de4242",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001750",
+      "final_digest": "sha256:faae8f94adb18f8e92fb317e176d12ee8e238dda1c4161f2eb5d4b404fa21eae",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002371",
+      "final_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "final_digest": "sha256:f28b773d9a1194a208335797578e6bda2eb1689bd2cb609f31908e6177efaf8d",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000390",
+      "final_digest": "sha256:ac57a8178e02abe80aa9fd23e07b803a9fc3bf23425f45c035e854130dc7eafa",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001553",
+      "final_digest": "sha256:6050f609db802bd1c0e913e30ac0cd5b4434a5185f6d0682841b6ef292799a44",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "final_digest": "sha256:70e78d7e5422c721ad0769374e53ed7f2e7fd8fdd15e3ad15abe01f8fe4cd268",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002205",
+      "final_digest": "sha256:74fcb1ceb1a5057a2fcdddcd3456902ed68edb3f5f9fd1a679f6437a7dc5fca4",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002222",
+      "final_digest": "sha256:747f6a65cfd087994b0140f0e522f436ba794d0bf39df00141c0eb4a55e985ba",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001686",
+      "final_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001219",
+      "final_digest": "sha256:4b30d85ed4be8d95bd63b14647ab48e7e176e43fb7250579a425597dafc960cd",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001478",
+      "final_digest": "sha256:08c40cd54466037545ac85eb7b57df4b6bfc3ce5bd023a5f0c251e54e7f9749e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002394",
+      "final_digest": "sha256:fc3f7a45048e42eaae5ced83630444ec5e7889b745c73e383bc36d79238e3941",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000237",
+      "final_digest": "sha256:c9e9001222ee321a798a317fa3ff1eca279ed37e286ff3bd543a9daa088c3ad2",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000657",
+      "final_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000511",
+      "final_digest": "sha256:1cdebbbd47230ebe751fbb59b8281f029287df9573e7bd6f34917047a8d329da",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "final_digest": "sha256:4bf4410705da830f6be70e70676946575390c62446d8e09f9e68fd5e85916f73",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "final_digest": "sha256:d3b4762aad64be27377ae5199d2d13c5efc29b8253b3c03ea181448cebf521c8",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002188",
+      "final_digest": "sha256:cf41510cb91278fa554221b2b1f02128f2484ba08c2070e3e122fcf6baba893a",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002382",
+      "final_digest": "sha256:e5d45a4dc4132581a8c2c5d352e8b49952b00c9c73cf5407c719dc458348ed99",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000560",
+      "final_digest": "sha256:4322d53436bd17d8a134d40b26e413770eb6d49aa0cdfdf8e9264975e4ff33f2",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002742",
+      "final_digest": "sha256:687356128bb86dd20b5bd68dbf4f44f4d308301a9dfae0aa9b704815827481c6",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "final_digest": "sha256:d720964b423b4fdf9acf5d0788119f3c09d3036ae2bf5d8d395bcac50f40866c",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000769",
+      "final_digest": "sha256:ab1d67f8c4ae8a9d1ae4d0f24389c8649f756d8f4d52dfaaf29fefef41d9b85d",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "final_digest": "sha256:f97bb520f1de09dffe5ac3dacc575593bc9ebb0931ed5a2163938ef283f11336",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000495",
+      "final_digest": "sha256:f9025ca2589d5dd1c00c2016b6acf32bf59cd201c78526cd07cb2f584240c0db",
+      "agents": [
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000561",
+      "final_digest": "sha256:651c7eb3183a0b797a441d263ca6b710362458a39725a3438ce0842f47e98360",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "final_digest": "sha256:0f8d32ea7a1d340c8b9e3577a5e0314369434b3d36817cae3a7b3119664e59da",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002377",
+      "final_digest": "sha256:e6103916c0ff7f3d66cb89f979f660481276824a474d261e939fbd51c4c46109",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000160",
+      "final_digest": "sha256:30793bc33e1f601d24ea719b57ca0a9d52b8eea80259c4120a00ae88c7d7c9f0",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000651",
+      "final_digest": "sha256:d2352dbe64c6adec1fb7506ac8cd6b4bd073c47ee3d1bd4832f79f711349ae6b",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002411",
+      "final_digest": "sha256:6aae4f197feb0224871e64a49ce65104f72e6070da179cbbdc1b41d4c83cc116",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000102",
+      "final_digest": "sha256:7ebc5845aab9fce658ef2838d16f2d770319e06198f108879bb16d5cd3ad6836",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001835",
+      "final_digest": "sha256:b13b2ec7c785ab97046c16081960ee0ae956b046ade27c2be246e3fcc6ed6c18",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002829",
+      "final_digest": "sha256:6dff22af80aec670b06db5393c7f4a6e2b24355c362aac0ed537fb827f41c70a",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000164",
+      "final_digest": "sha256:8f1882645923c6c195b7c7a5a458496268a259bb6a11ffe421ee1844ecc24bbf",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001248",
+      "final_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002801",
+      "final_digest": "sha256:af7be8aa733e156149b29116178f7a0b2b6ab54a1f7219f9bc57e610c7fe2e14",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000795",
+      "final_digest": "sha256:bb3e6c2a2b20345003bba4494187124d1596f9d48cf041e6236d83f7be7f9c79",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002601",
+      "final_digest": "sha256:f8eb99dc1d6169d942b0eb256dcd9eac8f21a83c86132ff464b85d67e51f8e6a",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001614",
+      "final_digest": "sha256:5cdfb1b32a66ef5f2d1fa9261e4899cc28079d7726ba8483323db96d078e5f05",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002773",
+      "final_digest": "sha256:4f7f4b6c29b972876c8a461fbaf52a27fddbbcaa7e6855095c5b8fba39dfd6c0",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001946",
+      "final_digest": "sha256:0bfd982239332b7e8b6d9b8417056e78d6c17884b32b39f92d12dd8d30fd6da6",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002212",
+      "final_digest": "sha256:ac7858a9807011371137bacffb65d16b279ae9f579cc4f3658d2ade78cc640d5",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000149",
+      "final_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000143",
+      "final_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001945",
+      "final_digest": "sha256:b93ff491119b8e3785116efc2f71c15aae7f7c134f17f5073b9a6d0922a3e760",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000878",
+      "final_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000732",
+      "final_digest": "sha256:047db2136be85238a55e236dbeeac9adf72dd970d52183bf1def654ff57bfc60",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001833",
+      "final_digest": "sha256:c9a306dc794825610f1781171384937887dcfc45d826610ded2f03c82605cf5d",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002162",
+      "final_digest": "sha256:d7f498fb129b3d2de85ef27827ea2e12d334ce36e66a3b3675a5c4535a500196",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001987",
+      "final_digest": "sha256:6f4b3e31fe02ebe30601bd39dec4b05b1c4ab9daee6d9dfc64e84058e671fd5b",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002664",
+      "final_digest": "sha256:a7a0a36821dbf3fa8e4425f32307457016e8eb1666a824f063cad3c177cfe549",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000224",
+      "final_digest": "sha256:c277046f968de43345bb41ff0392ec5359b66640a1b6fe48215fed30bf320e44",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002304",
+      "final_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001841",
+      "final_digest": "sha256:77a49c5ee858159a4201c514e2e3992f53a3af77fecfc5b45328690a99980f44",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002538",
+      "final_digest": "sha256:da16b16ef3d4c4808e18e8db736d2b2c383a4ef5ef9bf549458bdffa13e5dda3",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000079",
+      "final_digest": "sha256:d7377a157ba11260a0b91aefc3cd115e4d1f7581bc6f16fa1c4b45364b5e7af6",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "final_digest": "sha256:3300a37e551ab8ad8e1cf25a8bd22d4462eb851522257e1031359cdc415d9f3d",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000203",
+      "final_digest": "sha256:e2780ab17cf608050b928b013bb6b9c40da6b2d8cfd6008b022490e2f8303f52",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002521",
+      "final_digest": "sha256:b892c6fdb8f675aa4cc7b668c17924f4356a5b3804dbbaa9a3ac609fb6f85ac2",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-002351",
+      "final_digest": "sha256:2b54bff876e2cea9521ee2e6cf6ed09da1710a929137bcdad2168978ad320df2",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000925",
+      "final_digest": "sha256:03e6d2eeceff4197fddb246c5a2ee1b61d9da187d721221dcc6d1b22f1eef3c9",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000215",
+      "final_digest": "sha256:93ea6af025bd411cc7ea01531c25abbb3cfa1bd07be6d52bb2339e69b67273c3",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000737",
+      "final_digest": "sha256:c7ded49e47acbf44b140169de554f75701837439a937064691e521e5b7567fec",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000046",
+      "final_digest": "sha256:6d46ef7d329cd89eaca1861d810c86e2c645a77f822489dd4fd2ab3ff8d9d2ab",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000048",
+      "final_digest": "sha256:673816e51dbc84653b4fbfe52f20e2b253a1aefc8d2b53a2d7e08e6d9a70eadb",
+      "agents": [
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000055",
+      "final_digest": "sha256:73504213090f7f5f40ef7808ba54f9d1f04463149b688745f9e49fbcc86af27e",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000112",
+      "final_digest": "sha256:7c9615cb47b35a2746870e0d6d759429dd605fb15422e5a623ef5c8a8d4a7918",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000208",
+      "final_digest": "sha256:a31c99e573c3c1a20bbc55ee1e06bdab164635e48431b6e77a4cc875ac046ae4",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000427",
+      "final_digest": "sha256:b5f347bdf92071ed84cc2cd561c9237481a05d6a3c031195f7a794add98410cf",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000431",
+      "final_digest": "sha256:026b371dc5ba9cf458fe81f462610c01eb9ddd03b7f4b0e6e7d11478b5695a01",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000460",
+      "final_digest": "sha256:122f42a417be77cc2dd5f0a8f5bc279abce231d112865e35c72bfcd33f521f41",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-000524",
+      "final_digest": "sha256:ebd2e501fbe7eca58a79e4dc6cf03d1fdcb9718c9b960dcac4da2d5a02891660",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001514",
+      "final_digest": "sha256:5fa108992a7cb1574d7a471824c238ab1e7fa8f0abd1eb1ba138bb46ee5ca014",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001675",
+      "final_digest": "sha256:23634ba63a576635df4b2823737c11305e102d4393c262eb775c66ab53bf7ad7",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    },
+    {
+      "task_id": "format-code-task-001849",
+      "final_digest": "sha256:4d563e332d8f5e6fe56e9755d30eda96be0fec3d2109255b349539cbd14897d6",
+      "agents": [
+        "oracle",
+        "nop"
+      ],
+      "runnable": true
+    }
+  ],
+  "advisory_backlog": {
+    "source": "~/Developer/research-context/bridge/overnight-2026-10-15/traces.md:8-10",
+    "unverified_low_count_at_handoff": 113,
+    "named_unverified_line_findings": [
+      "format-code-task-002402",
+      "format-code-task-002609",
+      "format-code-task-001616"
+    ],
+    "automatically_added_to_control_selection": false,
+    "note": "Live sweep metadata snapshot, not a complete task inventory or verified weakness verdict; original 49 flags retain their frozen membership."
+  },
+  "tasks": [
+    {
+      "task_id": "format-code-task-001269",
+      "final_digest": "sha256:9f4c6ffcd9ecd3f83f54c3736edc5311c2218ec279c270ce58b995a9c5cc8328",
+      "language": "python",
+      "image_mib": 424.0,
+      "groups": [
+        "batch_a_cached"
+      ],
+      "source": "Milestone 2 explicit Batch A assignment",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002308",
+      "final_digest": "sha256:c8f7d177bfeb3a08725ee2977f4bd253fc91827a27dd6e4e5ac19f7d66362784",
+      "language": "python",
+      "image_mib": 456.0,
+      "groups": [
+        "batch_a_cached"
+      ],
+      "source": "Milestone 2 explicit Batch A assignment",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002139",
+      "final_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+      "language": "python",
+      "image_mib": 462.0,
+      "groups": [
+        "flagged_traces",
+        "flagged_envcheck",
+        "batch_a_cached"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "final_digest": "sha256:8a1868e975b84b933477925ab6e9f05f41b60a11973d08b232e4d23154b883ec",
+      "language": "python",
+      "image_mib": 717.0,
+      "groups": [
+        "flagged_traces",
+        "flagged_envcheck",
+        "batch_a_cached"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002402",
+      "final_digest": "sha256:0374b461751c83e3fab4141517019b9a92f1fbecd67883cea5c7f11c31c1e264",
+      "language": "python",
+      "image_mib": 850.0,
+      "groups": [
+        "flagged_traces",
+        "flagged_envcheck",
+        "batch_a_cached"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002486",
+      "final_digest": "sha256:2992d36b1aba3abc6b9b25498538e70e19ad8b0ac3e341d8b170d78366b06da8",
+      "language": "python",
+      "image_mib": 858.0,
+      "groups": [
+        "flagged_traces",
+        "batch_a_cached"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002866",
+      "final_digest": "sha256:faf79fbb247cabed25d83ece356d763cb223e9bed828b2f85798ff2bc6c2a139",
+      "language": "python",
+      "image_mib": 1687.0,
+      "groups": [
+        "flagged_traces",
+        "flagged_envcheck",
+        "batch_a_cached"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000792",
+      "final_digest": "sha256:687f2e9a65b1fec85f65a0a48d3e346ed8da079b89532b7809b10c42f254dd65",
+      "language": "python",
+      "image_mib": 3000.0,
+      "groups": [
+        "batch_a_cached"
+      ],
+      "source": "Milestone 2 explicit Batch A assignment",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": false,
+      "blocked_reason": "Manual case-evidence binding required: runner=custom rc=8, with Django unittest summaries in existing immutable output. Do not rerun identical controls just to recover counting.",
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "unverified:custom-runner-case-binding",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            false,
+            false,
+            false
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000236",
+      "final_digest": "sha256:5e5aaac879c37891662b66e321af7a7a12b05a180c4348b473bf98a3ed2df2c9",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "batch_a_cached"
+      ],
+      "source": "Milestone 2 explicit Batch A assignment",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000803",
+      "final_digest": "sha256:2ea10a95a7f391215c4db84a0ef13dbde2ca12a8535697ca9814c27e1eee48a9",
+      "language": "python",
+      "image_mib": 386.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:unfair-task:prompt-misaligned",
+      "runnable": false,
+      "blocked_reason": "historical #891 prompt-misaligned exclusion; not automatically queued",
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "final_digest": "sha256:498a4b0034d9f6323dcc98439c2cecb5b58db9cccc76a118e76ec26633010094",
+      "language": "python",
+      "image_mib": 407.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:unfair-task:prompt-misaligned",
+      "runnable": false,
+      "blocked_reason": "historical #891 prompt-misaligned exclusion; not automatically queued",
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002552",
+      "final_digest": "sha256:fe9c389dabf0b571658bd52d4208fbf383f266a9ce2b1795663d42df093d23ff",
+      "language": "python",
+      "image_mib": 419.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000227",
+      "final_digest": "sha256:47372333aa587e5cd83eaf4580aa1b20649c40c6c5f85ca626b78b541139b637",
+      "language": "python",
+      "image_mib": 425.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000666",
+      "final_digest": "sha256:c3779dbf477218c1776c80eeef62253ba75c0901c48f68317cb46c05a27a740e",
+      "language": "python",
+      "image_mib": 425.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000941",
+      "final_digest": "sha256:baa10a49a813cbfe4211790d4e4a06fe5b8ef7d5b67194de1b818d6bb7ae00b1",
+      "language": "python",
+      "image_mib": 433.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001425",
+      "final_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+      "language": "python",
+      "image_mib": 483.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000363",
+      "final_digest": "sha256:5b0316295cc0430387bd2f0e59ed6d4fec54feedfb9eae874db75f3613a71032",
+      "language": "python",
+      "image_mib": 510.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001891",
+      "final_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "language": "python",
+      "image_mib": 518.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000905",
+      "final_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "language": "python",
+      "image_mib": 519.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002389",
+      "final_digest": "sha256:5c65eba323ca36ca88ec0f32cdbbda4b39e735e5ef7c8d5e33cc8800eec46c65",
+      "language": "python",
+      "image_mib": 525.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000371",
+      "final_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "language": "python",
+      "image_mib": 535.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002736",
+      "final_digest": "sha256:ad057b368b687088db019fd15a537876d8941c541307d7a89173c49d01c6f756",
+      "language": "python",
+      "image_mib": 622.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-003023",
+      "final_digest": "sha256:92eb31288102f6646356524f856d4ef6cc6e71aa07065aa2efb05c7c59e4173e",
+      "language": "python",
+      "image_mib": 672.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000471",
+      "final_digest": "sha256:60b37ebd1cfa93735b037e7ac8d3da916ded3f9f7ed176ec7a9e3c5e62e61bef",
+      "language": "python",
+      "image_mib": 689.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "final_digest": "sha256:263686c81728eb152dfb1b1ea3a13cfc993fde37bdc112b6dbb17803de328f40",
+      "language": "python",
+      "image_mib": 689.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001671",
+      "final_digest": "sha256:76d7fd1efb60a124e9a473b3e0a1fac2b35457aa35d2505a4143d9bbf6bcc47b",
+      "language": "python",
+      "image_mib": 690.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:open-leak:env-dependency",
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001770",
+      "final_digest": "sha256:ab0c80cc53764aa86d23d47ab1c83faacd2511d8d3b3fddff8f18efab6de4242",
+      "language": "python",
+      "image_mib": 692.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001750",
+      "final_digest": "sha256:faae8f94adb18f8e92fb317e176d12ee8e238dda1c4161f2eb5d4b404fa21eae",
+      "language": "python",
+      "image_mib": 720.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002371",
+      "final_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "language": "python",
+      "image_mib": 773.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "final_digest": "sha256:f28b773d9a1194a208335797578e6bda2eb1689bd2cb609f31908e6177efaf8d",
+      "language": "python",
+      "image_mib": 803.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000390",
+      "final_digest": "sha256:ac57a8178e02abe80aa9fd23e07b803a9fc3bf23425f45c035e854130dc7eafa",
+      "language": "python",
+      "image_mib": 828.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001553",
+      "final_digest": "sha256:6050f609db802bd1c0e913e30ac0cd5b4434a5185f6d0682841b6ef292799a44",
+      "language": "python",
+      "image_mib": 898.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "final_digest": "sha256:70e78d7e5422c721ad0769374e53ed7f2e7fd8fdd15e3ad15abe01f8fe4cd268",
+      "language": "python",
+      "image_mib": 959.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002205",
+      "final_digest": "sha256:74fcb1ceb1a5057a2fcdddcd3456902ed68edb3f5f9fd1a679f6437a7dc5fca4",
+      "language": "python",
+      "image_mib": 998.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002222",
+      "final_digest": "sha256:747f6a65cfd087994b0140f0e522f436ba794d0bf39df00141c0eb4a55e985ba",
+      "language": "python",
+      "image_mib": 1147.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001686",
+      "final_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "language": "python",
+      "image_mib": 1208.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001219",
+      "final_digest": "sha256:4b30d85ed4be8d95bd63b14647ab48e7e176e43fb7250579a425597dafc960cd",
+      "language": "python",
+      "image_mib": 1252.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001478",
+      "final_digest": "sha256:08c40cd54466037545ac85eb7b57df4b6bfc3ce5bd023a5f0c251e54e7f9749e",
+      "language": "python",
+      "image_mib": 1289.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:open-leak:env-dependency",
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002394",
+      "final_digest": "sha256:fc3f7a45048e42eaae5ced83630444ec5e7889b745c73e383bc36d79238e3941",
+      "language": "python",
+      "image_mib": 1331.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000237",
+      "final_digest": "sha256:c9e9001222ee321a798a317fa3ff1eca279ed37e286ff3bd543a9daa088c3ad2",
+      "language": "python",
+      "image_mib": 2929.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000657",
+      "final_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "language": "python",
+      "image_mib": 2930.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000511",
+      "final_digest": "sha256:1cdebbbd47230ebe751fbb59b8281f029287df9573e7bd6f34917047a8d329da",
+      "language": "python",
+      "image_mib": 2939.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "final_digest": "sha256:4bf4410705da830f6be70e70676946575390c62446d8e09f9e68fd5e85916f73",
+      "language": "python",
+      "image_mib": 2953.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "final_digest": "sha256:d3b4762aad64be27377ae5199d2d13c5efc29b8253b3c03ea181448cebf521c8",
+      "language": "python",
+      "image_mib": 2956.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002188",
+      "final_digest": "sha256:cf41510cb91278fa554221b2b1f02128f2484ba08c2070e3e122fcf6baba893a",
+      "language": "python",
+      "image_mib": 2964.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002382",
+      "final_digest": "sha256:e5d45a4dc4132581a8c2c5d352e8b49952b00c9c73cf5407c719dc458348ed99",
+      "language": "python",
+      "image_mib": 2966.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000560",
+      "final_digest": "sha256:4322d53436bd17d8a134d40b26e413770eb6d49aa0cdfdf8e9264975e4ff33f2",
+      "language": "python",
+      "image_mib": 3013.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002742",
+      "final_digest": "sha256:687356128bb86dd20b5bd68dbf4f44f4d308301a9dfae0aa9b704815827481c6",
+      "language": "python",
+      "image_mib": 3013.0,
+      "groups": [
+        "flagged_traces",
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000081",
+      "final_digest": "sha256:d720964b423b4fdf9acf5d0788119f3c09d3036ae2bf5d8d395bcac50f40866c",
+      "language": "python",
+      "image_mib": 3040.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000354",
+      "final_digest": "sha256:508fe10389804c6c830e5b3a2fda6b16024888bc9cd2f5b5766b66698ccb0036",
+      "language": "python",
+      "image_mib": 3055.0,
+      "groups": [
+        "post_selection_verified_weak"
+      ],
+      "source": "~/Developer/research-context/bridge/overnight-2026-10-15/traces.md:11-26",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000769",
+      "final_digest": "sha256:ab1d67f8c4ae8a9d1ae4d0f24389c8649f756d8f4d52dfaaf29fefef41d9b85d",
+      "language": "python",
+      "image_mib": 3152.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "final_digest": "sha256:f97bb520f1de09dffe5ac3dacc575593bc9ebb0931ed5a2163938ef283f11336",
+      "language": "python",
+      "image_mib": 3247.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000495",
+      "final_digest": "sha256:f9025ca2589d5dd1c00c2016b6acf32bf59cd201c78526cd07cb2f584240c0db",
+      "language": "python",
+      "image_mib": 3452.0,
+      "groups": [
+        "flagged_traces"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": false,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-applicable:no-reference-fix",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000561",
+      "final_digest": "sha256:651c7eb3183a0b797a441d263ca6b710362458a39725a3438ce0842f47e98360",
+      "language": "python",
+      "image_mib": 3480.0,
+      "groups": [
+        "flagged_envcheck"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000245",
+      "final_digest": "sha256:35a598db08e6f49a4dac34dd503f5003caf37141b1617cf4f11930621be6023f",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "requested_historical_plus_fresh"
+      ],
+      "source": "Milestone 2 explicit Batch A assignment",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        },
+        "nop": {
+          "state": "complete",
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "local-2026-10-15"
+        }
+      },
+      "pending_agents": [],
+      "available_controls_complete": true,
+      "full_oracle_nop_x3_complete": true,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "final_digest": "sha256:0f8d32ea7a1d340c8b9e3577a5e0314369434b3d36817cae3a7b3119664e59da",
+      "language": "python",
+      "image_mib": 403.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002377",
+      "final_digest": "sha256:e6103916c0ff7f3d66cb89f979f660481276824a474d261e939fbd51c4c46109",
+      "language": "python",
+      "image_mib": 425.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000160",
+      "final_digest": "sha256:30793bc33e1f601d24ea719b57ca0a9d52b8eea80259c4120a00ae88c7d7c9f0",
+      "language": "python",
+      "image_mib": 440.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000651",
+      "final_digest": "sha256:d2352dbe64c6adec1fb7506ac8cd6b4bd073c47ee3d1bd4832f79f711349ae6b",
+      "language": "python",
+      "image_mib": 458.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002411",
+      "final_digest": "sha256:6aae4f197feb0224871e64a49ce65104f72e6070da179cbbdc1b41d4c83cc116",
+      "language": "python",
+      "image_mib": 459.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000102",
+      "final_digest": "sha256:7ebc5845aab9fce658ef2838d16f2d770319e06198f108879bb16d5cd3ad6836",
+      "language": "python",
+      "image_mib": 467.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001835",
+      "final_digest": "sha256:b13b2ec7c785ab97046c16081960ee0ae956b046ade27c2be246e3fcc6ed6c18",
+      "language": "python",
+      "image_mib": 467.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002829",
+      "final_digest": "sha256:6dff22af80aec670b06db5393c7f4a6e2b24355c362aac0ed537fb827f41c70a",
+      "language": "python",
+      "image_mib": 469.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000164",
+      "final_digest": "sha256:8f1882645923c6c195b7c7a5a458496268a259bb6a11ffe421ee1844ecc24bbf",
+      "language": "python",
+      "image_mib": 499.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001248",
+      "final_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "language": "python",
+      "image_mib": 507.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002801",
+      "final_digest": "sha256:af7be8aa733e156149b29116178f7a0b2b6ab54a1f7219f9bc57e610c7fe2e14",
+      "language": "python",
+      "image_mib": 526.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000795",
+      "final_digest": "sha256:bb3e6c2a2b20345003bba4494187124d1596f9d48cf041e6236d83f7be7f9c79",
+      "language": "python",
+      "image_mib": 533.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002601",
+      "final_digest": "sha256:f8eb99dc1d6169d942b0eb256dcd9eac8f21a83c86132ff464b85d67e51f8e6a",
+      "language": "python",
+      "image_mib": 619.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001614",
+      "final_digest": "sha256:5cdfb1b32a66ef5f2d1fa9261e4899cc28079d7726ba8483323db96d078e5f05",
+      "language": "python",
+      "image_mib": 683.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002773",
+      "final_digest": "sha256:4f7f4b6c29b972876c8a461fbaf52a27fddbbcaa7e6855095c5b8fba39dfd6c0",
+      "language": "python",
+      "image_mib": 792.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001946",
+      "final_digest": "sha256:0bfd982239332b7e8b6d9b8417056e78d6c17884b32b39f92d12dd8d30fd6da6",
+      "language": "python",
+      "image_mib": 914.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002212",
+      "final_digest": "sha256:ac7858a9807011371137bacffb65d16b279ae9f579cc4f3658d2ade78cc640d5",
+      "language": "python",
+      "image_mib": 1066.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000149",
+      "final_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "language": "python",
+      "image_mib": 1331.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000143",
+      "final_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "language": "python",
+      "image_mib": 1537.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001945",
+      "final_digest": "sha256:b93ff491119b8e3785116efc2f71c15aae7f7c134f17f5073b9a6d0922a3e760",
+      "language": "python",
+      "image_mib": 1943.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:open-leak:env-dependency",
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000878",
+      "final_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "language": "python",
+      "image_mib": 2942.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000732",
+      "final_digest": "sha256:047db2136be85238a55e236dbeeac9adf72dd970d52183bf1def654ff57bfc60",
+      "language": "python",
+      "image_mib": 2946.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001833",
+      "final_digest": "sha256:c9a306dc794825610f1781171384937887dcfc45d826610ded2f03c82605cf5d",
+      "language": "python",
+      "image_mib": 2949.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": "fail:unfair-task:non-idempotent-test",
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002162",
+      "final_digest": "sha256:d7f498fb129b3d2de85ef27827ea2e12d334ce36e66a3b3675a5c4535a500196",
+      "language": "python",
+      "image_mib": 2950.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001987",
+      "final_digest": "sha256:6f4b3e31fe02ebe30601bd39dec4b05b1c4ab9daee6d9dfc64e84058e671fd5b",
+      "language": "python",
+      "image_mib": 2960.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002664",
+      "final_digest": "sha256:a7a0a36821dbf3fa8e4425f32307457016e8eb1666a824f063cad3c177cfe549",
+      "language": "python",
+      "image_mib": 2976.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000224",
+      "final_digest": "sha256:c277046f968de43345bb41ff0392ec5359b66640a1b6fe48215fed30bf320e44",
+      "language": "python",
+      "image_mib": 3001.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002304",
+      "final_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "language": "python",
+      "image_mib": 3003.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001841",
+      "final_digest": "sha256:77a49c5ee858159a4201c514e2e3992f53a3af77fecfc5b45328690a99980f44",
+      "language": "python",
+      "image_mib": 3013.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002538",
+      "final_digest": "sha256:da16b16ef3d4c4808e18e8db736d2b2c383a4ef5ef9bf549458bdffa13e5dda3",
+      "language": "python",
+      "image_mib": 3057.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000079",
+      "final_digest": "sha256:d7377a157ba11260a0b91aefc3cd115e4d1f7581bc6f16fa1c4b45364b5e7af6",
+      "language": "python",
+      "image_mib": 3059.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000682",
+      "final_digest": "sha256:3300a37e551ab8ad8e1cf25a8bd22d4462eb851522257e1031359cdc415d9f3d",
+      "language": "python",
+      "image_mib": 3153.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000203",
+      "final_digest": "sha256:e2780ab17cf608050b928b013bb6b9c40da6b2d8cfd6008b022490e2f8303f52",
+      "language": "python",
+      "image_mib": 3294.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002521",
+      "final_digest": "sha256:b892c6fdb8f675aa4cc7b668c17924f4356a5b3804dbbaa9a3ac609fb6f85ac2",
+      "language": "python",
+      "image_mib": 3380.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-002351",
+      "final_digest": "sha256:2b54bff876e2cea9521ee2e6cf6ed09da1710a929137bcdad2168978ad320df2",
+      "language": "python",
+      "image_mib": 3544.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000925",
+      "final_digest": "sha256:03e6d2eeceff4197fddb246c5a2ee1b61d9da187d721221dcc6d1b22f1eef3c9",
+      "language": "python",
+      "image_mib": 3770.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000215",
+      "final_digest": "sha256:93ea6af025bd411cc7ea01531c25abbb3cfa1bd07be6d52bb2339e69b67273c3",
+      "language": "python",
+      "image_mib": 3989.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000737",
+      "final_digest": "sha256:c7ded49e47acbf44b140169de554f75701837439a937064691e521e5b7567fec",
+      "language": "python",
+      "image_mib": 6644.0,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000046",
+      "final_digest": "sha256:6d46ef7d329cd89eaca1861d810c86e2c645a77f822489dd4fd2ab3ff8d9d2ab",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000048",
+      "final_digest": "sha256:673816e51dbc84653b4fbfe52f20e2b253a1aefc8d2b53a2d7e08e6d9a70eadb",
+      "language": "go",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "complete",
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "source": "historical-pr898"
+        },
+        "nop": {
+          "state": "insufficient-repeats",
+          "rewards": [
+            0.0
+          ],
+          "test_execution": [
+            true
+          ],
+          "source": "historical-pr898"
+        }
+      },
+      "pending_agents": [
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000055",
+      "final_digest": "sha256:73504213090f7f5f40ef7808ba54f9d1f04463149b688745f9e49fbcc86af27e",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000112",
+      "final_digest": "sha256:7c9615cb47b35a2746870e0d6d759429dd605fb15422e5a623ef5c8a8d4a7918",
+      "language": "javascript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000208",
+      "final_digest": "sha256:a31c99e573c3c1a20bbc55ee1e06bdab164635e48431b6e77a4cc875ac046ae4",
+      "language": "go",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000427",
+      "final_digest": "sha256:b5f347bdf92071ed84cc2cd561c9237481a05d6a3c031195f7a794add98410cf",
+      "language": "go",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000431",
+      "final_digest": "sha256:026b371dc5ba9cf458fe81f462610c01eb9ddd03b7f4b0e6e7d11478b5695a01",
+      "language": "go",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000460",
+      "final_digest": "sha256:122f42a417be77cc2dd5f0a8f5bc279abce231d112865e35c72bfcd33f521f41",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-000524",
+      "final_digest": "sha256:ebd2e501fbe7eca58a79e4dc6cf03d1fdcb9718c9b960dcac4da2d5a02891660",
+      "language": "javascript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001514",
+      "final_digest": "sha256:5fa108992a7cb1574d7a471824c238ab1e7fa8f0abd1eb1ba138bb46ee5ca014",
+      "language": "typescript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001675",
+      "final_digest": "sha256:23634ba63a576635df4b2823737c11305e102d4393c262eb775c66ab53bf7ad7",
+      "language": "javascript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    },
+    {
+      "task_id": "format-code-task-001849",
+      "final_digest": "sha256:4d563e332d8f5e6fe56e9755d30eda96be0fec3d2109255b349539cbd14897d6",
+      "language": "javascript",
+      "image_mib": null,
+      "groups": [
+        "sample_50"
+      ],
+      "source": "selection.json",
+      "reference_fix_available": true,
+      "prior_generation_context": null,
+      "runnable": true,
+      "blocked_reason": null,
+      "controls": {
+        "oracle": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        },
+        "nop": {
+          "state": "not-run",
+          "rewards": null,
+          "test_execution": null,
+          "source": null
+        }
+      },
+      "pending_agents": [
+        "oracle",
+        "nop"
+      ],
+      "available_controls_complete": false,
+      "full_oracle_nop_x3_complete": false,
+      "full_clean_census_complete": false
+    }
+  ]
+}

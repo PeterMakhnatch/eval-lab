@@ -12,6 +12,20 @@ import requests
 import responses
 
 
+@pytest.fixture(autouse=True)
+def isolated_default_mock():
+    """Check restoration before cleanup, and never contaminate another test."""
+    initial = responses.mock.assert_all_requests_are_fired
+    assert initial is False, "the task's bare activate must start lenient"
+    responses.mock.reset()
+    try:
+        yield
+        assert responses.mock.assert_all_requests_are_fired is initial
+    finally:
+        responses.mock.reset()
+        responses.mock.assert_all_requests_are_fired = initial
+
+
 def test_strict_decorator_raises_when_a_registered_request_never_fires():
     @responses.activate_strict
     def run():
@@ -19,7 +33,7 @@ def test_strict_decorator_raises_when_a_registered_request_never_fires():
 
     with pytest.raises(AssertionError):
         run()
-    responses.mock.reset()
+    assert responses.mock.assert_all_requests_are_fired is False
 
 
 def test_strict_decorator_passes_when_every_request_fires():
@@ -42,4 +56,20 @@ def test_bare_activate_stays_lenient_after_a_strict_run():
         responses.add(responses.GET, "http://example.com", body=b"test")
 
     strict()
+    lenient()
+
+
+def test_failed_strict_run_also_restores_bare_activate():
+    @responses.activate_strict
+    def strict():
+        responses.add(responses.GET, "http://example.com", body=b"test")
+
+    @responses.activate
+    def lenient():
+        responses.add(responses.GET, "http://example.com", body=b"test")
+
+    lenient()
+    with pytest.raises(AssertionError):
+        strict()
+    assert responses.mock.assert_all_requests_are_fired is False
     lenient()

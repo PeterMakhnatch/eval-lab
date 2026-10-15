@@ -21,7 +21,7 @@ Staged reviewer from ``research-context/reward-hacking/omp-conversations/
   unsure. It never uses the model family that produced the trace.
 - **T3** :func:`t3_refute`: executed counterfactual (opt-in, local Docker): the
   recorded pass replayed against newer graders for its task
-  (:mod:`evallab.qa.counterfactual`: ``separate-verifier@10``, ``verifier-repair@*``),
+  (:mod:`evallab.qa.counterfactual`: ``mimo-clean-v6``, ``verifier-repair@*``),
   plus an LLM refuter that tries to disprove each raised claim.
 - **T4** :func:`t4_verdict`: one ``qa.finding/v1`` (:class:`evallab.qa.models.Finding`)
   per question plus a trace verdict. Skipped questions are ``unknown`` /
@@ -48,7 +48,7 @@ import tempfile
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,7 +70,7 @@ from evallab.qa.models import (
 
 BUNDLE_SCHEMA = "qa.trace_bundle/v1"
 VERDICT_SCHEMA = "qa.trace_verdict/v1"
-PIPELINE_VERSION = "qa-trace/3"
+PIPELINE_VERSION = "qa-trace/4"
 
 QUESTIONS = (
     "reward_shortcut",
@@ -1277,38 +1277,46 @@ def counterfactual_root() -> Path:
     return shared_checkout_root(_repo_root()) / "derived" / "qa-trace" / "counterfactual"
 
 
-def regrade_counterfactual(trial_dir: Path, task_name: str | None) -> dict[str, Any]:
+def regrade_counterfactual(
+    trial_dir: Path,
+    task_name: str | None,
+    *,
+    repairs: Sequence[Path] = (),
+    grader_manifest: Path | None = None,
+) -> dict[str, Any]:
     """Replay the recorded pass against the task's newer graders (local Docker).
 
     Only graders whose controls hold (empty diff 0, reference fix 1) count; the
     returned summary carries no paths or run names (it reaches the refuter).
     """
-    from evallab.qa import counterfactual as cf
-
     if not task_name:
         return {"ran": False, "reason": "task name unknown"}
-    repo = _repo_root()
-    graders = cf.newer_graders(task_name, repo)
-    if not graders:
-        return {"ran": False, "reason": "no newer grader recorded or derivable for this task"}
-    rows: list[dict[str, Any]] = []
-    for grader in graders:
-        slot = grader.label.replace(":", "-")
-        controls = cf.grader_controls(
-            grader, trial_dir, counterfactual_root() / "controls" / slot, repo_root=repo
-        )
-        row = cf.replay(
-            trial_dir, grader, counterfactual_root() / "replays" / trial_dir.name / slot
-        )
-        rows.append(
+    raw = regrade_passes(
+        [
             {
-                "grader": grader.transform,
-                "valid": controls["valid"],
-                "controls": {"nop": controls["nop"], "reference": controls["reference"]},
-                **{k: row.get(k) for k in ("outcome", "recorded", "regraded", "snapshot")},
-                "refusals": row.get("refusals") or [],
+                "item_id": blind_id(trial_dir.name),
+                "task": task_name,
+                "trial": trial_dir,
+                "group": "T3",
             }
-        )
+        ],
+        counterfactual_root() / "t3" / blind_id(trial_dir.name),
+        repairs=repairs,
+        grader_manifest=grader_manifest,
+        workers=1,
+        log=lambda _: None,
+    )
+    rows: list[dict[str, Any]] = [
+        {
+            "grader": row["grader"],
+            "valid": row["valid_grader"],
+            "controls": row["controls"],
+            **{k: row.get(k) for k in ("outcome", "recorded", "regraded", "input_kind")},
+            "refusals": [code.split(":", 1)[0] for code in row.get("refusals", [])],
+        }
+        for row in raw
+        if row.get("grader")
+    ]
     scored = [r for r in rows if r["valid"] and r["outcome"] in ("stays", "flips", "loosened")]
     if not scored:
         return {"ran": False, "reason": "no valid grader produced a reward", "graders": rows}
@@ -1332,6 +1340,8 @@ def t3_refute(
     evidence: str,
     trial_dir: Path | None,
     regrade: bool,
+    repairs: Sequence[Path] = (),
+    grader_manifest: Path | None = None,
     call: Caller = call_model,
 ) -> dict[str, Any]:
     """T3: executed counterfactual regrade (opt-in) + LLM refuter over raised claims.
@@ -1344,7 +1354,12 @@ def t3_refute(
     executed: dict[str, Any] = {"ran": False, "reason": "not requested"}
     if regrade and trial_dir is not None and (trial_dir / "result.json").is_file():
         with _REGRADE_LOCK:
-            executed = regrade_counterfactual(trial_dir, bundle.subject.get("task_id"))
+            executed = regrade_counterfactual(
+                trial_dir,
+                bundle.subject.get("task_id"),
+                repairs=repairs,
+                grader_manifest=grader_manifest,
+            )
     rulings: dict[str, dict[str, Any]] = {}
     if executed.get("ran"):
         before = executed["recorded"]
@@ -1353,7 +1368,7 @@ def t3_refute(
         ]
         why = "; ".join(f"{r['grader']}: {r['recorded']:g} -> {r['regraded']:g}" for r in moved)
         for question in raised:
-            if question in ("reward_shortcut", "false_positive") and executed["lowest"] < before:
+            if question == "false_positive" and executed["lowest"] < before:
                 rulings[question] = {"status": "verified", "by": "regrade", "reason": why}
             if question == "false_negative" and executed["highest"] > before:
                 rulings[question] = {"status": "verified", "by": "regrade", "reason": why}
@@ -1659,9 +1674,18 @@ class TraceConfig:
     t3: ModelRoute = field(default_factory=lambda: ModelRoute.parse(DEFAULT_T3))
     stages: frozenset[str] = frozenset({"T0", "T1", "T2", "T3"})
     regrade: bool = False
+    repairs: tuple[Path, ...] = ()
+    grader_manifest: Path | None = None
     gate: QuotaGate | None = None
 
     def fingerprint(self) -> dict[str, Any]:
+        from evallab.mimo_clean import MANIFEST_V6_REL
+        from evallab.qa import counterfactual as cf
+
+        manifest = self.grader_manifest or _repo_root() / MANIFEST_V6_REL
+        if not manifest.is_absolute():
+            manifest = _repo_root() / manifest
+
         return {
             "pipeline": PIPELINE_VERSION,
             "t1": self.t1.label,
@@ -1670,6 +1694,15 @@ class TraceConfig:
             "t3": self.t3.label,
             "stages": sorted(self.stages),
             "regrade": self.regrade,
+            "grader_manifest": (
+                {"path": str(manifest), "sha256": _sha256_bytes(manifest.read_bytes())}
+                if self.regrade and manifest.is_file()
+                else None
+            ),
+            "repairs": [
+                {"path": str(path), "variant_digest": record.variant_digest}
+                for path, record in cf.repair_records(list(self.repairs))
+            ],
         }
 
 
@@ -1746,6 +1779,8 @@ def review_bundle(
             evidence=evidence,
             trial_dir=trial_dir,
             regrade=config.regrade,
+            repairs=config.repairs,
+            grader_manifest=config.grader_manifest,
             call=call,
         )
         _write_json(out_dir / "t3.json", t3)
@@ -2195,57 +2230,95 @@ def baseline_flags(
 REGRADE_OUTCOMES = ("flips", "stays", "loosened", "refused", "no_newer_grader", "not_a_pass")
 
 
-def regrade_key(
-    key: AnswerKey,
-    items: list[AnswerKeyItem],
+def key_subjects(key: AnswerKey, items: list[AnswerKeyItem]) -> list[dict[str, Any]]:
+    """Regrade subjects for answer-key items; ``group`` is role/trace kind."""
+    subjects = []
+    for item in items:
+        extra = _extra(item)
+        subjects.append(
+            {
+                "item_id": item_id_of(key.key_id, item),
+                "trial": key_trial_dir(item),
+                "task": item.subject.task_id,
+                "group": f"{item.role}/{extra.get('trace_kind')}",
+                "split": item.split,
+                "expected": extra.get("expected_regrade"),
+                "expected_verdict": item.expected_verdict,
+            }
+        )
+    return subjects
+
+
+def pass_list_subjects(path: Path) -> list[dict[str, Any]]:
+    """Regrade subjects from a JSONL pass list.
+
+    Each row needs ``item_id``, ``task`` and ``trial_path`` (absolute, or
+    relative to the results home); any other field (``group``, ``expected``,
+    review labels) is carried into the output rows.
+    """
+    from evallab.results_home import results_root
+
+    subjects = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        trial = Path(row.pop("trial_path"))
+        trial = trial if trial.is_absolute() else results_root() / trial
+        subjects.append({**row, "trial": trial if trial.is_dir() else None})
+    return subjects
+
+
+def regrade_passes(
+    subjects: list[dict[str, Any]],
     out: Path,
     *,
+    repairs: Sequence[Path] = (),
+    grader_manifest: Path | None = None,
     workers: int = 2,
     log: Callable[[str], None] = print,
 ) -> list[dict[str, Any]]:
-    """Counterfactual regrade of every item's recorded pass against its task's
-    newer graders (:mod:`evallab.qa.counterfactual`). Resumes from
-    ``out/items/<blind id>/<grader>.json``; grader controls run first, once per
-    grader, then the replays (``workers`` at a time, one container each)."""
+    """Counterfactual regrade of each subject's recorded pass against its task's
+    newer graders (:mod:`evallab.qa.counterfactual`): the v6 package plus the
+    test-repaired variants found in the checkout or under ``repairs``.
+
+    Grader controls run first, once per grader, cached in the shared
+    counterfactual store (they do not depend on the subjects); then the
+    replays, ``workers`` at a time, resuming from ``out/items/<blind id>/<grader>.json``.
+    """
     from evallab.qa import counterfactual as cf
 
     repo = _repo_root()
+    extra = cf.repair_records(list(repairs))
     rows: list[dict[str, Any]] = []
     graders: dict[str, list[cf.Grader]] = {}
     shells: dict[str, Path] = {}
     jobs: list[tuple[dict[str, Any], Path, cf.Grader]] = []
-    for item in items:
-        extra = _extra(item)
-        trial = key_trial_dir(item)
-        base = {
-            "item_id": item_id_of(key.key_id, item),
-            "split": item.split,
-            "role": item.role,
-            "trace_kind": extra.get("trace_kind"),
-            "expected_verdict": item.expected_verdict,
-            "expected_category": item.expected_category,
-            "task": item.subject.task_id,
-        }
+    for subject in subjects:
+        base = {k: v for k, v in subject.items() if k != "trial"}
+        trial, task = subject["trial"], subject["task"]
         if trial is None:
             rows.append({**base, "outcome": "refused", "refusals": ["source_trial_missing"]})
             continue
-        task = item.subject.task_id
+        base["source_digest"] = cf.source_digest(trial)
         if task not in graders:
-            graders[task] = cf.newer_graders(task, repo)
+            graders[task] = cf.newer_graders(task, repo, extra, manifest=grader_manifest)
             shells[task] = trial
         if not graders[task]:
             rows.append({**base, "grader": None, "outcome": "no_newer_grader"})
         jobs.extend((base, trial, grader) for grader in graders[task])
 
-    controls: dict[str, dict[str, Any]] = {}
-
     def _control(grader: cf.Grader) -> dict[str, Any]:
         slot = grader.label.replace(":", "-")
         return cf.grader_controls(
-            grader, shells[grader.task_name], out / "controls" / slot, repo_root=repo
+            grader,
+            shells[grader.task_name],
+            counterfactual_root() / "controls" / slot,
+            repo_root=repo,
         )
 
     every = {g.label: g for task_graders in graders.values() for g in task_graders}
+    controls: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         for label, result in zip(every, pool.map(_control, every.values()), strict=True):
             controls[label] = result
@@ -2253,43 +2326,77 @@ def regrade_key(
 
     def _replay(job: tuple[dict[str, Any], Path, cf.Grader]) -> dict[str, Any]:
         base, trial, grader = job
-        blind, slot = blind_id(trial.name), grader.label.replace(":", "-")
-        done = out / "items" / blind / f"{slot}.json"
-        if done.is_file():
-            return _read_json(done)
-        row = cf.replay(trial, grader, out / "work" / blind / slot)
+        blind, slot = base["source_digest"][:16], grader.label.replace(":", "-")
+        cache = counterfactual_root() / "replay-cache" / base["source_digest"] / f"{slot}.json"
+        identity = {
+            "engine": cf.ENGINE_VERSION,
+            "source_digest": base["source_digest"],
+            "grader": grader.label,
+            "grader_digest": grader.variant_digest,
+        }
+        observed = _read_json(cache) if cache.is_file() else {}
+        if (
+            any(observed.get(k) != value for k, value in identity.items())
+            or observed.get("outcome") == "refused"
+        ):
+            observed = {
+                **cf.replay(trial, grader, out / "work" / blind / slot, repo_root=repo),
+                **identity,
+            }
+            _write_json(cache, observed)
+        return observed
+
+    unique = {
+        (base["source_digest"], grader.label): (base, trial, grader) for base, trial, grader in jobs
+    }
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        executed = dict(zip(unique, pool.map(_replay, unique.values()), strict=True))
+    for base, _, grader in jobs:
         control = controls[grader.label]
         row = {
+            **executed[base["source_digest"], grader.label],
             **base,
-            **row,
+            "grader_source": grader.to_json(),
             "transform": grader.transform,
             "valid_grader": control["valid"],
             "controls": {"nop": control["nop"], "reference": control["reference"]},
         }
-        _write_json(done, row)
-        return row
-
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        for row in pool.map(_replay, jobs):
-            log(f"[regrade] {row['item_id']} {row['grader']}: {row['outcome']}")
-            rows.append(row)
+        slot = grader.label.replace(":", "-")
+        _write_json(out / "items" / blind_id(base["item_id"]) / f"{slot}.json", row)
+        log(f"[regrade] {row['item_id']} {row['grader']}: {row['outcome']}")
+        rows.append(row)
     return rows
 
 
+def _grader_cell(row: dict[str, Any]) -> str:
+    transform = row.get("transform") or "-"
+    if row.get("transform") and not row.get("valid_grader"):
+        transform += " (UNVALIDATED: controls missing or failed)"
+    return transform
+
+
 def render_regrade_table(rows: list[dict[str, Any]]) -> str:
-    """Outcome counts per grader transform and (role, trace kind); invalid graders apart."""
-    groups: dict[tuple[str, str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    """Outcome counts per grader transform and subject group; invalid graders
+    apart. When subjects carry an ``expected`` outcome, a second table crosses
+    expected with observed (valid graders only)."""
+    groups: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for row in rows:
-        transform = row.get("transform") or "-"
-        if row.get("transform") and not row.get("valid_grader"):
-            transform += " (INVALID: controls failed)"
-        key = (transform, str(row.get("role")), str(row.get("trace_kind")))
-        groups[key][row["outcome"]] += 1
-    head = "| grader | role | trace kind | " + " | ".join(REGRADE_OUTCOMES) + " |"
-    lines = [head, "|" + "---|" * (3 + len(REGRADE_OUTCOMES))]
-    for (transform, role, kind), counts in sorted(groups.items()):
+        groups[(_grader_cell(row), str(row.get("group")))][row["outcome"]] += 1
+    head = "| grader | group | " + " | ".join(REGRADE_OUTCOMES) + " |"
+    lines = [head, "|" + "---|" * (2 + len(REGRADE_OUTCOMES))]
+    for (transform, group), counts in sorted(groups.items()):
         cells = [str(counts.get(o, 0)) for o in REGRADE_OUTCOMES]
-        lines.append(f"| {transform} | {role} | {kind} | " + " | ".join(cells) + " |")
+        lines.append(f"| {transform} | {group} | " + " | ".join(cells) + " |")
+    expected = [r for r in rows if r.get("expected") and r.get("valid_grader")]
+    if expected:
+        crossed: dict[tuple[str, str], dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for row in expected:
+            crossed[(row["transform"], f"expected {row['expected']}")][row["outcome"]] += 1
+        lines += ["", "| grader | expected | " + " | ".join(REGRADE_OUTCOMES) + " |"]
+        lines.append("|" + "---|" * (2 + len(REGRADE_OUTCOMES)))
+        for (transform, want), counts in sorted(crossed.items()):
+            cells = [str(counts.get(o, 0)) for o in REGRADE_OUTCOMES]
+            lines.append(f"| {transform} | {want} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 
@@ -2336,6 +2443,8 @@ def _config(args: argparse.Namespace) -> TraceConfig:
         t3=ModelRoute.parse(args.t3),
         stages=frozenset(s.strip().upper() for s in args.stages.split(",")),
         regrade=args.regrade,
+        repairs=tuple(args.repairs),
+        grader_manifest=args.grader_manifest,
         gate=QuotaGate(args.max_quota),
     )
 
@@ -2407,6 +2516,44 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         )
         print(json.dumps({k: verdict[k] for k in keys}, indent=1))
         return 0
+    if cmd == "regrade":
+        if (args.key is None) == (args.passes is None):
+            raise SystemExit("regrade: give exactly one of --key or --passes")
+        if args.grader_manifest is not None and not args.grader_manifest.is_file():
+            raise SystemExit(f"regrade: grader manifest is missing: {args.grader_manifest}")
+        if args.key is not None:
+            key = resolve_answer_key(args.key, root)
+            subjects = key_subjects(
+                key, key_items(key, split=args.split, exclude=_read_lines(args.exclude))
+            )
+            source = {"key": key.key_id, "split": args.split}
+        else:
+            subjects = pass_list_subjects(args.passes)
+            source = {"passes": str(args.passes)}
+        rows = regrade_passes(
+            subjects,
+            args.out,
+            repairs=args.repairs,
+            grader_manifest=args.grader_manifest,
+            workers=args.workers,
+            log=lambda m: print(m, file=sys.stderr),
+        )
+        _write_json(
+            args.out / "summary.json",
+            {
+                **source,
+                "repairs": [str(p) for p in args.repairs],
+                "grader_manifest": str(args.grader_manifest) if args.grader_manifest else None,
+                "rows": rows,
+            },
+        )
+        print(render_regrade_table(rows))
+        incomplete = any(
+            row["outcome"] in ("refused", "no_newer_grader", "not_a_pass")
+            or not row.get("valid_grader")
+            for row in rows
+        )
+        return 3 if incomplete else 0
     key = resolve_answer_key(args.key, root)
     items = key_items(key, split=args.split, exclude=_read_lines(args.exclude))
     if cmd == "key-run":
@@ -2425,15 +2572,6 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             f"score: uv run evallab qa score --key {key.key_id} --findings {args.out / 'findings'}"
         )
         return 0 if stop is None else 3
-    if cmd == "regrade":
-        rows = regrade_key(
-            key, items, args.out, workers=args.workers, log=lambda m: print(m, file=sys.stderr)
-        )
-        _write_json(
-            args.out / "summary.json", {"key": key.key_id, "split": args.split, "rows": rows}
-        )
-        print(render_regrade_table(rows))
-        return 0
     flags, steps, usage = key_flags(key, items, args.out / "runs")
     judged = [item for item in items if item_id_of(key.key_id, item) in flags]
     rows = [(f"qa-trace ({usage['judged']} judged)", score_paired(key, judged, flags, steps=steps))]
@@ -2455,6 +2593,20 @@ def add_trace_commands(sub: Any) -> None:
     )
     commands = trace.add_subparsers(dest="qa_trace_cmd", required=True)
 
+    def _graders(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--repairs",
+            type=Path,
+            action="append",
+            default=[],
+            help="test-repair lineage record or directory of records (repeatable)",
+        )
+        p.add_argument(
+            "--grader-manifest",
+            type=Path,
+            help="select the repaired v6 manifest instead of the built-in v6 baseline",
+        )
+
     def _models(p: argparse.ArgumentParser) -> None:
         p.add_argument(
             "--t1", default=DEFAULT_T1, help="T1 reviewer route (codex/<model>[:effort])"
@@ -2468,6 +2620,7 @@ def add_trace_commands(sub: Any) -> None:
         p.add_argument("--t3", default=DEFAULT_T3, help="T3 refuter route")
         p.add_argument("--stages", default="T0,T1,T2,T3", help="comma list; T4 always runs")
         p.add_argument("--regrade", action="store_true", help="T3 executed regrade (local Docker)")
+        _graders(p)
         p.add_argument(
             "--max-quota", type=float, default=QUOTA_MAX_USED, help="weekly quota stop fraction"
         )
@@ -2494,8 +2647,8 @@ def add_trace_commands(sub: Any) -> None:
     _models(p)
     p.set_defaults(func=_cmd)
 
-    def _key(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--key", required=True, help="answer-key id or directory")
+    def _key(p: argparse.ArgumentParser, *, required: bool = True) -> None:
+        p.add_argument("--key", required=required, help="answer-key id or directory")
         p.add_argument("--split", help="only this split (default: every item)")
         p.add_argument(
             "--exclude", type=Path, help="trial ids the prompts were tuned on (one per line)"
@@ -2511,11 +2664,22 @@ def add_trace_commands(sub: Any) -> None:
     p.set_defaults(func=_cmd)
     p = commands.add_parser(
         "regrade",
-        help="replay every item's recorded pass against newer graders (separate-verifier@10, "
+        help="replay recorded passes against each task's newer graders (mimo-clean-v6, "
         "verifier-repair@*); reports which passes flip and which stay (local Docker, $0)",
     )
-    _key(p)
-    p.add_argument("--workers", type=int, default=2, help="replays at once (one container each)")
+    _key(p, required=False)
+    p.add_argument(
+        "--passes",
+        type=Path,
+        help="JSONL pass list instead of --key (item_id, task, trial_path, labels)",
+    )
+    _graders(p)
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=2,
+        help="queued replay workers (native executions are serialized)",
+    )
     p.set_defaults(func=_cmd)
     p = commands.add_parser(
         "score",

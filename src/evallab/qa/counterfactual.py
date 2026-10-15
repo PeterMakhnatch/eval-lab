@@ -1,62 +1,53 @@
 """Counterfactual regrade for QA Trace T3: replay a stored pass against newer graders.
 
-A *newer grader* is a lineage-recorded package for the same task: the
-``separate-verifier@10`` variant of the task's MiMo source package (derived on
-demand with the existing transform, :func:`v10_grader`) and any
-``verifier-repair@*`` variant already recorded for it (:func:`repaired_graders`).
+The *newer graders* of a MiMo code task (:func:`newer_graders`) are its
+``mimo-clean-v6`` package (:func:`v6_grader`, the built row of the v6
+manifest) and every test-repaired ``verifier-repair@*`` variant whose package
+still hashes to its record (:func:`repaired_graders`). A repair derived from a
+raw-grader package gets ``separate-verifier@10`` composed over it
+(:func:`separate_over`) so raw repairs also grade in a separate verifier.
 
-The stored pass replays through native Harbor ``trial regrade``
-(:func:`evallab.regrade.regrade_trial`) from a scratch copy of the trial
-(:func:`stage_replay`); the source trial is never touched:
+Retained diffs use the same model-free oracle-script matrix path as
+verifier-repair validation (:func:`evallab.runner.run_matrix`): the script
+applies the retained change, and the native executor owns setup, isolation,
+artifact collection and grading. This is a new control, not a recovered
+original workspace or trajectory. Without a diff, a retained snapshot uses
+native Harbor ``trial regrade`` against the immutable source trial. Missing
+artifacts and ATIF are never fabricated.
 
-- **workspace**: the recorded separate-verifier snapshot when the trial has
-  one; otherwise a snapshot rebuilt from ``verifier/agent.diff``: the task
-  image, the task's own setup, ``git apply`` of the recorded diff, then
-  ``tar`` of the workdir without ``.git``. That archive is exactly the bytes a
-  separate verifier takes from an agent; the verifier re-derives the base,
-  drops test infrastructure and applies the hidden tests itself.
-- **trajectory**: the recorded ``agent/trajectory.json`` as the declared
-  ``/logs/agent/trajectory.json`` artifact, else a marked empty placeholder.
-  Only the integrity dimensions read it; this module reads ``reward`` only.
-
-A grader is **valid** when an empty diff scores 0 and the task's reference fix
-(``research/experiments/mimo-reference-fixes``), when one exists, scores 1
-through the same replay (:func:`grader_controls`). Per pass the outcome is
-``stays`` (reward unchanged), ``flips`` (lower), ``loosened`` (higher),
-``refused`` (typed reason) or ``not_a_pass``. Each replay holds one of
-:data:`DOCKER_SLOTS` for its snapshot rebuild and verifier container, so at
-most two containers run at once.
+A grader is valid only when its nop scores 0 and its reference fix scores 1.
+Missing reference evidence leaves the grader unvalidated, not valid. Oracle/nop
+controls establish this execution gate, not semantic correctness. Each replay
+holds the host-wide Docker FIFO lock; no paid model or cloud backend is used.
 """
 
 from __future__ import annotations
 
+import base64
 import contextlib
+import dataclasses
+import hashlib
 import json
+import math
 import re
-import shutil
+import shlex
 import subprocess
 import tempfile
 import threading
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+V6 = "mimo-clean-v6"
 V10 = "separate-verifier@10"
 REPAIR_PREFIX = "verifier-repair@"
 MIMO_DATASET = "mimo-v2.6-rl"
 SNAPSHOT_ARCHIVE = "workspace.tgz"
-TRAJECTORY_PLACEHOLDER = {
-    "schema_version": "ATIF-v1.6",
-    "session_id": "absent",
-    "agent": {"name": "absent", "version": "0"},
-    "steps": [],
-    "extra": {"qa_trace_placeholder": "source trial recorded no trajectory"},
-}
-#: Replays in flight (one container each at any moment), across threads.
-DOCKER_SLOTS = threading.BoundedSemaphore(2)
-REBUILD_TIMEOUT_SEC = 900
-PULL_TIMEOUT_SEC = 3600
+ENGINE_VERSION = "qa-trace-counterfactual/2"
+#: One in-flight native replay per process; the host FIFO coordinates tabs.
+DOCKER_SLOTS = threading.BoundedSemaphore(1)
 
 
 @dataclass(frozen=True)
@@ -88,17 +79,51 @@ def _slug(task_name: str) -> str:
     return task_name.replace("/", "__")
 
 
-def mimo_source(task_name: str, repo_root: Path) -> Path | None:
-    """The MiMo HF source package for ``mimo-v2.6-rl/<task>`` code tasks, if on disk."""
-    from evallab.mimo_clean import SNAPSHOT_REL
+def _digest(package: Path) -> str:
+    from evallab.task_variants import task_directory_digest
+
+    return task_directory_digest(package)
+
+
+def is_separate(package: Path) -> bool:
+    """Whether the package grades in its own verifier container from a snapshot."""
+    toml = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+    return toml.get("verifier", {}).get("environment_mode") == "separate"
+
+
+def _v6_rows(manifest: Path) -> dict[str, dict[str, str]]:
+    from evallab.mimo_clean import load_manifest
+
+    return {row["task_id"]: row for row in load_manifest(manifest)}
+
+
+def v6_grader(task_name: str, repo_root: Path, *, manifest: Path | None = None) -> Grader | None:
+    """The task's ``mimo-clean-v6`` package (built row of the v6 manifest).
+
+    Used only when it still hashes to the manifest's ``final_digest``.
+    """
+    from evallab.mimo_clean import MANIFEST_V6_REL
     from evallab.storage.paths import shared_checkout_root
 
     dataset, _, base = task_name.partition("/")
-    if dataset != MIMO_DATASET or not base:
+    manifest = manifest or repo_root / MANIFEST_V6_REL
+    if not manifest.is_absolute():
+        manifest = repo_root / manifest
+    if dataset != MIMO_DATASET or not manifest.is_file():
         return None
-    package = shared_checkout_root(repo_root) / SNAPSHOT_REL / "tasks" / base
-    has_tests = (package / "tests" / "test.patch").is_file()
-    return package if has_tests and (package / "tests" / "test_command.sh").is_file() else None
+    row = _v6_rows(manifest).get(base)
+    if row is None or row["status"] != "built":
+        return None
+    package = shared_checkout_root(repo_root) / row["package_path"]
+    if not (package / "task.toml").is_file() or _digest(package) != row["final_digest"]:
+        return None
+    return Grader(
+        task_name=task_name,
+        transform=V6,
+        variant_digest=row["final_digest"],
+        package=package,
+        record=f"{manifest}#{base}",
+    )
 
 
 def _records(task_name: str, repo_root: Path) -> list[tuple[Path, Any]]:
@@ -111,174 +136,108 @@ def _records(task_name: str, repo_root: Path) -> list[tuple[Path, Any]]:
     ]
 
 
-def _grader(task_name: str, record: Any, path: Path, repo_root: Path) -> Grader | None:
-    from evallab.task_variants import default_variants_root
+def repair_records(paths: list[Path]) -> list[tuple[Path, Any]]:
+    """``verifier-repair@*`` lineage records under ``paths`` (files or directories).
 
-    package = (
-        default_variants_root(repo_root)
-        / _slug(task_name)
-        / record.variant_digest.removeprefix("sha256:")[:12]
-    )
-    if not (package / "task.toml").is_file():
-        return None
-    return Grader(
-        task_name=task_name,
-        transform=record.transform,
-        variant_digest=record.variant_digest,
-        package=package,
-        record=str(path.relative_to(repo_root)),
-    )
+    Generated records are never committed (``.gitignore``), so a repair landed
+    in another checkout is passed in by path.
+    """
+    from evallab.task_variants import VariantRecord
+
+    files = [f for p in paths for f in ([p] if p.is_file() else sorted(p.rglob("*.json")))]
+    out = []
+    for path in files:
+        try:
+            record = VariantRecord.model_validate_json(path.read_text(encoding="utf-8"))
+        except ValueError:
+            continue  # not a lineage record
+        if record.transform.startswith(REPAIR_PREFIX):
+            out.append((path, record))
+    return out
 
 
-def v10_grader(task_name: str, repo_root: Path) -> Grader | None:
-    """Find or derive the ``separate-verifier@10`` package of a MiMo code task.
+def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str) -> Grader | None:
+    """Find or derive ``separate-verifier@10`` over a raw-grader ``parent``.
 
-    Derived from the HF source package with the hidden-test marker mimo-clean
-    uses; the reference fix is not bundled (controls replay it instead).
-    Generated lineage records are never committed (``.gitignore``), so a fresh
-    checkout may hold the shared package without its record: the derivation is
-    deterministic, so a throwaway derive names the digest and the shared
-    package is reused when it hashes to it.
+    A test repair derived from a raw MiMo package grades in the agent's own
+    container, which a stored pass no longer has; composing ``@10`` keeps the
+    repaired tests and grades the snapshot instead. The derivation is
+    deterministic, so a throwaway derive names the digest and an existing
+    shared package that hashes to it is reused (its record may live in another
+    checkout). ``via`` names the chain in the grader's transform.
     """
     from evallab.mimo_clean import derive_marker
     from evallab.separate_verifier import derive_separate_verifier_v10
-    from evallab.task_variants import (
-        RECORDS_DIRNAME,
-        VariantExistsError,
-        default_variants_root,
-        task_directory_digest,
-    )
+    from evallab.task_variants import RECORDS_DIRNAME, VariantExistsError, default_variants_root
 
-    parent = mimo_source(task_name, repo_root)
-    if parent is None:
-        return None
     marker = derive_marker(
         (parent / "tests" / "test.patch").read_text(errors="replace"),
         task_name.partition("/")[2],
     )
-    parent_digest = task_directory_digest(parent)
-
-    def lookup() -> Grader | None:
-        for path, record in _records(task_name, repo_root):
-            if (
-                record.transform == V10
-                and record.parent.digest == parent_digest
-                and record.inputs.get("marker") == marker
-                and record.inputs.get("solution") == "absent"
-            ):
-                return _grader(task_name, record, path, repo_root)
-        return None
-
-    found = lookup()
-    if found is not None:
-        return found
     with tempfile.TemporaryDirectory(prefix="qa-trace-v10-") as scratch:
         planned = derive_separate_verifier_v10(
             parent, marker=marker, repo_root=Path(scratch), variants_root=Path(scratch) / "store"
         )
     digest12 = planned.variant_digest.removeprefix("sha256:")[:12]
     package = default_variants_root(repo_root) / _slug(task_name) / digest12
-    if (package / "task.toml").is_file():
-        if task_directory_digest(package) != planned.variant_digest:
-            return None  # a different package under this digest prefix: never grade with it
-        return Grader(
-            task_name=task_name,
-            transform=V10,
-            variant_digest=planned.variant_digest,
-            package=package,
-            record=str(RECORDS_DIRNAME / _slug(task_name) / f"{digest12}.json"),
-        )
-    # Another worker may have derived the same package first; re-read either way.
-    with contextlib.suppress(VariantExistsError):
-        derive_separate_verifier_v10(parent, marker=marker, repo_root=repo_root)
-    return lookup()
-
-
-def repaired_graders(task_name: str, repo_root: Path) -> list[Grader]:
-    """Materialized ``verifier-repair@*`` variants recorded for the task."""
-    out = []
-    for path, record in _records(task_name, repo_root):
-        if record.transform.startswith(REPAIR_PREFIX):
-            grader = _grader(task_name, record, path, repo_root)
-            if grader is not None:
-                out.append(grader)
-    return out
-
-
-def newer_graders(task_name: str, repo_root: Path) -> list[Grader]:
-    v10 = v10_grader(task_name, repo_root)
-    return ([v10] if v10 else []) + repaired_graders(task_name, repo_root)
-
-
-def _task_env(package: Path) -> tuple[str, str]:
-    env = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))["environment"]
-    return env["docker_image"], env["workdir"]
-
-
-def ensure_image(image: str, *, runner: Any = subprocess.run) -> str | None:
-    """Pull ``image`` when it is not cached (no container runs); returns a refusal or None."""
-    cached = runner(["docker", "image", "inspect", image], capture_output=True, text=True)
-    if cached.returncode == 0:
-        return None
-    try:
-        pulled = runner(
-            ["docker", "pull", "--platform", "linux/amd64", image],
-            capture_output=True,
-            text=True,
-            timeout=PULL_TIMEOUT_SEC,
-        )
-    except subprocess.TimeoutExpired:
-        return f"image_unavailable: pull exceeded {PULL_TIMEOUT_SEC}s"
-    return None if pulled.returncode == 0 else f"image_unavailable: {(pulled.stderr or '')[-300:]}"
-
-
-def _rebuild_snapshot(
-    diff_path: Path | None, grader: Grader, snap: Path, *, runner: Any
-) -> str | None:
-    """Post-setup repo + recorded diff as ``workspace.tgz``; returns a refusal or None."""
-    image, workdir = _task_env(grader.package)
-    setup = grader.package / "environment" / "setup"
-    if not (setup / "setup.sh").is_file():
-        return "setup_missing: grader package has no environment/setup/setup.sh"
-    pulled = ensure_image(image, runner=runner)
-    if pulled:
-        return pulled
-    snap.mkdir(parents=True, exist_ok=True)
-    script = (
-        "set -e; mkdir -p /var/lib/mimo && cp -r /in/setup/. /var/lib/mimo/ "
-        "&& bash /var/lib/mimo/setup.sh >/dev/null; "
-        f"cd {workdir}; "
-        "if [ -s /in/agent.diff ]; then git apply --whitespace=nowarn /in/agent.diff "
-        "|| { echo PATCH_DOES_NOT_APPLY >&2; exit 3; }; fi; "
-        f"tar --exclude=.git -czf /out/{SNAPSHOT_ARCHIVE} -C {workdir} ."
+    if not (package / "task.toml").is_file():
+        # Another worker may derive the same package first; the digest check decides.
+        with contextlib.suppress(VariantExistsError):
+            derive_separate_verifier_v10(parent, marker=marker, repo_root=repo_root)
+    if not (package / "task.toml").is_file() or _digest(package) != planned.variant_digest:
+        return None  # never grade with a package that is not the planned bytes
+    return Grader(
+        task_name=task_name,
+        transform=f"{via}>{V10}",
+        variant_digest=planned.variant_digest,
+        package=package,
+        record=str(RECORDS_DIRNAME / _slug(task_name) / f"{digest12}.json"),
     )
-    mounts = ["-v", f"{setup}:/in/setup:ro", "-v", f"{snap}:/out"]
-    if diff_path is not None:
-        mounts += ["-v", f"{diff_path}:/in/agent.diff:ro"]
-    command = [
-        "docker",
-        "run",
-        "--rm",
-        "--network",
-        "none",
-        "--platform",
-        "linux/amd64",
-        *mounts,
-        "--entrypoint",
-        "bash",
-        image,
-        "-c",
-        script,
+
+
+def repaired_graders(
+    task_name: str, repo_root: Path, extra: Sequence[tuple[Path, Any]] = ()
+) -> list[Grader]:
+    """Test-repaired graders for the task: committed records plus ``extra``.
+
+    A repair whose package is a separate verifier (e.g. derived from a v6
+    package) grades as is; a raw-grader repair gets ``@10`` composed over it.
+    """
+    from evallab.task_variants import default_variants_root
+
+    found = [
+        (path, rec)
+        for path, rec in _records(task_name, repo_root)
+        if rec.transform.startswith(REPAIR_PREFIX)
     ]
-    try:
-        done = runner(command, capture_output=True, text=True, timeout=REBUILD_TIMEOUT_SEC)
-    except subprocess.TimeoutExpired:
-        return f"snapshot_rebuild_timeout: over {REBUILD_TIMEOUT_SEC}s"
-    if done.returncode == 3:
-        return "patch_does_not_apply: recorded agent.diff does not apply to the task base"
-    if done.returncode != 0 or not (snap / SNAPSHOT_ARCHIVE).is_file():
-        return f"snapshot_rebuild_failed: {(done.stderr or '')[-300:]}"
-    return None
+    found += [(path, rec) for path, rec in extra if rec.task_name == task_name]
+    out: dict[str, Grader] = {}
+    for path, record in found:
+        digest12 = record.variant_digest.removeprefix("sha256:")[:12]
+        package = default_variants_root(repo_root) / _slug(task_name) / digest12
+        if not (package / "task.toml").is_file() or _digest(package) != record.variant_digest:
+            continue
+        if is_separate(package):
+            grader = Grader(task_name, record.transform, record.variant_digest, package, str(path))
+        else:
+            grader = separate_over(package, task_name, repo_root, via=record.transform)
+            if grader is not None:
+                grader = dataclasses.replace(grader, record=f"{path} > {grader.record}")
+        if grader is not None:
+            out[grader.label] = grader
+    return list(out.values())
+
+
+def newer_graders(
+    task_name: str,
+    repo_root: Path,
+    repairs: Sequence[tuple[Path, Any]] = (),
+    *,
+    manifest: Path | None = None,
+) -> list[Grader]:
+    """The task's v6 grader plus every usable test-repaired grader."""
+    v6 = v6_grader(task_name, repo_root, manifest=manifest)
+    return ([v6] if v6 else []) + repaired_graders(task_name, repo_root, repairs)
 
 
 def strip_binary_artifacts(diff: str) -> tuple[str, list[str]]:
@@ -298,100 +257,117 @@ def strip_binary_artifacts(diff: str) -> tuple[str, list[str]]:
     return "".join(kept), dropped
 
 
-def stage_replay(
-    trial_dir: Path,
-    grader: Grader,
-    out: Path,
-    *,
-    diff_text: str | None = None,
-    runner: Any = subprocess.run,
-) -> dict[str, Any]:
-    """Scratch copy of ``trial_dir`` ready for a verifier-only regrade.
+def _score(value: Any) -> float | None:
+    return (
+        float(value)
+        if isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+        else None
+    )
 
-    ``diff_text`` replaces the recorded change (controls: empty diff, reference
-    fix). Binary artifacts are stripped first, as ``@10`` strips them. Returns
-    ``{"trial", "snapshot", "trajectory", ...}`` or ``{"refused"}``.
-    """
-    from evallab.heldout_verifier import scan_agent_diff
-    from evallab.separate_verifier import SNAP_DIR, TRAJECTORY_ARTIFACT
 
-    if out.exists():
-        shutil.rmtree(out)
-    shutil.copytree(trial_dir, out, ignore=shutil.ignore_patterns("regrade-receipt.json"))
-    snap = out / "artifacts" / SNAP_DIR.lstrip("/")
-    recorded_snapshot = (snap / SNAPSHOT_ARCHIVE).is_file()
-    diff_path = out / "verifier" / "agent.diff"
-    if diff_text is not None:
-        diff_path.parent.mkdir(parents=True, exist_ok=True)
-        diff_path.write_text(diff_text, encoding="utf-8")
-    dropped: list[str] = []
-    if diff_text is None and recorded_snapshot:
-        snapshot = "recorded"
-    elif diff_path.is_file():
-        kept, dropped = strip_binary_artifacts(diff_path.read_text(errors="replace"))
-        replay_diff = out / "verifier" / "agent.replay.diff"
-        replay_diff.write_text(kept, encoding="utf-8")
-        problems, _ = scan_agent_diff(str(replay_diff))
-        if problems:
-            return {"refused": f"diff_unreplayable: {problems[0]}"}
-        shutil.rmtree(snap, ignore_errors=True)
-        refusal = _rebuild_snapshot(replay_diff if kept else None, grader, snap, runner=runner)
-        if refusal:
-            return {"refused": refusal}
-        snapshot = "rebuilt_from_agent_diff"
-    else:
-        return {"refused": "source_patch_unavailable: no recorded snapshot and no agent.diff"}
-    trajectory_out = out / "artifacts" / TRAJECTORY_ARTIFACT.lstrip("/")
-    trajectory_out.parent.mkdir(parents=True, exist_ok=True)
-    recorded_trajectory = trial_dir / "agent" / "trajectory.json"
-    if recorded_trajectory.is_file() and diff_text is None:
-        shutil.copyfile(recorded_trajectory, trajectory_out)
-        trajectory = "recorded"
-    else:
-        trajectory_out.write_text(json.dumps(TRAJECTORY_PLACEHOLDER), encoding="utf-8")
-        trajectory = "placeholder"
-    manifest_path = out / "artifacts" / "manifest.json"
-    manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else []
-    manifest = [m for m in manifest if m.get("source") not in (SNAP_DIR, TRAJECTORY_ARTIFACT)]
-    # Publishing drops empty directories; Harbor then calls the trial incomplete.
-    # The graders read only the snapshot and trajectory, so recreate those dirs
-    # empty (recorded in the row); a missing collected *file* stays a refusal.
-    recreated = []
-    for entry in manifest:
-        target = out / str(entry.get("destination", ""))
-        if entry.get("status") != "ok" or target.exists():
-            continue
-        if entry.get("type") != "directory":
-            return {"refused": f"source_artifact_missing: {entry.get('source')}"}
-        target.mkdir(parents=True)
-        recreated.append(entry.get("source"))
-    for source, kind in ((SNAP_DIR, "directory"), (TRAJECTORY_ARTIFACT, "file")):
-        manifest.append(
-            {
-                "source": source,
-                "destination": f"artifacts{source}",
-                "type": kind,
-                "status": "ok",
-                "service": None,
-                "exclude": [],
-            }
+def _outcome(recorded: float | None, regraded: float | None) -> str:
+    if recorded is None or regraded is None:
+        return "refused"
+    if recorded < 1.0 and regraded <= recorded:
+        return "not_a_pass"
+    if recorded == regraded:
+        return "stays"
+    return "flips" if regraded < recorded else "loosened"
+
+
+def _patch_script(diff: str, workdir: str) -> str:
+    script = f"#!/bin/bash\nset -euo pipefail\ncd {shlex.quote(workdir)}\n"
+    if diff:
+        encoded = base64.b64encode(diff.encode("utf-8")).decode("ascii")
+        script += (
+            f"printf %s {shlex.quote(encoded)} | base64 -d | git apply --whitespace=nowarn -\n"
         )
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return script
+
+
+def _replay_patch(
+    diff: str, grader: Grader, *, repo_root: Path, matrix_runner: Any = None
+) -> dict[str, Any]:
+    """Run the recorded change as a model-free native oracle-script control.
+
+    This is a new patch replay, not a recovered original workspace or ATIF.
+    The canonical executor owns setup, isolation, collection and native jobs.
+    """
+    from evallab.execution_contracts import new_ulid
+    from evallab.registry import compute_task_digests
+    from evallab.runner import run_matrix
+    from evallab.schemas import ExperimentMatrix, MatrixRun
+
+    config = tomllib.loads((grader.package / "task.toml").read_text(encoding="utf-8"))
+    script = _patch_script(diff, config["environment"]["workdir"])
+    script_digest = hashlib.sha256(script.encode()).hexdigest()
+    root = repo_root / "runs" / "qa-trace-regrade"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    script_path = scripts / f"{script_digest}.sh"
+    script_path.write_text(script, encoding="utf-8")
+    ident = new_ulid()
+    name = f"qa-replay-{ident.lower()}"
+    digests = compute_task_digests(grader.package)
+    matrix = ExperimentMatrix(
+        matrix_id=ident,
+        name=name,
+        hypothesis="Replay a retained change against a pinned counterfactual grader.",
+        benchmark_family="qa-trace-regrade",
+        task_id=grader.task_name.rsplit("/", 1)[-1],
+        task=str(grader.package),
+        task_package_digest=digests.package,
+        verifier_digest=digests.verifier,
+        jobs_dir="runs",
+        concurrency=1,
+        timeout_seconds=3600,
+        runs=[
+            MatrixRun(
+                name=name,
+                agent="oracle",
+                solution=script_path.relative_to(repo_root).as_posix(),
+            )
+        ],
+    )
+    execution = (matrix_runner or run_matrix)(matrix, root=repo_root)
+    result = execution.results[0]
+    rewards = result.get("rewards", [])
+    score = (
+        _score(rewards[0]) if len(rewards) == 1 and result["status"] in {"ok", "mismatch"} else None
+    )
     return {
-        "trial": out,
-        "snapshot": snapshot,
-        "trajectory": trajectory,
-        "recreated_empty_dirs": recreated,
-        "dropped_binary_artifacts": dropped,
+        "regraded": score,
+        "input_kind": "native_patch_replay",
+        "matrix_receipt": str(execution.receipt_path),
+        "job_dir": str(repo_root / "runs" / name),
+        "refusals": [] if score is not None else ["patch_replay_failed"],
+        "execution_error": result.get("error"),
+        "script_sha256": script_digest,
     }
 
 
-def _reward(observation: Any) -> float | None:
-    if observation is None:
-        return None
-    value = (observation.rewards or {}).get("reward")
-    return float(value) if isinstance(value, int | float) else None
+def source_digest(trial_dir: Path) -> str:
+    """Bind cached replays to retained source bytes, not a trial directory name."""
+    from evallab.separate_verifier import SNAP_DIR, TRAJECTORY_ARTIFACT
+
+    digest = hashlib.sha256()
+    for relative in (
+        "result.json",
+        "config.json",
+        "agent/trajectory.json",
+        "verifier/agent.diff",
+        "artifacts/manifest.json",
+        f"artifacts{SNAP_DIR}/{SNAPSHOT_ARCHIVE}",
+        f"artifacts{TRAJECTORY_ARTIFACT}",
+    ):
+        digest.update(relative.encode())
+        path = trial_dir / relative
+        if path.is_file():
+            with path.open("rb") as stream:
+                digest.update(hashlib.file_digest(stream, "sha256").digest())
+        else:
+            digest.update(b"absent")
+    return digest.hexdigest()
 
 
 def replay(
@@ -400,51 +376,77 @@ def replay(
     work: Path,
     *,
     diff_text: str | None = None,
+    repo_root: Path,
+    matrix_runner: Any = None,
     runner: Any = subprocess.run,
 ) -> dict[str, Any]:
-    """Stage and regrade one trial against ``grader``; ``reward`` dimension only."""
-    from evallab.regrade import regrade_trial
+    """Regrade a recorded snapshot or natively replay its recorded diff.
 
-    row: dict[str, Any] = {"grader": grader.label, "trial": str(trial_dir)}
-    with DOCKER_SLOTS:
-        staged = stage_replay(
-            trial_dir, grader, work / "source" / trial_dir.name, diff_text=diff_text, runner=runner
-        )
-        if "refused" in staged:
-            return {**row, "outcome": "refused", "refusals": [staged["refused"]]}
-        trials_dir = work / "regrades"
-        shutil.rmtree(trials_dir, ignore_errors=True)
-        try:
+    Missing source artifacts are never invented. Diff-only inputs become new,
+    explicitly labelled native oracle-script controls, not patched trial records.
+    """
+    from evallab.docker_lock import docker_slot
+    from evallab.execution_contracts import new_ulid
+    from evallab.heldout_verifier import scan_agent_diff
+    from evallab.regrade import read_reward_observation, regrade_trial
+    from evallab.separate_verifier import SNAP_DIR
+
+    observation = read_reward_observation(trial_dir)
+    recorded = _score((observation.rewards or {}).get("reward")) if observation else None
+    row: dict[str, Any] = {
+        "grader": grader.label,
+        "trial": str(trial_dir),
+        "recorded": recorded,
+    }
+    if diff_text is None and recorded is None:
+        return {**row, "outcome": "refused", "refusals": ["source_reward_unavailable"]}
+    snap = trial_dir / "artifacts" / SNAP_DIR.lstrip("/") / SNAPSHOT_ARCHIVE
+    diff_path = trial_dir / "verifier" / "agent.diff"
+    with DOCKER_SLOTS, docker_slot(label=f"qa-trace-regrade {grader.label}"):
+        if diff_text is None and not diff_path.is_file() and snap.is_file():
             receipt = regrade_trial(
-                trial_dir=staged["trial"], task_dir=grader.package, trials_dir=trials_dir
+                trial_dir=trial_dir,
+                task_dir=grader.package,
+                trials_dir=work / "regrades" / new_ulid().lower(),
+                runner=runner,
             )
-        except (OSError, ValueError, subprocess.SubprocessError) as exc:
-            return {**row, "outcome": "refused", "refusals": [f"regrade_error: {str(exc)[:300]}"]}
-    recorded, regraded = _reward(receipt.recorded), _reward(receipt.regraded)
-    row.update(
-        snapshot=staged["snapshot"],
-        trajectory=staged["trajectory"],
-        verdict=str(receipt.verdict.value),
-        recorded=recorded,
-        regraded=regraded,
-        refusals=[str(code.value) for code in receipt.refusals],
-        regrade_dir=receipt.regrade_trial_dir,
-        recreated_empty_dirs=staged["recreated_empty_dirs"],
-        dropped_binary_artifacts=staged["dropped_binary_artifacts"],
-        harbor_output_tail=(
-            (receipt.execution.stdout_tail + receipt.execution.stderr_tail)[-600:]
-            if receipt.execution and receipt.refusals
-            else None
-        ),
-    )
-    if receipt.refusals or regraded is None or recorded is None:
-        row["outcome"] = "refused"
-    elif diff_text is None and recorded < 1.0:
-        row["outcome"] = "not_a_pass"
-    elif regraded == recorded:
-        row["outcome"] = "stays"
-    else:
-        row["outcome"] = "flips" if regraded < recorded else "loosened"
+            score = (
+                _score((receipt.regraded.rewards or {}).get("reward"))
+                if receipt.regraded and not receipt.refused
+                else None
+            )
+            row.update(
+                regraded=score,
+                input_kind="recorded_snapshot",
+                regrade_dir=receipt.regrade_trial_dir,
+                refusals=[str(code.value) for code in receipt.refusals],
+                harbor_output_tail=(
+                    (receipt.execution.stdout_tail + receipt.execution.stderr_tail)[-2000:]
+                    if receipt.execution and receipt.refusals
+                    else None
+                ),
+            )
+        else:
+            if diff_text is None:
+                if not diff_path.is_file():
+                    return {
+                        **row,
+                        "outcome": "refused",
+                        "refusals": ["source_patch_unavailable"],
+                    }
+                diff_text = diff_path.read_text(encoding="utf-8")
+            kept, dropped = strip_binary_artifacts(diff_text)
+            work.mkdir(parents=True, exist_ok=True)
+            checked = work / "agent.replay.diff"
+            checked.write_text(kept, encoding="utf-8")
+            problems, _ = scan_agent_diff(str(checked))
+            if problems:
+                return {**row, "outcome": "refused", "refusals": ["diff_unreplayable"]}
+            row.update(
+                _replay_patch(kept, grader, repo_root=repo_root, matrix_runner=matrix_runner)
+            )
+            row["dropped_binary_artifacts"] = dropped
+    row["outcome"] = _outcome(recorded, row.get("regraded"))
     return row
 
 
@@ -469,32 +471,51 @@ def grader_controls(
     repo_root: Path,
     runner: Any = subprocess.run,
 ) -> dict[str, Any]:
-    """Empty-diff and reference-fix replays through ``grader`` (cached in ``work``).
+    """Nop/reference execution gate, bound to grader, engine and reference bytes.
 
-    ``shell_trial`` is any recorded trial of the task; only its harness files
-    are reused, its change is replaced. Valid = nop scores 0 and the reference
-    fix, when one exists, scores 1.
+    Missing references or failed executions remain unvalidated. Results are
+    never treated as evidence of semantic correctness.
     """
     cache = work / "controls.json"
+    patch = reference_patch(grader.task_name, repo_root)
+    identity = {
+        "grader": grader.label,
+        "engine": ENGINE_VERSION,
+        "reference_sha256": hashlib.sha256(patch.encode()).hexdigest()
+        if patch is not None
+        else None,
+    }
     if cache.is_file():
         cached = json.loads(cache.read_text())
-        if cached.get("grader") == grader.label:
+        if (
+            all(cached.get(k) == value for k, value in identity.items())
+            and cached.get("nop") is not None
+            and (patch is None or cached.get("reference") is not None)
+        ):
             return cached
-    nop = replay(shell_trial, grader, work / "nop", diff_text="", runner=runner)
-    patch = reference_patch(grader.task_name, repo_root)
+    nop = replay(
+        shell_trial, grader, work / "nop", diff_text="", repo_root=repo_root, runner=runner
+    )
     reference = (
-        replay(shell_trial, grader, work / "reference", diff_text=patch, runner=runner)
+        replay(
+            shell_trial,
+            grader,
+            work / "reference",
+            diff_text=patch,
+            repo_root=repo_root,
+            runner=runner,
+        )
         if patch is not None
         else None
     )
-    nop_score = nop.get("regraded")
-    reference_score = reference.get("regraded") if reference else None
+    nop_score = _score(nop.get("regraded"))
+    reference_score = _score(reference.get("regraded")) if reference else None
     controls = {
-        "grader": grader.label,
+        **identity,
         "nop": nop_score,
         "reference": reference_score,
         "reference_available": patch is not None,
-        "valid": nop_score == 0.0 and (reference is None or reference_score == 1.0),
+        "valid": nop_score == 0.0 and reference_score == 1.0,
         "rows": {"nop": nop, "reference": reference},
     }
     work.mkdir(parents=True, exist_ok=True)

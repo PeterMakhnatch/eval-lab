@@ -3,10 +3,14 @@
 The prompt requires that included recipes contribute "building blocks,
 primitives, and values needed later by the including recipe", and that "the
 examples should demonstrate reusing a sibling recipe file". The hidden tests
-include only primitives and scalar values and never build an example. These
-two checks cover what they leave out.
+include only primitives and scalar values and never build an example. The
+object-reuse fixture is a candidate additional semantic test. The example
+expectations are review inputs for the specific submitted/reference recipes,
+not a requirement to use those filenames or Ubuntu versions in another fix.
 """
 
+import inspect
+import json
 import os
 import shutil
 import tempfile
@@ -17,11 +21,11 @@ from hpccm.recipe import recipe
 
 
 def _recipe(path):
-    """Build a recipe, raising on errors when this hpccm version supports it."""
-    try:
-        return recipe(path, raise_exceptions=True)
-    except TypeError:
-        return recipe(path)
+    """Select the supported signature before executing; never retry a failed recipe."""
+    kwargs = {}
+    if "raise_exceptions" in inspect.signature(recipe).parameters:
+        kwargs["raise_exceptions"] = True
+    return recipe(path, **kwargs)
 
 
 class Test_qa_probe_include(unittest.TestCase):
@@ -47,8 +51,10 @@ class Test_qa_probe_include(unittest.TestCase):
             shutil.rmtree(tmp)
 
     def test_examples_added_by_the_change_build(self):
-        names = os.environ.get("PROBE_EXAMPLES", "").split()
-        self.assertTrue(names, "the change adds no example recipe")
-        for name in names:
-            out = _recipe(os.path.join("/testbed", name))
-            self.assertTrue(out.strip(), name)
+        examples = json.loads(os.environ.get("PROBE_EXAMPLE_EXPECTATIONS", "{}"))
+        self.assertTrue(examples, "the change adds no example that includes a sibling recipe")
+        for name, expected_fragments in examples.items():
+            with self.subTest(recipe=name):
+                out = _recipe(os.path.join("/testbed", name))
+                for fragment in expected_fragments:
+                    self.assertIn(fragment, out, name)

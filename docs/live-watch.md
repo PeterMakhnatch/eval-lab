@@ -18,6 +18,22 @@ failure is recorded as a `watcher_error` alert. Terminus-2 rewrites
 `agent/trajectory.json` after every episode, so trajectories are
 live-readable; `result.json` appears only when the trial finishes.
 
+**Codex.** Harbor's Codex agent writes `agent/trajectory.json` only after the
+CLI exits, but tees `codex exec --json` into `agent/codex.txt` while it runs
+(the agent log dir is a bind mount, like `agent/file-access.jsonl`). Until a
+trajectory exists the watch reads that stream: each `command_execution` item is
+one step carrying its shell command, each `file_change` an `apply_patch` step.
+Item numbers, not ATIF step ids, number those steps, so a `head#N` from the
+stream can differ from the same command's step id in the final trajectory. The
+stream does not carry the task prompt, so the prompt-conditional `codeban` rule
+stays silent until the trajectory exists. In a finished Codex trajectory, shell
+work is `exec` calls whose `arguments.input` is JavaScript calling
+`tools.exec_command({cmd: "<shell>"})`; the shell rules read those commands
+(`evallab.edit_signals.step_bash_commands`) and the `tools.apply_patch(...)`
+patches, so `hidden_test_read`, `task_protected_read`, `history_mining`,
+`codeban_violation` and the tamper rules see Codex steps as they see
+Terminus-2 `keystrokes`.
+
 ```bash
 uv run evallab watch --runs-dir runs/ovn-g5-000169-tuned --out state/watch-01 --once
 uv run evallab watch --runs-dir runs --out state/watch-01 --interval 60 \

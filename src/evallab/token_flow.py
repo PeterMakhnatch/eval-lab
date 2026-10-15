@@ -64,7 +64,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
+from evallab.edit_signals import (
+    EDIT_COMMAND_PATTERNS,
+    EDIT_TOOL_NAMES,
+    blank_quoted_and_heredocs,
+    codex_apply_patches,
+    codex_exec_commands,
+)
 
 TOKEN_FLOW_SCHEMA = "token_flow/v1"
 
@@ -182,9 +188,20 @@ def _step_calls(step: dict[str, Any]) -> list[tuple[str | None, str]]:
             if not isinstance(call, dict):
                 continue
             name = call.get("function_name")
+            tool_name = name if isinstance(name, str) else None
             args = call.get("arguments")
             keys = ""
             if isinstance(args, dict):
+                raw_input = args.get("input")
+                if isinstance(raw_input, str):
+                    if "exec_command" in raw_input and (cmds := codex_exec_commands(raw_input)):
+                        for cmd in cmds:
+                            out.append((tool_name, cmd))
+                        continue
+                    if "Begin Patch" in raw_input and (patches := codex_apply_patches(raw_input)):
+                        for patch in patches:
+                            out.append(("apply_patch", patch))
+                        continue
                 for field in ("keystrokes", "command", "cmd", "input", "script"):
                     val = args.get(field)
                     if isinstance(val, str) and val.strip():
@@ -192,7 +209,7 @@ def _step_calls(step: dict[str, Any]) -> list[tuple[str | None, str]]:
                         break
             elif isinstance(args, str):
                 keys = args
-            out.append((name if isinstance(name, str) else None, keys if keys else ""))
+            out.append((tool_name, keys if keys else ""))
     # Fallback: the accepted layer records what the harness actually sent.
     if not any(text for _, text in out):
         try:

@@ -243,6 +243,11 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
     executor owns setup, isolation, collection and grading. Compiled-artifact
     stanzas are dropped as `@10` drops them. This is **patch replay**, not
     recovery of the original filesystem or trajectory.
+    A finite reward is insufficient: the retained native trial must have a
+    completed agent result, no trial exception and no nonzero oracle
+    `agent/exit-code.txt`. Harbor can run its grader after an oracle script
+    fails. Such rows keep `native_reward` for diagnosis but have no accepted
+    `regraded` score and cannot count as flips.
   - Without a retained diff, an existing workspace snapshot uses native
     Harbor `trial regrade` against the immutable source trial. Missing source
     logs, capture manifests or other required artifacts remain refusals.

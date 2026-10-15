@@ -45,7 +45,7 @@ V10 = "separate-verifier@10"
 REPAIR_PREFIX = "verifier-repair@"
 MIMO_DATASET = "mimo-v2.6-rl"
 SNAPSHOT_ARCHIVE = "workspace.tgz"
-ENGINE_VERSION = "qa-trace-counterfactual/2"
+ENGINE_VERSION = "qa-trace-counterfactual/3"
 #: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
 
@@ -285,6 +285,28 @@ def _patch_script(diff: str, workdir: str) -> str:
     return script
 
 
+def _native_patch_failure(job_dir: Path) -> str | None:
+    """Harbor can grade after an oracle script fails without raising a trial error."""
+    results = list(job_dir.glob("*/result.json"))
+    if len(results) != 1:
+        return "patch_replay_trial_count"
+    trial = results[0].parent
+    try:
+        result = json.loads(results[0].read_text(encoding="utf-8"))
+        if not isinstance(result, dict):
+            return "patch_replay_result_unreadable"
+        if result.get("exception_info") is not None:
+            return "patch_replay_agent_exception"
+        if not isinstance(result.get("agent_result"), dict):
+            return "patch_replay_agent_result_missing"
+        exit_path = trial / "agent" / "exit-code.txt"
+        if exit_path.exists() and int(exit_path.read_text(encoding="utf-8")) != 0:
+            return "patch_replay_agent_exit_nonzero"
+    except (OSError, UnicodeError, ValueError):
+        return "patch_replay_result_unreadable"
+    return None
+
+
 def _replay_patch(
     diff: str, grader: Grader, *, repo_root: Path, matrix_runner: Any = None
 ) -> dict[str, Any]:
@@ -335,13 +357,18 @@ def _replay_patch(
     score = (
         _score(rewards[0]) if len(rewards) == 1 and result["status"] in {"ok", "mismatch"} else None
     )
+    job_dir = repo_root / "runs" / name
+    failure = _native_patch_failure(job_dir) if score is not None else None
     return {
-        "regraded": score,
+        "regraded": score if failure is None else None,
+        "native_reward": score,
         "input_kind": "native_patch_replay",
         "matrix_receipt": str(execution.receipt_path),
-        "job_dir": str(repo_root / "runs" / name),
-        "refusals": [] if score is not None else ["patch_replay_failed"],
-        "execution_error": result.get("error"),
+        "job_dir": str(job_dir),
+        "refusals": [failure]
+        if failure
+        else ([] if score is not None else ["patch_replay_failed"]),
+        "execution_error": failure or result.get("error"),
         "script_sha256": script_digest,
     }
 

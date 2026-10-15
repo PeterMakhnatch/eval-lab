@@ -1686,7 +1686,7 @@ class TraceConfig:
         if not manifest.is_absolute():
             manifest = _repo_root() / manifest
 
-        return {
+        fingerprint: dict[str, Any] = {
             "pipeline": PIPELINE_VERSION,
             "t1": self.t1.label,
             "t2": self.t2.label,
@@ -1704,6 +1704,9 @@ class TraceConfig:
                 for path, record in cf.repair_records(list(self.repairs))
             ],
         }
+        if self.regrade:
+            fingerprint["counterfactual_engine"] = cf.ENGINE_VERSION
+        return fingerprint
 
 
 def _gated(config: TraceConfig, call: Caller) -> Caller:

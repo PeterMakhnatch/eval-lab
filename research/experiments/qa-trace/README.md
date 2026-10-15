@@ -138,6 +138,13 @@ are immutable. Missing trajectories/capture manifests/workspaces are not
 synthesized. Refusals and setup/apply failures are not reward-zero rejections.
 Both nop = 0 and reference = 1 are required before a grader can verify a claim.
 
+Replay engine `qa-trace-counterfactual/3` checks native trial completion and
+Harbor's oracle exit-code marker before accepting a verifier score. A failed
+`git apply` can otherwise leave reward zero on the unchanged workspace without
+a trial exception. That is an execution refusal, not a successful rejection.
+Engine-2 cached replays/controls are not reused, and the engine version also
+binds the T3 configuration fingerprint.
+
 ### The ordinary-pass population is not uniquely 75
 
 The frozen own-scan source establishes **76 ordinary-by-prompt positive-reward

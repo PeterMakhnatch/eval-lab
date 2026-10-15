@@ -61,16 +61,15 @@ measured ones):
     leak inspection). Note that the shared `evallab qa score` command reads only
     measured `pass`/`fail` findings in `<run>/findings/` and does not inspect
     `tasks/*/report.json` `signals`.
-- **Category match and passive `root_cause` provenance**:
+- **Category match and root-cause match**:
   - `category_match_recall` checks whether a verified finding's coarse
     `category` is in `expected_category` / `expected_categories`.
-  - `Finding` does not carry `root_cause_id`, and `evallab qa task-score` does
-    not compute root-cause matching (the `root_cause` array on each item is
-    passive source provenance; on the shared scoreboard CSV,
-    `evallab qa task-score --scoreboard <csv>` writes `n/a` for
-    `root_cause_match` under system `qa-task@verified` or `qa-task@flagged`,
-    whereas the shared `evallab qa score` uses its `root_cause_match` column for
-    category-level match).
+  - A finding may name `root_cause` ids (optional `qa.finding/v1` field); they
+    match an item when one equals a `root_cause[].id` or `root_cause[].source_class`
+    after normalization. `evallab qa task-score` reports
+    `verified_root_cause_match` / `flagged_root_cause_match` and writes the
+    level's value to the shared `root_cause_match` column; it is `n/a` when no
+    finding names a cause (see `docs/qa-contract.md`).
 - **Measuredness, coverage, and split-scoped cost**: `observed_fraction` is the
   share of selected items with a digest-bound `TaskReport`;
   `measured_fraction` is the share whose `TaskReport` has
@@ -87,17 +86,30 @@ measured ones):
 ## Split rule
 
 Never tune on the split you report. Use `dev` items for development and
-prompt/threshold tuning; report scores on `heldout` items only. Keys that
-are entirely `heldout` must not be used for tuning at all.
+prompt/threshold tuning; report scores on `heldout` items only (the trace keys
+call the reported split `test`; it means the same). Keys that are entirely
+`heldout` must not be used for tuning at all.
+
+Every key's item-level split assignment is published in `splits/assignments.csv`,
+and `splits/exposure.jsonl` records which systems were tuned on which items.
+`splits/guard.py --check` (run in CI by `tests/test_answer_key_splits.py`) fails on
+units straddling splits, stale assignments, and scoreboard rows that score tuned
+items on a reported split; see `splits/README.md`. After adding or rebuilding a key,
+run `uv run python research/answer-keys/splits/guard.py`.
 
 ## Keys and provenance caveats
 
-- `envcheck-tb4-39` — **39 items** on historical Terminal-Bench 4 checkouts
-  (`v4.0.0` and `1dcda8716784`): **13 defect items** (`label_strength:
-  "confirmed"`, aggregating 24 EnvCheck finding rows from
-  `post/2026-10-grader-defects`) and **26 `weak_negative` items** (2 per defect
-  in that pin, stratified `dev`/`heldout` split: 4 dev + 9 heldout defects, 9
-  dev + 17 heldout weak negatives; not 50 tasks as in early planning notes).
+- `envcheck-tb4-39`: **39 items** on historical Terminal-Bench 4 checkouts (`v4.0.0`
+  and `1dcda8716784`).
+  - **13 `confirmed` defect items**, aggregating 24 EnvCheck finding rows from
+    `post/2026-10-grader-defects`.
+  - **12 `epoch_flagged` defect items** (2026-10-15): former weak negatives that
+    Epoch's TB4 review links to a public issue.
+  - **14 `weak_negative` items.**
+  - The split is stratified on the original EnvCheck labels and locked: 4 dev + 9
+    heldout defects, 9 dev + 17 heldout former negatives.
+  - This is not 50 tasks as in early planning notes. It is the only key for these
+    39 tasks: the undigested `envcheck-task-audit` copy was retired on 2026-10-15.
 - `delphik-open-defect-tb2` — **47 items**, all `heldout`, on Terminal-Bench
   2.0 at pinned commit `f5b891cb4f7c20e306f9d05887628b43af740f43`: **23
   archival defect claims** from Delphik's source-read audit ledger
@@ -109,3 +121,12 @@ are entirely `heldout` must not be used for tuning at all.
   reflect historical external/network drift (for example, `build-pov-ray`
   issue-76 recorded a `povray.org` HTTP 403 download block that upstream later
   restored).
+- `executed-outcomes-v1`: **56 items** on 46 tasks, mostly MiMo `format-code`.
+  - Each label rests on an executed check: a ref-subset subset grade plus triage,
+    a #867 mutant killed by repaired tests, a re-run grader attack, or a #899
+    replayed exploit.
+  - Items carry `selected_by`, and `splits/exposure.jsonl` marks each source
+    tool's own recall on them as circular.
+  - It contradicts two weak negatives: envcheck-tb4-39 `fin-saccr-rwa` and
+    Delphik `fix-git`.
+  - See `executed-outcomes-v1/README.md`.

@@ -13,7 +13,10 @@ parquet dependencies. Keep it that way: no third-party imports here.
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
+from typing import Any
 
 #: Tool calls that count as a file edit.
 EDIT_TOOL_NAMES = frozenset(
@@ -73,3 +76,90 @@ def blank_quoted_and_heredocs(command: str) -> str:
         kept.append(line)
     text = "\n".join(kept)
     return _QUOTED_SPAN_RE.sub(" ", text)
+
+
+#: Tools whose ``keystrokes`` (Terminus-2 ``bash_command``, Claude Code ``bash``)
+#: or Codex ``exec`` script carry the shell commands an agent step runs.
+SHELL_TOOL_NAMES = frozenset({"bash", "bash_command", "shell", "exec"})
+
+_SHELL_WRAPPER_RE = re.compile(r"^(?:(?:/usr)?/bin/)?(?:ba|z|da)?sh\s+-(?:l?c|cl)\s+")
+
+#: Codex runs shell commands through a scripted ``exec`` tool whose ``input`` is
+#: JavaScript calling ``tools.exec_command({cmd: "<shell>", ...})`` (older
+#: runs quote the key: ``{"cmd": "<shell>"}``). One script may call it several times.
+_CODEX_EXEC_CMD_RE = re.compile(
+    r'exec_command\s*\(\s*\{[^{}]*?(?<![\w"])(?:"cmd"|cmd)\s*:\s*("(?:[^"\\]|\\.)*")'
+)
+
+#: ``tools.apply_patch(patch)`` scripts bind the patch to a JSON-escaped string
+#: literal starting with ``"*** Begin Patch``.
+_CODEX_PATCH_STR_RE = re.compile(r'"\*\*\* Begin Patch(?:[^"\\]|\\.)*"')
+
+
+def unwrap_shell_wrapper(command: str) -> str:
+    """Unwrap the harness's ``/bin/bash -lc '<script>'`` to ``<script>`` when unambiguous."""
+    stripped = command.strip()
+    if _SHELL_WRAPPER_RE.match(stripped):
+        try:
+            parts = shlex.split(stripped)
+        except ValueError:
+            return command
+        if len(parts) >= 3 and parts[1] in ("-c", "-lc", "-cl"):
+            return parts[2]
+    return command
+
+
+def codex_exec_commands(script: str) -> list[str]:
+    """Shell command strings a Codex ``exec`` JS script runs (in call order)."""
+    if not isinstance(script, str) or "exec_command" not in script:
+        return []
+    out: list[str] = []
+    for match in _CODEX_EXEC_CMD_RE.finditer(script):
+        try:
+            command = json.loads(match.group(1))
+        except ValueError:
+            continue
+        if isinstance(command, str) and command.strip():
+            out.append(command.strip())
+    return out
+
+
+def codex_apply_patches(script: str) -> list[str]:
+    """``*** Begin Patch`` payloads a Codex ``exec`` JS script applies (decoded)."""
+    if not isinstance(script, str) or "Begin Patch" not in script:
+        return []
+    out: list[str] = []
+    for match in _CODEX_PATCH_STR_RE.finditer(script):
+        try:
+            decoded = json.loads(match.group(0))
+        except ValueError:
+            continue
+        if isinstance(decoded, str) and decoded.strip():
+            out.append(decoded)
+    return out
+
+
+def step_bash_commands(step: dict[str, Any]) -> list[str]:
+    """Shell command texts one ATIF step runs, in order.
+
+    ``keystrokes`` of the shell tools (verbatim, as the rules always read them)
+    plus the ``tools.exec_command({cmd: ...})`` calls inside a Codex ``exec``
+    script (``arguments.input``). Other argument shapes are not read.
+    """
+    out: list[str] = []
+    calls = step.get("tool_calls")
+    if not isinstance(calls, list):
+        return out
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        name = str(call.get("function_name") or call.get("name") or "").lower()
+        args = call.get("arguments")
+        if name not in SHELL_TOOL_NAMES or not isinstance(args, dict):
+            continue
+        keystrokes = args.get("keystrokes")
+        if isinstance(keystrokes, str) and keystrokes.strip():
+            out.append(keystrokes)
+        elif isinstance(args.get("input"), str):
+            out.extend(codex_exec_commands(args["input"]))
+    return out

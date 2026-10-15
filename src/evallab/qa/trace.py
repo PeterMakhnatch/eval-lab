@@ -753,10 +753,14 @@ class QuotaGate:
 
     def check(self, provider: str) -> float:
         with self._lock:
-            stamp, used = self._seen.get(provider, (0.0, None))
-            if time.monotonic() - stamp > self.refresh_seconds:
+            seen = self._seen.get(provider)
+            # Never read -> read now. A zero stamp would skip the first read on
+            # hosts whose monotonic clock (time since boot) is still young.
+            if seen is None or time.monotonic() - seen[0] > self.refresh_seconds:
                 used = self.reader(provider)
                 self._seen[provider] = (time.monotonic(), used)
+            else:
+                used = seen[1]
         if used is None:
             raise QuotaStop(f"{provider}: weekly quota reading unavailable")
         if used >= self.max_used:

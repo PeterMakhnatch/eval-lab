@@ -102,8 +102,9 @@ omitted. With `--scoreboard <csv>` it appends one shared-schema row via
 `evallab.qa.score.append_scoreboard` (`system` set to `qa-task@verified` for
 `--level verified`, the default, or `qa-task@flagged` for `--level flagged`);
 the JSON output always reports both. Scoreboard rows mark `status` as
-`"partial defensive audit; live S2/S3 not run"` and write `n/a` for both
-`paired_discrimination` and `root_cause_match`.
+`"partial defensive audit; live S2/S3 not run"`, write `n/a` for
+`paired_discrimination`, and write the level's `root_cause_match` (`n/a` until
+findings name root causes).
 
 Because findings written in `<run>/findings/*.json` are valid `qa.finding/v1`
 documents, the shared `evallab qa score --key <key> --findings <run>/findings`
@@ -179,14 +180,16 @@ rejected:
     `verdict != "pass"`, `refutation.status != "refuted"`) **or** at least one
     entry in the digest-bound report's `report.signals` (from `S1` rubric
     failures or `S0` leak detection).
-- **Category match vs root-cause provenance**:
+- **Category match vs root-cause match**:
   - `category_match_recall` measures whether any verified finding on a positive
     item has `f.category` in `expected_category` / `expected_categories`.
-  - Per-finding `root_cause_id` is not part of `Finding`, and root-cause
-    matching is **not** computed by `evallab qa task-score` (the `root_cause`
-    array on answer-key items is passive provenance; the shared scoreboard's own
-    `root_cause_match` column is category-level in `evallab qa score`, and
-    `evallab qa task-score` writes `n/a` there).
+  - `verified_root_cause_match` / `flagged_root_cause_match`: among positives
+    hit at that level whose key item carries `root_cause` records, the share
+    with a hitting finding whose optional `root_cause` ids name one of the
+    item's record `id`s or `source_class`es (normalized; see
+    `docs/qa-contract.md`). `None` (`n/a` on the scoreboard) when no finding in
+    the run names a root cause: not measured, never 0. Signal-only flagged hits
+    name no cause and count as misses once the run names causes anywhere.
 - **Coverage and split-scoped cost fields**: `measured_fraction` (share of
   selected items whose digest-bound `TaskReport` has
   `quality_complete == True`), `observed_fraction` (share of selected items with

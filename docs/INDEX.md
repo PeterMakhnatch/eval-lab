@@ -56,6 +56,8 @@ inputs:
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
+  - path: docs/docker-lock.md
+    digest: sha256:07a12313728e9920485e5140d9bd27c1173c5fbba83e13bc002e9fdd0b60b104
   - path: docs/engineering.md
     digest: sha256:1f703535a274d1b0d4924c2d19a565aa64065bf00d9d9207bc4d0149057e0dd0
   - path: docs/eval-cards.md
@@ -79,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:9f0094d981f989849d4a06062154c314c67c3183b3c402d6b02712c277d9977b
+    digest: sha256:dd4b47fac90f2881e25c8d1ac4c74cf078aad80dc66b862b4cf86e5a4cae9cf4
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
@@ -99,9 +101,9 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
-    digest: sha256:b6ca5c735e084474c937c3631dbfb1b4d94ad95459850b95e3187461ebcf9c22
+    digest: sha256:527cc19fc61d86a98a6d478c238bf1d4f5f7b0b1728ff6d4bef7c653f2b506a3
   - path: docs/qa-task.md
-    digest: sha256:fbdaf584424465f8b33232431293604f62964915c7c590385687e079e02f7d9b
+    digest: sha256:f86d0f1c3a5d6f8f8041b8cb8d92a0727978ceb44f9e9fd8259d5ee15524c7f4
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -135,7 +137,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:df1b7c6123e4a2bfb219957680d2a617311cda9f2926eea2568b59feee1c3db8
+    digest: sha256:4e111707c200c1e4f48b00658bf5fe50bb75242ef8b3c957c998e8f388950436
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -189,6 +191,7 @@ an operator can see what is archived.
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/docker-lock.md` | Docker FIFO lock (`evallab docker-lock`) | `living` | `builder, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |
@@ -358,6 +361,7 @@ an operator can see what is archived.
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
+| `docs/docker-lock.md` | Docker FIFO lock (`evallab docker-lock`) | `living` | `builder, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |

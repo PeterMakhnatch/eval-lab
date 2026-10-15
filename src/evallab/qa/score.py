@@ -6,11 +6,19 @@ Definitions (shared with the rows already on the board):
   ``measurement == "measured"`` and a ``pass``/``fail`` verdict. An
   unmeasured item is never counted as a pass: it only lowers
   ``n_measured`` (shown next to every number).
-- An item is *flagged* when a measured finding on it says ``fail``.
+- An item is *flagged* when a measured finding on it says ``fail`` and its
+  refutation is not ``refuted`` (a refuted claim is not a standing flag).
 - ``recall`` = flagged / measured positives (expected ``fail``).
 - ``false_alarm_rate`` = flagged / measured negatives (expected ``pass``).
-- ``root_cause_match`` = among flagged positives, the share with a
-  ``fail`` finding in the expected category (``n/a`` if none flagged).
+- ``root_cause_match`` = among flagged positives that carry a labelled
+  root cause (:func:`~evallab.qa.models.expected_root_causes`), the share
+  with a ``fail`` finding whose ``root_cause`` names one of them
+  (normalized). ``n/a`` when the findings name no root causes at all (the
+  reviewer does not attempt it — not measured, never 0) or no flagged
+  positive has a labelled cause. Once a reviewer names causes anywhere, a
+  flagged positive it names none for counts as a miss.
+- ``category_match`` (in ``notes``) = among flagged positives, the share
+  with a ``fail`` finding in the expected category.
 - ``paired_discrimination`` = mean over pairs with both sides measured of
   ``flag(child) - flag(parent)`` (``pairs.jsonl``; ``n/a`` without pairs).
 - ``cost_per_item_usd`` = reviewer cost of the matched findings / measured
@@ -18,7 +26,11 @@ Definitions (shared with the rows already on the board):
 
 Findings on subjects outside the key are reported in ``notes``, never
 silently dropped. Rows are produced per split (``all`` plus each split in
-the key) and per category (``all`` plus each expected category).
+the key) and per category (``all`` plus each expected category). A
+category slice holds the items labelled with that category plus both
+members of every pair of that category (a pair's category is its
+``category`` or its child's), so per-category paired discrimination keeps
+every pair.
 """
 
 from __future__ import annotations
@@ -29,7 +41,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from evallab.qa.answer_key import AnswerKey, item_id_of
-from evallab.qa.models import AnswerKeyItem, Finding, subject_key
+from evallab.qa.models import (
+    AnswerKeyItem,
+    Finding,
+    KeyPair,
+    expected_root_causes,
+    root_cause_hit,
+    subject_key,
+)
 from evallab.schemas import ContractModel
 
 SCOREBOARD_COLUMNS = (
@@ -84,6 +103,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 def _score_slice(
     key: AnswerKey,
     items: list[AnswerKeyItem],
+    pairs: list[KeyPair],
     by_subject: dict[tuple[str, str, str], list[Finding]],
     *,
     split: str,
@@ -93,9 +113,9 @@ def _score_slice(
     system: str,
     notes: str,
     status: str | None,
+    names_causes: bool,
 ) -> ScoreRow:
-    ids = {id(item): item_id_of(key.key_id, item) for item in items}
-    by_id = {ids[id(item)]: item for item in items}
+    by_id = {item_id_of(key.key_id, item): item for item in items}
 
     def measured_findings(item: AnswerKeyItem) -> list[Finding]:
         return [
@@ -104,23 +124,37 @@ def _score_slice(
             if finding.measurement == "measured" and finding.verdict in ("pass", "fail")
         ]
 
+    def fail_findings(item: AnswerKeyItem) -> list[Finding]:
+        return [
+            finding
+            for finding in measured_findings(item)
+            if finding.verdict == "fail" and finding.refutation.status != "refuted"
+        ]
+
     def flagged(item: AnswerKeyItem) -> bool:
-        return any(finding.verdict == "fail" for finding in measured_findings(item))
+        return bool(fail_findings(item))
 
     measured = [item for item in items if measured_findings(item)]
     positives = [item for item in measured if item.expected_verdict == "fail"]
     negatives = [item for item in measured if item.expected_verdict == "pass"]
     flagged_positives = [item for item in positives if flagged(item)]
-    root_hits = sum(
+    category_hits = sum(
         1
         for item in flagged_positives
-        if any(
-            finding.verdict == "fail" and finding.category == item.expected_category
-            for finding in measured_findings(item)
-        )
+        if any(finding.category == item.expected_category for finding in fail_findings(item))
+    )
+    labelled = [
+        (item, causes)
+        for item in flagged_positives
+        if (causes := expected_root_causes(item.model_dump(by_alias=True)))
+    ]
+    root_hits = sum(
+        1
+        for item, causes in labelled
+        if any(root_cause_hit(finding.root_cause, causes) for finding in fail_findings(item))
     )
 
-    pairs = [pair for pair in key.pairs if pair.parent in by_id and pair.child in by_id]
+    pairs = [pair for pair in pairs if pair.parent in by_id and pair.child in by_id]
     measured_pairs = [
         pair
         for pair in pairs
@@ -162,6 +196,14 @@ def _score_slice(
     note_parts = [notes] if notes else []
     if unmeasured_positives:
         note_parts.append(f"{unmeasured_positives} positive(s) unmeasured, not counted as misses")
+    if flagged_positives:
+        note_parts.append(f"category_match={category_hits}/{len(flagged_positives)}")
+    if not names_causes:
+        note_parts.append("root_cause_match n/a: findings name no root causes")
+    elif labelled:
+        note_parts.append(
+            f"root_cause_match={root_hits}/{len(labelled)} labelled flagged positives"
+        )
     return ScoreRow(
         date_utc=when,
         key_id=key.key_id,
@@ -171,7 +213,7 @@ def _score_slice(
         system=system or (models.most_common(1)[0][0] if models else ""),
         recall=_ratio(len(flagged_positives), len(positives)),
         false_alarm_rate=_ratio(sum(1 for item in negatives if flagged(item)), len(negatives)),
-        root_cause_match=_ratio(root_hits, len(flagged_positives)),
+        root_cause_match=_ratio(root_hits, len(labelled)) if names_causes else None,
         paired_discrimination=paired,
         cost_per_item_usd=round(cost / len(measured), 4) if measured else 0.0,
         n_items=len(items),
@@ -205,6 +247,15 @@ def score_findings(
         part for part in (notes, f"{outside} finding(s) outside the key" if outside else "") if part
     )
 
+    names_causes = any(finding.root_cause for finding in findings)
+    items_by_id = {item_id_of(key.key_id, item): item for item in key.items}
+
+    def pair_category(pair: KeyPair) -> str | None:
+        if pair.category:
+            return pair.category
+        child = items_by_id.get(pair.child)
+        return child.expected_category if child else None
+
     split_names = [split] if split else ["all", *sorted({item.split for item in key.items})]
     categories = ["all", *sorted({i.expected_category for i in key.items if i.expected_category})]
     rows: list[ScoreRow] = []
@@ -213,8 +264,16 @@ def score_findings(
         if not in_split:
             raise ValueError(f"answer key {key.key_id!r} has no items in split {split_name!r}")
         for category in categories:
+            slice_pairs = [
+                pair for pair in key.pairs if category == "all" or pair_category(pair) == category
+            ]
+            members = {member for pair in slice_pairs for member in (pair.parent, pair.child)}
             slice_items = [
-                item for item in in_split if category == "all" or item.expected_category == category
+                item
+                for item in in_split
+                if category == "all"
+                or item.expected_category == category
+                or item_id_of(key.key_id, item) in members
             ]
             if not slice_items:
                 continue
@@ -222,6 +281,7 @@ def score_findings(
                 _score_slice(
                     key,
                     slice_items,
+                    slice_pairs,
                     by_subject,
                     split=split_name,
                     category=category,
@@ -230,6 +290,7 @@ def score_findings(
                     system=system,
                     notes=all_notes,
                     status=status,
+                    names_causes=names_causes,
                 )
             )
     return rows

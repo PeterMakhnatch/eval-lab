@@ -40,6 +40,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from evallab.edit_signals import unwrap_shell_wrapper
 from evallab.file_access import (
     EVALUATOR_SNAPSHOT_DIR,
     FILE_ACCESS_ENV,
@@ -59,6 +60,7 @@ LIVE_WATCH_SCHEMA = "evallab.live_watch/v1"
 
 TRIAL_TRAJECTORY = Path("agent/trajectory.json")
 TRIAL_TRAJECTORY_FALLBACK = Path("trajectory.json")
+TRIAL_CODEX_STREAM = Path("agent/codex.txt")
 TRIAL_RESULT = Path("result.json")
 TRIAL_CONFIG = Path("config.json")
 TRIAL_GIT_HISTORY = EVALUATOR_SNAPSHOT_DIR / "baseline-w1.json"
@@ -140,6 +142,7 @@ def _trial_inputs(
     traj_path = _trajectory_path(trial_dir)
     paths = [
         trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path,
+        trial_dir / TRIAL_CODEX_STREAM,
         trial_dir / TRIAL_RESULT,
         trial_dir / FILE_ACCESS_LOG,
         trial_dir / TRIAL_GIT_HISTORY,
@@ -178,6 +181,7 @@ def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
             "__" in child.name
             and (
                 _trajectory_path(child) is not None
+                or (child / TRIAL_CODEX_STREAM).is_file()
                 or (child / FILE_ACCESS_LOG).is_file()
             )
             for child in children
@@ -196,6 +200,7 @@ def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
                 continue
             if (
                 _trajectory_path(child) is None
+                and not (child / TRIAL_CODEX_STREAM).is_file()
                 and child.name not in hooked
                 and not (child / FILE_ACCESS_LOG).is_file()
             ):
@@ -237,9 +242,86 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _read_codex_stream_steps(path: Path) -> list[dict[str, Any]]:
+    """ATIF-shaped agent steps from the live ``agent/codex.txt`` JSONL stream.
+
+    Harbor's Codex adapter tees ``codex exec --json`` into ``/logs/agent/codex.txt``
+    while the CLI runs and converts the session rollout into ``trajectory.json``
+    only after the CLI exits. Until then this stream is the only live record of
+    the episode: ``command_execution`` items become ``exec`` steps carrying the
+    shell command (``/bin/bash -lc`` wrapper removed), ``file_change`` items become
+    ``apply_patch`` steps, and ``agent_message`` items keep their text.
+    """
+    items: dict[str, dict[str, Any]] = {}
+    prompt_tokens = completion_tokens = 0
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item")
+        if event.get("type") in ("item.started", "item.completed", "item.updated"):
+            if isinstance(item, dict):
+                items[str(item.get("id") or len(items))] = item
+        elif event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
+            usage = event["usage"]
+            prompt_tokens += int(usage.get("input_tokens") or 0)
+            completion_tokens += int(usage.get("output_tokens") or 0)
+    steps: list[dict[str, Any]] = []
+    for step_id, (item_id, item) in enumerate(items.items(), start=1):
+        kind = item.get("type")
+        step: dict[str, Any] = {"step_id": step_id, "source": "agent", "message": ""}
+        if kind == "command_execution":
+            command = str(item.get("command") or "")
+            output = str(item.get("aggregated_output") or "")
+            step["tool_calls"] = [
+                {
+                    "tool_call_id": item_id,
+                    "function_name": "exec",
+                    "arguments": {"keystrokes": unwrap_shell_wrapper(command), "command": command},
+                }
+            ]
+            step["observation"] = {
+                "results": [{"source_call_id": item_id, "content": output}] if output else []
+            }
+        elif kind == "file_change":
+            step["tool_calls"] = [
+                {
+                    "tool_call_id": f"{item_id}:{index}",
+                    "function_name": "apply_patch",
+                    "arguments": {"file_path": change["path"]},
+                }
+                for index, change in enumerate(item.get("changes") or [])
+                if isinstance(change, dict) and isinstance(change.get("path"), str)
+            ]
+        elif kind == "agent_message":
+            step["message"] = str(item.get("text") or "")
+            step["tool_calls"] = []
+        else:
+            continue
+        steps.append(step)
+    if steps and (prompt_tokens or completion_tokens):
+        steps[-1]["metrics"] = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+        }
+    return steps
+
+
 def _read_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], Path | None]:
     traj_path = _trajectory_path(trial_dir)
     if traj_path is None:
+        stream = trial_dir / TRIAL_CODEX_STREAM
+        if stream.is_file():
+            return _read_codex_stream_steps(stream), stream
         return [], None
     try:
         payload = json.loads(traj_path.read_text(encoding="utf-8"))

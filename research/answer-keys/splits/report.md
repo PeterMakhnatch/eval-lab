@@ -75,3 +75,5 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 1 |
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | executed-outcomes-v1 | 0 | 1 |
 | ref-subset-tb4-39-sweep | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 13 | 26 |
+| qa-task-s2-prompt-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 4 | 0 |
+| qa-task-s2-heldout-metadata | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |

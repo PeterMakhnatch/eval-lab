@@ -24,6 +24,7 @@ from evallab.qa.task import (
     Check,
     CodexLane,
     Finding,
+    HarborBackend,
     LaneReply,
     QATaskConfig,
     QuotaStop,
@@ -100,6 +101,7 @@ class FakeBackend:
         shortcut_rewards: tuple[object, ...] = (1.0,),
         replay_reward: object = 1.0,
         ref_subset_report: dict[str, object] | None = None,
+        mutation_report: dict[str, object] | None = None,
     ) -> None:
         self.oracle = list(oracle)
         self.nop = list(nop)
@@ -122,6 +124,14 @@ class FakeBackend:
         self.shortcut_calls: list[dict[str, object]] = []
         self.replay_calls: list[Reproducer] = []
         self.ref_subset_calls = 0
+        self.mutation_calls = 0
+        self.mutation_report = mutation_report or {
+            "status": "measured",
+            "verdict": "no_survivors",
+            "reason": "every scored mutant (3) was rejected",
+            "counts": {"total": 3, "killed": 3},
+            "survivors": [],
+        }
 
     def resolve(self, package: Path) -> SimpleNamespace:
         package = Path(package).resolve()
@@ -221,6 +231,18 @@ class FakeBackend:
     ) -> dict[str, object]:
         self.ref_subset_calls += 1
         return dict(self.ref_subset_report)
+
+    def mutation_hunt(
+        self,
+        package: Path,
+        *,
+        digest: str,
+        run_dir: Path,
+        max_mutants: int,
+        timeout_seconds: int,
+    ) -> dict[str, object]:
+        self.mutation_calls += 1
+        return dict(self.mutation_report)
 
 
 class FakeLane:
@@ -718,7 +740,8 @@ def test_s2_shortcut_retries_with_grader_feedback_and_s3_confirms_triplet(
     assert "fake verifier stdout" in lane.prompts[1]
     assert report.checks["shortcut-agent"].status == "measured"
     assert report.checks["shortcut-agent"].verdict == "fail"
-    assert report.checks["ref-subset"].status == "measured"
+    assert report.checks["ref-subset"].status == "not_run"
+    assert report.checks["mutation-hunt"].verdict == "pass"
     assert report.checks["fresh-replay"].verdict == "fail"
     assert report.quality_complete is True
     assert report.verdict == "fail"
@@ -785,6 +808,224 @@ def test_s3_refutes_or_confirms_ref_subset_candidate(
     assert finding.category == "weak"
     assert finding.refutation.status == expected_status
     assert report.verdict == expected_verdict
+
+
+def test_backend_slot_is_reentrant_so_task_level_hold_does_not_deadlock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # run_task holds one host-wide Docker slot per task; per-trial slots nest inside it.
+    # docker_slot itself queues behind its own ticket, so a nested acquire must not reach it.
+    monkeypatch.setenv("EVALLAB_DOCKER_LOCK_DIR", str(tmp_path / "lock"))
+    backend = HarborBackend(repo_root=tmp_path)
+    with backend.slot("outer"), backend.slot("trial"), backend.slot("trial-2"):
+        assert backend._slot_depth == 3
+    assert backend._slot_depth == 0
+    with backend.slot("after"):
+        assert backend._slot_depth == 1
+
+
+def _survivor(tmp_path: Path, mutant_id: str = "m1", reward: float = 1.0) -> dict[str, object]:
+    patch = tmp_path / f"{mutant_id}.patch"
+    patch.write_text("--- a/app.py\n+++ b/app.py\n-x = 1\n+x = 2\n", encoding="utf-8")
+    script = tmp_path / f"m-{mutant_id}.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\n# envcheck: mutant\n# expect: 0\ntrue\n", encoding="utf-8"
+    )
+    return {
+        "id": mutant_id,
+        "operator": "const-flip",
+        "file": "/app/app.py",
+        "line": 1,
+        "original": "x = 1",
+        "replacement": "x = 2",
+        "reward": reward,
+        "script": str(script),
+        "patch": str(patch),
+    }
+
+
+def _hunt(survivors: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "status": "measured",
+        "verdict": "survivors_found",
+        "reason": f"{len(survivors)} mutant(s) earned reward",
+        "counts": {"total": 3, "killed": 3 - len(survivors), "survived": len(survivors)},
+        "survivors": survivors,
+    }
+
+
+@pytest.mark.parametrize(
+    ("verdict", "replay_reward", "status", "report_verdict"),
+    [
+        ("wrong", 1.0, "verified", "fail"),
+        ("wrong", 0.0, "refuted", "pass"),
+        ("wrong", 0.5, "unverified", "unknown"),
+        ("equivalent", 1.0, None, "pass"),
+        ("unspecified", 1.0, None, "pass"),
+    ],
+)
+def test_mutation_survivor_needs_wrong_adjudication_and_fresh_replay_to_be_verified(
+    tmp_path: Path, verdict: str, replay_reward: float, status: str | None, report_verdict: str
+) -> None:
+    package = _package(tmp_path)
+    backend = FakeBackend(mutation_report=_hunt([_survivor(tmp_path)]), replay_reward=replay_reward)
+    reply = {"verdict": verdict, "requirement": "must write 1", "reason": "r"}
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=FakeLane([_no_bypass_reply(), _no_bypass_reply(), reply]),
+    )
+    findings, _ = load_findings(tmp_path / "run")
+    if status is None:
+        assert findings == []
+        assert backend.replay_calls == []
+    else:
+        (finding,) = findings
+        assert finding.category == "weak"
+        assert finding.reproducer.kind == "command"
+        assert finding.refutation.status == status
+        assert len(backend.replay_calls) == 1
+    assert report.verdict == report_verdict
+
+
+def test_mutation_survivors_without_lane_or_after_quota_stop_stay_unadjudicated(
+    tmp_path: Path,
+) -> None:
+    package = _package(tmp_path)
+    hunt = _hunt([_survivor(tmp_path)])
+    no_lane = run_task(
+        package,
+        config=_config(tmp_path, stages=("S2",)),
+        run_dir=tmp_path / "run-a",
+        backend=FakeBackend(mutation_report=hunt),
+        lane=None,
+    )
+    assert no_lane.checks["mutation-hunt"].verdict == "unknown"
+    assert [s.category for s in no_lane.signals] == ["weak"]
+    assert load_findings(tmp_path / "run-a")[0] == []
+
+    quota = run_task(
+        package,
+        config=_config(tmp_path, stages=("S2",)),
+        run_dir=tmp_path / "run-b",
+        backend=FakeBackend(mutation_report=hunt),
+        lane=FakeLane([_no_bypass_reply(), _no_bypass_reply(), QuotaStop("quota 60%")]),
+    )
+    assert quota.checks["mutation-hunt"].verdict == "unknown"
+    assert quota.verdict == "unknown"
+    assert load_findings(tmp_path / "run-b")[0] == []
+
+
+@pytest.mark.parametrize(
+    "hunt",
+    [
+        {"status": "unavailable", "verdict": "task_broken", "reason": "oracle=0"},
+        {"status": "not_applicable", "verdict": "unknown", "reason": "no artifacts"},
+    ],
+)
+def test_unusable_mutation_hunt_is_never_a_pass(tmp_path: Path, hunt: dict[str, object]) -> None:
+    report = run_task(
+        _package(tmp_path),
+        config=_config(tmp_path, stages=("S2",)),
+        run_dir=tmp_path / "run",
+        backend=FakeBackend(mutation_report=hunt),
+        lane=FakeLane([_no_bypass_reply(), _no_bypass_reply()]),
+    )
+    assert report.checks["mutation-hunt"].status in {"not_run", "ran_without_usable_result"}
+    assert report.checks["mutation-hunt"].verdict == "unknown"
+
+
+def test_s3_candidate_stays_unverified_when_task_controls_are_not_clean(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    backend = FakeBackend(oracle=(0.0, 0.0, 0.0), replay_reward=1.0)
+    lane = FakeLane([_exploit_reply()])
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    findings, _ = load_findings(tmp_path / "run")
+    shortcut = next(f for f in findings if f.id.endswith("shortcut-a1"))
+    assert shortcut.refutation.status == "unverified"
+    assert "controls not clean" in shortcut.refutation.reason
+    assert report.verdict == "fail"  # the verified S0 oracle failure, not the shortcut
+
+
+def test_score_findings_excludes_items_and_slices_positives_by_label_strength(
+    tmp_path: Path,
+) -> None:
+    key_dir = tmp_path / "key"
+    key_dir.mkdir()
+
+    def item(name: str, verdict: str, strength: str) -> AnswerKeyItem:
+        return AnswerKeyItem(
+            key_id="k",
+            item_id=name,
+            subject=Subject(kind="task", task_id=f"bench/{name}", task_digest=f"sha256:{name}"),
+            package={"name": name, "root_hint": str(tmp_path)},
+            expected_verdict=verdict,  # type: ignore[arg-type]
+            expected_category="weak" if verdict == "fail" else None,
+            expected_categories=["weak"] if verdict == "fail" else [],
+            label_source="t",
+            label_strength=strength,
+            split="heldout",
+        )
+
+    items = [
+        item("conf-hit", "fail", "confirmed"),
+        item("conf-miss", "fail", "confirmed"),
+        item("epoch-hit", "fail", "epoch_flagged"),
+        item("epoch-tuned", "fail", "epoch_flagged"),
+        item("neg", "pass", "weak_negative"),
+    ]
+    (key_dir / "items.jsonl").write_text(
+        "".join(i.model_dump_json(by_alias=True) + "\n" for i in items), encoding="utf-8"
+    )
+    run_dir = tmp_path / "run"
+    (run_dir / "findings").mkdir(parents=True)
+    for name in ("conf-hit", "epoch-hit", "epoch-tuned"):
+        finding = _make_finding(
+            finding_id=f"f-{name}",
+            task_id=f"bench/{name}",
+            task_digest=f"sha256:{name}",
+            status="verified",
+        )
+        (run_dir / "findings" / f"{finding.id}.json").write_text(
+            finding.model_dump_json(by_alias=True), encoding="utf-8"
+        )
+
+    full = score_findings(key_dir=key_dir, findings_dir=run_dir, split="heldout")
+    assert full["positives"] == 4
+    assert full["verified_recall"] == pytest.approx(3 / 4)
+    assert full["by_label_strength"]["confirmed"]["verified_recall"] == pytest.approx(1 / 2)
+    assert full["by_label_strength"]["epoch_flagged"]["verified_recall"] == 1.0
+
+    cut = score_findings(
+        key_dir=key_dir,
+        findings_dir=run_dir,
+        split="heldout",
+        exclude=frozenset({"epoch-tuned", "conf-miss"}),
+    )
+    assert cut["items"] == 5
+    assert cut["excluded_items"] == ["conf-miss", "epoch-tuned"]
+    assert cut["positives"] == 2
+    assert cut["verified_recall"] == 1.0
+    assert cut["by_label_strength"]["confirmed"]["n"] == 1
+    row = scoreboard_row(cut, level="verified")
+    # The exposure guard accepts an exclusion only if the row leaves those items unmeasured.
+    assert row.n_items == 5
+    assert row.n_measured <= row.n_items - 2
+
+    with pytest.raises(ValueError, match="every selected item is excluded"):
+        score_findings(
+            key_dir=key_dir,
+            findings_dir=run_dir,
+            exclude=frozenset(i.item_id for i in items),
+        )
 
 
 def test_bundle_verifier_aware_excludes_solution_cheat_and_golden_contents(tmp_path: Path) -> None:

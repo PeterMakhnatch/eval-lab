@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v3.0.0-0.2.2-swebench-verified-pytest-dev__pytest-5809",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/swebench-verified/pytest-dev__pytest-5809",
+    "task_digest": "sha256:e7d4addf2672b60aaa57809958028a351292e85466667bcf2446c563040f534f",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v3.0.0",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v30-pytest-dev-pytest-5809/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v30-pytest-dev-pytest-5809/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks pytest-dev__pytest-5809 --modes 0.2.2 --ladders 3.0.0",
+    "expected_reward": null
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v3.0.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

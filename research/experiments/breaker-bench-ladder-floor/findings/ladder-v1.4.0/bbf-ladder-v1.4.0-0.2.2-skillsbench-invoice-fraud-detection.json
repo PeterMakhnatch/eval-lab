@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.2-skillsbench-invoice-fraud-detection",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/skillsbench/invoice-fraud-detection",
+    "task_digest": "sha256:0fe5e726d97c9f64140c459bd25d74cd59848f4df0a999baf296bdd1484bd85f",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-invoice-fraud-detectio/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-invoice-fraud-detectio/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks invoice-fraud-detection --modes 0.2.2 --ladders 1.4.0",
+    "expected_reward": null
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

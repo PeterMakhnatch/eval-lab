@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.0-terminal-bench-2-query-optimize",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/terminal-bench-2/query-optimize",
+    "task_digest": "sha256:b9b65b488a8d984886fe9589148c01481990eb10fa12edd8e5a631fc592e5f61",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v14-query-optimize/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v14-query-optimize/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks query-optimize --modes 0.2.0 --ladders 1.4.0",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

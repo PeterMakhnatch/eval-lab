@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.2-skillsbench-mars-clouds-clustering",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/skillsbench/mars-clouds-clustering",
+    "task_digest": "sha256:f7e24720af29034e23d06270dbfc1c27d90f194719e0ebdab0e24480af61e037",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-mars-clouds-clustering/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-mars-clouds-clustering/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks mars-clouds-clustering --modes 0.2.2 --ladders 1.4.0",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.0-terminal-bench-2-filter-js-from-html",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/terminal-bench-2/filter-js-from-html",
+    "task_digest": "sha256:421546e374e9f736da596f09e1022bd4b5159507a5362273143b1ed37f0fdb04",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v14-filter-js-from-html/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v14-filter-js-from-html/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks filter-js-from-html --modes 0.2.0 --ladders 1.4.0",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

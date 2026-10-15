@@ -1224,11 +1224,13 @@ class HarborBackend:
         run_dir: Path,
         ref_patch: Path | None = None,
         timeout_seconds: int = 1800,
+        mutants: int = 0,
     ) -> dict[str, Any]:
-        """Native ref-subset probe (PR #892/#903) under one Docker slot.
+        """Native ref-subset probe (PR #892/#903/#918) under one Docker slot.
 
         Raw MiMo packages bring a reference patch; Harbor separate-verifier packages derive
         the reference from their own oracle. Anything else is not applicable, never a pass.
+        ``mutants`` > 0 adds the line-level pass of one-edit mutants of the reference's lines.
         """
         from evallab.ref_subset import Package, probe_task
 
@@ -1254,6 +1256,7 @@ class HarborBackend:
                 run_dir,
                 grade_timeout=float(timeout_seconds),
                 oracle_timeout=float(timeout_seconds),
+                mutants=mutants,
                 log=lambda _: None,
             )
         measured = report.get("status") == "measured"
@@ -1694,7 +1697,7 @@ Emit your entire response in a SINGLE assistant message containing ONLY this JSO
 
 
 def adjudication_prompt(instruction: str, survivor: dict[str, Any]) -> str:
-    patch = Path(str(survivor["patch"])).read_text(encoding="utf-8")
+    diff = str(survivor.get("edit") or Path(str(survivor["patch"])).read_text(encoding="utf-8"))
     return ADJUDICATION_PROMPT + json.dumps(
         {
             "instruction.md": instruction[:24_000],
@@ -1702,18 +1705,24 @@ def adjudication_prompt(instruction: str, survivor: dict[str, Any]) -> str:
                 key: survivor[key]
                 for key in ("operator", "file", "line", "original", "replacement")
             },
-            "diff": patch[:8_000],
+            "diff": diff[:8_000],
         }
     )
 
 
 def mutation_findings(
-    report: TaskReport, hunt: dict[str, Any], lane: Any, config: QATaskConfig
+    report: TaskReport,
+    hunt: dict[str, Any],
+    lane: Any,
+    config: QATaskConfig,
+    *,
+    check: str = "mutation-hunt",
 ) -> list[Finding]:
-    """Turn a mutation hunt into the ``mutation-hunt`` check, signals and candidate findings.
+    """Turn a mutation hunt into the ``check`` result, signals and candidate findings.
 
     A survivor becomes an (unverified) finding only when the model adjudicator reads the
     instruction and says the mutant is wrong; an equivalent or unspecified mutant is noise.
+    A survivor with a ``script`` replays as a command reproducer, otherwise as its ``patch``.
     """
     status = hunt.get("status")
     reason = str(hunt.get("reason") or status)
@@ -1723,12 +1732,12 @@ def mutation_findings(
         if key in hunt
     }
     if status == "not_applicable":
-        report.checks["mutation-hunt"] = Check(
+        report.checks[check] = Check(
             stage="S2", status="not_run", scored=False, reason=reason, facts=facts
         )
         return []
     if status != "measured":
-        report.checks["mutation-hunt"] = Check(
+        report.checks[check] = Check(
             stage="S2",
             status="ran_without_usable_result",
             scored=False,
@@ -1739,7 +1748,7 @@ def mutation_findings(
     survivors: list[dict[str, Any]] = list(hunt.get("survivors") or [])
     facts["survivors"] = [s["id"] for s in survivors]
     if not survivors:
-        report.checks["mutation-hunt"] = Check(
+        report.checks[check] = Check(
             stage="S2", status="measured", verdict="pass", scored=False, reason=reason, facts=facts
         )
         return []
@@ -1787,9 +1796,22 @@ def mutation_findings(
                 }
             )
             if verdict == "wrong":
+                reproducer = (
+                    Reproducer(
+                        kind="command",
+                        path=str(survivor["script"]),
+                        expected_reward=float(survivor["reward"]),
+                    )
+                    if survivor.get("script")
+                    else Reproducer(
+                        kind="patch",
+                        path=str(survivor["patch"]),
+                        expected_reward=float(survivor["reward"]),
+                    )
+                )
                 finding = finding_for(
                     report,
-                    suffix=f"mutation-{survivor['id']}",
+                    suffix=f"{check}-{survivor['id']}",
                     stage="S2",
                     category="weak",
                     verdict="fail",
@@ -1799,15 +1821,11 @@ def mutation_findings(
                         f"earned reward {survivor['reward']}",
                         str(payload.get("requirement") or ""),
                     ],
-                    reproducer=Reproducer(
-                        kind="command",
-                        path=str(survivor["script"]),
-                        expected_reward=float(survivor["reward"]),
-                    ),
+                    reproducer=reproducer,
                     verified=False,
                 )
                 finding.reviewer = Reviewer(
-                    agent="qa-task/mutation-hunt",
+                    agent=f"qa-task/{check}",
                     model=config.reviewer_model,
                     tokens=reply.tokens,
                 )
@@ -1818,13 +1836,13 @@ def mutation_findings(
     if pending or undecided:
         report.signals.append(
             Signal(
-                id=f"{task_slug(report.subject)}.mutation-survivors",
+                id=f"{task_slug(report.subject)}.{check}-survivors",
                 category="weak",
                 evidence_refs=[str(s["patch"]) for s in survivors],
-                reviewer=Reviewer(agent="qa-task/mutation-hunt"),
+                reviewer=Reviewer(agent=f"qa-task/{check}"),
             )
         )
-    report.checks["mutation-hunt"] = Check(
+    report.checks[check] = Check(
         stage="S2",
         status="measured",
         verdict="fail" if wrong else ("unknown" if pending or undecided else "pass"),
@@ -1838,6 +1856,58 @@ def mutation_findings(
         facts=facts,
     )
     return findings
+
+
+def ref_mutant_findings(
+    report: TaskReport,
+    rs_report: dict[str, Any],
+    lane: Any,
+    config: QATaskConfig,
+    *,
+    out_dir: Path,
+) -> list[Finding]:
+    """Line-level pass of ref-subset (PR #918): one-edit mutants of the lines the reference wrote.
+
+    Adjudicated and replayed exactly like the output-mutation hunt, under the ``ref-mutants``
+    check; no check is recorded when the pass did not run.
+    """
+    summary = rs_report.get("mutants")
+    if not isinstance(summary, dict):
+        if config.mutants and rs_report:
+            report.checks["ref-mutants"] = Check(
+                stage="S2",
+                status="not_run",
+                scored=False,
+                reason=str(rs_report.get("reason") or "ref-subset did not run the line-level pass"),
+            )
+        return []
+    hunt = {
+        "status": summary.get("status"),
+        "reason": summary.get("reason")
+        or f"{summary.get('killed', 0)} killed, {len(summary.get('survivors') or [])} survived "
+        f"of {summary.get('tried', 0)} one-edit mutants",
+        "verdict": summary.get("verdict"),
+        "counts": {
+            key: summary[key]
+            for key in ("generated", "tried", "killed", "unscored")
+            if key in summary
+        },
+        "survivors": [
+            {
+                "id": s["id"],
+                "operator": s["operator"],
+                "file": s["file"],
+                "line": s["line"],
+                "original": s["original"],
+                "replacement": s["replacement"],
+                "reward": 1.0,
+                "edit": s.get("edit"),
+                "patch": str(out_dir / "mutants" / f"{s['id']}.patch"),
+            }
+            for s in summary.get("survivors") or []
+        ],
+    }
+    return mutation_findings(report, hunt, lane, config, check="ref-mutants")
 
 
 def stage_s2(
@@ -2029,6 +2099,7 @@ def stage_s2(
 
     # (b) ref-subset (PR #892/#903): the smallest part of the reference fix that still passes
     if hasattr(backend, "ref_subset"):
+        rs_report: dict[str, Any] = {}
         try:
             rs_report = backend.ref_subset(
                 Path(report.package),
@@ -2036,6 +2107,7 @@ def stage_s2(
                 run_dir=run_dir / "ref_subset",
                 ref_patch=ref_patch,
                 timeout_seconds=config.trial_timeout_seconds,
+                mutants=config.mutants,
             )
             rs_status = rs_report.get("status")
             rs_verdict = rs_report.get("verdict")
@@ -2116,6 +2188,9 @@ def stage_s2(
                 scored=False,
                 reason=f"{type(exc).__name__}: {exc}",
             )
+        findings.extend(
+            ref_mutant_findings(report, rs_report, lane, config, out_dir=run_dir / "ref_subset")
+        )
 
     # (c) verifier mutation hunt (#867): surviving mutants, adjudicated against the instruction
     if config.mutants == 0:

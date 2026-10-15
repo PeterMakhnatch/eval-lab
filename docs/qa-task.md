@@ -38,7 +38,7 @@ count as passes.
 | `S0` | Unscored static hack scan (`backend.static`); scored `oracle` ×3 and `nop` ×3 fresh-container controls (`oracle_floor=0.9`, `nop_ceiling=0.1`); scored `leak` probe executed directly in the environment image (same `LEAK_PROBE_V1` script and parser as the Harbor probe; a missing `git` with no candidate checkout is `no-repository`, not unknown) | Measured oracle `<0.9` emits a verified `broken` finding; measured nop `>0.1` emits a verified `weak` finding. A measured leak with future history appends a `reachable` Signal. GPU or multi-service Compose packages are `not_run` with the blocker reason. |
 | `S1` | Complete rubric (`--rubric` or Harbor built-in) over k=3 independent text-only Codex samples; only complete samples vote; majority per `rubric:<name>` criterion | Majority fails on `DEFECT_CRITERIA` append Signals, never Findings. |
 | `S2a` shortcut agent | `bundle_verifier_aware` gives the model `instruction.md`, `task.toml`, `environment/*` and `tests/*` read-only. `solution/`, `cheat/` and `README.md` are excluded; static golden dirs under `tests/` (`golden-files`, `hidden_data`, `data`, `fixtures`) are listed in `omitted` with sizes. The prompt names three generic defect classes (`reachable`, `tamperable`, `weak`), not task-specific mechanisms. One JSON object per attempt (`exploit` / `no_credible_bypass` / `legit_solution` + submission). Each exploit is graded on the untouched base in a fresh container; failed attempts are retried with the previous agent output and verifier stdout in the prompt (max 3). Two consecutive `no_credible_bypass` replies stop early. | A submission scoring 1.0 creates an **unverified** candidate Finding (`command`/`patch` reproducer). `shortcut-agent` is a scored check: `fail` if a shortcut scored 1.0, `pass` if at least one usable reply found none, else `unknown`/`not_run`. |
-| `S2b` ref-subset | `evallab.ref_subset.probe_task`: raw MiMo packages (or `--ref-patch`) use their reference patch; Harbor **separate-verifier** packages derive the reference from their own oracle and grade subsets in fresh verifier containers (#903). Shared-verifier Harbor packages are `not_run` (not applicable), never a pass. | A measured partial-fix pass keeping ≤50% of the reference code lines (severity high/medium) creates an unverified `weak` candidate whose reproducer is `minimal.patch`. Low severity (>50% kept) is a Signal only. An exhausted grade budget is `unknown`, not a pass. `ref-subset` is an unscored check. |
+| `S2b` ref-subset | `evallab.ref_subset.probe_task`: raw MiMo packages (or `--ref-patch`) use their reference patch; Harbor **separate-verifier** packages derive the reference from their own oracle and grade subsets in fresh verifier containers (#903). Shared-verifier Harbor packages are `not_run` (not applicable), never a pass. `--mutants N` also runs its line-level pass (#918): up to N one-edit mutants of the lines the reference wrote, each graded like a subset. | A measured partial-fix pass keeping ≤50% of the reference code lines (severity high/medium) creates an unverified `weak` candidate whose reproducer is `minimal.patch`. Low severity (>50% kept) is a Signal only. An exhausted grade budget is `unknown`, not a pass. A surviving line-level mutant is adjudicated against `instruction.md` exactly like an S2c survivor (check `ref-mutants`); only `wrong` ones become unverified `weak` candidates (reproducer: that mutant's patch over the base). `ref-subset` and `ref-mutants` are unscored checks. |
 | `S2c` mutation hunt | `evallab.verifier_mutation.run_mutation_audit` with `--mutants N` (default 8; `0` disables) and the coverage-guided plan. Trials run through `HarborBackend.matrix_runner` (raw-docker fresh containers, same capture and coverage layout as Harbor trials) instead of Harbor jobs: ~2 s per trial instead of ~100 s. Survivors (reward kept while the file's blank control scores 0) are read by a Codex adjudicator against `instruction.md` and the diff: `wrong` (violates a quoted requirement) / `equivalent` / `unspecified`. | Only `wrong` survivors become unverified `weak` candidates (reproducer: the mutation script). Unadjudicated survivors (no lane, quota stop, more than 6) append a `weak` Signal and make the `mutation-hunt` check `unknown`. `task_broken`/`unscored` hunts are `ran_without_usable_result`. |
 | `S3` | Fresh-container confirmation. Baseline controls come from S0 when it ran in the same audit; otherwise S3 runs one fresh oracle and one fresh nop. Each unverified candidate (S2 or `--evidence` import) is re-executed from its reproducer on the base environment in a new container; mutation scripts replay as oracle-channel overrides with the task's `solution/` staged. An optional subject-bound `--triplet` is checked numerically (`validate_triplet`) as an unscored gate. | `verified`/`fail` iff fresh reward is 1.0 **and** oracle and nop controls are clean. A task whose controls are not clean leaves every candidate `unverified`. Reward in (0, 1) stays `unverified`. Reward 0 with clean controls is `refuted`/`pass`. `fresh-replay` is scored: `fail` when any candidate is confirmed, `pass` when every replay and control is measured clean, else `unknown`. |
 
@@ -50,11 +50,14 @@ Invalid submissions are unusable, never passes.
 
 ### Execution backend
 
-`HarborBackend.run_container_trial` mirrors Harbor's separate-verifier flow
-and holds one slot of the shared host-wide Docker FIFO lock
-(`evallab.docker_lock.docker_slot`, label `qa-task/<task>/<mode>`) per trial;
-`leak`, ref-subset and every mutation run take their own slot, so at most one
-QA Task container runs at a time and other tabs interleave:
+`HarborBackend.run_container_trial` mirrors Harbor's separate-verifier flow.
+`run_task` holds one slot of the shared host-wide Docker FIFO lock
+(`evallab.docker_lock.docker_slot`, label `qa-task/<task>`) for all of a
+task's container work (S0, S2, S3), so the queue is joined once per task and
+not once per trial; S1 runs before it and needs no container. The backend's
+per-trial, `leak`, ref-subset and mutation calls re-enter that slot
+(`HarborBackend.slot` is reentrant; `docker_slot` itself is not). At most one
+QA Task container runs at a time and other tabs interleave between tasks:
 
 1. build (and cache per package digest) the environment image and, for
    `environment_mode = "separate"`, the `tests/` image;
@@ -91,7 +94,7 @@ today, so root-cause match is `n/a` (not measured), never 0.
   latter two never pass.
 - `quality_complete` is true iff at least one scored check exists and every
   **scored** check is `measured` (unscored descriptive checks such as
-  `static`, `rubric-sample-*`, `ref-subset`, `mutation-hunt`,
+  `static`, `rubric-sample-*`, `ref-subset`, `ref-mutants`, `mutation-hunt`,
   `imported-evidence` and `supplied-triplet` do not block completeness).
 - `report.verdict` is `fail` when any verified eval finding stands; otherwise
   `unknown` when measurement is incomplete, any scored check failed, any

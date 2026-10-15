@@ -228,8 +228,10 @@ class FakeBackend:
         run_dir: Path,
         ref_patch: Path | None = None,
         timeout_seconds: int = 1800,
+        mutants: int = 0,
     ) -> dict[str, object]:
         self.ref_subset_calls += 1
+        self.ref_subset_mutants = mutants
         return dict(self.ref_subset_report)
 
     def mutation_hunt(
@@ -935,6 +937,80 @@ def test_unusable_mutation_hunt_is_never_a_pass(tmp_path: Path, hunt: dict[str, 
     )
     assert report.checks["mutation-hunt"].status in {"not_run", "ran_without_usable_result"}
     assert report.checks["mutation-hunt"].verdict == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("verdict", "replay_reward", "status"),
+    [("wrong", 1.0, "verified"), ("wrong", 0.0, "refuted"), ("equivalent", 1.0, None)],
+)
+def test_ref_subset_line_mutant_survivor_is_adjudicated_then_replayed_as_a_patch(
+    tmp_path: Path, verdict: str, replay_reward: float, status: str | None
+) -> None:
+    ref_report = {
+        "status": "measured",
+        "verdict": "pass",
+        "reason": "every reference block is needed",
+        "severity": None,
+        "mutants": {
+            "status": "measured",
+            "verdict": "fail",
+            "severity": "high",
+            "tried": 4,
+            "killed": 3,
+            "unscored": 0,
+            "survivors": [
+                {
+                    "id": "m7",
+                    "file": "app/x.py",
+                    "line": 3,
+                    "end_line": 3,
+                    "operator": "lt-to-le",
+                    "original": "a < b",
+                    "replacement": "a <= b",
+                    "edit": "-a < b\n+a <= b\n",
+                }
+            ],
+        },
+    }
+    backend = FakeBackend(ref_subset_report=ref_report, replay_reward=replay_reward)
+    report = run_task(
+        _package(tmp_path),
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=FakeLane(
+            [
+                _no_bypass_reply(),
+                _no_bypass_reply(),
+                {"verdict": verdict, "requirement": "compare strictly", "reason": "r"},
+            ]
+        ),
+    )
+    assert backend.ref_subset_mutants == 8
+    findings, _ = load_findings(tmp_path / "run")
+    if status is None:
+        assert findings == []
+        assert report.checks["ref-mutants"].verdict == "pass"
+    else:
+        (finding,) = findings
+        assert finding.id.endswith("ref-mutants-m7")
+        assert finding.reproducer.kind == "patch"
+        assert finding.reproducer.path.endswith("ref_subset/mutants/m7.patch")
+        assert finding.refutation.status == status
+        assert report.checks["ref-mutants"].verdict == "fail"
+    assert report.verdict == ("fail" if status == "verified" else "pass")
+
+
+def test_ref_mutants_without_a_line_level_pass_record_not_run(tmp_path: Path) -> None:
+    report = run_task(
+        _package(tmp_path),
+        config=_config(tmp_path, stages=("S2",)),
+        run_dir=tmp_path / "run",
+        backend=FakeBackend(),
+        lane=FakeLane([_no_bypass_reply(), _no_bypass_reply()]),
+    )
+    assert report.checks["ref-mutants"].status == "not_run"
+    assert report.checks["ref-mutants"].verdict == "unknown"
 
 
 def test_s3_candidate_stays_unverified_when_task_controls_are_not_clean(tmp_path: Path) -> None:

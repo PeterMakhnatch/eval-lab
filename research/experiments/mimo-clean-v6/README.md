@@ -300,9 +300,10 @@ The optional state-journal observer is disabled before CLI execution.
 
 Each individual FIFO acquisition is bounded by the smaller of
 `--lock-wait-seconds` and the remaining admission window. A FIFO timeout
-records queue time and stops without launching Docker. The driver never
-starts a new trial after the deadline; an already-running native Harbor
-trial may finish beyond it. Native task timeouts remain authoritative,
+records queue time and stops without launching Docker. Admission is checked
+again after image inspection, immediately before launching Harbor, so a slow
+inspection cannot admit a new trial at or after the deadline. An already-running
+native Harbor trial may finish beyond it. Native task timeouts remain authoritative,
 rather than killing a CLI and risking orphan containers. Oracle and nop
 release FIFO separately; rewards and active/queue times are journaled
 after each cell, making partial pairs resumable.

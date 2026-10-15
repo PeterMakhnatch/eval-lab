@@ -9,8 +9,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 |---|---|---|---|---|---|
 | breaker-bench-v1 | 123 (75/46) | 503 (327/176) test | 46 / 168 | 412 | 0 |
 | delphik-open-defect-tb2 | 0 (0/0) | 47 (23/24) heldout | 0 / 0 | 47 | 0 |
-| envcheck-task-audit | 13 (4/9) | 26 (9/17) heldout | 0 / 0 | 39 | 0 |
-| envcheck-tb4-39 | 13 (4/9) | 26 (9/17) heldout | 0 / 0 | 39 | 0 |
+| envcheck-tb4-39 | 13 (7/6) | 26 (18/8) heldout | 0 / 0 | 39 | 0 |
 | executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
@@ -54,7 +53,6 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | combined-v1-thresholds | tuned | QA Trace T0 (combined_v1*) | trace-paired-v1 | 25 | 10 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | breaker-bench-v1 | 0 | 2 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | delphik-open-defect-tb2 | 0 | 1 |
-| breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-task-audit | 1 | 5 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-tb4-39 | 1 | 5 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | executed-outcomes-v1 | 1 | 4 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
@@ -70,7 +68,6 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | executed-outcomes-ref-subset | selected | QA Task, QA Trace | executed-outcomes-v1 | 8 | 16 |
 | executed-outcomes-hunt-repair | selected | EnvCheck, QA Task | executed-outcomes-v1 | 10 | 18 |
 | executed-outcomes-probe | selected | Verifier hardening, Breaker | executed-outcomes-v1 | 3 | 3 |
-| ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | envcheck-task-audit | 0 | 1 |
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 1 |
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | executed-outcomes-v1 | 0 | 1 |
 | ref-subset-tb4-39-sweep | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 13 | 26 |

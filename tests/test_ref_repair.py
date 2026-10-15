@@ -252,6 +252,37 @@ def test_ref_model_caller_refuses_tool_bearing_turn(tmp_path, monkeypatch):
         ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
 
 
+def test_ref_model_caller_recovers_a_proposal_after_empty_catalog_probes(tmp_path, monkeypatch):
+    import evallab.verifier_repair as vr
+    from evallab.ref_repair import ref_model_caller
+
+    proposal = json.dumps(
+        {"schema": "evallab.verifier_repair.proposal/v1", "repairable": False, "rationale": "x"}
+    )
+    probe = {
+        "type": "mcp_tool_call",
+        "server": "codex",
+        "tool": "list_mcp_resources",
+        "arguments": {},
+        "error": None,
+        "status": "completed",
+        "result": {"content": [{"type": "text", "text": '{"resources":[]}'}]},
+    }
+    events = [
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "checking"}},
+        {"type": "item.completed", "item": probe},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": proposal}},
+        {"type": "turn.completed", "usage": {"input_tokens": 9}},
+    ]
+    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+    monkeypatch.setattr(
+        vr, "codex_model_caller", lambda *a, **k: (_ for _ in ()).throw(vr.RepairError("multi"))
+    )
+    text, usage = ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
+    assert text == proposal
+    assert usage["input_tokens"] == 9
+
+
 def test_classify_partial_only_when_every_escape_is_declared():
     rows = _checks([1, 1, 1], [0, 0, 0], [("a", 0.0), ("netlify", 1.0), ("fixture", 1.0)])
     verdict, reason = classify_ref_validation(

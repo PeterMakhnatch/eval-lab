@@ -716,12 +716,13 @@ def ref_model_caller(
     """One subscription proposal; recovers a text-only preamble turn.
 
     The shared transport fails closed on multiple assistant messages. When
-    every completed item is a plain agent message (no tool call, no file
-    change) and the final message parses as a proposal, that final message
-    is the proposal: the preamble is narration, not a second answer. The
-    original transcript stays on disk and the recovery is recorded in the
-    usage receipt. Any tool-bearing or unparseable turn still fails.
+    every completed item is a plain agent message or Codex's own empty MCP
+    catalog listing, and the final message parses as a proposal, that final
+    message is the proposal: the preamble is narration, not a second answer.
+    The original transcript stays on disk and the recovery is recorded in the
+    usage receipt. Any real tool-bearing or unparseable turn still fails.
     """
+    from evallab.gepa_optimizer.codex_transport import _empty_catalog_probe
     from evallab.verifier_repair import RepairError, codex_model_caller, parse_proposal
 
     try:
@@ -741,6 +742,8 @@ def ref_model_caller(
             raise
         texts = []
         for item in items:
+            if _empty_catalog_probe(item):
+                continue
             if item.get("type") != "agent_message":
                 raise
             texts.append(str(item.get("text") or ""))

@@ -169,6 +169,42 @@ def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
     )
 
 
+#: Codex lists its own MCP catalog before answering, even with user config
+#: ignored. An empty listing is not a model tool call. Any other server, tool,
+#: argument or non-empty result still fails the turn.
+_CATALOG_PROBES = {
+    "list_mcp_resources": "resources",
+    "list_mcp_resource_templates": "resourceTemplates",
+}
+
+
+def _empty_catalog_probe(item: Any) -> bool:
+    if not isinstance(item, dict) or item.get("type") != "mcp_tool_call":
+        return False
+    key = _CATALOG_PROBES.get(item.get("tool"))
+    if item.get("server") != "codex" or key is None:
+        return False
+    if item.get("arguments") not in ({}, None) or item.get("error") is not None:
+        return False
+    status = item.get("status")
+    if status == "in_progress":
+        return item.get("result") is None
+    if status != "completed":
+        return False
+    result = item.get("result")
+    content = result.get("content") if isinstance(result, dict) else None
+    if not isinstance(content, list) or len(content) != 1 or not isinstance(content[0], dict):
+        return False
+    text = content[0].get("text")
+    if not isinstance(text, str):
+        return False
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(payload, dict) and set(payload) == {key} and payload[key] == []
+
+
 def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
     """Accept exactly one completed text-only turn; reject everything else.
 
@@ -211,9 +247,7 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
         if kind == "turn.failed":
             detail = event.get("error", {})
             message = detail.get("message", "") if isinstance(detail, dict) else ""
-            raise CodexTransportError(
-                f"Codex turn failed: {str(message)[:200]}"
-            )
+            raise CodexTransportError(f"Codex turn failed: {str(message)[:200]}")
         if kind == "turn.completed":
             completions += 1
             if completions > 1:
@@ -244,6 +278,8 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
                 raise CodexTransportError("Invalid Codex thread item")
             detail = item.get("type")
             if detail in _TOOL_ITEM_TYPES:
+                if _empty_catalog_probe(item):
+                    continue
                 raise CodexTransportError(
                     f"Codex attempted a tool call ({detail}); no text extracted"
                 )
@@ -312,12 +348,10 @@ def _poll_events(
             if _startup_warning(item, kind, started):
                 continue
             detail = item.get("type") if isinstance(item, dict) else None
-            if detail in _TOOL_ITEM_TYPES or (
-                detail not in {"agent_message", "reasoning"}
-            ):
-                raise CodexTransportError(
-                    "Codex attempted a tool call; no automatic retry"
-                )
+            if _empty_catalog_probe(item):
+                continue
+            if detail in _TOOL_ITEM_TYPES or (detail not in {"agent_message", "reasoning"}):
+                raise CodexTransportError("Codex attempted a tool call; no automatic retry")
     return offset, lines[-1], started
 
 
@@ -357,9 +391,8 @@ class CodexTransport:
         executable = _executable()
         version, digest = self._version_digest(executable)
         completed = _run_probe([str(executable), "login", "status"], timeout=30)
-        output = (
-            completed.stdout.decode(errors="replace")
-            + completed.stderr.decode(errors="replace")
+        output = completed.stdout.decode(errors="replace") + completed.stderr.decode(
+            errors="replace"
         )
         if completed.returncode != 0 or "ChatGPT" not in output:
             raise CodexTransportError(
@@ -477,8 +510,7 @@ class CodexTransport:
                     time.sleep(0.1)
                 if process.returncode != 0:
                     raise CodexTransportError(
-                        f"Codex exited with status {process.returncode}; "
-                        "inspect retained logs"
+                        f"Codex exited with status {process.returncode}; inspect retained logs"
                     )
             finally:
                 _stop(process)

@@ -220,6 +220,19 @@ separate `--stages exploit` probe is requested.
     Trace T0 check. A passing trial whose `verifier/agent.diff` leaves every
     untested reference block alone is a suspected partial fix
     (`false_positive`, unverified).
+- `evallab hack ref-repair <ref-subset report dir> [--execute]
+  [--feedback <prior repair-result.json>]` — repair a verifier the probe
+  flagged `fail` (`src/evallab/ref_repair.py`). The shortcut set is every
+  proper subset of the reference fix that scored 1: the minimised
+  reproducer plus each passing drop-file / drop-block grade. A
+  ChatGPT-subscription Codex proposer (same schema, fingerprint bans and
+  60% weekly quota gate as `hack repair`) writes new semantic tests; the
+  variant is derived test-only via `tasks derive`. Acceptance (2026-10-15
+  rule) requires the full reference to pass **3/3** sandbox grades, the
+  do-nothing base to fail **3/3**, and **every** shortcut to fail.
+  Anything else is `rejected`, `unrepairable` or `blocked`, never
+  `repaired`. Receipts (`repair-result.json`, proposal, quota, usage) land
+  in the attempt's `--output-dir`.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix

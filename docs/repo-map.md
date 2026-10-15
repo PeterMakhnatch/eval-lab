@@ -435,7 +435,7 @@ inputs:
   - path: src/evallab/mcp_substrate.py
     digest: sha256:0874a6d911df541b03103ad1316a0730fd5f18b26fbe80959e059057597ec851
   - path: src/evallab/mimo_census.py
-    digest: sha256:065303059013c6a17f682f0bc3e32c859f53bad2e5f650d2d5701ba477a74aab
+    digest: sha256:c70b57b4545f483370a2b261dc9bb88e321d7fa16092fb25c339161854677624
   - path: src/evallab/mimo_clean.py
     digest: sha256:cedf4550c549c320d435f715b5391b48fa9f488e7de37f0c21d16a182a44bf89
   - path: src/evallab/mimo_exploit.py

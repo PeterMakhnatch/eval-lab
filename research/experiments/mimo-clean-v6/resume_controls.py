@@ -19,7 +19,11 @@ from pathlib import Path
 from typing import Any
 
 from evallab.docker_lock import DockerLockTimeout, docker_slot
+from evallab.execution_contracts import RunRequest
 from evallab.mimo_census import trial_tests_executed
+from evallab.queue import Executor
+from evallab.runner import ExecutionFailure
+from evallab.task_variants import task_directory_digest
 
 PROTECTED_TASKS = {
     "000041", "000128", "000236", "000792", "001269", "002139",
@@ -92,8 +96,7 @@ def execute(args: argparse.Namespace) -> None:
     args.journal.parent.mkdir(parents=True, exist_ok=True)
     done = reusable_cells(args.receipts, args.journal)
     deadline = time.monotonic() + args.seconds
-    environment = dict(os.environ, EVALLAB_STATE_JOURNAL="off")
-    environment.pop("VIRTUAL_ENV", None)
+    repo_root = Path(__file__).resolve().parents[3]
     for target in pending["tasks"]:
         if not target["runnable"]:
             continue
@@ -113,6 +116,8 @@ def execute(args: argparse.Namespace) -> None:
         package = args.package_root / row["package_path"]
         if not package.is_dir():
             raise FileNotFoundError(f"missing immutable package: {package}; derive the exact manifest digest first")
+        if task_directory_digest(package) != digest:
+            raise ValueError(f"materialized package digest changed for {task_id}; refusing execution")
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         image = config["environment"]["docker_image"]
         cached_before: bool | None = None
@@ -138,24 +143,33 @@ def execute(args: argparse.Namespace) -> None:
                         if cached_before is None:
                             cached_before = image_cached(image)
                         job_name = f"v6-{task_id.rsplit('-', 1)[1]}-{agent}-x3-{uuid.uuid4().hex[:8]}"
-                        command = [
-                            "uv", "run", "--extra", "laminar", "harbor", "run",
-                            "--path", str(package), "--agent", agent,
-                            "--job-name", job_name, "--jobs-dir", str(args.jobs_dir),
-                            "--n-concurrent", "1", "--n-attempts", "1", "-y",
-                            "--verifier", "evallab.harbor_repeat_verifier:RepeatVerifier",
-                            "--verifier-kwarg", "repeat_n=3",
-                        ]
+                        request = RunRequest(
+                            task=package,
+                            agent=agent,
+                            name=job_name,
+                            jobs_dir=args.jobs_dir,
+                            environment="docker",
+                            concurrency=1,
+                            attempts=1,
+                            verifier_repeat_n=3,
+                        )
                         started = time.monotonic()
-                        process = subprocess.run(command, env=environment, check=False)
+                        execution_error = None
+                        try:
+                            Executor.from_repo(repo_root).execute_direct(request, ingest=False)
+                            returncode = 0
+                        except ExecutionFailure as exc:
+                            returncode = 1
+                            execution_error = str(exc)
                         active_wall = time.monotonic() - started
                         record: dict[str, Any] = {
                             "kind": "control", "task_id": task_id, "final_digest": digest,
-                            "agent": agent, "job": job_name, "returncode": process.returncode,
+                            "agent": agent, "job": job_name, "returncode": returncode,
                             "active_wall_sec": round(active_wall, 3),
                             "queue_wait_sec": round(queue_wait, 3),
                             "rewards": None, "test_execution": None,
                             "image": image, "cached_before": cached_before,
+                            "execution_error": execution_error,
                         }
                         paths = list((args.jobs_dir / job_name).glob("*/verifier/stability.json"))
                         if len(paths) == 1:
@@ -209,6 +223,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.seconds <= 0 or args.lock_wait_seconds <= 0:
         parser.error("--seconds and --lock-wait-seconds must be positive")
+    os.environ["EVALLAB_STATE_JOURNAL"] = "off"
     execute(args)
 
 

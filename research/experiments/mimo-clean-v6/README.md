@@ -254,7 +254,7 @@ imply $7.03–$9.12 for 1x, or a conservative **$21.08–$27.37** whole-cell
 is shared. The **full** oracle+nop+ladder protocol instead projects
 **$44.29–$50.58** at conservative 3x rates, as in the historical planning
 table above; the control-only local measurement cannot estimate full
-ladder runtime. No Modal job was launched or paid spend authorized.
+ladder runtime. No Modal job was launched; these projections are not spending approval.
 
 ### Frozen selection, pending inventory, and safe resumption
 
@@ -290,6 +290,13 @@ It reuses scored positive **or negative** cells only at the exact
 three case-proof flags, no repeat errors, and no native trial exception.
 An old single nop is not reused as x3, and changed pending digests stop
 the run rather than inheriting verification.
+
+Resumption validates the materialized package's complete digest before
+requesting a Docker slot. It dispatches through Eval Lab's
+`Executor.execute_direct(RunRequest(..., verifier_repeat_n=3), ingest=False)`,
+not raw `harbor run`, so the standard host-isolated Docker boundary and
+execution provenance apply. Only `oracle` and `nop` can be selected here.
+The optional state-journal observer is disabled before CLI execution.
 
 Each individual FIFO acquisition is bounded by the smaller of
 `--lock-wait-seconds` and the remaining admission window. A FIFO timeout

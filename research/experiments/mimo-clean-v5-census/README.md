@@ -547,3 +547,26 @@ Local Docker verification (`RepeatVerifier repeat_n=3`, 1 container at a time, i
 | format-code-task-000048 | `sha256:673816e51dbc84653b4fbfe52f20e2b253a1aefc8d2b53a2d7e08e6d9a70eadb` | `[1.0, 1.0, 1.0]` | `0.0` | `v10-000048-oracle-673816e51dbc`, `v10-000048-nop-673816e51dbc` |
 
 Results written to `~/Developer/eval-lab-results/2026-10-14/repeat-oracle-fix/`.
+
+## #848 snapshot-hook digest refresh (2026-10-15, $0 local CPU)
+
+#848 (`832a1626b`) changed `render_snapshot_hook_v2` in
+`src/evallab/separate_verifier.py`: the `task.toml` snapshot collect
+command (L59) went from a full-worktree `tar --exclude=.git` to
+`git -C "$CWD" ls-files -c -o --exclude-standard`, closing the
+`pyc_shadow` hole. The shipped v5 manifest still carried pre-#848
+digests, so its packages still snapshotted `__pycache__` bytes.
+Rebuilt all 2,698 rows with `evallab mimo-clean build --clean-version
+mimo-clean-v5` on current main: 2,664 of 2,666 built rows changed
+digest (only the post-#848 @10 folds 000245/000048 were already
+current); the `verify` column is preserved verbatim by the builder,
+and a second identical rebuild produces zero diff. Spot checks match
+the independent Verifier's rebuilt digests: 002139
+`sha256:dd269adcb32c…` -> `sha256:d4bcbef9aef6…`, 002866
+`sha256:a811bab8c3fb…` -> `sha256:744820cc8c48…`.
+`verify-overrides.csv` `final_digest` pins were refreshed to match
+(45 of 47 rows; 000245/000048 unchanged). Old `<digest12>` package
+dirs stay in `derived/task-store/variants/` so historical receipts
+remain valid. The builder now treats any pre-#848 cached
+`separate-verifier@2`+/`agent-network-none@1` package as stale and
+re-derives it instead of reusing it.

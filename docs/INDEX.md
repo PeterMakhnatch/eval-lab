@@ -56,6 +56,8 @@ inputs:
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
+  - path: docs/docker-lock.md
+    digest: sha256:07a12313728e9920485e5140d9bd27c1173c5fbba83e13bc002e9fdd0b60b104
   - path: docs/engineering.md
     digest: sha256:1f703535a274d1b0d4924c2d19a565aa64065bf00d9d9207bc4d0149057e0dd0
   - path: docs/eval-cards.md
@@ -189,6 +191,7 @@ an operator can see what is archived.
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
+| `docs/docker-lock.md` | Docker FIFO lock (`evallab docker-lock`) | `living` | `builder, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/features.md` | Trial features: one row per trial | `living` | `analyst, builder` |
@@ -358,6 +361,7 @@ an operator can see what is archived.
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |
 | `docs/data-architecture.md` | Data architecture: four provenance zones | `living` | `builder, analyst, runner, operator` |
 | `docs/deepseek-v4-flash-lane.md` | DeepSeek V4 Flash Harbor lane | `living` | `operator, runner` |
+| `docs/docker-lock.md` | Docker FIFO lock (`evallab docker-lock`) | `living` | `builder, operator` |
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/eval-cards.md` | Eval Cards (E11) | `living` | `analyst, operator, builder` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |

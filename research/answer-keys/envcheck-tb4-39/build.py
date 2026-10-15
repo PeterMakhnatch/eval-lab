@@ -176,6 +176,35 @@ def main() -> None:
         for it in group[: round(len(group) / 3)]:
             it["split"] = "dev"
 
+    # Epoch's TB4 review flags 12 of the weak negatives with a public issue each
+    # (epoch_flags.json). They stop being negatives: verdict fail, category read
+    # from the issue, label_strength epoch_flagged. Applied after the split so the
+    # 2026-10-14 split lock (and splits/assignments.csv) is unchanged.
+    epoch = json.loads((Path(__file__).resolve().parent / "epoch_flags.json").read_text())
+    by_name = {it["package"]["name"]: it for it in items}
+    for flag in epoch["flags"]:
+        item = by_name[flag["task"]]
+        if item["label_strength"] != "weak_negative":
+            raise ValueError(f"{flag['task']} is not a weak negative; Epoch overlay expects one")
+        issue = f"harbor-framework/terminal-bench#{flag['issue']}"
+        item.update(
+            {
+                "expected_verdict": "fail",
+                "expected_category": flag["category"],
+                "expected_categories": [flag["category"]],
+                "root_cause": [
+                    {
+                        "id": issue,
+                        "category": flag["category"],
+                        "summary": f"{flag['title']} (issue {flag['state'].lower()})",
+                        "source_class": f"epoch: {flag['epoch_error']}",
+                    }
+                ],
+                "label_source": f"{epoch['source']}; issue {issue} read {epoch['issues_read']}",
+                "label_strength": "epoch_flagged",
+            }
+        )
+
     items.sort(key=lambda it: it["item_id"])
     out = Path(args.out)
     with open(out, "w", encoding="utf-8") as f:

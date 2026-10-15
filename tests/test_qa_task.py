@@ -42,6 +42,7 @@ from evallab.qa.task import (
     run_task,
     score_command,
     score_findings,
+    scoreboard_row,
     validate_triplet,
 )
 from evallab.registry import task_directory_digest
@@ -790,8 +791,9 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and
         )
 
     score = score_findings(key_dir=key_dir, findings_dir=run_dir, split="heldout")
-    assert "root_cause_match_recall" not in score
-    assert "root_cause_alignment_fraction" not in score
+    # No finding names a root cause: not measured, never a 0.
+    assert score["verified_root_cause_match"] is None
+    assert score["flagged_root_cause_match"] is None
     assert score["items"] == 4
     assert score["positives"] == 3
     assert score["negatives"] == 1
@@ -806,13 +808,22 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and
     assert score["observed_fraction"] == pytest.approx(3 / 4)
     assert score["measured_fraction"] == pytest.approx(2 / 4)
     rows_by_id = {row["item_id"]: row for row in score["rows"]}
-    assert "root_cause_match" not in rows_by_id["item-cat-match"]
-    assert "root_cause_aligned" not in rows_by_id["item-cat-match"]
+    assert rows_by_id["item-cat-match"]["labelled_cause"] is True
     assert rows_by_id["item-missing"]["observed"] is False
     assert rows_by_id["item-missing"]["measured"] is False
     assert rows_by_id["item-missing"]["flagged_hit"] is False
     assert rows_by_id["item-cat-match"]["category_match"] is True
     assert rows_by_id["item-cat-mismatch"]["category_match"] is False
+
+    # Once findings name causes, a verified hit naming the wrong cause (or none) is a miss.
+    named = findings[0].model_copy(update={"root_cause": ["RC-cat-1"]})
+    (run_dir / "findings" / f"{named.id}.json").write_text(
+        named.model_dump_json(by_alias=True, indent=2), encoding="utf-8"
+    )
+    rescored = score_findings(key_dir=key_dir, findings_dir=run_dir, split="heldout")
+    assert rescored["verified_root_cause_match"] == pytest.approx(1 / 2)
+    row = scoreboard_row(rescored, level="verified")
+    assert row.root_cause_match == pytest.approx(1 / 2)
 
 
 def test_run_task_findings_load_and_score_through_shared_qa_contract(tmp_path: Path) -> None:
@@ -858,7 +869,9 @@ def test_run_task_findings_load_and_score_through_shared_qa_contract(tmp_path: P
     assert all_cat.n_items == 1
     assert all_cat.n_measured == 1
     assert all_cat.recall == 1.0
-    assert all_cat.root_cause_match == 1.0
+    # S0 findings name no root cause: not measured (n/a), never a category stand-in.
+    assert all_cat.root_cause_match is None
+    assert "category_match=1/1" in all_cat.notes
 
 
 def test_root_parser_exposes_qa_commands_and_task_score_scoreboard_behavior(

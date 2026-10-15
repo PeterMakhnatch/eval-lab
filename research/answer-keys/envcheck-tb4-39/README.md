@@ -84,7 +84,7 @@ are `dev`, rest `heldout`. Defects: 4 dev / 9 heldout. Negatives: 9 dev /
   reported no finding for that task at that historical pin. It is not a
   certificate that the grader is clean; a task may still have defects that the
   published sweep did not cover.
-- **Verified vs flagged recall and passive `root_cause` provenance**:
+- **Verified vs flagged recall and root-cause match**:
   - In `evallab qa task-score` (denominators = all selected items),
     `verified_recall` and `verified_false_alarm_rate` count only digest-bound
     `qa.finding/v1` records with a required `reproducer`, `fault == "eval"`,
@@ -94,10 +94,10 @@ are `dev`, rest `heldout`. Defects: 4 dev / 9 heldout. Negatives: 9 dev /
     `S0` leak signals; the shared `evallab qa score` inspects only
     `findings/*.json` and does not read `report.signals`).
   - `category_match_recall` checks coarse `category` agreement with
-    `expected_category` / `expected_categories`. Per-finding root-cause
-    matching is not computed (`root_cause` entries are passive provenance, and
-    `evallab qa task-score` writes `n/a` to the shared scoreboard's
-    `root_cause_match` column).
+    `expected_category` / `expected_categories`. Root-cause match compares a
+    finding's optional `root_cause` ids with each item's `root_cause[].id`
+    (EnvCheck finding slug) or `source_class` (EnvCheck defect class), and is
+    `n/a` when the findings name no causes (`docs/qa-contract.md`).
 - **No paired discrimination**: this key contains standalone task packages, not
   paired clean/cheat trial trajectories, so paired discrimination is not
   claimed or scored.

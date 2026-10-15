@@ -11,6 +11,8 @@ plan in ``research-context/FOCUS.md``.
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -96,6 +98,10 @@ class Finding(ContractModel):
     refutation: Refutation = Field(default_factory=Refutation)
     reviewer: Reviewer
     measurement: Measurement = "measured"
+    #: Root-cause ids the reviewer names for this finding, in the key's
+    #: vocabulary (see :func:`expected_root_causes`). Optional: findings
+    #: written before this field existed stay valid and simply name none.
+    root_cause: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _not_run_never_passes(self) -> Finding:
@@ -122,6 +128,9 @@ class AnswerKeyItem(ContractModel):
     expected_verdict: Verdict
     expected_fault: Fault | None = None
     expected_root_cause: str | dict[str, Any] | None = None
+    #: Canonical root-cause ids for this item; takes precedence over the
+    #: source-specific shapes :func:`expected_root_causes` also reads.
+    expected_root_causes: list[str] = Field(default_factory=list)
     label_source: str = Field(min_length=1)
     split: str = Field(min_length=1)
     role: str | None = None
@@ -150,6 +159,67 @@ class KeyPair(ContractModel):
 def subject_key(subject: FindingSubject) -> tuple[str, str, str]:
     """Identity used to match findings to answer-key items."""
     return (subject.kind, subject.task_id, subject.trial_id or "")
+
+
+_ROOT_CAUSE_ID = re.compile(r"[A-Za-z0-9_.\-]+")
+
+
+def normalize_root_cause(value: str) -> str:
+    """Canonical form for root-cause comparison: ``Proxy-check too weak`` -> ``proxy_check_too_weak``."""
+    return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+
+def _root_cause_string(value: str) -> list[str]:
+    # "scheme: a,b" lists ids; "a:b:c" keeps the innermost; free text after
+    # a colon ("weak_hidden_tests: hidden tests use ...") keeps the scheme.
+    if ":" not in value:
+        return [value]
+    head, tail = value.split(":", 1)
+    if ":" in tail:
+        return _root_cause_string(tail)
+    parts = [part.strip() for part in tail.split(",")]
+    if parts and all(_ROOT_CAUSE_ID.fullmatch(part) for part in parts):
+        return parts
+    return [head]
+
+
+def _normalized(values: Iterable[str]) -> frozenset[str]:
+    return frozenset(token for token in map(normalize_root_cause, values) if token)
+
+
+def expected_root_causes(item: Mapping[str, Any]) -> frozenset[str]:
+    """Normalized root-cause ids a key item expects (empty: none labelled).
+
+    Reads the first non-empty source, in order: ``expected_root_causes``
+    (canonical list); ``expected_mechanisms`` (breaker-bench); ``root_cause``
+    records (QA Task keys: each record's ``id`` and ``source_class`` both
+    count); ``expected_root_cause`` as a dict (trajectory-judge:
+    ``failure_type``) or a string (``"cheat_ladder: a,b"`` -> ``a``, ``b``;
+    ``"upstream_fetch"`` -> itself).
+    """
+    if canonical := item.get("expected_root_causes"):
+        return _normalized(canonical)
+    if mechanisms := item.get("expected_mechanisms"):
+        return _normalized(mechanisms)
+    if records := item.get("root_cause"):
+        return _normalized(
+            str(record[field])
+            for record in records
+            if isinstance(record, Mapping)
+            for field in ("id", "source_class")
+            if record.get(field)
+        )
+    cause = item.get("expected_root_cause")
+    if isinstance(cause, Mapping):
+        return _normalized([str(cause["failure_type"])] if cause.get("failure_type") else [])
+    if isinstance(cause, str):
+        return _normalized(_root_cause_string(cause))
+    return frozenset()
+
+
+def root_cause_hit(named: Iterable[str], expected: frozenset[str]) -> bool:
+    """True when any named root cause matches an expected one (normalized)."""
+    return bool(_normalized(named) & expected)
 
 
 def load_finding(path: Path | str) -> Finding:

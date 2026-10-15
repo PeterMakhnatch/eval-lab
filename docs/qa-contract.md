@@ -78,7 +78,9 @@ uv run evallab qa score --key <key_id> --findings <dir> \
 documents tagged `schema: qa.finding/v1` load (reports and manifests next
 to them are skipped); a tagged document that fails validation is an error;
 byte-identical copies load once. If a producer keeps several *versions* of
-a finding (raw and published), point `--findings` at one of them.
+a finding (raw and published), point `--findings` at one of them. macOS
+AppleDouble twins (`._*`, extracted from archives made on a Mac) are skipped
+here and by `qa task-score`.
 
 One call appends rows to `research/qa-scoreboard/scoreboard.csv`: one per
 split (`all` plus each split in the key) and category (`all` plus each

@@ -240,13 +240,18 @@ def load_findings_dir(directory: Path | str) -> list[Finding]:
     ``qa.finding/v1`` load; other JSON a producer keeps beside them (reports,
     manifests, summaries) is skipped. A tagged document that fails validation
     raises. Byte-identical documents (the same finding published twice) load
-    once; point the scan at one copy of each finding when versions differ.
+    once; point the scan at one copy of each finding when versions differ. macOS
+    AppleDouble metadata twins (``._*``, left by archives made on a Mac) are skipped.
     """
     root = Path(directory)
+
+    def scan(pattern: str) -> list[Path]:
+        return [p for p in sorted(root.rglob(pattern)) if not p.name.startswith("._")]
+
     documents: list[Any] = []
-    for path in sorted(root.rglob("*.json")):
+    for path in scan("*.json"):
         documents.append(json.loads(path.read_text(encoding="utf-8")))
-    for path in sorted(root.rglob("*.jsonl")):
+    for path in scan("*.jsonl"):
         documents.extend(
             json.loads(line)
             for line in path.read_text(encoding="utf-8").splitlines()

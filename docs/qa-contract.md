@@ -123,6 +123,7 @@ n_pairs_measured, status, notes`.
 | `envcheck-tb4-39` | QA Task | 39 Terminal-Bench tasks: 13 EnvCheck grader defects (with upstream root-cause ids) + 12 `epoch_flagged` defects (Epoch TB4 review, one public issue each) + 14 weak negatives |
 | `delphik-open-defect-tb2` | QA Task | 47 Terminal-Bench 2 tasks, held-out only (Delphik open-defect source-read claims) |
 | `executed-outcomes-v1` | QA Task | 56 MiMo/TB task packages labelled by an executed check (ref-subset, #867 hunt/repair, grader probes, #899 replays) |
+| `mimo-weak-tests-v1` | QA Task + Trace | 49 items: 16 weak MiMo packages (3 partial-fix-pass packages, 13 ref-subset confirmed), 10 refuted flags, 16 frozen clean controls; 4 partial-fix passes + 3 clean parents as traces |
 
 `envcheck-task-audit` (an undigested copy of the same 39 tasks) was retired on
 2026-10-15 so one split lock (`envcheck-tb4-39`) governs those tasks.

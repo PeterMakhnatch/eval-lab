@@ -161,13 +161,20 @@ The corrected retained procedure removes **only explicit owned pull
 IDs**, never a daemon-wide difference, and does not remove these two
 unowned images after restoration.
 
-A narrowly scoped restoration command attempted to acquire the shared
-FIFO with `--slots 1 --timeout 120`; it timed out with exit 124 before
-either `docker pull <exact-repo@sha256>` command ran. **Restoration is
-pending, not successful.** `pending-restoration-attempt-1.json` records
-both complete refs, the exact wrapper/pull commands, timeout, and error.
+Two narrowly scoped restoration attempts used the shared FIFO with
+`--slots 1 --timeout 120`; both timed out with exit 124 before either
+`docker pull <exact-repo@sha256>` ran. **No restoration success is
+claimed by this receipt.** `pending-restoration-attempt-1.json` and
+`pending-restoration-attempt-2.json` record both complete refs, exact
+wrapper/pull commands, timeouts, and errors.
 `owned-image-cleanup-confirmation.json` separately confirms that our two
 explicitly pulled task images are absent.
+
+**Restoration ownership was handed to the parent**, who is acquiring a
+longer bounded FIFO slot and will retain the final per-ref outcomes in
+the continuation evidence and MiMo bridge. This worker launches no
+duplicate pulls. These timeout/incident records remain immutable even
+if the parent subsequently restores the images.
 
 ## Evidence custody and reproduction
 

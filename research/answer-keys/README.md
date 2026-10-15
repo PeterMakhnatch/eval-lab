@@ -116,3 +116,12 @@ run `uv run python research/answer-keys/splits/guard.py`.
   reflect historical external/network drift (for example, `build-pov-ray`
   issue-76 recorded a `povray.org` HTTP 403 download block that upstream later
   restored).
+- `executed-outcomes-v1`: **56 items** on 46 tasks, mostly MiMo `format-code`.
+  - Each label rests on an executed check: a ref-subset subset grade plus triage,
+    a #867 mutant killed by repaired tests, a re-run grader attack, or a #899
+    replayed exploit.
+  - Items carry `selected_by`, and `splits/exposure.jsonl` marks each source
+    tool's own recall on them as circular.
+  - It contradicts two weak negatives: envcheck-tb4-39 `fin-saccr-rwa` and
+    Delphik `fix-git`.
+  - See `executed-outcomes-v1/README.md`.

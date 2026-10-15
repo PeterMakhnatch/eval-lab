@@ -107,9 +107,14 @@ def exposed_items(record: dict, keys: dict[str, dict]) -> dict[str, set[str]]:
                 out[key_id].add(item["item_id"])
     for key_id, where in (record.get("where") or {}).items():
         for item in keys[key_id]["items"]:
-            if all(item.get(field) == value for field, value in where.items()):
+            if all(_matches(item.get(field), value) for field, value in where.items()):
                 out[key_id].add(item["item_id"])
     return out
+
+
+def _matches(actual: object, wanted: object) -> bool:
+    """Equality, or membership when the item field is a list (e.g. `selected_by`)."""
+    return wanted in actual if isinstance(actual, list) else actual == wanted
 
 
 def validate_exposures(exposures: list[dict], keys: dict[str, dict]) -> list[str]:
@@ -118,8 +123,8 @@ def validate_exposures(exposures: list[dict], keys: dict[str, dict]) -> list[str
     names = {task_name(i["subject"]["task_id"]) for v in keys.values() for i in v["items"]}
     for record in exposures:
         rid = record["exposure_id"]
-        if record.get("kind") not in {"tuned", "inspected"}:
-            errors.append(f"{rid}: kind must be tuned|inspected")
+        if record.get("kind") not in {"tuned", "selected", "inspected"}:
+            errors.append(f"{rid}: kind must be tuned|selected|inspected")
         for field in ("items", "items_file", "where"):
             for key_id in record.get(field) or {}:
                 if key_id not in keys:
@@ -234,6 +239,30 @@ def build(keys: dict[str, dict], exposures: list[dict]) -> tuple[str, str, list[
 
     lines += [
         "",
+        "## Same package bytes, different verdicts",
+        "",
+        "Task items whose `subject.task_digest` appears in more than one key with different",
+        "`expected_verdict`. One label is newer evidence against the other.",
+        "",
+        "| task | digest | verdicts |",
+        "|---|---|---|",
+    ]
+    by_digest: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    names: dict[str, str] = {}
+    for key_id, key in keys.items():
+        for item in key["items"]:
+            digest = item["subject"].get("task_digest")
+            if item["subject"]["kind"] == "task" and digest:
+                by_digest[digest][item["expected_verdict"]].add(key_id)
+                names[digest] = task_name(item["subject"]["task_id"])
+    for digest in sorted(by_digest, key=lambda d: names[d]):
+        verdicts = by_digest[digest]
+        if len(verdicts) > 1:
+            text = "; ".join(f"{v}: {', '.join(sorted(k))}" for v, k in sorted(verdicts.items()))
+            lines.append(f"| {names[digest]} | {digest[:19]} | {text} |")
+
+    lines += [
+        "",
         "## Exposures (who was tuned on or read what)",
         "",
         "| exposure | kind | agents | key | dev items | reported items |",
@@ -324,8 +353,8 @@ def audit_scoreboard(
                 warnings.append(f"outputs were read before this row: {where}")
             else:
                 violations.append(
-                    f"tuned items on a reported split: {where}. Exclude them, or add an acknowledged_rows "
-                    f"entry to {EXPOSURE.relative_to(REPO)} saying how they were handled"
+                    f"{record['kind']} items on a reported split: {where}. Exclude them, or add an "
+                    f"acknowledged_rows entry to {EXPOSURE.relative_to(REPO)} saying how they were handled"
                 )
     return violations, warnings
 

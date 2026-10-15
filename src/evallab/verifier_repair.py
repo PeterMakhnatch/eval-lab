@@ -720,18 +720,34 @@ def build_patch_appendix(tests: Sequence[RepairTest]) -> str:
     return "".join(chunks)
 
 
-def build_command_wrapper(original: str, new_command: str, *, workdir: str) -> str:
+def build_command_wrapper(
+    original: str,
+    new_command: str,
+    *,
+    workdir: str,
+    interpreter: str = "/opt/test_venv/bin/python3",
+) -> str:
     """Original command verbatim, then the new tests; original status kept.
 
     Runs under ``sh -c`` (POSIX only): the original line runs first and its
     status is saved; the new tests run next from the task workdir; a failing
     new-test run exits 1, otherwise the original status is returned exactly.
+    Bare ``python`` / ``python3`` in the new command use the task venv when
+    that interpreter exists. The check runs in the grader, not on the host.
     """
     base = original if original.endswith("\n") else original + "\n"
+    quoted = shlex.quote(interpreter)
+    bin_dir = shlex.quote(str(Path(interpreter).parent))
     return (
         f"(\n{base})\n"
         "REPAIR_RC=$?\n"
         f"cd {shlex.quote(workdir)} || exit 1\n"
+        f"if [ -x {quoted} ]; then\n"
+        f"  PATH={bin_dir}:$PATH\n"
+        "  export PATH\n"
+        f'  python() {{ {quoted} "$@"; }}\n'
+        f'  python3() {{ {quoted} "$@"; }}\n'
+        "fi\n"
         f"{new_command}\n"
         "REPAIR_NEW_RC=$?\n"
         'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'

@@ -119,7 +119,13 @@ def _proposal() -> RepairProposal:
 
 
 def _execute(
-    tmp_path, plan, *, outcomes=(1.0, 0.0, 0.0), status="ok", declared=False, response=None,
+    tmp_path,
+    plan,
+    *,
+    outcomes=(1.0, 0.0, 0.0),
+    status="ok",
+    declared=False,
+    response=None,
     survivor_rewards=None,
 ):
     proposal = _proposal()
@@ -202,9 +208,7 @@ def test_unrepairable_response_needs_no_command_or_variant(tmp_path):
         model=None,
         tests=[],
         mutant_ids=[],
-        unrepairable=[
-            {"mutant_id": MUTANT, "kind": "equivalent", "reason": "Same task behavior"}
-        ],
+        unrepairable=[{"mutant_id": MUTANT, "kind": "equivalent", "reason": "Same task behavior"}],
     )
     result, _, calls = _execute(tmp_path, plan, response=json.dumps(payload))
     assert result.verdict == "unrepairable"
@@ -416,6 +420,24 @@ def test_wrapper_runs_additions_despite_original_exit_and_preserves_failures(
     result = subprocess.run(["sh", "-c", wrapper], cwd=tmp_path, check=False)
     assert result.returncode == expected
     assert (tmp_path / "ran").exists()
+
+
+def test_wrapper_runs_bare_python_with_the_task_interpreter(tmp_path):
+    bindir = tmp_path / "venv" / "bin"
+    bindir.mkdir(parents=True)
+    interpreter = bindir / "python3"
+    interpreter.write_text("#!/bin/sh\nprintf '%s\\n' task-venv > \"$1\"\n", encoding="utf-8")
+    interpreter.chmod(0o755)
+    marker = tmp_path / "which"
+    wrapper = build_command_wrapper(
+        "exit 0",
+        f"python {marker}",
+        workdir=str(tmp_path),
+        interpreter=str(interpreter),
+    )
+    result = subprocess.run(["sh", "-c", wrapper], cwd=tmp_path, check=False)
+    assert result.returncode == 0
+    assert marker.read_text(encoding="utf-8") == "task-venv\n"
 
 
 @pytest.mark.parametrize(

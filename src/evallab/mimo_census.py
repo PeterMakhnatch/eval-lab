@@ -102,7 +102,10 @@ def load_verify_overrides(path: Path) -> dict[str, dict[str, str]]:
     """Read a verify-overrides file ({} when absent).
 
     Later rows win on duplicate task ids. Rows with an empty task id or
-    verify are skipped.
+    verify are skipped. A row with extra columns is a quoting error: an
+    unquoted comma in ``reason`` shifts text into ``final_digest``, and
+    ``apply_verify_overrides`` then skips the pin. That is refused here.
+    The digest match in ``apply_verify_overrides`` is unchanged.
     """
     overrides: dict[str, dict[str, str]] = {}
     try:
@@ -111,6 +114,11 @@ def load_verify_overrides(path: Path) -> dict[str, dict[str, str]]:
         return {}
     for row in csv.DictReader(text.splitlines()):
         task_id = str(row.get("task_id", "") or "").strip()
+        if row.get(None):
+            raise ValueError(
+                f"verify-overrides row {task_id!r} has extra columns; "
+                "quote reason so a comma stays in that field"
+            )
         verify = str(row.get("verify", "") or "").strip()
         if not task_id or not verify:
             continue
@@ -149,6 +157,7 @@ def apply_verify_overrides(
         row["verify"] = override["verify"]
         applied += 1
     return applied
+
 
 #: Selectable census checks (``--checks``). ``nop``/``oracle`` are the
 #: controls cells, ``ladder`` the cheat-ladder cells, ``fix`` the fix-content
@@ -2454,9 +2463,7 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 updated += 1
         overrides_arg = getattr(args, "overrides", None)
         overrides_path = (
-            Path(overrides_arg)
-            if overrides_arg
-            else (ctx.receipt_dir / OVERRIDES_FILENAME)
+            Path(overrides_arg) if overrides_arg else (ctx.receipt_dir / OVERRIDES_FILENAME)
         )
         overridden = apply_verify_overrides(
             manifest_rows, aggregates, load_verify_overrides(overrides_path)
@@ -2464,10 +2471,7 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         write_manifest(manifest_rows, ctx.manifest_path)
         print(f"manifest verify updated for {updated}/{len(manifest_rows)} tasks")
         if overridden:
-            print(
-                f"manifest verify overrides applied for {overridden} tasks "
-                f"({overrides_path})"
-            )
+            print(f"manifest verify overrides applied for {overridden} tasks ({overrides_path})")
     return 0 if summary["failed"] == 0 else 1
 
 

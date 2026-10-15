@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.2-terminal-bench-2-sqlite-db-truncate",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/terminal-bench-2/sqlite-db-truncate",
+    "task_digest": "sha256:2d161e48105809b1aca27b2622362722b91535c906c4d0a92a94d1ba1f5a787a",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-sqlite-db-truncate/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-sqlite-db-truncate/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks sqlite-db-truncate --modes 0.2.2 --ladders 1.4.0",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

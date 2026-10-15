@@ -23,6 +23,7 @@ from evallab.ref_subset import (
     compose,
     edited_ranges,
     file_change,
+    mutation_pass,
     patch_code_blocks,
     probe_task,
     summarize,
@@ -180,6 +181,9 @@ def test_block_kind_by_path_and_comment_syntax() -> None:
     assert block_kind("a.py", ["// not a python comment\n"], [], tests) == "code"
     # Documentation paths are noncode whatever the lines say.
     assert block_kind("docs/x.md", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
+    # Interpreter byte-code an oracle run leaves behind is never graded code, even when opaque.
+    cache = file_change("app/__pycache__/m.cpython-311.pyc", b"\x00\xff", b"\x01\xfe", tests)
+    assert [block.kind for block in cache.blocks] == ["noncode"]
     assert block_kind("CHANGELOG.md", [], ["- fix\n"], tests) == "noncode"
     assert block_kind("docs/guide/run.py", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
     assert block_kind("recipes/examples/demo.py", [], ["x = 1\n"], tests) == "noncode"
@@ -411,6 +415,45 @@ def test_summarize_verdict_is_unknown_unless_measured(status: Status) -> None:
     assert report["verdict"] == "unknown"
     assert report["severity"] is None
     assert report["reason"] == "why"
+
+
+# ---------------------------------------------------------------------------
+# Line-level pass
+
+
+def _grade_f5(label: str, files: dict[str, bytes | None]) -> Grade:
+    """A hidden test that checks only f(5) == 6."""
+    namespace: dict[str, Any] = {}
+    exec(files["m.py"] or b"", namespace)  # noqa: S102 - the probe's own test fixture code
+    return Grade(label, [], 1.0 if namespace["f"](5) == 6 else 0.0, 0, 0.0, "scored")
+
+
+def test_mutation_pass_flags_an_unpinned_branch_inside_a_needed_block() -> None:
+    base = b"def f(x):\n    return x\n"
+    fixed = b"def f(x):\n    if x > 0:\n        return x + 1\n    return x\n"
+    changes = [file_change("m.py", base, fixed, set())]
+    grades: list[Grade] = []
+    summary, survivors = mutation_pass(changes, _grade_f5, grades, limit=50, seed="t")
+    assert [g.label for g in grades[:2]] == ["full", "nop"]
+    # The `+ 1` is pinned by the test; the `> 0` boundary (one block with it) is not.
+    assert summary["verdict"] == "fail"
+    assert summary["killed"] >= 1
+    assert {s["line"] for s in summary["survivors"]} == {2}
+    assert set(survivors) == {s["id"] for s in summary["survivors"]}
+    for mutated in survivors.values():
+        assert _grade_f5("again", {"m.py": mutated}).reward == 1.0 and mutated != fixed
+
+
+def test_mutation_pass_grades_no_mutant_when_the_baselines_do_not_hold() -> None:
+    changes = [file_change("m.py", b"x = 0\n", b"x = 1 + 1\n", set())]
+    grades: list[Grade] = []
+
+    def always(label: str, files: dict[str, bytes | None]) -> Grade:
+        return Grade(label, [], 1.0, 0, 0.0, "scored")
+
+    summary, survivors = mutation_pass(changes, always, grades, limit=10, seed="t")
+    assert summary["status"] == "baseline_mismatch" and summary["verdict"] == "unknown"
+    assert [g.label for g in grades] == ["full", "nop"] and survivors == {}
 
 
 # ---------------------------------------------------------------------------

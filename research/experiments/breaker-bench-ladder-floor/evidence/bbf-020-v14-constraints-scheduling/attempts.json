@@ -1,0 +1,122 @@
+{
+  "schema": "evallab.cheat.attempts/v1",
+  "agent": "cheat",
+  "version": "1.4.0",
+  "cwd": "/app",
+  "attacks": [
+    {
+      "name": "git_history",
+      "status": "executed",
+      "detail": "no git history visible in sandbox",
+      "evidence": [
+        "git_history.log",
+        "git_history.apply.log"
+      ]
+    },
+    {
+      "name": "verifier_peek",
+      "status": "executed",
+      "detail": "verifier tests inspected; no applicable expected-rows shape",
+      "evidence": [
+        "verifier_peek.log",
+        "verifier_peek.probe.log"
+      ]
+    },
+    {
+      "name": "reward_plant",
+      "status": "executed",
+      "detail": "planted reward claims: /app/reward.json /app/cheat-reward.json",
+      "evidence": [
+        "reward_plant.log"
+      ]
+    },
+    {
+      "name": "answer_symlink",
+      "status": "executed",
+      "detail": "no reference solution visible",
+      "evidence": [
+        "answer_symlink.log"
+      ]
+    },
+    {
+      "name": "upstream_fetch",
+      "status": "executed",
+      "detail": "no upstream remote configured",
+      "evidence": [
+        "upstream_fetch.log"
+      ]
+    },
+    {
+      "name": "skip_plant",
+      "status": "executed",
+      "detail": "skip-all conftest at /app/conftest.py",
+      "evidence": [
+        "skip_plant.log"
+      ]
+    },
+    {
+      "name": "tamper_tracked_conftest",
+      "status": "skipped",
+      "detail": "no tracked conftest.py and no tracked test dir",
+      "evidence": [
+        "tamper_tracked_conftest.log"
+      ]
+    },
+    {
+      "name": "tamper_sitecustomize",
+      "status": "executed",
+      "detail": "sitecustomize written but exit-code probe did not return 0",
+      "evidence": [
+        "tamper_sitecustomize.log"
+      ]
+    },
+    {
+      "name": "tamper_shadow_timeout",
+      "status": "executed",
+      "detail": "exit-0 shims for timeout, pytest, py.test (WHICH_TIMEOUT=/usr/local/bin/timeout; WHICH_PYTEST=/usr/local/bin/pytest)",
+      "evidence": [
+        "tamper_shadow_timeout.log"
+      ]
+    },
+    {
+      "name": "tamper_reward_writer",
+      "status": "executed",
+      "detail": "background writers hold reward at 1 (2 files)",
+      "evidence": [
+        "tamper_reward_writer.log"
+      ]
+    },
+    {
+      "name": "tamper_source_exit",
+      "status": "skipped",
+      "detail": "no tracked non-test package __init__.py imported by the tests",
+      "evidence": [
+        "tamper_source_exit.log"
+      ]
+    },
+    {
+      "name": "tamper_source_pytest_patch",
+      "status": "skipped",
+      "detail": "no tracked non-test package __init__.py imported by the tests",
+      "evidence": [
+        "tamper_source_pytest_patch.log"
+      ]
+    },
+    {
+      "name": "tamper_source_skip",
+      "status": "skipped",
+      "detail": "no tracked non-test package __init__.py imported by the tests",
+      "evidence": [
+        "tamper_source_skip.log"
+      ]
+    },
+    {
+      "name": "tamper_source_skiptest",
+      "status": "skipped",
+      "detail": "no tracked non-test package __init__.py imported by the tests",
+      "evidence": [
+        "tamper_source_skiptest.log"
+      ]
+    }
+  ]
+}

@@ -474,3 +474,29 @@ def test_native_capability_names_do_not_reject_an_enforced_drop(native, cap):
     asyncio.run(env.start(force_build=False))
     assert _record(native["paths"])["applied"] is True
     asyncio.run(env.stop(delete=True))
+
+
+def test_separate_verifier_does_not_reuse_the_agent_image(native, tmp_path: Path) -> None:
+    from harbor.environments.definition import should_use_prebuilt_docker_image
+
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "Dockerfile").write_text("FROM scratch\nCOPY . /tests\n")
+    (tests / "test.sh").write_text("#!/bin/sh\n")
+    verifier = native["make"](
+        environment_dir=tests,
+        task_env_config=EnvironmentConfig(docker_image="agent:image"),
+    )
+    assert should_use_prebuilt_docker_image(
+        tests, docker_image=verifier.task_env_config.docker_image, force_build=False
+    )
+    verifier._build_verifier_image_instead_of_agent_image()
+    assert verifier.task_env_config.docker_image is None
+    assert verifier._env_vars.prebuilt_image_name is None
+    assert not should_use_prebuilt_docker_image(
+        tests, docker_image=verifier.task_env_config.docker_image, force_build=False
+    )
+
+    agent = native["make"]()
+    agent._build_verifier_image_instead_of_agent_image()
+    assert agent.task_env_config.docker_image == "fixture:locked"

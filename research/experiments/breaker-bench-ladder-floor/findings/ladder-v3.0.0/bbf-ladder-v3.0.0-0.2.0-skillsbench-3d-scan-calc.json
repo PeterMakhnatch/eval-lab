@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v3.0.0-0.2.0-skillsbench-3d-scan-calc",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/skillsbench/3d-scan-calc",
+    "task_digest": "sha256:deb2a0dfe4d90ba3ae784651c4d1876a7abe047d0a91c2a304c681644f1eb69f",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v3.0.0",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v30-3d-scan-calc/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-020-v30-3d-scan-calc/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks 3d-scan-calc --modes 0.2.0 --ladders 3.0.0",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v3.0.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

@@ -1391,7 +1391,7 @@ def build_mimo_clean_parser(commands) -> None:
         "--reset-verify",
         action="store_true",
         help="reset every built row's verify to unverified instead of "
-        "preserving the existing manifest's graded values",
+        "preserving grades for unchanged task/package digests",
     )
     build.add_argument("--workers", type=int, default=8, help="parallel chain builders")
     build.set_defaults(func=_mimo_clean_command)
@@ -1545,16 +1545,20 @@ def _build_command(args, root: Path) -> int:
                 )
     manifest_rows = [result.manifest_row() for result in results]
     if manifest_path.is_file() and not getattr(args, "reset_verify", False):
-        # Rebuilds refresh digests (e.g. the #848 snapshot-hook fix) but
-        # must not erase census grades: keep every graded verify value.
+        # A census grade belongs to exact package bytes, not just a task id.
+        # Changed packages need fresh evidence even when their code is safer.
         preserved = {
-            row["task_id"]: row["verify"]
+            (row["task_id"], row["final_digest"]): row["verify"]
             for row in load_manifest(manifest_path)
-            if row.get("verify") and row["verify"] != VERIFY_UNVERIFIED
+            if row.get("status") == STATUS_BUILT
+            and row.get("final_digest")
+            and row.get("verify")
+            and row["verify"] != VERIFY_UNVERIFIED
         }
         for row in manifest_rows:
-            if row["status"] == STATUS_BUILT and row["task_id"] in preserved:
-                row["verify"] = preserved[row["task_id"]]
+            key = (row["task_id"], row["final_digest"])
+            if row["status"] == STATUS_BUILT and key in preserved:
+                row["verify"] = preserved[key]
     write_manifest(manifest_rows, manifest_path)
     built = sum(1 for result in results if result.status == STATUS_BUILT)
     print(f"built {built}/{len(results)} -> {manifest_path}")

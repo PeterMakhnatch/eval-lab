@@ -49,6 +49,25 @@ _MECHANISM = "docker-compose main network_mode=none from creation"
 _SECURITY_OPTIONS = {"no-new-privileges", "no-new-privileges:true"}
 
 
+def verifier_context_must_build(environment_dir: Path, docker_image: str | None) -> bool:
+    """True when this build context is a separate-verifier ``tests/`` tree.
+
+    Harbor copies ``[environment].docker_image`` onto the verifier when
+    ``[verifier.environment]`` is absent. With ``force_build`` false it then
+    runs that agent image and never builds ``tests/Dockerfile``, and it does
+    not upload tests into a separate verifier. ``/tests/test.sh`` is missing.
+    The agent context (``environment/``) keeps the prebuilt image.
+    """
+    if not docker_image:
+        return False
+    context = Path(environment_dir)
+    return (
+        context.name == "tests"
+        and (context / "Dockerfile").is_file()
+        and (context / "test.sh").is_file()
+    )
+
+
 class LockedDockerEnvironment(DockerEnvironment):
     """Native Docker lifecycle with an explicit, immutable egress lock.
 
@@ -524,7 +543,17 @@ class LockedDockerEnvironment(DockerEnvironment):
             json.dumps(record, indent=2) + "\n"
         )
 
+    def _build_verifier_image_instead_of_agent_image(self) -> None:
+        image = getattr(self.task_env_config, "docker_image", None)
+        if not verifier_context_must_build(self.environment_dir, image):
+            return
+        self.task_env_config = self.task_env_config.model_copy(update={"docker_image": None})
+        env_vars = getattr(self, "_env_vars", None)
+        if env_vars is not None:
+            env_vars.prebuilt_image_name = None
+
     async def start(self, force_build: bool) -> None:
+        self._build_verifier_image_instead_of_agent_image()
         native_entered = False
         self._lock_confirmed = False
         self._daemon_info = {}

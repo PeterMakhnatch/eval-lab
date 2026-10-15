@@ -13,12 +13,18 @@ Start here. This page is the index for the MiMo cleanup programme of
 2026-10-09 to 2026-10-11. Each linked page owns its details; this page only
 says what is true now and where the evidence lives.
 
-**Use this:** `research/experiments/mimo-clean-v5/manifest.csv` is the canonical
-clean set (2,698 code tasks: 2,666 built, 32 discarded). One row per task gives
-the clean package, its chain, its reference fix (564 tasks) and its `verify`
-status. Rebuild with `evallab mimo-clean build --clean-version mimo-clean-v5`
-(deterministic: the manifest rebuilds byte-identically from `main`). Manifests
-v1–v4 are history.
+**Current build target:** `research/experiments/mimo-clean-v6/manifest.csv`
+(2,698 code tasks: 2,666 built, 32 skipped), using `separate-verifier@10`.
+Build it explicitly with `evallab mimo-clean build --clean-version mimo-clean-v6`.
+The v6 receipt distinguishes construction, repeated controls, and remaining
+verification; a built package is not certified clean.
+
+The refreshed v5 manifest remains available for historical comparisons.
+Its #848 snapshot-hook update changed 2,664 package digests: their old grades
+cannot certify the new bytes and are now `unverified:package-changed`.
+Historical census rows retain their original digests; prior exclusions remain
+admission holds. See `mimo-clean-v5-census/digest-refresh.csv` and the
+[verification contract](verification.md) before using either set.
 
 ## Why the published data cannot be used as shipped
 

@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "bbf-ladder-v1.4.0-0.2.2-swebench-verified-pylint-dev__pylint-7277",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/swebench-verified/pylint-dev__pylint-7277",
+    "task_digest": "sha256:bba91ba5c82c210bccf16208efb5b2980938a09b51d7d1ebbe9d01503b6f497c",
+    "trial_id": null
+  },
+  "stage": "cheat_ladder_v1.4.0",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-pylint-dev-pylint-7277/cheat-verdicts.json",
+    "research/experiments/breaker-bench-ladder-floor/evidence/bbf-022-v14-pylint-dev-pylint-7277/attempts.json"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "python research/experiments/breaker-bench-ladder-floor/run_floor.py --tasks pylint-dev__pylint-7277 --modes 0.2.2 --ladders 1.4.0",
+    "expected_reward": null
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-v1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

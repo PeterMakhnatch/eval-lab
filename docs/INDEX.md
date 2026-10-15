@@ -101,9 +101,9 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
-    digest: sha256:527cc19fc61d86a98a6d478c238bf1d4f5f7b0b1728ff6d4bef7c653f2b506a3
+    digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:f86d0f1c3a5d6f8f8041b8cb8d92a0727978ceb44f9e9fd8259d5ee15524c7f4
+    digest: sha256:c5a8e73237951f8f62e44a43f07ff1299743ba46f4ae5333e7114585d2721715
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -137,7 +137,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:4e111707c200c1e4f48b00658bf5fe50bb75242ef8b3c957c998e8f388950436
+    digest: sha256:8c8978e733b7ef609f667ad4904f2e36415d7014b5a6342c69e303b7e63fcbe4
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -266,7 +266,7 @@ an operator can see what is archived.
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
-| `docs/qa-task.md` | QA Agent - Task: bounded defensive task/grader auditor | `living` | `analyst, operator` |
+| `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
@@ -380,7 +380,7 @@ an operator can see what is archived.
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/qa-contract.md` | QA contract (`evallab.qa`) | `living` | `builder, operator` |
-| `docs/qa-task.md` | QA Agent - Task: bounded defensive task/grader auditor | `living` | `analyst, operator` |
+| `docs/qa-task.md` | QA Agent - Task: executed task/grader auditor | `living` | `analyst, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |

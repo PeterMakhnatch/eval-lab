@@ -204,22 +204,24 @@ def _catalog_probe(tool: str, *, text: str, status: str = "completed") -> dict:
     }
 
 
-def test_empty_builtin_catalog_probes_do_not_reject_a_text_turn(tmp_path):
-    probes = [
-        _catalog_probe("list_mcp_resources", text='{"resources":[]}', status="in_progress"),
-        _catalog_probe("list_mcp_resources", text='{"resources":[]}'),
-        _catalog_probe("list_mcp_resource_templates", text='{"resourceTemplates":[]}'),
-    ]
+@pytest.mark.parametrize("allow_preamble", [False, True])
+@pytest.mark.parametrize(
+    ("tool", "text", "status"),
+    [
+        ("list_mcp_resources", '{"resources":[]}', "in_progress"),
+        ("list_mcp_resources", '{"resources":[]}', "completed"),
+        ("list_mcp_resource_templates", '{"resourceTemplates":[]}', "completed"),
+    ],
+)
+def test_empty_catalog_lookups_are_still_tool_calls(tmp_path, allow_preamble, tool, text, status):
     lines = _valid_lines()
-    lines[2:2] = [_event({"type": "item.completed", "item": probe}) for probe in probes]
+    kind = "item.started" if status == "in_progress" else "item.completed"
+    lines.insert(2, _event({"type": kind, "item": _catalog_probe(tool, text=text, status=status)}))
     path = _write(tmp_path / "events.jsonl", lines)
-    response, usage = parse_transcript(path)
-    assert response == "revised instructions"
-    assert usage == _usage()
-    offset, pending, started = _poll_events(path, 0, b"")
-    assert started is True
-    assert pending == b""
-    assert offset == path.stat().st_size
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=allow_preamble)
+    with pytest.raises(CodexTransportError):
+        _poll_events(path, 0, b"")
 
 
 def test_a_catalog_probe_that_returns_resources_still_rejects(tmp_path):
@@ -256,6 +258,36 @@ def test_two_agent_messages_with_one_turn_is_ambiguous(tmp_path):
     path = _write(tmp_path / "events.jsonl", lines)
     with pytest.raises(CodexTransportError):
         parse_transcript(path)
+
+
+def test_preamble_mode_accepts_final_text_without_relaxing_turn_completion(tmp_path):
+    lines = _valid_lines("final proposal")
+    lines.insert(2, _event(_agent_completed("I will check the supplied context.", item_id="intro")))
+    path = _write(tmp_path / "events.jsonl", lines)
+    text, usage = parse_transcript(path, allow_preamble=True)
+    assert text == "final proposal"
+    assert usage["input_tokens"] == _usage()["input_tokens"]
+    _write(path, lines[:-1])
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=True)
+
+
+@pytest.mark.parametrize(
+    "bad_event",
+    [
+        {"type": "turn.failed", "error": {"message": "failure"}},
+        {"type": "error", "message": "provider error"},
+        {"type": "turn.started"},
+        {"type": "item.started", "item": {"id": "tool", "type": "command_execution"}},
+    ],
+)
+def test_preamble_mode_rejects_failed_or_tool_bearing_turns(tmp_path, bad_event):
+    lines = _valid_lines("final proposal")
+    lines.insert(2, _event(_agent_completed("preamble", item_id="intro")))
+    lines.insert(3, _event(bad_event))
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=True)
 
 
 def test_unknown_event_or_item_shapes_fail_closed(tmp_path):

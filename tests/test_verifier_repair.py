@@ -133,6 +133,7 @@ def _execute(
     if declared:
         from evallab.verifier_repair import RepairUnrepairable
 
+        proposal.mutant_ids = []
         proposal.unrepairable = [
             RepairUnrepairable(mutant_id=MUTANT, reason="Equivalent input domain")
         ]
@@ -475,3 +476,21 @@ def test_failed_reference_prevents_survivor_trials(tmp_path):
     assert result.verdict == "rejected"
     assert calls == ["model", "runner"]
     assert result.checks[-1].status == "skipped"
+
+
+@pytest.mark.parametrize("defect", ["duplicate", "unknown", "overlap"])
+def test_survivor_dispositions_must_be_unique_known_and_disjoint(tmp_path, defect):
+    from evallab.verifier_repair import RepairUnrepairable
+
+    plan, _ = _fixture(tmp_path)
+    proposal = _proposal()
+    if defect == "duplicate":
+        proposal.mutant_ids.append(MUTANT)
+    elif defect == "unknown":
+        proposal.mutant_ids.append("unknown-survivor")
+    else:
+        proposal.unrepairable = [
+            RepairUnrepairable(mutant_id=MUTANT, reason="Equivalent input domain")
+        ]
+    with pytest.raises(RepairError):
+        validate_proposal(proposal, mutant_ids=[MUTANT], package_dir=plan.package_dir)

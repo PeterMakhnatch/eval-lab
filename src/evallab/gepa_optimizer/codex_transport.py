@@ -169,43 +169,7 @@ def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
     )
 
 
-#: Codex lists its own MCP catalog before answering, even with user config
-#: ignored. An empty listing is not a model tool call. Any other server, tool,
-#: argument or non-empty result still fails the turn.
-_CATALOG_PROBES = {
-    "list_mcp_resources": "resources",
-    "list_mcp_resource_templates": "resourceTemplates",
-}
-
-
-def _empty_catalog_probe(item: Any) -> bool:
-    if not isinstance(item, dict) or item.get("type") != "mcp_tool_call":
-        return False
-    key = _CATALOG_PROBES.get(item.get("tool"))
-    if item.get("server") != "codex" or key is None:
-        return False
-    if item.get("arguments") not in ({}, None) or item.get("error") is not None:
-        return False
-    status = item.get("status")
-    if status == "in_progress":
-        return item.get("result") is None
-    if status != "completed":
-        return False
-    result = item.get("result")
-    content = result.get("content") if isinstance(result, dict) else None
-    if not isinstance(content, list) or len(content) != 1 or not isinstance(content[0], dict):
-        return False
-    text = content[0].get("text")
-    if not isinstance(text, str):
-        return False
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return False
-    return isinstance(payload, dict) and set(payload) == {key} and payload[key] == []
-
-
-def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
+def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, dict[str, Any]]:
     """Accept exactly one completed text-only turn; reject everything else.
 
     Returns ``(response, usage)`` where ``usage`` is the honest token report
@@ -213,6 +177,8 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
     retained, but only a later completed turn can yield text. Fatal error
     events, failed/missing/repeated completions, empty output, tool attempts,
     unknown shapes, and oversized transcripts still fail closed.
+    Proposal callers may select the final message after a text preamble;
+    that opt-in never relaxes lifecycle, error, usage or tool-call checks.
     """
     if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
         raise CodexTransportError("Codex transcript exceeded its bound")
@@ -278,8 +244,6 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
                 raise CodexTransportError("Invalid Codex thread item")
             detail = item.get("type")
             if detail in _TOOL_ITEM_TYPES:
-                if _empty_catalog_probe(item):
-                    continue
                 raise CodexTransportError(
                     f"Codex attempted a tool call ({detail}); no text extracted"
                 )
@@ -295,13 +259,15 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
                 raise CodexTransportError(f"Unknown Codex item type: {detail!r}")
     if starts != 1 or completions != 1 or usage is None:
         raise CodexTransportError("Codex returned no complete single turn")
-    if len(agent_texts) != 1:
+    if not agent_texts or (len(agent_texts) != 1 and not allow_preamble):
         raise CodexTransportError("Codex returned no complete single-turn message")
-    response = agent_texts[0]
+    response = agent_texts[-1]
     if not response.strip():
         raise CodexTransportError("Codex returned an empty message")
     if len(response.encode("utf-8")) > MAX_RESPONSE_BYTES:
         raise CodexTransportError("Codex response exceeded its bound")
+    if len(agent_texts) > 1:
+        usage["text_selection"] = "final completed message of one text-only turn"
     return response, usage
 
 
@@ -348,8 +314,6 @@ def _poll_events(
             if _startup_warning(item, kind, started):
                 continue
             detail = item.get("type") if isinstance(item, dict) else None
-            if _empty_catalog_probe(item):
-                continue
             if detail in _TOOL_ITEM_TYPES or (detail not in {"agent_message", "reasoning"}):
                 raise CodexTransportError("Codex attempted a tool call; no automatic retry")
     return offset, lines[-1], started

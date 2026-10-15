@@ -406,7 +406,7 @@ def codex_model_caller(
             f"Codex exited {completed.returncode}; retained at {directory}; no automatic retry"
         )
     try:
-        response, usage = codex_transport.parse_transcript(events)
+        response, usage = codex_transport.parse_transcript(events, allow_preamble=True)
     except codex_transport.CodexTransportError as exc:
         raise RepairError(f"unusable Codex response: {exc}; retained at {directory}") from exc
     return response, {**usage, "requested_model": model, "codex_version": version}
@@ -769,9 +769,16 @@ def validate_proposal(
             raise RepairError("not-repairable proposal needs an explicit rationale")
         return
     wanted = set(mutant_ids)
-    covered = set(proposal.mutant_ids) | {entry.mutant_id for entry in proposal.unrepairable}
-    if wanted and not (set(proposal.mutant_ids) & wanted):
-        raise RepairError("proposal addresses none of the ranked survivors")
+    tested = set(proposal.mutant_ids)
+    declared_ids = [entry.mutant_id for entry in proposal.unrepairable]
+    declared = set(declared_ids)
+    if len(tested) != len(proposal.mutant_ids) or len(declared) != len(declared_ids):
+        raise RepairError("proposal duplicates survivor dispositions")
+    if tested & declared or (tested | declared) - wanted:
+        raise RepairError("proposal survivor dispositions overlap or name unknown survivors")
+    covered = tested | declared
+    if wanted and not (covered & wanted):
+        raise RepairError("proposal gives no disposition for the ranked survivors")
     if wanted - covered:
         raise RepairError(
             "proposal leaves survivors without a disposition: "

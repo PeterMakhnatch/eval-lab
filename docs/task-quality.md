@@ -230,18 +230,34 @@ separate `--stages exploit` probe is requested.
     untested reference block alone is a suspected partial fix
     (`false_positive`, unverified).
 - `evallab hack ref-repair <ref-subset report dir> [--execute]
-  [--feedback <prior repair-result.json>]` — repair a verifier the probe
-  flagged `fail` (`src/evallab/ref_repair.py`). The shortcut set is every
-  proper subset of the reference fix that scored 1: the minimised
-  reproducer plus each passing drop-file / drop-block grade. A
-  ChatGPT-subscription Codex proposer (same schema, fingerprint bans and
-  60% weekly quota gate as `hack repair`) writes new semantic tests; the
-  variant is derived test-only via `tasks derive`. Acceptance (2026-10-15
-  rule) requires the full reference to pass **3/3** sandbox grades, the
-  do-nothing base to fail **3/3**, and **every** shortcut to fail.
-  Anything else is `rejected`, `unrepairable` or `blocked`, never
-  `repaired`. Receipts (`repair-result.json`, proposal, quota, usage) land
-  in the attempt's `--output-dir`.
+  [--feedback <prior repair-result.json>]` repairs a weak verifier with
+  instruction-scoped test additions. Intake verifies the task/package and
+  reference digests and replays the probe's **cumulative** greedy removals,
+  rather than substituting independent one-block deletions.
+  - `--partial-fix LABEL=agent.diff` adds an observed real partial submission;
+    repeat it for every old pass. For report-less tasks, supply `--package`
+    and `--reference-patch`. These inputs assert provenance, not correctness:
+    the reference must still pass every control.
+  - The subscription proposer shares `hack repair`'s schema, fingerprint bans,
+    and live 60% quota gate. Tool-bearing, failed and incomplete model turns
+    are rejected; text-only preambles do not invalidate a completed proposal.
+  - `--proposal proposal.json --execute` grades retained or reviewed test
+    proposals with **no model call**. Its receipt hashes the input proposal;
+    it does not manufacture a quota reading or repeat token usage.
+  - Test-only variants append new tests and preserve the original command's
+    exit status. Bare `python`/`python3` use `/opt/test_venv/bin/python3` when
+    available; explicit interpreter paths remain explicit.
+  - Acceptance requires full reference **3/3**, nop **0/3**, and every
+    expected shortcut exactly once with reward 0. Missing, duplicate,
+    substituted or unscored checks cannot certify a repair.
+  - `repaired` is the measured gate result; instruction-scope review is still
+    required. Declared equivalent/out-of-scope survivors produce `partial`,
+    never `repaired`. Other outcomes are `rejected`, `unrepairable`, `blocked`.
+    Unsupported patch paths, file-mode changes and symlinks are blocked,
+    not silently converted into a weaker submission.
+  - Receipts (result, expected shortcut IDs, proposal, quota when a model is
+    called, usage/proposal provenance) land in `--output-dir`. Attempts are
+    not overwritten; failed lineage updates remain explicit in the result.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix

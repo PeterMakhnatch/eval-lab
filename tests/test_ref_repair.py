@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,49 +17,49 @@ from evallab.ref_repair import (
     load_shortcuts,
     plan_ref_repair,
 )
+from evallab.registry import compute_task_digests
 from evallab.verifier_repair import QuotaStatus
 
 
 def _report(**overrides):
     report = {
-        "task_id": "mimo-v2.6-rl/format-code-task-000001",
+        "schema": "evallab.ref_subset.report/v1",
+        "task_id": "format-code-task-000001",
         "verdict": "fail",
         "package": "/nonexistent",
         "blocks": [
             {"id": "pkg/mod.py#0", "path": "pkg/mod.py", "kind": "code"},
             {"id": "pkg/mod.py#1", "path": "pkg/mod.py", "kind": "code"},
             {"id": "pkg/other.py#0", "path": "pkg/other.py", "kind": "code"},
+            {"id": "README.md#0", "path": "README.md", "kind": "noncode"},
         ],
         "kept": ["pkg/mod.py#0"],
         "grades": [
-            {"label": "full", "kept": 3, "reward": 1.0},
-            {"label": "nop", "kept": 0, "reward": 0.0},
-            {"label": "drop-block:pkg/mod.py#1", "kept": 2, "reward": 1.0},
-            {"label": "drop-file:pkg/other.py", "kept": 2, "reward": 1.0},
-            {"label": "drop-block:pkg/other.py#0", "kept": 2, "reward": 0.0},
-            {"label": "confirm", "kept": 1, "reward": 1.0},
+            {"label": "full", "kept": 4, "reward": 1.0, "status": "scored"},
+            {"label": "nop", "kept": 0, "reward": 0.0, "status": "scored"},
+            {"label": "drop-docs-comments", "kept": 3, "reward": 1.0, "status": "scored"},
+            {"label": "drop-file:pkg/other.py", "kept": 2, "reward": 1.0, "status": "scored"},
+            {"label": "drop-block:pkg/mod.py#1", "kept": 1, "reward": 1.0, "status": "scored"},
+            {"label": "confirm", "kept": 1, "reward": 1.0, "status": "scored"},
         ],
     }
     report.update(overrides)
     return report
 
 
-def test_load_shortcuts_collects_every_passing_proper_subset():
-    shortcuts = load_shortcuts(_report())
-    by_label = {s.label: s for s in shortcuts}
-    assert set(by_label) == {
-        "minimal",
-        "drop-block:pkg/mod.py#1",
-        "drop-file:pkg/other.py",
-    }
+def test_load_shortcuts_replays_cumulative_passing_removals():
+    by_label = {s.label: s for s in load_shortcuts(_report())}
+    assert set(by_label) == {"minimal", "drop-file:pkg/other.py"}
+    # A later success removes from an already reduced submission.
     assert by_label["minimal"].keep == frozenset({"pkg/mod.py#0"})
-    assert by_label["drop-block:pkg/mod.py#1"].keep == frozenset({"pkg/mod.py#0", "pkg/other.py#0"})
-    # drop-file removes that file's only block: same set as drop-block#1's complement.
     assert by_label["drop-file:pkg/other.py"].keep == frozenset({"pkg/mod.py#0", "pkg/mod.py#1"})
 
 
 def test_load_shortcuts_has_none_when_nothing_passed_or_probe_found_every_block_needed():
-    assert load_shortcuts(_report(kept=[], grades=[{"label": "full", "reward": 1.0}])) == []
+    report = _report()
+    report["grades"] = report["grades"][:2]
+    report["kept"] = [b["id"] for b in report["blocks"]]
+    assert load_shortcuts(report) == []
     assert load_shortcuts(_report(verdict="pass")) == []
 
 
@@ -66,9 +67,7 @@ def test_plan_refuses_a_pass_verdict_without_real_partial_fixes(tmp_path):
     package = _package(tmp_path)
     report_dir = tmp_path / "report"
     report_dir.mkdir()
-    (report_dir / "report.json").write_text(
-        json.dumps(_report(verdict="pass", package=str(package)))
-    )
+    (report_dir / "report.json").write_text(json.dumps(_bound_report(package, verdict="pass")))
     with pytest.raises(ValueError, match="nothing to repair"):
         plan_ref_repair(report_dir)
 
@@ -90,7 +89,9 @@ def _checks(reference, nop, shortcuts):
 
 
 def test_classify_accepts_only_x3_controls_and_all_shortcuts_dead():
-    verdict, _ = classify_ref_validation(_checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)]))
+    verdict, _ = classify_ref_validation(
+        _checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)]), shortcut_ids=["minimal"]
+    )
     assert verdict == "repaired"
 
 
@@ -104,22 +105,28 @@ def test_classify_accepts_only_x3_controls_and_all_shortcuts_dead():
     ],
 )
 def test_classify_rejects_or_blocks_everything_else(reference, nop, shortcuts, expected):
-    verdict, _ = classify_ref_validation(_checks(reference, nop, shortcuts))
+    verdict, _ = classify_ref_validation(
+        _checks(reference, nop, shortcuts), shortcut_ids=["minimal"]
+    )
     assert verdict == expected
 
 
 def test_classify_blocks_unscored_grades():
     rows = _checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)])
-    rows[0] = RefRepairCheck(name="reference-1", role="reference", status="timeout")
-    verdict, reason = classify_ref_validation(rows)
+    rows[0] = RefRepairCheck(name="reference-0", role="reference", status="timeout")
+    verdict, _ = classify_ref_validation(rows, shortcut_ids=["minimal"])
     assert verdict == "blocked"
-    assert "reference-1" in reason
 
 
 def _package(tmp_path: Path) -> Path:
     package = tmp_path / "package"
     (package / "tests").mkdir(parents=True)
-    (package / "task.toml").write_text('[environment]\nworkdir = "/testbed"\n')
+    (package / "environment" / "setup").mkdir(parents=True)
+    (package / "environment" / "setup" / "setup.sh").write_text("#!/bin/sh\n")
+    (package / "task.toml").write_text(
+        '[metadata]\nsource_id = "format-code-task-000001"\n'
+        '[environment]\nworkdir = "/testbed"\ndocker_image = "local-fixture:fixed"\n'
+    )
     (package / "instruction.md").write_text("Fix the thing.\n")
     (package / "tests" / "test.patch").write_text("")
     (package / "tests" / "test_command.sh").write_text("python -m pytest tests/ -q\n")
@@ -129,11 +136,25 @@ def _package(tmp_path: Path) -> Path:
     return package
 
 
+def _bound_report(package, **overrides):
+    reference = package.parent / "reference.patch"
+    reference.write_text("diff --git a/pkg/mod.py b/pkg/mod.py\n")
+    return _report(
+        package=str(package),
+        package_digest=compute_task_digests(package).package,
+        reference={
+            "patch": str(reference),
+            "sha256": hashlib.sha256(reference.read_bytes()).hexdigest(),
+        },
+        **overrides,
+    )
+
+
 def _plan(tmp_path: Path) -> RefRepairPlan:
     package = _package(tmp_path)
     report_dir = tmp_path / "report"
     report_dir.mkdir()
-    report = _report(package=str(package))
+    report = _bound_report(package)
     (report_dir / "report.json").write_text(json.dumps(report))
     (report_dir / "dropped.patch").write_text("diff --git a/x b/x\n")
     return plan_ref_repair(report_dir)
@@ -161,7 +182,7 @@ def test_execute_with_fakes_repairs_and_writes_receipts(tmp_path):
 
     def fake_derive(parent, **kwargs):
         return SimpleNamespace(
-            variant_digest="sha256:" + "a" * 64,
+            variant_digest=compute_task_digests(parent).package,
             record_relpath=lambda: Path("library/task-variants/rec.json"),
         )
 
@@ -210,94 +231,26 @@ def test_execute_quota_blocked_never_calls_model(tmp_path):
     assert called is False
 
 
-def test_ref_model_caller_recovers_text_only_preamble_turn(tmp_path, monkeypatch):
-    import evallab.verifier_repair as vr
-    from evallab.ref_repair import ref_model_caller
-
-    proposal = json.dumps(
-        {"schema": "evallab.verifier_repair.proposal/v1", "repairable": False, "rationale": "x"}
-    )
-    events = [
-        {"type": "item.completed", "item": {"type": "agent_message", "text": "working on it"}},
-        {"type": "item.completed", "item": {"type": "agent_message", "text": proposal}},
-        {"type": "turn.completed", "usage": {"input_tokens": 5}},
-    ]
-    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
-
-    def boom(*a, **k):
-        raise vr.RepairError("no complete single-turn message")
-
-    monkeypatch.setattr(vr, "codex_model_caller", boom)
-    text, usage = ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
-    assert text == proposal
-    assert usage["input_tokens"] == 5
-    assert "recovered" in usage
-
-
-def test_ref_model_caller_refuses_tool_bearing_turn(tmp_path, monkeypatch):
-    import evallab.verifier_repair as vr
-    from evallab.ref_repair import ref_model_caller
-
-    events = [
-        {"type": "item.completed", "item": {"type": "mcp_tool_call", "text": ""}},
-        {"type": "item.completed", "item": {"type": "agent_message", "text": "{}"}},
-    ]
-    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
-
-    def boom(*a, **k):
-        raise vr.RepairError("tool call")
-
-    monkeypatch.setattr(vr, "codex_model_caller", boom)
-    with pytest.raises(vr.RepairError):
-        ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
-
-
-def test_ref_model_caller_recovers_a_proposal_after_empty_catalog_probes(tmp_path, monkeypatch):
-    import evallab.verifier_repair as vr
-    from evallab.ref_repair import ref_model_caller
-
-    proposal = json.dumps(
-        {"schema": "evallab.verifier_repair.proposal/v1", "repairable": False, "rationale": "x"}
-    )
-    probe = {
-        "type": "mcp_tool_call",
-        "server": "codex",
-        "tool": "list_mcp_resources",
-        "arguments": {},
-        "error": None,
-        "status": "completed",
-        "result": {"content": [{"type": "text", "text": '{"resources":[]}'}]},
-    }
-    events = [
-        {"type": "item.completed", "item": {"type": "agent_message", "text": "checking"}},
-        {"type": "item.completed", "item": probe},
-        {"type": "item.completed", "item": {"type": "agent_message", "text": proposal}},
-        {"type": "turn.completed", "usage": {"input_tokens": 9}},
-    ]
-    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
-    monkeypatch.setattr(
-        vr, "codex_model_caller", lambda *a, **k: (_ for _ in ()).throw(vr.RepairError("multi"))
-    )
-    text, usage = ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
-    assert text == proposal
-    assert usage["input_tokens"] == 9
-
-
 def test_classify_partial_only_when_every_escape_is_declared():
     rows = _checks([1, 1, 1], [0, 0, 0], [("a", 0.0), ("netlify", 1.0), ("fixture", 1.0)])
     verdict, reason = classify_ref_validation(
-        rows, declared={"netlify": "deploy config", "fixture": "test fixture"}
+        rows,
+        shortcut_ids=["a", "netlify", "fixture"],
+        declared={"netlify": "deploy config", "fixture": "test fixture"},
     )
     assert verdict == "partial"
-    assert "netlify (deploy config)" in reason
     # One undeclared escape keeps the whole attempt rejected.
-    verdict, _ = classify_ref_validation(rows, declared={"netlify": "deploy config"})
+    verdict, _ = classify_ref_validation(
+        rows, shortcut_ids=["a", "netlify", "fixture"], declared={"netlify": "deploy config"}
+    )
     assert verdict == "rejected"
 
 
 def test_classify_partial_never_forgives_broken_controls():
     rows = _checks([1, 0, 1], [0, 0, 0], [("netlify", 1.0)])
-    verdict, _ = classify_ref_validation(rows, declared={"netlify": "deploy config"})
+    verdict, _ = classify_ref_validation(
+        rows, shortcut_ids=["netlify"], declared={"netlify": "deploy config"}
+    )
     assert verdict == "rejected"
 
 
@@ -337,5 +290,99 @@ def test_report_less_task_needs_real_partial_fix_and_reference(tmp_path):
     )
     assert [s.id for s in plan.shortcuts] == ["partial-stock"]
     assert plan.shortcuts[0].patch is not None
-    assert "=== reference solution patch ===" in plan.prompt
-    assert "real agent submission" in plan.prompt
+
+
+@pytest.mark.parametrize(
+    "observed",
+    [[], [("minimal", 0.0), ("minimal", 0.0)], [("different", 0.0)]],
+)
+def test_missing_duplicate_or_substituted_shortcuts_cannot_certify_repair(observed):
+    verdict, _ = classify_ref_validation(
+        _checks([1, 1, 1], [0, 0, 0], observed), shortcut_ids=["minimal"]
+    )
+    assert verdict == "blocked"
+
+
+def test_duplicate_controls_cannot_fill_the_repetition_quorum():
+    checks = _checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)])
+    checks[1] = checks[0]
+    verdict, _ = classify_ref_validation(checks, shortcut_ids=["minimal"])
+    assert verdict == "blocked"
+
+
+def test_fewer_than_three_runs_cannot_lower_the_acceptance_bar():
+    verdict, _ = classify_ref_validation(
+        _checks([1], [0], [("minimal", 0.0)]), shortcut_ids=["minimal"], repetitions=1
+    )
+    assert verdict == "blocked"
+
+
+def test_shortcut_intake_rejects_history_that_cannot_be_reconstructed():
+    report = _report()
+    report["grades"][4]["kept"] = 2
+    with pytest.raises(ValueError):
+        load_shortcuts(report)
+
+
+def test_retained_proposal_needs_no_model_or_fabricated_quota(tmp_path):
+    plan = _plan(tmp_path)
+    proposal = tmp_path / "retained.json"
+    proposal.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.verifier_repair.proposal/v1",
+                "repairable": False,
+                "rationale": "The omitted changes are outside the task contract.",
+            }
+        )
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail(
+            "a retained proposal must not read quota, call a model or grade a declined repair"
+        )
+
+    result = execute_ref_repair(
+        plan,
+        model="gpt-6.1-sol",
+        repo_root=tmp_path,
+        output_dir=tmp_path / "attempt",
+        proposal_path=proposal,
+        quota_checker=forbidden,
+        model_caller=forbidden,
+        grader=forbidden,
+    )
+    assert result.verdict == "unrepairable"
+    usage = json.loads((tmp_path / "attempt" / "model-usage.json").read_text())
+    assert usage["new_model_call"] is False
+    assert not (tmp_path / "attempt" / "quota.json").exists()
+
+
+@pytest.mark.parametrize("changed", ["task_id", "package", "reference"])
+def test_report_binding_rejects_changed_task_or_source_bytes(tmp_path, changed):
+    from evallab.ref_repair import load_ref_report
+
+    package = _package(tmp_path)
+    report = _bound_report(package)
+    directory = tmp_path / "report"
+    directory.mkdir()
+    if changed == "task_id":
+        report["task_id"] = "another-task"
+    elif changed == "package":
+        (package / "instruction.md").write_text("Different instruction.\n")
+    else:
+        Path(report["reference"]["patch"]).write_text("Different reference.\n")
+    (directory / "report.json").write_text(json.dumps(report))
+    with pytest.raises(ValueError):
+        load_ref_report(directory)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    ["new file mode 120000", "old mode 100644\nnew mode 100755", "GIT binary patch"],
+)
+def test_byte_only_replay_refuses_unsupported_file_types(metadata):
+    from evallab.ref_repair import _checked_patch_paths
+
+    with pytest.raises(ValueError):
+        _checked_patch_paths("diff --git a/pkg/item.py b/pkg/item.py\n" + metadata + "\n")

@@ -34,6 +34,16 @@
   ablation file, which is not imported.
 - Split: `dev` (212) / `test` (188), from a seeded hash of `instance_id`. Every
   trajectory of an instance lands in the same split.
+- Item-level assignments are in `../splits/assignments.csv`.
+- The qa-trace/3 prompts were tuned on 28 items, 15 of them `test`, listed in
+  `research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt`. This is exposure
+  `qa-trace-tj-prompt-dev` in `../splits/exposure.jsonl`.
+  - A QA Trace `test` row must leave those 15 items unmeasured, for example with
+    `--exclude`, or `splits/guard.py --check` fails.
+  - Any new prompt work belongs on `dev` only. If it touches more test items, add
+    them to the tuned-on file first.
+- There are no graders here, so "regrading" this key means re-judging. The same
+  exclusion applies.
 
 ## Baseline
 

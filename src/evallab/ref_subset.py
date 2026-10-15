@@ -464,7 +464,12 @@ class Sandbox:
             _docker("rm", "-f", name)
 
     def grade(
-        self, label: str, kept: list[str], files: dict[str, bytes | None], timeout: float
+        self,
+        label: str,
+        kept: list[str],
+        files: dict[str, bytes | None],
+        timeout: float,
+        tail_chars: int = 2_000,
     ) -> Grade:
         name = f"{self.name}-g"
         started = time.monotonic()
@@ -498,7 +503,7 @@ class Sandbox:
             reward_raw = (
                 _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
             )
-            tail = result.stdout.decode(errors="replace")[-2_000:]
+            tail = result.stdout.decode(errors="replace")[-tail_chars:]
             if reward_raw not in {"0", "1"}:
                 return Grade(
                     label,

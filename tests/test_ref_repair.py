@@ -13,7 +13,6 @@ from evallab.ref_repair import (
     RefRepairPlan,
     classify_ref_validation,
     execute_ref_repair,
-    load_ref_report,
     load_shortcuts,
     plan_ref_repair,
 )
@@ -53,24 +52,25 @@ def test_load_shortcuts_collects_every_passing_proper_subset():
         "drop-file:pkg/other.py",
     }
     assert by_label["minimal"].keep == frozenset({"pkg/mod.py#0"})
-    assert by_label["drop-block:pkg/mod.py#1"].keep == frozenset(
-        {"pkg/mod.py#0", "pkg/other.py#0"}
-    )
+    assert by_label["drop-block:pkg/mod.py#1"].keep == frozenset({"pkg/mod.py#0", "pkg/other.py#0"})
     # drop-file removes that file's only block: same set as drop-block#1's complement.
-    assert by_label["drop-file:pkg/other.py"].keep == frozenset(
-        {"pkg/mod.py#0", "pkg/mod.py#1"}
+    assert by_label["drop-file:pkg/other.py"].keep == frozenset({"pkg/mod.py#0", "pkg/mod.py#1"})
+
+
+def test_load_shortcuts_has_none_when_nothing_passed_or_probe_found_every_block_needed():
+    assert load_shortcuts(_report(kept=[], grades=[{"label": "full", "reward": 1.0}])) == []
+    assert load_shortcuts(_report(verdict="pass")) == []
+
+
+def test_plan_refuses_a_pass_verdict_without_real_partial_fixes(tmp_path):
+    package = _package(tmp_path)
+    report_dir = tmp_path / "report"
+    report_dir.mkdir()
+    (report_dir / "report.json").write_text(
+        json.dumps(_report(verdict="pass", package=str(package)))
     )
-
-
-def test_load_shortcuts_rejects_reports_without_passing_shortcuts():
-    with pytest.raises(ValueError, match="no passing shortcut"):
-        load_shortcuts(_report(kept=[], grades=[{"label": "full", "reward": 1.0}]))
-
-
-def test_load_ref_report_rejects_non_fail_verdicts(tmp_path):
-    (tmp_path / "report.json").write_text(json.dumps(_report(verdict="pass")))
-    with pytest.raises(ValueError, match="not 'fail'"):
-        load_ref_report(tmp_path)
+    with pytest.raises(ValueError, match="nothing to repair"):
+        plan_ref_repair(report_dir)
 
 
 def _checks(reference, nop, shortcuts):
@@ -90,9 +90,7 @@ def _checks(reference, nop, shortcuts):
 
 
 def test_classify_accepts_only_x3_controls_and_all_shortcuts_dead():
-    verdict, _ = classify_ref_validation(
-        _checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)])
-    )
+    verdict, _ = classify_ref_validation(_checks([1, 1, 1], [0, 0, 0], [("minimal", 0.0)]))
     assert verdict == "repaired"
 
 
@@ -169,6 +167,7 @@ def test_execute_with_fakes_repairs_and_writes_receipts(tmp_path):
 
     def fake_grader(**kwargs):
         return _checks([1, 1, 1], [0, 0, 0], [(s, 0.0) for s in shortcut_ids])
+
     out = tmp_path / "attempt"
     result = execute_ref_repair(
         plan,
@@ -180,6 +179,7 @@ def test_execute_with_fakes_repairs_and_writes_receipts(tmp_path):
         grader=fake_grader,
         derive_fn=fake_derive,
         materialize_fn=lambda record, parent, repo_root=None: Path(parent),
+        status_fn=lambda *a, **k: None,
     )
     assert result.verdict == "repaired"
     assert (out / "repair-result.json").is_file()
@@ -208,3 +208,103 @@ def test_execute_quota_blocked_never_calls_model(tmp_path):
     )
     assert result.verdict == "blocked"
     assert called is False
+
+
+def test_ref_model_caller_recovers_text_only_preamble_turn(tmp_path, monkeypatch):
+    import evallab.verifier_repair as vr
+    from evallab.ref_repair import ref_model_caller
+
+    proposal = json.dumps(
+        {"schema": "evallab.verifier_repair.proposal/v1", "repairable": False, "rationale": "x"}
+    )
+    events = [
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "working on it"}},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": proposal}},
+        {"type": "turn.completed", "usage": {"input_tokens": 5}},
+    ]
+    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+
+    def boom(*a, **k):
+        raise vr.RepairError("no complete single-turn message")
+
+    monkeypatch.setattr(vr, "codex_model_caller", boom)
+    text, usage = ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
+    assert text == proposal
+    assert usage["input_tokens"] == 5
+    assert "recovered" in usage
+
+
+def test_ref_model_caller_refuses_tool_bearing_turn(tmp_path, monkeypatch):
+    import evallab.verifier_repair as vr
+    from evallab.ref_repair import ref_model_caller
+
+    events = [
+        {"type": "item.completed", "item": {"type": "mcp_tool_call", "text": ""}},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "{}"}},
+    ]
+    (tmp_path / "events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+
+    def boom(*a, **k):
+        raise vr.RepairError("tool call")
+
+    monkeypatch.setattr(vr, "codex_model_caller", boom)
+    with pytest.raises(vr.RepairError):
+        ref_model_caller("p", {}, model="gpt-6.1-sol", output_dir=tmp_path)
+
+
+def test_classify_partial_only_when_every_escape_is_declared():
+    rows = _checks([1, 1, 1], [0, 0, 0], [("a", 0.0), ("netlify", 1.0), ("fixture", 1.0)])
+    verdict, reason = classify_ref_validation(
+        rows, declared={"netlify": "deploy config", "fixture": "test fixture"}
+    )
+    assert verdict == "partial"
+    assert "netlify (deploy config)" in reason
+    # One undeclared escape keeps the whole attempt rejected.
+    verdict, _ = classify_ref_validation(rows, declared={"netlify": "deploy config"})
+    assert verdict == "rejected"
+
+
+def test_classify_partial_never_forgives_broken_controls():
+    rows = _checks([1, 0, 1], [0, 0, 0], [("netlify", 1.0)])
+    verdict, _ = classify_ref_validation(rows, declared={"netlify": "deploy config"})
+    assert verdict == "rejected"
+
+
+def test_source_only_patch_drops_environment_artefacts_but_keeps_source():
+    from evallab.ref_repair import source_only_patch
+
+    patch = (
+        "diff --git a/.venv/bin/activate b/.venv/bin/activate\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/.venv/bin/activate\n@@ -0,0 +1 @@\n+x\n"
+        "diff --git a/pkg/mod.py b/pkg/mod.py\n--- a/pkg/mod.py\n+++ b/pkg/mod.py\n"
+        "@@ -1 +1 @@\n-a\n+b\n"
+        "diff --git a/talon.log b/talon.log\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/talon.log\n@@ -0,0 +1 @@\n+noise\n"
+    )
+    cleaned = source_only_patch(patch)
+    assert "pkg/mod.py" in cleaned
+    assert ".venv" not in cleaned
+    assert "talon.log" not in cleaned
+
+
+def test_report_less_task_needs_real_partial_fix_and_reference(tmp_path):
+    package = _package(tmp_path)
+    reference = tmp_path / "solution.patch"
+    reference.write_text("diff --git a/x b/x\n")
+    empty_dir = tmp_path / "no-report"
+    with pytest.raises(ValueError, match="--package and --reference-patch"):
+        plan_ref_repair(empty_dir)
+    with pytest.raises(ValueError, match="nothing to repair"):
+        plan_ref_repair(empty_dir, package=package, reference_patch=reference)
+    diff = tmp_path / "agent.diff"
+    diff.write_text("diff --git a/pkg/mod.py b/pkg/mod.py\n--- a/pkg/mod.py\n+++ b/pkg/mod.py\n")
+    plan = plan_ref_repair(
+        empty_dir,
+        package=package,
+        reference_patch=reference,
+        partial_fixes=[("stock", diff)],
+    )
+    assert [s.id for s in plan.shortcuts] == ["partial-stock"]
+    assert plan.shortcuts[0].patch is not None
+    assert "=== reference solution patch ===" in plan.prompt
+    assert "real agent submission" in plan.prompt

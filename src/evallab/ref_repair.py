@@ -13,7 +13,10 @@ such a report into a test-only task variant and re-grades it under the
 
 Anything else is ``rejected`` (controls broke, or a shortcut still escapes),
 ``unrepairable`` (the proposer declines, with reasons), or ``blocked``
-(infrastructure / unscored grades) — never silently ``repaired``.
+(infrastructure / unscored grades). When every escaping shortcut was declared
+equivalent or out-of-scope with a per-ID reason (a build-config or test-fixture
+file the probe counted as code, say), the genuine tests are kept and the verdict
+is ``partial`` — reported, never silently ``repaired``.
 
 Test additions come from the ChatGPT-subscription Codex proposer shared with
 ``verifier_repair`` (same proposal schema, same fingerprint bans, same quota
@@ -26,17 +29,17 @@ variants via ``tasks derive``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab.schemas import ContractModel
 from pydantic import Field
+
+from evallab.schemas import ContractModel
 
 SCHEMA_RESULT = "evallab.ref_repair.result/v1"
 
@@ -44,7 +47,7 @@ SCHEMA_RESULT = "evallab.ref_repair.result/v1"
 #: 2026-10-15 acceptance rule.
 CONTROL_REPETITIONS = 3
 
-RefRepairVerdict = Literal["repaired", "rejected", "unrepairable", "blocked"]
+RefRepairVerdict = Literal["repaired", "partial", "rejected", "unrepairable", "blocked"]
 
 
 class RefRepairError(ValueError):
@@ -70,25 +73,30 @@ class RefRepairCheck(ContractModel):
 class RefRepairResult(ContractModel):
     """Durable outcome of one ref-repair attempt."""
 
-    schema_: Literal["evallab.ref_repair.result/v1"] = Field(
-        alias="schema", default=SCHEMA_RESULT
-    )
+    schema_: Literal["evallab.ref_repair.result/v1"] = Field(alias="schema", default=SCHEMA_RESULT)
     task: str = ""
     verdict: RefRepairVerdict = "blocked"
     reason: str = ""
     variant_digest: str | None = None
     variant_record: str | None = None
     variant_package: str | None = None
+    declared_unrepairable: dict[str, str] = Field(default_factory=dict)
     checks: list[RefRepairCheck] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class Shortcut:
-    """A previously passing proper subset of the reference fix."""
+    """A previously passing partial submission.
+
+    Either a proper subset of the reference fix (``keep`` blocks, from the
+    ref-subset probe) or a real agent partial fix (``patch``: the trial's
+    ``verifier/agent.diff`` against the task base).
+    """
 
     id: str
     label: str
-    keep: frozenset[str]
+    keep: frozenset[str] = frozenset()
+    patch: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -107,8 +115,11 @@ def load_shortcuts(report: Mapping[str, Any]) -> list[Shortcut]:
     The reproducer is the minimised ``keep`` set from the report; each
     intermediate ``drop-file:`` / ``drop-block:`` grade that passed is also a
     concrete partial submission, so it joins the acceptance set. The full
-    fix and the confirmation grade are controls, not shortcuts.
+    fix and the confirmation grade are controls, not shortcuts. A report
+    without a ``fail`` verdict has none (the probe found every block needed).
     """
+    if report.get("verdict") != "fail":
+        return []
     blocks = [b for b in report.get("blocks", []) if isinstance(b, dict)]
     all_ids = {str(b["id"]) for b in blocks}
     if not all_ids:
@@ -132,22 +143,53 @@ def load_shortcuts(report: Mapping[str, Any]) -> list[Shortcut]:
         elif label.startswith("drop-file:"):
             path = label.removeprefix("drop-file:")
             add(label, all_ids - {str(b["id"]) for b in blocks if b.get("path") == path})
-    if not shortcuts:
-        raise RefRepairError("ref-subset report has no passing shortcut submission")
     return sorted(shortcuts.values(), key=lambda s: s.label)
 
 
-def load_ref_report(report_dir: Path) -> dict[str, Any]:
-    """Load a ref-subset report directory; only ``fail`` verdicts are repairs."""
+def load_partial_fixes(partial_fixes: Sequence[tuple[str, Path]]) -> list[Shortcut]:
+    """Real partial-fix submissions: each ``verifier/agent.diff`` that earned reward 1."""
+    shortcuts: list[Shortcut] = []
+    for label, path in partial_fixes:
+        try:
+            patch = Path(path).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise RefRepairError(f"cannot read partial fix {label}: {exc}") from exc
+        if not patch.strip():
+            raise RefRepairError(f"partial fix {label} is empty")
+        shortcuts.append(Shortcut(_shortcut_id(f"partial-{label}"), label, patch=patch))
+    return shortcuts
+
+
+def load_ref_report(
+    report_dir: Path,
+    *,
+    package: Path | None = None,
+    reference_patch: Path | None = None,
+) -> dict[str, Any]:
+    """Load a ref-subset report directory, or synthesize one for a report-less task.
+
+    A report-less task needs an explicit package and reference patch; it has
+    no blocks, so only real partial-fix submissions can be its shortcuts.
+    """
     path = Path(report_dir) / "report.json"
-    try:
-        report = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise RefRepairError(f"cannot load ref-subset report {path}: {exc}") from exc
-    if report.get("verdict") != "fail":
-        raise RefRepairError(
-            f"ref-subset verdict is {report.get('verdict')!r}, not 'fail'; nothing to repair"
-        )
+    if not path.is_file():
+        if package is None or reference_patch is None:
+            raise RefRepairError(
+                f"no ref-subset report at {path}; pass --package and --reference-patch"
+            )
+        report: dict[str, Any] = {
+            "task_id": Path(package).name,
+            "verdict": "unknown",
+            "package": str(package),
+            "reference": {"patch": str(reference_patch)},
+            "blocks": [],
+            "grades": [],
+        }
+    else:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RefRepairError(f"cannot load ref-subset report {path}: {exc}") from exc
     if not Path(str(report.get("package") or "")).is_dir():
         raise RefRepairError(f"report package is missing: {report.get('package')}")
     return report
@@ -178,13 +220,21 @@ def plan_ref_repair(
     report_dir: Path,
     *,
     feedback: Path | None = None,
+    partial_fixes: Sequence[tuple[str, Path]] = (),
+    package: Path | None = None,
+    reference_patch: Path | None = None,
 ) -> RefRepairPlan:
     """Prepare the proposer context for one flagged task without calling a model."""
     from evallab.verifier_repair import read_task_workdir
 
-    report = load_ref_report(report_dir)
+    report = load_ref_report(report_dir, package=package, reference_patch=reference_patch)
     package = Path(str(report["package"]))
-    shortcuts = load_shortcuts(report)
+    shortcuts = load_shortcuts(report) + load_partial_fixes(partial_fixes)
+    if not shortcuts:
+        raise RefRepairError(
+            f"nothing to repair: ref-subset verdict is {report.get('verdict')!r} with no "
+            "passing shortcut, and no --partial-fix was given"
+        )
     try:
         instruction = (package / "instruction.md").read_text(encoding="utf-8")
         test_patch = (package / "tests" / "test.patch").read_text(encoding="utf-8")
@@ -195,6 +245,13 @@ def plan_ref_repair(
     dropped_path = Path(report_dir) / "dropped.patch"
     if dropped_path.is_file():
         dropped = dropped_path.read_text(encoding="utf-8", errors="replace")
+    reference_text = ""
+    if any(s.patch for s in shortcuts):
+        ref_path = Path(str((report.get("reference") or {}).get("patch") or ""))
+        try:
+            reference_text = ref_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise RefRepairError(f"reference patch is missing: {exc}") from exc
     context: dict[str, Any] = {
         "task": report.get("task_id"),
         "workdir": read_task_workdir(package),
@@ -202,20 +259,24 @@ def plan_ref_repair(
         "test_command": test_command.strip(),
         "hidden_test_patch": _bounded(test_patch, 32_768),
         "dropped_patch": _bounded(dropped, 16_384),
+        "reference_patch": _bounded(reference_text, 16_384),
         "shortcuts": [
-            {"id": s.id, "label": s.label, "kept_blocks": sorted(s.keep)}
+            {
+                "id": s.id,
+                "label": s.label,
+                "kept_blocks": sorted(s.keep),
+                "patch": _bounded(s.patch, 8_192) if s.patch else None,
+            }
             for s in shortcuts
         ],
-        "dropped_blocks": [
-            str(b["id"]) for b in report.get("blocks", []) if isinstance(b, dict)
-        ],
+        "dropped_blocks": [str(b["id"]) for b in report.get("blocks", []) if isinstance(b, dict)],
     }
     if feedback is not None:
         try:
             prior = json.loads(Path(feedback).read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise RefRepairError(f"cannot load feedback {feedback}: {exc}") from exc
-        context["feedback"] = _bounded(json.dumps(prior, indent=1), 16_384)
+        context["feedback"] = _bounded(json.dumps(_compact_feedback(prior), indent=1), 16_384)
     return RefRepairPlan(
         report_dir=Path(report_dir),
         report=report,
@@ -226,6 +287,25 @@ def plan_ref_repair(
     )
 
 
+def _compact_feedback(prior: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep each distinct failing output once: reruns of one grade print the same log."""
+    compact = dict(prior)
+    seen: set[tuple[str, str]] = set()
+    checks = []
+    for check in prior.get("checks", []):
+        entry = dict(check)
+        error = str(entry.get("error") or "")
+        if error:
+            key = (str(entry.get("role")), error)
+            if key in seen:
+                entry["error"] = "(same output as an earlier check of this role)"
+            seen.add(key)
+        checks.append(entry)
+    if checks:
+        compact["checks"] = checks
+    return compact
+
+
 def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
     """Prompt the model for semantic tests that kill every listed shortcut."""
     from evallab.verifier_repair import MAX_TESTS, SCHEMA_PROPOSAL
@@ -233,10 +313,12 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
     lines = [
         "You are hardening a benchmark task's hidden tests. A probe proved the",
         "current tests weak: each SHORTCUT below is a partial fix (a proper",
-        "subset of the reference solution) that still scores full reward.",
+        "subset of the reference solution, or a real agent submission that",
+        "fixed only part of the issue) that still scores full reward.",
         "Write NEW semantic tests that pass on the full reference solution and",
         "fail on every shortcut. Tests must follow from the task instruction,",
-        "not from the reference patch's incidental choices.",
+        "not from the reference patch's incidental choices. Assert only",
+        "behaviour the instruction states.",
         "",
         "Output exactly one JSON object, no markdown fences, with the",
         "proposal schema: {schema, repairable, rationale, tests, command,",
@@ -255,11 +337,16 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
         "  logging, formatting) unless the instruction requires them.",
         "- Keep tests offline with synthetic fixtures; never load models.",
         "- repo_path is a NEW repository Python test file named test_*.py,",
-        "  never a file the hidden patch already carries. At most "
-        f"{MAX_TESTS} files.",
-        "- command runs every new test file with the task Python interpreter,",
-        '  e.g. "python -m pytest path/test_repair_x.py -q"; it must name',
-        "  each repo_path, stay under 300 chars, no shell metacharacters.",
+        f"  never a file the hidden patch already carries. At most {MAX_TESTS} files.",
+        "- command runs every new test file with the task Python interpreter:",
+        '  "python -m pytest path/test_repair_x.py -q" or "python -m unittest',
+        '  path/test_repair_x.py" (the file path, exactly as in repo_path); it',
+        "  must name each repo_path,",
+        "  stay under 300 chars, no shell metacharacters. pytest may be absent",
+        "  from the task image: unless the existing test command above itself",
+        "  runs pytest, write unittest.TestCase tests and use -m unittest. If",
+        "  the project needs framework setup (e.g. Django settings), do it",
+        "  inside the test module (os.environ.setdefault + django.setup()).",
         "",
         f"Task: {context.get('task')}",
         f"Testbed working directory: {context.get('workdir')}",
@@ -268,15 +355,17 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
         "=== instruction.md ===",
         str(context.get("instruction") or ""),
         "",
-        "=== behaviour the shortcuts omit (dropped.patch: minimal -> full) ===",
+        "=== behaviour the block-drop shortcuts omit (dropped.patch: minimal -> full) ===",
         str(context.get("dropped_patch") or ""),
     ]
+    if context.get("reference_patch"):
+        lines += ["", "=== reference solution patch ===", str(context["reference_patch"])]
     for shortcut in context.get("shortcuts", []):  # type: ignore[union-attr]
-        lines += [
-            "",
-            f"=== shortcut {shortcut['id']} ({shortcut['label']}) ===",
-            f"kept blocks: {', '.join(shortcut['kept_blocks'])}",
-        ]
+        lines += ["", f"=== shortcut {shortcut['id']} ({shortcut['label']}) ==="]
+        if shortcut.get("patch"):
+            lines += ["real agent submission (diff against the task base):", shortcut["patch"]]
+        else:
+            lines.append(f"kept blocks: {', '.join(shortcut['kept_blocks'])}")
     if context.get("feedback"):
         lines += ["", "=== prior attempt (fix these failures) ===", str(context["feedback"])]
     lines += [
@@ -293,9 +382,26 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
 
 
 def _all_block_ids(report: Mapping[str, Any]) -> set[str]:
-    return {
-        str(b["id"]) for b in report.get("blocks", []) if isinstance(b, dict)
-    }
+    return {str(b["id"]) for b in report.get("blocks", []) if isinstance(b, dict)}
+
+
+#: Artefacts an agent leaves in its diff that are not part of any fix attempt.
+_JUNK_PATH = re.compile(
+    r"(^|/)(\.venv|venv|node_modules|__pycache__|\.pytest_cache|\.git|\.mypy_cache|\.ruff_cache)/"
+    r"|\.(pyc|pyo|log)$"
+)
+
+
+def source_only_patch(patch: str) -> str:
+    """Drop environment/log artefacts from an agent diff; keep every real source edit."""
+    blocks = re.split(r"(?m)^(?=diff --git )", patch)
+    kept = []
+    for block in blocks:
+        match = re.match(r"diff --git a/(.+?) b/(.+)", block)
+        if match and _JUNK_PATH.search(match.group(2)):
+            continue
+        kept.append(block)
+    return "".join(kept)
 
 
 def grade_keep_sets(
@@ -328,45 +434,72 @@ def grade_keep_sets(
         patch = patch_path.read_text(encoding="utf-8")
     except OSError as exc:
         raise RefRepairError(f"reference patch is missing: {exc}") from exc
-    parent = Package.load(parent_dir)
-    sandbox = Sandbox(parent)
-    try:
-        sandbox.prepare()
-        paths = patch_paths(patch)
-        base = sandbox.read(paths)
-    finally:
-        sandbox.close()
-    fixed = apply_reference(patch, base)
-    changes = [
-        file_change(path, base[path], fixed[path], set(parent.tests)) for path in paths
-    ]
-    changes = [c for c in changes if c.base != c.fixed]
-    all_ids = _all_block_ids(report)
-
+    del parent_dir  # the variant snapshot's testbed already holds the base files
     variant = Package.load(variant_dir)
     checks: list[RefRepairCheck] = []
 
     def files_for(keep: set[str]) -> dict[str, Any]:
-        return {
-            c.path: compose(c, keep) for c in changes if c.path not in variant.tests
-        }
+        return {c.path: compose(c, keep) for c in changes if c.path not in variant.tests}
+
+    def files_for_patch(shortcut_patch: str) -> dict[str, Any]:
+        cleaned = source_only_patch(shortcut_patch)
+        paths = patch_paths(cleaned)
+        base_files = box.read(paths)
+        try:
+            applied = apply_reference(cleaned, base_files)
+        except ValueError as exc:
+            raise RefRepairError(f"partial fix does not apply to the task base: {exc}") from exc
+        return {p: d for p, d in applied.items() if p not in variant.tests}
 
     box = Sandbox(variant)
     try:
         box.prepare()
-        jobs: list[tuple[str, str, set[str], int]] = [
-            ("reference", "reference", set(all_ids), repetitions),
-            ("nop", "nop", set(), repetitions),
+        paths = patch_paths(patch)
+        base = box.read(paths)
+        fixed = apply_reference(patch, base)
+        changes = [file_change(path, base[path], fixed[path], set(variant.tests)) for path in paths]
+        changes = [c for c in changes if c.base != c.fixed]
+        jobs: list[tuple[str, str, Callable[[], dict[str, Any]], int]] = [
+            (
+                "reference",
+                "reference",
+                lambda: {c.path: c.fixed for c in changes if c.path not in variant.tests},
+                repetitions,
+            ),
+            (
+                "nop",
+                "nop",
+                lambda: {c.path: c.base for c in changes if c.path not in variant.tests},
+                repetitions,
+            ),
         ]
-        jobs += [(s.id, "shortcut", set(s.keep), 1) for s in shortcuts]
-        for label, role, keep, times in jobs:
+        for s in shortcuts:
+            if s.patch is not None:
+                jobs.append((s.id, "shortcut", lambda s=s: files_for_patch(s.patch or ""), 1))
+            else:
+                jobs.append((s.id, "shortcut", lambda s=s: files_for(set(s.keep)), 1))
+        for label, role, files_fn, times in jobs:
             for attempt in range(times):
                 name = label if times == 1 else f"{label}-{attempt + 1}"
-                grade = box.grade(name, sorted(keep), files_for(keep), grade_timeout)
+                try:
+                    files = files_fn()
+                except RefRepairError as exc:
+                    checks.append(
+                        RefRepairCheck(
+                            name=name,
+                            role=role,
+                            status="error",
+                            error=str(exc),  # type: ignore[arg-type]
+                        )
+                    )
+                    continue
+                grade = box.grade(name, [], files, grade_timeout, tail_chars=8_000)
                 log(
                     f"  {variant.task_id} {name}: reward={grade.reward} "
                     f"{grade.status} {grade.seconds:.0f}s"
                 )
+                expected = 1.0 if role == "reference" else 0.0
+                unexpected = grade.status == "scored" and grade.reward != expected
                 checks.append(
                     RefRepairCheck(
                         name=name,
@@ -374,7 +507,11 @@ def grade_keep_sets(
                         status=grade.status,
                         reward=grade.reward,
                         seconds=round(grade.seconds, 1),
-                        error=None if grade.status == "scored" else (grade.tail or grade.status),
+                        # Failing output is the refinement evidence: why the
+                        # reference rejected a new test, or what let a shortcut pass.
+                        error=(grade.tail or grade.status)
+                        if grade.status != "scored" or unexpected
+                        else None,
                     )
                 )
     finally:
@@ -386,13 +523,12 @@ def classify_ref_validation(
     checks: Sequence[RefRepairCheck],
     *,
     repetitions: int = CONTROL_REPETITIONS,
+    declared: Mapping[str, str] | None = None,
 ) -> tuple[RefRepairVerdict, str]:
     """Accept only full xN = 1, nop xN = 0, and every shortcut = 0."""
     blocked = [c for c in checks if c.status != "scored" or c.reward not in (0.0, 1.0)]
     if blocked:
-        return "blocked", "unscored grades: " + ", ".join(
-            f"{c.name} ({c.status})" for c in blocked
-        )
+        return "blocked", "unscored grades: " + ", ".join(f"{c.name} ({c.status})" for c in blocked)
     reference = [c.reward for c in checks if c.role == "reference"]
     nop = [c.reward for c in checks if c.role == "nop"]
     if len(reference) != repetitions or len(nop) != repetitions:
@@ -405,7 +541,15 @@ def classify_ref_validation(
         )
     escaped = [c.name for c in checks if c.role == "shortcut" and c.reward != 0.0]
     if escaped:
-        return "rejected", "shortcut submissions still pass: " + ", ".join(escaped)
+        undeclared = [name for name in escaped if name not in (declared or {})]
+        if undeclared:
+            return "rejected", "shortcut submissions still pass: " + ", ".join(escaped)
+        return (
+            "partial",
+            f"controls {repetitions}/{repetitions} and every genuine shortcut dead; "
+            "declared equivalent/out-of-scope shortcuts still pass: "
+            + ", ".join(f"{name} ({declared[name]})" for name in escaped),  # type: ignore[index]
+        )
     return (
         "repaired",
         f"reference {repetitions}/{repetitions} pass, nop {repetitions}/{repetitions} "
@@ -436,6 +580,7 @@ def execute_ref_repair(
     grader: RefGrader = grade_keep_sets,
     derive_fn: DeriveFn | None = None,
     materialize_fn: Callable[..., Path] | None = None,
+    status_fn: Callable[..., Any] | None = None,
     repetitions: int = CONTROL_REPETITIONS,
 ) -> RefRepairResult:
     """Propose, derive and validate one repair; write receipts to output_dir."""
@@ -493,8 +638,7 @@ def execute_ref_repair(
             repo_root=repo_root,
             created_by="ref-repair",
             rationale=(
-                "Add semantic assertions so ref-subset shortcut submissions "
-                f"fail on {task}."
+                f"Add semantic assertions so ref-subset shortcut submissions fail on {task}."
             ),
             derive_fn=derive_fn,
         )
@@ -526,7 +670,8 @@ def execute_ref_repair(
         )
         _write_result(out, result)
         return result
-    verdict, reason = classify_ref_validation(checks, repetitions=repetitions)
+    declared = {entry.mutant_id: entry.reason for entry in proposal.unrepairable}
+    verdict, reason = classify_ref_validation(checks, repetitions=repetitions, declared=declared)
     result = RefRepairResult(
         task=task,
         verdict=verdict,
@@ -534,9 +679,24 @@ def execute_ref_repair(
         variant_digest=str(derived.variant_digest),
         variant_record=str(Path(repo_root) / derived.record_relpath()),
         variant_package=str(variant_dir),
+        declared_unrepairable=declared,
         checks=checks,
     )
     _write_result(out, result)
+    if status_fn is None:
+        from evallab.task_variants import append_status_evidence as status_fn
+
+    status_fn(
+        derived,
+        "validated"
+        if verdict == "repaired"
+        else "rejected"
+        if verdict == "rejected"
+        else "candidate",
+        evidence=f"{verdict}: {reason}; receipt={out / 'repair-result.json'}",
+        by="ref-repair",
+        repo_root=repo_root,
+    )
     return result
 
 
@@ -544,6 +704,54 @@ def _write_result(out: Path, result: RefRepairResult) -> None:
     (out / "repair-result.json").write_text(
         result.model_dump_json(by_alias=True, indent=1) + "\n", encoding="utf-8"
     )
+
+
+def ref_model_caller(
+    prompt: str,
+    context: Mapping[str, Any],
+    *,
+    model: str,
+    output_dir: Path,
+) -> tuple[str, dict[str, Any]]:
+    """One subscription proposal; recovers a text-only preamble turn.
+
+    The shared transport fails closed on multiple assistant messages. When
+    every completed item is a plain agent message (no tool call, no file
+    change) and the final message parses as a proposal, that final message
+    is the proposal: the preamble is narration, not a second answer. The
+    original transcript stays on disk and the recovery is recorded in the
+    usage receipt. Any tool-bearing or unparseable turn still fails.
+    """
+    from evallab.verifier_repair import RepairError, codex_model_caller, parse_proposal
+
+    try:
+        return codex_model_caller(prompt, context, model=model, output_dir=output_dir)
+    except RepairError:
+        events = Path(output_dir) / "events.jsonl"
+        try:
+            items: list[dict[str, Any]] = []
+            usage: dict[str, Any] = {}
+            for line in events.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                if row.get("type") == "item.completed":
+                    items.append(row.get("item") or {})
+                elif row.get("type") == "turn.completed":
+                    usage = row.get("usage") or {}
+        except (OSError, ValueError):
+            raise
+        texts = []
+        for item in items:
+            if item.get("type") != "agent_message":
+                raise
+            texts.append(str(item.get("text") or ""))
+        if len(texts) < 2 or not texts[-1].strip():
+            raise
+        parse_proposal(texts[-1])  # raises RepairError unless it is a proposal
+        return texts[-1], {
+            **usage,
+            "requested_model": model,
+            "recovered": "final agent_message of a text-only multi-message turn",
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -555,12 +763,23 @@ def _ref_repair_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
     del harbor
     from evallab.verifier_repair import (
         RepairError,
-        codex_model_caller,
         read_codex_quota,
     )
 
     try:
-        plan = plan_ref_repair(Path(args.report_dir), feedback=args.feedback)
+        partial_fixes = []
+        for spec in args.partial_fix:
+            label, sep, raw = spec.partition("=")
+            if not sep or not label or not raw:
+                raise RefRepairError(f"--partial-fix needs LABEL=PATH, got {spec!r}")
+            partial_fixes.append((label, Path(raw).expanduser()))
+        plan = plan_ref_repair(
+            Path(args.report_dir),
+            feedback=args.feedback,
+            partial_fixes=partial_fixes,
+            package=args.package,
+            reference_patch=args.reference_patch,
+        )
     except RefRepairError as exc:
         print(f"hack ref-repair: {exc}", file=sys.stderr)
         return 1
@@ -593,7 +812,7 @@ def _ref_repair_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
             repo_root=root,
             output_dir=out,
             quota_checker=read_codex_quota,
-            model_caller=lambda prompt, context: codex_model_caller(
+            model_caller=lambda prompt, context: ref_model_caller(
                 prompt,
                 context,
                 model=args.model,
@@ -620,7 +839,26 @@ def add_ref_repair_parser(hack_commands: Any) -> None:
             "(preview by default, subscription proposer, x3 controls)"
         ),
     )
-    parser.add_argument("report_dir", type=Path, help="ref-subset report directory")
+    parser.add_argument(
+        "report_dir",
+        type=Path,
+        help="ref-subset report directory (need not exist with --package/--reference-patch)",
+    )
+    parser.add_argument(
+        "--partial-fix",
+        action="append",
+        default=[],
+        metavar="LABEL=PATH",
+        help="real partial-fix submission that passed (a trial's verifier/agent.diff); repeatable",
+    )
+    parser.add_argument(
+        "--package", type=Path, help="task package, when the report directory has no report.json"
+    )
+    parser.add_argument(
+        "--reference-patch",
+        type=Path,
+        help="known-correct reference fix, when the report directory has no report.json",
+    )
     parser.add_argument(
         "--feedback", type=Path, help="Prior ref-repair repair-result.json to refine from"
     )
@@ -643,6 +881,7 @@ __all__ = [
     "execute_ref_repair",
     "grade_keep_sets",
     "load_ref_report",
+    "load_partial_fixes",
     "load_shortcuts",
     "plan_ref_repair",
     "render_ref_repair_prompt",

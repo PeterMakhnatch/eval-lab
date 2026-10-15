@@ -33,6 +33,7 @@ from evallab.qa.task import (
     Signal,
     Subject,
     TaskReport,
+    bundle_verifier_aware,
     finalize,
     finite_reward,
     import_evidence,
@@ -43,6 +44,7 @@ from evallab.qa.task import (
     score_command,
     score_findings,
     scoreboard_row,
+    submission_to_script,
     validate_triplet,
 )
 from evallab.registry import task_directory_digest
@@ -95,6 +97,9 @@ class FakeBackend:
         leak_status: str = "executed",
         leak_facts: dict[str, object] | None = None,
         blocker: str | None = None,
+        shortcut_rewards: tuple[object, ...] = (1.0,),
+        replay_reward: object = 1.0,
+        ref_subset_report: dict[str, object] | None = None,
     ) -> None:
         self.oracle = list(oracle)
         self.nop = list(nop)
@@ -106,7 +111,17 @@ class FakeBackend:
             else leak_facts
         )
         self.blocker = blocker
+        self.shortcut_rewards = list(shortcut_rewards)
+        self.replay_reward = replay_reward
+        self.ref_subset_report = ref_subset_report or {
+            "status": "not_applicable",
+            "verdict": "unknown",
+            "reason": "fake: no multi-block reference repair",
+        }
         self.control_calls: list[str] = []
+        self.shortcut_calls: list[dict[str, object]] = []
+        self.replay_calls: list[Reproducer] = []
+        self.ref_subset_calls = 0
 
     def resolve(self, package: Path) -> SimpleNamespace:
         package = Path(package).resolve()
@@ -142,6 +157,70 @@ class FakeBackend:
 
     def leak(self, task: object, *, run_dir: Path, timeout_seconds: int) -> SimpleNamespace:
         return _obs(self.leak_status, dict(self.leak_facts))
+
+    def grade_shortcut(
+        self,
+        package: Path,
+        submission: dict[str, object],
+        *,
+        digest: str,
+        run_dir: Path,
+        timeout_seconds: int,
+    ) -> tuple[SimpleNamespace, Reproducer]:
+        self.shortcut_calls.append(submission)
+        reward = (
+            self.shortcut_rewards.pop(0)
+            if len(self.shortcut_rewards) > 1
+            else self.shortcut_rewards[0]
+        )
+        run_dir.mkdir(parents=True, exist_ok=True)
+        script = run_dir / "shortcut.sh"
+        script.write_text("#!/usr/bin/env bash\ntrue\n", encoding="utf-8")
+        return (
+            _obs(
+                "executed",
+                {
+                    "reward": reward,
+                    "job_path": str(run_dir / "trial"),
+                    "verifier_stdout": "fake verifier stdout",
+                    "agent_stdout": "fake agent stdout",
+                },
+            ),
+            Reproducer(kind="command", path=str(script), expected_reward=1.0),
+        )
+
+    def replay_reproducer(
+        self,
+        package: Path,
+        reproducer: Reproducer,
+        *,
+        digest: str,
+        run_dir: Path,
+        timeout_seconds: int,
+    ) -> SimpleNamespace:
+        self.replay_calls.append(reproducer)
+        if self.replay_reward is None:
+            return _obs(
+                "failed",
+                {"reward": None, "exception": "fake replay unavailable"},
+                reason="fake replay unavailable",
+            )
+        return _obs(
+            "executed",
+            {"reward": self.replay_reward, "job_path": str(run_dir / "trial")},
+        )
+
+    def ref_subset(
+        self,
+        package: Path,
+        *,
+        digest: str,
+        run_dir: Path,
+        ref_patch: Path | None = None,
+        timeout_seconds: int = 1800,
+    ) -> dict[str, object]:
+        self.ref_subset_calls += 1
+        return dict(self.ref_subset_report)
 
 
 class FakeLane:
@@ -524,21 +603,23 @@ def test_finding_requires_reproducer_and_import_binds_subject_digest_and_downgra
         ),
         encoding="utf-8",
     )
-    # Matching subject+digest imports into S2 and downgrades verified -> unverified; S2/S3 stay not_run.
+    # Matching subject+digest imports into S2 and downgrades verified -> unverified.
+    # Executed S2 runs with no lane (shortcut not_run); S3 replay is unusable in this fake,
+    # so the imported candidate stays unverified and never counts as a pass.
     report = run_task(
         package,
         config=_config(tmp_path, stages=("S0", "S2", "S3")),
         run_dir=tmp_path / "run",
-        backend=FakeBackend(),
+        backend=FakeBackend(replay_reward=None),
         lane=None,
         evidence=ev_dir,
         triplet=triplet_file,
     )
     assert report.checks["imported-evidence"].status == "measured"
-    assert report.checks["live-probes"].status == "not_run"
+    assert report.checks["shortcut-agent"].status == "not_run"
     assert report.checks["supplied-triplet"].status == "measured"
     assert report.checks["supplied-triplet"].verdict == "pass"
-    assert report.checks["fresh-replay"].status == "not_run"
+    assert report.checks["fresh-replay"].status == "ran_without_usable_result"
     assert report.quality_complete is False
     assert report.verdict == "unknown"
 
@@ -547,7 +628,7 @@ def test_finding_requires_reproducer_and_import_binds_subject_digest_and_downgra
     assert imported.id == "external.claim-1"
     assert imported.stage == "S2"
     assert imported.refutation.status == "unverified"
-    assert imported.refutation.by == "qa-task/evidence-import"
+    assert imported.refutation.by == "qa-task/S3"
 
 
 @pytest.mark.parametrize(
@@ -598,6 +679,160 @@ def test_validate_triplet_rejects_unmeasured_or_invalid_records(
     assert validate_triplet(bad_triplet) == "unknown"
 
 
+def _exploit_reply() -> dict[str, object]:
+    return {
+        "status": "exploit",
+        "category": "weak",
+        "mechanism_hypothesis": "tests/test_outputs.py does not check X",
+        "summary": "shortcut submission",
+        "submission": {"kind": "command", "path": "/app/x.py", "content": "true"},
+    }
+
+
+def _no_bypass_reply() -> dict[str, object]:
+    return {
+        "status": "no_credible_bypass",
+        "category": "weak",
+        "mechanism_hypothesis": "verifier compares hashed outputs",
+        "summary": "no shortcut found",
+        "submission": None,
+    }
+
+
+def test_s2_shortcut_retries_with_grader_feedback_and_s3_confirms_triplet(
+    tmp_path: Path,
+) -> None:
+    package = _package(tmp_path)
+    backend = FakeBackend(shortcut_rewards=(0.0, 1.0), replay_reward=1.0)
+    lane = FakeLane([_exploit_reply(), _exploit_reply()])
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    assert len(backend.shortcut_calls) == 2
+    assert len(lane.prompts) == 2
+    assert "Sequential Attempt Feedback" in lane.prompts[1]
+    assert "fake verifier stdout" in lane.prompts[1]
+    assert report.checks["shortcut-agent"].status == "measured"
+    assert report.checks["shortcut-agent"].verdict == "fail"
+    assert report.checks["ref-subset"].status == "measured"
+    assert report.checks["fresh-replay"].verdict == "fail"
+    assert report.quality_complete is True
+    assert report.verdict == "fail"
+    findings, _ = load_findings(tmp_path / "run")
+    (finding,) = findings
+    assert finding.refutation.status == "verified"
+    assert finding.refutation.by == "qa-task/S3"
+    assert len(backend.replay_calls) == 1
+
+
+def test_s2_two_no_bypass_replies_stop_early_and_clean_task_passes(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    backend = FakeBackend()
+    lane = FakeLane([_no_bypass_reply(), _no_bypass_reply(), _exploit_reply()])
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    assert len(lane.prompts) == 2
+    assert backend.shortcut_calls == []
+    assert report.checks["shortcut-agent"].verdict == "pass"
+    assert report.checks["fresh-replay"].verdict == "pass"
+    assert report.verdict == "pass"
+    assert report.quality_complete is True
+    findings, _ = load_findings(tmp_path / "run")
+    assert findings == []
+
+
+@pytest.mark.parametrize(
+    ("replay_reward", "expected_status", "expected_verdict"),
+    [(1.0, "verified", "fail"), (0.0, "refuted", "pass")],
+)
+def test_s3_refutes_or_confirms_ref_subset_candidate(
+    tmp_path: Path, replay_reward: float, expected_status: str, expected_verdict: str
+) -> None:
+    package = _package(tmp_path)
+    minimal = tmp_path / "minimal.patch"
+    minimal.write_text("--- a/app.py\n+++ b/app.py\n", encoding="utf-8")
+    backend = FakeBackend(
+        replay_reward=replay_reward,
+        ref_subset_report={
+            "status": "measured",
+            "verdict": "fail",
+            "reason": "proper subset passes",
+            "kept_fraction": 0.25,
+            "minimal_patch": str(minimal),
+            "actionable": True,
+        },
+    )
+    lane = FakeLane([_no_bypass_reply(), _no_bypass_reply()])
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    assert report.checks["ref-subset"].verdict == "fail"
+    findings, _ = load_findings(tmp_path / "run")
+    (finding,) = findings
+    assert finding.category == "weak"
+    assert finding.refutation.status == expected_status
+    assert report.verdict == expected_verdict
+
+
+def test_bundle_verifier_aware_excludes_solution_cheat_and_golden_contents(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    (package / "solution" / "solve.sh").write_text("SECRET_SOLUTION", encoding="utf-8")
+    (package / "tests" / "test_outputs.py").write_text("def test_x(): pass\n", encoding="utf-8")
+    golden = package / "tests" / "golden-files"
+    golden.mkdir()
+    (golden / "answer.csv").write_text("SECRET_GOLDEN", encoding="utf-8")
+    cheat = package / "cheat"
+    cheat.mkdir()
+    (cheat / "x.py").write_text("SECRET_CHEAT", encoding="utf-8")
+    bundle = bundle_verifier_aware(package)
+    blob = json.dumps(bundle)
+    assert "SECRET_SOLUTION" not in blob
+    assert "SECRET_GOLDEN" not in blob
+    assert "SECRET_CHEAT" not in blob
+    assert "tests/test_outputs.py" in bundle["files"]
+    assert any("golden-files/answer.csv" in item for item in bundle["omitted"])
+
+
+def test_submission_to_script_converts_kinds_and_rejects_bad_json(tmp_path: Path) -> None:
+    built = submission_to_script(
+        {"kind": "file", "path": "/app/out.txt", "content": "hello"}, out_dir=tmp_path / "a"
+    )
+    assert built is not None
+    script, reproducer = built
+    assert "/app/out.txt" in script and reproducer.kind == "command"
+    assert (
+        submission_to_script(
+            {"kind": "json", "path": "/app/out.json", "content": "{bad"}, out_dir=tmp_path / "b"
+        )
+        is None
+    )
+    patch_built = submission_to_script(
+        {"kind": "patch", "path": "/app", "content": "--- a/x\n+++ b/x\n"},
+        out_dir=tmp_path / "c",
+    )
+    assert patch_built is not None
+    assert patch_built[1].kind == "patch"
+    assert (
+        submission_to_script(
+            {"kind": "file", "path": "relative/out.txt", "content": "x"}, out_dir=tmp_path / "d"
+        )
+        is None
+    )
+
+
 def _make_finding(
     *,
     finding_id: str,
@@ -645,7 +880,9 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and
         AnswerKeyItem(
             key_id="k1",
             item_id="item-cat-mismatch",
-            subject=Subject(kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"),
+            subject=Subject(
+                kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"
+            ),
             package={"name": "cat-mismatch", "root_hint": str(tmp_path)},
             expected_verdict="fail",
             expected_category="weak",
@@ -730,7 +967,9 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and
             checks={"oracle-1": Check(stage="S0", status="measured", verdict="fail")},
         ),
         TaskReport(
-            subject=Subject(kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"),
+            subject=Subject(
+                kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"
+            ),
             package="/tmp/cat-mismatch",
             requested_stages=["S0"],
             started_at="t",

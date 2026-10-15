@@ -27,6 +27,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from evallab.edit_signals import step_bash_commands
+
 #: Admission/ladder marker needing no manifest: the gate stages ``test.patch``
 #: and ladder grading applies it, so reading one is hidden-test access.
 ADMISSION_PATCH_BASENAMES = ("test.patch",)
@@ -135,27 +137,6 @@ def load_task_manifest(
     return manifest
 
 
-def _bash_keystrokes(step: dict[str, Any]) -> list[str]:
-    """Bash keystroke strings proposed by one step."""
-    out: list[str] = []
-    calls = step.get("tool_calls")
-    if not isinstance(calls, list):
-        return out
-    for call in calls:
-        if not isinstance(call, dict):
-            continue
-        name = str(call.get("function_name") or call.get("name") or "")
-        if name not in ("bash", "bash_command", "shell", "exec"):
-            continue
-        args = call.get("arguments")
-        if not isinstance(args, dict):
-            continue
-        keys = args.get("keystrokes")
-        if isinstance(keys, str) and keys.strip():
-            out.append(keys)
-    return out
-
-
 def _ancestors(prefix: str) -> list[str]:
     """Up to ``_ANCESTOR_DEPTH`` parent dirs above a protected prefix."""
     out: list[str] = []
@@ -222,7 +203,7 @@ def task_protected_read_hits(
     """Reads of task-declared protected paths: ``[{step, command, ...}]``."""
     hits: list[dict[str, Any]] = []
     for step in agent_steps:
-        for command in _bash_keystrokes(step):
+        for command in step_bash_commands(step):
             match = _match_command(command, prefixes, basenames)
             if match is None:
                 continue

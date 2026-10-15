@@ -136,9 +136,13 @@ CB_SPEND_CAP_USD=<agent $ cap> research/experiments/cheatbench-port/run_batch.sh
 
 - Keep parallel at 2–4 on local Docker; it is shared with other agents' runs.
   When the container budget is tighter (2026-10-13: at most 2 containers for
-  the whole tab, i.e. one CheatBench trial), set `CB_DOCKER_LOCK` to a lock
-  wrapper (`<wrapper> <label> <command...>`): readiness and every trial then
-  run under it one at a time, so other users of the slot interleave.
+  the whole tab, i.e. one CheatBench trial), set `CB_DOCKER_LOCK` to the
+  shared host-wide FIFO lock,
+  `CB_DOCKER_LOCK='uv run --no-sync evallab docker-lock run'` (a lock
+  wrapper `<wrapper> <label> <command...>`; see `docs/docker-lock.md`):
+  readiness and every trial then run under it one at a time, so other tabs
+  holding the same slot interleave fairly. Inspect contention with
+  `uv run --no-sync evallab docker-lock status`.
 - **Models.** Metered routes run under Terminus-2 (`openrouter-metered/...`;
   GLM-5.3-Flash `z-ai/glm-5.3-flash` and MiMo-V2.6-Flash
   `xiaomi/mimo-v2.6-flash` were added 2026-10-13). Subscription models run

@@ -34,6 +34,19 @@ def test_verdicts_follow_evidence() -> None:
             )
 
 
+def test_scorer_reads_the_mechanism_vocabulary() -> None:
+    """Fails name a mechanism the scorer matches; the evidence records (ids like
+    ``ref-subset:<task>``) must never become the root-cause vocabulary."""
+    from evallab.qa import expected_root_causes, normalize_root_cause
+
+    for item in _jsonl("items.jsonl"):
+        causes = expected_root_causes(item)
+        if item["expected_verdict"] == "fail":
+            assert causes == {normalize_root_cause(c) for c in item["expected_root_causes"]} != set()
+        else:
+            assert item["expected_root_causes"] == []
+
+
 def test_repair_pairs_link_original_to_fixed_variant() -> None:
     items = {i["item_id"]: i for i in _jsonl("items.jsonl")}
     pairs = _jsonl("pairs.jsonl")

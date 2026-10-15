@@ -27,6 +27,7 @@ import posixpath
 import re
 from typing import Any
 
+from evallab.edit_signals import step_bash_commands
 from evallab.task_protected import _READ_VERB_RE, task_protected_read_hits
 
 #: ``/objects/xx/rest`` blob path -> full sha.
@@ -173,23 +174,6 @@ def track_derived(commands: list[str]) -> tuple[set[str], set[str]]:
         for seg in _segments(command):
             _derive(seg, files, dirs, None)
     return files, dirs
-
-
-def _bash_keystrokes(step: dict[str, Any]) -> list[str]:
-    out: list[str] = []
-    for call in step.get("tool_calls") or []:
-        if not isinstance(call, dict):
-            continue
-        name = str(call.get("function_name") or call.get("name") or "")
-        if name not in ("bash", "bash_command", "shell", "exec"):
-            continue
-        args = call.get("arguments")
-        if not isinstance(args, dict):
-            continue
-        keys = args.get("keystrokes")
-        if isinstance(keys, str) and keys.strip():
-            out.append(keys)
-    return out
 
 
 def _probe(step_id: Any, keys: str, prefixes: list[str]) -> bool:
@@ -473,7 +457,7 @@ def content_corroboration(
     hits: list[dict[str, Any]] = []
     for step in agent_steps:
         step_id = step.get("step_id")
-        for keys in _bash_keystrokes(step):
+        for keys in step_bash_commands(step):
             for seg in _segments(keys):
                 kind = _content_kind(
                     seg,

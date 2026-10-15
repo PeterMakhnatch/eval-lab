@@ -874,6 +874,26 @@ def test_run_task_findings_load_and_score_through_shared_qa_contract(tmp_path: P
     assert "category_match=1/1" in all_cat.notes
 
 
+def test_findings_survive_appledouble_files_from_a_macos_archive(tmp_path: Path) -> None:
+    # A tarball made on macOS without COPYFILE_DISABLE=1 extracts a binary `._<name>`
+    # metadata twin next to every file; neither loader may read those as findings.
+    package = _package(tmp_path)
+    run_dir = tmp_path / "run"
+    run_task(
+        package,
+        config=_config(tmp_path, stages=("S0",)),
+        run_dir=run_dir,
+        backend=FakeBackend(oracle=(0.0, 1.0, 1.0), nop=(0.0, 0.0, 0.0)),
+        lane=None,
+    )
+    expected, reports = load_findings(run_dir)
+    appledouble = b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X        \x00\x02\xff\xfe"
+    for path in [p for p in run_dir.rglob("*") if p.is_file()]:
+        (path.parent / f"._{path.name}").write_bytes(appledouble)
+    assert load_findings(run_dir) == (expected, reports)
+    assert len(shared_models.load_findings_dir(run_dir / "findings")) == len(expected)
+
+
 def test_root_parser_exposes_qa_commands_and_task_score_scoreboard_behavior(
     tmp_path: Path,
 ) -> None:

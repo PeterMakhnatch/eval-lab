@@ -808,16 +808,6 @@ def test_chains_for_version_v6() -> None:
     assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V5] == MANIFEST_V5_REL
 
 
-def test_parser_accepts_clean_version_v6() -> None:
-    from evallab.cli import parser
-
-    parsed = parser().parse_args(
-        ["mimo-clean", "build", "--clean-version", "mimo-clean-v6"]
-    )
-    assert parsed.clean_version == "mimo-clean-v6"
-    assert parsed.reset_verify is False
-
-
 def test_run_cli_build_v6_writes_manifest(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -941,3 +931,145 @@ def test_pre848_snapshot_package_is_stale(tmp_path: Path) -> None:
     assert builder._materialized(TASK_ID, legacy) is not None  # type: ignore[arg-type]
     agent_stale = stub(AGENT_NETWORK_NONE_ID, hook=False)
     assert builder._materialized(TASK_ID, agent_stale) is None  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("prior_version", "prior_verify", "reset", "expected"),
+    [
+        ("mimo-clean-v6", "pass", False, "pass"),
+        ("mimo-clean-v6", "pass", True, VERIFY_UNVERIFIED),
+        ("mimo-clean-v5", "pass", False, VERIFY_UNVERIFIED),
+        ("mimo-clean-v5", "env-broken", False, VERIFY_UNVERIFIED),
+    ],
+)
+def test_cli_rebuild_keeps_verification_only_for_the_same_package(
+    tmp_path: Path, prior_version: str, prior_verify: str, reset: bool, expected: str
+) -> None:
+    from evallab.cli import run_cli
+
+    package = _write_run_package(tmp_path, TASK_ID)
+    with (tmp_path / "ledger.csv").open("w", newline="", encoding="utf-8") as handle:
+        row = _row(package, TASK_ID)
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+    (tmp_path / "sweep.csv").write_text("task_id,label,fix_commit\n", encoding="utf-8")
+    args = [
+        "mimo-clean",
+        "build",
+        "--tasks",
+        TASK_ID,
+        "--ledger",
+        "ledger.csv",
+        "--sweep",
+        "sweep.csv",
+        "--manifest",
+        "out/manifest.csv",
+        "--workers",
+        "1",
+        "--clean-version",
+    ]
+    assert run_cli([*args, prior_version], workspace=tmp_path) == 0
+    manifest = tmp_path / "out" / "manifest.csv"
+    prior = load_manifest(manifest)
+    prior[0]["verify"] = prior_verify
+    write_manifest(prior, manifest)
+
+    reset_args = ["--reset-verify"] if reset else []
+    assert run_cli([*args, "mimo-clean-v6", *reset_args], workspace=tmp_path) == 0
+    rebuilt = load_manifest(manifest)[0]
+    assert rebuilt["verify"] == expected
+    assert (rebuilt["final_digest"] == prior[0]["final_digest"]) == (
+        prior_version == "mimo-clean-v6"
+    )
+
+
+@pytest.mark.parametrize("current_controls", [False, True])
+def test_v5_fill_does_not_promote_refreshed_packages_from_historical_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_controls: bool
+) -> None:
+    import json
+    import runpy
+
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/mimo-clean-v5-census/fill_verify.py"
+    )
+    fill = runpy.run_path(str(script))["main"]
+    receipt = tmp_path / "research/experiments/mimo-clean-v5-census"
+    receipt.mkdir(parents=True)
+    old_digest, new_digest = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+    task_id = "format-code-task-000919"
+
+    def write_csv(path: Path, rows: list[dict[str, str]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    manifest = tmp_path / "research/experiments/mimo-clean-v5/manifest.csv"
+    write_manifest(
+        [
+            {
+                "task_id": task_id,
+                "status": "built",
+                "final_digest": new_digest,
+                "verify": "pass",
+                "reference_fix": "reference.patch",
+                "reason": "clean chain complete",
+            }
+        ],
+        manifest,
+    )
+    write_csv(
+        receipt / "digest-refresh.csv",
+        [
+            {
+                "task_id": task_id,
+                "old_digest": old_digest,
+                "new_digest": new_digest,
+                "old_verify": "fail:open-leak:env-dependency",
+            },
+        ],
+    )
+    write_csv(
+        receipt / "results.csv",
+        [
+            {
+                "task_id": task_id,
+                "final_digest": new_digest if current_controls else old_digest,
+                "nop": "0",
+                "oracle": "1",
+                "ladder_verdict": "clean",
+                "ladder_cracking_attacks": "",
+            },
+        ],
+    )
+    write_csv(
+        receipt / "verify-overrides.csv",
+        [
+            {
+                "task_id": task_id,
+                "final_digest": old_digest,
+                "verify": "pass",
+                "reason": "old probe",
+            },
+        ],
+    )
+    v4 = tmp_path / "v4.csv"
+    write_csv(v4, [{"task_id": task_id, "verify": "pass"}])
+    probe_dir = tmp_path / "mimo-clean-v5-probe"
+    probe_dir.mkdir()
+    (probe_dir / "rows.jsonl").write_text(
+        json.dumps({"task_id": task_id, "final_digest": old_digest}) + "\n", encoding="utf-8"
+    )
+    for name, value in {"WT": tmp_path, "RCPT": receipt, "RESROOT": tmp_path, "V4D": v4}.items():
+        monkeypatch.setitem(fill.__globals__, name, value)
+    fill()
+    row = load_manifest(manifest)[0]
+    assert row["verify"] == (
+        "unverified:probe-pending" if current_controls else "unverified:package-changed"
+    )
+    assert "excluded-from-training pending revalidation" in row["reason"]
+    assert old_digest in row["reason"]

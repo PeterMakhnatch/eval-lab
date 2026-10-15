@@ -177,6 +177,13 @@ in the receipt's `verify-overrides.csv` so re-running `report` never loses
 them. Do not infer package quality from `status=built`: built means the
 chain derived, verified means it graded clean.
 
+Grades are bound to `(task_id, final_digest)`. Rebuilding the same package
+preserves its grade; changing any package bytes resets it to `unverified`.
+`--reset-verify` also clears same-digest grades. The #848 v5 digest refresh
+invalidated 2,664 old labels (including 14 passes): see the census
+`digest-refresh.csv`. Historical failures remain admission holds, not fresh
+measurements. Never re-pin an override to new package bytes without evidence.
+
 ## How to rebuild
 
 ```bash

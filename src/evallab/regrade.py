@@ -246,6 +246,8 @@ class RegradeExecution(ContractModel):
 
     exit_code: int
     stderr_tail: str = ""
+    #: Harbor prints its own refusal messages (``RegradeError``) to stdout.
+    stdout_tail: str = ""
 
 
 class RegradeReceiptV1(ContractModel):
@@ -517,8 +519,7 @@ def _check_regrade_environment(environment: str) -> None:
     if environment in LOCAL_REGRADE_ENVIRONMENTS:
         return
     raise ValueError(
-        f"Refusing {environment!r} verifier environment: regrade runs on local "
-        "Docker only."
+        f"Refusing {environment!r} verifier environment: regrade runs on local Docker only."
     )
 
 
@@ -556,8 +557,7 @@ def _task_regradable_error(config: Mapping[str, Any]) -> str | None:
         shared = sorted(
             str(step.get("name", index))
             for index, step in enumerate(steps)
-            if isinstance(step, Mapping)
-            and _step_effective_mode(verifier_map, step) != "separate"
+            if isinstance(step, Mapping) and _step_effective_mode(verifier_map, step) != "separate"
         )
         if shared:
             return f"shared-mode verifier step(s): {', '.join(shared)}"
@@ -567,9 +567,7 @@ def _task_regradable_error(config: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _step_effective_mode(
-    task_verifier: Mapping[str, Any], step: Mapping[str, Any]
-) -> str | None:
+def _step_effective_mode(task_verifier: Mapping[str, Any], step: Mapping[str, Any]) -> str | None:
     """Resolve one step's verifier mode, inheriting the task level.
 
     Mirrors Harbor's `resolve_step_verifier_mode`: explicit step mode first,
@@ -577,9 +575,7 @@ def _step_effective_mode(
     resolution.
     """
     step_verifier = step.get("verifier")
-    step_map: Mapping[str, Any] = (
-        step_verifier if isinstance(step_verifier, Mapping) else {}
-    )
+    step_map: Mapping[str, Any] = step_verifier if isinstance(step_verifier, Mapping) else {}
     mode = step_map.get("environment_mode")
     if isinstance(mode, str) and mode:
         return mode
@@ -770,7 +766,10 @@ def regrade_trial(
     completed = runner(command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
-    execution = RegradeExecution(exit_code=exit_code, stderr_tail=stderr[-2000:])
+    stdout = getattr(completed, "stdout", "") or ""
+    execution = RegradeExecution(
+        exit_code=exit_code, stderr_tail=stderr[-2000:], stdout_tail=stdout[-2000:]
+    )
 
     regrade_dir = trials_dir / trial_name
     if exit_code != 0:
@@ -1092,11 +1091,7 @@ def _resolve_job_task_dirs(
         saved: Path | None = None
         for trial in trials:
             candidate = _saved_task_dir(trial)
-            if (
-                candidate is None
-                or not candidate.is_dir()
-                or _read_task_name(candidate) != name
-            ):
+            if candidate is None or not candidate.is_dir() or _read_task_name(candidate) != name:
                 return ([], {}, [RegradeRefusalCode.TASK_UNRESOLVED])
             if saved is None:
                 saved = candidate
@@ -1123,7 +1118,11 @@ def _validate_regrade_destination(source: Path, parent: Path, name: str) -> None
         raise ValueError("regrade name must be a single directory name")
     source = source.resolve()
     destination = (parent / name).resolve()
-    if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
+    if (
+        destination == source
+        or destination.is_relative_to(source)
+        or source.is_relative_to(destination)
+    ):
         raise ValueError("regrade output must be disjoint from the source evidence")
     if destination.exists():
         raise ValueError("regrade output already exists; choose a new explicit name")
@@ -1157,14 +1156,10 @@ def plan_regrade_job(
         "environment": environment,
     }
     if not job_dir.is_dir():
-        return RegradeJobPlan(
-            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_MISSING]
-        )
+        return RegradeJobPlan(**base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_MISSING])
     sources = _source_job_trials(job_dir)
     if not sources:
-        return RegradeJobPlan(
-            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_EMPTY]
-        )
+        return RegradeJobPlan(**base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_EMPTY])
     ordered, dirs_by_name, task_refusals = _resolve_job_task_dirs(
         source_trials=sources, task_dir=task_dir
     )
@@ -1221,10 +1216,14 @@ def plan_regrade_job(
             else []
         ),
         trials=trials,
-        refusals=list(dict.fromkeys([
-            *task_refusals,
-            *(code for trial in trials for code in trial.refusals),
-        ])),
+        refusals=list(
+            dict.fromkeys(
+                [
+                    *task_refusals,
+                    *(code for trial in trials for code in trial.refusals),
+                ]
+            )
+        ),
         runnable=runnable,
     )
 
@@ -1282,12 +1281,8 @@ def _compare_job_trial(
             if regraded is None
             else RegradeRefusalCode.SOURCE_REWARD_ABSENT
         )
-        return RegradeReceiptV1(
-            **base, verdict=RegradeVerdict.REFUSED, refusals=[missing]
-        )
-    verdict, delta = _classify(
-        recorded=recorded, regraded=regraded, same_verifier=same_verifier
-    )
+        return RegradeReceiptV1(**base, verdict=RegradeVerdict.REFUSED, refusals=[missing])
+    verdict, delta = _classify(recorded=recorded, regraded=regraded, same_verifier=same_verifier)
     return RegradeReceiptV1(**base, verdict=verdict, reward_delta=delta)
 
 
@@ -1359,9 +1354,7 @@ def _collect_job_trials(
             )
         else:
             entries.append(
-                _compare_job_trial(
-                    source=source, task_dir=task_dir, new_trial_dir=new_trial_dir
-                )
+                _compare_job_trial(source=source, task_dir=task_dir, new_trial_dir=new_trial_dir)
             )
     return entries
 
@@ -1378,8 +1371,7 @@ def _write_job_receipts(receipt: RegradeJobReceiptV1, new_job_dir: Path) -> None
         target = Path(entry.regrade_trial_dir)
         if target.is_dir():
             (target / REGRADE_TRIAL_RECEIPT_FILENAME).write_text(
-                json.dumps(entry.model_dump(mode="json"), indent=2, sort_keys=True)
-                + "\n",
+                json.dumps(entry.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
     (new_job_dir / REGRADE_JOB_RECEIPT_FILENAME).write_text(
@@ -1444,7 +1436,10 @@ def regrade_job(
     completed = runner(plan.command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
-    execution = RegradeExecution(exit_code=exit_code, stderr_tail=stderr[-2000:])
+    stdout = getattr(completed, "stdout", "") or ""
+    execution = RegradeExecution(
+        exit_code=exit_code, stderr_tail=stderr[-2000:], stdout_tail=stdout[-2000:]
+    )
 
     new_job_dir = Path(plan.job_dir)
     if exit_code != 0 or not new_job_dir.is_dir():
@@ -1496,9 +1491,9 @@ def render_job_plan(plan: RegradeJobPlan) -> str:
         lines.append("job refusals: " + ", ".join(code.value for code in plan.refusals))
     for trial in plan.trials:
         state = "eligible" if trial.eligible else "refused"
-        detail = "" if trial.eligible else " [" + ", ".join(
-            code.value for code in trial.refusals
-        ) + "]"
+        detail = (
+            "" if trial.eligible else " [" + ", ".join(code.value for code in trial.refusals) + "]"
+        )
         lines.append(
             f"  {state}: {Path(trial.source_trial_dir).name} "
             f"task={trial.task_name}{detail}"

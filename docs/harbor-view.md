@@ -205,6 +205,7 @@ uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (Codex subscrip
 uv run evallab qa trace key-run --key trajectory-judge-400 --split test --out DIR  # DIR/runs, DIR/findings
 uv run evallab qa score --key trajectory-judge-400 --findings DIR/findings --split test
 uv run evallab qa trace score --key trajectory-judge-400 --split test --out DIR  # strata, steps, upstream judges
+uv run --extra laminar evallab qa trace regrade --key trace-paired-v1 --out DIR  # stored passes vs newer graders (Docker)
 uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
 uv run evallab detectors run --detector qa_trace --allow-paid --ids FILE ...
 ```
@@ -226,8 +227,23 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
   unsure; Claude Haiku when the trace came from an OpenAI model. No reviewer
   sees run or task names (they can spell the label); answer-key items run
   under opaque ids.
-- **T3**: executed regrade (`--regrade`, local Docker, one container) plus an
-  LLM refuter over the raised claims.
+- **T3**: executed counterfactual (`--regrade`, local Docker) plus an LLM
+  refuter over the raised claims. The counterfactual replays the recorded pass
+  against newer graders for its task (`src/evallab/qa/counterfactual.py`): the
+  `separate-verifier@10` variant of the MiMo source package (derived on demand)
+  and any recorded `verifier-repair@*` variant. Replays run through
+  `regrade_trial` from a scratch copy. That copy holds the recorded workspace
+  snapshot, or one rebuilt in the task image from the task's own setup plus the
+  recorded `verifier/agent.diff`. It carries the recorded trajectory, or a
+  marked placeholder (only integrity dimensions read it; `reward` decides).
+  A grader counts only when its controls hold: an empty change scores 0 and the
+  task's reference fix, when one exists, scores 1. A lower reward under a valid
+  grader verifies a reward-not-real claim.
+- **`regrade`** runs that counterfactual over every item of an answer key.
+  Outcomes are `flips`, `stays`, `loosened`, `refused` (with a reason) or
+  `no_newer_grader`, grouped by role and trace kind. At most two containers
+  run at once, and missing task images are pulled first. Harbor 0.24 (the
+  `laminar` extra) is required.
 - **T4**: one `qa.finding/v1` per question (shared contract, `docs/qa-contract.md`)
   plus `verdict.json` with each question's rationale and step. Skipped or
   unusable questions are `unknown` (`not_run` / `ran_without_usable_result`),

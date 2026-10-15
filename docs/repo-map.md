@@ -231,7 +231,7 @@ inputs:
   - path: src/evallab/harbor_deepseek.py
     digest: sha256:e54d726c085e2f26942863736382d628904ab2e4059c44e4dc29b858fff09a56
   - path: src/evallab/harbor_docker.py
-    digest: sha256:443613d07986231edcc1a604bcd972a572a51c529d25b79ad143f0aaff2df91d
+    digest: sha256:71acb507f195234e336f6c01e08b45e55b59aaac1f14c9aed503739f6279dcef
   - path: src/evallab/harbor_file_access.py
     digest: sha256:41617fac5f10c499b6a84ec1f159a3f27b3e1b67679ebd7a28c049cf4a04fcd4
   - path: src/evallab/harbor_glm_selfhosted.py

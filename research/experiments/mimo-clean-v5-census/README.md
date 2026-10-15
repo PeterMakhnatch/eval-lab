@@ -559,14 +559,29 @@ digests, so its packages still snapshotted `__pycache__` bytes.
 Rebuilt all 2,698 rows with `evallab mimo-clean build --clean-version
 mimo-clean-v5` on current main: 2,664 of 2,666 built rows changed
 digest (only the post-#848 @10 folds 000245/000048 were already
-current); the `verify` column is preserved verbatim by the builder,
-and a second identical rebuild produces zero diff. Spot checks match
-the independent Verifier's rebuilt digests: 002139
-`sha256:dd269adcb32c…` -> `sha256:d4bcbef9aef6…`, 002866
+current). Spot checks match the independent Verifier's rebuilt digests:
+002139 `sha256:dd269adcb32c…` -> `sha256:d4bcbef9aef6…`, 002866
 `sha256:a811bab8c3fb…` -> `sha256:744820cc8c48…`.
-`verify-overrides.csv` `final_digest` pins were refreshed to match
-(45 of 47 rows; 000245/000048 unchanged). Old `<digest12>` package
-dirs stay in `derived/task-store/variants/` so historical receipts
-remain valid. The builder now treats any pre-#848 cached
-`separate-verifier@2`+/`agent-network-none@1` package as stale and
-re-derives it instead of reusing it.
+The builder treats pre-#848 cached `separate-verifier@2`+/
+`agent-network-none@1` packages as stale and re-derives them.
+
+**Evidence correction:** #909 initially preserved grades across those changed
+bytes and re-pinned 45 override digests without executing new checks. That was
+not valid verification. `digest-refresh.csv` now records every old/new digest
+and the historical grade (source: the manifest immediately before #909).
+All 2,664 changed rows are `unverified:package-changed`, including the 14
+previously marked `pass`. The two unchanged @10 packages retain their
+`unverified:probe-pending` labels. The 23 prior exclusions remain explicit
+admission holds in `reason`; this is not a fresh finding on the rebuilt package.
+
+The 45 override pins are restored to the digests actually examined.
+`results.csv`, recorded costs, original findings, and old package directories
+are unchanged. No historical job has been relabeled as a new-digest run.
+`fill_verify.py` resolves this checkout rather than a retired worktree and
+invalidates historical carries when a refreshed package has no exact-digest
+results. New controls cannot inherit the old fix-content probe.
+
+Rebuilding now preserves `verify` only for the same `(task_id, final_digest)`;
+`--reset-verify` clears even those grades. `status=built` remains a construction
+result, not an admission decision. The current @10 build target and its
+separate validation coverage are in `research/experiments/mimo-clean-v6/`.

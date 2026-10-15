@@ -12,7 +12,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-WT = Path("/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-clean-v5")
+WT = Path(__file__).resolve().parents[3]
 RCPT = WT / "research/experiments/mimo-clean-v5-census"
 RESROOT = Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-10-11")
 V4D = WT / "research/experiments/mimo-clean-v4-census/verify-detail.csv"
@@ -74,6 +74,8 @@ def main():
         res[t] = match[0] if match else rows[-1]
     v4 = {r["task_id"]: r for r in read_rows(V4D)}
     ovr = {r["task_id"]: r for r in read_rows(RCPT / "verify-overrides.csv")}
+    refresh_path = RCPT / "digest-refresh.csv"
+    refreshed = {r["task_id"]: r for r in read_rows(refresh_path)} if refresh_path.is_file() else {}
     probe = load_jsonl(RESROOT / "mimo-clean-v5-probe" / "rows.jsonl")
     guard = load_jsonl(RESROOT / "mimo-clean-v5-guard" / "results.jsonl")
     detail = []
@@ -165,6 +167,32 @@ def main():
             )
         if t in NODE_BUILD_LEAK:
             v, ev = "unverified:node-build-leak", "kept @4; @5 setup fails closed (guard)"
+        # #909 changed package bytes without rerunning the old census.
+        # Neither task-id carries nor re-pinned overrides certify new bytes.
+        refresh = refreshed.get(t)
+        if refresh and row["final_digest"] == refresh["new_digest"]:
+            if not fresh:
+                v, ev = (
+                    "unverified:package-changed",
+                    f"no census on {refresh['new_digest']}; historical "
+                    f"{refresh['old_verify']} belongs to {refresh['old_digest']}",
+                )
+            elif (
+                has_fix
+                and v == "pass"
+                and ovr.get(t, {}).get("final_digest") != row["final_digest"]
+            ):
+                v, ev = (
+                    "unverified:probe-pending",
+                    "fresh controls/ladder do not carry the historical fix-content probe",
+                )
+            if refresh["old_verify"].startswith("fail:") or refresh["old_verify"] == "env-broken":
+                hold = (
+                    "excluded-from-training pending revalidation: historical "
+                    f"{refresh['old_verify']} on {refresh['old_digest']}"
+                )
+                if hold not in row["reason"]:
+                    row["reason"] += "; " + hold
         detail.append(
             {
                 "task_id": t,

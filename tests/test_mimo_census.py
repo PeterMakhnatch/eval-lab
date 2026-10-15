@@ -100,8 +100,15 @@ def test_parse_task_list_dedupes_and_trims() -> None:
     assert parse_task_list("b,a,b,, a") == ("b", "a")
 
 
-def test_parse_junit_grade_round_trip() -> None:
-    grade = parse_junit_grade("rc=1 cases=4 bad=1 named=4 missing=[]")
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rc=1 cases=4 bad=1 named=4 missing=[]",
+        "runner=pytest rc=1\nrc=1 cases=4 bad=1 skipped=0 named=4 missing=[]",
+    ],
+)
+def test_parse_junit_grade_round_trip(line: str) -> None:
+    grade = parse_junit_grade(line)
     assert grade == {"rc": 1, "cases": 4, "bad": 1, "named": 4, "missing": []}
     assert parse_junit_grade("not a grade line") is None
     assert parse_junit_grade("") is None
@@ -114,6 +121,14 @@ def test_trial_tests_executed_counts_cases_not_names(tmp_path: Path) -> None:
     # Suites may report cases without parsable names (observed cases=10 bad=6
     # named=0 on a genuine nop failure): cases>0 is the execution signal.
     _write_junit(trial, "rc=1 cases=10 bad=6 named=0 missing=[]")
+    assert trial_tests_executed(trial)
+
+
+def test_trial_tests_executed_accepts_skipped_field(tmp_path: Path) -> None:
+    trial = tmp_path / "t"
+    _write_junit(trial, "runner=pytest rc=0\nrc=0 cases=0 bad=0 skipped=0 named=0 missing=[]")
+    assert not trial_tests_executed(trial)
+    _write_junit(trial, "runner=pytest rc=0\nrc=0 cases=15 bad=0 skipped=0 named=0 missing=[]")
     assert trial_tests_executed(trial)
 
 

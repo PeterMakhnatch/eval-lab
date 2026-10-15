@@ -205,6 +205,9 @@ uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (Codex subscrip
 uv run evallab qa trace key-run --key trajectory-judge-400 --split test --out DIR  # DIR/runs, DIR/findings
 uv run evallab qa score --key trajectory-judge-400 --findings DIR/findings --split test
 uv run evallab qa trace score --key trajectory-judge-400 --split test --out DIR  # strata, steps, upstream judges
+uv run --extra laminar evallab qa trace regrade --key trace-paired-v1 --out DIR  # stored passes vs newer graders (Docker)
+uv run --extra laminar evallab qa trace regrade --passes research/experiments/qa-trace/regrade/ordinary-passes.jsonl \
+  --grader-manifest <repaired-v6-manifest.csv> --repairs <worktree>/library/task-variants --out DIR
 uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
 uv run evallab detectors run --detector qa_trace --allow-paid --ids FILE ...
 ```
@@ -226,8 +229,52 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
   unsure; Claude Haiku when the trace came from an OpenAI model. No reviewer
   sees run or task names (they can spell the label); answer-key items run
   under opaque ids.
-- **T3**: executed regrade (`--regrade`, local Docker, one container) plus an
-  LLM refuter over the raised claims.
+- **T3**: executed counterfactual (`--regrade`, local Docker) plus an LLM
+  refuter over the raised claims. T3 and the batch command below use one replay
+  engine (`src/evallab/qa/counterfactual.py`). Graders are the task's built
+  `mimo-clean-v6` manifest row, or the selected `--grader-manifest`, plus
+  test-repaired `verifier-repair@*` variants. Every package must still hash to
+  its manifest/lineage digest. A repair derived from a raw grader gets
+  `separate-verifier@10` composed over it; this is labeled separately and is
+  **not** claimed to be the full repaired-v6 chain.
+  - A retained `verifier/agent.diff` runs as a new, model-free native
+    oracle-script control through `runner.run_matrix`, the same path used by
+    verifier-repair validation. The script applies the recorded change; the
+    executor owns setup, isolation, collection and grading. Compiled-artifact
+    stanzas are dropped as `@10` drops them. This is **patch replay**, not
+    recovery of the original filesystem or trajectory.
+  - Without a retained diff, an existing workspace snapshot uses native
+    Harbor `trial regrade` against the immutable source trial. Missing source
+    logs, capture manifests or other required artifacts remain refusals.
+    Nothing fabricates ATIF, snapshots, capture statuses or replacement jobs.
+  - The execution gate requires both **nop = 0 and reference = 1**. An absent
+    reference is unvalidated, not valid. Setup/apply/infra failures and absent,
+    boolean or non-finite rewards never become reward-zero flips. These controls
+    do not by themselves prove semantic correctness.
+  - A lower reward under a validated grader supports the false-positive claim;
+    a higher reward supports a false-negative claim. A reward change alone
+    never verifies an intentional reward-shortcut mechanism. The refuter sees
+    only path-free grader labels, measured scores and refusal codes.
+- **`regrade`** runs that same counterfactual over an answer key (`--key`) or a
+  JSONL list (`--passes`: `item_id`, `task`, `trial_path`, any labels; `group`
+  becomes the table row). Relative trial paths resolve beneath the immutable
+  results home. Generated lineage records are never committed, so repairs from
+  another checkout enter through repeatable `--repairs`; a new full v6 build
+  enters through `--grader-manifest`. Outcomes are `flips`, `stays`, `loosened`,
+  `not_a_pass`, `refused` (with reason), or `no_newer_grader`. Unvalidated graders
+  have separate rows, and `expected` (`trace-paired-v1`'s `expected_regrade`) gets
+  an expected-vs-observed table only for validated graders. The JSON summary is
+  always written; exit 3 means incomplete/refused/unvalidated observations.
+  - Each native execution holds the host-wide Docker FIFO lock
+    (`docs/docker-lock.md`); executions are serialized, even with multiple
+    queued workers. Harbor 0.24 (the `laminar` extra) is required.
+  - Native patch jobs use the discoverable `runs/<qa-replay-ULID>/` root,
+    matrix receipts use `runs/.executor/`, and scripts use
+    `runs/qa-trace-regrade/scripts/`. Reports go to `OUT/summary.json` and
+    `OUT/items/`. Shared controls/cache use `derived/qa-trace/counterfactual/`.
+    Cache identity binds source bytes, full grader digest, replay-engine version,
+    and reference bytes for controls. Identical replay inputs execute once per
+    batch; observation labels are refreshed, never borrowed from an old cohort.
 - **T4**: one `qa.finding/v1` per question (shared contract, `docs/qa-contract.md`)
   plus `verdict.json` with each question's rationale and step. Skipped or
   unusable questions are `unknown` (`not_run` / `ran_without_usable_result`),

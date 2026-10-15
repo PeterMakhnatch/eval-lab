@@ -246,6 +246,8 @@ class RegradeExecution(ContractModel):
 
     exit_code: int
     stderr_tail: str = ""
+    #: Harbor prints its own refusal messages (``RegradeError``) to stdout.
+    stdout_tail: str = ""
 
 
 class RegradeReceiptV1(ContractModel):
@@ -770,7 +772,10 @@ def regrade_trial(
     completed = runner(command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
-    execution = RegradeExecution(exit_code=exit_code, stderr_tail=stderr[-2000:])
+    stdout = getattr(completed, "stdout", "") or ""
+    execution = RegradeExecution(
+        exit_code=exit_code, stderr_tail=stderr[-2000:], stdout_tail=stdout[-2000:]
+    )
 
     regrade_dir = trials_dir / trial_name
     if exit_code != 0:
@@ -1444,7 +1449,10 @@ def regrade_job(
     completed = runner(plan.command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
-    execution = RegradeExecution(exit_code=exit_code, stderr_tail=stderr[-2000:])
+    stdout = getattr(completed, "stdout", "") or ""
+    execution = RegradeExecution(
+        exit_code=exit_code, stderr_tail=stderr[-2000:], stdout_tail=stdout[-2000:]
+    )
 
     new_job_dir = Path(plan.job_dir)
     if exit_code != 0 or not new_job_dir.is_dir():
@@ -1496,9 +1504,9 @@ def render_job_plan(plan: RegradeJobPlan) -> str:
         lines.append("job refusals: " + ", ".join(code.value for code in plan.refusals))
     for trial in plan.trials:
         state = "eligible" if trial.eligible else "refused"
-        detail = "" if trial.eligible else " [" + ", ".join(
-            code.value for code in trial.refusals
-        ) + "]"
+        detail = (
+            "" if trial.eligible else " [" + ", ".join(code.value for code in trial.refusals) + "]"
+        )
         lines.append(
             f"  {state}: {Path(trial.source_trial_dir).name} "
             f"task={trial.task_name}{detail}"

@@ -184,6 +184,48 @@ def _findings(out: Path) -> dict[str, dict[str, Any]]:
     return {p.stem: json.loads(p.read_text()) for p in (out / "findings").glob("*.json")}
 
 
+def test_lower_counterfactual_reward_does_not_prove_a_shortcut_mechanism(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.qa import trace
+
+    bundle, trial = _rewarded_bundle(tmp_path)
+    monkeypatch.setattr(
+        trace,
+        "regrade_counterfactual",
+        lambda *_, **__: {
+            "ran": True,
+            "recorded": 1.0,
+            "lowest": 0.0,
+            "highest": 0.0,
+            "graders": [
+                {
+                    "grader": "repaired",
+                    "valid": True,
+                    "recorded": 1.0,
+                    "regraded": 0.0,
+                    "outcome": "flips",
+                }
+            ],
+        },
+    )
+    models = FakeModels({}, t3={"reward_shortcut": "unsure"})
+    result = trace.t3_refute(
+        bundle,
+        {
+            "false_positive": {"raised_by": ["T2"], "claim": "partial fix"},
+            "reward_shortcut": {"raised_by": ["T2"], "claim": "intentional exploit"},
+        },
+        TraceConfig().t3,
+        evidence="A retained partial fix passed the older grader.",
+        trial_dir=trial,
+        regrade=True,
+        call=models,
+    )
+    assert result["rulings"]["false_positive"]["status"] == "verified"
+    assert result["rulings"]["reward_shortcut"]["status"] == "unverified"
+
+
 def test_skipped_questions_are_not_run_and_never_pass(tmp_path: Path) -> None:
     bundle, _ = _rewarded_bundle(tmp_path)
     models = FakeModels(

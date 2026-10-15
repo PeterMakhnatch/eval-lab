@@ -1,10 +1,12 @@
-"""QA Trace T3 counterfactual regrade: staging, refusals, grader validity, rulings."""
+"""Counterfactual regrade: actual patch semantics, fail-closed evidence and T3 rulings."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -12,157 +14,148 @@ import pytest
 from evallab.qa import counterfactual as cf
 from evallab.qa import trace
 
-ORIGINAL_MANIFEST = [
-    {
-        "source": "/logs/artifacts",
-        "destination": "artifacts/logs/artifacts",
-        "type": "directory",
-        "status": "empty",
-        "service": None,
-        "exclude": [],
-    }
-]
+TASK = "mimo-v2.6-rl/format-code-task-000001"
+PATCH = "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old\n+new\n"
 
 
-def _trial(tmp: Path, *, snapshot: bool = False, diff: str | None = None) -> Path:
-    trial = tmp / "src" / "trial-1"
-    for sub in ("agent", "verifier", "artifacts"):
-        (trial / sub).mkdir(parents=True)
-    (trial / "result.json").write_text(
-        json.dumps({"verifier_result": {"rewards": {"reward": 1.0}}})
-    )
-    (trial / "artifacts" / "manifest.json").write_text(json.dumps(ORIGINAL_MANIFEST))
-    (trial / "agent" / "trajectory.json").write_text('{"steps": [{"step_id": 1}]}')
-    if snapshot:
-        snap = trial / "artifacts" / "var" / "tmp" / "mimo-separate"
-        snap.mkdir(parents=True)
-        (snap / "workspace.tgz").write_bytes(b"recorded")
-    if diff is not None:
-        (trial / "verifier" / "agent.diff").write_text(diff)
-    return trial
+def _package(path: Path, *, separate: bool = True) -> Path:
+    (path / "tests").mkdir(parents=True)
+    (path / "tests/test.sh").write_text("#!/bin/bash\ntrue\n")
+    (path / "instruction.md").write_text("Replace old with new.\n")
+    config = f'[task]\nname = "{TASK}"\n[environment]\nworkdir = "/testbed"\n'
+    if separate:
+        config += '[verifier]\nenvironment_mode = "separate"\n'
+    (path / "task.toml").write_text(config)
+    return path
 
 
 def _grader(tmp: Path) -> cf.Grader:
-    package = tmp / "pkg"
-    (package / "environment" / "setup").mkdir(parents=True)
-    (package / "environment" / "setup" / "setup.sh").write_text("true\n")
-    (package / "task.toml").write_text(
-        '[environment]\ndocker_image = "img@sha256:abc"\nworkdir = "/testbed"\n'
+    return cf.Grader(TASK, cf.V6, "sha256:" + "a" * 64, _package(tmp / "pkg"), "manifest.csv")
+
+
+def _trial(tmp: Path, *, diff: str | None = PATCH, reward: float = 1.0) -> Path:
+    trial = tmp / "old-pass"
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": reward}}})
     )
-    return cf.Grader(
-        task_name="mimo-v2.6-rl/format-code-task-000001",
-        transform=cf.V10,
-        variant_digest="sha256:" + "a" * 64,
-        package=package,
-        record="library/task-variants/x/aaaaaaaaaaaa.json",
-    )
+    if diff is not None:
+        (trial / "verifier/agent.diff").write_text(diff)
+    return trial
 
 
-class FakeDocker:
-    """``docker run`` writes the rebuilt archive to the ``/out`` mount; ``rc`` is its exit."""
+@pytest.fixture(autouse=True)
+def _isolated_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    import evallab.docker_lock
 
-    def __init__(self, rc: int = 0):
-        self.rc = rc
-        self.runs: list[list[str]] = []
-
-    def __call__(self, command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        if command[:2] == ["docker", "run"]:
-            self.runs.append(command)
-            if self.rc == 0:
-                out = next(m.removesuffix(":/out") for m in command if m.endswith(":/out"))
-                Path(out, cf.SNAPSHOT_ARCHIVE).write_bytes(b"rebuilt")
-            return subprocess.CompletedProcess(command, self.rc, "", "")
-        return subprocess.CompletedProcess(command, 0, "", "")  # image inspect: cached
+    monkeypatch.setattr(evallab.docker_lock, "docker_slot", lambda **_: nullcontext())
 
 
-def _declared(staged: Path) -> dict[str, str]:
-    manifest = json.loads((staged / "artifacts" / "manifest.json").read_text())
-    return {m["source"]: m["status"] for m in manifest}
-
-
-def test_staged_replay_declares_snapshot_and_trajectory_and_leaves_source_alone(
+def test_patch_script_applies_exactly_the_change_and_fails_on_the_wrong_base(
     tmp_path: Path,
 ) -> None:
-    # Harbor refuses a regrade whose source never "collected" a declared artifact.
-    trial = _trial(tmp_path, snapshot=True)
-    docker = FakeDocker()
-    staged = cf.stage_replay(trial, _grader(tmp_path), tmp_path / "work", runner=docker)
-    assert (staged["snapshot"], staged["trajectory"]) == ("recorded", "recorded")
-    assert docker.runs == []
-    declared = _declared(staged["trial"])
-    assert declared["/var/tmp/mimo-separate"] == declared["/logs/agent/trajectory.json"] == "ok"
-    assert json.loads((trial / "artifacts" / "manifest.json").read_text()) == ORIGINAL_MANIFEST
-
-
-def test_snapshot_is_rebuilt_from_the_recorded_diff_when_none_was_captured(
-    tmp_path: Path,
-) -> None:
-    trial = _trial(tmp_path, diff="diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n")
-    staged = cf.stage_replay(trial, _grader(tmp_path), tmp_path / "work", runner=FakeDocker())
-    assert staged["snapshot"] == "rebuilt_from_agent_diff"
-    assert (
-        staged["trial"] / "artifacts/var/tmp/mimo-separate/workspace.tgz"
-    ).read_bytes() == b"rebuilt"
-    assert _declared(staged["trial"])["/var/tmp/mimo-separate"] == "ok"
-
-
-def test_controls_replace_the_change_and_never_carry_the_runs_trajectory(tmp_path: Path) -> None:
-    trial = _trial(tmp_path, snapshot=True, diff="diff --git a/x.py b/x.py\n")
-    staged = cf.stage_replay(
-        trial, _grader(tmp_path), tmp_path / "work", diff_text="", runner=FakeDocker()
-    )
-    assert staged["snapshot"] == "rebuilt_from_agent_diff"  # recorded snapshot not reused
-    assert staged["trajectory"] == "placeholder"
-    assert (staged["trial"] / "verifier" / "agent.diff").read_text() == ""
-
-
-def test_bytecode_in_the_recorded_diff_is_dropped_like_at10_drops_it(tmp_path: Path) -> None:
-    # Agents' diffs often carry __pycache__ stanzas git cannot apply; @10 drops them too.
-    source = (
-        "diff --git a/pkg/x.py b/pkg/x.py\n--- a/pkg/x.py\n+++ b/pkg/x.py\n@@ -1 +1 @@\n-a\n+b\n"
-    )
-    pyc = "diff --git a/pkg/__pycache__/x.cpython-312.pyc b/pkg/__pycache__/x.cpython-312.pyc\nGIT binary patch\nliteral 1\n"
-    docker = FakeDocker()
-    staged = cf.stage_replay(
-        _trial(tmp_path, diff=source + pyc), _grader(tmp_path), tmp_path / "work", runner=docker
-    )
-    assert staged["dropped_binary_artifacts"] == ["pkg/__pycache__/x.cpython-312.pyc"]
-    replayed = next(m.split(":")[0] for m in docker.runs[0] if m.endswith(":/in/agent.diff:ro"))
-    assert Path(replayed).read_text() == source
+    work = tmp_path / "work dir with spaces"
+    work.mkdir()
+    target = work / "x.py"
+    target.write_text("old\n")
+    script = cf._patch_script(PATCH, str(work))
+    first = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+    assert target.read_text() == "new\n"
+    second = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert second.returncode != 0
+    assert target.read_text() == "new\n"
 
 
 @pytest.mark.parametrize(
-    ("snapshot", "diff", "rc", "code"),
+    ("status", "rewards", "recorded", "outcome"),
     [
-        (False, None, 0, "source_patch_unavailable"),
-        (False, "diff --git a/x b/x\n", 3, "patch_does_not_apply"),
-        (False, "diff --git a/x b/x\nBinary files a/x and b/x differ\n", 0, "diff_unreplayable"),
+        ("ok", [0.0], 1.0, "flips"),
+        ("ok", [1.0], 1.0, "stays"),
+        ("ok", [1.0], 0.0, "loosened"),
+        ("ok", [0.0], 0.0, "not_a_pass"),
+        ("infra", [0.0], 1.0, "refused"),
+        ("ok", [float("nan")], 1.0, "refused"),
+        ("ok", [True], 1.0, "refused"),
+        ("ok", [], 1.0, "refused"),
     ],
 )
-def test_unreplayable_passes_are_refused_with_a_reason(
-    tmp_path: Path, snapshot: bool, diff: str | None, rc: int, code: str
+def test_patch_replay_never_counts_infra_or_absent_scores_as_rejections(
+    tmp_path: Path, status: str, rewards: list[Any], recorded: float, outcome: str
 ) -> None:
-    trial = _trial(tmp_path, snapshot=snapshot, diff=diff)
-    staged = cf.stage_replay(trial, _grader(tmp_path), tmp_path / "work", runner=FakeDocker(rc))
-    assert staged["refused"].startswith(code)
+    trial = _trial(tmp_path, reward=recorded)
+    before = {str(p.relative_to(trial)): p.read_bytes() for p in trial.rglob("*") if p.is_file()}
+
+    def matrix_runner(matrix, *, root):
+        return SimpleNamespace(
+            results=[
+                {
+                    "status": status,
+                    "rewards": rewards,
+                    "error": "infra" if status == "infra" else None,
+                }
+            ],
+            receipt_path=root / "runs/matrix-receipt.json",
+        )
+
+    result = cf.replay(
+        trial,
+        _grader(tmp_path),
+        tmp_path / "work",
+        repo_root=tmp_path,
+        matrix_runner=matrix_runner,
+    )
+    assert result["outcome"] == outcome
+    assert result["input_kind"] == "native_patch_replay"
+    assert before == {
+        str(p.relative_to(trial)): p.read_bytes() for p in trial.rglob("*") if p.is_file()
+    }
+    assert not (trial / "artifacts").exists()  # no fabricated snapshot, manifest, or trajectory
+    assert bool(result["refusals"]) is (outcome == "refused")
+
+
+def test_missing_change_is_unmeasurable_not_a_successful_nop(tmp_path: Path) -> None:
+    result = cf.replay(
+        _trial(tmp_path, diff=None), _grader(tmp_path), tmp_path / "work", repo_root=tmp_path
+    )
+    assert result["outcome"] == "refused"
+    assert result["refusals"] == ["source_patch_unavailable"]
+
+
+def test_only_compiled_artifact_stanzas_are_dropped() -> None:
+    bytecode = (
+        "diff --git a/pkg/__pycache__/x.pyc b/pkg/__pycache__/x.pyc\nGIT binary patch\nliteral 1\n"
+    )
+    kept, dropped = cf.strip_binary_artifacts(bytecode + PATCH)
+    assert kept == PATCH
+    assert dropped == ["pkg/__pycache__/x.pyc"]
 
 
 @pytest.mark.parametrize(
     ("nop", "reference", "valid"),
-    [(0.0, 1.0, True), (1.0, 1.0, False), (0.0, 0.0, False), (0.0, None, True), (None, 1.0, False)],
+    [
+        (0.0, 1.0, True),
+        (1.0, 1.0, False),
+        (0.0, 0.0, False),
+        (0.0, None, False),
+        (None, 1.0, False),
+    ],
 )
-def test_grader_is_valid_only_when_nop_fails_and_the_reference_passes(
+def test_controls_require_both_nop_rejection_and_reference_acceptance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     nop: float | None,
     reference: float | None,
     valid: bool,
 ) -> None:
-    def fake_replay(_trial: Path, _grader: cf.Grader, _work: Path, *, diff_text: str, **_: Any):
-        return {"regraded": nop if diff_text == "" else reference}
-
-    monkeypatch.setattr(cf, "replay", fake_replay)
-    monkeypatch.setattr(cf, "reference_patch", lambda *_: None if reference is None else "patch")
+    monkeypatch.setattr(
+        cf,
+        "replay",
+        lambda *_, diff_text, **__: {"regraded": nop if diff_text == "" else reference},
+    )
+    monkeypatch.setattr(
+        cf, "reference_patch", lambda *_: None if reference is None else "reference"
+    )
     controls = cf.grader_controls(
         _grader(tmp_path), tmp_path, tmp_path / "controls", repo_root=tmp_path
     )
@@ -170,20 +163,155 @@ def test_grader_is_valid_only_when_nop_fails_and_the_reference_passes(
     assert controls["reference_available"] is (reference is not None)
 
 
-def test_only_a_valid_graders_flip_counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    graders = [_grader(tmp_path)]
-    monkeypatch.setattr(cf, "newer_graders", lambda *_: graders)
+def test_changing_the_reference_invalidates_cached_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch = ["reference-v1"]
+    monkeypatch.setattr(cf, "reference_patch", lambda *_: patch[0])
     monkeypatch.setattr(
-        cf, "replay", lambda *_, **__: {"outcome": "flips", "recorded": 1.0, "regraded": 0.0}
+        cf,
+        "replay",
+        lambda *_, diff_text, **__: {"regraded": 0.0 if diff_text in ("", "reference-v2") else 1.0},
+    )
+    grader = _grader(tmp_path)
+    first = cf.grader_controls(grader, tmp_path, tmp_path / "controls", repo_root=tmp_path)
+    assert first["valid"] is True
+    patch[0] = "reference-v2"
+    second = cf.grader_controls(grader, tmp_path, tmp_path / "controls", repo_root=tmp_path)
+    assert second["valid"] is False
+    assert second["reference"] == 0.0
+
+
+def test_t3_counterfactual_is_path_free_and_ignores_unvalidated_graders(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graders = [_grader(tmp_path)]
+    monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: graders)
+    monkeypatch.setattr(
+        cf,
+        "replay",
+        lambda *_, **__: {
+            "grader": graders[0].label,
+            "outcome": "flips",
+            "recorded": 1.0,
+            "regraded": 0.0,
+            "refusals": ["diagnostic: /private/runs/cheat-run/source.py"],
+        },
     )
     monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cf")
-    for nop, ran in ((1.0, False), (0.0, True)):
+    for valid in (False, True):
         monkeypatch.setattr(
             cf,
             "grader_controls",
-            lambda *_, nop=nop, **__: {"valid": nop == 0.0, "nop": nop, "reference": 1.0},
+            lambda *_, valid=valid, **__: {
+                "valid": valid,
+                "nop": 0.0,
+                "reference": 1.0 if valid else None,
+            },
         )
-        executed = trace.regrade_counterfactual(tmp_path, "mimo-v2.6-rl/format-code-task-000001")
-        assert executed["ran"] is ran
-        assert "src" not in json.dumps(executed)  # reaches the refuter: no paths or run names
-    assert executed["lowest"] == 0.0
+        result = trace.regrade_counterfactual(tmp_path, TASK)
+        assert result["ran"] is valid
+        assert "/private" not in json.dumps(result)
+        assert "cheat-run" not in json.dumps(result)
+    assert result["lowest"] == 0.0
+
+
+def test_repaired_graders_use_only_the_recorded_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evallab.task_variants as task_variants
+
+    store = tmp_path / "variants"
+    monkeypatch.setattr(task_variants, "default_variants_root", lambda *_: store)
+    digests = {}
+
+    def repair(name: str, *, separate: bool, task_name: str = TASK, tampered: bool = False):
+        digest = "sha256:" + name * 64
+        package = _package(store / task_name.replace("/", "__") / digest[7:19], separate=separate)
+        digests[package] = "sha256:" + "f" * 64 if tampered else digest
+        return (
+            tmp_path / f"{name}.json",
+            SimpleNamespace(
+                task_name=task_name, transform="verifier-repair@1", variant_digest=digest
+            ),
+        )
+
+    def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str):
+        return cf.Grader(task_name, f"{via}>{cf.V10}", "sha256:" + "c" * 64, parent, "c.json")
+
+    monkeypatch.setattr(cf, "_digest", lambda package: digests[package])
+    monkeypatch.setattr(cf, "_records", lambda *_: [])
+    monkeypatch.setattr(cf, "separate_over", separate_over)
+    extra = [
+        repair("1", separate=True),
+        repair("2", separate=False),
+        repair("3", separate=True, tampered=True),
+        repair("4", separate=True, task_name="mimo-v2.6-rl/format-code-task-000002"),
+    ]
+    graders = cf.repaired_graders(TASK, tmp_path, extra)
+    assert {g.variant_digest for g in graders} == {"sha256:" + "1" * 64, "sha256:" + "c" * 64}
+    assert {g.transform for g in graders} == {
+        "verifier-repair@1",
+        "verifier-repair@1>separate-verifier@10",
+    }
+
+
+def test_batch_cache_tracks_source_bytes_without_freezing_population_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trial, grader = _trial(tmp_path), _grader(tmp_path)
+    monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: [grader])
+    monkeypatch.setattr(
+        cf, "grader_controls", lambda *_, **__: {"valid": True, "nop": 0.0, "reference": 1.0}
+    )
+    monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cache")
+
+    def observed(*_, **__):
+        score = 0.0 if "+wrong" in (trial / "verifier/agent.diff").read_text() else 1.0
+        return {
+            "grader": grader.label,
+            "recorded": 1.0,
+            "regraded": score,
+            "outcome": "flips" if score == 0 else "stays",
+        }
+
+    monkeypatch.setattr(cf, "replay", observed)
+    subject = {"item_id": "example", "task": TASK, "trial": trial, "group": "unreviewed"}
+    first = trace.regrade_passes([subject], tmp_path / "out", log=lambda _: None)
+    assert first[0]["outcome"] == "stays"
+    (trial / "verifier/agent.diff").write_text(PATCH.replace("+new", "+wrong"))
+    second = trace.regrade_passes([subject], tmp_path / "out", log=lambda _: None)
+    assert second[0]["outcome"] == "flips"
+    subject["group"] = "faulty"
+    third = trace.regrade_passes([subject], tmp_path / "out", log=lambda _: None)
+    assert third[0]["outcome"] == "flips"
+    assert third[0]["group"] == "faulty"
+
+
+def test_selected_manifest_refreshes_and_mutated_package_is_not_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.mimo_clean import MANIFEST_COLUMNS, write_manifest
+    from evallab.storage import paths
+
+    monkeypatch.setattr(paths, "shared_checkout_root", lambda _: tmp_path)
+    packages = [_package(tmp_path / name) for name in ("first", "second")]
+    (packages[1] / "tests/test.sh").write_text("#!/bin/bash\nfalse\n")
+    manifest = tmp_path / "selected.csv"
+    for package in packages:
+        digest = cf._digest(package)
+        row = {
+            **dict.fromkeys(MANIFEST_COLUMNS, ""),
+            "task_id": TASK.rsplit("/", 1)[-1],
+            "package_path": str(package.relative_to(tmp_path)),
+            "final_digest": digest,
+            "status": "built",
+        }
+        write_manifest([row], manifest)
+        selected = cf.v6_grader(TASK, tmp_path, manifest=manifest)
+        assert selected is not None
+        assert selected.package == package
+        assert selected.variant_digest == digest
+    (packages[1] / "tests/test.sh").write_text("#!/bin/bash\necho unexpected mutation\n")
+    assert cf.v6_grader(TASK, tmp_path, manifest=manifest) is None

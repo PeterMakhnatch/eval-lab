@@ -144,6 +144,38 @@ def test_solution_is_staged_without_mutating_the_task(workspace: Path) -> None:
     assert result["staged_task_digest"] == snapshot["digest"] != original
 
 
+@pytest.mark.parametrize("has_solution", [False, True])
+def test_read_only_package_can_take_an_override_without_source_mutation(
+    workspace: Path, has_solution: bool
+) -> None:
+    task = workspace / "task"
+    if not has_solution:
+        (task / "solution/solve.sh").unlink()
+        (task / "solution").rmdir()
+    original = compute_task_digests(task)
+    matrix_path = workspace / "matrix.json"
+    matrix = json.loads(matrix_path.read_text())
+    matrix.update(task_package_digest=original.package, verifier_digest=original.verifier)
+    matrix_path.write_text(json.dumps(matrix))
+    source_modes = {}
+    for path in (task, *task.rglob("*")):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+        source_modes[path] = path.stat().st_mode
+    try:
+        harbor = FixtureHarbor()
+        assert execute(workspace, harbor) == 0
+        assert harbor.snapshots[0]["script"] == b"#!/bin/sh\necho mutant\n"
+        assert receipt(workspace)["results"][0]["status"] == "ok"
+        assert not harbor.calls[0].task_path.exists()
+        assert compute_task_digests(task) == original
+        assert {path: path.stat().st_mode for path in source_modes} == source_modes
+    finally:
+        # Only the fixture is writable again for pytest's temporary-tree cleanup.
+        for path in source_modes:
+            if path.exists():
+                path.chmod(0o755 if path.is_dir() else 0o644)
+
+
 @pytest.mark.parametrize("overrides", [{"agent": "nop"}, {"allow_billable": True}])
 def test_solution_is_only_a_nonbillable_oracle_control(overrides: dict) -> None:
     payload = {"name": "mutant", "agent": "oracle", "solution": "control.sh"} | overrides

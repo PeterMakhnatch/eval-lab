@@ -130,3 +130,14 @@ run `uv run python research/answer-keys/splits/guard.py`.
   - It contradicts two weak negatives: envcheck-tb4-39 `fin-saccr-rwa` and
     Delphik `fix-git`.
   - See `executed-outcomes-v1/README.md`.
+- `mimo-weak-tests-v1`: **49 items**. It is the MiMo weak-test seed key for the loop
+  find weak tests → repair the tests → regrade old passes.
+  - **Weak task packages (16):**
+    - 3 packages where an honest partial fix was rewarded: 001809, 001985 and 002486;
+    - 13 ref-subset weak tests confirmed by the refutation read.
+  - **Negatives:** 10 refuted ref-subset flags and 16 frozen clean controls.
+  - **Traces:** the 4 partial-fix passes (`expected_regrade: flips`) and their 3 clean
+    parents.
+  - **Caveat:** ref-subset selected most of these items, so ref-subset's own score
+    on them is circular.
+  - See `mimo-weak-tests-v1/README.md`.

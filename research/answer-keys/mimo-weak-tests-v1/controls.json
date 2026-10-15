@@ -1,0 +1,22 @@
+{
+  "seed": "mimo-weak-tests-v1:20261015",
+  "pool_size": 112,
+  "tasks": [
+    "format-code-task-000149",
+    "format-code-task-000164",
+    "format-code-task-000513",
+    "format-code-task-001246",
+    "format-code-task-001400",
+    "format-code-task-001480",
+    "format-code-task-001590",
+    "format-code-task-001831",
+    "format-code-task-001941",
+    "format-code-task-002126",
+    "format-code-task-002208",
+    "format-code-task-002493",
+    "format-code-task-002615",
+    "format-code-task-002649",
+    "format-code-task-002871",
+    "format-code-task-002884"
+  ]
+}

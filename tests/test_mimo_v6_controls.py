@@ -175,7 +175,7 @@ def test_image_inspection_cannot_admit_a_trial_after_deadline(
 
     class RecordingExecutor:
         @staticmethod
-        def from_repo(_root: Path) -> "RecordingExecutor":
+        def from_repo(_root: Path) -> RecordingExecutor:
             return RecordingExecutor()
 
         def execute_direct(self, _request: Any, *, ingest: bool) -> None:

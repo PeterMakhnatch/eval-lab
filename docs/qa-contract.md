@@ -118,8 +118,11 @@ n_pairs_measured, status, notes`.
 | `breaker-bench-v1` | Breaker | 626 task items, 214 pairs (benchflow 0.2.0 vs 0.2.2, Terminal Wrench holdout) |
 | `trace-paired-v1` | Trace | 81 trace items, 60 pairs (own runs; CheatAgent and contamination-audit children) |
 | `trajectory-judge-400` | Trace | 400 trace items, 251 pairs (upstream trajectory-judge) |
-| `envcheck-tb4-39` | QA Task | 39 Terminal-Bench tasks: 13 EnvCheck grader defects (with upstream root-cause ids) + 26 weak negatives |
+| `envcheck-tb4-39` | QA Task | 39 Terminal-Bench tasks: 13 EnvCheck grader defects (with upstream root-cause ids) + 12 `epoch_flagged` defects (Epoch TB4 review, one public issue each) + 14 weak negatives |
 | `delphik-open-defect-tb2` | QA Task | 47 Terminal-Bench 2 tasks, held-out only (Delphik open-defect source-read claims) |
-| `envcheck-task-audit` | Infra | the same 39 tasks as `envcheck-tb4-39` without digest pins or root-cause ids; splits copied from `envcheck-tb4-39` (#904). Prefer `envcheck-tb4-39`; this key has no labelled root causes, so root-cause match is `n/a` on it |
+| `executed-outcomes-v1` | QA Task | 56 MiMo/TB task packages labelled by an executed check (ref-subset, #867 hunt/repair, grader probes, #899 replays) |
+
+`envcheck-task-audit` (an undigested copy of the same 39 tasks) was retired on
+2026-10-15 so one split lock (`envcheck-tb4-39`) governs those tasks.
 
 Split assignments, exposures and the guard live in `research/answer-keys/splits/`.

@@ -20,7 +20,7 @@ from evallab.qa import (
     load_findings_dir,
     score_findings,
 )
-from evallab.qa.answer_key import AnswerKey, import_envcheck_task_audit
+from evallab.qa.answer_key import AnswerKey
 from evallab.qa.score import SCOREBOARD_COLUMNS
 
 
@@ -368,50 +368,6 @@ def test_load_answer_key_keeps_extra_columns_and_pairs(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unknown items"):
         load_answer_key(tmp_path)
 
-
-def test_envcheck_import_maps_labels(tmp_path: Path) -> None:
-    chunks = tmp_path / "chunks.jsonl"
-    chunks.write_text(
-        "\n".join(
-            [
-                json.dumps(
-                    {
-                        "task": "t-defect",
-                        "tb_version": "v4.0.0",
-                        "label": "defect",
-                        "pattern": "task_writable_grader",
-                        "finding_slugs": ["slug-a"],
-                    }
-                ),
-                json.dumps(
-                    {
-                        "task": "t-clean",
-                        "tb_version": "v4.0.0",
-                        "label": "weak_negative",
-                        "pattern": None,
-                        "finding_slugs": [],
-                    }
-                ),
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    splits = {"t-defect@v4.0.0": "heldout", "t-clean@v4.0.0": "dev"}
-    key = import_envcheck_task_audit(
-        chunks, tmp_path / "key", source_commit="abc123", splits=splits
-    )
-    assert len(key.items) == 2
-    defect = next(i for i in key.items if i.expected_verdict == "fail")
-    assert defect.expected_category == "tamperable"
-    assert defect.subject.task_id == "t-defect@v4.0.0"
-    assert "abc123" in defect.label_source
-    assert {i.subject.task_id: i.split for i in key.items} == splits
-    with pytest.raises(ValueError, match="no split"):
-        import_envcheck_task_audit(
-            chunks, tmp_path / "key2", source_commit="abc123", splits={"t-defect@v4.0.0": "dev"}
-        )
-    assert (tmp_path / "key" / "README.md").is_file()
 
 def test_qa_cli_score_appends_scoreboard_rows(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]

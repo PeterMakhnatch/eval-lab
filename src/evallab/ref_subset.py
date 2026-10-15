@@ -61,10 +61,13 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+from evallab.verifier_mutation import Mutant, generate_mutants, select_mutants
+
 SCHEMA_REPORT = "evallab.ref_subset.report/v1"
 SCHEMA_FINDING = "qa.finding/v1"
 STAGE_TASK = "S2.ref_subset"
 STAGE_TRACE = "T0.ref_coverage"
+STAGE_MUTANTS = "S2.ref_mutants"
 REVIEWER = {"agent": "evallab hack ref-subset", "model": None, "tokens": 0, "cost_usd": 0.0}
 
 #: Kept share of the reference's code lines at or below which a passing subset is
@@ -878,6 +881,130 @@ def severity_of(kept_fraction: float) -> str:
     return "low"
 
 
+def mutation_pass(
+    changes: list[FileChange],
+    grade_files: Callable[[str, dict[str, bytes | None]], Grade],
+    grades: list[Grade],
+    *,
+    limit: int,
+    seed: str,
+    tests: frozenset[str] = frozenset(),
+) -> tuple[dict[str, Any], dict[str, bytes | None]]:
+    """Line-level pass inside the reference, with ``hack mutate``'s one-edit operators.
+
+    Every mutant is the full reference with one edit on a line the reference wrote (comparison
+    boundaries, ``and``/``or``, dropped operands and statements, negated conditions, ...), graded
+    like any subset. A survivor (reward 1) is behaviour inside a block the tests need that no test
+    pins down: the gap a partial fix slips through and block drops cannot see. Reverting a whole
+    hunk is the block probe's job and is left out. The baselines are graded here when the block
+    probe never ran them. Returns the summary and each survivor's file bytes by mutant id.
+    """
+    full = {c.path: c.fixed for c in changes if c.path not in tests}
+    base = {c.path: c.base for c in changes if c.path not in tests}
+    by_label = {grade.label: grade for grade in grades}
+    full_grade = by_label.get("full") or _record(grades, grade_files("full", full))
+    nop_grade = by_label.get("nop") or _record(grades, grade_files("nop", base))
+    summary: dict[str, Any] = {"stage": STAGE_MUTANTS, "limit": limit}
+    if not full_grade.passed or nop_grade.status != "scored" or nop_grade.reward != 0.0:
+        reason = f"baselines: full={full_grade.reward} ({full_grade.status}), nop={nop_grade.reward} ({nop_grade.status})"
+        return summary | {
+            "status": "baseline_mismatch",
+            "reason": reason,
+            "verdict": "unknown",
+            "severity": None,
+        }, {}
+    candidates: list[Mutant] = []
+    mutated_bytes: dict[str, tuple[str, bytes]] = {}
+    for change in changes:
+        if change.fixed is None or change.path in tests:
+            continue
+        if not any(block.kind == "code" for block in change.blocks):
+            continue
+        for mutant, mutated in generate_mutants(change.path, change.fixed, change.base):
+            if mutant.changed_line and mutant.operator != "revert-hunk":
+                candidates.append(mutant)
+                mutated_bytes[mutant.id] = (change.path, mutated)
+    chosen = select_mutants(candidates, limit=limit, seed=seed)
+    survivors: list[dict[str, Any]] = []
+    files: dict[str, bytes | None] = {}
+    killed = unscored = 0
+    for mutant in chosen:
+        path, mutated = mutated_bytes[mutant.id]
+        result = _record(grades, grade_files(f"mutant:{mutant.id}", full | {path: mutated}))
+        if result.passed:
+            survivors.append(
+                {
+                    "id": mutant.id, "file": path, "line": mutant.line, "end_line": mutant.end_line,
+                    "operator": mutant.operator, "original": mutant.original,
+                    "replacement": mutant.replacement, "edit": mutant.patch,
+                }
+            )  # fmt: skip
+            files[mutant.id] = mutated
+        elif result.status == "scored":
+            killed += 1
+        else:
+            unscored += 1
+    scored = killed + len(survivors)
+    if survivors:
+        verdict, share = "fail", len(survivors) / scored
+        severity = "high" if share >= 0.5 else "medium" if share >= 0.2 else "low"
+    else:
+        verdict = "pass" if chosen and not unscored else "unknown"
+        severity = None
+    status = "measured" if chosen else "not_applicable"
+    return summary | {
+        "status": status,
+        "reason": "" if chosen else "no mutable code on the lines the reference wrote",
+        "verdict": verdict, "severity": severity, "generated": len(candidates), "tried": len(chosen),
+        "killed": killed, "unscored": unscored, "survivors": survivors,
+    }, files  # fmt: skip
+
+
+def _record(grades: list[Grade], grade: Grade) -> Grade:
+    grades.append(grade)
+    return grade
+
+
+def mutants_finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
+    """The ``qa.finding/v1`` for the line-level pass of one task."""
+    summary = report["mutants"]
+    survivors = summary.get("survivors") or []
+    if summary["verdict"] == "fail":
+        lines = ", ".join(f"{s['file']}:{s['line']} {s['operator']}" for s in survivors[:4])
+        text = (
+            f"{len(survivors)}/{summary['killed'] + len(survivors)} one-edit mutants of lines the "
+            f"reference wrote pass the hidden tests ({lines})"
+        )
+    elif summary["verdict"] == "pass":
+        text = f"the hidden tests kill all {summary['tried']} mutants of lines the reference wrote"
+    else:
+        text = f"{summary['status']}: {summary.get('reason', '')}"
+    first = survivors[0]["id"] if survivors else None
+    return {
+        "schema": SCHEMA_FINDING,
+        "subject": {"kind": "task", "task_id": report["task_id"], "task_digest": report.get("package_digest")},
+        "stage": STAGE_MUTANTS,
+        "verdict": summary["verdict"],
+        "category": "weak",
+        "severity": summary["severity"],
+        "fault": "eval" if summary["verdict"] == "fail" else None,
+        "summary": text,
+        "evidence_refs": [str(out_dir / "report.json"), *(str(out_dir / "mutants" / f"{s['id']}.patch") for s in survivors)],
+        "reproducer": (
+            {"kind": "patch", "path": str(out_dir / "mutants" / f"{first}.patch"), "expected_reward": 1}
+            if first
+            else None
+        ),
+        "refutation": {
+            "status": "unverified",
+            "by": None,
+            "reason": "a surviving mutant can be behaviour-equivalent or change behaviour the instruction "
+            "never asks for; read the edit against the instruction",
+        },
+        "reviewer": REVIEWER,
+    }  # fmt: skip
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
@@ -995,12 +1122,15 @@ def probe_task(
     memory: str = "4g",
     grade_timeout: float = 1_800,
     oracle_timeout: float = 3_600,
+    mutants: int = 0,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
     """Probe one task and write report.json, finding.json and the patches to ``out_dir``.
 
     A MiMo package needs ``patch_path``; a separate-verifier package takes its reference from
     its own oracle and records it as ``reference.patch`` (over the artifacts, relative to ``/``).
+    ``mutants`` > 0 adds the line-level pass (:func:`mutation_pass`): ``report["mutants"]``,
+    ``finding-mutants.json`` and one reproducer per survivor in ``mutants/``.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     started = _now()
@@ -1069,30 +1199,46 @@ def probe_task(
             ]
             changes = [change for change in changes if change.base != change.fixed]
 
+            def grade_files(
+                label: str, files: dict[str, bytes | None], kept: Sequence[str] = ()
+            ) -> Grade:
+                timeout = grade_timeout
+                if grades and grades[0].status == "scored":
+                    timeout = min(grade_timeout, max(300.0, 3 * grades[0].seconds))
+                result = sandbox.grade(label, list(kept), files, timeout)
+                log(
+                    f"  {package.task_id} {label}: reward={result.reward} {result.status} {result.seconds:.0f}s"
+                )
+                return result
+
             def grade(label: str, keep: set[str]) -> Grade:
                 files = {
                     change.path: compose(change, keep)
                     for change in changes
                     if change.path not in package.tests
                 }
-                timeout = grade_timeout
-                if grades and grades[0].status == "scored":
-                    timeout = min(grade_timeout, max(300.0, 3 * grades[0].seconds))
-                result = sandbox.grade(label, sorted(keep), files, timeout)
-                log(
-                    f"  {package.task_id} {label}: reward={result.reward} {result.status} {result.seconds:.0f}s"
-                )
-                return result
+                return grade_files(label, files, sorted(keep))
 
             probe = Probe(changes, grade, max_grades=max_grades, grades=grades)
             status, keep, reason = probe.run()
             report = head | summarize(package.task_id, changes, status, keep, reason, grades)
+            base_files = {change.path: change.base for change in changes}
+            full_files = {change.path: change.fixed for change in changes}
             if report["verdict"] == "fail":
-                base_files = {change.path: change.base for change in changes}
                 kept_files = {change.path: compose(change, keep) for change in changes}
-                full_files = {change.path: change.fixed for change in changes}
                 (out_dir / "minimal.patch").write_text(unified_patch(base_files, kept_files))
                 (out_dir / "dropped.patch").write_text(unified_patch(kept_files, full_files))
+            if mutants > 0:
+                summary, survivors = mutation_pass(
+                    changes, grade_files, grades, limit=mutants, seed=package.task_id,
+                    tests=package.tests,
+                )  # fmt: skip
+                report["mutants"] = summary
+                for survivor in summary.get("survivors") or []:
+                    mutated = full_files | {survivor["file"]: survivors[survivor["id"]]}
+                    target = out_dir / "mutants" / f"{survivor['id']}.patch"
+                    target.parent.mkdir(exist_ok=True)
+                    target.write_text(unified_patch(base_files, mutated))
         finally:
             sandbox.close()
     except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:
@@ -1113,6 +1259,10 @@ def probe_task(
     (out_dir / "finding.json").write_text(
         json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
     )
+    if "mutants" in report:
+        (out_dir / "finding-mutants.json").write_text(
+            json.dumps(mutants_finding(report, out_dir), indent=1, sort_keys=True) + "\n"
+        )
     return report
 
 
@@ -1230,9 +1380,11 @@ def sweep(
     ahead: int,
     max_grades: int,
     memory: str,
+    mutants: int = 0,
     log: Callable[[str], None] = print,
 ) -> list[dict[str, Any]]:
-    """Probe each job (resumable); tasks with fewer than two code blocks skip Docker."""
+    """Probe each job (resumable). Without the line-level pass, tasks with fewer than two code
+    blocks skip Docker; with it, a one-block fix is exactly where it looks."""
     todo = [job for job in jobs if not (out_root / job.task_id / "report.json").is_file()]
     log(
         f"ref-subset sweep: {len(jobs)} tasks, {len(jobs) - len(todo)} already reported, {len(todo)} to run"
@@ -1250,7 +1402,7 @@ def sweep(
             continue
         tests = Package.load(job.package).tests
         blocks = patch_code_blocks(job.patch.read_text(errors="replace"), tests)
-        if blocks < 2:
+        if blocks < 2 and not mutants:
             reason = f"{blocks} code change run(s) in the reference patch: no proper subset to try"
             reports.append(
                 _write_skipped(job.task_id, job.package, out_dir, "not_applicable", reason)
@@ -1270,8 +1422,9 @@ def sweep(
                     job.task_id, job.package, out_dir, "unavailable", f"image pull failed: {error}"
                 )
             report = probe_task(
-                job.package, job.patch, out_dir, max_grades=max_grades, memory=memory, log=log
-            )
+                job.package, job.patch, out_dir, max_grades=max_grades, memory=memory,
+                mutants=mutants, log=log,
+            )  # fmt: skip
             log(
                 f"{job.task_id}: {report['status']} verdict={report['verdict']} kept={report.get('kept_fraction')}"
             )
@@ -1307,8 +1460,10 @@ def collect(out_root: Path) -> dict[str, Any]:
         if report["verdict"] == "fail":
             severity[report["severity"]] = severity.get(report["severity"], 0) + 1
     findings = [
-        json.loads((path.parent / "finding.json").read_text())
-        for path in sorted(out_root.glob("*/report.json"))
+        json.loads(path.read_text())
+        for report in sorted(out_root.glob("*/report.json"))
+        for path in (report.parent / "finding.json", report.parent / "finding-mutants.json")
+        if path.is_file()
     ]
     (out_root / "findings.jsonl").write_text(
         "".join(json.dumps(item, sort_keys=True) + "\n" for item in findings)
@@ -1489,6 +1644,7 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
         max_grades=args.max_grades,
         memory=args.memory,
         oracle_timeout=args.oracle_timeout,
+        mutants=args.mutants,
     )
     print(
         json.dumps(
@@ -1516,6 +1672,7 @@ def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         ahead=args.ahead,
         max_grades=args.max_grades,
         memory=args.memory,
+        mutants=args.mutants,
     )
     print(json.dumps(collect(args.output_dir), indent=1))
     return 0
@@ -1560,6 +1717,12 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
     run.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
     run.add_argument("--memory", default="4g")
     run.add_argument(
+        "--mutants",
+        type=int,
+        default=0,
+        help="Line-level pass: grade up to N one-edit mutants of the lines the reference wrote",
+    )
+    run.add_argument(
         "--oracle-timeout", type=float, default=3_600, help="Seconds for solution/solve.sh"
     )
     run.set_defaults(func=_run_command)
@@ -1583,6 +1746,7 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
     many.add_argument("--ahead", type=int, default=1, help="Images pulled ahead of the lanes")
     many.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
     many.add_argument("--memory", default="4g")
+    many.add_argument("--mutants", type=int, default=0, help="Line-level pass per task (see run)")
     many.set_defaults(func=_sweep_command)
     trace = commands.add_parser(
         "trace", help="QA Trace T0: flag passes that skip the untested reference blocks"

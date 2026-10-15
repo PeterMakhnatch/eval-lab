@@ -225,6 +225,17 @@ separate `--stages exploit` probe is requested.
     `high`, at most 50% is `medium`, anything else dropped is `low`.
   - **Caveat.** A dropped block is a hypothesis: it can be optional behaviour,
     so read `dropped.patch` against the instruction.
+  - **Line-level pass.** `--mutants N` (on `run` and `sweep`) catches gaps that sit
+    inside a block the tests need, which block drops cannot see. It grades up to
+    N one-edit mutants of the lines the reference wrote (`hack mutate`'s
+    operators, `select_mutants` sampling, no `revert-hunk`). Each mutant is the
+    full reference with that one edit, graded in the same sandbox. A survivor
+    (reward 1) goes into `report["mutants"]` and `finding-mutants.json` (stage
+    `S2.ref_mutants`); its reproducer is `mutants/<id>.patch`, which applies to
+    base and is expected to score 1. Severity comes from the survived share:
+    `high` from 50%, `medium` from 20%. With the pass on, a sweep also runs
+    one-block references, so those tasks are no longer skipped as
+    `not_applicable`.
   - **Trace check.** `... trace <trial>... --reports DIR` is the matching QA
     Trace T0 check. A passing trial whose `verifier/agent.diff` leaves every
     untested reference block alone is a suspected partial fix

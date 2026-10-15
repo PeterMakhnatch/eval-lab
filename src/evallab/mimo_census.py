@@ -197,7 +197,7 @@ SLICE_CAP_USD = 13.00
 
 _JUNIT_RE = re.compile(
     r"rc=(?P<rc>-?\d+)\s+cases=(?P<cases>\d+)\s+bad=(?P<bad>\d+)\s+"
-    r"named=(?P<named>\d+)\s+missing=\[(?P<missing>[^\]]*)\]"
+    r"(?:skipped=\d+\s+)?named=(?P<named>\d+)\s+missing=\[(?P<missing>[^\]]*)\]"
 )
 
 

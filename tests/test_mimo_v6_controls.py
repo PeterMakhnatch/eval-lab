@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from evallab.task_variants import task_directory_digest
+
 DRIVER = (
     Path(__file__).resolve().parents[1]
     / "research/experiments/mimo-clean-v6/resume_controls.py"
@@ -79,7 +81,7 @@ def test_fifo_acquisition_is_bounded_and_timeout_stops_without_docker(
         '[environment]\ndocker_image="example.invalid/unused"\n', encoding="utf-8"
     )
     row = {
-        "task_id": "format-code-task-000048", "final_digest": "sha256:current",
+        "task_id": "format-code-task-000048", "final_digest": task_directory_digest(package),
         "status": "built", "package_path": str(package), "reference_fix": "none",
     }
     manifest = tmp_path / "manifest.csv"
@@ -107,3 +109,33 @@ def test_fifo_acquisition_is_bounded_and_timeout_stops_without_docker(
     record = json.loads(args.journal.read_text(encoding="utf-8"))
     assert record["kind"] == "fifo-timeout"
     assert record["agent"] == "nop"
+
+
+def test_changed_materialized_package_is_rejected_before_docker(
+    driver: dict[str, Any], tmp_path: Path
+) -> None:
+    package = tmp_path / "package"
+    package.mkdir()
+    config = package / "task.toml"
+    config.write_text('[environment]\ndocker_image="example.invalid/unused"\n', encoding="utf-8")
+    digest = task_directory_digest(package)
+    row = {
+        "task_id": "format-code-task-000048", "final_digest": digest,
+        "status": "built", "package_path": str(package), "reference_fix": "none",
+    }
+    manifest = tmp_path / "manifest.csv"
+    with manifest.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row))
+        writer.writeheader()
+        writer.writerow(row)
+    pending = tmp_path / "pending.json"
+    pending.write_text(json.dumps({"tasks": [row | {"runnable": True}]}), encoding="utf-8")
+    config.write_text('[environment]\ndocker_image="example.invalid/changed"\n', encoding="utf-8")
+    args = argparse.Namespace(
+        manifest=manifest, pending=pending, receipts=tmp_path / "absent.csv",
+        journal=tmp_path / "journal.jsonl", jobs_dir=tmp_path / "jobs",
+        package_root=tmp_path, seconds=7200, lock_wait_seconds=3,
+    )
+    with pytest.raises(ValueError, match="materialized package digest changed"):
+        driver["execute"](args)
+    assert not args.journal.exists()

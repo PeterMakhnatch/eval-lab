@@ -61,16 +61,15 @@ measured ones):
     leak inspection). Note that the shared `evallab qa score` command reads only
     measured `pass`/`fail` findings in `<run>/findings/` and does not inspect
     `tasks/*/report.json` `signals`.
-- **Category match and passive `root_cause` provenance**:
+- **Category match and root-cause match**:
   - `category_match_recall` checks whether a verified finding's coarse
     `category` is in `expected_category` / `expected_categories`.
-  - `Finding` does not carry `root_cause_id`, and `evallab qa task-score` does
-    not compute root-cause matching (the `root_cause` array on each item is
-    passive source provenance; on the shared scoreboard CSV,
-    `evallab qa task-score --scoreboard <csv>` writes `n/a` for
-    `root_cause_match` under system `qa-task@verified` or `qa-task@flagged`,
-    whereas the shared `evallab qa score` uses its `root_cause_match` column for
-    category-level match).
+  - A finding may name `root_cause` ids (optional `qa.finding/v1` field); they
+    match an item when one equals a `root_cause[].id` or `root_cause[].source_class`
+    after normalization. `evallab qa task-score` reports
+    `verified_root_cause_match` / `flagged_root_cause_match` and writes the
+    level's value to the shared `root_cause_match` column; it is `n/a` when no
+    finding names a cause (see `docs/qa-contract.md`).
 - **Measuredness, coverage, and split-scoped cost**: `observed_fraction` is the
   share of selected items with a digest-bound `TaskReport`;
   `measured_fraction` is the share whose `TaskReport` has

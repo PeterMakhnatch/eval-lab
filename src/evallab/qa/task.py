@@ -29,6 +29,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
+from evallab.qa.models import expected_root_causes, root_cause_hit
 from evallab.qa.score import ScoreRow, append_scoreboard
 from evallab.schemas import ContractModel
 
@@ -116,6 +117,8 @@ class Finding(ContractModel):
     reproducer: Reproducer
     refutation: Refutation
     reviewer: Reviewer
+    # Optional root-cause ids in the key's vocabulary (shared qa.finding/v1 field).
+    root_cause: list[str] = Field(default_factory=list)
 
 
 class Signal(ContractModel):
@@ -165,8 +168,8 @@ class AnswerKeyItem(ContractModel):
     expected_verdict: Literal["pass", "fail"]
     expected_category: str | None = None
     expected_categories: list[str] = Field(default_factory=list)
-    # Informational key provenance (unused by scoring): the shared contract has no
-    # per-finding root-cause id, so root-cause matching is not computed here.
+    # Key provenance; ids and source classes are the root-cause vocabulary the
+    # scorer matches findings' ``root_cause`` against.
     root_cause: list[dict[str, Any]] = Field(default_factory=list)
     label_source: str
     label_strength: str
@@ -905,6 +908,7 @@ def score_findings(
         categories = set(item.expected_categories) | (
             {item.expected_category} if item.expected_category else set()
         )
+        causes = expected_root_causes(item.model_dump())
         report = next(
             (r for r in reports if (r.subject.task_id, r.subject.task_digest) == binding), None
         )
@@ -917,6 +921,13 @@ def score_findings(
                 "flagged_hit": bool(standing) or bool(report and report.signals),
                 "category_match": any(f.category in categories for f in verified),
                 "measured": bool(report and report.quality_complete),
+                "labelled_cause": bool(causes),
+                "verified_root_cause_hit": any(
+                    root_cause_hit(f.root_cause, causes) for f in verified
+                ),
+                "flagged_root_cause_hit": any(
+                    root_cause_hit(f.root_cause, causes) for f in standing
+                ),
                 "observed": report is not None,
                 "label_strength": item.label_strength,
                 "tokens": report.model_tokens if report else 0,
@@ -928,6 +939,16 @@ def score_findings(
 
     def rate(values: list[dict[str, Any]], key: str) -> float | None:
         return sum(bool(row[key]) for row in values) / len(values) if values else None
+
+    names_causes = any(f.root_cause for f in findings)
+
+    def cause_rate(level: str) -> float | None:
+        # Among positives hit at this level that carry a labelled cause. None
+        # (n/a) when the findings name no causes at all: not measured, not 0.
+        hits = [r for r in positives if r[f"{level}_hit"] and r["labelled_cause"]]
+        if not names_causes or not hits:
+            return None
+        return sum(bool(r[f"{level}_root_cause_hit"]) for r in hits) / len(hits)
 
     return {
         "schema": "evallab.qa_task.score/v1",
@@ -941,6 +962,8 @@ def score_findings(
         "verified_false_alarm_rate": rate(negatives, "verified_hit"),
         "flagged_false_alarm_rate": rate(negatives, "flagged_hit"),
         "category_match_recall": rate(positives, "category_match"),
+        "verified_root_cause_match": cause_rate("verified"),
+        "flagged_root_cause_match": cause_rate("flagged"),
         "measured_fraction": rate(rows, "measured"),
         "observed_fraction": rate(rows, "observed"),
         "digest_mismatches": mismatched,
@@ -1063,7 +1086,7 @@ def scoreboard_row(result: dict[str, Any], *, level: str) -> ScoreRow:
         system=f"qa-task@{level}",
         recall=result[f"{level}_recall"],
         false_alarm_rate=result[f"{level}_false_alarm_rate"],
-        root_cause_match=None,
+        root_cause_match=result[f"{level}_root_cause_match"],
         paired_discrimination=None,
         cost_per_item_usd=result["cost_per_item_usd"],
         n_items=result["items"],

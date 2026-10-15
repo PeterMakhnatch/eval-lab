@@ -505,7 +505,7 @@ inputs:
   - path: src/evallab/qa/cli.py
     digest: sha256:a980f6f50a1baa91a83deb09c5d98409a98539654f4be01014eb2be5281be1c3
   - path: src/evallab/qa/models.py
-    digest: sha256:e70d3debca818704c44307957dadd252418808dc8b6a867348dba9bdbaf01091
+    digest: sha256:03eee7b951f941e5a267c2e9b78b58a05b3e0481310d44b98b63c11bb7df750c
   - path: src/evallab/qa/score.py
     digest: sha256:758ab9e81599ec489aa9d04db0feeb3d52609b7bfba0159d0950728356962bd8
   - path: src/evallab/qa/task.py
@@ -559,7 +559,7 @@ inputs:
   - path: src/evallab/results_viewer.py
     digest: sha256:b3129b0ca38805d8e085e1be6f3ffc3a8dbb14581341972f9493e3745225dd05
   - path: src/evallab/reward_hack.py
-    digest: sha256:469e090984949724dab6d320e0608671789c24a4cf28923c39dc46f8c5faa26a
+    digest: sha256:ee493d9dfbd58b85711586fd0ab8736492596fcdc1f1459636b5876275c5f885
   - path: src/evallab/rl_rollouts.py
     digest: sha256:d6dceed26ce5a38fc64f162f398a606ae4af9fbf0fbb10e09145bcf4a3b32933
   - path: src/evallab/rlm/__init__.py

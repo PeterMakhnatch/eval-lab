@@ -318,28 +318,44 @@ def unified_patch(before: dict[str, bytes | None], after: dict[str, bytes | None
 
 
 # ---------------------------------------------------------------------------
-# Raw MiMo package and Docker grading
+# Task packages and Docker grading
 
 
 @dataclass(frozen=True)
 class Package:
+    """A raw MiMo code package, or a Harbor task whose verifier runs separately on artifacts.
+
+    MiMo packages come with a reference patch; separate-verifier packages derive the reference
+    from their own oracle (``solution/solve.sh``) and are graded on ``artifacts`` alone.
+    """
+
     path: Path
     task_id: str
     image: str
     workdir: str
     tests: frozenset[str]
+    artifacts: tuple[str, ...] = ()
+    gpus: int = 0
+    verifier_timeout: float | None = None
+
+    @property
+    def separate(self) -> bool:
+        return bool(self.artifacts)
 
     @classmethod
     def load(cls, path: Path) -> Package:
         config = tomllib.loads((path / "task.toml").read_text())
         environment = config.get("environment") or {}
-        image = environment.get("docker_image")
+        verifier = config.get("verifier") or {}
         test_sh = path / "tests" / "test.sh"
+        image = environment.get("docker_image")
         setup = path / "environment" / "setup" / "setup.sh"
         if not image or not test_sh.is_file() or not setup.is_file():
+            if verifier.get("environment_mode") == "separate":
+                return cls._load_separate(path, config, environment, verifier)
             raise ValueError(
-                f"{path}: not a raw MiMo code package (needs [environment].docker_image, "
-                "environment/setup/setup.sh and tests/test.sh)"
+                f"{path}: neither a raw MiMo code package ([environment].docker_image, "
+                "environment/setup/setup.sh, tests/test.sh) nor a separate-verifier task"
             )
         reset = _RESET_LIST.search(test_sh.read_text())
         tests = frozenset(
@@ -347,6 +363,44 @@ class Package:
         )
         task_id = str((config.get("metadata") or {}).get("source_id") or path.name)
         return cls(path, task_id, str(image), str(environment.get("workdir") or "/testbed"), tests)
+
+    @classmethod
+    def _load_separate(
+        cls,
+        path: Path,
+        config: dict[str, Any],
+        environment: dict[str, Any],
+        verifier: dict[str, Any],
+    ) -> Package:
+        artifacts: list[str] = []
+        for entry in config.get("artifacts") or []:
+            if isinstance(entry, dict):
+                if entry.get("service") not in (None, "main") or entry.get("destination"):
+                    raise ValueError(
+                        f"{path}: artifact {entry} (sidecar or remapped) is unsupported"
+                    )
+                entry = entry.get("source")
+            if not isinstance(entry, str) or not entry.startswith("/"):
+                raise ValueError(f"{path}: artifact {entry!r} is not an absolute path")
+            artifacts.append(entry.rstrip("/") or "/")
+        needed = (
+            "environment/Dockerfile",
+            "tests/Dockerfile",
+            "tests/test.sh",
+            "solution/solve.sh",
+        )
+        missing = [name for name in needed if not (path / name).is_file()]
+        if not artifacts or missing:
+            raise ValueError(
+                f"{path}: a separate-verifier task needs [[artifacts]] and {', '.join(needed)}"
+                + (f" (missing {', '.join(missing)})" if missing else " (no artifacts)")
+            )
+        name = str((config.get("task") or {}).get("name") or path.name)
+        timeout = verifier.get("timeout_sec")
+        return cls(
+            path, name, "", "/", frozenset(), tuple(artifacts), int(environment.get("gpus") or 0),
+            float(timeout) if timeout else None,
+        )  # fmt: skip
 
 
 @dataclass
@@ -491,33 +545,7 @@ class Sandbox:
                     for p in stale
                 )
                 _docker("exec", name, "sh", "-c", f"rm -f {pycache}")
-            try:
-                result = _docker("exec", name, "bash", "/tests/test.sh", timeout=timeout)
-            except subprocess.TimeoutExpired:
-                return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
-            reward_raw = (
-                _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
-            )
-            tail = result.stdout.decode(errors="replace")[-2_000:]
-            if reward_raw not in {"0", "1"}:
-                return Grade(
-                    label,
-                    kept,
-                    None,
-                    result.returncode,
-                    time.monotonic() - started,
-                    "unscored",
-                    tail,
-                )
-            return Grade(
-                label,
-                kept,
-                float(reward_raw),
-                result.returncode,
-                time.monotonic() - started,
-                "scored",
-                tail,
-            )
+            return _verify(name, label, kept, timeout, started)
         except (RuntimeError, OSError) as exc:
             return Grade(
                 label, kept, None, None, time.monotonic() - started, "error", str(exc)[-2_000:]
@@ -527,6 +555,186 @@ class Sandbox:
 
     def close(self) -> None:
         _docker("rmi", self.snapshot)
+
+
+def _verify(name: str, label: str, kept: list[str], timeout: float, started: float) -> Grade:
+    """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
+    try:
+        result = _docker("exec", name, "bash", "/tests/test.sh", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
+    raw = _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
+    tail = result.stdout.decode(errors="replace")[-2_000:]
+    seconds = time.monotonic() - started
+    try:
+        reward = float(raw)
+    except ValueError:
+        return Grade(label, kept, None, result.returncode, seconds, "unscored", tail)
+    if not 0.0 <= reward <= 1.0:
+        return Grade(label, kept, None, result.returncode, seconds, "unscored", tail)
+    return Grade(label, kept, reward, result.returncode, seconds, "scored", tail)
+
+
+def _dockerfile_bases(dockerfile: Path) -> list[str]:
+    """Registry images a Dockerfile builds ``FROM`` (stage aliases, ``scratch`` and ARGs skipped)."""
+    stages: set[str] = set()
+    bases: list[str] = []
+    for line in dockerfile.read_text().splitlines():
+        match = re.match(r"\s*FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?", line, re.IGNORECASE)
+        if not match:
+            continue
+        image, alias = match.group(1), match.group(2)
+        if image.lower() != "scratch" and image not in stages and "$" not in image:
+            bases.append(image)
+        if alias:
+            stages.add(alias)
+    return list(dict.fromkeys(bases))
+
+
+class SeparateSandbox:
+    """A Harbor separate-verifier task: the oracle runs once in the task environment, and every
+    grade is a fresh verifier container that receives only the artifacts, the way Harbor uploads
+    them (absent artifacts skipped, directory artifacts emptied first). Unlike the MiMo sandbox,
+    containers keep Docker's default network: the oracle and the verifier may install packages.
+    """
+
+    def __init__(
+        self,
+        package: Package,
+        *,
+        memory: str = "4g",
+        cpus: str = "2",
+        build_timeout: float = 1_800,
+        oracle_timeout: float = 3_600,
+    ) -> None:
+        self.package = package
+        self.memory, self.cpus = memory, cpus
+        self.build_timeout, self.oracle_timeout = build_timeout, oracle_timeout
+        slug = re.sub(r"[^a-z0-9._-]+", "-", package.task_id.lower()).strip("-.")[-40:] or "task"
+        nonce = hashlib.sha256(f"{package.path}{time.time()}".encode()).hexdigest()[:10]
+        self.name = f"ref-subset-{slug}-{nonce}"
+        self.image = f"evallab-ref-subset-env/{slug}:{nonce}"
+        self.verifier_image = f"evallab-ref-subset-verifier/{slug}:{nonce}"
+        self.modes: dict[str, int] = {}
+        self.dirs: set[str] = set()
+        self.pulled: list[str] = []
+
+    def _run(self, image: str, name: str) -> None:
+        _check(
+            _docker(
+                "run", "-d", "--name", name, "--memory", self.memory, "--cpus", self.cpus,
+                "--entrypoint", "/bin/sh", image, "-c", "exec tail -f /dev/null",
+            ),
+            f"docker run {image}",
+        )  # fmt: skip
+
+    def prepare(self) -> None:
+        environment, tests = self.package.path / "environment", self.package.path / "tests"
+        bases = _dockerfile_bases(environment / "Dockerfile") + _dockerfile_bases(
+            tests / "Dockerfile"
+        )
+        self.pulled = [
+            base
+            for base in dict.fromkeys(bases)
+            if _docker("image", "inspect", base).returncode != 0
+        ]
+        for tag, context, what in (
+            (self.image, environment, "environment"),
+            (self.verifier_image, tests, "verifier"),
+        ):
+            try:
+                result = _docker("build", "-q", "-t", tag, str(context), timeout=self.build_timeout)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f"{what} image build exceeded {self.build_timeout:.0f}s"
+                ) from exc
+            _check(result, f"build the {what} image")
+
+    def _read(self, name: str) -> dict[str, bytes]:
+        """Every regular file under the artifact paths, keyed relative to ``/``."""
+        script = 'for p in "$@"; do if [ -d "/$p" ]; then echo "D $p"; elif [ -e "/$p" ]; then echo "F $p"; fi; done'
+        relative = [artifact.lstrip("/") for artifact in self.package.artifacts]
+        listing = _check(
+            _docker("exec", name, "sh", "-c", script, "sh", *relative), "list artifacts"
+        ).decode()
+        present: list[str] = []
+        for line in listing.splitlines():
+            kind, path = line.split(" ", 1)
+            present.append(path)
+            if kind == "D":
+                self.dirs.add(path)
+        out: dict[str, bytes] = {}
+        if present:
+            raw = _check(
+                _docker("exec", name, "tar", "-C", "/", "-cf", "-", "--", *present),
+                "read artifacts",
+            )
+            with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+                for member in archive.getmembers():
+                    handle = archive.extractfile(member) if member.isfile() else None
+                    if handle is not None:
+                        out[member.name] = handle.read()
+                        self.modes[member.name] = member.mode
+        return out
+
+    def reference(self) -> tuple[dict[str, bytes | None], dict[str, bytes | None]]:
+        """The artifacts before and after the task's own oracle (``solution/solve.sh``)."""
+        name = f"{self.name}-oracle"
+        self._run(self.image, name)
+        try:
+            before = self._read(name)
+            _check(_docker("exec", name, "mkdir", "-p", "/solution"), "mkdir /solution")
+            solution = self.package.path / "solution"
+            _check(_docker("cp", f"{solution}/.", f"{name}:/solution"), "copy the solution")
+            try:
+                result = _docker(
+                    "exec", name, "bash", "/solution/solve.sh", timeout=self.oracle_timeout
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"the oracle exceeded {self.oracle_timeout:.0f}s") from exc
+            _check(result, "the oracle (solution/solve.sh)")
+            after = self._read(name)
+        finally:
+            _docker("rm", "-f", name)
+        paths = sorted(set(before) | set(after))
+        return {p: before.get(p) for p in paths}, {p: after.get(p) for p in paths}
+
+    def grade(
+        self, label: str, kept: list[str], files: dict[str, bytes | None], timeout: float
+    ) -> Grade:
+        name = f"{self.name}-g"
+        started = time.monotonic()
+        try:
+            self._run(self.verifier_image, name)
+            present = {
+                path: (data, self.modes.get(path, 0o644))
+                for path, data in files.items()
+                if data is not None
+            }
+            emptied = [d for d in sorted(self.dirs) if any(p.startswith(f"{d}/") for p in present)]
+            parents = sorted({str(PurePosixPath("/", p).parent) for p in present})
+            script = " && ".join(
+                ["mkdir -p /logs/verifier /logs/artifacts /tests"]
+                + [f"rm -rf '/{d}'" for d in emptied]
+                + [f"mkdir -p '{parent}'" for parent in parents]
+            )
+            _check(_docker("exec", name, "sh", "-c", script), "prepare the verifier")
+            if present:
+                _check(_docker("cp", "-", f"{name}:/", input=_tar(present)), "upload artifacts")
+            tests = self.package.path / "tests"
+            _check(_docker("cp", f"{tests}/.", f"{name}:/tests"), "copy the tests")
+            return _verify(name, label, kept, timeout, started)
+        except (RuntimeError, OSError) as exc:
+            return Grade(
+                label, kept, None, None, time.monotonic() - started, "error", str(exc)[-2_000:]
+            )
+        finally:
+            _docker("rm", "-f", name)
+
+    def close(self) -> None:
+        _docker("rmi", self.image, self.verifier_image)
+        for base in self.pulled:
+            _docker("rmi", base)
 
 
 # ---------------------------------------------------------------------------
@@ -741,45 +949,72 @@ def finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
 
 def probe_task(
     package_dir: Path,
-    patch_path: Path,
+    patch_path: Path | None,
     out_dir: Path,
     *,
     max_grades: int = DEFAULT_MAX_GRADES,
     memory: str = "4g",
     grade_timeout: float = 1_800,
+    oracle_timeout: float = 3_600,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
-    """Probe one task and write report.json, finding.json and the patches to ``out_dir``."""
+    """Probe one task and write report.json, finding.json and the patches to ``out_dir``.
+
+    A MiMo package needs ``patch_path``; a separate-verifier package takes its reference from
+    its own oracle and records it as ``reference.patch`` (over the artifacts, relative to ``/``).
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     started = _now()
-    patch = patch_path.read_text()
     package = Package.load(package_dir)
+    if package.separate == (patch_path is not None):
+        raise ValueError(
+            f"{package_dir}: a separate-verifier task derives its reference from its oracle (no --patch)"
+            if package.separate
+            else f"{package_dir}: a MiMo package needs its reference --patch"
+        )
+    patch = patch_path.read_text() if patch_path is not None else ""
+    sandbox: Sandbox | SeparateSandbox = (
+        SeparateSandbox(package, memory=memory, oracle_timeout=oracle_timeout)
+        if package.separate
+        else Sandbox(package, memory=memory)
+    )
+    if package.verifier_timeout:
+        grade_timeout = min(grade_timeout, package.verifier_timeout)
     head: dict[str, Any] = {
         "schema": SCHEMA_REPORT,
         "package": str(package_dir),
         "package_digest": _package_digest(package_dir),
-        "image": package.image,
-        "reference": {
-            "patch": str(patch_path),
-            "sha256": hashlib.sha256(patch.encode()).hexdigest(),
-        },
+        "image": sandbox.image if isinstance(sandbox, SeparateSandbox) else package.image,
+        "reference": (
+            {"oracle": "solution/solve.sh", "patch": str(out_dir / "reference.patch")}
+            if package.separate
+            else {"patch": str(patch_path), "sha256": hashlib.sha256(patch.encode()).hexdigest()}
+        ),
         "limits": {
             "max_grades": max_grades,
             "memory": memory,
             "grade_timeout_s": grade_timeout,
-            "network": "none",
+            "network": "default" if package.separate else "none",
         },
         "code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "started_at": started,
     }
-    sandbox = Sandbox(package, memory=memory)
     grades: list[Grade] = []
     try:
-        sandbox.prepare()
+        if package.gpus:
+            raise RuntimeError(f"the task needs {package.gpus} GPU(s); local Docker has none")
         try:
-            paths = patch_paths(patch)
-            base = sandbox.read(paths)
-            fixed = apply_reference(patch, base)
+            sandbox.prepare()
+            if isinstance(sandbox, SeparateSandbox):
+                base, fixed = sandbox.reference()
+                paths = list(base)
+                patch = unified_patch(base, fixed)
+                (out_dir / "reference.patch").write_text(patch)
+                head["reference"]["sha256"] = hashlib.sha256(patch.encode()).hexdigest()
+            else:
+                paths = patch_paths(patch)
+                base = sandbox.read(paths)
+                fixed = apply_reference(patch, base)
             changes = [
                 file_change(path, base[path], fixed[path], set(package.tests)) for path in paths
             ]
@@ -1191,7 +1426,12 @@ def trace_check(trial_dir: Path, report: dict[str, Any] | None) -> dict[str, Any
 def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
     del root, harbor
     report = probe_task(
-        args.package, args.patch, args.output_dir, max_grades=args.max_grades, memory=args.memory
+        args.package,
+        args.patch,
+        args.output_dir,
+        max_grades=args.max_grades,
+        memory=args.memory,
+        oracle_timeout=args.oracle_timeout,
     )
     print(
         json.dumps(
@@ -1252,12 +1492,19 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
         "tests (local Docker, free)",
     )
     commands = parser.add_subparsers(dest="ref_subset_command", required=True)
-    run = commands.add_parser("run", help="Probe one raw MiMo package against its reference patch")
+    run = commands.add_parser(
+        "run",
+        help="Probe one task: a raw MiMo package against --patch, or a Harbor separate-verifier "
+        "task against its own oracle's artifacts",
+    )
     run.add_argument("package", type=Path)
-    run.add_argument("--patch", type=Path, required=True)
+    run.add_argument("--patch", type=Path, help="Reference patch (MiMo packages only)")
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
     run.add_argument("--memory", default="4g")
+    run.add_argument(
+        "--oracle-timeout", type=float, default=3_600, help="Seconds for solution/solve.sh"
+    )
     run.set_defaults(func=_run_command)
     many = commands.add_parser(
         "sweep", help="Probe every oracle:pass+nop:fail row of a reference-fix index"

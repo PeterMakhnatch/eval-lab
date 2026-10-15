@@ -15,13 +15,16 @@ from evallab.ref_subset import (
     Block,
     FileChange,
     Grade,
+    Package,
     Probe,
     Status,
+    _dockerfile_bases,
     block_kind,
     compose,
     edited_ranges,
     file_change,
     patch_code_blocks,
+    probe_task,
     summarize,
     trace_check,
     unified_patch,
@@ -34,6 +37,90 @@ def _edited(*indexes: int) -> tuple[bytes, bytes]:
     """A 40-line file and a copy with each of ``indexes`` rewritten (separate blocks)."""
     fixed = [f"fixed{i}\n" if i in indexes else line for i, line in enumerate(_NUMBERED)]
     return "".join(_NUMBERED).encode(), "".join(fixed).encode()
+
+
+_SEPARATE_TOML = """
+artifacts = ["/app/out/", {source = "/app/main.py"}]
+[task]
+name = "bench/demo"
+[verifier]
+environment_mode = "separate"
+timeout_sec = 120.0
+[environment]
+gpus = 0
+"""
+
+
+def _separate_package(root: Path, toml: str = _SEPARATE_TOML) -> Path:
+    for name in (
+        "environment/Dockerfile",
+        "tests/Dockerfile",
+        "tests/test.sh",
+        "solution/solve.sh",
+    ):
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text("#\n")
+    (root / "task.toml").write_text(toml)
+    return root
+
+
+def _mimo_package(root: Path) -> Path:
+    for name in ("environment/setup/setup.sh", "tests/test.sh"):
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text("#\n")
+    (root / "task.toml").write_text('[environment]\ndocker_image = "repo/img@sha256:00"\n')
+    return root
+
+
+def test_separate_verifier_task_loads_its_artifacts_and_harbor_name(tmp_path: Path) -> None:
+    package = Package.load(_separate_package(tmp_path))
+    assert package.separate
+    assert package.task_id == "bench/demo"
+    assert package.artifacts == ("/app/out", "/app/main.py")
+    assert package.verifier_timeout == 120.0
+    assert not Package.load(_mimo_package(tmp_path / "mimo")).separate
+
+
+@pytest.mark.parametrize(
+    "toml",
+    [
+        _SEPARATE_TOML.replace(
+            '{source = "/app/main.py"}', '{source = "/app/main.py", destination = "x"}'
+        ),
+        _SEPARATE_TOML.replace('"/app/out/", ', '"relative/out", '),
+        _SEPARATE_TOML.replace('artifacts = ["/app/out/", {source = "/app/main.py"}]', ""),
+    ],
+    ids=["remapped", "relative", "no-artifacts"],
+)
+def test_separate_verifier_task_rejects_artifacts_it_cannot_reproduce(
+    tmp_path: Path, toml: str
+) -> None:
+    with pytest.raises(ValueError):
+        Package.load(_separate_package(tmp_path, toml))
+
+
+def test_reference_source_must_match_the_package_layout(tmp_path: Path) -> None:
+    patch = tmp_path / "ref.patch"
+    patch.write_text("")
+    with pytest.raises(ValueError, match="derives its reference from its oracle"):
+        probe_task(_separate_package(tmp_path / "sep"), patch, tmp_path / "out1")
+    with pytest.raises(ValueError, match="needs its reference --patch"):
+        probe_task(_mimo_package(tmp_path / "mimo"), None, tmp_path / "out2")
+
+
+def test_dockerfile_bases_skip_stage_aliases_scratch_and_build_args(tmp_path: Path) -> None:
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "ARG BASE=python:3.12\n"
+        "FROM --platform=linux/amd64 golang:1.22 AS build\n"
+        "FROM build AS test\n"
+        "from python:3.13-slim\n"
+        "FROM ${BASE}\n"
+        "FROM scratch\n"
+        "FROM golang:1.22\n"
+    )
+    # Only registry images the build pulls may be removed afterwards; never a stage alias.
+    assert _dockerfile_bases(dockerfile) == ["golang:1.22", "python:3.13-slim"]
 
 
 # ---------------------------------------------------------------------------

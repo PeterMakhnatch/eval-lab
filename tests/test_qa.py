@@ -248,13 +248,20 @@ def test_envcheck_import_maps_labels(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    key = import_envcheck_task_audit(chunks, tmp_path / "key", source_commit="abc123")
+    splits = {"t-defect@v4.0.0": "heldout", "t-clean@v4.0.0": "dev"}
+    key = import_envcheck_task_audit(
+        chunks, tmp_path / "key", source_commit="abc123", splits=splits
+    )
     assert len(key.items) == 2
     defect = next(i for i in key.items if i.expected_verdict == "fail")
     assert defect.expected_category == "tamperable"
     assert defect.subject.task_id == "t-defect@v4.0.0"
     assert "abc123" in defect.label_source
-    assert {i.split for i in key.items} <= {"dev", "test"}
+    assert {i.subject.task_id: i.split for i in key.items} == splits
+    with pytest.raises(ValueError, match="no split"):
+        import_envcheck_task_audit(
+            chunks, tmp_path / "key2", source_commit="abc123", splits={"t-defect@v4.0.0": "dev"}
+        )
     assert (tmp_path / "key" / "README.md").is_file()
 
 

@@ -9,8 +9,8 @@ artifacts deterministically and record their provenance in the README.
 
 from __future__ import annotations
 
-import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,9 +90,20 @@ def resolve_answer_key(key: str, repo_root: Path | str) -> AnswerKey:
     return load_answer_key(Path(repo_root) / "research" / "answer-keys" / key)
 
 
-def _split_for(task_id: str) -> str:
-    """Deterministic dev/test split (roughly 75/25) by task-id hash."""
-    return "test" if hashlib.sha256(task_id.encode()).digest()[0] % 4 == 0 else "dev"
+def envcheck_splits(split_key: AnswerKey) -> dict[str, str]:
+    """``<task>@<pin>`` -> split from the digest-bound ``envcheck-tb4-39`` key.
+
+    The task-audit import covers the same 39 tasks; taking its splits from the key
+    the QA Task scores are reported on keeps a task from being ``dev`` in one key
+    and ``heldout`` in the other.
+    """
+    out: dict[str, str] = {}
+    for item in split_key.items:
+        package = item.model_extra.get("package") if item.model_extra else None
+        if not package:
+            raise ValueError(f"{split_key.key_id}:{item.item_id} has no package name/pin")
+        out[f"{package['name']}@{package['pin']}"] = item.split
+    return out
 
 
 def import_envcheck_task_audit(
@@ -100,6 +111,7 @@ def import_envcheck_task_audit(
     out_dir: Path | str,
     *,
     source_commit: str,
+    splits: Mapping[str, str],
 ) -> AnswerKey:
     """Import the pinned kev EnvCheck task-audit labels as an answer key.
 
@@ -108,7 +120,9 @@ def import_envcheck_task_audit(
     tokenless-ai/envcheck-findings at ``source_commit``). One item per
     task: EnvCheck-defect tasks expect ``fail`` with the mapped category;
     weak negatives (no EnvCheck finding — not proof of clean) expect
-    ``pass``. Writes ``items.jsonl`` + ``README.md`` under ``out_dir``.
+    ``pass``. ``splits`` maps ``<task>@<tb_version>`` to its split (see
+    :func:`envcheck_splits`); every task must have one. Writes
+    ``items.jsonl`` + ``README.md`` under ``out_dir``.
     """
     rows = [
         json.loads(line)
@@ -118,6 +132,9 @@ def import_envcheck_task_audit(
     per_task: dict[tuple[str, str], dict] = {}
     for row in rows:
         per_task.setdefault((row["task"], row["tb_version"]), row)
+    missing = sorted(f"{t}@{v}" for t, v in per_task if f"{t}@{v}" not in splits)
+    if missing:
+        raise ValueError(f"no split for {len(missing)} task(s): {missing[:3]}")
     items: list[AnswerKeyItem] = []
     for (task, tb_version), row in sorted(per_task.items()):
         subject = FindingSubject(kind="task", task_id=f"{task}@{tb_version}")
@@ -134,7 +151,7 @@ def import_envcheck_task_audit(
                         f"envcheck-findings@{source_commit} via kev task_audit "
                         f"(pattern={pattern}, slugs={','.join(row.get('finding_slugs') or [])})"
                     ),
-                    split=_split_for(subject.task_id),
+                    split=splits[subject.task_id],
                 )
             )
         elif row["label"] == "weak_negative":
@@ -149,7 +166,7 @@ def import_envcheck_task_audit(
                         f"envcheck-findings@{source_commit} via kev task_audit "
                         "(weak negative: no EnvCheck finding; not proof of clean)"
                     ),
-                    split=_split_for(subject.task_id),
+                    split=splits[subject.task_id],
                 )
             )
         else:
@@ -171,8 +188,9 @@ def import_envcheck_task_audit(
         "  answer in env -> `reachable`, writable grader -> `tamperable`; primary\n"
         "  pattern only, so root-cause match is coarse). `pass` = weak negative:\n"
         "  no EnvCheck finding on the task, which is not proof of a clean grader.\n"
-        "- Subject ids are `<task>@<tb_version>`; splits are a deterministic\n"
-        "  sha256 75/25 dev/test assignment. Never tune on `test`.\n"
+        "- Subject ids are `<task>@<tb_version>`. Splits (`dev`/`heldout`) are copied from\n"
+        "  `envcheck-tb4-39`, the digest-bound key for the same 39 tasks, so a task has one\n"
+        "  split in both keys. Never tune on `heldout`.\n"
         f"- Items: {len(items)} ({sum(1 for i in items if i.expected_verdict == 'fail')} defect, "
         f"{sum(1 for i in items if i.expected_verdict == 'pass')} weak negative).\n",
         encoding="utf-8",

@@ -522,8 +522,8 @@ def _slug(text: str, *, limit: int = 32) -> str:
     return slug[:limit] or "task"
 
 
-def _job_name(index: int, label: str, slug: str) -> str:
-    return f"hack-{index:02d}-{_slug(label, limit=28)}-{slug}"[:80]
+def _job_name(nonce: str, index: int, label: str, slug: str) -> str:
+    return f"hack-{nonce}-{index:02d}-{_slug(label, limit=28)}-{slug}"[:80].rstrip("-")
 
 
 def plan_matrix(
@@ -547,22 +547,26 @@ def plan_matrix(
     digests = compute_task_digests(root)
     task_table = _table(config, "task")
     slug = _slug(str(task_table.get("name") or root.name))
+    # Job dirs share one jobs root across invocations; the matrix's own id keeps a
+    # re-run of the same package from colliding with the previous run's jobs.
+    matrix_id = new_ulid()
+    nonce = matrix_id.lower()[-6:]
     runs: list[MatrixRun] = [
-        MatrixRun(name=_job_name(0, "oracle", slug), agent="oracle", expect_reward=1.0),
-        MatrixRun(name=_job_name(1, "nop", slug), agent="nop", expect_reward=0.0),
+        MatrixRun(name=_job_name(nonce, 0, "oracle", slug), agent="oracle", expect_reward=1.0),
+        MatrixRun(name=_job_name(nonce, 1, "nop", slug), agent="nop", expect_reward=0.0),
     ]
     for index, script in enumerate(scripts, start=2):
         relative = script.resolve().relative_to(repo_root.resolve())
         runs.append(
             MatrixRun(
-                name=_job_name(index, script.stem, slug),
+                name=_job_name(nonce, index, script.stem, slug),
                 agent="oracle",
                 expect_reward=declared_expectation(script),
                 solution=relative.as_posix(),
             )
         )
     return ExperimentMatrix(
-        matrix_id=new_ulid(),
+        matrix_id=matrix_id,
         name=f"{name_prefix}-{slug}",
         hypothesis=(
             f"If {slug} grades agent-controlled state, an authored exploit script reaches the "
@@ -698,7 +702,6 @@ def run_hack(
     repo_root: Path,
     scripts: Sequence[Path] | None = None,
     execute: bool = False,
-    reuse_existing: bool = False,
     timeout_seconds: int = 1_800,
     output_dir: Path | None = None,
 ) -> tuple[HackReport, Path]:
@@ -744,7 +747,7 @@ def run_hack(
         )
         _write_report(run_dir, report)
         return report, run_dir
-    execution = run_matrix(matrix, root=Path(repo_root).resolve(), reuse_existing=reuse_existing)
+    execution = run_matrix(matrix, root=Path(repo_root).resolve())
     runs, verdict, reason = classify_results(matrix, execution.results, controls)
     report = HackReport(
         package=str(root),
@@ -859,7 +862,6 @@ def _hack_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | Non
             repo_root=root,
             scripts=scripts,
             execute=args.execute,
-            reuse_existing=args.reuse_existing,
             timeout_seconds=args.timeout_seconds,
             output_dir=output_dir,
         )
@@ -907,7 +909,6 @@ def build_reward_hack_parser(subparsers: Any) -> None:
         help="Exploit script to replay; repeatable (default: <package>/controls/*.sh)",
     )
     run.add_argument("--execute", action="store_true", help="Run the local control matrix")
-    run.add_argument("--reuse-existing", action="store_true")
     run.add_argument("--timeout-seconds", type=int, default=1_800)
     run.add_argument("--output-dir", type=Path)
     run.add_argument("--json", action="store_true")

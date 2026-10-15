@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -182,6 +183,20 @@ def test_plan_matrix_binds_baselines_and_solution_overrides(tmp_path: Path) -> N
     assert override.solution == "controls/forge-reward.sh"
     assert override.allow_billable is False
     assert len({run.name for run in matrix.runs}) == 3
+
+
+def test_replanning_the_same_package_never_reuses_a_job_name(tmp_path: Path) -> None:
+    # Every plan writes into the same jobs root, so a second `hack run` of one package
+    # must not name a job the first run already created (FileExistsError on re-run).
+    package = _weak_package(tmp_path)
+    script = tmp_path / "controls" / "forge-reward.sh"
+    _write(script, "#!/bin/bash\n# expect: 1\necho 1 > /logs/verifier/reward.txt\n")
+    first = plan_matrix(package, [script], repo_root=tmp_path)
+    second = plan_matrix(package, [script], repo_root=tmp_path)
+    assert first.jobs_dir == second.jobs_dir
+    assert not {run.name for run in first.runs} & {run.name for run in second.runs}
+    for run in [*first.runs, *second.runs]:
+        assert re.fullmatch(r"[a-z0-9][a-z0-9-]{2,79}", run.name), run.name
 
 
 def test_plan_matrix_refuses_step_tasks(tmp_path: Path) -> None:

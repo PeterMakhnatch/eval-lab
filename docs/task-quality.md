@@ -202,6 +202,15 @@ separate `--stages exploit` probe is requested.
   - **Grading.** Each grade puts a subset of the blocks on the base checkout and
     runs the task's own `tests/test.sh`. Grades use local Docker with no network,
     one fresh container per grade from a snapshot taken after the task's setup.
+  - **Separate-verifier tasks.** `run <harbor task>` without `--patch` probes a
+    Harbor task whose `[verifier] environment_mode = "separate"` grades
+    `artifacts`, e.g. Terminal-Bench 4. The task's own oracle (`solution/solve.sh`)
+    runs once in the environment image; its artifact diff becomes the reference
+    (`reference.patch`, paths relative to `/`). Each grade is a fresh container
+    of the `tests/` image that receives only the artifacts, as Harbor uploads them.
+    These containers keep Docker's default network, because oracles and verifiers
+    install packages. GPU tasks are `unavailable`, and the built images are
+    removed afterwards.
   - **Minimisation.** A greedy pass first checks the baselines (full reference 1,
     base 0). It then drops the docs and comment blocks, then each file, then
     each block, largest first. It ends with a confirmation grade.

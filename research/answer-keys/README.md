@@ -86,8 +86,16 @@ measured ones):
 ## Split rule
 
 Never tune on the split you report. Use `dev` items for development and
-prompt/threshold tuning; report scores on `heldout` items only. Keys that
-are entirely `heldout` must not be used for tuning at all.
+prompt/threshold tuning; report scores on `heldout` items only (the trace keys
+call the reported split `test`; it means the same). Keys that are entirely
+`heldout` must not be used for tuning at all.
+
+Every key's item-level split assignment is published in `splits/assignments.csv`,
+and `splits/exposure.jsonl` records which systems were tuned on which items.
+`splits/guard.py --check` (run in CI by `tests/test_answer_key_splits.py`) fails on
+units straddling splits, stale assignments, and scoreboard rows that score tuned
+items on a reported split; see `splits/README.md`. After adding or rebuilding a key,
+run `uv run python research/answer-keys/splits/guard.py`.
 
 ## Keys and provenance caveats
 

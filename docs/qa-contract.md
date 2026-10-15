@@ -120,7 +120,6 @@ n_pairs_measured, status, notes`.
 | `trajectory-judge-400` | Trace | 400 trace items, 251 pairs (upstream trajectory-judge) |
 | `envcheck-tb4-39` | QA Task | 39 Terminal-Bench tasks: 13 EnvCheck grader defects (with upstream root-cause ids) + 26 weak negatives |
 | `delphik-open-defect-tb2` | QA Task | 47 Terminal-Bench 2 tasks, held-out only (Delphik open-defect source-read claims) |
+| `envcheck-task-audit` | Infra | the same 39 tasks as `envcheck-tb4-39` without digest pins or root-cause ids; splits copied from `envcheck-tb4-39` (#904). Prefer `envcheck-tb4-39`; this key has no labelled root causes, so root-cause match is `n/a` on it |
 
-`envcheck-task-audit` (Infra, 2026-10-14) was retired on 2026-10-15: it
-held the same 39 tasks as `envcheck-tb4-39` under a clashing split, so
-tuning on one leaked into the other's held-out. Use `envcheck-tb4-39`.
+Split assignments, exposures and the guard live in `research/answer-keys/splits/`.

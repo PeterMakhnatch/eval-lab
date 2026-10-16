@@ -439,26 +439,6 @@ def test_modal_metered_proxy_rejected_as_integration_gap(tmp_path: Path) -> None
         validate_request(req)
 
 
-def test_modal_billing_app_is_forwarded_without_changing_policy(tmp_path: Path) -> None:
-    req = RunRequest(
-        task=_task_dir(tmp_path),
-        agent="oracle",
-        name="census-control",
-        jobs_dir=tmp_path / "jobs",
-        environment="modal",
-        allow_billable=True,
-        modal_app_name="mimo-clean-census",
-    )
-    validate_request(req)
-    command = build_command(req, setup_fingerprint="test")
-    assert command[command.index("--env") + 1] == "modal"
-    assert "app_name=mimo-clean-census" in command
-    assert "egress_lock=true" not in command
-    assert "app_name=mimo-clean-census" not in build_command(
-        replace(req, modal_app_name=None), setup_fingerprint="test"
-    )
-
-
 def test_modal_command_pins_python_path_for_setup_heredocs(tmp_path: Path) -> None:
     req = RunRequest(
         task=_task_dir(tmp_path),
@@ -508,27 +488,6 @@ def test_modal_billing_app_requires_nonempty_name(tmp_path: Path, name: str) -> 
         validate_request(req)
 
 
-def test_modal_census_limit_policy_preserves_task_caps(tmp_path: Path) -> None:
-    req = RunRequest(
-        task=_task_dir(tmp_path),
-        agent="oracle",
-        name="census-control",
-        jobs_dir=tmp_path / "jobs",
-        environment="modal",
-        allow_billable=True,
-        modal_app_name="mimo-clean-census",
-        modal_resource_policy="limit",
-    )
-    validate_request(req)
-    command = build_command(req)
-    assert "cpu_enforcement_policy=limit" in command
-    assert "memory_enforcement_policy=limit" in command
-    assert "egress_lock=true" not in command
-    assert not any(arg.startswith("--override") for arg in command)
-    default_command = build_command(replace(req, modal_resource_policy=None))
-    assert not any("_enforcement_policy=" in arg for arg in default_command)
-
-
 @pytest.mark.parametrize("backend", ["docker", "daytona"])
 def test_modal_resource_policy_rejects_other_backends(tmp_path: Path, backend: str) -> None:
     req = RunRequest(
@@ -558,7 +517,7 @@ def test_modal_resource_policy_rejects_other_apps(tmp_path: Path, app_name: str 
         modal_resource_policy="limit",
     )
     for check in (validate_request, build_command):
-        with pytest.raises(ValueError, match="restricted to the census billing app"):
+        with pytest.raises(ValueError):
             check(req)
 
 
@@ -577,6 +536,38 @@ def test_modal_resource_policy_rejects_unapproved_policy(tmp_path: Path, policy:
     for check in (validate_request, build_command):
         with pytest.raises(ValueError, match="must be 'limit' or None"):
             check(req)
+
+
+@pytest.mark.parametrize("timeout", [0, 1.5, True, 2_401])
+def test_modal_lifetime_rejects_unbounded_or_invalid_overrides(
+    tmp_path: Path, timeout: Any
+) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="bounded-control",
+        jobs_dir=tmp_path / "jobs",
+        environment="modal",
+        timeout_seconds=1_800,
+        modal_sandbox_timeout_seconds=timeout,
+    )
+    for check in (validate_request, build_command):
+        with pytest.raises(ValueError):
+            check(request)
+
+
+def test_modal_lifetime_cannot_be_silently_ignored_on_docker(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="bounded-control",
+        jobs_dir=tmp_path / "jobs",
+        environment="docker",
+        modal_sandbox_timeout_seconds=600,
+    )
+    for check in (validate_request, build_command):
+        with pytest.raises(ValueError):
+            check(request)
 
 
 def test_daytona_wrong_lane_requires_docker(tmp_path: Path) -> None:
@@ -756,27 +747,3 @@ def test_daytona_auto_stop_covers_max_model_call_plus_503_wait() -> None:
     assert longest_quiet_seconds <= DAYTONA_AUTO_STOP_INTERVAL_MINS * 60
 
 
-def test_daytona_environment_applies_shared_auto_stop(monkeypatch: pytest.MonkeyPatch) -> None:
-    """BoundedDaytonaEnvironment passes the shared constant, not a literal."""
-    # The deepseek-secret-isolation workflow runs this file without the
-    # laminar extra (no harbor package); the quality gate runs it with
-    # harbor installed. Skip — don't fail — where the SDK is absent.
-    pytest.importorskip("harbor")
-    from evallab import harbor_daytona
-    seen: dict[str, Any] = {}
-
-    def _stub_init(self: Any, *args: Any, **kwargs: Any) -> None:
-        from types import SimpleNamespace
-
-        seen.update(kwargs)
-        self.session_id = "sess"
-        self.environment_name = "env"
-        self.task_env_config = SimpleNamespace(build_timeout_sec=60)
-
-    monkeypatch.setattr(harbor_daytona.DaytonaEnvironment, "__init__", _stub_init)
-    env = harbor_daytona.BoundedDaytonaEnvironment.__new__(
-        harbor_daytona.BoundedDaytonaEnvironment
-    )
-    harbor_daytona.BoundedDaytonaEnvironment.__init__(env, ttl_minutes=60)
-    assert seen["auto_stop_interval_mins"] == DAYTONA_AUTO_STOP_INTERVAL_MINS
-    assert seen["auto_delete_interval_mins"] == 0

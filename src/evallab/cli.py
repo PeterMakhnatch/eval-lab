@@ -2353,6 +2353,8 @@ def _modal_billing_reconcile_command(
                 end.isoformat(),
                 "--resolution",
                 "d",
+                "--tag-names",
+                "*",
                 "--json",
             ]
         )

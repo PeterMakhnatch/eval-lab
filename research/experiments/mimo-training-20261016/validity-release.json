@@ -1,0 +1,81 @@
+{
+  "applied_at": "2026-10-16T06:44:45.803890+00:00",
+  "authority": "Research; explicit instructions relayed in this session",
+  "controls_status": "unproven; no paid control execution by this lane",
+  "directive": "freeze_ready=true; validity_check_allowed=true; keep scoring_allowed=false until Research dispositions the RH validity gate. 001425 uses plain v6. Controls remain unproven.",
+  "heldout_grading_targets": "All 33 currently bind plain v6@10, labelled v6-hardened, not test-repaired. Known-defect candidates still require Research validity disposition.",
+  "package_pairs": {
+    "bytes": 186912,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/package-pairs.csv",
+    "sha256": "d791a61a8b618818e69446ed525dd45b9fea3bb166fd78567bca3794c9f0f134"
+  },
+  "predecessor_heldout_manifest": {
+    "bytes": 1376,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
+    "sha256": "575b6b5e7f0df6d5e1400de9b686343016ce72c9d576edd1f355281ab16f09b2"
+  },
+  "predecessor_package_manifest": {
+    "bytes": 893603,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
+    "sha256": "938b1cf7312b5452f92ac931e11d12678b05467808964125f7407e64d0cf428f"
+  },
+  "reference_failure_exclusions": {
+    "active_train_and_heldout": "excluded",
+    "additional_evidence": "Research relayed independent Infra confirmation of 000838 own-reference failure; accepted as reported, no confirming rerun.",
+    "historical_training_exposure": "retained",
+    "tasks": [
+      "format-code-task-000838",
+      "format-code-task-001373"
+    ]
+  },
+  "schema": "mimo.validity-release/v1",
+  "schema_agreement": {
+    "evidence": [
+      {
+        "acknowledgement": "ACK of the manifest contract as written: bare MiMo source_ids, JSON heldout list[str], mimo.training-manifest/v1. Publish arms only with zero held-out overlap.",
+        "observed_lines": "461-469",
+        "role": "QA Trace",
+        "source": {
+          "bytes": 66433,
+          "path": "/Users/petermakhnatch/Developer/research-context/bridge/overnight-2026-10-15/qa-trace.md",
+          "sha256": "10e583da5e4511759de1810841c8885fe16496bec20bc414d9634ba7cffc243e"
+        }
+      },
+      {
+        "acknowledgement": "Accepts the contract as written; heldout is a list of bare IDs; scoring_allowed remains the exact JSON bool key; scorer independently rejects overlap with all 42 build tasks or A/B/C exports.",
+        "observed_lines": "121-140",
+        "role": "Trainer",
+        "source": {
+          "bytes": 22251,
+          "path": "/Users/petermakhnatch/Developer/research-context/bridge/overnight-2026-10-16/classifiers.md",
+          "sha256": "5ee61de01a62d17f0121626368d42616f17a5c6f3bf4b675c4c9a961d39d142b"
+        }
+      }
+    ],
+    "required_from": [
+      "QA Trace",
+      "Trainer"
+    ],
+    "status": "accepted"
+  },
+  "source_findings_succession": {
+    "completed_findings": 338,
+    "current": {
+      "bytes": 448914,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/findings-published.jsonl",
+      "sha256": "d032507ea621b3326d9e1baaa88f32808dd2f4ba68ced9c7fe37763e9894321b"
+    },
+    "disposition": "No reselection: all 33 frozen per-task evidence summaries remain identical. Source publication bytes changed outside those summaries.",
+    "heldout_evidence_changes": [],
+    "previous": {
+      "bytes": 398648,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/findings-published.jsonl",
+      "sha256": "2130e536b98d721549cc68454678e1478e66e9f5aa8917d54299a2ff28c499d6"
+    }
+  },
+  "split": {
+    "bytes": 264957,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/split.json",
+    "sha256": "3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da"
+  }
+}

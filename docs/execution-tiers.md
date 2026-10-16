@@ -75,6 +75,34 @@ Hub with all 1,476 baseline trials; its tasks follow the same classification
 rules. The exact dataset slug should be read off hub.harborframework.com
 before first use — do not guess it.
 
+## Modal Sandbox controls
+
+Modal launches pass `sandbox_timeout_secs` to Harbor rather than inheriting its
+24-hour provider lifetime. The default is the request's trial watchdog (agent
+timeout plus the 600-second phase allowance). An explicit
+`RunRequest.modal_sandbox_timeout_seconds` may tighten that deadline, but must
+be a positive integer no greater than the watchdog and is refused on other
+backends. The separate verifier inherits the same runtime environment kwargs.
+A provider deadline that interrupts a control is incomplete infrastructure
+evidence, not proof that the reference fix is wrong.
+
+Census `limit` resource enforcement preserves the task's declared CPU and RAM
+ceilings. It supports the `mimo-clean-census` billing app and safe dedicated
+`mimo-clean-census-*` names, allowing exact campaign ownership without changing
+or stopping a shared app. Modal CPU values are physical cores; do not call two
+physical cores two vCPUs. Census cells pass the manifest's full package digest
+into immutable-input staging, so changed source bytes are refused before
+backend execution. Explicit campaign billing tags also survive run provenance.
+
+These are resource, ownership, and input-identity controls, **not an account
+dollar kill switch**. `allow_billable` records consent, and the legacy census
+batch estimate does not reserve direct-run spend across workers. Sandbox TTL
+does not bound image preparation before allocation or unobserved network
+egress; missing or delayed billing is not settled zero. A funded campaign must
+still account for those costs and other live allocations within its approved
+cap. See the [MiMo v6 readiness receipt](../research/experiments/mimo-clean-v6/README.md#modal-x1-continuation-2026-10-15-not-run)
+for the deliberately unlaunched hard-cap case.
+
 ## Running locally (free)
 
 Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:

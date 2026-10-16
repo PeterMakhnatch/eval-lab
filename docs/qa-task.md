@@ -79,6 +79,43 @@ Every trial writes `agent/oracle.txt`, `verifier/test-stdout.txt` and
 `result.json` under its trial directory; those are the grader outputs fed back
 to the shortcut agent on the next attempt.
 
+### Patch-oracle packages (raw MiMo code tasks)
+
+A package with no `solution/solve.sh` whose `task.toml` declares
+`[environment].workdir` is run through the same flow with three additions. They
+change nothing for a package that has its own `solution/solve.sh` and declares no
+healthcheck.
+
+- **Healthcheck first.** `[environment.healthcheck]` runs in the started container
+  before the oracle, a shortcut, the verifier or the leak probe (`retries + 1`
+  attempts, `timeout_sec` each). For MiMo it is the one-time setup that writes
+  `/var/lib/mimo/base`, which `tests/test.sh` needs; without it no reward exists. A
+  healthcheck that never exits 0 leaves the trial `failed` (unmeasured), never a
+  pass. A package whose healthcheck waits on a service the backend does not start
+  (it runs `sleep infinity`) is therefore unmeasured too.
+- **Patch oracle.** `--ref-patch` (or `solution/patch.diff`) is the oracle. The
+  backend stages `/solution/reference.patch` and a `solve.sh` that applies it in
+  `workdir` (`git apply`, then forward-only `patch -N`; a patch neither accepts
+  exits nonzero and the trial is unmeasured). The staging directory is outside the
+  package, so the package digest a report binds to is untouched, and the patch
+  sha256 is recorded in `facts.oracle` of every control. Without a patch the
+  oracle trial fails with that reason.
+- **Replay in the workdir.** An S3 `patch` reproducer applies in `workdir` for such
+  packages instead of `/` or `/app`.
+- **Subject id.** The resolver strips the namespace from `[task].name`; `run_task`
+  restores the package's own (`mimo-v2.6-rl/<id>`, `terminal-bench/<id>`) so a
+  finding binds to its key. A package with no namespaced name keeps the TB2
+  fallback (`terminal-bench/<id>` when the directory is the id, otherwise bare).
+
+Not covered: the S2a shortcut agent's submission formats assume `/app` and the S2c
+mutation hunt needs `solution/solve.sh`; neither is validated on patch-oracle
+packages. The leak probe is unchanged and often stays `unknown` on MiMo images: a
+dangling `refs/remotes/origin/HEAD` makes `git fsck` exit 2, so the unreachable-commit
+count is unknown even though the base commit and refs are read (measured on
+`format-code-task-001809`). Use `--no-model` for a deterministic audit (S0 controls,
+leak, ref-subset, S3 replay of an `--evidence` candidate or of its own ref-subset
+finding).
+
 ### Findings vs signals
 
 Every `qa.finding/v1` requires a non-null `reproducer`
@@ -136,7 +173,8 @@ Options: `--task`, `--key`, `--split {dev,heldout}`, `--item`,
 `--packages-root`, `--run-dir`, `--stages` (default `S0,S1,S2,S3`),
 `--trial-timeout` (default 1800), `--rubric`, `--model` (default
 `codex/gpt-6-luna`), `--no-model`, `--mutants`, `--evidence`, `--triplet`,
-and `--ref-patch` (reference patch for ref-subset on raw MiMo packages).
+and `--ref-patch` (the reference patch: ref-subset's reference and, for a package
+with no `solution/solve.sh`, the oracle; see "Patch-oracle packages").
 
 Run directories are fresh and immutable (an existing `--run-dir` is an error)
 and must live inside the checkout. Layout: `run.json`, `summary.json`,

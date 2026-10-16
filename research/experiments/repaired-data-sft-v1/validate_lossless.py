@@ -43,9 +43,18 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
     tok = sft.get_tokenizer()
+    source_bytes = args.source.read_bytes()
     source = {
         r["execution_id"]: r
-        for r in (json.loads(line) for line in args.source.read_text().splitlines() if line.strip())
+        for r in (json.loads(line) for line in source_bytes.decode().splitlines() if line.strip())
+    }
+    # Raw hashes come from the parsed source lines before any helper touches them.
+    raw_hashes = {
+        key: (
+            sha(json.dumps(row["messages"], sort_keys=True).encode()),
+            sha(json.dumps(row.get("tools"), sort_keys=True).encode()),
+        )
+        for key, row in source.items()
     }
     export = sft.verify_export(args.export)
     provenance = [
@@ -84,20 +93,29 @@ def main() -> int:
             fields_checked += 1
             if prov.get(field) != value:
                 failures.append(f"{key}: field {field} differs")
-        if prov["source_messages_sha256"] != sha(
-            json.dumps(row["messages"], sort_keys=True).encode()
-        ):
+        if prov["source_messages_sha256"] != raw_hashes[key][0]:
             failures.append(f"{key}: messages sha256 differs")
-        if prov["source_tools_sha256"] != sha(
-            json.dumps(row.get("tools"), sort_keys=True).encode()
-        ):
+        if prov["source_tools_sha256"] != raw_hashes[key][1]:
             failures.append(f"{key}: tools sha256 differs")
+    unchanged = [
+        key
+        for key, row in source.items()
+        if sha(json.dumps(row["messages"], sort_keys=True).encode()) == raw_hashes[key][0]
+    ]
+    if len(unchanged) != len(source):
+        failures.append(f"{len(source) - len(unchanged)} source rows were mutated during the check")
     missing = sorted(set(source) - seen)
     if missing:
         failures.append(f"{len(missing)} source rows missing from export: {missing[:3]}")
     receipt = {
         "source": str(args.source),
-        "source_sha256": sha(args.source.read_bytes()),
+        "source_sha256": sha(source_bytes),
+        "source_sha256_after": sha(args.source.read_bytes()),
+        "source_messages_hash_match": sum(
+            1
+            for p in provenance
+            if raw_hashes.get(p["execution_id"], (None,))[0] == p["source_messages_sha256"]
+        ),
         "export": str(args.export),
         "export_conversations_sha256": export.conversations_sha256,
         "rows_in": len(source),

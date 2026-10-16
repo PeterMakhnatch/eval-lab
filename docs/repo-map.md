@@ -561,7 +561,7 @@ inputs:
   - path: src/evallab/results.py
     digest: sha256:4ba7d3de34e765fc5f9f1cc8e8b8cccfb4cab3503abbcab50eeecc6a66fb171d
   - path: src/evallab/results_home.py
-    digest: sha256:bba6f44c622a2f664713d11b1317514b624f5fa765e4f988ab2456ef721e2002
+    digest: sha256:df1ea48615683ee26c823e99dfb1f075212e1c2db24de65a8856065d25222d2d
   - path: src/evallab/results_viewer.py
     digest: sha256:b3129b0ca38805d8e085e1be6f3ffc3a8dbb14581341972f9493e3745225dd05
   - path: src/evallab/reward_hack.py

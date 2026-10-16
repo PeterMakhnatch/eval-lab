@@ -82,6 +82,12 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
   `--attempts` (the authorized schedule is 2) and are printed as `planned_attempts`. An
   observed subset is never presented as a full 33-task result, and missing slots are
   never imputed.
+- every headline row must be a distinct cell of the authorized schedule: held-out task
+  x attempt 1..`--attempts`, read from the trial name's `-a<N>` suffix. A row on an
+  unauthorized cell (such as a3 under a 2-attempt schedule) or a second row on the same
+  cell makes the scorer refuse with exit 2. Rows are never filtered or clamped, so
+  measured attempts can't exceed planned ones, and a missing a2 plus an extra a3 can't
+  pass as complete.
 - exact Clopper–Pearson 95% intervals over measured attempts. They ignore within-task
   correlation between attempts, are not cluster-adjusted, and are not intervals for any
   difference between arms.
@@ -183,13 +189,43 @@ def exact_sign_p(wins: int, losses: int) -> Fraction | None:
 Trials = dict[str, list[tuple[str, bool | None]]]
 
 
+def validate_cells(by_task: Trials, heldout: list[str], planned_attempts: int) -> None:
+    """Refuse unless every row is a distinct cell of the authorized schedule.
+
+    The schedule is held-out task x attempt 1..planned_attempts. A row on a task outside
+    it, a row on a later attempt (e.g. a3 under a 2-attempt schedule) and a second row on
+    the same task-attempt cell are all invalid. They raise, and are never clamped or
+    silently filtered, so a run with an extra a3 and a missing a2 cannot pass as complete.
+    """
+    authorized = set(heldout)
+    seen: set[tuple[str, int]] = set()
+    unauthorized: list[str] = []
+    duplicate: list[str] = []
+    for task, items in by_task.items():
+        for name, _ in items:
+            attempt = attempt_of(name)
+            if task not in authorized or not 1 <= attempt <= planned_attempts:
+                unauthorized.append(f"{task}:a{attempt}")
+            elif (task, attempt) in seen:
+                duplicate.append(f"{task}:a{attempt}")
+            seen.add((task, attempt))
+    if unauthorized or duplicate:
+        raise ValueError(
+            f"cells outside the authorized {len(heldout)}-task x attempts 1..{planned_attempts} "
+            f"schedule: unauthorized {sorted(unauthorized)}, duplicate {sorted(duplicate)}"
+        )
+
+
 def arm_coverage(by_task: Trials, heldout: list[str], planned_attempts: int) -> dict[str, Any]:
     """Solve rate with explicit observed-subset coverage for one arm.
 
-    Missing slots (task-attempts with no row) and errored rows are both unmeasured, never
-    imputed. `solve_coverage` is `complete` only when every planned task-attempt was
-    measured, `observed_subset` when some were, and `unmeasured` when none were.
+    Rows must be distinct cells of the authorized schedule (`validate_cells`), so
+    measured attempts never exceed planned ones. Missing slots (cells with no row) and
+    errored rows are both unmeasured, never imputed. `solve_coverage` is `complete` only
+    when every authorized cell was measured, `observed_subset` when some were, and
+    `unmeasured` when none were.
     """
+    validate_cells(by_task, heldout, planned_attempts)
     present = [v for t in heldout for _, v in by_task.get(t, [])]
     measured = [v for v in present if v is not None]
     rates = {
@@ -209,7 +245,7 @@ def arm_coverage(by_task: Trials, heldout: list[str], planned_attempts: int) -> 
         "solve_coverage": coverage,
         "planned_slots": planned,
         "present_rows": len(present),
-        "missing_rows": max(planned - len(present), 0),
+        "missing_rows": planned - len(present),
         "error_rows": len(present) - len(measured),
         "measured_tasks": f"{len(rates)}/{len(heldout)}",
         "measured_attempts": f"{len(measured)}/{planned}",
@@ -224,14 +260,21 @@ def arm_coverage(by_task: Trials, heldout: list[str], planned_attempts: int) -> 
 
 
 def paired_comparison(
-    left: Trials, right: Trials, heldout: list[str], names: tuple[str, str]
+    left: Trials,
+    right: Trials,
+    heldout: list[str],
+    names: tuple[str, str],
+    planned_attempts: int,
 ) -> dict[str, Any]:
     """Task-level paired comparison on the common measured-task cohort.
 
     Each task is weighted equally by its observed per-arm solve rate; the sign test counts
     task wins and losses, discarding ties. With no common measured task the comparison is
-    `unmeasured` (difference and p null). All-tied observed tasks give p = 1.
+    `unmeasured` (difference and p null). All-tied observed tasks give p = 1. Both arms
+    must hold only distinct authorized cells (`validate_cells`).
     """
+    validate_cells(left, heldout, planned_attempts)
+    validate_cells(right, heldout, planned_attempts)
     ln, rn = names
 
     def rate(items: list[tuple[str, bool | None]]) -> tuple[float, int] | None:
@@ -544,6 +587,12 @@ def main() -> int:
 
     heldout_ids = sorted(heldout)
     planned_attempts = args.attempts
+    for name, by_task in arms.items():
+        try:
+            validate_cells(by_task, heldout_ids, planned_attempts)
+        except ValueError as exc:
+            print(f"REFUSED: arm {name}: {exc}", file=sys.stderr)
+            return 2
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
         "planned_attempts": planned_attempts,
@@ -596,7 +645,7 @@ def main() -> int:
         if left not in arms or right not in arms:
             continue
         report["paired"][f"{left}_vs_{right}"] = paired_comparison(
-            arms[left], arms[right], heldout_ids, (left, right)
+            arms[left], arms[right], heldout_ids, (left, right), planned_attempts
         )
     if "B_vs_C" in report["paired"]:
         b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))

@@ -6,20 +6,27 @@ Regression for the Verifier's 2026-10-16 offline uncertainty check (research-con
 - zero common tasks printed p = 1;
 - tiny p-values were rounded to 0.0.
 Expected values are the Verifier's independent calculations.
+
+Its follow-up check added two cell-membership fixtures on the authorized 33-task x {1,2}
+schedule. An extra a3 reported 67/66 measured attempts, and a missing a2 plus an extra
+a3 reported a false complete 66/66. Both must now be refused.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import runpy
+import subprocess
+import sys
 from fractions import Fraction
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ANALYZE = runpy.run_path(
-    str(REPO_ROOT / "research" / "experiments" / "repaired-data-sft-v1" / "analyze.py")
-)
+SCORER = REPO_ROOT / "research" / "experiments" / "repaired-data-sft-v1" / "analyze.py"
+ANALYZE = runpy.run_path(str(SCORER))
 coverage = ANALYZE["arm_coverage"]
 paired = ANALYZE["paired_comparison"]
 incorrect_pass = ANALYZE["incorrect_pass_summary"]
@@ -121,8 +128,111 @@ def _run(case: str) -> tuple[dict, dict, dict]:
     return (
         coverage(b, TASKS, attempts),
         coverage(c, TASKS, attempts),
-        paired(b, c, TASKS, ("B", "C")),
+        paired(b, c, TASKS, ("B", "C"), attempts),
     )
+
+
+def _full(value: bool = True) -> dict[str, list[tuple[str, bool | None]]]:
+    return _trials("B", {t: [value, value] for t in TASKS})
+
+
+def _extra_a3() -> dict[str, list[tuple[str, bool | None]]]:
+    trials = _full()
+    trials[TASKS[0]].append((f"synthetic-B-{TASKS[0]}-a3", True))
+    return trials
+
+
+def _missing_a2_extra_a3() -> dict[str, list[tuple[str, bool | None]]]:
+    trials = _full()
+    trials[TASKS[0]] = [(f"synthetic-B-{TASKS[0]}-a1", True), (f"synthetic-B-{TASKS[0]}-a3", True)]
+    return trials
+
+
+def _duplicate_a1() -> dict[str, list[tuple[str, bool | None]]]:
+    trials = _full()
+    trials[TASKS[0]].append((f"synthetic-B-{TASKS[0]}-a1", False))
+    return trials
+
+
+def _unauthorized_task() -> dict[str, list[tuple[str, bool | None]]]:
+    trials = _full()
+    trials["synthetic-task-999"] = [("synthetic-B-synthetic-task-999-a1", True)]
+    return trials
+
+
+INVALID = {
+    "extra_a3": _extra_a3,  # was 67/66
+    "missing_a2_extra_a3": _missing_a2_extra_a3,  # was a false complete 66/66
+    "duplicate_a1": _duplicate_a1,
+    "unauthorized_task": _unauthorized_task,
+}
+
+
+def test_full_authorized_schedule_is_complete() -> None:
+    out = coverage(_full(), TASKS, 2)
+    assert out["solve_coverage"] == "complete"
+    assert (out["measured_attempts"], out["missing_task_attempts"]) == ("66/66", 0)
+
+
+@pytest.mark.parametrize("case", sorted(INVALID))
+def test_cells_outside_the_schedule_are_refused(case: str) -> None:
+    trials = INVALID[case]()
+    with pytest.raises(ValueError, match="authorized 33-task x attempts 1..2"):
+        coverage(trials, TASKS, 2)
+    with pytest.raises(ValueError, match="authorized"):
+        paired(trials, _full(False), TASKS, ("B", "C"), 2)
+    with pytest.raises(ValueError, match="authorized"):
+        paired(_full(False), trials, TASKS, ("B", "C"), 2)
+
+
+def _cli(
+    tmp_path: Path, b_trials: dict[str, list[tuple[str, bool | None]]]
+) -> subprocess.CompletedProcess:
+    digest = {t: hashlib.sha256(t.encode()).hexdigest() for t in TASKS}
+    (tmp_path / "heldout.json").write_text(json.dumps({"scoring_allowed": True, "heldout": TASKS}))
+    (tmp_path / "exports.json").write_text(
+        json.dumps({"source_manifest": {"tasks": ["training-only"]}, "arms": {}})
+    )
+    (tmp_path / "package-pairs.csv").write_text(
+        "task_id,v6_package_digest\n" + "".join(f"{t},sha256:{digest[t]}\n" for t in TASKS)
+    )
+    receipt = {
+        "remote": {
+            "train_rows": 17,
+            "trained_tokens": 100,
+            "parameter_update": {"optimizer_steps": 20},
+        },
+        "train": {"sft": {"num_epochs": 4}},
+    }
+    (tmp_path / "receipt.json").write_text(json.dumps(receipt))
+    command = [sys.executable, str(SCORER), "--attempts", "2", "--out", str(tmp_path / "out.json")]
+    for flag in ("heldout", "exports", "package-pairs"):
+        suffix = ".csv" if flag == "package-pairs" else ".json"
+        command += [f"--{flag}", str(tmp_path / f"{flag}{suffix}")]
+    for arm, trials in (("B", b_trials), ("C", _full(False))):
+        rows = [
+            {"task": f"/store/fixture__{t}/{digest.get(t, '0' * 12)[:12]}", "name": n, "passed": v}
+            for t, items in trials.items()
+            for n, v in items
+        ]
+        (tmp_path / f"{arm}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+        command += ["--arm", f"{arm}={tmp_path / f'{arm}.jsonl'}"]
+        command += ["--receipt", f"{arm}={tmp_path / 'receipt.json'}"]
+    return subprocess.run(command, capture_output=True, text=True, timeout=60)
+
+
+def test_cli_refuses_the_verifier_cell_fixtures_without_a_report(tmp_path: Path) -> None:
+    ok = _cli(tmp_path, _full())
+    assert ok.returncode == 0, ok.stderr
+    assert (
+        json.loads((tmp_path / "out.json").read_text())["arms"]["B"]["solve_coverage"] == "complete"
+    )
+    for case in ("extra_a3", "missing_a2_extra_a3"):
+        (tmp_path / "out.json").unlink(missing_ok=True)
+        run = _cli(tmp_path, INVALID[case]())
+        assert run.returncode == 2, case
+        assert "REFUSED: arm B" in run.stderr and "a3" in run.stderr
+        assert not (tmp_path / "out.json").exists()
 
 
 @pytest.mark.parametrize("case", sorted(EXPECTED_B))

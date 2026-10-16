@@ -205,6 +205,160 @@ def test_selfhosted_specs_carry_profile_lock_and_deviations(
     }
     assert spec.name.endswith("-a1") and captured[1].name.endswith("-a2")
 
+
+def _capture_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
+    import evallab.queue as queue_module
+
+    captured: list = []
+
+    class FakeQueue:
+        def approve(self, spec_id: str, *, actor: str) -> None:
+            pass
+
+        def locate(self, spec_id: str) -> Path:
+            return tmp_path / "done" / "spec.json"
+
+    class FakeExecutor:
+        queue = FakeQueue()
+
+        @classmethod
+        def from_repo(cls, root: Path, **kwargs: object) -> FakeExecutor:
+            return cls()
+
+        def submit(self, spec: object) -> None:
+            captured.append(spec)
+
+        def tick(self, **kwargs: object) -> int:
+            return 0
+
+    monkeypatch.setattr(queue_module, "Executor", FakeExecutor)
+    return captured
+
+
+def _lineage_repo(tmp_path: Path) -> tuple[Path, Path]:
+    """Fixture repo whose ledger + scoped record admit one variant package."""
+    import shutil
+
+    import yaml
+
+    from evallab.registry import compute_task_digests
+    from evallab.setup_fingerprint import resolve_repo_root
+    from evallab.task_variants import append_status_evidence, derive_task
+
+    real_root = resolve_repo_root(None, Path(__file__))
+    root = tmp_path / "repo"
+    profiles = root / "research" / "setup-profiles"
+    profiles.mkdir(parents=True)
+    shutil.copy(
+        real_root / "research/setup-profiles/xiaomi-mimo-rl.yaml",
+        profiles / "xiaomi-mimo-rl.yaml",
+    )
+    serve = root / "tools" / "modal-mimo-serve"
+    serve.mkdir(parents=True)
+    shutil.copy(real_root / "tools/modal-mimo-serve/serve.py", serve / "serve.py")
+    tree = root / "tools" / "mimoagent-harbor"
+    tree.mkdir(parents=True)
+    shutil.copy(real_root / "tools/mimoagent-harbor/swe.yaml", tree / "swe.yaml")
+    marker = root / "src" / "evallab"
+    marker.mkdir(parents=True)
+    (marker / "mimo_tool_calls.py").write_text("# fixture presence marker\n")
+    parent = root / "tasks" / "format-code-task-900001"
+    parent.mkdir(parents=True)
+    (parent / "task.toml").write_text(
+        '[task]\nname = "mimo-v2.6-rl/format-code-task-900001"\n\n'
+        '[agent]\nnetwork_mode = "no-network"\n'
+    )
+    digest = compute_task_digests(parent).package
+    ledger = root / "research" / "experiments" / "python-task-ledger"
+    ledger.mkdir(parents=True)
+    header = (
+        "task_id,split,project,image_mib,status,reason,run,run_digest,"
+        "run_transform,run_variant_status,census_label,census_nop_job,"
+        "census_evidence,leak_channel,evidence"
+    )
+    (ledger / "ledger.csv").write_text(
+        header
+        + "\nformat-code-task-900001,train,fixture,100,usable,fixture sound,"
+        + f"original,{digest},,,sound,fp-test-job,fixture evidence,none_found,"
+        + "fixture-evidence\n"
+    )
+    record = derive_task(
+        parent,
+        changes={"tests/integrity/probe.py": b'"""rollout task-id probe"""\n'},
+        transform="separate-verifier@10",
+        rationale="rollout task-id regression",
+        created_by="test",
+        parent_source={"kind": "local", "path": str(parent)},
+        repo_root=root,
+        variants_root=tmp_path / "variants-store",
+    )
+    record = append_status_evidence(
+        record, "validated", evidence="locked nop sound", by="test", repo_root=root
+    )
+    profile_path = profiles / "xiaomi-mimo-rl.yaml"
+    profile = yaml.safe_load(profile_path.read_text())
+    profile["campaign_lineage"]["headline"]["package_digests"].append(record.variant_digest)
+    profile_path.write_text(yaml.safe_dump(profile))
+    package = tmp_path / "variants-store" / record.task_slug / record.digest12
+    dest = root / "variant-tasks" / "format-code-task-900001"
+    shutil.copytree(package, dest)
+    return root, dest
+
+
+def _built_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, root: Path, package: Path):
+    from evallab import rollout
+
+    captured = _capture_executor(tmp_path, monkeypatch)
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal")
+    rollout.run_rollout(
+        [package],
+        model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b",
+        agent="mimoagent",
+        concurrency=1,
+        attempts=1,
+        out_dir=root / "out",
+        root=root,
+        actor="research-harbor",
+        cost_limit_usd=1.00,
+    )
+    assert len(captured) == 1
+    return captured[0]
+
+
+def test_run_rollout_spec_admits_against_existing_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.execution_contracts import validate_request
+    from evallab.queue import Executor
+
+    root, package = _lineage_repo(tmp_path)
+    spec = _built_spec(tmp_path, monkeypatch, root, package)
+    assert spec.task_id == "format-code-task-900001"
+    request = Executor.prepare_request(
+        spec, repo_root=root, lease_path=root / "queue" / "lease", lease_generation=None
+    )
+    validate_request(request, repo_root=root)
+
+
+def test_run_rollout_spec_refuses_when_declared_id_mismatches_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.execution_contracts import validate_request
+    from evallab.queue import Executor
+
+    root, package = _lineage_repo(tmp_path)
+    toml = package / "task.toml"
+    toml.write_text(
+        toml.read_text().replace("format-code-task-900001", "format-code-task-900099")
+    )
+    spec = _built_spec(tmp_path, monkeypatch, root, package)
+    assert spec.task_id == "format-code-task-900099"
+    request = Executor.prepare_request(
+        spec, repo_root=root, lease_path=root / "queue" / "lease", lease_generation=None
+    )
+    with pytest.raises(ValueError, match="no variant record|outside the ledger"):
+        validate_request(request, repo_root=root)
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"

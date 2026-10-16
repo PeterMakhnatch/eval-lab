@@ -118,10 +118,26 @@ def _trial_reward(job_dir: Path) -> float | None:
             data = json.loads(result_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        rewards = data.get("verifier_result", {}).get("rewards", {})
-        reward = rewards.get("reward")
+        verifier_result = data.get("verifier_result") or {}
+        rewards = verifier_result.get("rewards") or {}
         if isinstance(reward, (int, float)):
             return float(reward)
+    return None
+
+
+def _trial_error(job_dir: Path) -> str | None:
+    """The trial's recorded exception, when its result carries one."""
+    for result_path in sorted(job_dir.rglob("result.json")):
+        if result_path.parent == job_dir:
+            continue
+        try:
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        exc = data.get("exception_info") if isinstance(data, dict) else None
+        if exc:
+            kind = exc.get("exception_type") or exc.get("type") if isinstance(exc, dict) else None
+            return f"trial exception: {kind or 'unknown'}"
     return None
 
 
@@ -129,6 +145,10 @@ def _outcome(
     task: Path, name: str, job_dir: Path, wall_seconds: float, error: str | None
 ) -> TrialOutcome:
     reward = _trial_reward(job_dir) if error is None else None
+    if error is None and reward is None:
+        # A trial that died before grading has no reward; record its
+        # exception so the row is an explicit error, never a silent pass.
+        error = _trial_error(job_dir)
     sandbox_seconds: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None

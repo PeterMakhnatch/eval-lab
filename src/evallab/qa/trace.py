@@ -2276,6 +2276,7 @@ def regrade_passes(
     repairs: Sequence[Path] = (),
     grader_manifest: Path | None = None,
     workers: int = 2,
+    environment: str = "docker",
     log: Callable[[str], None] = print,
 ) -> list[dict[str, Any]]:
     """Counterfactual regrade of each subject's recorded pass against its task's
@@ -2315,6 +2316,7 @@ def regrade_passes(
             shells[grader.task_name],
             counterfactual_root() / "controls" / slot,
             repo_root=repo,
+            environment=environment,
         )
 
     every = {g.label: g for task_graders in graders.values() for g in task_graders}
@@ -2340,7 +2342,13 @@ def regrade_passes(
             or observed.get("outcome") == "refused"
         ):
             observed = {
-                **cf.replay(trial, grader, out / "work" / blind / slot, repo_root=repo),
+                **cf.replay(
+                    trial,
+                    grader,
+                    out / "work" / blind / slot,
+                    repo_root=repo,
+                    environment=environment,
+                ),
                 **identity,
             }
             _write_json(cache, observed)
@@ -2536,6 +2544,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             repairs=args.repairs,
             grader_manifest=args.grader_manifest,
             workers=args.workers,
+            environment=args.environment,
             log=lambda m: print(m, file=sys.stderr),
         )
         _write_json(
@@ -2665,7 +2674,8 @@ def add_trace_commands(sub: Any) -> None:
     p = commands.add_parser(
         "regrade",
         help="replay recorded passes against each task's newer graders (mimo-clean-v6, "
-        "verifier-repair@*); reports which passes flip and which stay (local Docker, $0)",
+        "verifier-repair@*); reports which passes flip and which stay "
+        "(local Docker by default; --environment daytona for cloud)",
     )
     _key(p, required=False)
     p.add_argument(
@@ -2678,7 +2688,13 @@ def add_trace_commands(sub: Any) -> None:
         "--workers",
         type=int,
         default=2,
-        help="queued replay workers (native executions are serialized)",
+        help="queued replay workers (local Docker runs one at a time; Daytona runs concurrently)",
+    )
+    p.add_argument(
+        "--environment",
+        choices=("docker", "daytona"),
+        default="docker",
+        help="execution backend for controls and replays (daytona is paid and admission-guarded)",
     )
     p.set_defaults(func=_cmd)
     p = commands.add_parser(

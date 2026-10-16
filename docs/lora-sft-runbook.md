@@ -62,6 +62,14 @@ For a complete, evidenced app/window ownership receipt, a day report may use
 this explicit report-only binding neither rewrites provider bills nor grants
 spending approval. Never apply it from an app/model name alone.
 
+Modal reconciliation requests all provider billing tags and retains them in
+`modal_billing_rows.tags` (JSONB). An explicit campaign tag is queryable with,
+for example, `tags ->> 'spend_tag' = '2026-10-15'`. These are provider labels,
+not inferred Linear-card bindings or new spending permission. A legacy or
+partial untagged refresh does not erase already observed labels. A tagged
+census batch receipt is not a second dollar entry: do not also write its
+Modal actuals to the generic model-call `spend.jsonl` ledger.
+
 ## 1. Data
 
 - **Input** is an `evallab.sft_terminus/1` export: a directory with `conversations.jsonl` and `manifest.json`, which carries `conversations_sha256`. Training refuses anything else.

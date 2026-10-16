@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "status": "not-run:total-cost-admission-unproven",
+  "recorded_at": "2026-10-16T04:22:55.143824+00:00",
+  "approval": {
+    "spend_tag": "2026-10-15",
+    "lane_cap_usd": 12,
+    "shared_cap_usd": 20,
+    "checks": [
+      "oracle",
+      "nop"
+    ],
+    "verifier_repetitions": 1,
+    "source": "Peter approval relayed by Research, 2026-10-15"
+  },
+  "source_revision": "eff5b0d300d35f162aeb9ebcb26b4c976dd21513",
+  "source_sha256": {
+    "manifest.csv": "2333f79ad19780ebc9d185cc2f4b6642de84571e70007a7d3a141917cfeee1f9",
+    "selection.json": "16217207ae39199fcd7ba4fa25c8c15f1d1d95c16e3a44b3428154fe889ce159",
+    "pending-controls.json": "d369b10a52afedcdb77084c361ed19636602239c5f2ff45532008e7bd966e5b4"
+  },
+  "input_check_csv": "modal-input-check.csv",
+  "input_check_csv_sha256": "89c17edb65816e748f846047315de2b52a2c4876238755b5243ca670f6513acc",
+  "counts": {
+    "manifest_rows": 2698,
+    "python_rows": 1180,
+    "python_built": 1148,
+    "python_skipped": 32,
+    "python_reference_present": 428,
+    "original99_python": 87,
+    "original99_reference_present": 85,
+    "original99_ready": 85,
+    "fleet_ready": 1145,
+    "physical_digest_mismatches": 0
+  },
+  "original_python_controls": {
+    "tasks": 85,
+    "oracle_cells": 83,
+    "nop_cells": 85
+  },
+  "fleet_python_controls": {
+    "tasks": 1145,
+    "oracle_cells": 426,
+    "nop_cells": 1145
+  },
+  "input_gaps": {},
+  "control_holds": {
+    "format-code-task-000792": "Manual case-evidence binding required: runner=custom rc=8, with Django unittest summaries in existing immutable output. Do not rerun identical controls just to recover counting.",
+    "format-code-task-000803": "historical #891 prompt-misaligned exclusion; not automatically queued",
+    "format-code-task-000838": "historical #891 prompt-misaligned exclusion; not automatically queued"
+  },
+  "native_consumer_smoke": {
+    "kind": "offline-native-Harbor-constructor-smoke",
+    "results": [
+      {
+        "case": "baseline",
+        "native_sandbox_timeout_seconds": 86400,
+        "cpu_limit": [
+          0.125,
+          2
+        ],
+        "memory_limit_mib": [
+          128,
+          8192
+        ],
+        "provider_objects_created": false
+      },
+      {
+        "case": "bounded-default",
+        "native_sandbox_timeout_seconds": 1500,
+        "cpu_limit": [
+          0.125,
+          2
+        ],
+        "memory_limit_mib": [
+          128,
+          8192
+        ],
+        "provider_objects_created": false
+      },
+      {
+        "case": "bounded-explicit",
+        "native_sandbox_timeout_seconds": 600,
+        "cpu_limit": [
+          0.125,
+          2
+        ],
+        "memory_limit_mib": [
+          128,
+          8192
+        ],
+        "provider_objects_created": false
+      }
+    ],
+    "paid_calls": 0,
+    "docker_containers": 0,
+    "limit": "Provider termination and task control outcomes were not exercised."
+  },
+  "provider_budget_probe": {
+    "operation": "EnvironmentGetBudget",
+    "error_type": "PermissionDeniedError",
+    "message": "Environment budgets are not enabled for this workspace",
+    "configuration_changed": false,
+    "zero_list_fields_are_not_a_zero_dollar_limit": true
+  },
+  "paid_trials_started": 0,
+  "paid_spend_usd": 0,
+  "measured_cost_per_task_usd": null,
+  "remaining_prerequisite": "A usable total-cost admission contract covering provisioning and egress as well as bounded Sandbox compute; the authorized cap has not been relaxed.",
+  "verification": {
+    "focused_files": [
+      "tests/test_execution_contracts.py",
+      "tests/test_mimo_census.py",
+      "tests/test_modal_billing.py",
+      "tests/test_spend_check.py"
+    ],
+    "focused_result": "passed",
+    "digest_binding_regression": {
+      "baseline_revision": "eff5b0d30",
+      "before": "changed source reached backend dispatch",
+      "after": "refused before staging/backend dispatch"
+    },
+    "temporary_postgresql_smoke": {
+      "cases": 7,
+      "result": "passed",
+      "shared_catalog_modified": false,
+      "disposable_databases": true,
+      "suite_policy": "host-dependent PostgreSQL cases retained only as temporary smoke, not permanent tests"
+    }
+  }
+}

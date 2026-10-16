@@ -1181,6 +1181,10 @@ def run_cell(
     attacks: str | None = None,
     egress_lock: bool | None = None,
     modal_resource_policy: str | None = None,
+    modal_app_name: str | None = None,
+    modal_sandbox_timeout_seconds: int | None = None,
+    spend_tag: str | None = None,
+    expected_digest: str | None = None,
     root: Path,
 ) -> Path:
     """Run one census cell through Harbor; return the job dir.
@@ -1197,6 +1201,7 @@ def run_cell(
     from evallab.cheat import _CHEAT_ENV_LOCK
     from evallab.execution_contracts import CHEAT_ATTACKS_ENV_VAR, RunRequest
     from evallab.queue import Executor
+    from evallab.schemas import RunProvenance
 
     if backend not in BACKENDS:
         raise ValueError(f"unknown backend {backend!r}; expected one of {BACKENDS}")
@@ -1207,6 +1212,8 @@ def run_cell(
         )
     if modal_resource_policy is not None and backend != "modal":
         raise ValueError("modal_resource_policy requires the Modal backend")
+    if modal_app_name is not None and backend != "modal":
+        raise ValueError("modal_app_name requires the Modal backend")
     request_kwargs: dict[str, Any] = {
         "task": package,
         "agent": agent,
@@ -1220,10 +1227,20 @@ def run_cell(
         "allow_billable": backend != "docker",
         "egress_lock": egress_lock,
         "modal_resource_policy": modal_resource_policy,
+        "modal_sandbox_timeout_seconds": modal_sandbox_timeout_seconds,
     }
+    if expected_digest is not None or spend_tag is not None:
+        request_kwargs["provenance"] = RunProvenance(
+            spec_id=name,
+            task=str(package),
+            task_path=str(package),
+            package_digest=expected_digest,
+            spend_tag=spend_tag,
+        )
     if backend == "modal":
-        # Exact-slice billing attribution (approved narrow app_name).
-        request_kwargs["modal_app_name"] = MODAL_CENSUS_APP_NAME
+        request_kwargs["modal_app_name"] = (
+            MODAL_CENSUS_APP_NAME if modal_app_name is None else modal_app_name
+        )
     request = RunRequest(**request_kwargs)
     if attacks is None:
         return Executor.from_repo(root).execute_direct(request)
@@ -1250,6 +1267,9 @@ def census_task(
     root: Path,
     checks: Collection[str] = GRADING_CHECKS,
     modal_resource_policy: str | None = None,
+    modal_app_name: str | None = None,
+    modal_sandbox_timeout_seconds: int | None = None,
+    spend_tag: str | None = None,
 ) -> dict[str, Any]:
     """Run selected grading cells for one manifest row; return partial results.
 
@@ -1310,6 +1330,10 @@ def census_task(
             timeout_seconds=timeout_seconds,
             attacks=attacks,
             modal_resource_policy=modal_resource_policy,
+            modal_app_name=modal_app_name,
+            modal_sandbox_timeout_seconds=modal_sandbox_timeout_seconds,
+            spend_tag=spend_tag,
+            expected_digest=expected_digest,
             root=root,
         )
 
@@ -2137,6 +2161,9 @@ def run_task_record(spec: Mapping[str, Any]) -> dict[str, Any]:
             root=root,
             checks=grading,
             modal_resource_policy=modal_resource_policy,
+            modal_app_name=spec.get("modal_app_name"),
+            modal_sandbox_timeout_seconds=spec.get("modal_sandbox_timeout_seconds"),
+            spend_tag=spec.get("spend_tag"),
         )
         record["nop"] = partial["nop"] if "nop" in grading else ""
         record["oracle"] = partial["oracle"] if "oracle" in grading else ""

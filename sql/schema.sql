@@ -670,6 +670,7 @@ ORDER BY pack_digest, produced_at DESC;
 
 -- HAR-107: fetched `modal billing report` rows for the billing reconcile.
 -- One row per billed object x interval x resource; re-fetches upsert.
+-- Provider tags remain queryable without changing the billed-dollar grain.
 CREATE TABLE IF NOT EXISTS modal_billing_rows (
     object_id text NOT NULL,
     description text NOT NULL,
@@ -679,5 +680,8 @@ CREATE TABLE IF NOT EXISTS modal_billing_rows (
     cost_usd double precision NOT NULL,
     resolution text NOT NULL,
     reported_at timestamptz NOT NULL DEFAULT now(),
+    tags jsonb NOT NULL DEFAULT '{}'::jsonb,
     PRIMARY KEY (object_id, interval_start, resource)
 );
+ALTER TABLE modal_billing_rows
+    ADD COLUMN IF NOT EXISTS tags jsonb NOT NULL DEFAULT '{}'::jsonb;

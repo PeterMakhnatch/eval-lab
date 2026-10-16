@@ -1,0 +1,18 @@
+{
+  "consumer": {
+    "bytes": 16061,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-trace-regrade-delivery-20261015/research/experiments/qa-trace/training-arms/build_arms.py",
+    "sha256": "cb7b7d9ae6483c9b11134482a8a59cc5be604c24b311ddb70c712a545d2720cf"
+  },
+  "heldout_manifest": {
+    "bytes": 1726,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
+    "sha256": "31537f049ab4aaa86246760599f5e0c895dc57ef853fb0e7104cf6cb54a6c32b"
+  },
+  "historical_training_overlap": 0,
+  "observed_at": "2026-10-16T07:28:23.030671+00:00",
+  "parsed_heldout_count": 33,
+  "schema": "mimo.consumer-smoke/v1",
+  "scope": "Called the actual QA Trace build_arms.heldout_tasks parser; no training-data write, model call, or grading execution.",
+  "scoring_allowed": false
+}

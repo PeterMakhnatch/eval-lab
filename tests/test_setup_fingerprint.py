@@ -273,6 +273,29 @@ def test_trial_fingerprint_observes_lock(tmp_path: Path) -> None:
     assert trial_fingerprint(intended, open_trial)["lock"]["mode"] == "open"
 
 
+def test_modal_lock_mechanism_recorded(tmp_path: Path) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    tree_dir = root / "tools" / "mimoagent-harbor"
+    tree_dir.mkdir(parents=True)
+    shutil.copy(
+        resolve_repo_root(None, Path(__file__)) / "tools" / "mimoagent-harbor" / "swe.yaml",
+        tree_dir / "swe.yaml",
+    )
+    spec = make_spec(TASK_ID, digest)
+    intended = build_intended_fingerprint(
+        spec=spec,
+        task_dir=root / "tasks" / TASK_ID,
+        model=MIMO_MODEL,
+        agent="mimoagent",
+        environment="modal",
+        repo_root=root,
+    )
+    assert intended["environment"]["egress_mechanism"] == (
+        "modal-agent-phase-outbound-allowlist"
+    )
+    assert intended["lock"]["mode"] == "locked"
+
+
 def test_compare_skips_unsourced_reference_fields(tmp_path: Path) -> None:
     root, _ = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
     profile = load_reference_profile(root, "xiaomi-mimo-rl")

@@ -186,7 +186,11 @@ def test_cells_outside_the_schedule_are_refused(case: str) -> None:
 
 
 def _cli(
-    tmp_path: Path, b_trials: dict[str, list[tuple[str, bool | None]]]
+    tmp_path: Path,
+    b_trials: dict[str, list[tuple[str, bool | None]]],
+    *,
+    attempts: str = "2",
+    other_arms: dict[str, dict[str, list[tuple[str, bool | None]]]] | None = None,
 ) -> subprocess.CompletedProcess:
     digest = {t: hashlib.sha256(t.encode()).hexdigest() for t in TASKS}
     (tmp_path / "heldout.json").write_text(json.dumps({"scoring_allowed": True, "heldout": TASKS}))
@@ -205,11 +209,13 @@ def _cli(
         "train": {"sft": {"num_epochs": 4}},
     }
     (tmp_path / "receipt.json").write_text(json.dumps(receipt))
-    command = [sys.executable, str(SCORER), "--attempts", "2", "--out", str(tmp_path / "out.json")]
+    out = str(tmp_path / "out.json")
+    command = [sys.executable, str(SCORER), "--attempts", attempts, "--out", out]
     for flag in ("heldout", "exports", "package-pairs"):
         suffix = ".csv" if flag == "package-pairs" else ".json"
         command += [f"--{flag}", str(tmp_path / f"{flag}{suffix}")]
-    for arm, trials in (("B", b_trials), ("C", _full(False))):
+    arms = {"B": b_trials, "C": _full(False), **(other_arms or {})}
+    for arm, trials in arms.items():
         rows = [
             {"task": f"/store/fixture__{t}/{digest.get(t, '0' * 12)[:12]}", "name": n, "passed": v}
             for t, items in trials.items()
@@ -299,3 +305,105 @@ def test_empty_replay_population_is_unmeasured_not_complete() -> None:
     assert out["incorrect_pass_status"] == "unmeasured"
     assert out["incorrect_pass_rate"] is None
     assert out["incorrect_pass_ci95"] is None
+
+
+# Per-arm schedules (Research, 2026-10-16): QA Trace's canonical grammar, with base and
+# A at 1 attempt as the fallback while B and C keep 2.
+parse_attempts = ANALYZE["parse_attempts"]
+MIXED = "base=1,A=1,B=2,C=2"
+
+
+def _once(arm: str, value: bool = False) -> dict[str, list[tuple[str, bool | None]]]:
+    return _trials(arm, {t: [value] for t in TASKS})
+
+
+def test_attempts_grammar_accepts_exactly_the_canonical_forms() -> None:
+    assert parse_attempts("2") == 2
+    assert parse_attempts("10") == 10
+    assert parse_attempts(MIXED) == {"base": 1, "A": 1, "B": 2, "C": 2}
+    assert parse_attempts("C=2,B=2,A=1,base=1") == {"base": 1, "A": 1, "B": 2, "C": 2}
+
+
+# The 16 refusal cases of QA Trace's prepare_batch grammar (65e35a56…).
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "0",
+        "02",  # leading zero
+        "-1",  # negative
+        " 2",  # spaces
+        "2 ",
+        "base=1, A=1,B=2,C=2",
+        "base=0,A=1,B=2,C=2",
+        "base=01,A=1,B=2,C=2",
+        "base=-1,A=1,B=2,C=2",
+        "base=1,A=1,B=2",  # an arm missing
+        "base=1,A=1,B=2,C=2,C=2",  # an arm repeated
+        "base=1,A=1,B=2,X=2",  # unknown arm
+        "base=1,A=1,B=2,C=2,",  # trailing comma
+        "",  # empty
+        "2,base=1",  # mixed forms
+        "base=1,A=1,B=2,C=2,2",
+    ],
+)
+def test_attempts_grammar_refuses_everything_else(spec: str) -> None:
+    with pytest.raises(ValueError):
+        parse_attempts(spec)
+
+
+def test_one_attempt_arm_is_complete_at_33_cells_and_refuses_an_a2() -> None:
+    out = coverage(_once("base"), TASKS, 1)
+    assert out["solve_coverage"] == "complete"
+    assert (out["measured_attempts"], out["missing_task_attempts"]) == ("33/33", 0)
+    with pytest.raises(ValueError, match="attempts 1..1"):
+        coverage(_full(), TASKS, 1)
+
+
+def test_mixed_pair_validates_each_arm_against_its_own_schedule() -> None:
+    pair = paired(_full(), _once("base"), TASKS, ("B", "base"), (2, 1))
+    assert pair["status"] == "measured"
+    assert (pair["B_attempts_in_cohort"], pair["base_attempts_in_cohort"]) == (66, 33)
+    assert pair["equal_attempts_per_task"] is False
+    with pytest.raises(ValueError, match="attempts 1..1"):
+        paired(_full(), _full(False), TASKS, ("B", "base"), (2, 1))
+
+
+def test_cli_mixed_schedule_is_complete_per_arm(tmp_path: Path) -> None:
+    run = _cli(
+        tmp_path, _full(), attempts=MIXED, other_arms={"base": _once("base"), "A": _once("A")}
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["planned_attempts"] == {"base": 1, "A": 1, "B": 2, "C": 2}
+    assert report["authorized_attempts"] == {"A": [1], "B": [1, 2], "C": [1, 2], "base": [1]}
+    assert list(report["authorized_attempts"]) == ["A", "B", "C", "base"]
+    cells = {a: report["arms"][a]["measured_attempts"] for a in ("base", "A", "B", "C")}
+    assert cells == {"base": "33/33", "A": "33/33", "B": "66/66", "C": "66/66"}
+    assert {report["arms"][a]["solve_coverage"] for a in cells} == {"complete"}
+    assert report["paired"]["B_vs_C"]["attempts_counted"] == {"B": 2, "C": 2}
+    assert report["paired"]["B_vs_base"]["attempts_counted"] == {"B": 2, "base": 1}
+    assert report["paired"]["B_vs_base"]["equal_attempts_per_task"] is False
+
+
+def test_cli_uniform_schedule_prints_no_per_arm_fields(tmp_path: Path) -> None:
+    run = _cli(tmp_path, _full())
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["planned_attempts"] == 2
+    assert "authorized_attempts" not in report
+    assert "attempts_counted" not in report["paired"]["B_vs_C"]
+
+
+@pytest.mark.parametrize(
+    "attempts",
+    [
+        MIXED,  # base is authorized for attempt 1 only, but has a2 rows
+        "base=1,A=1,B=2",  # grammar: C missing
+        "base=1,A=1,B=2,C=2,",  # grammar: trailing comma
+    ],
+)
+def test_cli_mixed_schedule_refusals_write_no_report(tmp_path: Path, attempts: str) -> None:
+    run = _cli(tmp_path, _full(), attempts=attempts, other_arms={"base": _full(), "A": _once("A")})
+    assert run.returncode == 2
+    assert "REFUSED" in run.stderr
+    assert not (tmp_path / "out.json").exists()

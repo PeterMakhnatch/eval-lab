@@ -511,7 +511,7 @@ inputs:
   - path: src/evallab/qa/score.py
     digest: sha256:758ab9e81599ec489aa9d04db0feeb3d52609b7bfba0159d0950728356962bd8
   - path: src/evallab/qa/task.py
-    digest: sha256:af8818b734ffd309cba9cf96309da71dcc3a3a26adf9951ecc8d5f4b0bba95a1
+    digest: sha256:132d9809a7231672b950d5f825928f82dea79cec8268393749ccad8b076cb476
   - path: src/evallab/qa/trace.py
     digest: sha256:fdb8ff0e130da02438f7849f9af011f669923b593db88339a3920a7f781d970b
   - path: src/evallab/quality_audit.py

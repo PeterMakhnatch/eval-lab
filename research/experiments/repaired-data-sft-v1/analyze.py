@@ -31,6 +31,15 @@ Two definitions:
     gives the range: every unresolved failure counted as correct, and every one counted
     as an incorrect pass. Missing replays are never rendered as 0.
   - `incorrect_pass_unresolved_failures` and `incorrect_pass_excluded` are always printed.
+  - **Replay mode** (`--replay-plan`, QA Trace's `itemized-plan.json`):
+    - In `attempt-1` mode, used when the full plan exceeds the execution envelope, only
+      attempt 1 of each task is replayed. The population, and so the denominator, is
+      then the attempt-1 trials. Later attempts are counted as excluded with reason
+      `attempt>1 (attempt-1 replay mode)`, so they neither dilute the rate nor hold it at
+      unmeasured.
+    - An all-attempts plan changes nothing.
+    - Attempts come from rollout trial names (`…-a<N>`). A name without that suffix is
+      attempt 1.
 
 Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
 wants these reported both ways:
@@ -83,9 +92,12 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from pathlib import Path
 from typing import Any
+
+ATTEMPT_MODE_REASON = "attempt>1 (attempt-1 replay mode)"
 
 
 def binom_cdf(k: int, n: int, p: float) -> float:
@@ -172,23 +184,37 @@ def grading_role(row: dict[str, Any], v6: dict[str, str], pins: set[str]) -> str
     raise ValueError(f"{task}: not the frozen v6 package of {tid} and not a pin")
 
 
+def attempt_of(name: str) -> int:
+    """Attempt index from an `evallab rollout` trial name (`…-a<N>`; no suffix: 1)."""
+    match = re.search(r"-a(\d+)$", name)
+    return int(match.group(1)) if match else 1
+
+
 def incorrect_pass_summary(
-    verdicts: list[tuple[str, bool, bool | None]], excluded: dict[str, str]
+    verdicts: list[tuple[str, int, bool, bool | None]],
+    excluded: dict[str, str],
+    *,
+    attempt_1_only: bool = False,
 ) -> dict[str, Any]:
-    """Per-arm incorrect-pass fields from (task, v6_pass, original_pass) per measured trial.
+    """Per-arm incorrect-pass fields from (task, attempt, v6_pass, original_pass) per
+    measured trial.
 
     `original_pass` is the original-grader replay verdict, or None when no replay was
     measured. Trials of tasks in `excluded` (task -> reason) are outside the replay
-    population: they are counted by reason and nothing else. Within the population a v6
-    pass is never an incorrect pass and needs no replay. The rate is reported only when
-    every in-population v6 failure is resolved. Otherwise the result is `null` with
+    population: they are counted by reason and nothing else. With `attempt_1_only` (QA
+    Trace's attempt-1 replay mode) so are attempts after the first. Within the population
+    a v6 pass is never an incorrect pass and needs no replay. The rate is reported only
+    when every in-population v6 failure is resolved. Otherwise the result is `null` with
     bounds, so missing replays never read as a measured 0.
     """
     out_of_population: dict[str, int] = {}
     population: list[tuple[bool, bool | None]] = []
-    for task, v6, orig in verdicts:
-        if task in excluded:
-            out_of_population[excluded[task]] = out_of_population.get(excluded[task], 0) + 1
+    for task, attempt, v6, orig in verdicts:
+        reason = excluded.get(task)
+        if reason is None and attempt_1_only and attempt > 1:
+            reason = ATTEMPT_MODE_REASON
+        if reason is not None:
+            out_of_population[reason] = out_of_population.get(reason, 0) + 1
         else:
             population.append((v6, orig))
     n = len(population)
@@ -240,6 +266,11 @@ def main() -> int:
         action="append",
         default=[],
         help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
+    )
+    ap.add_argument(
+        "--replay-plan",
+        type=Path,
+        help="QA Trace itemized-plan.json; its `mode` selects all-attempts or attempt-1",
     )
     ap.add_argument(
         "--replay-exclude",
@@ -295,6 +326,14 @@ def main() -> int:
             return 2
         replay_excluded[norm(task)] = reason
 
+    attempt_1_only = False
+    replay_mode = None
+    if args.replay_plan:
+        replay_mode = json.loads(args.replay_plan.read_text()).get("mode")
+        if replay_mode not in ("attempt-1", "all-attempts", "all attempts"):
+            print(f"REFUSED: unknown replay plan mode {replay_mode!r}", file=sys.stderr)
+            return 2
+        attempt_1_only = replay_mode == "attempt-1"
     # One list of (trial name, passed) per task: `evallab rollout --attempts` gives several.
     # Headline: trials on the frozen v6 package. Diagnostic: pin trials on a repaired variant.
     arms: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
@@ -333,6 +372,7 @@ def main() -> int:
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
         "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
+        "incorrect_pass_replay_mode": replay_mode,
         "arms": {},
         "paired": {},
     }
@@ -340,8 +380,12 @@ def main() -> int:
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
         measured = [v for _, _, v in trials if v is not None]
         solves = sum(measured)
-        verdicts = [(t, v, original.get((name, n))) for t, n, v in trials if v is not None]
-        incorrect_pass = incorrect_pass_summary(verdicts, replay_excluded)
+        verdicts = [
+            (t, attempt_of(n), v, original.get((name, n))) for t, n, v in trials if v is not None
+        ]
+        incorrect_pass = incorrect_pass_summary(
+            verdicts, replay_excluded, attempt_1_only=attempt_1_only
+        )
         report["arms"][name] = {
             "examples": exports.get("arms", {}).get(name, {}).get("rows"),
             "tasks": len(by_task),

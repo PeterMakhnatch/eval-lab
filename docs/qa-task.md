@@ -45,7 +45,9 @@ count as passes.
 Submission kinds from the shortcut agent are converted by
 `submission_to_script`: `command` (bash run in `/app` in the agent
 container), `file`/`json` (base64-written to an absolute path; JSON is
-validated first), and `patch` (unified diff applied with `git apply`/`patch`).
+validated first), and `patch` (unified diff applied with `git apply --binary`,
+a Python unified-diff fallback for minimal images without `git`/`patch`, or
+`patch`).
 Invalid submissions are unusable, never passes.
 
 ### Execution backend
@@ -94,8 +96,9 @@ today, so root-cause match is `n/a` (not measured), never 0.
   latter two never pass.
 - `quality_complete` is true iff at least one scored check exists and every
   **scored** check is `measured` (unscored descriptive checks such as
-  `static`, `rubric-sample-*`, `ref-subset`, `ref-mutants`, `mutation-hunt`,
-  `imported-evidence` and `supplied-triplet` do not block completeness).
+  `static`, `rubric-sample-*`, `rubric:*` when `S2`/`S3` run, `ref-subset`,
+  `ref-mutants`, `mutation-hunt`, `imported-evidence` and `supplied-triplet`
+  do not block completeness).
 - `report.verdict` is `fail` when any verified eval finding stands; otherwise
   `unknown` when measurement is incomplete, any scored check failed, any
   Signal exists, any candidate remains unverified/non-pass, or `report.error`

@@ -1031,6 +1031,39 @@ def test_s3_candidate_stays_unverified_when_task_controls_are_not_clean(tmp_path
     assert report.verdict == "fail"  # the verified S0 oracle failure, not the shortcut
 
 
+def test_s3_replaces_transient_unmeasured_s0_control_and_s1_unknown_stays_unscored_with_s2_s3(
+    tmp_path: Path,
+) -> None:
+    package = _package(tmp_path)
+    # oracle-1 had a transient build error (None), oracle-2 and oracle-3 passed, plus 1 for s3-oracle.
+    backend = FakeBackend(oracle=(None, 1.0, 1.0, 1.0), replay_reward=1.0)
+    inconclusive_rubric = {
+        "criteria": {
+            "verifiable": {"outcome": "unknown", "category": "weak", "reason": "needs execution"},
+            "functional_verification": {"outcome": "pass", "category": "weak", "reason": "ok"},
+            "task_clarity": {"outcome": "pass", "category": "prompt_misaligned", "reason": "ok"},
+        }
+    }
+    lane = FakeLane(
+        [inconclusive_rubric, inconclusive_rubric, inconclusive_rubric, _exploit_reply()]
+    )
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S0", "S1", "S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    assert report.checks["rubric:verifiable"].status == "ran_without_usable_result"
+    assert report.checks["rubric:verifiable"].scored is False
+    assert report.checks["s3-oracle"].status == "measured"
+    assert report.checks["s3-oracle"].verdict == "pass"
+    assert report.quality_complete is True
+    assert report.verdict == "fail"
+    findings, _ = load_findings(tmp_path / "run")
+    assert findings[0].refutation.status == "verified"
+
+
 def test_score_findings_excludes_items_and_slices_positives_by_label_strength(
     tmp_path: Path,
 ) -> None:

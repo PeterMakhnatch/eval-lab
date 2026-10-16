@@ -67,6 +67,28 @@ def task_resources(task: Path) -> tuple[float, float]:
     return float(cpus), float(memory_mb)
 
 
+def _task_id(task: Path) -> str:
+    """The task package's declared canonical id (bare, no dataset prefix).
+
+    From ``[task] name`` (``mimo-v2.6-rl/format-code-task-000142`` ->
+    ``format-code-task-000142``), falling back to ``[metadata]
+    source_id``, then the directory name. Specs must carry this: the
+    setup fingerprint keys ledger and lineage lookups by it, and the
+    directory name is a package digest for store variants, not an id.
+    """
+    try:
+        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return task.name
+    name = document.get("task", {}).get("name")
+    if isinstance(name, str) and name:
+        return name.split("/")[-1]
+    source_id = document.get("metadata", {}).get("source_id")
+    if isinstance(source_id, str) and source_id:
+        return source_id
+    return task.name
+
+
 def summarize(outcomes: list[TrialOutcome], batch_wall_seconds: float) -> dict[str, Any]:
     """Batch summary: throughput and cost per task over completed trials."""
     completed = [o for o in outcomes if o.error is None]
@@ -360,6 +382,7 @@ def run_rollout(
                 purpose="baseline",
                 task=task_rel,
                 task_path=task_rel,
+                task_id=_task_id(task),
                 agent=agent,
                 model=model,
                 environment="modal",

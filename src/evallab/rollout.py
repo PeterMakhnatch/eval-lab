@@ -212,6 +212,7 @@ def run_rollout(
     cost_limit_usd: float | None = None,
     actor: str | None = None,
     est_cost_usd: float = 0.25,
+    attempts: int = 1,
     max_requests: int = 300,
     max_input_tokens: int = 2_000_000,
     max_output_tokens: int = 300_000,
@@ -234,9 +235,10 @@ def run_rollout(
     if execute is not None:
         from evallab.execution_contracts import RunRequest
 
-        def one(pair: tuple[int, Path]) -> TrialOutcome:
-            index, task = pair
-            name = f"rollout-{index:03d}-{_slug(task.name)}"
+        def one(pair: tuple[int, Path, int]) -> TrialOutcome:
+            index, task, attempt = pair
+            suffix = f"-a{attempt}" if attempts > 1 else ""
+            name = f"rollout-{index:03d}-{_slug(task.name)}{suffix}"
             request = RunRequest(
                 task=task,
                 agent=agent,
@@ -261,10 +263,15 @@ def run_rollout(
                     f"{type(exc).__name__}: {exc}",
                 )
 
+        pairs = [
+            (index, task, attempt)
+            for index, task in enumerate(tasks)
+            for attempt in range(1, max(1, attempts) + 1)
+        ]
         with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-            outcomes = list(pool.map(one, enumerate(tasks)))
+            outcomes = list(pool.map(one, pairs))
         batch_wall = time.monotonic() - batch_start
-        return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency)
+        return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency, attempts=attempts)
 
     if not actor:
         raise ValueError(
@@ -284,31 +291,33 @@ def run_rollout(
             task_rel = task.relative_to(root).as_posix()
         except ValueError:
             raise ValueError(f"task must be inside the repo root: {task}") from None
-        spec = ExperimentSpec(
-            spec_id=new_ulid(),
-            name=f"rollout-{index:03d}-{_slug(task.name)}",
-            hypothesis=f"Rollout throughput/cost measurement for {model} on held-out tasks",
-            purpose="baseline",
-            task=task_rel,
-            task_path=task_rel,
-            agent=agent,
-            model=model,
-            environment="modal",
-            jobs_dir="runs",
-            submitted_by="infra-rollout",
-            timeout_seconds=timeout_seconds,
-            est_cost_usd=est_cost_usd,
-            cost_limit_usd=cost_limit_usd,
-            max_requests=max_requests,
-            max_input_tokens=max_input_tokens,
-            max_output_tokens=max_output_tokens,
-            max_total_tokens=max_input_tokens + max_output_tokens,
-            concurrency=1,
-            attempts=1,
-        )
-        executor.submit(spec)
-        executor.queue.approve(str(spec.spec_id), actor=actor)
-        specs.append(spec)
+        for attempt in range(1, max(1, attempts) + 1):
+            suffix = f"-a{attempt}" if attempts > 1 else ""
+            spec = ExperimentSpec(
+                spec_id=new_ulid(),
+                name=f"rollout-{index:03d}-{_slug(task.name)}{suffix}",
+                hypothesis=f"Rollout throughput/cost measurement for {model} on held-out tasks",
+                purpose="baseline",
+                task=task_rel,
+                task_path=task_rel,
+                agent=agent,
+                model=model,
+                environment="modal",
+                jobs_dir="runs",
+                submitted_by="infra-rollout",
+                timeout_seconds=timeout_seconds,
+                est_cost_usd=est_cost_usd,
+                cost_limit_usd=cost_limit_usd,
+                max_requests=max_requests,
+                max_input_tokens=max_input_tokens,
+                max_output_tokens=max_output_tokens,
+                max_total_tokens=max_input_tokens + max_output_tokens,
+                concurrency=1,
+                attempts=1,
+            )
+            executor.submit(spec)
+            executor.queue.approve(str(spec.spec_id), actor=actor)
+            specs.append(spec)
 
     spec_ids = [str(spec.spec_id) for spec in specs]
     deadline = batch_start + timeout_seconds * 2 + 1800
@@ -332,7 +341,7 @@ def run_rollout(
         outcomes.append(
             _outcome(root / spec.task, spec.name, job_dir, batch_wall, error)
         )
-    return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency)
+    return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency, attempts=attempts)
 
 
 def _write_batch(
@@ -343,10 +352,12 @@ def _write_batch(
     model: str | None,
     agent: str,
     concurrency: int,
+    attempts: int = 1,
 ) -> dict[str, Any]:
-
     summary = summarize(outcomes, batch_wall)
-    summary.update({"model": model, "agent": agent, "concurrency": concurrency})
+    summary.update(
+        {"model": model, "agent": agent, "concurrency": concurrency, "attempts": attempts}
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.jsonl").write_text(
         "".join(json.dumps(asdict(o)) + "\n" for o in outcomes), encoding="utf-8"
@@ -458,4 +469,8 @@ def build_rollout_parser(commands: argparse._SubParsersAction) -> None:  # noqa:
     run.add_argument("--max-requests", type=int, default=300, help="Per-trial provider request ceiling (default: 300)")
     run.add_argument("--max-input-tokens", type=int, default=2_000_000, help="Per-trial input token ceiling (default: 2000000)")
     run.add_argument("--max-output-tokens", type=int, default=300_000, help="Per-trial output token ceiling (default: 300000)")
+    run.add_argument(
+        "--attempts", type=int, default=1,
+        help="Independent trials per task (default: 1); use >1 to average over serving noise",
+    )
     run.set_defaults(func=_rollout_run_command)

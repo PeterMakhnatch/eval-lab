@@ -71,7 +71,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:44c18c79a13e5de8ffec4413a67f6ce6c155c18539c73ff041d4c29bdf4b5e22
+    digest: sha256:3088f938e285364c30e213d8b9d5bb51e08b9b6a390a1455d0e8c021164ca139
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -83,7 +83,7 @@ inputs:
   - path: docs/live-watch.md
     digest: sha256:69ae54ed1300d0266bbf5d5191e9ebc3dd59097e1ad93520c769fb32e28a0bf6
   - path: docs/lora-sft-runbook.md
-    digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
+    digest: sha256:0f990aba50f82dcc3a6cdb0f16dbfc9ae0decfb98c1e56567cdd64de2353ce4c
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md

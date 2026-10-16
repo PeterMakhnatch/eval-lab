@@ -305,12 +305,45 @@ def run_rollout(
         )
     if model is None:
         raise ValueError("a queued rollout requires a model selector")
-    from evallab.execution_contracts import new_ulid
+    from evallab.execution_contracts import is_mimo_selfhosted_model, new_ulid
     from evallab.queue import Executor
     from evallab.schemas import ExperimentSpec
 
     root = root.resolve()
     executor = Executor.from_repo(root)
+    mimo_fields: dict[str, Any] = {}
+    if is_mimo_selfhosted_model(model):
+        # HAR-149: a MiMo batch names its reference setup, locks egress,
+        # and declares every intended difference. The harness additions
+        # and the request ceiling are the campaign's approved deviations
+        # (Research, 2026-10-16); the lock and ledger gates stay hard.
+        from evallab.mimoagent_worker import WRAPPER_ADDITIONS
+        from evallab.schemas import ReferenceDeviation
+
+        mimo_fields = {
+            "reference_profile": "xiaomi-mimo-rl",
+            "egress_lock": True,
+            "deviations": [
+                ReferenceDeviation(
+                    field="harness.additions",
+                    value=dict(WRAPPER_ADDITIONS),
+                    reason=(
+                        "Eval Lab mimoagent wrapper additions are part of the "
+                        "lab harness, not the Xiaomi reference harness; "
+                        "approved campaign deviation (Research, 2026-10-16)."
+                    ),
+                ),
+                ReferenceDeviation(
+                    field="budgets.max_requests",
+                    value=max_requests,
+                    reason=(
+                        "Campaign per-trial request ceiling below the "
+                        "reference 500-step limit; approved campaign "
+                        "deviation (Research, 2026-10-16)."
+                    ),
+                ),
+            ],
+        }
     specs: list[ExperimentSpec] = []
     for index, task in enumerate(tasks):
         task = task.resolve()
@@ -341,6 +374,7 @@ def run_rollout(
                 max_total_tokens=max_input_tokens + max_output_tokens,
                 concurrency=1,
                 attempts=1,
+                **mimo_fields,
             )
             executor.submit(spec)
             executor.queue.approve(str(spec.spec_id), actor=actor)

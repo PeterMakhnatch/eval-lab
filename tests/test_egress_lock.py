@@ -546,3 +546,62 @@ def test_stop_keeps_reservation_while_sandbox_still_answers(
     env = _stopping_env(tmp_path, guard)
     asyncio.run(env.stop(delete=True))
     assert guard.released == []
+
+
+# --- Modal lock ---------------------------------------------------------------
+
+
+def _modal_task(tmp_path: Path, *, agent_network: str) -> Path:
+    task = tmp_path / "modal-mimo-task"
+    task.mkdir(parents=True, exist_ok=True)
+    (task / "task.toml").write_text(
+        '[task]\nname = "mimo-v2.6-rl/format-code-task-000001"\n\n'
+        "[metadata]\n"
+        'source_dataset = "XiaomiMiMo/MiMo-V2.6-RL-oss"\n\n'
+        f'[agent]\ntimeout_sec = 900.0\nnetwork_mode = "{agent_network}"\n',
+        encoding="utf-8",
+    )
+    return task
+
+
+def test_modal_mimoagent_lock_admitted_with_exact_upstream_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(
+        "EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal"
+    )
+    request = _request(
+        _modal_task(tmp_path, agent_network="no-network"),
+        tmp_path,
+        environment="modal",
+        agent="mimoagent",
+        egress_lock=True,
+    )
+    assert resolve_egress_lock(request) is True
+    command = build_command(request)
+    assert command[command.index("--allow-agent-host") + 1] == "trainer.example"
+    assert "egress_lock=true" not in command
+
+
+def test_modal_lock_refused_when_agent_baseline_is_public(tmp_path: Path) -> None:
+    request = _request(
+        _modal_task(tmp_path, agent_network="public"),
+        tmp_path,
+        environment="modal",
+        agent="mimoagent",
+        egress_lock=True,
+    )
+    with pytest.raises(ValueError, match="no-network"):
+        build_command(request)
+
+
+def test_modal_lock_refused_for_terminus(tmp_path: Path) -> None:
+    request = _request(
+        _modal_task(tmp_path, agent_network="no-network"),
+        tmp_path,
+        environment="modal",
+        agent="terminus-2",
+        egress_lock=True,
+    )
+    with pytest.raises(ValueError, match="cannot be combined with agent"):
+        build_command(request)

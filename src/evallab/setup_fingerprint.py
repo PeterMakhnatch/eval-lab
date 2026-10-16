@@ -440,6 +440,8 @@ def _setup_fields(
                 if effective and environment == "docker"
                 else "daytona-provider-deny-all-after-setup"
                 if effective and environment == "daytona"
+                else "modal-agent-phase-outbound-allowlist"
+                if effective and environment == "modal"
                 else None
             ),
         },

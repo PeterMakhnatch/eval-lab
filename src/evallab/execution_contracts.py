@@ -781,6 +781,13 @@ def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
 EGRESS_LOCK_AGENTS = {
     "daytona": frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS}),
     "docker": frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS}),
+    # Modal enforces the lock as an agent-phase outbound allowlist (the
+    # task's agent network baseline is no-network; the only added host is
+    # the model endpoint). The mimoagent loop is host-side (loopback
+    # proxy), so no sandbox model egress is needed; control agents issue
+    # no model calls either. Terminus-2 is not admitted here: its
+    # in-sandbox preparation would need network the lock denies.
+    "modal": frozenset({MIMO_AGENT, *CONTROL_AGENTS}),
 }
 
 
@@ -823,6 +830,30 @@ def _task_declares_phase_network_policy(task: Path) -> bool:
     return isinstance(verifier, dict) and "network_mode" in verifier
 
 
+def _task_agent_network_mode(task: Path) -> str | None:
+    """The task's declared agent-phase network baseline, if any."""
+    try:
+        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    agent = document.get("agent")
+    if isinstance(agent, dict) and isinstance(agent.get("network_mode"), str):
+        return agent["network_mode"]
+    return None
+
+
+def _selfhosted_upstream_host(request: RunRequest) -> str | None:
+    """Exact host of the self-hosted model endpoint, when the model is one."""
+    if not is_mimo_selfhosted_model(request.model):
+        return None
+    upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
+    if not upstream:
+        return None
+    return urllib.parse.urlparse(upstream).hostname
+
+
 def _validate_egress_lock(request: RunRequest) -> None:
     """Refuse unsupported lock combinations without an unlocked fallback.
 
@@ -848,7 +879,19 @@ def _validate_egress_lock(request: RunRequest) -> None:
             "egress_lock requires a single-container task: multi-container (compose) "
             "tasks cannot be locked"
         )
-    if _task_declares_phase_network_policy(request.task):
+    if request.environment == "modal":
+        # Modal enforces per-phase outbound policies itself, so a declared
+        # agent baseline is the enforcement, not a lift risk (the daytona/
+        # docker concern above). The lock is truthful only when that
+        # baseline already denies agent-phase egress; anything else would
+        # be a lock in name only.
+        if _task_agent_network_mode(request.task) != "no-network":
+            raise ValueError(
+                "egress_lock on Modal requires the task's agent phase to "
+                "declare network_mode 'no-network': the sandbox would "
+                "otherwise keep general egress under a locked label"
+            )
+    elif _task_declares_phase_network_policy(request.task):
         raise ValueError(
             "egress_lock cannot be combined with task phase network policies: "
             "Harbor would restore the baseline after the phase and lift the lock"
@@ -2425,7 +2468,16 @@ def build_command(
             )
     if resolve_egress_lock(request):
         _validate_egress_lock(request)
-        command.extend(["--environment-kwarg", "egress_lock=true"])
+        if request.environment == "modal":
+            # Modal enforces the lock through Harbor's agent-phase
+            # allowlist, not an environment kwarg: the task baseline is
+            # no-network (validated above) and the only added host is the
+            # exact model endpoint. No wildcards.
+            host = _selfhosted_upstream_host(request)
+            if host is not None:
+                command.extend(["--allow-agent-host", host])
+        else:
+            command.extend(["--environment-kwarg", "egress_lock=true"])
     if environment == HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH:
         command.extend(["--environment-kwarg", f"isolation_lane={request.agent}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])

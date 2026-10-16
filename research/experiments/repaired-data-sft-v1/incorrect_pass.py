@@ -113,10 +113,10 @@ def collect(args: argparse.Namespace) -> int:
         labels = row.get("labels") or {}
         regraded = row.get("regraded")
         if (row.get("grader_source") or {}).get("variant_digest") != pinned.get(row["task"]):
-            continue  # a newer grader the regrade also ran, not the original v5 package
+            continue  # another grader the regrade also ran, not the pinned package
         reason = None
         if not row.get("valid_grader"):
-            reason = "invalid_v5_grader_controls"
+            reason = "invalid_grader_controls"
         elif row.get("outcome") == "refused" or regraded is None:
             reason = "replay_refused_or_unmeasured"
         if reason:
@@ -127,7 +127,7 @@ def collect(args: argparse.Namespace) -> int:
                 "arm": labels["arm"],
                 "trial": labels["trial"],
                 "task": row["task"],
-                "original_pass": float(regraded) >= 1.0,
+                args.field: float(regraded) >= 1.0,
                 "grader": row["grader"],
             }
         )
@@ -145,7 +145,13 @@ def main() -> int:
     p.add_argument("--out", type=Path, required=True)
     c = sub.add_parser("collect")
     c.add_argument("--regrade", type=Path, required=True)
-    c.add_argument("--grader-manifest", type=Path, required=True, help="heldout-v5-graders.csv")
+    c.add_argument("--grader-manifest", type=Path, required=True, help="the regrade's CSV")
+    c.add_argument(
+        "--field",
+        choices=("original_pass", "repaired_pass"),
+        default="original_pass",
+        help="original_pass: v5 replays; repaired_pass: pin_pairs.py's paired pin regrade",
+    )
     c.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
     return plan(args) if args.cmd == "plan" else collect(args)

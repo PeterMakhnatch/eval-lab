@@ -1,0 +1,33 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "cheat-ladder-1.4.0:benchflow-0.2.0/terminal-bench-2/query-optimize",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/terminal-bench-2/query-optimize",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "runs/breaker-bench-ladder-floor/jobs/bbf-020-v14-query-optimize/cheat-verdicts.json"
+  ],
+  "reproducer": null,
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "cheat-ladder-1.4.0",
+    "model": null,
+    "tokens": null,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

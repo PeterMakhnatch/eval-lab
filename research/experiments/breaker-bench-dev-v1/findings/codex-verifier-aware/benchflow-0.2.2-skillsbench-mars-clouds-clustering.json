@@ -1,0 +1,35 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "codex-verifier-aware:benchflow-0.2.2/skillsbench/mars-clouds-clustering",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/skillsbench/mars-clouds-clustering",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [],
+  "reproducer": {
+    "kind": "harbor_trial",
+    "path": "runs/bbd-mars-clouds-clusteri-022-a3/bbd-mars-clouds-clusteri-022-a3__fC7eYYb",
+    "expected_reward": 0.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "codex-verifier-aware",
+    "model": "gpt-6-luna",
+    "tokens": 303543,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

@@ -1,0 +1,35 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "codex-verifier-aware:benchflow-0.2.2/terminal-bench-2/constraints-scheduling",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.2/terminal-bench-2/constraints-scheduling",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [],
+  "reproducer": {
+    "kind": "harbor_trial",
+    "path": "runs/bbd-constraints-scheduli-022-a3/bbd-constraints-scheduli-022-a3__sz4Eb3r",
+    "expected_reward": 0.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "codex-verifier-aware",
+    "model": "gpt-6-luna",
+    "tokens": 261278,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

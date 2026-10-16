@@ -1,0 +1,63 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000657",
+  "variant_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+  "variant_harbor_digest": "sha256:2dcdeca0a6d06b2120b2c1dcd821c4b6d2ec5d5da7220576c5fdf9ca1f1f6549",
+  "parent": {
+    "digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+    "harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6.json"
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:5b93c2a5cf3904f93ff99470b2a7ef89d4b9ed1641c262e2e4dd735818ae1b98",
+      "after_sha256": "sha256:e725503468068ca5029fce4f8cff060cb7e6dfe2d00b051d493a81e09d51a399",
+      "content": "diff --git a/tests/test_opnieuw.py b/tests/test_opnieuw.py\nindex ea5c3ab..e0ae443 100644\n--- a/tests/test_opnieuw.py\n+++ b/tests/test_opnieuw.py\n@@ -110,6 +110,36 @@ def test_mixed_states(self) -> None:\n         with retry_immediately(\"bar_retry\"):\n             self.test_retry_with_waits()\n \n+    from opnieuw import retry\n+\n+\n+class TestExceptionChaining(unittest.TestCase):\n+    def setUp(self) -> None:\n+        self.counter = 0\n+\n+    @retry(\n+        retry_on_exceptions=(TypeError, ValueError),\n+        max_calls_total=3,\n+        retry_window_after_first_call_in_seconds=1,\n+    )\n+    def raise_depending_on_counter(self) -> None:\n+        self.counter += 1\n+        if self.counter == 1:\n+            raise TypeError\n+        elif self.counter == 2:\n+            raise ValueError\n+        else:\n+            raise IndexError\n+\n+    def test_exception_chaining(self) -> None:\n+        with retry_immediately():\n+            try:\n+                self.raise_depending_on_counter()\n+            except IndexError as e:\n+                self.assertIsInstance(e.__cause__, ValueError)\n+                assert e.__cause__ is not None\n+                self.assertIsInstance(e.__cause__.__cause__, TypeError)\n+\n \n if __name__ == \"__main__\":\n     unittest.main()\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,4 @@\n+H4sIAAAAAAAAA+3S0QqCMBTGca97ivMCWptOHycqBYN0otPo7VsGFUF1o0T0/13sHLbBDnyLtv3+\n+kK+LelgGc1l5mTFj9Z7r2CujldYqTrTfV8pkKhAz20QP+s5tWpGgtda9u/fp/EdF9/xd0bn1zlbV\n+ps6jrpzujY/5p9kt/zjTPv8kVWkgq+lGeO3P89/lMga/LfJFc3KlrWMJK/Gt35TL0l0/hm3qfdEf\n+o+Yk4bD49tgAAAAAAAAAAAAAAAAAvDOQyEuDACgAAA==\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/tests/test_repair_exception_history.py b/tests/test_repair_exception_history.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/test_repair_exception_history.py\n@@ -0,0 +1,81 @@\n+import asyncio\n+\n+import pytest\n+\n+from opnieuw.retries import retry, retry_async\n+\n+\n+def assert_history(error, chronological_errors):\n+    for expected in reversed(chronological_errors):\n+        assert error is expected\n+        error = error.__cause__\n+    assert error is None\n+\n+\n+def test_sync_nonretryable_exception_stops_and_preserves_history():\n+    errors = [TypeError('first'), ValueError('second'), IndexError('terminal')]\n+    calls = []\n+\n+    @retry(\n+        retry_on_exceptions=(TypeError, ValueError),\n+        max_calls_total=4,\n+        retry_window_after_first_call_in_seconds=1,\n+    )\n+    def operation():\n+        index = len(calls)\n+        calls.append(index)\n+        if index < len(errors):\n+            raise errors[index]\n+        return 'unexpected extra attempt'\n+\n+    with pytest.raises(IndexError) as caught:\n+        operation()\n+\n+    assert calls == [0, 1, 2]\n+    assert_history(caught.value, errors)\n+\n+\n+def test_async_nonretryable_exception_stops_and_preserves_history():\n+    errors = [TypeError('first'), ValueError('second'), IndexError('terminal')]\n+    calls = []\n+\n+    @retry_async(\n+        retry_on_exceptions=(TypeError, ValueError),\n+        max_calls_total=4,\n+        retry_window_after_first_call_in_seconds=1,\n+    )\n+    async def operation():\n+        index = len(calls)\n+        calls.append(index)\n+        if index < len(errors):\n+            raise errors[index]\n+        return 'unexpected extra attempt'\n+\n+    with pytest.raises(IndexError) as caught:\n+        asyncio.run(operation())\n+\n+    assert calls == [0, 1, 2]\n+    assert_history(caught.value, errors)\n+\n+\n+def test_async_retry_exhaustion_preserves_all_exceptions():\n+    errors = [TypeError('first'), ValueError('second'), TypeError('last')]\n+    calls = []\n+\n+    @retry_async(\n+        retry_on_exceptions=(TypeError, ValueError),\n+        max_calls_total=3,\n+        retry_window_after_first_call_in_seconds=1,\n+    )\n+    async def operation():\n+        index = len(calls)\n+        calls.append(index)\n+        if index < len(errors):\n+            raise errors[index]\n+        return 'unexpected extra attempt'\n+\n+    with pytest.raises(TypeError) as caught:\n+        asyncio.run(operation())\n+\n+    assert calls == [0, 1, 2]\n+    assert_history(caught.value, errors)\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:2877ead18276b118a0c09e908ce8f5dd63a0373ba145d3ed123b3e7e0861743f",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\npython -m pytest tests/test_repair_exception_history.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000657.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-opnieuw-retries-py-2",
+      "drop-block-opnieuw-retries-py-4",
+      "drop-block-opnieuw-retries-py-5",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "python -m pytest tests/test_repair_exception_history.py -q",
+    "repo_paths": [
+      "tests/test_repair_exception_history.py"
+    ],
+    "port_of_variant": "sha256:92cc1d16665a5be51ed1b28b35349f2987921e99339ef637613ae57839ce7a67",
+    "source_record_sha256": "sha256:99800cf243ed3a26ce20965dfc4e6449bd7c5e8b02442227cd5fc6d81786e7aa",
+    "v6_parent_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014"
+  },
+  "created_by": "mimo-data-lineage-registration-20261016",
+  "created_at": "2026-10-16T22:38:05Z",
+  "status": "validated",
+  "evidence": [
+    {
+      "at": "2026-10-16T22:38:05Z",
+      "by": "mimo-data-lineage-registration-20261016",
+      "status": "validated",
+      "evidence": "{\"approval\": \"2026-10-16 approved exact producer replay; truthful status basis is reproduced endpoints plus exact-digest controls\", \"approval_actor\": \"research-harbor\", \"basis\": \"reproduced package and Harbor digests plus retained exact-digest control receipts; not custody alone\", \"control_scope\": \"retained exact-digest oracle x3=1 and nop x3=0\", \"controls\": {\"nop\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000657-nop.json\", \"repeats\": [0.0, 0.0, 0.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000657-nop\", \"reward\": 0.0, \"sha256\": \"396ca4a862bf7a90e5d43100c584ad12ece075de81d4112dae699d43c9365f13\"}, \"oracle\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000657-oracle.json\", \"repeats\": [1.0, 1.0, 1.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000657-oracle\", \"reward\": 1.0, \"sha256\": \"e68b545c17709e3d2a2382a90469bb20febecad05f29cd511242644619a130e6\"}}, \"harbor_digest\": \"sha256:2dcdeca0a6d06b2120b2c1dcd821c4b6d2ec5d5da7220576c5fdf9ca1f1f6549\", \"limits\": \"No new grading or runtime-lock probe; no claim of prompt-complete test validity. Frozen validity flags remain.\", \"package_digest\": \"sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f\", \"registration\": \"research/experiments/mimo-training-20261016/lineage-registration.json\", \"replay_receipt\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/headline-replay.json\", \"sha256\": \"16801d5ab23b1c53d85a29b153e035cd4028923e696b7fcdc6f87a75dd1e0d14\"}, \"role\": \"pin_diagnostic\", \"task_id\": \"format-code-task-000657\"}"
+    }
+  ]
+}

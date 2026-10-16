@@ -1,0 +1,60 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001686",
+  "variant_digest": "sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff",
+  "variant_harbor_digest": "sha256:4ac36fc34c37a52c62ae324d8ecdf15c8db5aaa513b562fc295684d8d94a53d3",
+  "parent": {
+    "digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+    "harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65.json"
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:d620a25cfd41f86b8af636932e9d379c4d3be9bae5cb4c0a570a7c2bbd71cb6e",
+      "after_sha256": "sha256:6caaf572bccca4e7dbf917d1cc8dced561c1e2edb0de0153c3cb2f37c57d8f3d",
+      "content": "diff --git a/keras/src/ops/numpy_test.py b/keras/src/ops/numpy_test.py\nindex ab730608f..6d7ffd0cc 100644\n--- a/keras/src/ops/numpy_test.py\n+++ b/keras/src/ops/numpy_test.py\n@@ -1449,6 +1449,13 @@ class NumpyOneInputOpsDynamicShapeTest(testing.TestCase):\n         self.assertEqual(knp.tile(x, [1, 2]).shape, (None, 6))\n         self.assertEqual(knp.tile(x, [2, 1, 2]).shape, (2, None, 6))\n \n+    def test_tile_with_scalar_int_repeats_dynamic(self):\n+\n+\n+        x = KerasTensor((None, 3))\n+        self.assertEqual(knp.tile(x, 2).shape, (None, 6))\n+        self.assertEqual(knp.Tile(2)(x).shape, (None, 6))\n+\n     def test_trace(self):\n         x = KerasTensor((None, 3, None, 5))\n         self.assertEqual(knp.trace(x).shape, (None, 5))\n@@ -1973,6 +1980,13 @@ class NumpyOneInputOpsStaticShapeTest(testing.TestCase):\n         self.assertEqual(knp.tile(x, [1, 2]).shape, (2, 6))\n         self.assertEqual(knp.tile(x, [2, 1, 2]).shape, (2, 2, 6))\n \n+    def test_tile_with_scalar_int_repeats_static(self):\n+\n+\n+        x = KerasTensor((2, 3))\n+        self.assertEqual(knp.tile(x, 2).shape, (2, 6))\n+        self.assertEqual(knp.Tile(2)(x).shape, (2, 6))\n+\n     def test_trace(self):\n         x = KerasTensor((2, 3, 4, 5))\n         self.assertEqual(knp.trace(x).shape, (4, 5))\n@@ -4130,6 +4144,14 @@ class NumpyOneInputOpsCorrectnessTest(testing.TestCase, parameterized.TestCase):\n         self.assertAllClose(knp.tile(x, [2]), np.tile(x, [2]))\n         self.assertAllClose(knp.Tile([2])(x), np.tile(x, [2]))\n \n+    def test_tile_with_scalar_int_repeats(self):\n+\n+\n+\n+        x = np.array([[1, 2, 3], [3, 2, 1]])\n+        self.assertAllClose(knp.tile(x, 2), np.tile(x, 2))\n+        self.assertAllClose(knp.Tile(2)(x), np.tile(x, 2))\n+\n     def test_trace(self):\n         x = np.arange(24).reshape([1, 2, 3, 4])\n         self.assertAllClose(knp.trace(x), np.trace(x))\ndiff --git a/test_commands.json b/test_commands.json\nnew file mode 100644\nindex 000000000..9f2f9c97d\n--- /dev/null\n+++ b/test_commands.json\n@@ -0,0 +1,3 @@\n+{\n+  \"test_commands\": [\"python -m pytest keras/src/ops/numpy_test.py -k test_tile_with_scalar_int_repeats -v\"]\n+}\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,8 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed\n+rc=0\n+python -m pytest keras/src/ops/numpy_test.py -k test_tile_with_scalar_int_repeats -v\n+rc=$(( rc | $? ))\n+exit $rc\ndiff --git a/tests/test_repair_torch_scalar_tile.py b/tests/test_repair_torch_scalar_tile.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/test_repair_torch_scalar_tile.py\n@@ -0,0 +1,30 @@\n+import os\n+os.environ['KERAS_BACKEND'] = 'torch'\n+\n+import unittest\n+import numpy as np\n+import torch\n+from keras import ops\n+from keras.src.backend.torch import numpy as torch_numpy\n+\n+\n+class TorchScalarTileTest(unittest.TestCase):\n+    def test_public_tile_with_integer_repeats(self):\n+        for shape in [(3,), (2, 3), (2, 1, 3)]:\n+            values = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)\n+            tensor = torch.tensor(values)\n+            for repeats in [0, 1, 3]:\n+                with self.subTest(shape=shape, repeats=repeats):\n+                    actual = ops.convert_to_numpy(ops.tile(tensor, repeats))\n+                    expected = np.tile(values, repeats)\n+                    self.assertEqual(actual.shape, expected.shape)\n+                    np.testing.assert_array_equal(actual, expected)\n+\n+    def test_torch_backend_tile_with_integer_repeats(self):\n+        values = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32)\n+        actual = torch_numpy.tile(torch.tensor(values), 2)\n+        np.testing.assert_array_equal(actual.detach().cpu().numpy(), np.tile(values, 2))\n+\n+\n+if __name__ == '__main__':\n+    unittest.main()\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:af6cdd7ccd49c05892ff60447c55393b24eeb109bc32bb70a3a06e9ed356d1f1",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\npython -m unittest tests/test_repair_torch_scalar_tile.py\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-001686.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "python -m unittest tests/test_repair_torch_scalar_tile.py",
+    "repo_paths": [
+      "tests/test_repair_torch_scalar_tile.py"
+    ],
+    "port_of_variant": "sha256:9f93b48f8c10f6d2b36f5a5456725d4b689678c3ecd279e85b953bbc08a4a884",
+    "source_record_sha256": "sha256:86dbbd94ca74c55219ab3ed757cdf99b60bfef7f48e76dc53e0a86dedc96a4ea",
+    "v6_parent_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf"
+  },
+  "created_by": "mimo-data-lineage-registration-20261016",
+  "created_at": "2026-10-16T22:38:05Z",
+  "status": "validated",
+  "evidence": [
+    {
+      "at": "2026-10-16T22:38:05Z",
+      "by": "mimo-data-lineage-registration-20261016",
+      "status": "validated",
+      "evidence": "{\"approval\": \"2026-10-16 approved exact producer replay; truthful status basis is reproduced endpoints plus exact-digest controls\", \"approval_actor\": \"research-harbor\", \"basis\": \"reproduced package and Harbor digests plus retained exact-digest control receipts; not custody alone\", \"control_scope\": \"retained exact-digest oracle x3=1 and nop x3=0\", \"controls\": {\"nop\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/001686-nop.json\", \"repeats\": [0.0, 0.0, 0.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-001686-nop\", \"reward\": 0.0, \"sha256\": \"adc8dbdc952398ece9cd0a097b1990ffcced12fb2aa1372183e8a9ad500ed862\"}, \"oracle\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/001686-oracle.json\", \"repeats\": [1.0, 1.0, 1.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-001686-oracle\", \"reward\": 1.0, \"sha256\": \"802c21fd3eec1a17a8483875fa7975226154dce412024a31f5ecf5b0d6f29783\"}}, \"harbor_digest\": \"sha256:4ac36fc34c37a52c62ae324d8ecdf15c8db5aaa513b562fc295684d8d94a53d3\", \"limits\": \"No new grading or runtime-lock probe; no claim of prompt-complete test validity. Frozen validity flags remain.\", \"package_digest\": \"sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff\", \"registration\": \"research/experiments/mimo-training-20261016/lineage-registration.json\", \"replay_receipt\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/headline-replay.json\", \"sha256\": \"16801d5ab23b1c53d85a29b153e035cd4028923e696b7fcdc6f87a75dd1e0d14\"}, \"role\": \"pin_diagnostic\", \"task_id\": \"format-code-task-001686\"}"
+    }
+  ]
+}

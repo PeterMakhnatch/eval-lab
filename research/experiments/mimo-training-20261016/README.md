@@ -15,6 +15,7 @@ The freeze fixes task membership and package custody; it does not certify task q
 - `cloud-control-table.csv`, `cloud-controls.json`, `native-controls.json`: current control evidence supplement. Infra's native Modal controls qualify all 33 held-out packages and training task 001647 on their exact v6 digests. The original freeze manifest's unproven control fields remain historical; these later receipts do not rewrite identity or grading-package bindings.
 - `consumer-check.json`: the actual QA Trace exclusion parser accepts all 33 IDs with zero historical-training overlap.
 - `evidence-relocations.json`: durable locations of the archived isolated PostgreSQL smoke and full static intake evidence.
+- `lineage-registration.json`: exact-byte reconstruction and retained-control evidence for the 33 headline packages and three separately selected v6-ported pin diagnostics; canonical variant-record paths and hashes.
 
 The live custody path is `/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json`. That worktree is locked against retirement while consumers use these absolute bindings. Do not move it or silently replace the membership.
 
@@ -55,3 +56,43 @@ The supplement preserves all 70 native observations: the initial 66 cells, the c
 ## Reference custody outside the packaged index
 
 The recovered 002486 implementation patch is at `/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/native-002486/reference.patch`, SHA256 `71de99ac34848cb170be5350f158323be4bee32863b1a39fe323e5f5895d0e85`. The sibling `002486-reference/provenance.json` records its source and `install_plan.py`-only selection. This supplies custody, not fresh exact-v6 qualification.
+
+## Frozen lineage registration — 2026-10-16
+
+Research authorized reconstructing the missing lineage in isolated scratch storage,
+without modifying a shared package, ledger root, frozen membership or scoring gate.
+The existing producer reproduced **33/33 package digests and 33/33 Harbor digests**
+from the pinned ledger parents, with **198 actual derivation edges**:
+
+`strip-future-history@1 → purge-installed-copies@2 → purge-build-caches@4 → mtime-normalize@2 → separate-verifier@10 → agent-network-none@1`.
+
+The 33 existing first-edge records remain unchanged; 165 missing headline records
+and three diagnostic child records are registered. Fifteen ledger roots retain
+their older, truthful ancestry: `leak-close-pypi@1` (11),
+`env-keep-build-outputs@1` (3), and `env-keep-files@1` (1). These are not relabelled
+or omitted to satisfy a transform policy.
+
+Only the 36 endpoints receive `validated` status. Their append-only evidence binds
+the reproduced package/Harbor identities to retained exact-digest controls:
+headline oracle x1 = 1 / nop x1 = 0, and diagnostic oracle x3 = 1 / nop x3 = 0.
+Intermediate records are not promoted. This records existing control evidence;
+it is neither a new grading run nor a claim that the tests enforce every prompt
+requirement. The frozen validity flags and caveats remain in force.
+
+The diagnostic packages are `000371/cc1349da3c95`, `000657/da34eb301f58`, and
+`001686/852e5afe1b8f`. Each `verifier-repair@1` edge was reproduced from its exact
+frozen headline parent with a real variant-record link and unchanged endpoint
+digests. Their `task.toml` files are byte-identical to those parents and inherit
+`[agent] network_mode = "no-network"`. No fresh runtime network-lock probe was
+performed here; runtime admission remains a separate gate. The raw repaired
+variants are not the selected diagnostics, and these extra diagnostic rows do
+not replace any headline grading package.
+
+Full replay evidence is retained at
+`/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/headline-replay.json`
+(SHA256 `16801d5ab23b1c53d85a29b153e035cd4028923e696b7fcdc6f87a75dd1e0d14`).
+The executed procedures are archived in that directory's `procedures/` folder;
+their hashes and the original execution paths are recorded in the registration
+receipt. The canonical record files retain every parent package/Harbor digest
+and every before/after file change. No new model, container or paid execution
+was used for this registration.

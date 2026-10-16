@@ -1,0 +1,61 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000371",
+  "variant_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+  "variant_harbor_digest": "sha256:52f1dcba0ff62c70d6b5078a930b6377531017a45c05b6fa951b42d3002256cd",
+  "parent": {
+    "digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+    "harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232.json"
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:5c29b6639477eb558a5e000abf02b0264f1ac0c096e1056653e7b0a3f9b28f82",
+      "after_sha256": "sha256:ff22207588915ad0786754b29a80392a3624404c0c82a78b1d3dd9fcd606de93",
+      "content": "diff --git a/test_commands.json b/test_commands.json\nnew file mode 100644\nindex 0000000..016e8d4\n--- /dev/null\n+++ b/test_commands.json\n@@ -0,0 +1,5 @@\n+{\n+  \"test_commands\": [\n+    \"python -m pytest woodwork/tests/logical_types/test_logical_types.py::test_ordinal_with_valid_order_preserved woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_class woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_repr woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_is_instance woodwork/tests/schema/test_column_schema.py::test_column_schema_with_instantiated_ordinal_preserved -v\"\n+  ]\n+}\ndiff --git a/woodwork/tests/logical_types/test_logical_types.py b/woodwork/tests/logical_types/test_logical_types.py\nindex 2f08f9c..8cb497d 100644\n--- a/woodwork/tests/logical_types/test_logical_types.py\n+++ b/woodwork/tests/logical_types/test_logical_types.py\n@@ -122,3 +122,10 @@ def test_ordinal_transform(sample_series):\n \n     with pytest.raises(ValueError, match=error_msg):\n         ordinal_incomplete_order.transform(sample_series)\n+\n+\n+def test_ordinal_with_valid_order_preserved():\n+\n+    order = ['bronze', 'silver', 'gold']\n+    ordinal = Ordinal(order=order)\n+    assert ordinal.order == order\ndiff --git a/woodwork/tests/schema/test_column_schema.py b/woodwork/tests/schema/test_column_schema.py\nindex 8e2c55e..e220680 100644\n--- a/woodwork/tests/schema/test_column_schema.py\n+++ b/woodwork/tests/schema/test_column_schema.py\n@@ -410,3 +410,32 @@ def test_schema_repr():\n             \"<ColumnSchema (Semantic Tags = ['category', 'foreign_key'])>\")\n     assert (repr(ColumnSchema()) ==\n             \"<ColumnSchema>\")\n+\n+\n+def test_column_schema_with_uninstantiated_ordinal_class():\n+\n+\n+    schema = ColumnSchema(logical_type=Ordinal)\n+    assert schema is not None\n+    assert schema.logical_type is not None\n+\n+\n+def test_column_schema_with_uninstantiated_ordinal_repr():\n+\n+    schema = ColumnSchema(logical_type=Ordinal)\n+    assert repr(schema) == \"<ColumnSchema (Logical Type = Ordinal)>\"\n+\n+\n+def test_column_schema_with_uninstantiated_ordinal_is_instance():\n+\n+\n+    schema = ColumnSchema(logical_type=Ordinal)\n+    assert isinstance(schema.logical_type, Ordinal)\n+    assert schema.logical_type.order is None\n+\n+\n+def test_column_schema_with_instantiated_ordinal_preserved():\n+\n+    schema = ColumnSchema(logical_type=Ordinal(order=['a', 'b', 'c']))\n+    assert isinstance(schema.logical_type, Ordinal)\n+    assert schema.logical_type.order == ['a', 'b', 'c']\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,8 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed\n+rc=0\n+python -m pytest -v -rA woodwork/tests/logical_types/test_logical_types.py::test_ordinal_with_valid_order_preserved woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_class woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_repr woodwork/tests/schema/test_column_schema.py::test_column_schema_with_uninstantiated_ordinal_is_instance woodwork/tests/schema/test_column_schema.py::test_column_schema_with_instantiated_ordinal_preserved\n+rc=$(( rc | $? ))\n+exit $rc\ndiff --git a/woodwork/tests/test_repair_ordinal_order_validation.py b/woodwork/tests/test_repair_ordinal_order_validation.py\nnew file mode 100644\n--- /dev/null\n+++ b/woodwork/tests/test_repair_ordinal_order_validation.py\n@@ -0,0 +1,23 @@\n+import pandas as pd\n+import pytest\n+\n+from woodwork.column_schema import ColumnSchema\n+from woodwork.logical_types import Ordinal\n+\n+\n+@pytest.mark.parametrize(\n+    'order, error',\n+    [\n+        (['a', 'a'], ValueError),\n+        (('a', 'a'), ValueError),\n+        ('a', TypeError),\n+        ({'a'}, TypeError),\n+        ({'a': 0}, TypeError),\n+    ],\n+    ids=['duplicate-list', 'duplicate-tuple', 'string', 'set', 'mapping'],\n+)\n+def test_invalid_ordinal_orders_are_rejected_when_validating_data(order, error):\n+    schema = ColumnSchema(logical_type=Ordinal(order=order))\n+    values = pd.Series(['a'])\n+    with pytest.raises(error):\n+        schema.logical_type._validate_data(values)\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:fe6715dd5cf2cda26021fd4c649a10a24b20f018abfe64b00c130d05acfbc448",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\npython -m pytest woodwork/tests/test_repair_ordinal_order_validation.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000371.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-woodwork-logical-types-py-1",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "python -m pytest woodwork/tests/test_repair_ordinal_order_validation.py -q",
+    "repo_paths": [
+      "woodwork/tests/test_repair_ordinal_order_validation.py"
+    ],
+    "port_of_variant": "sha256:6d64720966dfd9d432ff918006e1026d1e18784a4058346c509eca8b552261cd",
+    "source_record_sha256": "sha256:091582b3eab1ef5795d681c07de6161b68ab985aa0a6b878a54882ac7acf6c56",
+    "v6_parent_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1"
+  },
+  "created_by": "mimo-data-lineage-registration-20261016",
+  "created_at": "2026-10-16T22:38:04Z",
+  "status": "validated",
+  "evidence": [
+    {
+      "at": "2026-10-16T22:38:05Z",
+      "by": "mimo-data-lineage-registration-20261016",
+      "status": "validated",
+      "evidence": "{\"approval\": \"2026-10-16 approved exact producer replay; truthful status basis is reproduced endpoints plus exact-digest controls\", \"approval_actor\": \"research-harbor\", \"basis\": \"reproduced package and Harbor digests plus retained exact-digest control receipts; not custody alone\", \"control_scope\": \"retained exact-digest oracle x3=1 and nop x3=0\", \"controls\": {\"nop\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000371-nop.json\", \"repeats\": [0.0, 0.0, 0.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000371-nop\", \"reward\": 0.0, \"sha256\": \"abb1021d6f82a8fb9d8c227a44ffaf8858f3c008f76eb8d6387f444cb4ae0c80\"}, \"oracle\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000371-oracle.json\", \"repeats\": [1.0, 1.0, 1.0], \"retained_job_dir\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000371-oracle\", \"reward\": 1.0, \"sha256\": \"5e33446ef1e2246fea3e3983a528aabcfc2609b72b4fd81db6c4f3efff09e143\"}}, \"harbor_digest\": \"sha256:52f1dcba0ff62c70d6b5078a930b6377531017a45c05b6fa951b42d3002256cd\", \"limits\": \"No new grading or runtime-lock probe; no claim of prompt-complete test validity. Frozen validity flags remain.\", \"package_digest\": \"sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548\", \"registration\": \"research/experiments/mimo-training-20261016/lineage-registration.json\", \"replay_receipt\": {\"path\": \"/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/headline-replay.json\", \"sha256\": \"16801d5ab23b1c53d85a29b153e035cd4028923e696b7fcdc6f87a75dd1e0d14\"}, \"role\": \"pin_diagnostic\", \"task_id\": \"format-code-task-000371\"}"
+    }
+  ]
+}

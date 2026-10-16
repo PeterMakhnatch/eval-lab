@@ -763,7 +763,7 @@ inputs:
   - path: src/evallab/vf_scripted_harness.py
     digest: sha256:21c85c9926791eb7d4ea30bc4659db4854f42fa50351d0fe915ba9e352ce6981
   - path: src/evallab/watch_stop.py
-    digest: sha256:f9392aef85ebcb2e0e045bd3597255d51a769e7fba7ca762642ce361bc77e09a
+    digest: sha256:7242cb376ba03b5352bcac3da8cad8348e268ffca62d4ab114a264904b5575a7
   - path: src/evallab/webdev_brief_explicit.py
     digest: sha256:02603e742231363f4c327d3322769e6bceb606ddb6d74c890453de23f957461f
   - path: src/evallab/webdev_structural_gate.py

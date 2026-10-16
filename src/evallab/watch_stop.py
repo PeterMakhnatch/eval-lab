@@ -97,6 +97,7 @@ VERIFICATION_START_EVENT = "verification-start"
 #: ``trial.log`` is tailed; everything else is copied whole up to a cap.
 SNAPSHOT_FILES = (
     "agent/trajectory.json",
+    "agent/codex.txt",
     "trajectory.json",
     "agent/file-access.jsonl",
     "proxy-live/calls.jsonl",

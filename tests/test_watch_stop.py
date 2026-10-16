@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -268,24 +269,41 @@ def test_record_roundtrips_with_manifest(tmp_path: Path) -> None:
     assert stop_already_handled(watch, "task__a1") is True
 
 
-def test_host_snapshot_copies_files_with_hashes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("evidence_name", "capture_limit"),
+    [("trajectory.json", 4096), ("codex.txt", 4096), ("codex.txt", 64)],
+)
+def test_host_snapshot_preserves_evidence_before_source_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    evidence_name: str,
+    capture_limit: int,
+) -> None:
+    monkeypatch.setattr(watch_stop, "SNAPSHOT_MAX_BYTES", capture_limit)
     job = tmp_path / "job"
     trial = job / "task__a1"
     (trial / "agent").mkdir(parents=True)
-    (trial / "agent" / "trajectory.json").write_text('{"steps": []}', encoding="utf-8")
-    (trial / "config.json").write_text("{}", encoding="utf-8")
-    manifest = capture_host_snapshot(
-        job_dir=job,
-        trial="task__a1",
-        dest_dir=tmp_path / "snap",
-        alert={"rule": "history_mining"},
+    evidence = trial / "agent" / evidence_name
+    original = json.dumps(
+        {"steps": [{"source": "agent", "message": "Reading ordinary task instructions."}]}
+    ).encode()
+    evidence.write_bytes(original)
+    snapshot = tmp_path / "snap"
+    manifest = capture_host_snapshot(job_dir=job, trial=trial.name, dest_dir=snapshot)
+    evidence.write_bytes(b"later activity must not rewrite captured evidence")
+
+    captured = (snapshot / "agent" / evidence_name).read_bytes()
+    assert captured == original[:capture_limit]
+    entry = next(
+        item for item in manifest["files"] if item["path"] == f"agent/{evidence_name}"
     )
-    paths = {entry["path"] for entry in manifest["files"]}
-    assert "agent/trajectory.json" in paths
-    assert "config.json" in paths
-    assert "firing-alert.json" in paths
-    for entry in manifest["files"]:
-        assert len(entry["sha256"]) == 64
+    assert entry["sha256"] == hashlib.sha256(captured).hexdigest()
+    assert entry["bytes"] == len(captured)
+    if len(original) > capture_limit:
+        assert entry["truncated"] is True
+        assert entry["source_bytes"] == len(original)
+    else:
+        assert not entry.get("truncated")
     assert manifest["errors"] == []
 
 

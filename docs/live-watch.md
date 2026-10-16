@@ -308,15 +308,21 @@ hook journal, never an acked alert, never a fleet rule, never `nop`/`oracle`
 (auto-watch never attaches to them). Capture failures are recorded and never
 block the stop; `docker` evidence degrades gracefully on non-Docker backends.
 
-Ordering invariant: host snapshot first (trajectory, file-access log,
-proxy-live ledger, config, hook-journal slice, firing alert, trial status
-entry), container evidence next, the stop request last. The in-process
+Ordering invariant: host snapshot first (trajectory, Codex's live
+`agent/codex.txt` stream, file-access log, proxy-live ledger, config,
+hook-journal slice, firing alert, trial status entry), container evidence
+next, the stop request last. The in-process
 actuator (`WatchHookPlugin`, armed by default, `EVALLAB_WATCH_STOP=off`
 disarms it) polls `<job>/watch/stop-requests/*.json` about once a second
 and cancels only the named trial task; the wrapper returns the `TrialResult`
 from the trial's own `END` hook with the exception marker rewritten to
 `WatchStopCancelledError` (ordinary cancels stay `CancelledError`, counted
 separately as `n_stopped_by_watch` in merged results).
+
+The Codex stream is preserved even before its final ATIF trajectory exists.
+Like other full-file snapshots, it is capped at 8 MiB; oversized captures
+record truncation, original size, and the hash of the preserved prefix.
+Later writes to the live log do not update the saved copy.
 
 Files written (history is never rewritten): `watch/stop-requests/<trial>.json`
 (rule, alert, step, requester auto/manual), `watch/stop-records/<trial>.json`

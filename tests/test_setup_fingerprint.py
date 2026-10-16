@@ -802,6 +802,17 @@ def test_campaign_scoped_admits_each_headline_transform(
     spec = make_variant_spec(root, record, package)
     validate_request(make_variant_request(root, spec, package), repo_root=root)
 
+
+def test_campaign_scoped_pin_diagnostic_admitted(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="verifier-repair@1")
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest, scope="pin_diagnostic")
+    spec = make_variant_spec(root, record, package)
+    validate_request(make_variant_request(root, spec, package), repo_root=root)
+
 def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while_mimo_task_and_selfhosted_stay_gated(
     tmp_path: Path,
 ) -> None:

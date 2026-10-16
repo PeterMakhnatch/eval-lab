@@ -148,6 +148,6 @@ campaign_lineage:
   pin_diagnostic:
     transforms: [verifier-repair@1]
     package_digests:
-      - sha256:6d64720966dfd9d432ff918006e1026d1e18784a4058346c509eca8b552261cd  # format-code-task-000371
-      - sha256:92cc1d16665a5be51ed1b28b35349f2987921e99339ef637613ae57839ce7a67  # format-code-task-000657
-      - sha256:9f93b48f8c10f6d2b36f5a5456725d4b689678c3ecd279e85b953bbc08a4a884  # format-code-task-001686
+      - sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548  # format-code-task-000371
+      - sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f  # format-code-task-000657
+      - sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff  # format-code-task-001686

@@ -1,0 +1,16 @@
+{
+  "agents": {
+    "mimoagent": 19,
+    "terminus-2": 51
+  },
+  "export": "/Users/petermakhnatch/Developer/eval-lab/derived/repaired-data-sft-v1/exports-20261016T0530Z/all",
+  "export_conversations_sha256": "sha256:2ac04afe05c020de9c9fb7e10bfe831eba753e45084cdfe519d7340cb9b495a4",
+  "failures": [],
+  "ok": true,
+  "provenance_fields_checked": 910,
+  "render_equal": 70,
+  "rows_in": 70,
+  "rows_out": 70,
+  "source": "/Users/petermakhnatch/Developer/eval-lab/derived/repaired-data-sft-v1/exports-20261016T0530Z/source-arms-probe/A.jsonl",
+  "source_sha256": "sha256:af60b28f3723df4830a7dfff9e16f2b1bd04059219bcbfda5f1e2696f583a936"
+}

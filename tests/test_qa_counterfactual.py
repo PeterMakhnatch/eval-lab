@@ -114,6 +114,59 @@ def test_patch_replay_never_counts_infra_or_absent_scores_as_rejections(
     assert bool(result["refusals"]) is (outcome == "refused")
 
 
+@pytest.mark.parametrize(
+    ("environment", "takes_local_slot"), [("docker", True), ("daytona", False), ("modal", False)]
+)
+def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, environment: str, takes_local_slot: bool
+) -> None:
+    import evallab.docker_lock
+
+    slots: list[str] = []
+
+    def docker_slot(*, label: str):
+        slots.append(label)
+        return nullcontext()
+
+    monkeypatch.setattr(evallab.docker_lock, "docker_slot", docker_slot)
+    seen: list[str] = []
+
+    def matrix_runner(matrix, *, root):
+        seen.append(matrix.environment)
+        return SimpleNamespace(
+            results=[{"status": "ok", "rewards": [0.0], "error": None}],
+            receipt_path=root / "runs/matrix-receipt.json",
+        )
+
+    result = cf.replay(
+        _trial(tmp_path),
+        _grader(tmp_path),
+        tmp_path / "work",
+        repo_root=tmp_path,
+        matrix_runner=matrix_runner,
+        environment=environment,
+    )
+    assert seen == [environment]
+    assert result["environment"] == environment
+    assert result["outcome"] == "flips"
+    assert bool(slots) is takes_local_slot
+
+
+def test_replay_rejects_an_unknown_backend_before_running_anything(tmp_path: Path) -> None:
+    def matrix_runner(matrix, *, root):
+        raise AssertionError("must not run")
+
+    with pytest.raises(ValueError, match="unsupported replay environment"):
+        cf.replay(
+            _trial(tmp_path),
+            _grader(tmp_path),
+            tmp_path / "work",
+            repo_root=tmp_path,
+            matrix_runner=matrix_runner,
+            environment="kubernetes",
+        )
+
+
 def test_missing_change_is_unmeasurable_not_a_successful_nop(tmp_path: Path) -> None:
     result = cf.replay(
         _trial(tmp_path, diff=None), _grader(tmp_path), tmp_path / "work", repo_root=tmp_path

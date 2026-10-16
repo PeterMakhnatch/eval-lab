@@ -48,6 +48,24 @@ SNAPSHOT_ARCHIVE = "workspace.tgz"
 ENGINE_VERSION = "qa-trace-counterfactual/2"
 #: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
+#: Execution backends the replay engine can target. Cloud runs skip the local
+#: Docker FIFO and the one-container process gate (both exist only to protect the
+#: host). Daytona's MiMo egress lock refuses tasks with phase network policies
+#: (every mimo-clean-v6 package), so Modal is the cloud backend for v6 replays.
+ENVIRONMENTS = ("docker", "daytona", "modal")
+
+
+def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractContextManager[Any]:
+    if environment not in ENVIRONMENTS:
+        raise ValueError(f"unsupported replay environment: {environment!r}")
+    if environment != "docker":
+        return contextlib.nullcontext()
+    from evallab.docker_lock import docker_slot
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(DOCKER_SLOTS)
+    stack.enter_context(docker_slot(label=label))
+    return stack
 
 
 @dataclass(frozen=True)
@@ -286,7 +304,12 @@ def _patch_script(diff: str, workdir: str) -> str:
 
 
 def _replay_patch(
-    diff: str, grader: Grader, *, repo_root: Path, matrix_runner: Any = None
+    diff: str,
+    grader: Grader,
+    *,
+    repo_root: Path,
+    matrix_runner: Any = None,
+    environment: str = "docker",
 ) -> dict[str, Any]:
     """Run the recorded change as a model-free native oracle-script control.
 
@@ -319,6 +342,7 @@ def _replay_patch(
         task_package_digest=digests.package,
         verifier_digest=digests.verifier,
         jobs_dir="runs",
+        environment=environment,
         concurrency=1,
         timeout_seconds=3600,
         runs=[
@@ -341,6 +365,7 @@ def _replay_patch(
         "matrix_receipt": str(execution.receipt_path),
         "job_dir": str(repo_root / "runs" / name),
         "refusals": [] if score is not None else ["patch_replay_failed"],
+        "environment": environment,
         "execution_error": result.get("error"),
         "script_sha256": script_digest,
     }
@@ -379,13 +404,13 @@ def replay(
     repo_root: Path,
     matrix_runner: Any = None,
     runner: Any = subprocess.run,
+    environment: str = "docker",
 ) -> dict[str, Any]:
     """Regrade a recorded snapshot or natively replay its recorded diff.
 
     Missing source artifacts are never invented. Diff-only inputs become new,
     explicitly labelled native oracle-script controls, not patched trial records.
     """
-    from evallab.docker_lock import docker_slot
     from evallab.execution_contracts import new_ulid
     from evallab.heldout_verifier import scan_agent_diff
     from evallab.regrade import read_reward_observation, regrade_trial
@@ -402,12 +427,13 @@ def replay(
         return {**row, "outcome": "refused", "refusals": ["source_reward_unavailable"]}
     snap = trial_dir / "artifacts" / SNAP_DIR.lstrip("/") / SNAPSHOT_ARCHIVE
     diff_path = trial_dir / "verifier" / "agent.diff"
-    with DOCKER_SLOTS, docker_slot(label=f"qa-trace-regrade {grader.label}"):
+    with _local_docker_gate(environment, f"qa-trace-regrade {grader.label}"):
         if diff_text is None and not diff_path.is_file() and snap.is_file():
             receipt = regrade_trial(
                 trial_dir=trial_dir,
                 task_dir=grader.package,
                 trials_dir=work / "regrades" / new_ulid().lower(),
+                environment=environment,
                 runner=runner,
             )
             score = (
@@ -416,6 +442,7 @@ def replay(
                 else None
             )
             row.update(
+                environment=environment,
                 regraded=score,
                 input_kind="recorded_snapshot",
                 regrade_dir=receipt.regrade_trial_dir,
@@ -443,7 +470,13 @@ def replay(
             if problems:
                 return {**row, "outcome": "refused", "refusals": ["diff_unreplayable"]}
             row.update(
-                _replay_patch(kept, grader, repo_root=repo_root, matrix_runner=matrix_runner)
+                _replay_patch(
+                    kept,
+                    grader,
+                    repo_root=repo_root,
+                    matrix_runner=matrix_runner,
+                    environment=environment,
+                )
             )
             row["dropped_binary_artifacts"] = dropped
     row["outcome"] = _outcome(recorded, row.get("regraded"))
@@ -470,6 +503,7 @@ def grader_controls(
     *,
     repo_root: Path,
     runner: Any = subprocess.run,
+    environment: str = "docker",
 ) -> dict[str, Any]:
     """Nop/reference execution gate, bound to grader, engine and reference bytes.
 
@@ -494,7 +528,13 @@ def grader_controls(
         ):
             return cached
     nop = replay(
-        shell_trial, grader, work / "nop", diff_text="", repo_root=repo_root, runner=runner
+        shell_trial,
+        grader,
+        work / "nop",
+        diff_text="",
+        repo_root=repo_root,
+        runner=runner,
+        environment=environment,
     )
     reference = (
         replay(
@@ -504,6 +544,7 @@ def grader_controls(
             diff_text=patch,
             repo_root=repo_root,
             runner=runner,
+            environment=environment,
         )
         if patch is not None
         else None

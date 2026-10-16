@@ -342,7 +342,13 @@ PROVIDERS: dict[str, Any] = {
         # The base and its admitted LoRA adapter names (SGLang ``base:adapter``),
         # mirroring execution_contracts.MIMO_SELFHOSTED_NATIVE_MODELS.
         "default_allowed_models": frozenset(
-            {"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B", "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"}
+            {
+                "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+                "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+                "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-a",
+                "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b",
+                "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c",
+            }
         ),
         "flat_input_price_env": None,
         "flat_output_price_env": None,
@@ -352,6 +358,9 @@ PROVIDERS: dict[str, Any] = {
         "model_prices": {
             "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": (0, 0),
             "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129": (0, 0),
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-a": (0, 0),
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b": (0, 0),
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c": (0, 0),
         },
         "expected_base_env": None,
         "checkpoint_models": False,

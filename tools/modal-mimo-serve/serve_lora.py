@@ -1,11 +1,11 @@
-"""LoRA-enabled twin of ``serve.py`` for the HAR-129 paired eval.
+"""LoRA-enabled twin of ``serve.py`` for paired evals of trained adapters.
 
-One SGLang server serves the base model and one PEFT LoRA adapter under two
-model names (SGLang's ``<base>:<adapter>`` request syntax,
+One SGLang server serves the base model and one or more PEFT LoRA adapters,
+each under its own model name (SGLang's ``<base>:<adapter>`` request syntax,
 ``serving_base.py`` ``_resolve_lora_path`` at v0.5.20):
 
 - ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` -> base weights;
-- ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:<adapter>`` -> base + adapter.
+- ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:<adapter>`` -> base + that adapter.
 
 Everything else is ``serve.py``'s: the same SGLang image digest, weights
 revision, GPU, context length, reasoning parser, CUDA-graph batch size, API
@@ -13,9 +13,10 @@ key secret and scale-to-zero policy. The only additions are the LoRA flags
 and the read-only adapter volume. It deploys as its own Modal app, so the
 production ``evallab-mimo-v26-9b`` deployment is never touched.
 
-The adapter is chosen at deploy time and baked into the app::
+The adapters are chosen at deploy time and baked into the app, as
+comma-separated ``<name>=<volume-relative adapter dir>`` pairs::
 
-    EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter EVALLAB_MIMO_LORA_NAME=<name> \\
+    EVALLAB_MIMO_LORAS=<name>=<run>/adapter[,<name>=<run>/adapter...] \\
       uv run --project tools/modal-mimo-serve --locked \\
         modal deploy tools/modal-mimo-serve/serve_lora.py
     uv run --project tools/modal-mimo-serve --locked \\
@@ -43,40 +44,54 @@ SFT_ROOT = Path("/sft")
 #: Upper bound for the adapter's rank; SGLang sizes its LoRA memory pool by it.
 MAX_LORA_RANK = 64
 
-ADAPTER_REL = os.environ.get("EVALLAB_MIMO_LORA_ADAPTER", "")
-ADAPTER_NAME = os.environ.get("EVALLAB_MIMO_LORA_NAME", "")
-if modal.is_local() and not (
-    re.fullmatch(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*", ADAPTER_REL)
-    and re.fullmatch(r"[A-Za-z0-9._-]+", ADAPTER_NAME)
-):
-    raise SystemExit(
-        "set EVALLAB_MIMO_LORA_ADAPTER (volume-relative adapter dir) and "
-        "EVALLAB_MIMO_LORA_NAME (adapter model name, [A-Za-z0-9._-]+)"
-    )
+LORAS_ENV = os.environ.get("EVALLAB_MIMO_LORAS", "")
+
+
+def parse_loras(spec: str) -> dict[str, str]:
+    """``name=rel[,name=rel...]`` -> {adapter name: volume-relative adapter dir}."""
+    loras: dict[str, str] = {}
+    for part in spec.split(","):
+        name, _, rel = part.partition("=")
+        if not (
+            re.fullmatch(r"[A-Za-z0-9._-]+", name)
+            and re.fullmatch(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*", rel)
+            and name not in loras
+        ):
+            raise ValueError(f"bad EVALLAB_MIMO_LORAS entry {part!r}")
+        loras[name] = rel
+    return loras
+
+
+if modal.is_local():
+    try:
+        parse_loras(LORAS_ENV)
+    except ValueError as exc:
+        raise SystemExit(
+            f"{exc}: set EVALLAB_MIMO_LORAS=<name>=<volume-relative adapter dir>[,...] "
+            "(names [A-Za-z0-9._-]+, unique)"
+        ) from exc
 
 sft_volume = modal.Volume.from_name(SFT_VOLUME_NAME)
 app = modal.App(APP_NAME)
 
 
-def lora_command(api_key: str, adapter_dir: Path, adapter_name: str) -> list[str]:
+def lora_command(api_key: str, adapters: dict[str, Path]) -> list[str]:
     """``serve.py``'s launch command plus the LoRA flags, nothing else."""
     return serve.sglang_command(api_key) + [
         "--enable-lora",
         "--lora-paths",
-        f"{adapter_name}={adapter_dir}",
+        *(f"{name}={path}" for name, path in adapters.items()),
         "--max-lora-rank",
         str(MAX_LORA_RANK),
         "--max-loras-per-batch",
-        "1",
+        str(len(adapters)),
         # Fail loudly if any adapter key does not map onto the served model.
         "--lora-strict-loading",
     ]
 
 
 @app.server(
-    image=serve.image.env(
-        {"EVALLAB_MIMO_LORA_ADAPTER": ADAPTER_REL, "EVALLAB_MIMO_LORA_NAME": ADAPTER_NAME}
-    ).add_local_python_source("serve"),
+    image=serve.image.env({"EVALLAB_MIMO_LORAS": LORAS_ENV}).add_local_python_source("serve"),
     gpu=serve.GPU,
     cpu=4.0,
     memory=16 * 1024,
@@ -96,11 +111,15 @@ class MimoLoraServer:
     def start(self) -> None:
         if not (serve.MODEL_DIR / "config.json").exists():
             raise RuntimeError(f"weights missing at {serve.MODEL_DIR}")
-        adapter_dir = SFT_ROOT / os.environ["EVALLAB_MIMO_LORA_ADAPTER"]
-        if not (adapter_dir / "adapter_config.json").is_file():
-            raise RuntimeError(f"adapter missing at {adapter_dir}")
+        adapters = {
+            name: SFT_ROOT / rel
+            for name, rel in parse_loras(os.environ["EVALLAB_MIMO_LORAS"]).items()
+        }
+        for name, adapter_dir in adapters.items():
+            if not (adapter_dir / "adapter_config.json").is_file():
+                raise RuntimeError(f"adapter {name} missing at {adapter_dir}")
         api_key = os.environ["SGLANG_API_KEY"]
-        command = lora_command(api_key, adapter_dir, os.environ["EVALLAB_MIMO_LORA_NAME"])
+        command = lora_command(api_key, adapters)
         self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         assert self.process.stdout is not None
         threading.Thread(

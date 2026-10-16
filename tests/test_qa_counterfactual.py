@@ -115,7 +115,7 @@ def test_patch_replay_never_counts_infra_or_absent_scores_as_rejections(
 
 
 @pytest.mark.parametrize(
-    ("environment", "takes_local_slot"), [("docker", True), ("daytona", False)]
+    ("environment", "takes_local_slot"), [("docker", True), ("daytona", False), ("modal", False)]
 )
 def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, environment: str, takes_local_slot: bool
@@ -163,7 +163,7 @@ def test_replay_rejects_an_unknown_backend_before_running_anything(tmp_path: Pat
             tmp_path / "work",
             repo_root=tmp_path,
             matrix_runner=matrix_runner,
-            environment="modal",
+            environment="kubernetes",
         )
 
 

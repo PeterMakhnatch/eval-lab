@@ -10,10 +10,16 @@ Run every step from a venv synced with `uv sync --extra laminar`: cloud regrade 
 Harbor other than the lab-pinned one.
 
     # 1. pass list for the regrade: one row per v6-failing headline trial (frozen v6
-    #    package), all arms. Infra's repaired-variant pin cells are skipped and counted.
+    #    package), all arms. Infra's repaired-variant pin cells are skipped and counted, and
+    #    so are tasks outside the replay population (`--exclude TASK=REASON`; 2026-10-16:
+    #    the four environment-invalid tasks, `g1x`). Pass the same exclusions to
+    #    analyze.py as `--replay-exclude`.
     uv run python research/experiments/repaired-data-sft-v1/incorrect_pass.py plan \
         --arm A=runs/rollout/arm-a/results.jsonl ... \
-        --package-pairs <mimo-training-20261016>/package-pairs.csv --out replays.jsonl
+        --package-pairs <mimo-training-20261016>/package-pairs.csv \
+        --exclude format-code-task-001199=g1x --exclude format-code-task-001246=g1x \
+        --exclude format-code-task-001590=g1x --exclude format-code-task-002451=g1x \
+        --out replays.jsonl
     # 2a. count the uncached executions and the estimate (writes OUT/plan.json, runs nothing)
     uv run evallab qa trace regrade --passes replays.jsonl --environment modal --plan \
         --grader-manifest research/experiments/repaired-data-sft-v1/heldout-v5-graders.csv \
@@ -65,6 +71,8 @@ def plan(args: argparse.Namespace) -> int:
     rows: list[dict[str, Any]] = []
     skipped: dict[str, int] = {}
     not_v6: dict[str, int] = {}
+    excluded = {task_id(t): reason for t, _, reason in (s.partition("=") for s in args.exclude)}
+    out_of_population: dict[str, int] = {}
     for spec in args.arm:
         arm, _, path = spec.partition("=")
         for line in Path(path).read_text().splitlines():
@@ -75,6 +83,10 @@ def plan(args: argparse.Namespace) -> int:
                 not_v6[arm] = not_v6.get(arm, 0) + 1
                 continue
             if r.get("error") or r.get("passed") is not False:
+                continue
+            if task_id(r["task"]) in excluded:
+                reason = excluded[task_id(r["task"])]
+                out_of_population[reason] = out_of_population.get(reason, 0) + 1
                 continue
             trial = trial_dir(Path(r["job_dir"]))
             if trial is None:
@@ -95,6 +107,7 @@ def plan(args: argparse.Namespace) -> int:
                 "replays": len(rows),
                 "skipped_no_single_trial_dir": skipped,
                 "skipped_not_frozen_v6_package": not_v6,
+                "skipped_out_of_population": out_of_population,
             }
         )
     )
@@ -142,6 +155,9 @@ def main() -> int:
     p = sub.add_parser("plan")
     p.add_argument("--arm", action="append", required=True, help="NAME=results.jsonl")
     p.add_argument("--package-pairs", type=Path, required=True, help="MiMo package-pairs.csv")
+    p.add_argument(
+        "--exclude", action="append", default=[], help="TASK=REASON outside the population"
+    )
     p.add_argument("--out", type=Path, required=True)
     c = sub.add_parser("collect")
     c.add_argument("--regrade", type=Path, required=True)

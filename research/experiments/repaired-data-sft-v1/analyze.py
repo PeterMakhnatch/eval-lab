@@ -18,14 +18,19 @@ Two definitions:
 - **Incorrect pass:** the original grader passes a submission that the v6@10 grader
   rejects. The model would have been rewarded for wrong work under the original grader.
   - Only v6-failing trials need a replay; a v6 pass cannot be an incorrect pass.
-  - `incorrect_pass_rate` is reported only when every measured v6 failure has a measured
-    original-grader replay; its denominator is all measured trials. An arm that passes
-    every trial on v6 is therefore structurally 0.
-  - With any unresolved v6 failure, the rate is `null` and `incorrect_pass_status` says
-    `partial` or `unmeasured`. `incorrect_pass_bounds` then gives the range: every
-    unresolved failure counted as correct, and every one counted as an incorrect pass.
-    Missing replays are never rendered as 0.
-  - `incorrect_pass_unresolved_failures` is always printed.
+  - **Population:** held-out trials minus the tasks given as `--replay-exclude
+    TASK=REASON`. These are out of population by design. On 2026-10-16 that means the
+    four environment-invalid tasks 001199, 001246, 001590 and 002451, which QA Trace
+    excludes at plan as `g1x`. Their trials never hold the rate at unmeasured. They are
+    counted, by reason, in `incorrect_pass_excluded`.
+  - `incorrect_pass_rate` is reported only when every in-population measured v6 failure
+    has a measured original-grader replay. Its denominator is the in-population measured
+    trials. An arm that passes every trial on v6 is therefore structurally 0.
+  - With any unresolved in-population v6 failure, the rate is `null` and
+    `incorrect_pass_status` says `partial` or `unmeasured`. `incorrect_pass_bounds` then
+    gives the range: every unresolved failure counted as correct, and every one counted
+    as an incorrect pass. Missing replays are never rendered as 0.
+  - `incorrect_pass_unresolved_failures` and `incorrect_pass_excluded` are always printed.
 
 Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
 wants these reported both ways:
@@ -67,6 +72,8 @@ Uncertainty:
         [--pin-regrade pin-regrade.jsonl --pin-manifest heldout-pin-repaired-graders.csv] \
         --receipt A=receipts/rds1-a.json --receipt B=receipts/rds1-b-v4e4.json \
         --receipt C=receipts/rds1-c-v4e4.json \
+        --replay-exclude format-code-task-001199=g1x --replay-exclude format-code-task-001246=g1x \
+        --replay-exclude format-code-task-001590=g1x --replay-exclude format-code-task-002451=g1x \
         --out results.json
 """
 
@@ -165,17 +172,28 @@ def grading_role(row: dict[str, Any], v6: dict[str, str], pins: set[str]) -> str
     raise ValueError(f"{task}: not the frozen v6 package of {tid} and not a pin")
 
 
-def incorrect_pass_summary(verdicts: list[tuple[bool, bool | None]]) -> dict[str, Any]:
-    """Per-arm incorrect-pass fields from (v6_pass, original_pass) per measured trial.
+def incorrect_pass_summary(
+    verdicts: list[tuple[str, bool, bool | None]], excluded: dict[str, str]
+) -> dict[str, Any]:
+    """Per-arm incorrect-pass fields from (task, v6_pass, original_pass) per measured trial.
 
     `original_pass` is the original-grader replay verdict, or None when no replay was
-    measured. A v6 pass is never an incorrect pass and needs no replay. The rate is
-    reported only when every v6 failure is resolved. Otherwise the result is `null`
-    with bounds, so missing replays never read as a measured 0.
+    measured. Trials of tasks in `excluded` (task -> reason) are outside the replay
+    population: they are counted by reason and nothing else. Within the population a v6
+    pass is never an incorrect pass and needs no replay. The rate is reported only when
+    every in-population v6 failure is resolved. Otherwise the result is `null` with
+    bounds, so missing replays never read as a measured 0.
     """
-    n = len(verdicts)
-    passes = sum(1 for v6, _ in verdicts if v6)
-    failures = [orig for v6, orig in verdicts if not v6]
+    out_of_population: dict[str, int] = {}
+    population: list[tuple[bool, bool | None]] = []
+    for task, v6, orig in verdicts:
+        if task in excluded:
+            out_of_population[excluded[task]] = out_of_population.get(excluded[task], 0) + 1
+        else:
+            population.append((v6, orig))
+    n = len(population)
+    passes = sum(1 for v6, _ in population if v6)
+    failures = [orig for v6, orig in population if not v6]
     resolved = [orig for orig in failures if orig is not None]
     unresolved = len(failures) - len(resolved)
     incorrect = sum(resolved)
@@ -187,6 +205,8 @@ def incorrect_pass_summary(verdicts: list[tuple[bool, bool | None]]) -> dict[str
         status = "unmeasured"
     return {
         "incorrect_pass_status": status,
+        "incorrect_pass_population": n,
+        "incorrect_pass_excluded": out_of_population,
         "incorrect_pass_measured": passes + len(resolved),
         "incorrect_pass_v6_passes": passes,
         "incorrect_pass_replayed_failures": len(resolved),
@@ -220,6 +240,12 @@ def main() -> int:
         action="append",
         default=[],
         help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
+    )
+    ap.add_argument(
+        "--replay-exclude",
+        action="append",
+        default=[],
+        help="TASK=REASON: held-out task outside the incorrect-pass replay population",
     )
     ap.add_argument(
         "--receipt",
@@ -259,6 +285,15 @@ def main() -> int:
     if not pins <= heldout:
         print(f"REFUSED: pins not held out: {sorted(pins - heldout)}", file=sys.stderr)
         return 2
+    replay_excluded: dict[str, str] = {}
+    for spec in args.replay_exclude:
+        task, _, reason = spec.partition("=")
+        if not reason or norm(task) not in heldout:
+            print(
+                f"REFUSED: --replay-exclude needs a held-out TASK=REASON: {spec}", file=sys.stderr
+            )
+            return 2
+        replay_excluded[norm(task)] = reason
 
     # One list of (trial name, passed) per task: `evallab rollout --attempts` gives several.
     # Headline: trials on the frozen v6 package. Diagnostic: pin trials on a repaired variant.
@@ -295,13 +330,18 @@ def main() -> int:
                 r = json.loads(line)
                 original[(r["arm"], r["trial"])] = bool(r["original_pass"])
 
-    report: dict[str, Any] = {"heldout_tasks": len(heldout), "arms": {}, "paired": {}}
+    report: dict[str, Any] = {
+        "heldout_tasks": len(heldout),
+        "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
+        "arms": {},
+        "paired": {},
+    }
     for name, by_task in arms.items():
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
         measured = [v for _, _, v in trials if v is not None]
         solves = sum(measured)
-        verdicts = [(v, original.get((name, n))) for _, n, v in trials if v is not None]
-        incorrect_pass = incorrect_pass_summary(verdicts)
+        verdicts = [(t, v, original.get((name, n))) for t, n, v in trials if v is not None]
+        incorrect_pass = incorrect_pass_summary(verdicts, replay_excluded)
         report["arms"][name] = {
             "examples": exports.get("arms", {}).get(name, {}).get("rows"),
             "tasks": len(by_task),

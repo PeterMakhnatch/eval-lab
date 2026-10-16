@@ -22,6 +22,18 @@ Two definitions:
     was measured.
   - An unreplayed v6 failure is counted as unmeasured, never as correct.
 
+Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
+wants these reported both ways:
+- **Headline:** every metric above uses only trials on each task's frozen v6@10 package,
+  identified by its digest directory in `package-pairs.csv`, across all 33 tasks, pins
+  included.
+- **Diagnostic** (`pins` in the output): Infra's extra pin trials on the EnvCheck repaired
+  variants, which are any other package of a pin. Per arm it gives the v6 and repaired
+  pin solve rates and their unpaired gap. These are separate trials of different
+  submissions, so the gap estimates the incorrect-pass rate on the pins rather than
+  counting incorrect passes one submission at a time.
+- A row on any other package of a task that is not a pin is refused.
+
 Uncertainty:
 - exact Clopper–Pearson 95% intervals for every rate;
 - an exact two-sided sign test on paired per-task solve rates, for B vs C (primary) and
@@ -30,7 +42,8 @@ Uncertainty:
     uv run python research/experiments/repaired-data-sft-v1/analyze.py \
         --arm base=… --arm A=… --arm B=… --arm C=… \
         --heldout heldout.json --exports <exports>/summary.json [--original-regrade rows.jsonl] \
-        --out results.json
+        --pin format-code-task-000657 --pin format-code-task-000371 \
+        --pin format-code-task-001686 --out results.json
 """
 
 from __future__ import annotations
@@ -102,12 +115,50 @@ def norm(task: str) -> str:
     return task.rsplit("/", 1)[-1]
 
 
+def v6_digests(package_pairs: Path) -> dict[str, str]:
+    """Bare task id -> 12-hex digest directory of its frozen v6@10 held-out package."""
+    import csv
+
+    with package_pairs.open(encoding="utf-8") as handle:
+        return {
+            r["task_id"]: r["v6_package_digest"].removeprefix("sha256:")[:12]
+            for r in csv.DictReader(handle)
+        }
+
+
+def grading_role(row: dict[str, Any], v6: dict[str, str], pins: set[str]) -> str:
+    """`headline` for a trial on the task's frozen v6 package; `pin_diagnostic` for a
+    trial on any other package of a validity-flagged pin (Infra's repaired-variant cells).
+
+    Rollout rows name the package path, ending in its 12-hex digest directory. Anything
+    else is refused, so a non-v6 grade can never enter the headline.
+    """
+    task = task_of(row)
+    tid, digest = norm(task), task.rstrip("/").rsplit("/", 1)[-1]
+    if digest == v6.get(tid):
+        return "headline"
+    if tid in pins:
+        return "pin_diagnostic"
+    raise ValueError(f"{task}: not the frozen v6 package of {tid} and not a pin")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--arm", action="append", required=True, help="NAME=results.jsonl")
     ap.add_argument("--heldout", type=Path, required=True)
     ap.add_argument("--exports", type=Path, required=True, help="to_export.py summary.json")
     ap.add_argument("--original-regrade", type=Path)
+    ap.add_argument(
+        "--package-pairs",
+        type=Path,
+        help="MiMo data's package-pairs.csv (default: beside --heldout)",
+    )
+    ap.add_argument(
+        "--pin",
+        action="append",
+        default=[],
+        help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
+    )
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -135,19 +186,35 @@ def main() -> int:
         print(f"REFUSED: {len(leak)} held-out task(s) were trained on: {leak[:5]}", file=sys.stderr)
         return 2
 
+    v6 = v6_digests(args.package_pairs or args.heldout.parent / "package-pairs.csv")
+    pins = {norm(p) for p in args.pin}
+    if not pins <= heldout:
+        print(f"REFUSED: pins not held out: {sorted(pins - heldout)}", file=sys.stderr)
+        return 2
+
     # One list of (trial name, passed) per task: `evallab rollout --attempts` gives several.
+    # Headline: trials on the frozen v6 package. Diagnostic: pin trials on a repaired variant.
     arms: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
+    diagnostic: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
     for spec in args.arm:
         name, _, path = spec.partition("=")
         rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
         by_task: dict[str, list[tuple[str, bool | None]]] = {}
+        pin_rows: dict[str, list[tuple[str, bool | None]]] = {}
         for row in rows:
             task = norm(task_of(row))
             if task not in heldout:
                 print(f"REFUSED: arm {name} ran non-held-out task {task}", file=sys.stderr)
                 return 2
-            by_task.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
+            try:
+                role = grading_role(row, v6, pins)
+            except ValueError as exc:
+                print(f"REFUSED: arm {name}: {exc}", file=sys.stderr)
+                return 2
+            target = by_task if role == "headline" else pin_rows
+            target.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
         arms[name] = by_task
+        diagnostic[name] = pin_rows
 
     # Incorrect-pass replays, keyed by (arm, trial name): original-grader verdict.
     original: dict[tuple[str, str], bool] = {}
@@ -211,6 +278,31 @@ def main() -> int:
             else None,
             "exact_sign_p": round(mcnemar_exact(better, worse), 4),
         }
+
+    # Pin diagnostic: frozen-v6 vs repaired-variant solve rates on the validity-flagged pins.
+    # The two are separate trials (different submissions), so the gap is unpaired: it
+    # estimates how much of the v6 pin pass rate the repaired grader would not award.
+    if pins:
+        report["pins"] = {"tasks": sorted(pins), "arms": {}}
+        for name in arms:
+            v6_pin = [v for t in pins for _, v in arms[name].get(t, []) if v is not None]
+            rep_pin = [v for t in pins for _, v in diagnostic[name].get(t, []) if v is not None]
+            v6_rate = sum(v6_pin) / len(v6_pin) if v6_pin else None
+            rep_rate = sum(rep_pin) / len(rep_pin) if rep_pin else None
+            report["pins"]["arms"][name] = {
+                "v6_measured": len(v6_pin),
+                "v6_solves": sum(v6_pin),
+                "v6_solve_ci95": clopper_pearson(sum(v6_pin), len(v6_pin)),
+                "repaired_measured": len(rep_pin),
+                "repaired_solves": sum(rep_pin),
+                "repaired_solve_ci95": clopper_pearson(sum(rep_pin), len(rep_pin)),
+                "unpaired_pass_gap": round(v6_rate - rep_rate, 4)
+                if v6_rate is not None and rep_rate is not None
+                else None,
+                "repaired_trials_by_task": {
+                    t: len(diagnostic[name].get(t, [])) for t in sorted(pins)
+                },
+            }
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

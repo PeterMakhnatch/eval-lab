@@ -27,6 +27,15 @@ DIGEST = "sha256:" + "a" * 64
 PATCH = b"--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n x = 1\n-y = 2\n+y = 3\n"
 
 
+def split_exec(argv: list[str]) -> tuple[str | None, list[str]]:
+    """``docker exec [-w DIR] CONTAINER COMMAND...`` -> (DIR or None, COMMAND...)."""
+    rest = argv[2:]
+    cwd = None
+    if rest[:1] == ["-w"]:
+        cwd, rest = rest[1], rest[2:]
+    return cwd, rest[1:]
+
+
 class FakeDocker:
     """Stands in for ``subprocess.run``; records commands and what was copied into /solution."""
 
@@ -50,7 +59,7 @@ class FakeDocker:
             elif dest.endswith(":/tmp/qa-shortcut.sh"):
                 self.scripts.append(Path(source).read_text(encoding="utf-8"))
         elif argv[:2] == ["docker", "exec"]:
-            command = argv[3:]
+            _, command = split_exec(argv)
             if command[:2] == ["sh", "-c"]:
                 rc = self._rcs.pop(0) if len(self._rcs) > 1 else self._rcs[0]
             elif command[:2] == ["cat", "/logs/verifier/reward.txt"]:
@@ -58,13 +67,21 @@ class FakeDocker:
         return subprocess.CompletedProcess(argv, rc, stdout=stdout, stderr="")
 
     def execs(self) -> list[list[str]]:
-        return [c[3:] for c in self.calls if c[:2] == ["docker", "exec"]]
+        return [split_exec(c)[1] for c in self.calls if c[:2] == ["docker", "exec"]]
 
     def position(self, *needle: str) -> int:
         for index, command in enumerate(self.execs()):
             if command[: len(needle)] == list(needle):
                 return index
         return -1
+
+    def cwd_of(self, *needle: str) -> str | None:
+        for call in self.calls:
+            if call[:2] == ["docker", "exec"]:
+                cwd, command = split_exec(call)
+                if command[: len(needle)] == list(needle):
+                    return cwd
+        raise AssertionError(f"no exec of {needle}")
 
 
 def _write_package(root: Path, name: str, toml: str, *, solution: bool) -> Path:
@@ -97,6 +114,16 @@ def _mimo(root: Path, *, retries: int = 0, healthcheck: bool = True) -> Path:
 def _harbor(root: Path) -> Path:
     toml = '[task]\nname = "bench/tb-task"\n[environment]\nworkdir = "/app"\n'
     return _write_package(root, "tb-task", toml, solution=True)
+
+
+def _mimo_separate(root: Path) -> Path:
+    """A v6 separate-verifier MiMo package: own solve.sh, setup healthcheck, workdir /testbed."""
+    toml = (
+        '[task]\nname = "mimo/format-code-task-000002"\n'
+        '[environment]\ndocker_image = "img@sha256:2"\nworkdir = "/testbed"\n'
+        "[environment.healthcheck]\ncommand = 'true'\ntimeout_sec = 5\n"
+    )
+    return _write_package(root, "format-code-task-000002", toml, solution=True)
 
 
 @pytest.fixture
@@ -256,6 +283,7 @@ def test_package_with_its_own_solution_and_no_healthcheck_is_run_as_before(
     assert fake.position("sh", "-c") == -1
     assert "healthcheck" not in obs.facts
     assert "oracle" not in obs.facts
+    assert fake.cwd_of("bash", "/solution/solve.sh") is None
 
 
 def test_replayed_patch_applies_in_the_declared_workdir_only_for_patch_packages(
@@ -265,7 +293,12 @@ def test_replayed_patch_applies_in_the_declared_workdir_only_for_patch_packages(
     patch.write_bytes(PATCH)
     reproducer = Reproducer(kind="patch", path=str(patch), expected_reward=1.0)
     scripts = {}
-    for label, package in (("mimo", _mimo(tmp_path)), ("harbor", _harbor(tmp_path))):
+    packages = (
+        ("mimo", _mimo(tmp_path)),
+        ("separate", _mimo_separate(tmp_path)),
+        ("harbor", _harbor(tmp_path)),
+    )
+    for label, package in packages:
         fake = _install(monkeypatch, FakeDocker())
         obs = backend.replay_reproducer(
             package,
@@ -278,6 +311,7 @@ def test_replayed_patch_applies_in_the_declared_workdir_only_for_patch_packages(
         (scripts[label],) = fake.scripts
 
     assert "cd /testbed" in scripts["mimo"]
+    assert "cd /testbed" in scripts["separate"]
     assert "/testbed" not in scripts["harbor"]
     assert "/app" in scripts["harbor"]
 
@@ -340,3 +374,41 @@ def test_subject_id_keeps_the_package_namespace_so_findings_bind_to_their_key(
     )
 
     assert report.subject.task_id == expected
+
+
+def test_package_with_its_own_solve_and_a_workdir_runs_it_there_not_in_the_image_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    # A v6 MiMo image has no WORKDIR and its solve.sh relies on running in the workdir.
+    package = _mimo_separate(tmp_path)
+    fake = _install(monkeypatch, FakeDocker())
+
+    obs = backend.run_container_trial(
+        package, digest=DIGEST, mode="oracle", trial_dir=tmp_path / "trial"
+    )
+
+    assert obs.status == "executed"
+    assert fake.cwd_of("bash", "/solution/solve.sh") == "/testbed"
+    assert fake.copy_sources == [str(package / "solution")]  # its own oracle, not a synthesized one
+    assert fake.position("sh", "-c") < fake.position("bash", "/solution/solve.sh")
+
+
+@pytest.mark.parametrize(
+    ("workdir", "solution", "healthcheck", "expected"),
+    [
+        (True, False, False, "/testbed"),  # raw MiMo: reference patch is the oracle
+        (True, True, True, "/testbed"),  # v6 separate-verifier MiMo: own solve.sh + setup
+        (True, True, False, None),  # a package with its own oracle and no setup is untouched
+        (False, True, True, None),  # no declared workdir: nothing to run in
+        (False, False, False, None),
+    ],
+)
+def test_workdir_bound_rule_names_only_mimo_style_packages(
+    tmp_path: Path, workdir: bool, solution: bool, healthcheck: bool, expected: str | None
+) -> None:
+    toml = '[task]\nname = "x/pkg"\n[environment]\n'
+    toml += 'workdir = "/testbed"\n' if workdir else ""
+    toml += "[environment.healthcheck]\ncommand = 'true'\n" if healthcheck else ""
+    package = _write_package(tmp_path, "pkg", toml, solution=solution)
+
+    assert HarborBackend.patch_workdir(package) == expected

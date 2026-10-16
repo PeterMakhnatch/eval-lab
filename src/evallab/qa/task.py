@@ -644,17 +644,24 @@ class HarborBackend:
 
     @staticmethod
     def patch_workdir(package: Path) -> str | None:
-        """Where a repository-relative patch applies, for packages whose oracle is a patch.
+        """The repository directory a MiMo-style package works in, else ``None``.
 
-        A package with ``solution/solve.sh`` runs its own oracle and keeps the ``/app``
-        conventions; one without it (raw MiMo code packages) is patched in the
-        ``[environment].workdir`` it declares.
+        A package that declares ``[environment].workdir`` and either has no
+        ``solution/solve.sh`` (raw MiMo code packages: the oracle is a reference patch) or
+        declares a setup healthcheck (v6 separate-verifier MiMo packages, whose image has no
+        ``WORKDIR`` and whose ``solve.sh`` relies on running in the workdir, as Harbor does)
+        is run and patched there. Every other package keeps the previous behaviour: the
+        image's own directory and the ``/app`` patch convention. No TB4 package declares a
+        ``workdir``.
         """
-        if (package / "solution" / "solve.sh").is_file():
-            return None
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
-        workdir = (config.get("environment") or {}).get("workdir")
-        return str(workdir) if workdir else None
+        env = config.get("environment") or {}
+        workdir = env.get("workdir")
+        if not workdir:
+            return None
+        if (package / "solution" / "solve.sh").is_file() and not env.get("healthcheck"):
+            return None
+        return str(workdir)
 
     def _stage_solution(self, package: Path, stage_dir: Path, facts: dict[str, Any]) -> Path:
         """The directory copied to ``/solution``: the package's own, or a patch oracle for it.
@@ -926,6 +933,8 @@ class HarborBackend:
         exception_msg: str | None = None
         reward: float | None = None
         extra_facts: dict[str, Any] = {}
+        workdir = self.patch_workdir(package)
+        cwd = ["-w", workdir] if workdir else []
 
         try:
             subprocess.run(
@@ -971,7 +980,7 @@ class HarborBackend:
                         timeout=60,
                     )
                 done = subprocess.run(
-                    ["docker", "exec", agent_name, "bash", "/solution/solve.sh"],
+                    ["docker", "exec", *cwd, agent_name, "bash", "/solution/solve.sh"],
                     capture_output=True,
                     text=True,
                     timeout=timeout_seconds,
@@ -1004,7 +1013,7 @@ class HarborBackend:
                     timeout=60,
                 )
                 done = subprocess.run(
-                    ["docker", "exec", agent_name, "bash", "/tmp/qa-shortcut.sh"],
+                    ["docker", "exec", *cwd, agent_name, "bash", "/tmp/qa-shortcut.sh"],
                     capture_output=True,
                     text=True,
                     timeout=min(timeout_seconds, 600),

@@ -22,6 +22,27 @@ Two definitions:
     was measured.
   - An unreplayed v6 failure is counted as unmeasured, never as correct.
 
+Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
+wants these reported both ways:
+- **Headline:** every metric above uses only trials on each task's frozen v6@10 package,
+  identified by its digest directory in `package-pairs.csv`, across all 33 tasks, pins
+  included.
+- **Diagnostic, unpaired** (`pins.arms.<arm>.unpaired`): Infra's extra pin trials on the
+  EnvCheck *raw* repaired variants, which are any other package of a pin. Per arm it
+  gives the v6 and repaired pin solve rates and their gap. These are separate trials of
+  different submissions, so the gap only estimates the pin incorrect-pass rate.
+- **Diagnostic, paired** (`pins.arms.<arm>.paired`): `--pin-regrade` rows
+  `{arm, trial, repaired_pass}`. QA Trace's `pin_pairs.py` writes the regrade list and
+  `incorrect_pass.py collect --field repaired_pass` collects the results. Each v6-passing
+  frozen-v6 pin trial is regraded from its own snapshot on EnvCheck's *v6-ported*
+  repaired variant (`--pin-manifest`, i.e. `heldout-pin-repaired-graders.csv`). A pin
+  incorrect pass is a v6 pass that variant rejects. The denominator is the v6 pin passes
+  with a measured regrade.
+- **Required caveat:** the paired and unpaired pin numbers come from sibling repairs,
+  not byte-identical graders. `pins.grader_note` states this with both digest sets.
+  Print it wherever pin numbers appear.
+- A row on any other package of a task that is not a pin is refused.
+
 Uncertainty:
 - exact Clopper–Pearson 95% intervals for every rate;
 - an exact two-sided sign test on paired per-task solve rates, for B vs C (primary) and
@@ -30,12 +51,16 @@ Uncertainty:
     uv run python research/experiments/repaired-data-sft-v1/analyze.py \
         --arm base=… --arm A=… --arm B=… --arm C=… \
         --heldout heldout.json --exports <exports>/summary.json [--original-regrade rows.jsonl] \
+        --pin format-code-task-000657 --pin format-code-task-000371 \
+        --pin format-code-task-001686 \
+        [--pin-regrade pin-regrade.jsonl --pin-manifest heldout-pin-repaired-graders.csv] \
         --out results.json
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import sys
@@ -102,12 +127,52 @@ def norm(task: str) -> str:
     return task.rsplit("/", 1)[-1]
 
 
+def v6_digests(package_pairs: Path) -> dict[str, str]:
+    """Bare task id -> 12-hex digest directory of its frozen v6@10 held-out package."""
+    with package_pairs.open(encoding="utf-8") as handle:
+        return {
+            r["task_id"]: r["v6_package_digest"].removeprefix("sha256:")[:12]
+            for r in csv.DictReader(handle)
+        }
+
+
+def grading_role(row: dict[str, Any], v6: dict[str, str], pins: set[str]) -> str:
+    """`headline` for a trial on the task's frozen v6 package; `pin_diagnostic` for a
+    trial on any other package of a validity-flagged pin (Infra's repaired-variant cells).
+
+    Rollout rows name the package path, ending in its 12-hex digest directory. Anything
+    else is refused, so a non-v6 grade can never enter the headline.
+    """
+    task = task_of(row)
+    tid, digest = norm(task), task.rstrip("/").rsplit("/", 1)[-1]
+    if digest == v6.get(tid):
+        return "headline"
+    if tid in pins:
+        return "pin_diagnostic"
+    raise ValueError(f"{task}: not the frozen v6 package of {tid} and not a pin")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--arm", action="append", required=True, help="NAME=results.jsonl")
     ap.add_argument("--heldout", type=Path, required=True)
     ap.add_argument("--exports", type=Path, required=True, help="to_export.py summary.json")
     ap.add_argument("--original-regrade", type=Path)
+    ap.add_argument("--pin-regrade", type=Path, help="paired pin regrade rows (repaired_pass)")
+    ap.add_argument(
+        "--pin-manifest", type=Path, help="heldout-pin-repaired-graders.csv (paired graders)"
+    )
+    ap.add_argument(
+        "--package-pairs",
+        type=Path,
+        help="MiMo data's package-pairs.csv (default: beside --heldout)",
+    )
+    ap.add_argument(
+        "--pin",
+        action="append",
+        default=[],
+        help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
+    )
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -135,19 +200,38 @@ def main() -> int:
         print(f"REFUSED: {len(leak)} held-out task(s) were trained on: {leak[:5]}", file=sys.stderr)
         return 2
 
+    v6 = v6_digests(args.package_pairs or args.heldout.parent / "package-pairs.csv")
+    pins = {norm(p) for p in args.pin}
+    if not pins <= heldout:
+        print(f"REFUSED: pins not held out: {sorted(pins - heldout)}", file=sys.stderr)
+        return 2
+
     # One list of (trial name, passed) per task: `evallab rollout --attempts` gives several.
+    # Headline: trials on the frozen v6 package. Diagnostic: pin trials on a repaired variant.
     arms: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
+    diagnostic: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
+    unpaired_digests: dict[str, set[str]] = {}
     for spec in args.arm:
         name, _, path = spec.partition("=")
         rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
         by_task: dict[str, list[tuple[str, bool | None]]] = {}
+        pin_rows: dict[str, list[tuple[str, bool | None]]] = {}
         for row in rows:
             task = norm(task_of(row))
             if task not in heldout:
                 print(f"REFUSED: arm {name} ran non-held-out task {task}", file=sys.stderr)
                 return 2
-            by_task.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
+            try:
+                role = grading_role(row, v6, pins)
+            except ValueError as exc:
+                print(f"REFUSED: arm {name}: {exc}", file=sys.stderr)
+                return 2
+            target = by_task if role == "headline" else pin_rows
+            target.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
+            if role == "pin_diagnostic":
+                unpaired_digests.setdefault(task, set()).add(task_of(row).rstrip("/")[-12:])
         arms[name] = by_task
+        diagnostic[name] = pin_rows
 
     # Incorrect-pass replays, keyed by (arm, trial name): original-grader verdict.
     original: dict[tuple[str, str], bool] = {}
@@ -211,6 +295,76 @@ def main() -> int:
             else None,
             "exact_sign_p": round(mcnemar_exact(better, worse), 4),
         }
+
+    # Pin diagnostics on the validity-flagged pins: unpaired (Infra's separate trials on the
+    # raw repaired variants) and paired (each v6 pass regraded on the v6-ported variant).
+    if pins:
+        if args.pin_regrade and not args.pin_manifest:
+            print("REFUSED: --pin-regrade needs --pin-manifest", file=sys.stderr)
+            return 2
+        paired_digests: dict[str, str] = {}
+        if args.pin_manifest:
+            with args.pin_manifest.open(encoding="utf-8") as handle:
+                paired_digests = {
+                    r["task_id"]: r["final_digest"].removeprefix("sha256:")[:12]
+                    for r in csv.DictReader(handle)
+                }
+        repaired: dict[tuple[str, str], bool] = {}
+        if args.pin_regrade:
+            for line in args.pin_regrade.read_text().splitlines():
+                if line.strip():
+                    r = json.loads(line)
+                    repaired[(r["arm"], r["trial"])] = bool(r["repaired_pass"])
+        unpaired = {t: sorted(unpaired_digests.get(t, ())) for t in sorted(pins)}
+        paired = {t: paired_digests.get(t) for t in sorted(pins)}
+        report["pins"] = {
+            "tasks": sorted(pins),
+            "grader_note": (
+                "Paired and unpaired pin numbers come from sibling repairs, not "
+                "byte-identical graders: paired regrades use EnvCheck's v6-ported repaired "
+                f"variants {paired}; Infra's unpaired diagnostic cells use the raw repaired "
+                f"variants {unpaired}."
+            ),
+            "paired_graders": paired,
+            "unpaired_graders": unpaired,
+            "arms": {},
+        }
+        for name in arms:
+            v6_trials = [(n, v) for t in pins for n, v in arms[name].get(t, []) if v is not None]
+            v6_pin = [v for _, v in v6_trials]
+            rep_pin = [v for t in pins for _, v in diagnostic[name].get(t, []) if v is not None]
+            v6_rate = sum(v6_pin) / len(v6_pin) if v6_pin else None
+            rep_rate = sum(rep_pin) / len(rep_pin) if rep_pin else None
+            v6_passes = [n for n, v in v6_trials if v]
+            measured_pairs = [n for n in v6_passes if (name, n) in repaired]
+            flips = sum(1 for n in measured_pairs if not repaired[(name, n)])
+            report["pins"]["arms"][name] = {
+                "unpaired": {
+                    "v6_measured": len(v6_pin),
+                    "v6_solves": sum(v6_pin),
+                    "v6_solve_ci95": clopper_pearson(sum(v6_pin), len(v6_pin)),
+                    "repaired_measured": len(rep_pin),
+                    "repaired_solves": sum(rep_pin),
+                    "repaired_solve_ci95": clopper_pearson(sum(rep_pin), len(rep_pin)),
+                    "pass_gap": round(v6_rate - rep_rate, 4)
+                    if v6_rate is not None and rep_rate is not None
+                    else None,
+                    "repaired_trials_by_task": {
+                        t: len(diagnostic[name].get(t, [])) for t in sorted(pins)
+                    },
+                },
+                "paired": {
+                    "v6_pin_passes": len(v6_passes),
+                    "regrade_measured": len(measured_pairs),
+                    "pin_incorrect_passes": flips,
+                    "pin_incorrect_pass_rate": round(flips / len(measured_pairs), 4)
+                    if measured_pairs
+                    else None,
+                    "pin_incorrect_pass_ci95": clopper_pearson(flips, len(measured_pairs)),
+                }
+                if args.pin_regrade
+                else "pending: no --pin-regrade rows",
+            }
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

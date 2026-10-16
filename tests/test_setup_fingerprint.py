@@ -847,7 +847,7 @@ def _derive_child(root: Path, base: Path, parent_package: Path, record, *, trans
     )
 
 
-def _headline_endpoint(root: Path, base: Path):
+def _headline_endpoint(root: Path, base: Path, *, validate: bool = True):
     """The six-edge headline build chain, endpoint scope-listed."""
     transforms = [
         "strip-future-history@1",
@@ -861,7 +861,8 @@ def _headline_endpoint(root: Path, base: Path):
     for transform in transforms[1:]:
         record = _derive_child(root, base, package, record, transform=transform)
         package = base / "variants-store" / record.task_slug / record.digest12
-    record = mark_validated(root, record)
+    if validate:
+        record = mark_validated(root, record)
     _scope_digest_in_profile(root, record.variant_digest)
     return record, package
 
@@ -888,6 +889,43 @@ def test_campaign_scoped_pin_diagnostic_admitted_end_to_end(tmp_path: Path) -> N
     package = tmp_path / "variants-store" / child.task_slug / child.digest12
     spec = make_variant_spec(root, child, package)
     validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_pin_refused_when_headline_parent_not_validated(
+    tmp_path: Path,
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    _endpoint, endpoint_package = _headline_endpoint(root, tmp_path, validate=False)
+    assert _endpoint.status == "candidate"
+    child = _derive_child(
+        root, tmp_path, endpoint_package, _endpoint, transform="verifier-repair@1"
+    )
+    child = mark_validated(root, child)
+    _scope_digest_in_profile(root, child.variant_digest, scope="pin_diagnostic")
+    package = tmp_path / "variants-store" / child.task_slug / child.digest12
+    spec = make_variant_spec(root, child, package)
+    with pytest.raises(ValueError, match="not a validated headline record"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_pin_refused_for_globally_allowed_final_edge(
+    tmp_path: Path,
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    _endpoint, endpoint_package = _headline_endpoint(root, tmp_path)
+    child = _derive_child(
+        root, tmp_path, endpoint_package, _endpoint, transform="task-health-tags@1"
+    )
+    child = mark_validated(root, child)
+    _scope_digest_in_profile(root, child.variant_digest, scope="pin_diagnostic")
+    package = tmp_path / "variants-store" / child.task_slug / child.digest12
+    spec = make_variant_spec(root, child, package)
+    with pytest.raises(ValueError, match="not in the pin scope"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
 
 
 def test_campaign_scoped_pin_refused_on_non_headline_parent(tmp_path: Path) -> None:

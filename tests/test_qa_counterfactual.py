@@ -121,6 +121,7 @@ def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_loc
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, environment: str, takes_local_slot: bool
 ) -> None:
     import evallab.docker_lock
+    from evallab import regrade
 
     slots: list[str] = []
 
@@ -129,6 +130,7 @@ def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_loc
         return nullcontext()
 
     monkeypatch.setattr(evallab.docker_lock, "docker_slot", docker_slot)
+    monkeypatch.setattr(regrade, "lab_harbor_problem", lambda: None)
     seen: list[str] = []
 
     def matrix_runner(matrix, *, root):
@@ -138,6 +140,7 @@ def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_loc
             receipt_path=root / "runs/matrix-receipt.json",
         )
 
+    gate = None if environment == "docker" else regrade.CloudSpendGate("go", 1.0, 0.01)
     result = cf.replay(
         _trial(tmp_path),
         _grader(tmp_path),
@@ -145,11 +148,50 @@ def test_replay_runs_on_the_requested_backend_and_only_docker_holds_the_host_loc
         repo_root=tmp_path,
         matrix_runner=matrix_runner,
         environment=environment,
+        spend_gate=gate,
     )
     assert seen == [environment]
     assert result["environment"] == environment
     assert result["outcome"] == "flips"
     assert bool(slots) is takes_local_slot
+
+
+def test_paid_replays_need_a_gate_and_one_over_its_cap_is_refused_not_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import regrade
+
+    monkeypatch.setattr(regrade, "lab_harbor_problem", lambda: None)
+    runs: list[str] = []
+
+    def matrix_runner(matrix, *, root):
+        runs.append(matrix.name)
+        return SimpleNamespace(
+            results=[{"status": "ok", "rewards": [1.0], "error": None}],
+            receipt_path=root / "runs/matrix-receipt.json",
+        )
+
+    trial, grader = _trial(tmp_path), _grader(tmp_path)
+
+    def paid(gate):
+        return cf.replay(
+            trial,
+            grader,
+            tmp_path / "work",
+            repo_root=tmp_path,
+            matrix_runner=matrix_runner,
+            environment="modal",
+            spend_gate=gate,
+        )
+
+    with pytest.raises(ValueError, match="paid"):
+        paid(None)
+    gate = regrade.CloudSpendGate("go", cap_usd=0.01, usd_per_execution=0.01)
+    assert paid(gate)["outcome"] == "stays"
+    over = paid(gate)
+    assert over["outcome"] == "refused"
+    assert over["refusals"] == ["spend_cap_reached"]
+    assert len(runs) == gate.executions == 1
 
 
 def test_replay_rejects_an_unknown_backend_before_running_anything(tmp_path: Path) -> None:
@@ -340,6 +382,33 @@ def test_batch_cache_tracks_source_bytes_without_freezing_population_labels(
     third = trace.regrade_passes([subject], tmp_path / "out", log=lambda _: None)
     assert third[0]["outcome"] == "flips"
     assert third[0]["group"] == "faulty"
+
+
+def test_plan_counts_exactly_the_executions_a_run_would_still_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trial, grader = _trial(tmp_path), _grader(tmp_path)
+    monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: [grader])
+    monkeypatch.setattr(cf, "reference_patch", lambda *_: "reference")
+    monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cache")
+    started: list[str | None] = []
+
+    def replay(*_, diff_text=None, **__):
+        started.append(diff_text)
+        return {"regraded": 0.0 if diff_text == "" else 1.0, "outcome": "stays"}
+
+    monkeypatch.setattr(cf, "replay", replay)
+    subject = {"item_id": "example", "task": TASK, "trial": trial, "group": "unreviewed"}
+    missing = {"item_id": "gone", "task": TASK, "trial": None}
+
+    before = trace.plan_regrade([subject, missing])
+    assert started == []
+    assert (before["control_executions"], before["replay_executions"]) == (2, 1)
+    assert before["rows_without_execution"] == 1
+
+    trace.regrade_passes([subject, missing], tmp_path / "out", log=lambda _: None)
+    assert len(started) == before["executions"]
+    assert trace.plan_regrade([subject])["executions"] == 0
 
 
 def test_selected_manifest_refreshes_and_mutated_package_is_not_accepted(

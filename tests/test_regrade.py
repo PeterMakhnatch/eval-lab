@@ -8,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from evallab import regrade as regrade_module
 from evallab.regrade import (
+    CloudSpendGate,
     RegradeJobVerdict,
     RegradeRefusalCode,
     RegradeVerdict,
@@ -269,7 +271,7 @@ def _job_task(
     (task / "tests").mkdir(parents=True, exist_ok=True)
     mode_line = f'environment_mode = "{mode}"\n' if mode is not None else ""
     task.joinpath("task.toml").write_text(
-        "schema_version = \"1.4\"\n"
+        'schema_version = "1.4"\n'
         "\n"
         "[task]\n"
         f'name = "{task_name}"\n'
@@ -327,13 +329,9 @@ def _job_trial(
         ),
         "utf-8",
     )
-    task_entry: dict[str, object] = (
-        {"path": str(task_path)} if task_path is not None else {}
-    )
+    task_entry: dict[str, object] = {"path": str(task_path)} if task_path is not None else {}
     trial.joinpath("config.json").write_text(
-        json.dumps(
-            {"task": task_entry, "agent": {"name": "oracle"}, "trial_name": name}
-        ),
+        json.dumps({"task": task_entry, "agent": {"name": "oracle"}, "trial_name": name}),
         "utf-8",
     )
     return trial
@@ -348,9 +346,7 @@ def _snapshot_tree(root: Path) -> dict[str, bytes]:
     }
 
 
-def _job_runner(
-    regraded_by_trial: dict[str, dict[str, float]], *, exit_code: int = 0
-):
+def _job_runner(regraded_by_trial: dict[str, dict[str, float]], *, exit_code: int = 0):
     """Stand in for `harbor job regrade`: materialise the job it names.
 
     Writes a standard jobs-root/job/trial shape — one output trial per
@@ -367,9 +363,7 @@ def _job_runner(
         if exit_code == 0:
             new_job = jobs_dir / job_name
             new_job.mkdir(parents=True, exist_ok=True)
-            new_job.joinpath("config.json").write_text(
-                json.dumps({"job_name": job_name}), "utf-8"
-            )
+            new_job.joinpath("config.json").write_text(json.dumps({"job_name": job_name}), "utf-8")
             new_job.joinpath("lock.json").write_text(
                 json.dumps({"harbor": {"version": "0.24.0"}}), "utf-8"
             )
@@ -498,14 +492,10 @@ def test_job_regrade_refuses_when_saved_task_missing(tmp_path: Path) -> None:
     """A vanished saved task cannot be resolved; the job refuses without running."""
     task = _job_task(tmp_path, "probe", "local-lab/probe")
     job = _job(tmp_path, "source-job")
-    _job_trial(
-        job, "trial-a", "local-lab/probe", {"reward": 1.0}, task_path=task / "gone"
-    )
+    _job_trial(job, "trial-a", "local-lab/probe", {"reward": 1.0}, task_path=task / "gone")
     runner = _job_runner({"trial-a": {"reward": 1.0}})
 
-    receipt = regrade_job(
-        job_dir=job, jobs_dir=tmp_path / "jobs", name="regraded", runner=runner
-    )
+    receipt = regrade_job(job_dir=job, jobs_dir=tmp_path / "jobs", name="regraded", runner=runner)
 
     assert receipt.verdict is RegradeJobVerdict.REFUSED
     assert RegradeRefusalCode.TASK_UNRESOLVED in receipt.refusals
@@ -578,6 +568,69 @@ def test_job_regrade_refuses_non_docker_environments(tmp_path: Path) -> None:
     assert not (tmp_path / "jobs").exists()
 
 
+def test_paid_trial_regrade_needs_a_spend_gate_and_never_runs_past_its_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each Modal regrade reserves its cost before Harbor starts; one over the cap is refused."""
+    monkeypatch.setattr(regrade_module, "lab_harbor_problem", lambda: None)
+    task = _task(tmp_path)
+    invoked: list[list[str]] = []
+    harbor = _runner_writing({"reward": 0.0})
+
+    def run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        invoked.append(command)
+        return harbor(command, **kwargs)
+
+    def regrade(name: str, environment: str, gate: CloudSpendGate | None):
+        return regrade_trial(
+            trial_dir=_trial(tmp_path, name, {"reward": 1.0}),
+            task_dir=task,
+            trials_dir=tmp_path / "out",
+            environment=environment,
+            runner=run,
+            spend_gate=gate,
+        )
+
+    with pytest.raises(ValueError, match="without a spend gate"):
+        regrade("ungated", "modal", None)
+    with pytest.raises(ValueError, match="Refusing 'daytona'"):
+        regrade("daytona", "daytona", CloudSpendGate("go", cap_usd=1.0, usd_per_execution=0.01))
+    assert invoked == []
+
+    gate = CloudSpendGate("Research go", cap_usd=0.02, usd_per_execution=0.01)
+    receipts = [regrade(f"paid-{i}", "modal", gate) for i in range(3)]
+
+    assert [r.verdict for r in receipts] == [
+        RegradeVerdict.TIGHTENED,
+        RegradeVerdict.TIGHTENED,
+        RegradeVerdict.REFUSED,
+    ]
+    assert receipts[2].refusals == [RegradeRefusalCode.SPEND_CAP_REACHED]
+    assert len(invoked) == gate.executions == 2
+    # The import path carries the PATH pin and the bounded sandbox lifetime.
+    assert {c[c.index("--env") + 1] for c in invoked} == {
+        "evallab.harbor_modal:RegradeModalEnvironment"
+    }
+
+
+def test_paid_regrade_refuses_any_harbor_but_the_pinned_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Harbor 0.21 starts a Modal separate verifier from the agent image (no /tests)."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    harbor = bin_dir / "harbor"
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(regrade_module.importlib.metadata, "version", lambda _: "0.24.0")
+    for printed, pinned in (("0.21.0", False), ("0.24.0", True)):
+        harbor.write_text(f"#!/bin/sh\necho {printed}\n")
+        harbor.chmod(0o755)
+        problem = regrade_module._probe_harbor()
+        assert (problem is None) is pinned
+        if not pinned:
+            assert problem is not None and "0.21.0" in problem and "--extra laminar" in problem
+
+
 def test_job_regrade_partial_when_a_trial_is_incomplete(tmp_path: Path) -> None:
     """One trial without a manifest is refused per-trial; the rest still compare."""
     task = _job_task(tmp_path, "probe", "local-lab/probe")
@@ -597,9 +650,7 @@ def test_job_regrade_partial_when_a_trial_is_incomplete(tmp_path: Path) -> None:
         task_dir=task,
         jobs_dir=tmp_path / "jobs",
         name="regraded",
-        runner=_job_runner(
-            {"trial-a": {"reward": 0.0}, "trial-b": {"reward": 0.0}}
-        ),
+        runner=_job_runner({"trial-a": {"reward": 0.0}, "trial-b": {"reward": 0.0}}),
     )
 
     assert receipt.verdict is RegradeJobVerdict.PARTIAL
@@ -607,9 +658,7 @@ def test_job_regrade_partial_when_a_trial_is_incomplete(tmp_path: Path) -> None:
     by_name = {entry.source.trial_name: entry for entry in receipt.trials}
     assert by_name["trial-a"].verdict is RegradeVerdict.TIGHTENED
     assert by_name["trial-b"].verdict is RegradeVerdict.REFUSED
-    assert (
-        RegradeRefusalCode.SOURCE_ARTIFACT_MANIFEST_MISSING in by_name["trial-b"].refusals
-    )
+    assert RegradeRefusalCode.SOURCE_ARTIFACT_MANIFEST_MISSING in by_name["trial-b"].refusals
     assert by_name["trial-b"].regraded is None
     assert by_name["trial-b"].recorded is not None
 
@@ -631,8 +680,9 @@ def test_implicit_separate_verifier_is_accepted(tmp_path: Path) -> None:
         trial_dir=trial,
         task_dir=task,
         trials_dir=tmp_path / "out",
-        runner=lambda command, **_: invoked.append(command)
-        or _runner_writing({"reward": 1.0})(command),
+        runner=lambda command, **_: (
+            invoked.append(command) or _runner_writing({"reward": 1.0})(command)
+        ),
     )
 
     assert invoked != []
@@ -643,9 +693,7 @@ def test_job_regrade_same_verifier_is_deterministic(tmp_path: Path) -> None:
     """An unchanged verifier must reproduce the reward; the receipt says so."""
     task = _job_task(tmp_path, "probe", "local-lab/probe")
     job = _job(tmp_path, "source-job")
-    trial = _job_trial(
-        job, "trial-a", "local-lab/probe", {"reward": 1.0}, task_path=task
-    )
+    trial = _job_trial(job, "trial-a", "local-lab/probe", {"reward": 1.0}, task_path=task)
     trial.joinpath("regrade-receipt.json").write_text(
         json.dumps({"verifier": {"digest": verifier_identity(task).digest}}), "utf-8"
     )
@@ -731,9 +779,7 @@ def test_job_regrade_without_lock_records_no_version_but_still_runs(
 
 
 @pytest.mark.parametrize("destination", ["source", "nested", "existing", "escape"])
-def test_regrade_never_resumes_or_writes_into_source(
-    tmp_path: Path, destination: str
-) -> None:
+def test_regrade_never_resumes_or_writes_into_source(tmp_path: Path, destination: str) -> None:
     task = _job_task(tmp_path, "probe", "local-lab/probe")
     job = _job(tmp_path, "source-job")
     _job_trial(job, "trial-a", "local-lab/probe", {"reward": 1.0}, task_path=task)
@@ -748,9 +794,7 @@ def test_regrade_never_resumes_or_writes_into_source(
         (output / name).mkdir()
     runner = _job_runner({"trial-a": {"reward": 0.0}})
     with pytest.raises(ValueError):
-        regrade_job(
-            job_dir=job, task_dir=task, jobs_dir=output, name=name, runner=runner
-        )
+        regrade_job(job_dir=job, task_dir=task, jobs_dir=output, name=name, runner=runner)
     assert runner.calls == []
     assert _snapshot_tree(job) == before
 
@@ -762,18 +806,27 @@ def _heldout_inputs(tmp_path: Path):
     repository = tmp_path / "repository"
     repository.mkdir()
     git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    git_env.update({
-        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
-        "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
-        "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
-        "GIT_AUTHOR_DATE": "2020-01-01T00:00:00+00:00",
-        "GIT_COMMITTER_DATE": "2020-01-01T00:00:00+00:00",
-    })
+    git_env.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_AUTHOR_NAME": "Fixture",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+            "GIT_COMMITTER_NAME": "Fixture",
+            "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            "GIT_AUTHOR_DATE": "2020-01-01T00:00:00+00:00",
+            "GIT_COMMITTER_DATE": "2020-01-01T00:00:00+00:00",
+        }
+    )
 
     def git(*args: str) -> str:
         return subprocess.run(
             ["git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", *args],
-            cwd=repository, env=git_env, capture_output=True, text=True, check=True,
+            cwd=repository,
+            env=git_env,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
 
     git("init", "-b", "main")
@@ -785,13 +838,9 @@ def _heldout_inputs(tmp_path: Path):
     git("add", ".")
     git("commit", "-m", "base")
     base = git("rev-parse", "HEAD")
-    test_path.write_text(
-        initial_tests + "\ndef test_hidden():\n    assert double(2) == 4\n"
-    )
+    test_path.write_text(initial_tests + "\ndef test_hidden():\n    assert double(2) == 4\n")
     hidden = git("diff", "--", "tests/test_calc.py") + "\n"
-    test_path.write_text(
-        initial_tests + "\ndef test_additional():\n    assert double(3) == 6\n"
-    )
+    test_path.write_text(initial_tests + "\ndef test_additional():\n    assert double(3) == 6\n")
     (repository / "calc.py").write_text("def double(value):\n    return value * 2\n")
     git("add", ".")
     git("commit", "-m", "upstream fix and additional test")
@@ -803,8 +852,8 @@ def _heldout_inputs(tmp_path: Path):
     (task / "instruction.md").write_text("Implement double.\n")
     (task / "task.toml").write_text(
         'schema_version = "1.4"\n[task]\nname = "local-lab/holdout"\n'
-        '[verifier]\ntimeout_sec = 60\n'
-        '[environment]\n'
+        "[verifier]\ntimeout_sec = 60\n"
+        "[environment]\n"
         f'docker_image = "{image}"\nworkdir = "/testbed"\n'
         'cpus = 2\nmemory_mb = 2048\nnetwork_mode = "public"\n'
         '[environment.healthcheck]\ncommand = "must never be inherited"\n'
@@ -813,19 +862,31 @@ def _heldout_inputs(tmp_path: Path):
     bundle_root = tmp_path / "bundle"
     bundle_root.mkdir()
     suite = extract_suite(
-        git_dir=repository / ".git", base_commit=base, fix_commit=fix,
-        hidden_patch=task / "tests" / "test.patch", task_name="local-lab/holdout",
-        image=image, workdir="/testbed",
+        git_dir=repository / ".git",
+        base_commit=base,
+        fix_commit=fix,
+        hidden_patch=task / "tests" / "test.patch",
+        task_name="local-lab/holdout",
+        image=image,
+        workdir="/testbed",
     )
     write_suite(suite, bundle_root / "suite.json")
     bundle = bundle_root / "bundle.json"
-    bundle.write_text(json.dumps({
-        "schema_version": "heldout-regrade/v1",
-        "tasks": [{
-            "task_name": "local-lab/holdout", "suite": "suite.json",
-            "framework": "pytest", "command": ["python", "-m", "pytest", "-q"],
-        }],
-    }))
+    bundle.write_text(
+        json.dumps(
+            {
+                "schema_version": "heldout-regrade/v1",
+                "tasks": [
+                    {
+                        "task_name": "local-lab/holdout",
+                        "suite": "suite.json",
+                        "framework": "pytest",
+                        "command": ["python", "-m", "pytest", "-q"],
+                    }
+                ],
+            }
+        )
+    )
     job = _job(tmp_path, "recorded")
     for name, rewards in [
         ("honest", {"reward": 1.0, "integrity": 1.0}),
@@ -844,7 +905,8 @@ def test_heldout_preview_is_read_only_and_selects_raw_passes(tmp_path, monkeypat
     job, task, bundle = _heldout_inputs(tmp_path)
     before = _snapshot_tree(tmp_path)
     monkeypatch.setattr(
-        subprocess, "run",
+        subprocess,
+        "run",
         lambda *args, **kwargs: pytest.fail("planning must not run subprocesses"),
     )
     plan = heldout_regrade.plan_heldout_job(
@@ -862,9 +924,7 @@ def test_heldout_subtraction_must_match_actual_hidden_test_bytes(tmp_path) -> No
 
     job, task, bundle = _heldout_inputs(tmp_path)
     (task / "tests" / "test.patch").write_text("different grader bytes\n")
-    plan = plan_heldout_job(
-        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out"
-    )
+    plan = plan_heldout_job(job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out")
     assert not plan.runnable
     assert RegradeRefusalCode.HELD_OUT_SOURCE_MISMATCH in plan.refusals
 
@@ -877,9 +937,7 @@ def test_heldout_requires_complete_recorded_patch_not_binary_placeholder(tmp_pat
         (source / "verifier" / "agent.diff").write_text(
             "Binary files a/essential.bin and b/essential.bin differ\n"
         )
-    plan = plan_heldout_job(
-        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out"
-    )
+    plan = plan_heldout_job(job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out")
     assert not plan.runnable
     assert all("binary placeholders" in trial.details[0] for trial in plan.trials)
 
@@ -895,7 +953,10 @@ def test_heldout_missing_cached_runtime_cannot_start_native_regrade(tmp_path, mo
 
     monkeypatch.setattr(heldout_regrade, "_offline_runtime", unavailable)
     receipt = heldout_regrade.regrade_heldout_job(
-        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
+        job_dir=job,
+        task_dir=task,
+        held_out=bundle,
+        jobs_dir=tmp_path / "out",
         runner=lambda *args, **kwargs: pytest.fail("no verifier may run"),
     )
     assert receipt.refused and receipt.trials == []
@@ -919,20 +980,20 @@ def test_heldout_native_trials_preserve_rewards_and_refuse_unobserved_scores(
         executed.append(source.name)
         parent = Path(command[command.index("--trials-dir") + 1])
         name = command[command.index("--trial-name") + 1]
-        output = _job_trial(
-            parent, name, "local-lab/holdout", {"holdout_pass": 0.0}
-        )
+        output = _job_trial(parent, name, "local-lab/holdout", {"holdout_pass": 0.0})
         (output / "verifier").mkdir()
         if source.name == "honest":
             # A numeric reward with no completed test evidence is not a score.
             report = {
-                "schema_version": "heldout-result/v1", "outcome": "unscored",
+                "schema_version": "heldout-result/v1",
+                "outcome": "unscored",
                 "holdout_pass": None,
                 "counts": {"tests": 0, "failures": 0, "errors": 1, "skipped": 0},
             }
         else:
             report = {
-                "schema_version": "heldout-result/v1", "outcome": "failed",
+                "schema_version": "heldout-result/v1",
+                "outcome": "failed",
                 "holdout_pass": 0.0,
                 "counts": {"tests": 1, "failures": 1, "errors": 0, "skipped": 0},
             }
@@ -940,8 +1001,12 @@ def test_heldout_native_trials_preserve_rewards_and_refuse_unobserved_scores(
         return SimpleNamespace(returncode=0, stderr="")
 
     receipt = heldout_regrade.regrade_heldout_job(
-        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
-        name="additional-tests", runner=runner,
+        job_dir=job,
+        task_dir=task,
+        held_out=bundle,
+        jobs_dir=tmp_path / "out",
+        name="additional-tests",
+        runner=runner,
     )
     assert set(executed) == {"honest", "copied"}
     assert receipt.verdict is RegradeJobVerdict.PARTIAL
@@ -949,7 +1014,9 @@ def test_heldout_native_trials_preserve_rewards_and_refuse_unobserved_scores(
     by_source = {entry.source.trial_name: entry for entry in receipt.trials}
     assert by_source["honest"].refused and by_source["honest"].regraded is None
     assert by_source["copied"].recorded.rewards == {
-        "reward": 1.0, "integrity": 0.0, "reward_gated": 0.0,
+        "reward": 1.0,
+        "integrity": 0.0,
+        "reward_gated": 0.0,
     }
     assert by_source["copied"].regraded.rewards == {"holdout_pass": 0.0}
     assert receipt.skipped_trials == [str(job / "failed")]
@@ -995,7 +1062,11 @@ def test_heldout_staging_resolves_to_native_cpu_offline_uploaded_tests(
         return SimpleNamespace(returncode=1, stderr="fixture stops before container execution")
 
     heldout_regrade.regrade_heldout_job(
-        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
-        name="native-definition", runner=runner,
+        job_dir=job,
+        task_dir=task,
+        held_out=bundle,
+        jobs_dir=tmp_path / "out",
+        name="native-definition",
+        runner=runner,
     )
     assert set(observed) == {"honest", "copied"}

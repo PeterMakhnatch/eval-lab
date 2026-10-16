@@ -429,7 +429,7 @@ inputs:
   - path: src/evallab/lineage.py
     digest: sha256:d4cb657bc9ed6d0f7f951490126175cccde655ed869cd179d0621e74b3b0679d
   - path: src/evallab/live_watch.py
-    digest: sha256:842ed0a57b37cc02a29e6949732c7233ba258dd910e8bae624caf1ed86ddde1b
+    digest: sha256:44e2d9401d6f1a4a4ff85d2da5b893e0db40f44606daa33aaf361ec795afa372
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py
@@ -763,7 +763,7 @@ inputs:
   - path: src/evallab/vf_scripted_harness.py
     digest: sha256:21c85c9926791eb7d4ea30bc4659db4854f42fa50351d0fe915ba9e352ce6981
   - path: src/evallab/watch_stop.py
-    digest: sha256:7242cb376ba03b5352bcac3da8cad8348e268ffca62d4ab114a264904b5575a7
+    digest: sha256:f20514476fd62c7f03b691e28402dc0b34a605aa9c8bbaf4a615452ae624dc9c
   - path: src/evallab/webdev_brief_explicit.py
     digest: sha256:02603e742231363f4c327d3322769e6bceb606ddb6d74c890453de23f957461f
   - path: src/evallab/webdev_structural_gate.py

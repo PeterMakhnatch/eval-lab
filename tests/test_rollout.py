@@ -67,6 +67,43 @@ def test_attempts_expand_to_independent_trials(tmp_path: Path) -> None:
     assert {row["name"].rsplit("-a", 1)[-1] for row in rows} == {"1", "2", "3"}
 
 
+def test_cli_forwards_attempts_to_run_rollout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import argparse
+
+    from evallab import rollout
+
+    captured: dict[str, object] = {}
+
+    def fake_run_rollout(tasks: list[Path], **kwargs: object) -> dict[str, int]:
+        captured.update(kwargs)
+        return {"errors": 0}
+
+    monkeypatch.setattr(rollout, "run_rollout", fake_run_rollout)
+    parser = argparse.ArgumentParser()
+    rollout.build_rollout_parser(parser.add_subparsers())
+    task = _task(tmp_path, "task-a")
+    args = parser.parse_args(
+        [
+            "rollout",
+            "run",
+            "--task",
+            str(task),
+            "--model",
+            "tinker/Qwen/Qwen3.5-9B",
+            "--out",
+            str(tmp_path / "out"),
+            "--actor",
+            "tester",
+            "--attempts",
+            "2",
+        ]
+    )
+    assert args.func(args, tmp_path) == 0
+    assert captured["attempts"] == 2
+
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"

@@ -423,6 +423,7 @@ def _rollout_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         max_requests=args.max_requests,
         max_input_tokens=args.max_input_tokens,
         max_output_tokens=args.max_output_tokens,
+        attempts=args.attempts,
     )
     print(json.dumps(summary, indent=2))
     print(f"results: {args.out}/results.jsonl")

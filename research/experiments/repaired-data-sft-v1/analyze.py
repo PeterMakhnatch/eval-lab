@@ -8,21 +8,24 @@ Inputs:
   `scoring_allowed: true`;
 - the arm exports' `summary.json` (`--exports`), used to prove that no held-out task was
   trained on;
-- optionally, `--original-regrade` JSONL rows `{arm, task, original_pass}`. Each row comes
-  from replaying an arm's held-out submission on the task's *original* grader.
+- optionally, `--original-regrade` JSONL rows `{arm, trial, original_pass}`, written by
+  `incorrect_pass.py`. Each row comes from replaying one held-out trial's submission on
+  the task's *original* v5 grader.
 
 Two definitions:
-- **Solve:** reward 1 on the repaired held-out package. That is the only grade the trial
+- **Solve:** reward 1 on the v6@10 held-out package, which is the only grade the trial
   receives.
-- **Incorrect pass:** the original grader passes a submission that the repaired grader
-  rejects. The model would have been rewarded for wrong work had the grader not been
-  repaired. Its denominator is the trials whose original-grader replay was measured.
-  Unmeasured trials are counted as unmeasured, never as correct.
+- **Incorrect pass:** the original grader passes a submission that the v6@10 grader
+  rejects. The model would have been rewarded for wrong work under the original grader.
+  - Only v6-failing trials need a replay; a v6 pass cannot be an incorrect pass.
+  - The denominator is the v6 passes plus the v6 failures whose original-grader replay
+    was measured.
+  - An unreplayed v6 failure is counted as unmeasured, never as correct.
 
 Uncertainty:
 - exact Clopper–Pearson 95% intervals for every rate;
-- exact two-sided McNemar tests on paired tasks for B vs C (primary) and for each arm vs
-  the base.
+- an exact two-sided sign test on paired per-task solve rates, for B vs C (primary) and
+  for each arm vs the base. With one attempt per task this is McNemar's exact test.
 
     uv run python research/experiments/repaired-data-sft-v1/analyze.py \
         --arm base=… --arm A=… --arm B=… --arm C=… \
@@ -82,15 +85,20 @@ def task_of(row: dict[str, Any]) -> str:
 
 
 def passed(row: dict[str, Any]) -> bool | None:
+    """Rollout `passed` (reward >= 1), or None for an errored or unmeasured trial."""
     if row.get("error"):
         return None
-    if "pass" in row and row["pass"] is not None:
-        return bool(row["pass"])
+    if row.get("passed") is not None:
+        return bool(row["passed"])
     reward = row.get("reward")
     return None if reward is None else float(reward) >= 1.0
 
 
 def norm(task: str) -> str:
+    """Bare MiMo source id from an id, a namespaced id, or a task-store package path."""
+    for part in reversed(task.split("/")):
+        if "__" in part:
+            return part.split("__", 1)[1]
     return task.rsplit("/", 1)[-1]
 
 
@@ -127,65 +135,81 @@ def main() -> int:
         print(f"REFUSED: {len(leak)} held-out task(s) were trained on: {leak[:5]}", file=sys.stderr)
         return 2
 
-    arms: dict[str, dict[str, bool | None]] = {}
+    # One list of (trial name, passed) per task: `evallab rollout --attempts` gives several.
+    arms: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
     for spec in args.arm:
         name, _, path = spec.partition("=")
         rows = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
-        by_task: dict[str, bool | None] = {}
+        by_task: dict[str, list[tuple[str, bool | None]]] = {}
         for row in rows:
             task = norm(task_of(row))
             if task not in heldout:
                 print(f"REFUSED: arm {name} ran non-held-out task {task}", file=sys.stderr)
                 return 2
-            if task in by_task:
-                raise ValueError(f"arm {name}: task {task} appears twice")
-            by_task[task] = passed(row)
+            by_task.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
         arms[name] = by_task
 
+    # Incorrect-pass replays, keyed by (arm, trial name): original-grader verdict.
     original: dict[tuple[str, str], bool] = {}
     if args.original_regrade:
         for line in args.original_regrade.read_text().splitlines():
             if line.strip():
                 r = json.loads(line)
-                original[(r["arm"], norm(r["task"]))] = bool(r["original_pass"])
+                original[(r["arm"], r["trial"])] = bool(r["original_pass"])
 
     report: dict[str, Any] = {"heldout_tasks": len(heldout), "arms": {}, "paired": {}}
     for name, by_task in arms.items():
-        measured = {t: v for t, v in by_task.items() if v is not None}
-        solves = sum(measured.values())
-        inc_measured = [(t, v) for t, v in by_task.items() if (name, t) in original]
-        incorrect = sum(1 for t, v in inc_measured if original[(name, t)] and v is False)
+        trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
+        measured = [v for _, _, v in trials if v is not None]
+        solves = sum(measured)
+        # v6 passes plus v6 failures with a measured original-grader replay.
+        replayed = [
+            (n, v) for _, n, v in trials if v is True or (v is False and (name, n) in original)
+        ]
+        incorrect = sum(1 for n, v in replayed if v is False and original[(name, n)])
         report["arms"][name] = {
             "examples": exports.get("arms", {}).get(name, {}).get("rows"),
-            "trials": len(by_task),
+            "tasks": len(by_task),
+            "trials": len(trials),
             "measured": len(measured),
-            "errors": len(by_task) - len(measured),
+            "errors": len(trials) - len(measured),
             "solves": solves,
             "solve_rate": round(solves / len(measured), 4) if measured else None,
             "solve_ci95": clopper_pearson(solves, len(measured)),
-            "incorrect_pass_measured": len(inc_measured),
+            "incorrect_pass_measured": len(replayed),
             "incorrect_passes": incorrect,
-            "incorrect_pass_rate": round(incorrect / len(inc_measured), 4)
-            if inc_measured
-            else None,
-            "incorrect_pass_ci95": clopper_pearson(incorrect, len(inc_measured)),
+            "incorrect_pass_rate": round(incorrect / len(replayed), 4) if replayed else None,
+            "incorrect_pass_ci95": clopper_pearson(incorrect, len(replayed)),
         }
+        if len(trials) > len(by_task):
+            report["arms"][name]["note"] = (
+                "several attempts per task: the trial-level interval ignores within-task "
+                "correlation; the paired test below works per task"
+            )
 
+    def task_rate(items: list[tuple[str, bool | None]]) -> float | None:
+        values = [v for _, v in items if v is not None]
+        return sum(values) / len(values) if values else None
+
+    # Paired exact sign test per task (McNemar when there is one attempt per task).
     pairs = [("B", "C")] + [(n, "base") for n in arms if n != "base" and "base" in arms]
     for left, right in pairs:
         if left not in arms or right not in arms:
             continue
-        common = [
-            t for t in arms[left] if arms[left][t] is not None and arms[right].get(t) is not None
-        ]
-        only_left = sum(1 for t in common if arms[left][t] and not arms[right][t])
-        only_right = sum(1 for t in common if arms[right][t] and not arms[left][t])
+        rates = {
+            t: (task_rate(arms[left][t]), task_rate(arms[right].get(t, []))) for t in arms[left]
+        }
+        common = {t: r for t, r in rates.items() if None not in r}
+        better = sum(1 for lr, rr in common.values() if lr > rr)
+        worse = sum(1 for lr, rr in common.values() if lr < rr)
         report["paired"][f"{left}_vs_{right}"] = {
             "tasks": len(common),
-            f"{left}_only": only_left,
-            f"{right}_only": only_right,
-            "difference": round((only_left - only_right) / len(common), 4) if common else None,
-            "mcnemar_exact_p": round(mcnemar_exact(only_left, only_right), 4),
+            f"{left}_better": better,
+            f"{right}_better": worse,
+            "mean_difference": round(sum(lr - rr for lr, rr in common.values()) / len(common), 4)
+            if common
+            else None,
+            "exact_sign_p": round(mcnemar_exact(better, worse), 4),
         }
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))

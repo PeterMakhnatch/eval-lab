@@ -27,6 +27,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 import uuid
 from collections import Counter
@@ -236,6 +237,10 @@ class LaneReply:
 
 class QuotaStop(RuntimeError):
     """Unreadable or exhausted account-wide weekly quota."""
+
+
+class _TrialAbort(RuntimeError):
+    """A container trial cannot proceed; the trial is unmeasured, never a pass."""
 
 
 def utcnow() -> str:
@@ -557,6 +562,32 @@ def submission_to_script(
     return None
 
 
+def workdir_patch_script(patch: bytes, workdir: str) -> str:
+    """Bash that applies a repository-relative patch inside ``workdir``.
+
+    For packages whose oracle is a patch (no ``solution/solve.sh``, e.g. raw MiMo code
+    packages) repository-relative paths resolve against the task's declared workdir, not
+    ``/`` or ``/app`` as in :func:`submission_to_script`. ``git apply`` is atomic; a patch
+    neither it nor ``patch`` accepts exits nonzero, so the trial is unmeasured, never a pass.
+    """
+    if not patch.endswith(b"\n"):
+        patch += b"\n"
+    encoded = base64.encodebytes(patch).decode("ascii")
+    return (
+        "#!/usr/bin/env bash\nset -e\n"
+        "base64 -d <<'QA_PATCH_EOF' > /tmp/qa-sub.patch\n"
+        f"{encoded}QA_PATCH_EOF\n"
+        f"cd {shlex.quote(workdir)}\n"
+        "if git apply --binary --whitespace=nowarn -p1 /tmp/qa-sub.patch 2>/dev/null; then\n"
+        "  true\n"
+        "elif patch -p1 -N --no-backup-if-mismatch -i /tmp/qa-sub.patch 2>/dev/null; then\n"
+        "  true\n"
+        "else\n"
+        "  git apply --binary --whitespace=nowarn -p1 /tmp/qa-sub.patch\n"
+        "fi\n"
+    )
+
+
 class HarborBackend:
     """Sequential fresh-container Docker execution; at most 1 container active at a time."""
 
@@ -564,6 +595,7 @@ class HarborBackend:
         self.repo_root = repo_root.resolve()
         self._image_cache: dict[tuple[str, str], tuple[str, str | None]] = {}
         self._slot_depth = 0
+        self._reference_patches: dict[Path, tuple[Path, str]] = {}
 
     @contextmanager
     def slot(self, label: str) -> Iterator[None]:
@@ -586,6 +618,165 @@ class HarborBackend:
                 yield
             finally:
                 self._slot_depth = 0
+
+    def bind_reference_patch(self, package: Path, patch: Path) -> None:
+        """Register the reference patch that is the oracle of ``package`` (no ``solution/solve.sh``).
+
+        It is hashed here and the hash lands in the facts of every control that used it, so a
+        score names the exact reference it was measured against.
+        """
+        patch = patch.resolve()
+        if not patch.is_file():
+            raise ValueError(f"reference patch not found: {patch}")
+        self._reference_patches[package.resolve()] = (
+            patch,
+            hashlib.sha256(patch.read_bytes()).hexdigest(),
+        )
+
+    def reference_patch(self, package: Path) -> tuple[Path, str] | None:
+        bound = self._reference_patches.get(package.resolve())
+        if bound is not None:
+            return bound
+        default = package / "solution" / "patch.diff"
+        if default.is_file():
+            return default.resolve(), hashlib.sha256(default.read_bytes()).hexdigest()
+        return None
+
+    @staticmethod
+    def patch_workdir(package: Path) -> str | None:
+        """Where a repository-relative patch applies, for packages whose oracle is a patch.
+
+        A package with ``solution/solve.sh`` runs its own oracle and keeps the ``/app``
+        conventions; one without it (raw MiMo code packages) is patched in the
+        ``[environment].workdir`` it declares.
+        """
+        if (package / "solution" / "solve.sh").is_file():
+            return None
+        config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        workdir = (config.get("environment") or {}).get("workdir")
+        return str(workdir) if workdir else None
+
+    def _stage_solution(self, package: Path, stage_dir: Path, facts: dict[str, Any]) -> Path:
+        """The directory copied to ``/solution``: the package's own, or a patch oracle for it.
+
+        A synthesized oracle lives under ``stage_dir``, never in the package, so the package
+        digest the report binds to is untouched.
+        """
+        own = package / "solution"
+        if (own / "solve.sh").is_file():
+            return own
+        workdir = self.patch_workdir(package)
+        reference = self.reference_patch(package)
+        if workdir is not None and reference is not None:
+            patch, digest = reference
+            data = patch.read_bytes()
+            staged = stage_dir / "solution"
+            staged.mkdir(parents=True, exist_ok=True)
+            (staged / "reference.patch").write_bytes(data)
+            (staged / "solve.sh").write_text(workdir_patch_script(data, workdir), encoding="utf-8")
+            facts["oracle"] = {
+                "kind": "reference-patch",
+                "workdir": workdir,
+                "reference_patch": str(patch),
+                "sha256": digest,
+            }
+            return staged
+        if own.is_dir():
+            return own
+        raise _TrialAbort(
+            "package has no solution/solve.sh and no reference patch is bound (pass --ref-patch)"
+        )
+
+    @staticmethod
+    def _healthcheck_spec(env_cfg: dict[str, Any]) -> dict[str, Any] | None:
+        spec = env_cfg.get("healthcheck")
+        if isinstance(spec, dict) and str(spec.get("command") or "").strip():
+            return spec
+        return None
+
+    def _run_healthcheck(self, container: str, env_cfg: dict[str, Any]) -> dict[str, Any]:
+        """Run the package's ``[environment.healthcheck]`` in the started container.
+
+        Harbor runs it before the agent. For raw MiMo packages it is the one-time setup that
+        ``tests/test.sh`` needs (it writes ``/var/lib/mimo/base``). It exits 0 or the trial
+        raises: a package that never became ready is unmeasured, never a pass. Packages
+        without a healthcheck are untouched.
+        """
+        spec = self._healthcheck_spec(env_cfg)
+        if spec is None:
+            return {}
+        timeout = float(spec.get("timeout_sec") or 30.0)
+        attempts = int(spec.get("retries") or 0) + 1
+        interval = float(spec.get("interval_sec") or spec.get("start_interval_sec") or 5.0)
+        started = time.monotonic()
+        tail = ""
+        for attempt in range(1, attempts + 1):
+            try:
+                done = subprocess.run(
+                    ["docker", "exec", container, "sh", "-c", str(spec["command"])],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                tail = f"timed out after {timeout:.0f}s"
+            else:
+                if done.returncode == 0:
+                    return {
+                        "healthcheck": {
+                            "attempts": attempt,
+                            "seconds": round(time.monotonic() - started, 1),
+                        }
+                    }
+                tail = (
+                    f"exit {done.returncode}: {((done.stdout or '') + (done.stderr or ''))[-400:]}"
+                )
+            if attempt < attempts:
+                time.sleep(interval)
+        raise _TrialAbort(f"environment healthcheck failed after {attempts} attempt(s): {tail}")
+
+    def _run_probe(
+        self, package: Path, env_image: str, script: str, *, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        """Run ``script`` in a throwaway container; a declared healthcheck (setup) runs first."""
+        config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        env_cfg = config.get("environment") or {}
+        if self._healthcheck_spec(env_cfg) is None:
+            return subprocess.run(
+                ["docker", "run", "--rm", "--entrypoint", "bash", env_image, "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        name = f"qa-probe-{uuid.uuid4().hex[:10]}"
+        try:
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    name,
+                    *self._limits(env_cfg),
+                    "--entrypoint",
+                    "sleep",
+                    env_image,
+                    "infinity",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120,
+            )
+            self._run_healthcheck(name, env_cfg)
+            return subprocess.run(
+                ["docker", "exec", name, "bash", "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        finally:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=60)
 
     def resolve(self, package: Path) -> AuditTask:
         from evallab.dataset_audit_sources import resolve_harbor_dataset
@@ -734,6 +925,7 @@ class HarborBackend:
         verifier_stdout = ""
         exception_msg: str | None = None
         reward: float | None = None
+        extra_facts: dict[str, Any] = {}
 
         try:
             subprocess.run(
@@ -754,9 +946,15 @@ class HarborBackend:
                 check=True,
                 timeout=120,
             )
+            extra_facts.update(self._run_healthcheck(agent_name, env_cfg))
             if mode == "oracle":
                 subprocess.run(
-                    ["docker", "cp", str(package / "solution"), f"{agent_name}:/solution"],
+                    [
+                        "docker",
+                        "cp",
+                        str(self._stage_solution(package, stage_dir, extra_facts)),
+                        f"{agent_name}:/solution",
+                    ],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -785,7 +983,12 @@ class HarborBackend:
             elif mode == "shortcut" and script is not None:
                 if with_solution:
                     subprocess.run(
-                        ["docker", "cp", str(package / "solution"), f"{agent_name}:/solution"],
+                        [
+                            "docker",
+                            "cp",
+                            str(self._stage_solution(package, stage_dir, extra_facts)),
+                            f"{agent_name}:/solution",
+                        ],
                         capture_output=True,
                         text=True,
                         check=True,
@@ -1018,6 +1221,8 @@ class HarborBackend:
                     text=True,
                     timeout=60,
                 )
+        except _TrialAbort as exc:
+            exception_msg = str(exc)
         except subprocess.TimeoutExpired as exc:
             exception_msg = f"TimeoutExpired: {exc}"
         except (OSError, subprocess.SubprocessError) as exc:
@@ -1047,6 +1252,7 @@ class HarborBackend:
                 "job_path": str(trial_dir),
                 "verifier_stdout": _cap_excerpt(verifier_stdout),
                 "agent_stdout": _cap_excerpt(agent_stdout),
+                **extra_facts,
             },
             reason=exception_msg,
         )
@@ -1088,12 +1294,7 @@ class HarborBackend:
         env_image, _ = self._ensure_images(package, task.package_digest)
         run_dir.mkdir(parents=True, exist_ok=True)
         script = build_leak_probe_script()
-        done = subprocess.run(
-            ["docker", "run", "--rm", "--entrypoint", "bash", env_image, "-c", script],
-            capture_output=True,
-            text=True,
-            timeout=min(timeout_seconds, 300),
-        )
+        done = self._run_probe(package, env_image, script, timeout=min(timeout_seconds, 300))
         text = (done.stdout or "") + (done.stderr or "")
         (run_dir / "oracle.txt").write_text(text, encoding="utf-8")
         parsed = parse_probe_output(text)
@@ -1112,11 +1313,8 @@ class HarborBackend:
                 "for d in /testbed /workspace/repo /workspace /app /root/repo "
                 '"$HOME/repo" "$PWD"; do [ -e "$d/.git" ] && echo "repo:$d"; done; true'
             )
-            found = subprocess.run(
-                ["docker", "run", "--rm", "--entrypoint", "bash", env_image, "-c", probe_roots],
-                capture_output=True,
-                text=True,
-                timeout=min(timeout_seconds, 120),
+            found = self._run_probe(
+                package, env_image, probe_roots, timeout=min(timeout_seconds, 120)
             )
             if "repo:" not in (found.stdout or ""):
                 return AuditObservation(
@@ -1228,17 +1426,22 @@ class HarborBackend:
                     facts={"reward": None, "exception": f"missing patch: {repro_path}"},
                     reason=f"missing patch: {repro_path}",
                 )
-            built = submission_to_script(
-                {
-                    "kind": "patch",
-                    "path": "/app",
-                    "content": repro_path.read_text(encoding="utf-8"),
-                },
-                out_dir=run_dir,
-                label="replay",
-            )
-            assert built is not None
-            script, _ = built
+            patch_bytes = repro_path.read_bytes()
+            workdir = self.patch_workdir(package)
+            if workdir is not None:
+                script = workdir_patch_script(patch_bytes, workdir)
+            else:
+                built = submission_to_script(
+                    {
+                        "kind": "patch",
+                        "path": "/app",
+                        "content": patch_bytes.decode("utf-8"),
+                    },
+                    out_dir=run_dir,
+                    label="replay",
+                )
+                assert built is not None
+                script, _ = built
         else:
             candidate_sh = repro_path / "agent" / "shortcut.sh"
             if not candidate_sh.is_file():
@@ -2565,10 +2768,19 @@ def run_task(
 
     package = package.resolve()
     task = backend.resolve(package)
+    bind = getattr(backend, "bind_reference_patch", None)
+    if ref_patch is not None and bind is not None:
+        bind(package, ref_patch)
     subject = Subject(kind="task", task_id=task.task_id, task_digest=task.package_digest)
-    # Older TB2 packages have no [task].name. Keys use the benchmark-prefixed ID.
-    if "/" not in subject.task_id and package.name == subject.task_id:
-        subject.task_id = f"terminal-bench/{subject.task_id}"
+    # The resolver strips the namespace from `[task].name`. Keys carry it (`terminal-bench/<id>`,
+    # `mimo-v2.6-rl/<id>`), so restore the package's own; older TB2 packages have no
+    # `[task].name` and take the benchmark prefix.
+    native = getattr(task, "task_name", None)
+    if "/" not in subject.task_id:
+        if isinstance(native, str) and "/" in native:
+            subject.task_id = native
+        elif package.name == subject.task_id:
+            subject.task_id = f"terminal-bench/{subject.task_id}"
     report = TaskReport(
         subject=subject,
         package=str(package),

@@ -68,3 +68,24 @@ def test_unrecognised_heldout_ids_fail_loudly_instead_of_matching_nothing(
     path.write_text(content)
     with pytest.raises(ValueError):
         build_arms.heldout_tasks(path)
+
+
+def test_control_draw_and_its_replacement_order_never_leave_the_frame() -> None:
+    arm_a = [
+        {"execution_id": f"e{i:02d}", "task": f"mimo-v2.6-rl/format-code-task-{i % 7:06d}"}
+        for i in range(70)
+    ]
+    excluded = {"mimo-v2.6-rl/format-code-task-000003", "mimo-v2.6-rl/format-code-task-000005"}
+    ineligible = {"e00", "e01", "e02"}
+
+    arm_c, order = build_arms.draw_control(arm_a, 17, 20261016, excluded, ineligible)
+
+    assert {e["task"] for e in order}.isdisjoint(excluded)
+    assert sorted(e["execution_id"] for e in order) == sorted(
+        e["execution_id"]
+        for e in arm_a
+        if e["task"] not in excluded and e["execution_id"] not in ineligible
+    )
+    assert arm_c == order[:17]
+    with pytest.raises(SystemExit):
+        build_arms.draw_control(arm_a, len(order) + 1, 20261016, excluded, ineligible)

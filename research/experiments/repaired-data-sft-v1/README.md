@@ -62,9 +62,12 @@ eligible and |C| = |eligible B|. Before 03:25 ET the script redrew C itself. Tha
 picked `47b895eb` (task 001373), which is on Research's exclusion list, and the redraw
 was removed.
 
-**A** (`rds1-a`) includes that one 001373 execution. A is the historical reference
-containing every recorded pass, so the row stays and is disclosed wherever A is
-reported.
+**A** (`rds1-a`) includes two executions from tasks that were later excluded:
+- `47b895eb-be3b-4927-b1a8-61ed66dc8406` (task 001373);
+- `4d7d4ce0-9729-498e-a7ec-a4f0ed6e72b7` (task 000838).
+
+A is the historical reference, containing every recorded pass, so these rows stay. Both
+are disclosed wherever A is reported. B and C contain neither.
 
 ## Held-out evaluation
 

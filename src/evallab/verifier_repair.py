@@ -65,7 +65,7 @@ MAX_HIDDEN_TEST_BYTES = 128 * 1024
 MAX_PATCH_CHARS = 8_000
 
 #: Conservative source-fingerprint and resource checks, not an OS sandbox.
-#: Proposed code executes only in the task's native Harbor verifier.
+#: Proposed code executes only inside an isolated task-verifier container.
 _DISALLOWED_TEST_FEATURES = (
     "__file__",
     "inspect.",
@@ -406,7 +406,7 @@ def codex_model_caller(
             f"Codex exited {completed.returncode}; retained at {directory}; no automatic retry"
         )
     try:
-        response, usage = codex_transport.parse_transcript(events)
+        response, usage = codex_transport.parse_transcript(events, allow_preamble=True)
     except codex_transport.CodexTransportError as exc:
         raise RepairError(f"unusable Codex response: {exc}; retained at {directory}") from exc
     return response, {**usage, "requested_model": model, "codex_version": version}
@@ -720,18 +720,34 @@ def build_patch_appendix(tests: Sequence[RepairTest]) -> str:
     return "".join(chunks)
 
 
-def build_command_wrapper(original: str, new_command: str, *, workdir: str) -> str:
+def build_command_wrapper(
+    original: str,
+    new_command: str,
+    *,
+    workdir: str,
+    interpreter: str = "/opt/test_venv/bin/python3",
+) -> str:
     """Original command verbatim, then the new tests; original status kept.
 
     Runs under ``sh -c`` (POSIX only): the original line runs first and its
     status is saved; the new tests run next from the task workdir; a failing
     new-test run exits 1, otherwise the original status is returned exactly.
+    Bare ``python`` / ``python3`` in the new command use the task venv when
+    that interpreter exists. The check runs in the grader, not on the host.
     """
     base = original if original.endswith("\n") else original + "\n"
+    quoted = shlex.quote(interpreter)
+    bin_dir = shlex.quote(str(Path(interpreter).parent))
     return (
         f"(\n{base})\n"
         "REPAIR_RC=$?\n"
         f"cd {shlex.quote(workdir)} || exit 1\n"
+        f"if [ -x {quoted} ]; then\n"
+        f"  PATH={bin_dir}:$PATH\n"
+        "  export PATH\n"
+        f'  python() {{ {quoted} "$@"; }}\n'
+        f'  python3() {{ {quoted} "$@"; }}\n'
+        "fi\n"
         f"{new_command}\n"
         "REPAIR_NEW_RC=$?\n"
         'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'
@@ -753,9 +769,16 @@ def validate_proposal(
             raise RepairError("not-repairable proposal needs an explicit rationale")
         return
     wanted = set(mutant_ids)
-    covered = set(proposal.mutant_ids) | {entry.mutant_id for entry in proposal.unrepairable}
-    if wanted and not (set(proposal.mutant_ids) & wanted):
-        raise RepairError("proposal addresses none of the ranked survivors")
+    tested = set(proposal.mutant_ids)
+    declared_ids = [entry.mutant_id for entry in proposal.unrepairable]
+    declared = set(declared_ids)
+    if len(tested) != len(proposal.mutant_ids) or len(declared) != len(declared_ids):
+        raise RepairError("proposal duplicates survivor dispositions")
+    if tested & declared or (tested | declared) - wanted:
+        raise RepairError("proposal survivor dispositions overlap or name unknown survivors")
+    covered = tested | declared
+    if wanted and not (covered & wanted):
+        raise RepairError("proposal gives no disposition for the ranked survivors")
     if wanted - covered:
         raise RepairError(
             "proposal leaves survivors without a disposition: "

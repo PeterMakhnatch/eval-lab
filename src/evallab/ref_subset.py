@@ -545,7 +545,12 @@ class Sandbox:
             _docker("rm", "-f", name)
 
     def grade(
-        self, label: str, kept: list[str], files: dict[str, bytes | None], timeout: float
+        self,
+        label: str,
+        kept: list[str],
+        files: dict[str, bytes | None],
+        timeout: float,
+        tail_chars: int = 2_000,
     ) -> Grade:
         name = f"{self.name}-g"
         started = time.monotonic()
@@ -572,7 +577,7 @@ class Sandbox:
                     for p in stale
                 )
                 _docker("exec", name, "sh", "-c", f"rm -f {pycache}")
-            return _verify(name, label, kept, timeout, started)
+            return _verify(name, label, kept, timeout, started, tail_chars=tail_chars)
         except (RuntimeError, OSError) as exc:
             return Grade(
                 label, kept, None, None, time.monotonic() - started, "error", str(exc)[-2_000:]
@@ -591,6 +596,8 @@ def _verify(
     timeout: float,
     started: float,
     exec_options: Sequence[str] = (),
+    *,
+    tail_chars: int = 2_000,
 ) -> Grade:
     """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
@@ -598,7 +605,7 @@ def _verify(
     except subprocess.TimeoutExpired:
         return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
     raw = _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
-    tail = result.stdout.decode(errors="replace")[-2_000:]
+    tail = result.stdout.decode(errors="replace")[-tail_chars:]
     seconds = time.monotonic() - started
     try:
         reward = float(raw)

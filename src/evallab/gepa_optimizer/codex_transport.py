@@ -169,7 +169,7 @@ def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
     )
 
 
-def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
+def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, dict[str, Any]]:
     """Accept exactly one completed text-only turn; reject everything else.
 
     Returns ``(response, usage)`` where ``usage`` is the honest token report
@@ -177,6 +177,8 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
     retained, but only a later completed turn can yield text. Fatal error
     events, failed/missing/repeated completions, empty output, tool attempts,
     unknown shapes, and oversized transcripts still fail closed.
+    Proposal callers may select the final message after a text preamble;
+    that opt-in never relaxes lifecycle, error, usage or tool-call checks.
     """
     if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
         raise CodexTransportError("Codex transcript exceeded its bound")
@@ -211,9 +213,7 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
         if kind == "turn.failed":
             detail = event.get("error", {})
             message = detail.get("message", "") if isinstance(detail, dict) else ""
-            raise CodexTransportError(
-                f"Codex turn failed: {str(message)[:200]}"
-            )
+            raise CodexTransportError(f"Codex turn failed: {str(message)[:200]}")
         if kind == "turn.completed":
             completions += 1
             if completions > 1:
@@ -259,13 +259,15 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
                 raise CodexTransportError(f"Unknown Codex item type: {detail!r}")
     if starts != 1 or completions != 1 or usage is None:
         raise CodexTransportError("Codex returned no complete single turn")
-    if len(agent_texts) != 1:
+    if not agent_texts or (len(agent_texts) != 1 and not allow_preamble):
         raise CodexTransportError("Codex returned no complete single-turn message")
-    response = agent_texts[0]
+    response = agent_texts[-1]
     if not response.strip():
         raise CodexTransportError("Codex returned an empty message")
     if len(response.encode("utf-8")) > MAX_RESPONSE_BYTES:
         raise CodexTransportError("Codex response exceeded its bound")
+    if len(agent_texts) > 1:
+        usage["text_selection"] = "final completed message of one text-only turn"
     return response, usage
 
 
@@ -312,12 +314,8 @@ def _poll_events(
             if _startup_warning(item, kind, started):
                 continue
             detail = item.get("type") if isinstance(item, dict) else None
-            if detail in _TOOL_ITEM_TYPES or (
-                detail not in {"agent_message", "reasoning"}
-            ):
-                raise CodexTransportError(
-                    "Codex attempted a tool call; no automatic retry"
-                )
+            if detail in _TOOL_ITEM_TYPES or (detail not in {"agent_message", "reasoning"}):
+                raise CodexTransportError("Codex attempted a tool call; no automatic retry")
     return offset, lines[-1], started
 
 
@@ -357,9 +355,8 @@ class CodexTransport:
         executable = _executable()
         version, digest = self._version_digest(executable)
         completed = _run_probe([str(executable), "login", "status"], timeout=30)
-        output = (
-            completed.stdout.decode(errors="replace")
-            + completed.stderr.decode(errors="replace")
+        output = completed.stdout.decode(errors="replace") + completed.stderr.decode(
+            errors="replace"
         )
         if completed.returncode != 0 or "ChatGPT" not in output:
             raise CodexTransportError(
@@ -477,8 +474,7 @@ class CodexTransport:
                     time.sleep(0.1)
                 if process.returncode != 0:
                     raise CodexTransportError(
-                        f"Codex exited with status {process.returncode}; "
-                        "inspect retained logs"
+                        f"Codex exited with status {process.returncode}; inspect retained logs"
                     )
             finally:
                 _stop(process)

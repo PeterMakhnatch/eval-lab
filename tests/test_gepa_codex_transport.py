@@ -189,6 +189,59 @@ def test_any_tool_item_rejects_the_turn(tmp_path, item):
         parse_transcript(path)
 
 
+def _catalog_probe(tool: str, *, text: str, status: str = "completed") -> dict:
+    return {
+        "id": tool,
+        "type": "mcp_tool_call",
+        "server": "codex",
+        "tool": tool,
+        "arguments": {},
+        "error": None,
+        "status": status,
+        "result": None
+        if status != "completed"
+        else {"content": [{"type": "text", "text": text}], "structured_content": None},
+    }
+
+
+@pytest.mark.parametrize("allow_preamble", [False, True])
+@pytest.mark.parametrize(
+    ("tool", "text", "status"),
+    [
+        ("list_mcp_resources", '{"resources":[]}', "in_progress"),
+        ("list_mcp_resources", '{"resources":[]}', "completed"),
+        ("list_mcp_resource_templates", '{"resourceTemplates":[]}', "completed"),
+    ],
+)
+def test_empty_catalog_lookups_are_still_tool_calls(tmp_path, allow_preamble, tool, text, status):
+    lines = _valid_lines()
+    kind = "item.started" if status == "in_progress" else "item.completed"
+    lines.insert(2, _event({"type": kind, "item": _catalog_probe(tool, text=text, status=status)}))
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=allow_preamble)
+    with pytest.raises(CodexTransportError):
+        _poll_events(path, 0, b"")
+
+
+def test_a_catalog_probe_that_returns_resources_still_rejects(tmp_path):
+    lines = _valid_lines()
+    lines.insert(
+        2,
+        _event(
+            {
+                "type": "item.completed",
+                "item": _catalog_probe(
+                    "list_mcp_resources", text='{"resources":[{"uri":"file://x"}]}'
+                ),
+            }
+        ),
+    )
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError, match="tool"):
+        parse_transcript(path)
+
+
 def test_more_than_one_completion_is_ambiguous(tmp_path):
     lines = _valid_lines() + [
         _event(_agent_completed("second", item_id="msg-2")),
@@ -207,6 +260,36 @@ def test_two_agent_messages_with_one_turn_is_ambiguous(tmp_path):
         parse_transcript(path)
 
 
+def test_preamble_mode_accepts_final_text_without_relaxing_turn_completion(tmp_path):
+    lines = _valid_lines("final proposal")
+    lines.insert(2, _event(_agent_completed("I will check the supplied context.", item_id="intro")))
+    path = _write(tmp_path / "events.jsonl", lines)
+    text, usage = parse_transcript(path, allow_preamble=True)
+    assert text == "final proposal"
+    assert usage["input_tokens"] == _usage()["input_tokens"]
+    _write(path, lines[:-1])
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=True)
+
+
+@pytest.mark.parametrize(
+    "bad_event",
+    [
+        {"type": "turn.failed", "error": {"message": "failure"}},
+        {"type": "error", "message": "provider error"},
+        {"type": "turn.started"},
+        {"type": "item.started", "item": {"id": "tool", "type": "command_execution"}},
+    ],
+)
+def test_preamble_mode_rejects_failed_or_tool_bearing_turns(tmp_path, bad_event):
+    lines = _valid_lines("final proposal")
+    lines.insert(2, _event(_agent_completed("preamble", item_id="intro")))
+    lines.insert(3, _event(bad_event))
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path, allow_preamble=True)
+
+
 def test_unknown_event_or_item_shapes_fail_closed(tmp_path):
     path = _write(
         tmp_path / "events.jsonl",
@@ -215,9 +298,7 @@ def test_unknown_event_or_item_shapes_fail_closed(tmp_path):
     with pytest.raises(CodexTransportError, match="Unknown"):
         parse_transcript(path)
     lines = _valid_lines()
-    lines.insert(
-        3, _event({"type": "item.completed", "item": {"id": "z", "type": "teleport"}})
-    )
+    lines.insert(3, _event({"type": "item.completed", "item": {"id": "z", "type": "teleport"}}))
     _write(path, lines)
     with pytest.raises(CodexTransportError, match="Unknown"):
         parse_transcript(path)
@@ -270,7 +351,13 @@ def test_live_monitor_preserves_partial_utf8_and_fails_fast_on_tools(tmp_path):
 class _FakeRun:
     """Stub for ``codex --version`` and ``codex login status`` probes."""
 
-    def __init__(self, *, version_stdout="codex-cli 0.162.1\n", login_stdout="Logged in using ChatGPT\n", login_code=0):
+    def __init__(
+        self,
+        *,
+        version_stdout="codex-cli 0.162.1\n",
+        login_stdout="Logged in using ChatGPT\n",
+        login_code=0,
+    ):
         self.version_stdout = version_stdout
         self.login_stdout = login_stdout
         self.login_code = login_code
@@ -280,15 +367,13 @@ class _FakeRun:
         self.argv_seen.append(list(argv))
         if argv[-1] == "--version":
             return subprocess.CompletedProcess(argv, 0, self.version_stdout.encode(), b"")
-        return subprocess.CompletedProcess(
-            argv, self.login_code, self.login_stdout.encode(), b""
-        )
+        return subprocess.CompletedProcess(argv, self.login_code, self.login_stdout.encode(), b"")
 
 
 @pytest.fixture
 def cli_probes(tmp_path, monkeypatch):
     exe = tmp_path / "codex"
-    exe.write_bytes(b"#!/bin/sh\nexec codex \"$@\"\n")
+    exe.write_bytes(b'#!/bin/sh\nexec codex "$@"\n')
     monkeypatch.setattr(codex_transport, "CODEX_EXECUTABLE", exe)
     run = _FakeRun()
     monkeypatch.setattr(codex_transport, "_RUN", run)
@@ -313,9 +398,7 @@ def test_preflight_requires_version_probe_and_executable(cli_probes, monkeypatch
     run.version_stdout = "something-else\n"
     with pytest.raises(CodexTransportError, match="requires codex-cli"):
         transport.preflight()
-    monkeypatch.setattr(
-        codex_transport, "CODEX_EXECUTABLE", Path("/nonexistent-codex-probe")
-    )
+    monkeypatch.setattr(codex_transport, "CODEX_EXECUTABLE", Path("/nonexistent-codex-probe"))
     with pytest.raises(CodexTransportError, match="unavailable"):
         transport.preflight()
     with pytest.raises(ValueError):
@@ -337,9 +420,7 @@ class _FakeChild:
         if stdout is not None:
             stdout.write(("\n".join(lines) + "\n").encode())
             stdout.flush()
-        last = next(
-            (argv[i + 1] for i, token in enumerate(argv) if token == "-o"), None
-        )
+        last = next((argv[i + 1] for i, token in enumerate(argv) if token == "-o"), None)
         if last is not None:
             Path(last).write_text("revised instructions", encoding="utf-8")
 
@@ -368,29 +449,22 @@ def _stub_request_child(monkeypatch, **overrides):
     return seen
 
 
-def test_request_refuses_failed_or_tool_using_children(
-    tmp_path, monkeypatch, cli_probes
-):
+def test_request_refuses_failed_or_tool_using_children(tmp_path, monkeypatch, cli_probes):
     transport = CodexTransport(repo_root=tmp_path, model="codex/gpt-6.1-sol")
 
     def _run_case(name, lines=None, returncode=0):
-        _stub_request_child(
-            monkeypatch, _canned_lines=lines or [], _exit_code=returncode
-        )
+        _stub_request_child(monkeypatch, _canned_lines=lines or [], _exit_code=returncode)
         with pytest.raises(CodexTransportError):
             transport.request("revise", directory=tmp_path / name)
 
     _run_case(
         "failed-turn",
-        _valid_lines()[:-1]
-        + [_event({"type": "turn.failed", "error": {"message": "nope"}})],
+        _valid_lines()[:-1] + [_event({"type": "turn.failed", "error": {"message": "nope"}})],
     )
     tool_lines = _valid_lines()
     tool_lines.insert(
         2,
-        _event(
-            {"type": "item.completed", "item": {"id": "sh", "type": "command_execution"}}
-        ),
+        _event({"type": "item.completed", "item": {"id": "sh", "type": "command_execution"}}),
     )
     _run_case("tool-turn", tool_lines)
     _run_case("nonzero-exit", _valid_lines(), returncode=3)
@@ -413,9 +487,7 @@ def test_request_timeout_kills_group_without_retry(tmp_path, monkeypatch, cli_pr
     monkeypatch.setattr(os, "killpg", lambda *a, **k: killed.append(a))
     clock = iter((0.0, 1.0))
     monkeypatch.setattr(codex_transport.time, "monotonic", lambda: next(clock))
-    transport = CodexTransport(
-        repo_root=tmp_path, model="codex/gpt-6.1-sol", timeout_seconds=0.2
-    )
+    transport = CodexTransport(repo_root=tmp_path, model="codex/gpt-6.1-sol", timeout_seconds=0.2)
     with pytest.raises(CodexTransportError, match="timed out"):
         transport.request("revise", directory=tmp_path / "hang")
     assert killed, "timed-out child process group must be signalled"
@@ -439,7 +511,9 @@ def test_subscription_child_cannot_receive_api_keys_or_provider_overrides(
 
 def test_unreported_token_fields_remain_absent(tmp_path):
     lines = _valid_lines()
-    lines[-1] = _event({"type": "turn.completed", "usage": {"input_tokens": 120, "output_tokens": 60}})
+    lines[-1] = _event(
+        {"type": "turn.completed", "usage": {"input_tokens": 120, "output_tokens": 60}}
+    )
     _, usage = parse_transcript(_write(tmp_path / "events.jsonl", lines))
     assert "cached_input_tokens" not in usage
     assert "reasoning_output_tokens" not in usage
@@ -456,7 +530,12 @@ def test_startup_warning_is_retained_without_discarding_completed_response(tmp_p
     lines = _valid_lines()
     lines.insert(
         1,
-        _event({"type": "item.completed", "item": {"type": "error", "message": "Configuration warning"}}),
+        _event(
+            {
+                "type": "item.completed",
+                "item": {"type": "error", "message": "Configuration warning"},
+            }
+        ),
     )
     path = _write(tmp_path / "events.jsonl", lines)
     response, _ = parse_transcript(path)

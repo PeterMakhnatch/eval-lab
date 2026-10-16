@@ -1,0 +1,811 @@
+{
+  "recorded_at": "2026-10-16T00:04:03.118697+00:00",
+  "implementation_commit": "19708a1c0",
+  "custody_root": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3",
+  "paid_usd": 0,
+  "paid_cap_usd": 2,
+  "admission_claim": false,
+  "acceptance_rule": "reference3/3 scored pass; nop3/3 scored fail; every expected previous passing submission scored fail; instruction-scope review; separate native verification remains required.",
+  "protocol_note": "Four repaired variants and one partial were graded with corrected cumulative replay and bound intake. Three earlier local-pass receipts are retained, not relabeled as fresh protocol runs. 000371 additionally contains an obsolete extra docs-bearing comparison; the required minimal submission also scored0.",
+  "counts": {
+    "current_protocol_local_repaired": 4,
+    "retained_earlier_local_pass": 3,
+    "local_partial": 1,
+    "blocked_repair_or_source_review": 8,
+    "prior_partial_seeds_native_infra_blocked": 2
+  },
+  "results": [
+    {
+      "task_id": "format-code-task-000081",
+      "status": "blocked",
+      "reason": "Public batch failure details/continuation/summary and supplied-argv verbosity; runtime verification blocked. v2 corrects only the disposition enum spelling.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/000081-api-v2.json",
+        "sha256": "0fb56ac8089219d9b2f0eb97642926aa520cda4e55bf52f3b1045cd7381f8dac"
+      }
+    },
+    {
+      "task_id": "format-code-task-000354",
+      "status": "blocked",
+      "reason": "Real historical security-scan cleanup and per-host uniqueness, without new migration-name or field-class assertions. Runtime verification blocked.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/000354-api.json",
+        "sha256": "1b20cadfd2f68f50c410d3c092a27daa404c02c131ffcf9e146062bfd2a787a5"
+      }
+    },
+    {
+      "task_id": "format-code-task-000371",
+      "status": "retained_local_pass",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Ordinal order validation when attaching real data.",
+      "regraded_after_replay_correction": false,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/000371-attempt2/repair-result.json",
+        "sha256": "5b85bc0d371481c46c9c5600bbedb51da1ee0b8bbc1003492ac32d7f85eb23d2"
+      },
+      "variant_digest": "sha256:6d64720966dfd9d432ff918006e1026d1e18784a4058346c509eca8b552261cd",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/6d64720966df",
+      "expected_shortcuts": null,
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-woodwork-logical-types-py-1",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-000471",
+      "status": "blocked",
+      "reason": "Model decline superseded: real regex caller needs the optional metadata argument. New real-listing regression is static-valid; preserve annotation-only survivors. Grade never acquired Docker.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/000471-api.json",
+        "sha256": "26caa6ad6eb9a81f3496c56ce0b0219c49f9dbccc978d713ed918afd0cc91e50"
+      },
+      "superseded_receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/000471-verified-final/repair-result.json",
+        "sha256": "e84b3db11fc686d5ac9d7916849321b10f09031ec3d6434d49a8159f17b0d0ef",
+        "recorded_verdict": "unrepairable",
+        "reason": "The supplied minimal-to-full diff contains only typing changes, parameter documentation, and making the metadata helper's key argument optional. All shortcuts retain regex matching and its propagation through the sensor, trigger, and hook. The instruction does not require annotation changes, documentation changes, or calling the metadata helper without a key. No permitted semantic test can distinguish these shortcuts from the reference on instruction-required behavior."
+      }
+    },
+    {
+      "task_id": "format-code-task-000560",
+      "status": "blocked",
+      "reason": "Climate end-time anchoring is source-reviewed; full parser/factory/payload fixture context remains missing because Docker source extraction could not acquire the slot.",
+      "native_acceptance": false,
+      "new_runtime_checks": []
+    },
+    {
+      "task_id": "format-code-task-000657",
+      "status": "repaired",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Retry exception chaining and nonretryable exception behavior.",
+      "regraded_after_replay_correction": true,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/000657-verified-final/repair-result.json",
+        "sha256": "2b77323987d41b191813f65aa0ca4469e8efed52208e06e95e37cadd11955d39"
+      },
+      "variant_digest": "sha256:92cc1d16665a5be51ed1b28b35349f2987921e99339ef637613ae57839ce7a67",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/92cc1d16665a",
+      "expected_shortcuts": [
+        "drop-block-opnieuw-retries-py-2",
+        "drop-block-opnieuw-retries-py-4",
+        "drop-block-opnieuw-retries-py-5",
+        "minimal"
+      ],
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-opnieuw-retries-py-2",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-opnieuw-retries-py-4",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-opnieuw-retries-py-5",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-000847",
+      "status": "partial",
+      "recorded_verdict": "partial",
+      "reason": "controls 3/3 pass; declared survivors require scope review: drop-file-tests-functional-issues-976-true-false-env (Only a reference test fixture is omitted; production configuration-loading behavior remains identical.), drop-file-tests-functional-issues-976-true-false-app-py (Only a reference test application is omitted; production configuration-loading behavior remains identical.), drop-file-tests-functional-issues-976-true-false-settings-toml (Only a reference TOML test fixture is omitted; production configuration-loading behavior remains identical.)",
+      "scope": "Configuration loading; preserve legitimate reference-test-fixture omissions.",
+      "regraded_after_replay_correction": true,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/000847-verified-final/repair-result.json",
+        "sha256": "2810a2ca2d20a2dd6598028cd9c28c921bf32b2a413916b996d25d2e48498ca9"
+      },
+      "variant_digest": "sha256:b8319e47d5106a0468e995ee002887cee778fbf31ed99ba116e4f564637a30a4",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000847/b8319e47d510",
+      "expected_shortcuts": [
+        "drop-block-dynaconf-base-py-1",
+        "drop-block-dynaconf-loaders-env-loader-py-1",
+        "drop-file-dynaconf-default-settings-py",
+        "drop-file-netlify-toml",
+        "drop-file-tests-functional-issues-976-true-false-env",
+        "drop-file-tests-functional-issues-976-true-false-app-py",
+        "drop-file-tests-functional-issues-976-true-false-settings-toml",
+        "minimal"
+      ],
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-dynaconf-base-py-1",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-dynaconf-loaders-env-loader-py-1",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-file-dynaconf-default-settings-py",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-file-netlify-toml",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-file-tests-functional-issues-976-true-false-env",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "drop-file-tests-functional-issues-976-true-false-app-py",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "drop-file-tests-functional-issues-976-true-false-settings-toml",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-000931",
+      "status": "retained_local_pass",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Avro nested collection schema evolution with complex union defaults.",
+      "regraded_after_replay_correction": false,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/000931-attempt5/repair-result.json",
+        "sha256": "67a8c92e53810646eddb94457ec193f37870d6a8680bdd6171664e47754881bf"
+      },
+      "variant_digest": "sha256:b9fc9db220e9c325dd35ef9bf0af76748a6c8baed3a5b35a51093b6b77917b53",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000931/b9fc9db220e9",
+      "expected_shortcuts": null,
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-001686",
+      "status": "retained_local_pass",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Torch tile integer repeats through the ordinary Keras backend API.",
+      "regraded_after_replay_correction": false,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/001686-attempt1/repair-result.json",
+        "sha256": "363f3c7692b1c663c37dd6f9ba7c3c10918e6e0afb32434d723e4e350b8bc757"
+      },
+      "variant_digest": "sha256:9f93b48f8c10f6d2b36f5a5456725d4b689678c3ecd279e85b953bbc08a4a884",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/9f93b48f8c10",
+      "expected_shortcuts": null,
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-001750",
+      "status": "blocked",
+      "reason": "Original graded proposal rejected: both old shortcuts still pass. New diagnostic guards the imported numerical entry point against unrelated FFT TypeErrors; runtime verification blocked.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/001750-api.json",
+        "sha256": "4b05cb131d8a637cf17a7c5b75a1c67b44e83c7d3b34a340a504e9d7850280be"
+      },
+      "superseded_receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/001750-verified-final/repair-result.json",
+        "sha256": "15ac673cc5bf544465555364409f6860beed72d9b79a67b4724d24f45098a783",
+        "recorded_verdict": "rejected",
+        "reason": "shortcut submissions still pass: drop-block-kymatio-scattering3d-scattering3d-py-2, minimal"
+      }
+    },
+    {
+      "task_id": "format-code-task-001804",
+      "status": "blocked",
+      "reason": "Real notebook initialization with unavailable external provider; no mocked initialize/request echoes or logging assertions. Runtime verification blocked.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/001804-api.json",
+        "sha256": "e5e4673aa8f96c63afdb261a13529e1d8c3e66b4f39f524f68b489dd6090b7be"
+      }
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "status": "repaired",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "SQS body-plus-attribute size; actual in-memory delivery at the exact binary limit.",
+      "regraded_after_replay_correction": true,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/001809-api-verified/repair-result.json",
+        "sha256": "af66094d810ed15addd86b57cb1e1d18fedc8417b5bf200907a5d6dca02ebc79"
+      },
+      "variant_digest": "sha256:d10b4570c231bae12afc7b729ef91c7ca06811ea63dbffc3812919c395b77bca",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001809/d10b4570c231",
+      "expected_shortcuts": [
+        "minimal",
+        "partial-stock",
+        "partial-gepa"
+      ],
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "partial-stock",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "partial-gepa",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "status": "blocked",
+      "reason": "New before/after fixture passes unchanged static guards; real commit-transform grade never acquired Docker. Earlier long literal byte fixtures were rejected, not accepted.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/reviewed-proposals/001985-api.json",
+        "sha256": "b6f6e454ecc33a98606352f269af429b56f0d69ea747093941f582590a685c93"
+      },
+      "superseded_receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/001985-verified-final/repair-result.json",
+        "sha256": "cbce4c0cf0e74065ad2b6b68ebbe3c629f03ac31a3180f61d856949946c52567",
+        "recorded_verdict": "blocked",
+        "reason": "tests/test_repair_deletion_tracking.py hardcodes reference bytes"
+      }
+    },
+    {
+      "task_id": "format-code-task-002205",
+      "status": "blocked",
+      "reason": "Scaled-Period scalar round trips and integer arithmetic; runtime verification blocked.",
+      "native_acceptance": false,
+      "new_runtime_checks": [],
+      "prepared_proposal": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/002205-proposed-final/proposal.json",
+        "sha256": "a753df21cdf4d61d8a1e491b6e30222e02597f2054f3577cc1d43c8d9d089423"
+      }
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "status": "prior_partial_native_infra_blocked",
+      "reason": "Retain Oct13 partial result. Oct15 native control attempts failed in infrastructure: separate verifier had no /tests/test.sh. No new admission.",
+      "native_control_receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/seeds/002391/controls-result.json",
+        "sha256": "11a7b84adb16db4a6b4fdcfbe83f0293691a5c2e2b9a48c6a6cc567f66366f03"
+      },
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-002402",
+      "status": "prior_partial_native_infra_blocked",
+      "reason": "Retain Oct13 partial result. Oct15 native control attempts failed in infrastructure: separate verifier had no /tests/test.sh. No new admission.",
+      "native_control_receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/seeds/002402/controls-result.json",
+        "sha256": "3bb313ff12879baf4558ed38e6c8d4397e0290b57080066e2deaa6e2cf669340"
+      },
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-002486",
+      "status": "repaired",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Public install-plan browser item honors explicit opt-in False and True.",
+      "regraded_after_replay_correction": true,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/002486-verified-final/repair-result.json",
+        "sha256": "b6edd26733405fa6ef87bbdb8309791cbc428aeac343c7a476e4702e37531bc3"
+      },
+      "variant_digest": "sha256:7a6e1896d418629d3ff75a719f615e675f12af335b82bc068cc2d7762dd5973a",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002486/7a6e1896d418",
+      "expected_shortcuts": [
+        "partial-a2"
+      ],
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "partial-a2",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    },
+    {
+      "task_id": "format-code-task-002976",
+      "status": "repaired",
+      "recorded_verdict": "repaired",
+      "reason": "reference 3/3 pass, nop 3/3 fail, every previous shortcut now fails",
+      "scope": "Button ordering ties remain consistent when URLs differ.",
+      "regraded_after_replay_correction": true,
+      "receipt": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/002976-verified-final/repair-result.json",
+        "sha256": "3d1a88adeec84bf003333d264b1641c20249d9146353ce1dd0a899efa3cff013"
+      },
+      "variant_digest": "sha256:ff72864efad4fa79f24371d331d10a3f2d247ac4a8c74ca46cf2832c45db33ea",
+      "variant_package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002976/ff72864efad4",
+      "expected_shortcuts": [
+        "drop-block-wagtail-admin-search-py-0",
+        "drop-file-wagtail-admin-widgets-button-py",
+        "minimal"
+      ],
+      "checks": [
+        {
+          "name": "reference-1",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-2",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "reference-3",
+          "role": "reference",
+          "status": "scored",
+          "reward": 1.0
+        },
+        {
+          "name": "nop-1",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-2",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "nop-3",
+          "role": "nop",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-block-wagtail-admin-search-py-0",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "drop-file-wagtail-admin-widgets-button-py",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        },
+        {
+          "name": "minimal",
+          "role": "shortcut",
+          "status": "scored",
+          "reward": 0.0
+        }
+      ],
+      "native_acceptance": false
+    }
+  ],
+  "independent_native": {
+    "001809": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/native-001809/result-index.json",
+      "sha256": "9029229581703c9e1b0a70686521572503713f3d9f3b56d14e06da39d35e6915",
+      "status": "blocked",
+      "native_controls_executed": 0,
+      "native_controls_scored": 0
+    },
+    "002486": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/native-002486/result-index.json",
+      "sha256": "8a0e5bd6b9f90e1a555532013d45cb4ed265e72a2817e54b2eb154427dd3166e",
+      "status": "blocked",
+      "native_controls_executed": 0,
+      "native_controls_scored": 0
+    }
+  },
+  "preflight": [
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/preflight-review.json",
+      "sha256": "cdf7ba632694087add2a93f533bfb8fcf68f2a6c450398b03ab4606332a41132"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/preflight-review-correction.json",
+      "sha256": "1d448c91bb5cab2fa949f123c74b56b2be0f6c1c3eefa9b7b0b0a6e8eba712d1"
+    }
+  ],
+  "seed_diagnosis": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/seed-runtime-diagnosis.json",
+    "sha256": "13061575bb6e4ef3ccc64b4eaf6880bc2da7e7e66d2b542d225a6039b5e3b85d"
+  },
+  "finder_snapshot": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/runs/envcheck-repair-1015/finder-intake.json",
+    "sha256": "155f466ad48a324db46d6205e326f6ebc18947eda2944840f815f318524fab7f"
+  },
+  "finder_inventory": {
+    "high": 8,
+    "medium": 23,
+    "confirmed_weak": 13,
+    "out_of_scope": 8,
+    "neutral": 3,
+    "untriaged": 7
+  },
+  "finder_remaining_untriaged": [
+    "format-code-task-000125",
+    "format-code-task-000769",
+    "format-code-task-001205",
+    "format-code-task-001267",
+    "format-code-task-002033",
+    "format-code-task-002290",
+    "format-code-task-002545"
+  ],
+  "blocker": {
+    "kind": "external_docker_fifo",
+    "holder": "qa-task/mvcc-lsm-compaction",
+    "holder_pid": 83358,
+    "observed_wait_timeout_seconds": 2700,
+    "outgoing_peer_grants": 0,
+    "our_queued_work_cancelled": true,
+    "holder_interrupted": false
+  },
+  "verification": {
+    "checkpoint_commit": "815f454bf",
+    "focused_tests_passed": 159,
+    "static_gates_passed": true,
+    "ty_diagnostics": 0,
+    "full_suite_not_claimed": true,
+    "line_survivor_regression": "Observed failing before guard; passing after; public CLI rejects mixed report before any model or Docker call."
+  },
+  "custody_manifest": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/envcheck-repair/milestone-3/MANIFEST.sha256",
+    "sha256": "651424e1483dd5c6a5d73aa6e7bec714f0acc301e1b2aec366fd6bbb8fe444b4",
+    "verified_files": 851,
+    "verified_bytes": 126661250,
+    "owned_lineage_files": 19,
+    "symlinks": 0
+  }
+}

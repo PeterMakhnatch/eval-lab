@@ -119,7 +119,13 @@ def _proposal() -> RepairProposal:
 
 
 def _execute(
-    tmp_path, plan, *, outcomes=(1.0, 0.0, 0.0), status="ok", declared=False, response=None,
+    tmp_path,
+    plan,
+    *,
+    outcomes=(1.0, 0.0, 0.0),
+    status="ok",
+    declared=False,
+    response=None,
     survivor_rewards=None,
 ):
     proposal = _proposal()
@@ -127,6 +133,7 @@ def _execute(
     if declared:
         from evallab.verifier_repair import RepairUnrepairable
 
+        proposal.mutant_ids = []
         proposal.unrepairable = [
             RepairUnrepairable(mutant_id=MUTANT, reason="Equivalent input domain")
         ]
@@ -202,9 +209,7 @@ def test_unrepairable_response_needs_no_command_or_variant(tmp_path):
         model=None,
         tests=[],
         mutant_ids=[],
-        unrepairable=[
-            {"mutant_id": MUTANT, "kind": "equivalent", "reason": "Same task behavior"}
-        ],
+        unrepairable=[{"mutant_id": MUTANT, "kind": "equivalent", "reason": "Same task behavior"}],
     )
     result, _, calls = _execute(tmp_path, plan, response=json.dumps(payload))
     assert result.verdict == "unrepairable"
@@ -418,6 +423,24 @@ def test_wrapper_runs_additions_despite_original_exit_and_preserves_failures(
     assert (tmp_path / "ran").exists()
 
 
+def test_wrapper_runs_bare_python_with_the_task_interpreter(tmp_path):
+    bindir = tmp_path / "venv" / "bin"
+    bindir.mkdir(parents=True)
+    interpreter = bindir / "python3"
+    interpreter.write_text("#!/bin/sh\nprintf '%s\\n' task-venv > \"$1\"\n", encoding="utf-8")
+    interpreter.chmod(0o755)
+    marker = tmp_path / "which"
+    wrapper = build_command_wrapper(
+        "exit 0",
+        f"python {marker}",
+        workdir=str(tmp_path),
+        interpreter=str(interpreter),
+    )
+    result = subprocess.run(["sh", "-c", wrapper], cwd=tmp_path, check=False)
+    assert result.returncode == 0
+    assert marker.read_text(encoding="utf-8") == "task-venv\n"
+
+
 @pytest.mark.parametrize(
     "path",
     ["../test_bad.py", "/tmp/test_bad.py", "src/answer.py", "tests/test_old.py", "test_bad.py\nx"],
@@ -453,3 +476,21 @@ def test_failed_reference_prevents_survivor_trials(tmp_path):
     assert result.verdict == "rejected"
     assert calls == ["model", "runner"]
     assert result.checks[-1].status == "skipped"
+
+
+@pytest.mark.parametrize("defect", ["duplicate", "unknown", "overlap"])
+def test_survivor_dispositions_must_be_unique_known_and_disjoint(tmp_path, defect):
+    from evallab.verifier_repair import RepairUnrepairable
+
+    plan, _ = _fixture(tmp_path)
+    proposal = _proposal()
+    if defect == "duplicate":
+        proposal.mutant_ids.append(MUTANT)
+    elif defect == "unknown":
+        proposal.mutant_ids.append("unknown-survivor")
+    else:
+        proposal.unrepairable = [
+            RepairUnrepairable(mutant_id=MUTANT, reason="Equivalent input domain")
+        ]
+    with pytest.raises(RepairError):
+        validate_proposal(proposal, mutant_ids=[MUTANT], package_dir=plan.package_dir)

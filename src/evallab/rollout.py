@@ -157,15 +157,16 @@ def _slug(name: str) -> str:
     return "".join(c if c.isalnum() or c in "-._" else "-" for c in name)[:36]
 
 
-def _jobs_dir_for_model(model: str) -> str:
-    """Native jobs dir for one model/arm, e.g. ``runs/rollout-...-rds1-b``.
+def _arm_slug(model: str) -> str:
+    """Arm namespace carried in the job name, e.g. ``...-rds1-b``.
 
     Arm-disjoint by construction: two arms of one batch never share a job
-    address, so a later arm cannot clobber an earlier arm's retained jobs
-    (regrade custody reads them). Outcome rows carry the resulting
-    ``job_dir``, keeping every row traceable to its arm and spec.
+    address under the shared ``runs`` jobs root, so a later arm cannot
+    clobber an earlier arm's retained jobs (regrade custody reads them).
+    Outcome rows carry the resulting ``job_dir``, keeping every row
+    traceable to its arm and spec.
     """
-    return f"runs/rollout-{_slug(model.rsplit('/', 1)[-1].replace(':', '-'))}"
+    return _slug(model.rsplit('/', 1)[-1].replace(':', '-'))
 
 
 def validate_model_selector(model: str | None) -> str:
@@ -308,7 +309,7 @@ def run_rollout(
             suffix = f"-a{attempt}" if attempts > 1 else ""
             spec = ExperimentSpec(
                 spec_id=new_ulid(),
-                name=f"rollout-{index:03d}-{_slug(task.name)}{suffix}",
+                name=f"rollout-{_arm_slug(model)}-{index:03d}-{_slug(task.name)}{suffix}",
                 hypothesis=f"Rollout throughput/cost measurement for {model} on held-out tasks",
                 purpose="baseline",
                 task=task_rel,
@@ -316,7 +317,7 @@ def run_rollout(
                 agent=agent,
                 model=model,
                 environment="modal",
-                jobs_dir=_jobs_dir_for_model(model),
+                jobs_dir="runs",
                 submitted_by="infra-rollout",
                 timeout_seconds=timeout_seconds,
                 est_cost_usd=est_cost_usd,

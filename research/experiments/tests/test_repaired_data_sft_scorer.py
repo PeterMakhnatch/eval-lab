@@ -115,3 +115,27 @@ def test_attempt_index_comes_from_rollout_trial_names() -> None:
     assert attempt_of("rollout-007-format-code-task-000371-a2") == 2
     assert attempt_of("rollout-007-format-code-task-000371-a1") == 1
     assert attempt_of("rollout-007-format-code-task-000371") == 1
+
+
+def test_paired_pin_block_counts_attempt_1_only_in_attempt_1_mode() -> None:
+    # Verifier's case: 3 attempt-1 v6 pin passes the repaired variant rejects, and 3
+    # attempt-2 v6 pin passes it accepts. Attempt-1 mode must report 3/3, not 3/6.
+    pins = ["format-code-task-000371", "format-code-task-000657", "format-code-task-001686"]
+    v6_trials = [(f"rollout-{i:03d}-{t}-a{k}", True) for i, t in enumerate(pins) for k in (1, 2)]
+    repaired = {n: n.endswith("-a2") for n, _ in v6_trials}
+    paired = ANALYZE["paired_pin_summary"]
+
+    one = paired(v6_trials, repaired, attempt_1_only=True)
+    assert (one["pin_incorrect_passes"], one["regrade_measured"]) == (3, 3)
+    assert one["pin_incorrect_pass_rate"] == 1.0
+    assert one["attempts_counted"] == "attempt 1 only"
+
+    every = paired(v6_trials, repaired, attempt_1_only=False)
+    assert (every["pin_incorrect_passes"], every["regrade_measured"]) == (3, 6)
+    assert every["pin_incorrect_pass_rate"] == 0.5
+
+
+def test_replay_mode_is_an_exact_enum() -> None:
+    modes = ANALYZE["REPLAY_MODES"]
+    assert "attempt-1" in modes and "all-attempts" in modes
+    assert "all attempts" not in modes  # prose is never the contract

@@ -37,9 +37,13 @@ Two definitions:
       then the attempt-1 trials. Later attempts are counted as excluded with reason
       `attempt>1 (attempt-1 replay mode)`, so they neither dilute the rate nor hold it at
       unmeasured.
-    - An all-attempts plan changes nothing.
+    - An `all-attempts` plan changes nothing.
+    - The mode must be an exact enum token (`REPLAY_MODES`); any other value, prose
+      included, is refused. The plan's `mode_reason` is printed beside the mode.
     - Attempts come from rollout trial names (`…-a<N>`). A name without that suffix is
       attempt 1.
+    - The paired pin block follows the same mode. The headline and unpaired blocks are
+      unaffected.
 
 Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
 wants these reported both ways:
@@ -56,7 +60,8 @@ wants these reported both ways:
   frozen-v6 pin trial is regraded from its own snapshot on EnvCheck's *v6-ported*
   repaired variant (`--pin-manifest`, i.e. `heldout-pin-repaired-graders.csv`). A pin
   incorrect pass is a v6 pass that variant rejects. The denominator is the v6 pin passes
-  with a measured regrade.
+  with a measured regrade. In attempt-1 replay mode both terms count attempt-1 trials
+  only (`attempts_counted`).
 - **Required caveat:** the paired and unpaired pin numbers come from sibling repairs,
   not byte-identical graders. `pins.grader_note` states this with both digest sets.
   Print it wherever pin numbers appear.
@@ -98,6 +103,9 @@ from pathlib import Path
 from typing import Any
 
 ATTEMPT_MODE_REASON = "attempt>1 (attempt-1 replay mode)"
+#: QA Trace itemized-plan.json `mode` enum. Provisional until QA Trace publishes its
+#: canonical tokens; anything else is refused.
+REPLAY_MODES = frozenset({"attempt-1", "all-attempts"})
 
 
 def binom_cdf(k: int, n: int, p: float) -> float:
@@ -246,6 +254,29 @@ def incorrect_pass_summary(
     }
 
 
+def paired_pin_summary(
+    v6_trials: list[tuple[str, bool]], repaired: dict[str, bool], *, attempt_1_only: bool
+) -> dict[str, Any]:
+    """Paired pin counts for one arm from its frozen-v6 pin trials (name, v6_pass) and the
+    repaired-variant regrades (name -> repaired_pass).
+
+    A pin incorrect pass is a v6 pass that the repaired variant rejects; the denominator
+    is the v6 pin passes with a measured regrade. In attempt-1 replay mode only attempt-1
+    trials count, in both numerator and denominator, even if later attempts were regraded.
+    """
+    v6_passes = [n for n, v in v6_trials if v and not (attempt_1_only and attempt_of(n) > 1)]
+    measured = [n for n in v6_passes if n in repaired]
+    flips = sum(1 for n in measured if not repaired[n])
+    return {
+        "attempts_counted": "attempt 1 only" if attempt_1_only else "all",
+        "v6_pin_passes": len(v6_passes),
+        "regrade_measured": len(measured),
+        "pin_incorrect_passes": flips,
+        "pin_incorrect_pass_rate": round(flips / len(measured), 4) if measured else None,
+        "pin_incorrect_pass_ci95": clopper_pearson(flips, len(measured)),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--arm", action="append", required=True, help="NAME=results.jsonl")
@@ -327,10 +358,12 @@ def main() -> int:
         replay_excluded[norm(task)] = reason
 
     attempt_1_only = False
-    replay_mode = None
+    replay_mode = replay_mode_reason = None
     if args.replay_plan:
-        replay_mode = json.loads(args.replay_plan.read_text()).get("mode")
-        if replay_mode not in ("attempt-1", "all-attempts", "all attempts"):
+        plan = json.loads(args.replay_plan.read_text())
+        replay_mode, replay_mode_reason = plan.get("mode"), plan.get("mode_reason")
+        # Exact enum tokens only; a prose value is never the contract.
+        if replay_mode not in REPLAY_MODES:
             print(f"REFUSED: unknown replay plan mode {replay_mode!r}", file=sys.stderr)
             return 2
         attempt_1_only = replay_mode == "attempt-1"
@@ -373,6 +406,7 @@ def main() -> int:
         "heldout_tasks": len(heldout),
         "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
         "incorrect_pass_replay_mode": replay_mode,
+        "incorrect_pass_replay_mode_reason": replay_mode_reason,
         "arms": {},
         "paired": {},
     }
@@ -492,9 +526,6 @@ def main() -> int:
             rep_pin = [v for t in pins for _, v in diagnostic[name].get(t, []) if v is not None]
             v6_rate = sum(v6_pin) / len(v6_pin) if v6_pin else None
             rep_rate = sum(rep_pin) / len(rep_pin) if rep_pin else None
-            v6_passes = [n for n, v in v6_trials if v]
-            measured_pairs = [n for n in v6_passes if (name, n) in repaired]
-            flips = sum(1 for n in measured_pairs if not repaired[(name, n)])
             report["pins"]["arms"][name] = {
                 "unpaired": {
                     "v6_measured": len(v6_pin),
@@ -510,15 +541,11 @@ def main() -> int:
                         t: len(diagnostic[name].get(t, [])) for t in sorted(pins)
                     },
                 },
-                "paired": {
-                    "v6_pin_passes": len(v6_passes),
-                    "regrade_measured": len(measured_pairs),
-                    "pin_incorrect_passes": flips,
-                    "pin_incorrect_pass_rate": round(flips / len(measured_pairs), 4)
-                    if measured_pairs
-                    else None,
-                    "pin_incorrect_pass_ci95": clopper_pearson(flips, len(measured_pairs)),
-                }
+                "paired": paired_pin_summary(
+                    v6_trials,
+                    {n: rp for (arm, n), rp in repaired.items() if arm == name},
+                    attempt_1_only=attempt_1_only,
+                )
                 if args.pin_regrade
                 else "pending: no --pin-regrade rows",
             }

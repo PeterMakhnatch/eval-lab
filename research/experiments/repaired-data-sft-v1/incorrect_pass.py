@@ -13,15 +13,20 @@ incorrect pass.
     uv run evallab qa trace regrade --passes replays.jsonl --environment modal --workers 8 \
         --grader-manifest research/experiments/repaired-data-sft-v1/heldout-v5-graders.csv \
         --out runs/rds1-incorrect-pass
-    # 3. analyze.py input: {arm, trial, original_pass}, only for replays whose v5 grader
-    #    controls are valid and whose replay was measured
+    # 3. analyze.py input: {arm, trial, original_pass}. Kept only when the replay ran on
+    #    the task's pinned v5 package, its v5 grader controls are valid, and it was measured.
+    #    The regrade also grades any test-repaired variant found for the task; `collect`
+    #    drops those rows.
     uv run python research/experiments/repaired-data-sft-v1/incorrect_pass.py collect \
-        --regrade runs/rds1-incorrect-pass --out original-regrade.jsonl
+        --regrade runs/rds1-incorrect-pass \
+        --grader-manifest research/experiments/repaired-data-sft-v1/heldout-v5-graders.csv \
+        --out original-regrade.jsonl
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -71,12 +76,18 @@ def plan(args: argparse.Namespace) -> int:
 
 
 def collect(args: argparse.Namespace) -> int:
+    pinned = {
+        f"{MIMO}/{r['task_id']}": r["final_digest"]
+        for r in csv.DictReader(args.grader_manifest.open(encoding="utf-8"))
+    }
     out: list[dict[str, Any]] = []
     unmeasured: dict[str, int] = {}
     for path in sorted((args.regrade / "items").glob("*/*.json")):
         row = json.loads(path.read_text())
         labels = row.get("labels") or {}
         regraded = row.get("regraded")
+        if (row.get("grader_source") or {}).get("variant_digest") != pinned.get(row["task"]):
+            continue  # a newer grader the regrade also ran, not the original v5 package
         reason = None
         if not row.get("valid_grader"):
             reason = "invalid_v5_grader_controls"
@@ -107,6 +118,7 @@ def main() -> int:
     p.add_argument("--out", type=Path, required=True)
     c = sub.add_parser("collect")
     c.add_argument("--regrade", type=Path, required=True)
+    c.add_argument("--grader-manifest", type=Path, required=True, help="heldout-v5-graders.csv")
     c.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
     return plan(args) if args.cmd == "plan" else collect(args)

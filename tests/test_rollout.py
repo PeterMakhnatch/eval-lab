@@ -106,15 +106,52 @@ def test_cli_forwards_attempts_to_run_rollout(
 
 
 def test_arm_slugs_are_disjoint() -> None:
+    import re
+
     from evallab.rollout import _arm_slug
 
     base = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    assert _arm_slug(base) == "mimo-v2-6-distill-qwen-9b"
+    assert _arm_slug(f"{base}:rds1-b") == "mimo-v2-6-distill-qwen-9b-rds1-b"
     slugs = {
         _arm_slug(base),
         *(_arm_slug(f"{base}:{arm}") for arm in ("rds1-a", "rds1-b", "rds1-c")),
     }
     assert len(slugs) == 4
-    assert _arm_slug(f"{base}:rds1-b").endswith("-rds1-b")
+    name_re = re.compile(r"^[a-z0-9][a-z0-9-]+$")
+    for slug in slugs:
+        assert name_re.match(f"rollout-{slug}-000-7d0add50180f-a1")
+
+
+def test_production_spec_names_are_admitted() -> None:
+    from evallab.rollout import _arm_slug
+    from evallab.schemas import ExperimentSpec
+
+    base = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    for model in (base, *(f"{base}:{a}" for a in ("rds1-a", "rds1-b", "rds1-c"))):
+        spec = ExperimentSpec(
+            spec_id="01M00000000000000000000000",
+            name=f"rollout-{_arm_slug(model)}-000-7d0add50180f-a1",
+            hypothesis="test",
+            purpose="baseline",
+            task="derived/task",
+            task_path="derived/task",
+            agent="terminus-2",
+            model=model,
+            environment="modal",
+            jobs_dir="runs",
+            submitted_by="infra-rollout",
+            timeout_seconds=1800,
+            est_cost_usd=0.10,
+            cost_limit_usd=1.00,
+            max_requests=300,
+            max_input_tokens=2_000_000,
+            max_output_tokens=300_000,
+            max_total_tokens=2_300_000,
+            concurrency=1,
+            attempts=1,
+        )
+        assert spec.name.endswith("-a1")
 
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name

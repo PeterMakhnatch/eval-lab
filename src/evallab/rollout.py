@@ -157,16 +157,29 @@ def _slug(name: str) -> str:
     return "".join(c if c.isalnum() or c in "-._" else "-" for c in name)[:36]
 
 
+_NAME_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+
+
 def _arm_slug(model: str) -> str:
     """Arm namespace carried in the job name, e.g. ``...-rds1-b``.
 
-    Arm-disjoint by construction: two arms of one batch never share a job
-    address under the shared ``runs`` jobs root, so a later arm cannot
-    clobber an earlier arm's retained jobs (regrade custody reads them).
-    Outcome rows carry the resulting ``job_dir``, keeping every row
-    traceable to its arm and spec.
+    Deterministic transform of the selector tail: lowercase, then every
+    character outside ``[a-z0-9-]`` becomes ``-`` — the ExperimentSpec
+    name alphabet (``^[a-z0-9][a-z0-9-]+$``). No truncation: the full
+    tail survives, so model-version and adapter distinctions cannot
+    collapse. Arm map for the self-hosted MiMo selectors:
+    base -> ``mimo-v2-6-distill-qwen-9b``,
+    ``:rds1-a`` -> ``mimo-v2-6-distill-qwen-9b-rds1-a``,
+    ``:rds1-b`` -> ``mimo-v2-6-distill-qwen-9b-rds1-b``,
+    ``:rds1-c`` -> ``mimo-v2-6-distill-qwen-9b-rds1-c``.
+    Arm-disjoint by construction: two arms of one batch never share a
+    job address under the shared ``runs`` jobs root, so a later arm
+    cannot clobber an earlier arm's retained jobs (regrade custody
+    reads them). Outcome rows carry the resulting ``job_dir``, keeping
+    every row traceable to its arm and spec.
     """
-    return _slug(model.rsplit('/', 1)[-1].replace(':', '-'))
+    tail = model.rsplit('/', 1)[-1].replace(':', '-').lower()
+    return "".join(c if c in _NAME_ALPHABET else "-" for c in tail)
 
 
 def validate_model_selector(model: str | None) -> str:

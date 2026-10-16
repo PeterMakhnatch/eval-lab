@@ -23,7 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 laminar = [
-    "harbor==0.24.0",
+    # The modal extra is required: Harbor replay/eval trials run in Modal
+    # sandboxes (QA Trace re-grades, rollout batches) and Harbor 0.24 raises
+    # MissingExtraError without it.
+    "harbor[modal]==0.24.0",
     "lmnr==0.7.64",
 ]
 verifier = [

@@ -7440,6 +7440,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)
+    from evallab.rollout import build_rollout_parser
+
+    build_rollout_parser(commands)
     return root
 
 

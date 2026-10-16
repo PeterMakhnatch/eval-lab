@@ -13,7 +13,7 @@ and produce fewer incorrect passes, than the same model trained on the original 
 |---|---|---|
 | A | every recorded ordinary MiMo pass (QA Trace `build_arms.py`, #936) | reference at natural size |
 | B | A rows whose qualified repaired-v6 regrades all pass and that carry no defect flag | primary treatment |
-| C | seeded random sample of A, same size as B | primary control (quality isolated from quantity) |
+| C | QA Trace's seeded random sample of eligible A rows (respecting its exclusion list), same size as trainable B | primary control (quality isolated from quantity) |
 
 **Primary comparison:** B vs C at equal example count (Research decision, 01:30 ET). B is
 never padded.
@@ -55,8 +55,19 @@ single optimizer step, and the first warmup step has learning rate 0.
 - render ≤ 65,536 tokens.
 
 On the 70 rows this drops 2 reconstructed rows and 6 over-length rows, leaving 62 rows over
-38 tasks (2.42M tokens). C is then redrawn as a seeded sample of eligible A, with
-|C| = |eligible B|.
+38 tasks (2.42M tokens).
+
+**C** is QA Trace's C exactly as published. The script refuses unless every C row is
+eligible and |C| = |eligible B|. Before 03:25 ET the script redrew C itself. That draw
+picked `47b895eb` (task 001373), which is on Research's exclusion list, and the redraw
+was removed.
+
+**A** (`rds1-a`) includes two executions from tasks that were later excluded:
+- `47b895eb-be3b-4927-b1a8-61ed66dc8406` (task 001373);
+- `4d7d4ce0-9729-498e-a7ec-a4f0ed6e72b7` (task 000838).
+
+A is the historical reference, containing every recorded pass, so these rows stay. Both
+are disclosed wherever A is reported. B and C contain neither.
 
 ## Held-out evaluation
 
@@ -76,7 +87,48 @@ On the 70 rows this drops 2 reconstructed rows and 6 over-length rows, leaving 6
 
 ## Runs
 
-| run | data (conversations sha256) | rows | seq tokens | estimate | billed |
-|---|---|---:|---:|---:|---:|
-| `rds1-smoke` | 2 rows of A (smoke only; never evaluated) | 2 | 17,255 | $0.02 + startup | ≈$0.11 (wall time × rate) |
-| `rds1-a` | `c876bc07d63aab875107ede76f86c58f0a840942aab9ee6497c613f271a03efb` | 62 | 2,417,765 | $3.38 | pending |
+The B and C runs used QA Trace `provisional-B2`. Costs are container wall time × the Modal
+A100-80GB rate, recorded in `spend.jsonl`; receipts are in `receipts/`.
+
+| run | data (conversations sha256) | rows | seq tokens | steps | estimate | cost |
+|---|---|---:|---:|---:|---:|---:|
+| `rds1-smoke` | 2 rows of A (smoke only; never evaluated) | 2 | 17,255 | 2 | $0.02 + startup | $0.11 |
+| `rds1-a` | `c876bc07d63aab875107ede76f86c58f0a840942aab9ee6497c613f271a03efb` | 62 | 2,417,765 | 16 | $3.38 | $1.95 |
+| `rds1-b` | `9f24aff74f3e1094b41769f3ce21e8690ad63db835b45757af3482c1d784f713` | 13 | 502,395 | 4 | $0.70 | $0.58 |
+| `rds1-c` | `15cd4e2ef04694d6dee4d33ac17ed5c9261e9bd4f94fedc357937d50669b39ae` | 13 | 471,331 | 4 | $0.66 | $0.53 |
+
+## Is each adapter applied? (`probes/`)
+
+`lora_logprob_probe.py` ran on one server holding the base and all three adapters. It used
+3 Terminus prompts and 64 greedy tokens, and queried each name twice.
+
+**The HAR-129 exact-zero criterion does not hold here.** Adapter-vs-adapter differences are
+nonzero on every prompt. During the rds1-a run, base-vs-base was nonzero too. I infer,
+without having tested it, that mixed LoRA batching (`--max-loras-per-batch 3`) is not
+batch-invariant.
+
+| adapter | base vs adapter, mean abs Δlogprob | noise (adapter vs adapter) | verdict |
+|---|---|---|---|
+| `rds1-a` | 0.0167 / 0.0080 / 0.0019 | 0.0029 / 0.0021 / 0.0030 | applied: 2–6× the noise; greedy text diverges at token 3 on one prompt |
+| `rds1-b` | 0.0069 / 0.0025 / 0.0096 | 0.0067 / 0.0025 / 0.0050 | effect inside the noise |
+| `rds1-c` | 0.0031 / 0.0050 / 0.0070 | 0.0042 / 0.0028 / 0.0082 | effect inside the noise |
+
+B and C took 4 optimizer steps, and the first step runs at learning rate 0. Their final
+lora_B is max 1.0e-4, against 4.1e-4 for A. At this dose a held-out difference between B
+and C is not expected to be detectable.
+
+### final-v4 B and C (`probes/v4/`, each on its own single-adapter server)
+
+The table gives mean |Δlogprob| over the shared greedy prefix.
+
+| adapter | base vs adapter | noise (max of base vs base, adapter vs adapter) | ratio |
+|---|---|---|---|
+| `rds1-b` → `rds1-b-v4e4` | 0.0170 / 0.0127 / 0.0136 | 0.0054 / 0.0043 / 0.0066 | 2.1–3.2× |
+| `rds1-c` → `rds1-c-v4e4` | 0.0123 / 0.0118 / 0.0008 (greedy text diverges at token 3) | 0.0043 / 0.0047 / 0.0059 | 2.5–2.9×, diverges |
+
+**Noise.** Even with a single adapter, base-vs-base is not exactly 0. It repeats run to run
+at the same values (0.0043 / 0.0043 / 0.0059), so this is a stable serving noise floor,
+not a broken probe.
+
+**Verdict.** Both final-v4 adapters change the model's outputs above that noise floor, as
+much as A did.

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import copy
 import hashlib
 import json
 import random
@@ -52,10 +53,13 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def structured(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The recorded messages with tool_calls parsed back into template form."""
+    """A deep copy of the recorded messages with tool_calls parsed into template form.
+
+    Never mutates ``messages``: provenance hashes and checks read the recorded rows.
+    """
     out = []
-    for message in messages:
-        item = dict(message)
+    for message in copy.deepcopy(messages):
+        item = message
         if "tool_calls" in item:
             calls = item["tool_calls"]
             calls = ast.literal_eval(calls) if isinstance(calls, str) else calls
@@ -158,6 +162,15 @@ def main() -> int:
     # Lossless conversion of every row.
     converted: list[dict[str, Any]] = []
     for row in sorted(arms["A"], key=lambda r: r["execution_id"]):
+        # Hash the recorded messages and tools before anything reads or normalizes them.
+        source_hashes = {
+            "source_messages_sha256": sha256_bytes(
+                json.dumps(row["messages"], sort_keys=True).encode()
+            ),
+            "source_tools_sha256": sha256_bytes(
+                json.dumps(row.get("tools"), sort_keys=True).encode()
+            ),
+        }
         flat = flatten(tok, row)
         try:
             tokens = len(
@@ -168,13 +181,7 @@ def main() -> int:
         except sft.SftError as exc:
             raise sft.SftError(f"{row['execution_id']}: does not render: {exc}") from exc
         provenance = {k: v for k, v in row.items() if k not in ("messages", "tools")}
-        provenance |= {
-            "source_messages_sha256": sha256_bytes(
-                json.dumps(row["messages"], sort_keys=True).encode()
-            ),
-            "source_tools_sha256": sha256_bytes(
-                json.dumps(row.get("tools"), sort_keys=True).encode()
-            ),
+        provenance |= source_hashes | {
             "render_equal_to_recorded": True,
             "sequence_tokens": tokens,
         }

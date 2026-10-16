@@ -88,7 +88,10 @@ def test_explicit_card_rehomes_unknown_and_survives_reprocessing(tmp_path: Path)
     old = Path(original["results_home"])
     assert old.name == "unknown-ovn-g5-000169-stock"
     corrected = process_job(
-        job, ingest=False, results_home=home, pr_lookup=lambda _: None,
+        job,
+        ingest=False,
+        results_home=home,
+        pr_lookup=lambda _: None,
         publication_card="HAR-126",
     )
     dest = Path(corrected["results_home"])
@@ -118,9 +121,14 @@ def test_card_rehome_keeps_same_name_from_another_source(tmp_path: Path) -> None
     home = tmp_path / "results"
     publish_job(first, root=home, pr_lookup=lambda _: None)
     other = Path(publish_job(second, root=home, pr_lookup=lambda _: None)["published"])
-    corrected = Path(publish_job(
-        first, root=home, pr_lookup=lambda _: None, publication_card="HAR-126",
-    )["published"])
+    corrected = Path(
+        publish_job(
+            first,
+            root=home,
+            pr_lookup=lambda _: None,
+            publication_card="HAR-126",
+        )["published"]
+    )
     assert json.loads((other / "result.json").read_text())["id"] == "other-job"
     assert json.loads((corrected / "result.json").read_text())["id"] == "job-1"
     assert {p.name for p in other.parent.iterdir()} == {other.name, corrected.name}
@@ -142,7 +150,9 @@ def test_failed_card_rehome_keeps_original_publication(tmp_path: Path, monkeypat
 
 
 @pytest.mark.parametrize("card", ["../HAR-126", "HAR-126"])
-def test_explicit_card_cannot_escape_or_override_recorded_identity(tmp_path: Path, card: str) -> None:
+def test_explicit_card_cannot_escape_or_override_recorded_identity(
+    tmp_path: Path, card: str
+) -> None:
     job = _job(tmp_path)
     home = tmp_path / "results"
     with pytest.raises(ValueError, match="Publication card"):
@@ -195,6 +205,14 @@ def test_republish_never_removes_the_source(tmp_path: Path) -> None:
     publish_job(job, root=tmp_path / "results", pr_lookup=lambda _commit: None)
     assert source.is_file()
     assert source.read_bytes() == before
+
+
+def test_publish_keeps_empty_collected_directories(tmp_path: Path) -> None:
+    """Harbor regrade refuses a published trial that lost an empty collected artifact dir."""
+    job = _job(tmp_path)
+    (job / "trial__abc" / "artifacts" / "logs" / "artifacts").mkdir(parents=True)
+    published = Path(publish_job(job, root=tmp_path / "results", pr_lookup=None)["published"])
+    assert (published / "trial__abc" / "artifacts" / "logs" / "artifacts").is_dir()
 
 
 def test_same_job_name_from_two_sources_keeps_both(tmp_path: Path) -> None:
@@ -430,9 +448,7 @@ def test_index_shows_raw_pass_alongside_counted_exclusion(tmp_path: Path) -> Non
         },
     )
     home = tmp_path / "results"
-    published = Path(
-        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
-    )
+    published = Path(publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"])
     assert _counts_summary(published) == (
         "0 counted pass, 0 counted fail, 1 excluded (copied_fix: 1)"
     )
@@ -444,9 +460,7 @@ def test_index_shows_raw_pass_alongside_counted_exclusion(tmp_path: Path) -> Non
         line for line in (home / "INDEX.md").read_text().splitlines() if line.startswith("| Date")
     )
     agent_row = next(
-        line
-        for line in (home / "INDEX.md").read_text().splitlines()
-        if "har131-counted" in line
+        line for line in (home / "INDEX.md").read_text().splitlines() if "har131-counted" in line
     )
     assert agent_row.count("|") == agent_header.count("|")
 
@@ -458,9 +472,7 @@ def test_old_report_without_counts_stays_unknown_never_zero(tmp_path: Path) -> N
     job = _job(tmp_path, "har117-legacy")
     _write_report(job, {"n_pass": 2, "n_fail": 1, "n_unscored": 0})
     home = tmp_path / "results"
-    published = Path(
-        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
-    )
+    published = Path(publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"])
     assert _counts_summary(published) == "counts unknown"
     full = (home / "INDEX-all.md").read_text()
     assert "2 pass, 1 fail, 0 unscored" in full
@@ -487,9 +499,7 @@ def test_counts_cell_matches_canonical_multi_trial_summary(tmp_path: Path) -> No
         },
     )
     home = tmp_path / "results"
-    published = Path(
-        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
-    )
+    published = Path(publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"])
     assert _counts_summary(published) == (
         "1 counted pass, 1 counted fail, 2 excluded (copied_fix: 1, infra: 1)"
     )
@@ -502,13 +512,9 @@ def test_partial_counts_fields_stay_unknown(tmp_path: Path) -> None:
     from evallab.results_home import _counts_summary
 
     job = _job(tmp_path, "har117-partial")
-    _write_report(
-        job, {"n_pass": 1, "n_fail": 0, "n_unscored": 0, "n_counted_pass": 1}
-    )
+    _write_report(job, {"n_pass": 1, "n_fail": 0, "n_unscored": 0, "n_counted_pass": 1})
     home = tmp_path / "results"
-    published = Path(
-        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
-    )
+    published = Path(publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"])
     assert _counts_summary(published) == "counts unknown"
     row = next(
         line
@@ -787,9 +793,14 @@ def test_process_job_without_receipt_leaves_spend_untouched(tmp_path: Path) -> N
 def test_corrupt_retained_card_cannot_escape_results_home(tmp_path: Path) -> None:
     job = _uncarded_job(tmp_path)
     home = tmp_path / "results"
-    published = Path(publish_job(
-        job, root=home, pr_lookup=lambda _: None, publication_card="HAR-126",
-    )["published"])
+    published = Path(
+        publish_job(
+            job,
+            root=home,
+            pr_lookup=lambda _: None,
+            publication_card="HAR-126",
+        )["published"]
+    )
     provenance_path = published / "provenance.json"
     provenance = json.loads(provenance_path.read_text())
     provenance["card"] = "../../outside"

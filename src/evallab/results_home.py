@@ -66,6 +66,7 @@ def card_from(*texts: str | None) -> str | None:
             return f"HAR-{match.group(1)}"
     return None
 
+
 def _explicit_linear_card(metadata: dict[str, Any], spec: dict[str, Any]) -> str | None:
     """Explicit ``linear_card`` from run metadata or the frozen spec, if any.
 
@@ -413,7 +414,11 @@ def _copy_file(source: Path, dest: Path) -> None:
 
 
 def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
-    """Byte-copy a job tree. Returns the number of files copied."""
+    """Byte-copy a job tree, empty directories included. Returns the number of files copied.
+
+    Harbor records an empty collected directory (``/logs/artifacts``) as present;
+    ``harbor trial regrade`` refuses a copy that lost it as incomplete.
+    """
     copied = 0
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         current = Path(dirpath)
@@ -421,6 +426,7 @@ def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int
         if skip_processed and current == source:
             dirnames[:] = [name for name in dirnames if name != "processed"]
         relative = current.relative_to(source)
+        (dest / relative).mkdir(parents=True, exist_ok=True)
         for name in filenames:
             origin = current / name
             if origin.is_symlink():
@@ -509,7 +515,9 @@ def publish_job(
     if not source.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
     home = (Path(root) if root is not None else results_root()).resolve()
-    report_root = Path(processed_report_root).resolve() if processed_report_root is not None else None
+    report_root = (
+        Path(processed_report_root).resolve() if processed_report_root is not None else None
+    )
     if report_root is not None and not report_root.is_dir():
         raise ValueError(f"Not a processed report directory: {processed_report_root}")
     if report_root is not None and report_root.is_relative_to(home):
@@ -539,19 +547,24 @@ def publish_job(
     if any(not CARD_RE.fullmatch(card) for card in assigned_cards):
         raise ValueError("Invalid existing source-bound publication card")
     requested = publication_card or recorded_card
-    if len(assigned_cards) > 1 or (assigned_cards and requested and requested not in assigned_cards):
+    if len(assigned_cards) > 1 or (
+        assigned_cards and requested and requested not in assigned_cards
+    ):
         raise ValueError("Publication card conflicts with the existing source-bound assignment")
     if publication_card is not None and recorded_card is None:
         provenance["card_assignment"] = {"source": "publication_argument", "card": publication_card}
     elif recorded_card is None and assigned_cards:
         publication_card = next(iter(assigned_cards))
         provenance["card_assignment"] = next(
-            saved["card_assignment"] for _, saved in previous if saved.get("card") == publication_card
+            saved["card_assignment"]
+            for _, saved in previous
+            if saved.get("card") == publication_card
         )
     provenance["card"] = publication_card or recorded_card
     if provenance["card"] is not None:
         provenance["unknown"] = [
-            reason for reason in provenance["unknown"]
+            reason
+            for reason in provenance["unknown"]
             if reason != "no card in job name, spec question_ref, or explicit linear_card"
         ]
     card = provenance["card"] or "unknown"
@@ -634,13 +647,13 @@ def _counts_summary(published: Path) -> str:
     detail = ""
     if isinstance(reasons, dict) and reasons:
         parts = [
-            f"{key}: {reasons[key]}"
-            for key in sorted(reasons)
-            if isinstance(reasons[key], int)
+            f"{key}: {reasons[key]}" for key in sorted(reasons) if isinstance(reasons[key], int)
         ]
         if parts:
             detail = f" ({', '.join(parts)})"
-    return f"{counted_pass} counted pass, {counted_fail} counted fail, {n_excluded} excluded{detail}"
+    return (
+        f"{counted_pass} counted pass, {counted_fail} counted fail, {n_excluded} excluded{detail}"
+    )
 
 
 def _spend(published: Path) -> str:
@@ -656,10 +669,7 @@ def _spend(published: Path) -> str:
         return f"${cost:.4f}"
     estimate = summary.get("cost_estimate_usd")
     if isinstance(estimate, (int, float)):
-        return (
-            f"~${estimate:.4f} shared GPU, not additive; "
-            "see `evallab spend day`"
-        )
+        return f"~${estimate:.4f} shared GPU, not additive; see `evallab spend day`"
     reason = summary.get("cost_reason")
     if isinstance(reason, str) and reason:
         return "None (unknown)"

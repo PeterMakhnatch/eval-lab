@@ -984,6 +984,44 @@ def lineage_ledger_binding(
             f"{run_digest} for task {task_id}"
         )
         return binding
+    if package_digest in pin[1]:
+        # A pin endpoint is a repair ON a headline record: the final edge
+        # must itself be the scoped repair transform (a globally allowed
+        # edge does not make it a pin repair), and the headline parent
+        # must pass its own lineage admission — validated status and a
+        # chain admitted under the headline set reaching the same
+        # run_digest. Transform-set inclusion alone is not admission.
+        final_transform = summary["transform_chain"][0] if summary["transform_chain"] else None
+        if final_transform not in pin[0]:
+            binding["reason"] = (
+                f"pin endpoint's final transform {final_transform!r} is not "
+                f"in the pin scope {sorted(pin[0])}"
+            )
+            return binding
+        parent = variant_lineage_summary(repo_root, task_id, summary["parent_digest"])
+        if parent["record"] is None or parent["status"] != LINEAGE_VERIFIED_STATUS:
+            binding["reason"] = (
+                f"pin parent {summary['parent_digest']} is not a validated "
+                f"headline record (status={parent['status']!r})"
+            )
+            return binding
+        if parent["chain_error"]:
+            binding["reason"] = f"pin parent lineage is broken: {parent['chain_error']}"
+            return binding
+        bad = [
+            t
+            for t in parent["transform_chain"]
+            if t not in LINEAGE_ALLOWLISTED_TRANSFORMS and t not in headline[0]
+        ]
+        if bad:
+            binding["reason"] = (
+                f"pin parent transform {bad[0]!r} is not admitted under "
+                f"the headline scope {sorted(headline[0])}"
+            )
+            return binding
+        if run_digest not in parent["parent_digests"]:
+            binding["reason"] = "pin parent chain does not reach the ledger run_digest"
+            return binding
     binding["admitted"] = True
     binding["reason"] = (
         f"verified variant {summary['record']} (chain "

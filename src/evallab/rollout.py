@@ -289,6 +289,8 @@ def run_rollout(
             "a billable rollout requires an authorizing actor "
             "(--actor 'name as Peter's delegate, cap and steer'); never defaulted"
         )
+    if model is None:
+        raise ValueError("a queued rollout requires a model selector")
     from evallab.execution_contracts import new_ulid
     from evallab.queue import Executor
     from evallab.schemas import ExperimentSpec

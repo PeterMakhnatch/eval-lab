@@ -120,6 +120,7 @@ def _trial_reward(job_dir: Path) -> float | None:
             continue
         verifier_result = data.get("verifier_result") or {}
         rewards = verifier_result.get("rewards") or {}
+        reward = rewards.get("reward")
         if isinstance(reward, (int, float)):
             return float(reward)
     return None

@@ -48,6 +48,25 @@ def test_selector_validation_refuses_unknown_and_missing_upstream(
         validate_model_selector("gpt-5")
 
 
+def test_attempts_expand_to_independent_trials(tmp_path: Path) -> None:
+    tasks = [_task(tmp_path, "task-a"), _task(tmp_path, "task-b")]
+    summary = run_rollout(
+        tasks,
+        model="tinker/Qwen/Qwen3.5-9B",
+        concurrency=4,
+        attempts=3,
+        out_dir=tmp_path / "out",
+        root=tmp_path,
+        execute=_fake_execute,
+    )
+    assert summary["trials"] == 6 and summary["attempts"] == 3
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()
+    ]
+    assert {row["name"].rsplit("-a", 1)[-1] for row in rows} == {"1", "2", "3"}
+
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"

@@ -496,9 +496,56 @@ def submission_to_script(
             "#!/usr/bin/env bash\nset -e\n"
             "base64 -d <<'QA_PATCH_EOF' > /tmp/qa-sub.patch\n"
             f"{encoded}QA_PATCH_EOF\n"
-            "if git apply --unsafe-paths -p1 --directory=/ /tmp/qa-sub.patch 2>/dev/null; then\n"
+            "if git apply --binary --unsafe-paths -p1 --directory=/ /tmp/qa-sub.patch 2>/dev/null; then\n"
             "  true\n"
-            "elif (cd /app && git apply --unsafe-paths -p1 /tmp/qa-sub.patch 2>/dev/null); then\n"
+            "elif (cd /app && git apply --binary --unsafe-paths -p1 /tmp/qa-sub.patch 2>/dev/null); then\n"
+            "  true\n"
+            "elif python3 - /tmp/qa-sub.patch <<'QA_PY_EOF' 2>/dev/null; then\n"
+            "import re, sys\n"
+            "from pathlib import Path\n"
+            "lines = Path(sys.argv[1]).read_text(encoding='utf-8').splitlines(keepends=True)\n"
+            "i = applied = 0\n"
+            "while i < len(lines):\n"
+            "    if not lines[i].startswith('--- '):\n"
+            "        i += 1; continue\n"
+            "    old_hdr = lines[i][4:].strip().split('\\t')[0]; i += 1\n"
+            "    if i >= len(lines) or not lines[i].startswith('+++ '): continue\n"
+            "    new_hdr = lines[i][4:].strip().split('\\t')[0]; i += 1\n"
+            "    hunks = []\n"
+            "    while i < len(lines) and lines[i].startswith('@@ '):\n"
+            "        m = re.match(r'^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@', lines[i]); i += 1\n"
+            "        hl = []\n"
+            "        while i < len(lines) and not lines[i].startswith(('@@ ', '--- ', 'diff --git ')):\n"
+            "            if not lines[i].startswith('\\\\ No newline at end of file'): hl.append(lines[i])\n"
+            "            i += 1\n"
+            "        if m: hunks.append((int(m.group(1)), hl))\n"
+            "    if not hunks and new_hdr != '/dev/null': continue\n"
+            "    rel = old_hdr if new_hdr == '/dev/null' else new_hdr\n"
+            "    for pfx in ('a/', 'b/'):\n"
+            "        if rel.startswith(pfx): rel = rel[len(pfx):]; break\n"
+            "    rel = rel.lstrip('/')\n"
+            "    if (Path('/') / rel).exists(): target = Path('/') / rel\n"
+            "    elif (Path('/app') / rel).exists(): target = Path('/app') / rel\n"
+            "    elif (Path('/') / rel.split('/', 1)[0]).is_dir(): target = Path('/') / rel\n"
+            "    elif Path('/app').is_dir(): target = Path('/app') / rel\n"
+            "    else: target = Path('/') / rel\n"
+            "    if new_hdr == '/dev/null':\n"
+            "        target.unlink(missing_ok=True); applied += 1; continue\n"
+            "    src = [] if old_hdr == '/dev/null' or not target.exists() else target.read_text(encoding='utf-8').splitlines(keepends=True)\n"
+            "    out, pos = [], 0\n"
+            "    for old_start, hlines in hunks:\n"
+            "        idx = max(0, old_start - 1)\n"
+            "        while pos < idx and pos < len(src): out.append(src[pos]); pos += 1\n"
+            "        for h in hlines:\n"
+            "            if h[0] == ' ': out.append(src[pos] if pos < len(src) else h[1:]); pos += 1\n"
+            "            elif h[0] == '-': pos += 1\n"
+            "            elif h[0] == '+': out.append(h[1:])\n"
+            "    while pos < len(src): out.append(src[pos]); pos += 1\n"
+            "    target.parent.mkdir(parents=True, exist_ok=True)\n"
+            "    target.write_text(''.join(out), encoding='utf-8')\n"
+            "    applied += 1\n"
+            "sys.exit(0 if applied else 1)\n"
+            "QA_PY_EOF\n"
             "  true\n"
             "elif patch -p1 --no-backup-if-mismatch -d / -i /tmp/qa-sub.patch 2>/dev/null; then\n"
             "  true\n"
@@ -572,28 +619,34 @@ class HarborBackend:
         short = digest.split(":", 1)[-1][:12]
         slug = package.name.lower().replace("_", "-")[:28]
         env_tag = f"qa-task/{slug}-env:{short}"
-        build_env = subprocess.run(
-            ["docker", "build", "-q", "-t", env_tag, str(package / "environment")],
-            capture_output=True,
-            text=True,
-            timeout=900,
-        )
-        if build_env.returncode != 0:
-            raise RuntimeError(f"environment image build failed: {build_env.stderr[-600:]}")
+        for attempt in range(2):
+            build_env = subprocess.run(
+                ["docker", "build", "-q", "-t", env_tag, str(package / "environment")],
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
+            if build_env.returncode == 0:
+                break
+            if attempt == 1:
+                raise RuntimeError(f"environment image build failed: {build_env.stderr[-600:]}")
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         mode = str((config.get("verifier") or {}).get("environment_mode") or "shared")
         tests_df = package / "tests" / "Dockerfile"
         tests_tag: str | None = None
         if mode == "separate" and tests_df.is_file():
             tests_tag = f"qa-task/{slug}-tests:{short}"
-            build_tests = subprocess.run(
-                ["docker", "build", "-q", "-t", tests_tag, str(package / "tests")],
-                capture_output=True,
-                text=True,
-                timeout=900,
-            )
-            if build_tests.returncode != 0:
-                raise RuntimeError(f"verifier image build failed: {build_tests.stderr[-600:]}")
+            for attempt in range(2):
+                build_tests = subprocess.run(
+                    ["docker", "build", "-q", "-t", tests_tag, str(package / "tests")],
+                    capture_output=True,
+                    text=True,
+                    timeout=900,
+                )
+                if build_tests.returncode == 0:
+                    break
+                if attempt == 1:
+                    raise RuntimeError(f"verifier image build failed: {build_tests.stderr[-600:]}")
         self._image_cache[key] = (env_tag, tests_tag)
         return env_tag, tests_tag
 
@@ -1600,6 +1653,7 @@ def stage_s1(report: TaskReport, lane: Any, config: QATaskConfig) -> list[Findin
             stage="S1",
             status=status,
             verdict=verdict,
+            scored=not any(s in config.stages for s in ("S2", "S3")),
             facts={"votes": entries},
             reason="three-sample majority",
         )
@@ -2266,6 +2320,38 @@ def stage_s3(
         nop_measured = all(c.status == "measured" for c in s0_nops)
         oracle_ok = oracle_measured and all(c.verdict == "pass" for c in s0_oracles)
         nop_ok = nop_measured and all(c.verdict == "pass" for c in s0_nops)
+        if (
+            not oracle_measured
+            and any(c.status == "measured" for c in s0_oracles)
+            and all(c.verdict == "pass" for c in s0_oracles if c.status == "measured")
+        ):
+            oracle_obs = backend.control(
+                task, "oracle", timeout_seconds=config.trial_timeout_seconds
+            )
+            oracle_chk = observation_check(oracle_obs, agent="oracle", config=config)
+            oracle_chk.stage = "S3"
+            report.checks["s3-oracle"] = oracle_chk
+            oracle_measured = oracle_chk.status == "measured"
+            oracle_ok = oracle_measured and oracle_chk.verdict == "pass"
+            if oracle_measured:
+                for c in s0_oracles:
+                    if c.status != "measured":
+                        c.scored = False
+        if (
+            not nop_measured
+            and any(c.status == "measured" for c in s0_nops)
+            and all(c.verdict == "pass" for c in s0_nops if c.status == "measured")
+        ):
+            nop_obs = backend.control(task, "nop", timeout_seconds=config.trial_timeout_seconds)
+            nop_chk = observation_check(nop_obs, agent="nop", config=config)
+            nop_chk.stage = "S3"
+            report.checks["s3-nop"] = nop_chk
+            nop_measured = nop_chk.status == "measured"
+            nop_ok = nop_measured and nop_chk.verdict == "pass"
+            if nop_measured:
+                for c in s0_nops:
+                    if c.status != "measured":
+                        c.scored = False
     else:
         # Run 1 fresh oracle and 1 fresh nop control in S3 when S0 was not run.
         oracle_obs = backend.control(task, "oracle", timeout_seconds=config.trial_timeout_seconds)

@@ -75,10 +75,24 @@ assistant-token presentations (label tokens × epochs). Equal steps do not mean 
 token exposure: final-v4 B saw 1,141,500 presentations and C 844,320. `B_vs_C` therefore
 carries an `exposure_caveat` with the ratio.
 
-Uncertainty:
-- exact Clopper–Pearson 95% intervals for every rate;
-- an exact two-sided sign test on paired per-task solve rates, for B vs C (primary) and
-  for each arm vs the base. With one attempt per task this is McNemar's exact test.
+Coverage and uncertainty (`estimand_notes` in the output states them):
+- every arm reports `solve_coverage` (`complete`, `observed_subset` or `unmeasured`),
+  `measured_tasks` (n/33), `measured_attempts` (n/planned), `missing_task_attempts`, and
+  the missing and unmeasured task ids. Planned attempts come from `--attempts`, or else
+  from the highest attempt index seen. An observed subset is never presented as a full
+  33-task result, and missing slots are never imputed.
+- exact Clopper–Pearson 95% intervals over measured attempts. These treat attempts as
+  independent, ignore within-task correlation, and are not intervals for any difference
+  between arms.
+- paired comparisons (B vs C, primary, and each arm vs base) work on the common
+  measured-task cohort. They report its size, the attempts each arm contributes and
+  whether attempts per task are equal, plus the equal-task mean difference and an exact
+  two-sided sign test of task wins and losses (ties discarded). The sign test is not a
+  test of the size of the mean difference.
+  - With no common measured task, the status is `unmeasured` and the difference and p
+    are null.
+  - Observed all-tied tasks give p = 1.
+  - p is printed at full precision with its exact fraction, never rounded to 0.
 
     uv run python research/experiments/repaired-data-sft-v1/analyze.py \
         --arm base=… --arm A=… --arm B=… --arm C=… \
@@ -101,9 +115,28 @@ import json
 import math
 import re
 import sys
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+ESTIMAND_NOTES = {
+    "solve_rate": "passes / measured attempts on the frozen v6 packages; not pass-at-k per task",
+    "solve_ci95": (
+        "Clopper-Pearson over measured attempts, treated as independent: it ignores "
+        "within-task correlation between attempts, so it is narrower than a task-clustered "
+        "interval and is not an interval for any between-arm difference"
+    ),
+    "paired": (
+        "equal-weight mean of per-task observed solve-rate differences on the common "
+        "measured-task cohort; exact_sign_p is a two-sided sign test of task win/loss "
+        "direction (ties discarded), not a CI or test of the mean-difference magnitude. "
+        "No interval for a between-arm difference is produced"
+    ),
+    "coverage": (
+        "missing task-attempts (no row) and errored rows are unmeasured and never imputed; "
+        "solve_coverage 'observed_subset' means the rate covers only the measured subset"
+    ),
+}
 ATTEMPT_MODE_REASON = "attempt>1 (attempt-1 replay mode)"
 #: QA Trace itemized-plan.json `mode` enum: the producer's exact strings (Research,
 #: 2026-10-16). Anything else, near-misses included, is refused.
@@ -136,12 +169,108 @@ def clopper_pearson(k: int, n: int, alpha: float = 0.05) -> tuple[float, float] 
     return round(lower, 4), round(upper, 4)
 
 
-def mcnemar_exact(b: int, c: int) -> float:
-    """Two-sided exact McNemar p-value from the discordant counts."""
-    n = b + c
+def exact_sign_p(wins: int, losses: int) -> Fraction | None:
+    """Exact two-sided sign-test p from per-task wins/losses (ties discarded), or None
+    when no task was decided. Kept as a Fraction so tiny values are never rounded to 0."""
+    n = wins + losses
     if n == 0:
-        return 1.0
-    return min(1.0, 2 * binom_cdf(min(b, c), n, 0.5))
+        return None
+    tail = sum(math.comb(n, k) for k in range(min(wins, losses) + 1))
+    return min(Fraction(1), Fraction(2 * tail, 2**n))
+
+
+Trials = dict[str, list[tuple[str, bool | None]]]
+
+
+def arm_coverage(by_task: Trials, heldout: list[str], planned_attempts: int) -> dict[str, Any]:
+    """Solve rate with explicit observed-subset coverage for one arm.
+
+    Missing slots (task-attempts with no row) and errored rows are both unmeasured, never
+    imputed. `solve_coverage` is `complete` only when every planned task-attempt was
+    measured, `observed_subset` when some were, and `unmeasured` when none were.
+    """
+    present = [v for t in heldout for _, v in by_task.get(t, [])]
+    measured = [v for v in present if v is not None]
+    rates = {
+        t: sum(v for _, v in items if v) / sum(v is not None for _, v in items)
+        for t, items in by_task.items()
+        if any(v is not None for _, v in items)
+    }
+    planned = len(heldout) * planned_attempts
+    solves = sum(measured)
+    if not measured:
+        coverage = "unmeasured"
+    elif len(measured) == planned and len(rates) == len(heldout):
+        coverage = "complete"
+    else:
+        coverage = "observed_subset"
+    return {
+        "solve_coverage": coverage,
+        "planned_slots": planned,
+        "present_rows": len(present),
+        "missing_rows": max(planned - len(present), 0),
+        "error_rows": len(present) - len(measured),
+        "measured_tasks": f"{len(rates)}/{len(heldout)}",
+        "measured_attempts": f"{len(measured)}/{planned}",
+        "missing_task_attempts": planned - len(measured),
+        "missing_task_ids": sorted(set(heldout) - set(by_task)),
+        "unmeasured_task_ids": sorted(set(heldout) - set(rates)),
+        "solves": solves,
+        "solve_rate": round(solves / len(measured), 4) if measured else None,
+        "solve_ci95": clopper_pearson(solves, len(measured)),
+        "observed_task_mean": round(sum(rates.values()) / len(rates), 4) if rates else None,
+    }
+
+
+def paired_comparison(
+    left: Trials, right: Trials, heldout: list[str], names: tuple[str, str]
+) -> dict[str, Any]:
+    """Task-level paired comparison on the common measured-task cohort.
+
+    Each task is weighted equally by its observed per-arm solve rate; the sign test counts
+    task wins and losses, discarding ties. With no common measured task the comparison is
+    `unmeasured` (difference and p null). All-tied observed tasks give p = 1.
+    """
+    ln, rn = names
+
+    def rate(items: list[tuple[str, bool | None]]) -> tuple[float, int] | None:
+        values = [v for _, v in items if v is not None]
+        return (sum(values) / len(values), len(values)) if values else None
+
+    per_task = {t: (rate(left.get(t, [])), rate(right.get(t, []))) for t in heldout}
+    common = {t: (lr, rr) for t, (lr, rr) in per_task.items() if lr and rr}
+    wins = sum(1 for lr, rr in common.values() if lr[0] > rr[0])
+    losses = sum(1 for lr, rr in common.values() if lr[0] < rr[0])
+    p = exact_sign_p(wins, losses) if common else None
+    if common and wins + losses == 0:
+        p = Fraction(1)
+    l_attempts = sum(lr[1] for lr, _ in common.values())
+    r_attempts = sum(rr[1] for _, rr in common.values())
+    equal = all(lr[1] == rr[1] for lr, rr in common.values())
+    out: dict[str, Any] = {
+        "status": "measured" if common else "unmeasured",
+        "tasks": len(common),
+        "common_task_cohort": f"{len(common)}/{len(heldout)}",
+        "missing_or_unpaired_task_ids": sorted(set(heldout) - set(common)),
+        f"{ln}_attempts_in_cohort": l_attempts,
+        f"{rn}_attempts_in_cohort": r_attempts,
+        "equal_attempts_per_task": equal if common else None,
+        f"{ln}_better": wins,
+        f"{rn}_better": losses,
+        "tied_tasks": len(common) - wins - losses,
+        "mean_difference": round(sum(lr[0] - rr[0] for lr, rr in common.values()) / len(common), 4)
+        if common
+        else None,
+        "exact_sign_p": float(p) if p is not None else None,
+        "exact_sign_fraction": str(p) if p is not None else None,
+    }
+    if common and not equal:
+        out["attempts_caveat"] = (
+            f"unequal attempts per task ({ln} {l_attempts} vs {rn} {r_attempts} in the cohort): "
+            "the per-task rates average different numbers of attempts, so this equal-task "
+            "comparison is not the same estimand as the per-arm trial-level solve rates"
+        )
+    return out
 
 
 def task_of(row: dict[str, Any]) -> str:
@@ -233,7 +362,9 @@ def incorrect_pass_summary(
     resolved = [orig for orig in failures if orig is not None]
     unresolved = len(failures) - len(resolved)
     incorrect = sum(resolved)
-    if unresolved == 0:
+    if n == 0:
+        status = "unmeasured"  # an empty population is no evidence, not a complete zero
+    elif unresolved == 0:
         status = "complete"
     elif resolved:
         status = "partial"
@@ -249,7 +380,7 @@ def incorrect_pass_summary(
         "incorrect_pass_unresolved_failures": unresolved,
         "incorrect_passes": incorrect,
         "incorrect_pass_rate": round(incorrect / n, 4) if n and unresolved == 0 else None,
-        "incorrect_pass_ci95": clopper_pearson(incorrect, n) if unresolved == 0 else None,
+        "incorrect_pass_ci95": clopper_pearson(incorrect, n) if n and unresolved == 0 else None,
         "incorrect_pass_bounds": [round(incorrect / n, 4), round((incorrect + unresolved) / n, 4)]
         if n and unresolved
         else None,
@@ -299,6 +430,11 @@ def main() -> int:
         action="append",
         default=[],
         help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
+    )
+    ap.add_argument(
+        "--attempts",
+        type=int,
+        help="planned attempts per task (default: the highest attempt index observed)",
     )
     ap.add_argument(
         "--replay-plan",
@@ -404,8 +540,21 @@ def main() -> int:
                 r = json.loads(line)
                 original[(r["arm"], r["trial"])] = bool(r["original_pass"])
 
+    heldout_ids = sorted(heldout)
+    planned_attempts = args.attempts or max(
+        (
+            attempt_of(n)
+            for by_task in arms.values()
+            for items in by_task.values()
+            for n, _ in items
+        ),
+        default=1,
+    )
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
+        "planned_attempts": planned_attempts,
+        "planned_attempts_source": "--attempts" if args.attempts else "max attempt index observed",
+        "estimand_notes": ESTIMAND_NOTES,
         "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
         "incorrect_pass_replay_mode": replay_mode,
         "incorrect_pass_replay_mode_reason": replay_mode_reason,
@@ -414,8 +563,6 @@ def main() -> int:
     }
     for name, by_task in arms.items():
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
-        measured = [v for _, _, v in trials if v is not None]
-        solves = sum(measured)
         verdicts = [
             (t, attempt_of(n), v, original.get((name, n))) for t, n, v in trials if v is not None
         ]
@@ -426,18 +573,11 @@ def main() -> int:
             "examples": exports.get("arms", {}).get(name, {}).get("rows"),
             "tasks": len(by_task),
             "trials": len(trials),
-            "measured": len(measured),
-            "errors": len(trials) - len(measured),
-            "solves": solves,
-            "solve_rate": round(solves / len(measured), 4) if measured else None,
-            "solve_ci95": clopper_pearson(solves, len(measured)),
+            "measured": sum(v is not None for _, _, v in trials),
+            "errors": sum(v is None for _, _, v in trials),
+            **arm_coverage(by_task, heldout_ids, planned_attempts),
             **incorrect_pass,
         }
-        if len(trials) > len(by_task):
-            report["arms"][name]["note"] = (
-                "several attempts per task: the trial-level interval ignores within-task "
-                "correlation; the paired test below works per task"
-            )
     exposure: dict[str, dict[str, int]] = {}
     for spec in args.receipt:
         name, _, path = spec.partition("=")
@@ -457,30 +597,14 @@ def main() -> int:
         print("REFUSED: B vs C needs --receipt for both B and C", file=sys.stderr)
         return 2
 
-    def task_rate(items: list[tuple[str, bool | None]]) -> float | None:
-        values = [v for _, v in items if v is not None]
-        return sum(values) / len(values) if values else None
-
-    # Paired exact sign test per task (McNemar when there is one attempt per task).
+    # Task-level paired comparisons on the common measured-task cohort.
     pairs = [("B", "C")] + [(n, "base") for n in arms if n != "base" and "base" in arms]
     for left, right in pairs:
         if left not in arms or right not in arms:
             continue
-        rates = {
-            t: (task_rate(arms[left][t]), task_rate(arms[right].get(t, []))) for t in arms[left]
-        }
-        common = {t: r for t, r in rates.items() if None not in r}
-        better = sum(1 for lr, rr in common.values() if lr > rr)
-        worse = sum(1 for lr, rr in common.values() if lr < rr)
-        report["paired"][f"{left}_vs_{right}"] = {
-            "tasks": len(common),
-            f"{left}_better": better,
-            f"{right}_better": worse,
-            "mean_difference": round(sum(lr - rr for lr, rr in common.values()) / len(common), 4)
-            if common
-            else None,
-            "exact_sign_p": round(mcnemar_exact(better, worse), 4),
-        }
+        report["paired"][f"{left}_vs_{right}"] = paired_comparison(
+            arms[left], arms[right], heldout_ids, (left, right)
+        )
     if "B_vs_C" in report["paired"]:
         b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))
         report["paired"]["B_vs_C"]["exposure_caveat"] = (

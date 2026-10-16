@@ -2675,7 +2675,7 @@ def add_trace_commands(sub: Any) -> None:
         "regrade",
         help="replay recorded passes against each task's newer graders (mimo-clean-v6, "
         "verifier-repair@*); reports which passes flip and which stay "
-        "(local Docker by default; --environment daytona for cloud)",
+        "(local Docker by default; --environment modal or daytona for cloud)",
     )
     _key(p, required=False)
     p.add_argument(
@@ -2688,13 +2688,13 @@ def add_trace_commands(sub: Any) -> None:
         "--workers",
         type=int,
         default=2,
-        help="queued replay workers (local Docker runs one at a time; Daytona runs concurrently)",
+        help="queued replay workers (local Docker runs one at a time; cloud runs concurrently)",
     )
     p.add_argument(
         "--environment",
-        choices=("docker", "daytona"),
+        choices=("docker", "daytona", "modal"),
         default="docker",
-        help="execution backend for controls and replays (daytona is paid and admission-guarded)",
+        help="execution backend for controls and replays (cloud backends are paid)",
     )
     p.set_defaults(func=_cmd)
     p = commands.add_parser(

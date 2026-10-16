@@ -48,10 +48,11 @@ SNAPSHOT_ARCHIVE = "workspace.tgz"
 ENGINE_VERSION = "qa-trace-counterfactual/2"
 #: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
-#: Execution backends the replay engine can target. Daytona runs skip the local
+#: Execution backends the replay engine can target. Cloud runs skip the local
 #: Docker FIFO and the one-container process gate (both exist only to protect the
-#: host); the runner's Daytona admission guard bounds cloud capacity instead.
-ENVIRONMENTS = ("docker", "daytona")
+#: host). Daytona's MiMo egress lock refuses tasks with phase network policies
+#: (every mimo-clean-v6 package), so Modal is the cloud backend for v6 replays.
+ENVIRONMENTS = ("docker", "daytona", "modal")
 
 
 def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractContextManager[Any]:

@@ -37,9 +37,11 @@ Two definitions:
       then the attempt-1 trials. Later attempts are counted as excluded with reason
       `attempt>1 (attempt-1 replay mode)`, so they neither dilute the rate nor hold it at
       unmeasured.
-    - An `all-attempts` plan changes nothing.
-    - The mode must be an exact enum token (`REPLAY_MODES`); any other value, prose
-      included, is refused. The plan's `mode_reason` is printed beside the mode.
+    - An `all attempts` plan changes nothing.
+    - The mode must be one of QA Trace's exact producer strings (`REPLAY_MODES`):
+      `attempt-1` or `all attempts`, with a space. Anything else is refused, including
+      near-misses such as `all-attempts`. The plan's `mode_reason` is printed beside the
+      mode.
     - Attempts come from rollout trial names (`…-a<N>`). A name without that suffix is
       attempt 1.
     - The paired pin block follows the same mode. The headline and unpaired blocks are
@@ -103,9 +105,9 @@ from pathlib import Path
 from typing import Any
 
 ATTEMPT_MODE_REASON = "attempt>1 (attempt-1 replay mode)"
-#: QA Trace itemized-plan.json `mode` enum. Provisional until QA Trace publishes its
-#: canonical tokens; anything else is refused.
-REPLAY_MODES = frozenset({"attempt-1", "all-attempts"})
+#: QA Trace itemized-plan.json `mode` enum: the producer's exact strings (Research,
+#: 2026-10-16). Anything else, near-misses included, is refused.
+REPLAY_MODES = frozenset({"attempt-1", "all attempts"})
 
 
 def binom_cdf(k: int, n: int, p: float) -> float:
@@ -301,7 +303,7 @@ def main() -> int:
     ap.add_argument(
         "--replay-plan",
         type=Path,
-        help="QA Trace itemized-plan.json; its `mode` selects all-attempts or attempt-1",
+        help="QA Trace itemized-plan.json; its `mode` is 'attempt-1' or 'all attempts'",
     )
     ap.add_argument(
         "--replay-exclude",

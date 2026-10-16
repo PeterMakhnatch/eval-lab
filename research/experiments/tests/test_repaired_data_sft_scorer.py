@@ -135,7 +135,9 @@ def test_paired_pin_block_counts_attempt_1_only_in_attempt_1_mode() -> None:
     assert every["pin_incorrect_pass_rate"] == 0.5
 
 
-def test_replay_mode_is_an_exact_enum() -> None:
-    modes = ANALYZE["REPLAY_MODES"]
-    assert "attempt-1" in modes and "all-attempts" in modes
-    assert "all attempts" not in modes  # prose is never the contract
+def test_replay_mode_is_the_producers_exact_enum() -> None:
+    # QA Trace emits exactly 'attempt-1' and 'all attempts' (with a space). The consumer
+    # briefly expected 'all-attempts' and would have refused every all-attempts plan.
+    assert ANALYZE["REPLAY_MODES"] == frozenset({"attempt-1", "all attempts"})
+    for near_miss in ("all-attempts", "all_attempts", "attempt_1", "Attempt-1", "all"):
+        assert near_miss not in ANALYZE["REPLAY_MODES"]

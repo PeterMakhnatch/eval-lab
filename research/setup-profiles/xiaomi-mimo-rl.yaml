@@ -101,3 +101,53 @@ budgets:
   step_limit:
     value: 500
     source: "example_configs/swe.yaml:24 (step_limit: 500)."
+
+# Campaign-scoped lineage admission (Research ruling, 2026-10-16).
+# These transforms are admitted ONLY for the exact package digests
+# below, ONLY when a run names this profile, and only when the
+# variant record is 'validated' with a parent chain reaching the
+# ledger run_digest. This is not a global allowlist widening: any
+# other package, profile, or transform keeps the global rules.
+campaign_lineage:
+  headline:
+    transforms: [separate-verifier@10, agent-network-none@1, strip-future-history@1, purge-build-caches@4, purge-build-caches@5, purge-installed-copies@2, mtime-normalize@2]
+    package_digests:
+      - sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf  # format-code-task-000142
+      - sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e  # format-code-task-000143
+      - sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058  # format-code-task-000144
+      - sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273  # format-code-task-000149
+      - sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46  # format-code-task-000161
+      - sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1  # format-code-task-000371
+      - sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09  # format-code-task-000582
+      - sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014  # format-code-task-000657
+      - sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8  # format-code-task-000783
+      - sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8  # format-code-task-000878
+      - sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e  # format-code-task-000905
+      - sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40  # format-code-task-001199
+      - sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9  # format-code-task-001220
+      - sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670  # format-code-task-001246
+      - sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54  # format-code-task-001248
+      - sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80  # format-code-task-001371
+      - sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240  # format-code-task-001399
+      - sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015  # format-code-task-001425
+      - sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4  # format-code-task-001480
+      - sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea  # format-code-task-001590
+      - sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf  # format-code-task-001686
+      - sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b  # format-code-task-001891
+      - sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20  # format-code-task-001914
+      - sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133  # format-code-task-001948
+      - sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941  # format-code-task-002092
+      - sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d  # format-code-task-002304
+      - sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86  # format-code-task-002335
+      - sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43  # format-code-task-002371
+      - sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5  # format-code-task-002395
+      - sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc  # format-code-task-002451
+      - sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab  # format-code-task-002871
+      - sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01  # format-code-task-002915
+      - sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a  # format-code-task-002989
+  pin_diagnostic:
+    transforms: [verifier-repair@1]
+    package_digests:
+      - sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548  # format-code-task-000371
+      - sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f  # format-code-task-000657
+      - sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff  # format-code-task-001686

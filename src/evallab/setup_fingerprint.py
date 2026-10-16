@@ -853,8 +853,47 @@ def variant_lineage_summary(
     return summary
 
 
+def _campaign_scoped_transforms(
+    repo_root: Path, reference_profile: str | None, package_digest: str | None
+) -> frozenset[str]:
+    """Extra transforms admitted for one campaign package, never globally.
+
+    The named reference profile may declare ``campaign_lineage`` scopes:
+    ``headline`` and ``pin_diagnostic``, each with ``transforms`` and the
+    exact ``package_digests`` they cover. A transform is admitted only
+    when the run names that profile AND the package digest is listed in
+    a scope. Anything else — a different profile, an unlisted digest, a
+    malformed section — admits nothing extra, so non-campaign packages
+    keep facing the global allowlist unchanged.
+    """
+    if not reference_profile or not package_digest:
+        return frozenset()
+    try:
+        profile = load_reference_profile(repo_root, reference_profile)
+    except (OSError, ValueError, KeyError):
+        return frozenset()
+    scoped = profile.get("campaign_lineage")
+    if not isinstance(scoped, dict):
+        return frozenset()
+    admitted: set[str] = set()
+    for scope in scoped.values():
+        if not isinstance(scope, dict):
+            continue
+        digests = scope.get("package_digests")
+        transforms = scope.get("transforms")
+        if not isinstance(digests, list) or package_digest not in digests:
+            continue
+        if isinstance(transforms, list):
+            admitted.update(t for t in transforms if isinstance(t, str))
+    return frozenset(admitted)
+
+
 def lineage_ledger_binding(
-    repo_root: Path, task_id: str | None, package_digest: str | None
+    repo_root: Path,
+    task_id: str | None,
+    package_digest: str | None,
+    *,
+    reference_profile: str | None = None,
 ) -> dict[str, Any]:
     """Admit a verified verifier-only variant by lineage against the ledger (HAR-173).
 
@@ -862,8 +901,10 @@ def lineage_ledger_binding(
     verified (``validated`` — the same verdict ``counts`` and the ledger use,
     since the gate cannot re-run the locked nop itself); (b) every transform in
     its chain is verifier-only or metadata-only (``rewardkit-integrity@1``,
-    ``task-health-tags@1``); (c) its parent chain reaches the ledger's
-    ``run_digest`` for that task, so the ledger stays the root of trust.
+    ``task-health-tags@1``), or is admitted for this exact package by the
+    named profile's ``campaign_lineage`` scope (never globally); (c) its
+    parent chain reaches the ledger's ``run_digest`` for that task, so the
+    ledger stays the root of trust.
     Returns ``admitted`` plus the ``reason`` and the lineage fields.
     """
     from evallab.counts import task_index_for
@@ -882,11 +923,17 @@ def lineage_ledger_binding(
     if summary["chain_error"]:
         binding["reason"] = f"variant lineage is broken: {summary['chain_error']}"
         return binding
-    outside = [t for t in summary["transform_chain"] if t not in LINEAGE_ALLOWLISTED_TRANSFORMS]
+    scoped = _campaign_scoped_transforms(repo_root, reference_profile, package_digest)
+    outside = [
+        t
+        for t in summary["transform_chain"]
+        if t not in LINEAGE_ALLOWLISTED_TRANSFORMS and t not in scoped
+    ]
     if outside:
         binding["reason"] = (
             f"variant transform {outside[0]!r} is not verifier-only/metadata-only "
-            f"(allowlist: {sorted(LINEAGE_ALLOWLISTED_TRANSFORMS)})"
+            f"(allowlist: {sorted(LINEAGE_ALLOWLISTED_TRANSFORMS)}; "
+            f"campaign-scoped for this package: {sorted(scoped)})"
         )
         return binding
     try:
@@ -1004,7 +1051,10 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
         reasons.append(f"task: unreadable: {task['error']}")
     elif not task.get("ledger_match"):
         binding = lineage_ledger_binding(
-            repo_root, fingerprint["subject"]["task"], task.get("digest")
+            repo_root,
+            fingerprint["subject"]["task"],
+            task.get("digest"),
+            reference_profile=name,
         )
         if not binding["admitted"]:
             reasons.append(
@@ -1175,7 +1225,10 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         )
     if not fingerprint["task"]["ledger_match"]:
         binding = lineage_ledger_binding(
-            repo_root, fingerprint["subject"]["task"], fingerprint["task"].get("digest")
+            repo_root,
+            fingerprint["subject"]["task"],
+            fingerprint["task"].get("digest"),
+            reference_profile=profile_name,
         )
         if binding["admitted"]:
             lines.append("")

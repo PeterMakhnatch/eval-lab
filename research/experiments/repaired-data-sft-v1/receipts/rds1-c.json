@@ -1,0 +1,182 @@
+{
+  "cost_estimate": {
+    "hours": 0.2337951388888889,
+    "measured_throughput_tok_s": 560.0,
+    "seconds": 841.6625,
+    "sequence_tokens_total": 471331.0,
+    "usd": 0.658112742,
+    "usd_per_hour": 2.814912
+  },
+  "dry_run": {
+    "longest": 60241,
+    "over_length": 0,
+    "tokens": 471331,
+    "trained_tokens": 190249
+  },
+  "export": {
+    "conversations": 13,
+    "conversations_sha256": "sha256:15cd4e2ef04694d6dee4d33ac17ed5c9261e9bd4f94fedc357937d50669b39ae",
+    "manifest_sha256": "sha256:5ba592864696199906e66fa33d151bc78d9f86c5c14f6e88e1d28e1e063294d1",
+    "split_manifest_digest": null
+  },
+  "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_revision": "2367e865d009c13ac81713a2878291d33ab28177",
+  "remote": {
+    "adapter": "rds1-c/adapter",
+    "adapter_files_sha256": {
+      "README.md": "e911f3cc5e6569c86aa7038170742a77b118890575c951cf07dc5e2956613942",
+      "adapter_config.json": "ae8b6ce35aa681128d713539bf58ba11bc36dfb8e241a372b0014bd559104dea",
+      "adapter_model.safetensors": "77664b842d67eea0857f0be39e3f262481b570ded69a469d6dcdbdecf955a6a5",
+      "chat_template.jinja": "59a64ebb4df6d1489d09a91267cf3ceb106162d4a893c4f84833cfb8c897ff63",
+      "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+      "tokenizer_config.json": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b",
+      "training_args.bin": "5fd2ac1009f9ea4b8b9da1f4e74993bcc812dc10b7453b60361addac50452209"
+    },
+    "adapter_model_sha256": "77664b842d67eea0857f0be39e3f262481b570ded69a469d6dcdbdecf955a6a5",
+    "collated_label_check": {
+      "label_tokens": 190249,
+      "mask_tokens": 190249,
+      "mismatched_rows": 0,
+      "rows": 13
+    },
+    "fla": "0.5.2",
+    "log_history": [
+      {
+        "epoch": 0.3076923076923077,
+        "grad_norm": 0.43681710958480835,
+        "learning_rate": 0.0,
+        "loss": 0.40015602111816406,
+        "step": 1
+      },
+      {
+        "epoch": 0.6153846153846154,
+        "grad_norm": 0.46388542652130127,
+        "learning_rate": 5e-05,
+        "loss": 0.35234126448631287,
+        "step": 2
+      },
+      {
+        "epoch": 0.9230769230769231,
+        "grad_norm": 0.5865084528923035,
+        "learning_rate": 3.7500000000000003e-05,
+        "loss": 0.34663593769073486,
+        "step": 3
+      },
+      {
+        "epoch": 1.0,
+        "grad_norm": 1.0489226579666138,
+        "learning_rate": 1.2500000000000006e-05,
+        "loss": 0.2747601270675659,
+        "step": 4
+      },
+      {
+        "epoch": 1.0,
+        "step": 4,
+        "total_flos": 2.252712146822861e+16,
+        "train_loss": 0.3434733375906944,
+        "train_runtime": 583.292,
+        "train_samples_per_second": 0.022,
+        "train_steps_per_second": 0.007
+      }
+    ],
+    "max_tokens": 60241,
+    "parameter_update": {
+      "learning_rates": [
+        0.0,
+        5e-05,
+        3.7500000000000003e-05,
+        1.2500000000000006e-05
+      ],
+      "lora_A_init": {
+        "max_abs": 0.015625,
+        "sha256": "0e80c4dd55f9d6376abbcd6cd26f17257aab8730beadf3d9485b28dce6c5dc72",
+        "tensors": 128
+      },
+      "lora_B_final": {
+        "max_abs": 0.00010028346150647849,
+        "sha256": "fcdee2c6c6fff516771480d7167c5b70748610a3666e1834b4e765dfc078e482",
+        "tensors": 128
+      },
+      "lora_B_init_max_abs": 0.0,
+      "optimizer_steps": 4
+    },
+    "peak_gpu_memory_gib": 58.78,
+    "render_stack": {
+      "jinja2": "3.1.6",
+      "tokenizers": "0.22.2",
+      "transformers": "5.12.1"
+    },
+    "torch": "2.14.0+cu130",
+    "train_rows": 13,
+    "train_seconds": 583.6,
+    "trained_tokens": 190249,
+    "wall_seconds": 675.8
+  },
+  "render": {
+    "enable_thinking": true,
+    "jinja2": "3.1.6",
+    "loss_rows": {
+      "all": 13,
+      "last": 0
+    },
+    "mask": "assistant_masks (template generation markers), prefix-property verified per conversation; rows with loss='last' train only the final call's served completion (after the add_generation_prompt render of messages[:-1])",
+    "template": "model-own chat_template.jinja via apply_chat_template",
+    "think_mapping": "<think> content prefix -> reasoning_content field",
+    "tokenizers": "0.22.2",
+    "tool_calls": "verbatim <tool_call><function=...> text in content",
+    "transformers": "5.12.1"
+  },
+  "run_name": "rds1-c",
+  "serve_hint": {
+    "adapter": "--enable-lora --lora-paths mimo_sft=/sft/rds1-c/adapter",
+    "targets_flag": "--lora-target-modules q_proj k_proj v_proj o_proj gate_proj up_proj down_proj"
+  },
+  "tool": "tools/modal-mimo-sft/sft.py",
+  "train": {
+    "dtype": "bfloat16",
+    "gradient_checkpointing": true,
+    "image_packages": [
+      "torch==2.14.0",
+      "transformers==5.12.1",
+      "tokenizers==0.22.2",
+      "jinja2==3.1.6",
+      "trl==1.14.0",
+      "peft==0.21.0",
+      "accelerate==1.15.0",
+      "datasets==5.0.1",
+      "huggingface_hub==1.9.2",
+      "flash-linear-attention==0.5.2",
+      "fla-core==0.5.2"
+    ],
+    "length_policy": "refuse rows longer than max_length; never truncate",
+    "lora": {
+      "alpha": 32,
+      "dropout": 0.05,
+      "rank": 16,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "max_length": 65536,
+    "output_volume": "evallab-mimo-v26-9b-sft",
+    "packing": false,
+    "sft": {
+      "grad_accum_steps": 4,
+      "learning_rate": 5e-05,
+      "lr_scheduler": "cosine",
+      "num_epochs": 1,
+      "per_device_batch": 1,
+      "seed": 42,
+      "seed_applied": "transformers.set_seed before PEFT adapter init",
+      "warmup_ratio": 0.03
+    },
+    "trainer": "trl.SFTTrainer on pre-rendered input_ids+assistant_masks; loss = token-mean cross-entropy over assistant tokens, computed from their hidden states in checkpointed lm_head chunks of 4096",
+    "weights_volume": "evallab-mimo-v26-9b-weights"
+  }
+}

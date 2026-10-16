@@ -52,7 +52,7 @@ from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast, get_args
+from typing import TYPE_CHECKING, Any, cast, get_args
 
 from evallab.qa.answer_key import AnswerKey, item_id_of, resolve_answer_key
 from evallab.qa.models import (
@@ -67,6 +67,9 @@ from evallab.qa.models import (
     Severity,
     dump_finding,
 )
+
+if TYPE_CHECKING:
+    from evallab.regrade import CloudSpendGate
 
 BUNDLE_SCHEMA = "qa.trace_bundle/v1"
 VERDICT_SCHEMA = "qa.trace_verdict/v1"
@@ -2269,24 +2272,10 @@ def pass_list_subjects(path: Path) -> list[dict[str, Any]]:
     return subjects
 
 
-def regrade_passes(
-    subjects: list[dict[str, Any]],
-    out: Path,
-    *,
-    repairs: Sequence[Path] = (),
-    grader_manifest: Path | None = None,
-    workers: int = 2,
-    environment: str = "docker",
-    log: Callable[[str], None] = print,
-) -> list[dict[str, Any]]:
-    """Counterfactual regrade of each subject's recorded pass against its task's
-    newer graders (:mod:`evallab.qa.counterfactual`): the v6 package plus the
-    test-repaired variants found in the checkout or under ``repairs``.
-
-    Grader controls run first, once per grader, cached in the shared
-    counterfactual store (they do not depend on the subjects); then the
-    replays, ``workers`` at a time, resuming from ``out/items/<blind id>/<grader>.json``.
-    """
+def _regrade_jobs(
+    subjects: list[dict[str, Any]], repairs: Sequence[Path], grader_manifest: Path | None
+) -> tuple[Path, list[dict[str, Any]], dict[str, list[Any]], dict[str, Path], list[Any]]:
+    """Rows that start nothing, graders per task, shell trials and (subject, trial, grader) jobs."""
     from evallab.qa import counterfactual as cf
 
     repo = _repo_root()
@@ -2308,15 +2297,97 @@ def regrade_passes(
         if not graders[task]:
             rows.append({**base, "grader": None, "outcome": "no_newer_grader"})
         jobs.extend((base, trial, grader) for grader in graders[task])
+    return repo, rows, graders, shells, jobs
+
+
+def _controls_dir(grader: Any) -> Path:
+    return counterfactual_root() / "controls" / grader.label.replace(":", "-")
+
+
+def _replay_cache(base: dict[str, Any], grader: Any) -> tuple[Path, dict[str, Any]]:
+    from evallab.qa import counterfactual as cf
+
+    slot = grader.label.replace(":", "-")
+    identity = {
+        "engine": cf.ENGINE_VERSION,
+        "source_digest": base["source_digest"],
+        "grader": grader.label,
+        "grader_digest": grader.variant_digest,
+    }
+    return counterfactual_root() / "replay-cache" / base["source_digest"] / f"{slot}.json", identity
+
+
+def _cached_replay(cache: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
+    observed = _read_json(cache) if cache.is_file() else {}
+    if any(observed.get(k) != value for k, value in identity.items()):
+        return None
+    return None if observed.get("outcome") == "refused" else observed
+
+
+def plan_regrade(
+    subjects: list[dict[str, Any]],
+    *,
+    repairs: Sequence[Path] = (),
+    grader_manifest: Path | None = None,
+) -> dict[str, Any]:
+    """Executions :func:`regrade_passes` would start, without starting any.
+
+    Uncached grader controls (nop, plus reference when one exists) and uncached
+    replays. An upper bound: a replay refused for a missing source starts nothing.
+    """
+    from evallab.qa import counterfactual as cf
+
+    repo, rows, graders, _, jobs = _regrade_jobs(subjects, repairs, grader_manifest)
+    every = {g.label: g for task_graders in graders.values() for g in task_graders}
+    controls = sum(
+        cf.control_executions(g, _controls_dir(g), repo_root=repo) for g in every.values()
+    )
+    unique = {(base["source_digest"], g.label): (base, g) for base, _, g in jobs}
+    replays = sum(_cached_replay(*_replay_cache(base, g)) is None for base, g in unique.values())
+    return {
+        "subjects": len(subjects),
+        "graders": len(every),
+        "rows_without_execution": len(rows),
+        "control_executions": controls,
+        "replay_executions": replays,
+        "executions": controls + replays,
+    }
+
+
+def regrade_passes(
+    subjects: list[dict[str, Any]],
+    out: Path,
+    *,
+    repairs: Sequence[Path] = (),
+    grader_manifest: Path | None = None,
+    workers: int = 2,
+    environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
+    log: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
+    """Counterfactual regrade of each subject's recorded pass against its task's
+    newer graders (:mod:`evallab.qa.counterfactual`): the v6 package plus the
+    test-repaired variants found in the checkout or under ``repairs``.
+
+    Grader controls run first, once per grader, cached in the shared
+    counterfactual store (they do not depend on the subjects); then the
+    replays, ``workers`` at a time, resuming from ``out/items/<blind id>/<grader>.json``.
+    A cloud ``environment`` is refused up front without ``spend_gate``; every
+    cloud execution is charged to it, and one over its cap is refused, not run.
+    """
+    from evallab.qa import counterfactual as cf
+
+    cf.check_backend(environment, spend_gate)
+    repo, rows, graders, shells, jobs = _regrade_jobs(subjects, repairs, grader_manifest)
 
     def _control(grader: cf.Grader) -> dict[str, Any]:
-        slot = grader.label.replace(":", "-")
         return cf.grader_controls(
             grader,
             shells[grader.task_name],
-            counterfactual_root() / "controls" / slot,
+            _controls_dir(grader),
             repo_root=repo,
             environment=environment,
+            spend_gate=spend_gate,
         )
 
     every = {g.label: g for task_graders in graders.values() for g in task_graders}
@@ -2329,18 +2400,9 @@ def regrade_passes(
     def _replay(job: tuple[dict[str, Any], Path, cf.Grader]) -> dict[str, Any]:
         base, trial, grader = job
         blind, slot = base["source_digest"][:16], grader.label.replace(":", "-")
-        cache = counterfactual_root() / "replay-cache" / base["source_digest"] / f"{slot}.json"
-        identity = {
-            "engine": cf.ENGINE_VERSION,
-            "source_digest": base["source_digest"],
-            "grader": grader.label,
-            "grader_digest": grader.variant_digest,
-        }
-        observed = _read_json(cache) if cache.is_file() else {}
-        if (
-            any(observed.get(k) != value for k, value in identity.items())
-            or observed.get("outcome") == "refused"
-        ):
+        cache, identity = _replay_cache(base, grader)
+        observed = _cached_replay(cache, identity)
+        if observed is None:
             observed = {
                 **cf.replay(
                     trial,
@@ -2348,6 +2410,7 @@ def regrade_passes(
                     out / "work" / blind / slot,
                     repo_root=repo,
                     environment=environment,
+                    spend_gate=spend_gate,
                 ),
                 **identity,
             }
@@ -2538,6 +2601,41 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         else:
             subjects = pass_list_subjects(args.passes)
             source = {"passes": str(args.passes)}
+        cloud = args.environment != "docker"
+        plan: dict[str, Any] = {}
+        if args.plan or cloud:
+            plan = plan_regrade(
+                subjects, repairs=args.repairs, grader_manifest=args.grader_manifest
+            )
+            rate = args.usd_per_execution if cloud else 0.0
+            plan |= {
+                "environment": args.environment,
+                "usd_per_execution": rate,
+                "estimated_usd": round(plan["executions"] * rate, 2),
+            }
+        if args.plan:
+            _write_json(args.out / "plan.json", {**source, **plan})
+            print(json.dumps(plan, indent=1))
+            return 0
+        gate = None
+        if cloud:
+            from evallab.regrade import CloudSpendGate
+
+            if args.max_usd is None or not args.approve:
+                raise SystemExit(
+                    "regrade: cloud backends are paid; give --max-usd and --approve "
+                    "(--plan prints the estimate)"
+                )
+            if plan["estimated_usd"] > args.max_usd:
+                raise SystemExit(
+                    f"regrade: {plan['executions']} executions estimate "
+                    f"${plan['estimated_usd']:.2f}, over --max-usd ${args.max_usd:.2f}"
+                )
+            gate = CloudSpendGate(
+                approval=args.approve,
+                cap_usd=args.max_usd,
+                usd_per_execution=args.usd_per_execution,
+            )
         rows = regrade_passes(
             subjects,
             args.out,
@@ -2545,6 +2643,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             grader_manifest=args.grader_manifest,
             workers=args.workers,
             environment=args.environment,
+            spend_gate=gate,
             log=lambda m: print(m, file=sys.stderr),
         )
         _write_json(
@@ -2553,6 +2652,8 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 **source,
                 "repairs": [str(p) for p in args.repairs],
                 "grader_manifest": str(args.grader_manifest) if args.grader_manifest else None,
+                "plan": plan or None,
+                "spend_gate": gate.to_json() if gate else None,
                 "rows": rows,
             },
         )
@@ -2597,6 +2698,8 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
 def add_trace_commands(sub: Any) -> None:
     """Register ``trace`` under the shared ``evallab qa`` parser."""
+    from evallab.qa.counterfactual import CLOUD_USD_PER_EXECUTION
+
     trace = sub.add_parser(
         "trace", help="QA Agent - Trace: was this run's reward real, and why did it fail"
     )
@@ -2675,7 +2778,7 @@ def add_trace_commands(sub: Any) -> None:
         "regrade",
         help="replay recorded passes against each task's newer graders (mimo-clean-v6, "
         "verifier-repair@*); reports which passes flip and which stay "
-        "(local Docker by default; --environment modal or daytona for cloud)",
+        "(local Docker by default; cloud backends need --max-usd and --approve)",
     )
     _key(p, required=False)
     p.add_argument(
@@ -2695,6 +2798,23 @@ def add_trace_commands(sub: Any) -> None:
         choices=("docker", "daytona", "modal"),
         default="docker",
         help="execution backend for controls and replays (cloud backends are paid)",
+    )
+    p.add_argument(
+        "--plan",
+        action="store_true",
+        help="write plan.json: uncached executions and the cloud estimate; run nothing",
+    )
+    p.add_argument(
+        "--max-usd",
+        type=float,
+        help="cloud spend cap; every execution reserves --usd-per-execution, none runs past it",
+    )
+    p.add_argument("--approve", help="recorded spend approval (required for cloud backends)")
+    p.add_argument(
+        "--usd-per-execution",
+        type=float,
+        default=CLOUD_USD_PER_EXECUTION,
+        help="reservation per cloud execution (default: measured Modal cost, rounded up)",
     )
     p.set_defaults(func=_cmd)
     p = commands.add_parser(

@@ -271,10 +271,29 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
     extra) is required. `--environment daytona|modal` skip the host lock and run
     workers concurrently in the cloud (paid). Daytona's MiMo egress lock refuses
     every `mimo-clean-v6` package (they declare phase network policies), so
-    Modal is the cloud path for v6; it needs Harbor's `modal` extra and Modal
-    credentials. Each row records its `environment`; cloud refusals stay
-    refusals, never rejections. The cache identity omits the backend, so a
-    backend smoke test needs items with no cached controls or replays.
+    Modal is the cloud path for v6; it needs Modal credentials. Each row records
+    its `environment`; cloud refusals stay refusals, never rejections. The cache
+    identity omits the backend, so a backend smoke test needs items with no
+    cached controls or replays.
+  - **Cloud spend gate.** `--plan` writes `OUT/plan.json` and runs nothing: the
+    executions a run would still start (uncached nop/reference controls plus
+    uncached replays) and the estimate at `--usd-per-execution` (default
+    $0.01, the measured Modal $0.003-0.008 at MiMo spec, rounded up). A cloud run
+    requires `--max-usd` and `--approve "<recorded approval>"`, refuses up front
+    when the plan's estimate exceeds the cap, and reserves the estimate before
+    every execution. An execution that would pass the cap is a
+    `spend_cap_reached` refusal, not a run. `summary.json` records the plan and
+    the gate (approval, cap, executions, reserved USD).
+  - Cloud runs refuse any `harbor` on PATH other than the lab's pinned version
+    (`uv sync --extra laminar`, then run under `uv run`). Harbor 0.21 starts a
+    Modal separate verifier from the agent's prebuilt image, which has no
+    `/tests`, so every control comes back `infra`.
+  - Retained snapshots (separate-verifier trials without `verifier/agent.diff`,
+    e.g. rollout trials) regrade through `harbor trial regrade`: local Docker,
+    or Modal via `evallab.harbor_modal:RegradeModalEnvironment`. That class
+    carries the Modal PATH pin and a one-hour sandbox lifetime, because
+    `trial regrade` takes no environment kwargs and Harbor's default lifetime
+    is a billable 24 hours. Daytona snapshot regrades are refused.
   - Native patch jobs use the discoverable `runs/<qa-replay-ULID>/` root,
     matrix receipts use `runs/.executor/`, and scripts use
     `runs/qa-trace-regrade/scripts/`. Reports go to `OUT/summary.json` and

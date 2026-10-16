@@ -279,6 +279,21 @@ nested-include regression suite. The original parent also records
 `TrialBudgetExhaustedError` despite raw reward 1; its original reward is not
 presented as an exception-free model completion.
 
+## 002402 — dataset B "unclear" rows (2026-10-16 follow-up)
+
+Three ordinary 002402 passes were held out of training arm B as "unclear": diff
+review said they handle only the first `Dependent` argument constraint, which is
+narrower than the reference. [The scan probe](probes/test_qa_probe_scan_plated_uniform.py)
+runs the prompt's own `control_flow.scan` + plated `Uniform()` reproducer, plus
+the same model with array-valued `Uniform` bounds (both arguments `Dependent`).
+It checks that the model runs, every height stays within its step bounds, and
+the plated site keeps its shape across scan steps. Through the native runner,
+the reference fix passes 3/3 and base fails 3/3. Each of the three passes
+(`own-scan:377`, `:400`, `:418`) passes 3/3, so they entered B in final-v3.
+Receipts are in `derived/qa-trace/training-arms/2026-10-16/unclear-probes/`,
+outside Git. 000495 (`own-scan:473`) has no validated reference fix, so it was
+not probed and stays unclear.
+
 ## Reuse and interpretation boundaries
 
 The earlier successful 002391 reference/base and 001269 oracle-hidden controls

@@ -1,0 +1,23 @@
+{
+  "recorded_at": "2026-10-16T07:46:28.713950+00:00",
+  "relocations": [
+    {
+      "old_path": "/private/tmp/mimo-modal-billing-smoke.py",
+      "preserved": {
+        "bytes": 15271,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/mimo-v6-continuation/procedures/mimo-modal-billing-smoke.py",
+        "sha256": "a1de70ca3be4696c6c15b6a53b4aaf328d56cb5bd7396e5621c7b82c23952ad2"
+      }
+    },
+    {
+      "old_path": "/private/tmp/mimo-v6-python-controls-20261015.json",
+      "preserved": {
+        "bytes": 2143329,
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/mimo-v6-continuation/python-input-inventory.json",
+        "sha256": "c74738c73ffc8a70842619080a4824d76946cdd664c9c683687efc525a222a82"
+      }
+    }
+  ],
+  "schema": "mimo.evidence-relocations/v1",
+  "scope": "Owned scratch evidence moved intact to the existing results archive; no other lane artifacts moved or deleted."
+}

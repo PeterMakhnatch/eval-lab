@@ -11,6 +11,9 @@ This metadata release fixes task membership and package custody. It does not cer
 - `repair-inventory.json`: distinct repair lineage and control limitations; hardening alone is not a test repair.
 - `validity-release.json`: Research's gate authorization and the written QA Trace/Trainer acknowledgements.
 - `quota-pause.json`: observed Codex weekly utilization of 61%, triggering the prescribed 60% pause.
+- `cloud-control-table.csv`, `cloud-controls.json`, `native-controls.json`: current control evidence supplement. Infra's native Modal controls qualify all 33 held-out packages and training task 001647 on their exact v6 digests. The original freeze manifest's unproven control fields remain historical; these later receipts do not rewrite identity or grading-package bindings.
+- `consumer-check.json`: the actual QA Trace exclusion parser accepts all 33 IDs with zero historical-training overlap.
+- `evidence-relocations.json`: durable locations of the archived isolated PostgreSQL smoke and full static intake evidence.
 
 The live custody path is `/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json`. That worktree is locked against retirement while consumers use these absolute bindings. Do not move it or silently replace the membership.
 
@@ -34,7 +37,9 @@ python research/experiments/mimo-training-20261016/freeze.py --check
 
 After release, nonsemantic publication edits and A/B/C rebuilds within the frozen training-exposure set do not reshuffle membership. New training exposure, held-out evidence changes, frozen source drift and package-binding drift are refused. Historical source hashes remain observations of the original freeze, not assertions that mutable upstream publications never change.
 
-The actual release and read-only check passed; all 33 original/v6 package pairs were hashed. A consumer smoke verified the boolean gate types, all-plain-v6 target selection and zero training overlap. The integrated focused suite passed 239 cases. No fresh paid cloud control was launched; complete concurrent total-cost admission remains unresolved, and no claim of completed controls is made.
+The actual release and read-only check passed; all 33 original/v6 package pairs were hashed. A consumer smoke verified the boolean gate types, all-plain-v6 target selection and zero training overlap. The earlier focused suite passed 239 cases. No fresh paid cloud control was launched by Dataset; Research accepted Infra's controls as tonight's substitute.
+
+The supplement preserves all 70 native observations: the initial 66 cells, the corrected 001948 pair, and the 001647 pair. Every selected oracle=1/nop=0 cell binds the exact frozen `source_package_digest` from native executor metadata. Initial 001948 setup failures remain unscored history, not silently erased failures. Infra corrected Modal's interpreter PATH without changing any package; no package rebuild occurred. Per-task billed cost remains unmeasured here, Dataset spend remains $0, and the RH wrong-acceptance validity gate remains distinct from these successful controls. Scoring is still disabled.
 
 ## Reference custody outside the packaged index
 

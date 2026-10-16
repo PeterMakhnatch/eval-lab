@@ -57,7 +57,7 @@ inputs:
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/docker-lock.md
-    digest: sha256:07a12313728e9920485e5140d9bd27c1173c5fbba83e13bc002e9fdd0b60b104
+    digest: sha256:643794b06ee82843f46f8360ff8b769e2b28ff9e6974fe9a6dc75b55889d331d
   - path: docs/engineering.md
     digest: sha256:1f703535a274d1b0d4924c2d19a565aa64065bf00d9d9207bc4d0149057e0dd0
   - path: docs/eval-cards.md
@@ -71,7 +71,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:44c18c79a13e5de8ffec4413a67f6ce6c155c18539c73ff041d4c29bdf4b5e22
+    digest: sha256:3088f938e285364c30e213d8b9d5bb51e08b9b6a390a1455d0e8c021164ca139
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -81,9 +81,9 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:dd4b47fac90f2881e25c8d1ac4c74cf078aad80dc66b862b4cf86e5a4cae9cf4
+    digest: sha256:69ae54ed1300d0266bbf5d5191e9ebc3dd59097e1ad93520c769fb32e28a0bf6
   - path: docs/lora-sft-runbook.md
-    digest: sha256:ef823c3f31104935cde778f5b4c4b4e80302984594e3573a682c7529042f0161
+    digest: sha256:87ceb1f12903e146aab6453375445f403aef93fbe0ef5fbdefc652d3684c490d
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:c5a8e73237951f8f62e44a43f07ff1299743ba46f4ae5333e7114585d2721715
+    digest: sha256:e46f7c9588f0e996bd5bec17477c0ea7afa5e2f20c96bb0cc5732481a855c1b3
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -124,6 +124,8 @@ inputs:
     digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
   - path: docs/research/trajectory-intelligence.md
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
+  - path: docs/rollout.md
+    digest: sha256:3f1d7e1d419cce64add4750b28c8801a53f14c4dd2c9272dcfd1bd610bdc9dba
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md
@@ -210,6 +212,7 @@ an operator can see what is archived.
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
+| `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
 | `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -384,6 +387,7 @@ an operator can see what is archived.
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
+| `docs/rollout.md` | Rollout engine (`evallab rollout`) | `living` | `builder, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

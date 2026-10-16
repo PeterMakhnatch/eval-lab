@@ -1,8 +1,8 @@
 {
   "additional_reported_failure_outside_experiment": "format-code-task-000081",
   "blockers": [
-    "Dataset fresh Modal controls remain unrun under the unresolved strict total-cost bound.",
-    "Scoring awaits Research disposition after valid native controls and RH validity checks."
+    "Arm scoring awaits Research disposition after the RH wrong-acceptance validity gate.",
+    "Remaining active-training/fleet controls are not asserted complete."
   ],
   "coordinator_disposition": {
     "deterministic_work": "File writing, permitted execution and green-CI merges may continue.",
@@ -14,8 +14,11 @@
   "cost_per_task_usd": null,
   "counts": {
     "active_train": 40,
+    "active_train_qualified_by_infra": 1,
     "fresh_cloud_pairs_run": 0,
     "heldout": 33,
+    "heldout_qualified_by_infra": 33,
+    "native_observations_preserved": 70,
     "paired_reference_tasks": 51,
     "selected_tasks": 73
   },
@@ -24,6 +27,7 @@
     "format-code-task-001373"
   ],
   "external_validity_status": {
+    "corrected_controls": "All 33 heldout packages and training task001647 qualify; full source package digests independently matched to native executor attestations. Wrong-acceptance validity is separate and remains pending.",
     "corrected_runner": "QA Trace native-matrix replay smoke on 000657, then controls first; no success inferred.",
     "initial_RH_screening": "33 unscored: plain-container runner omitted the required workspace snapshot; not package defects.",
     "reported_by": "Research"
@@ -33,15 +37,20 @@
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
     "sha256": "7eeb54993bccd55f9b79ceb80d1f5e4538e11d9583b8cd63bdc73d30eac17411"
   },
-  "recorded_at": "2026-10-16T07:16:49.112196+00:00",
+  "native_control_evidence": {
+    "bytes": 118377,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+    "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+  },
+  "recorded_at": "2026-10-16T07:55:29.393311+00:00",
   "schema": "mimo.cloud-controls/v1",
   "scope": "Fresh cloud reference x1 and nop x1 for frozen experiment membership; does not replace or relabel historical control evidence.",
   "scoring_allowed": false,
   "spend_usd": 0,
-  "status": "Fresh controls unrun by Dataset; Infra native oracle/nop controls on the 33 heldout tasks are Research-approved substitute tonight.",
+  "status": "All 33 heldout packages qualify on Infra native Modal oracle/nop controls; scoring remains blocked on Research validity disposition.",
   "table": {
-    "bytes": 23699,
+    "bytes": 26663,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/cloud-control-table.csv",
-    "sha256": "f8644a379445d7304107396cab11707ec985274f0fc297002d8277ea01690cab"
+    "sha256": "b2ba796a28f8934bbbed29f0978521e30cce4707a474ae19a845cad70ef504a9"
   }
 }

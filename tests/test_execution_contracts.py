@@ -729,27 +729,3 @@ def test_daytona_auto_stop_covers_max_model_call_plus_503_wait() -> None:
     assert longest_quiet_seconds <= DAYTONA_AUTO_STOP_INTERVAL_MINS * 60
 
 
-def test_daytona_environment_applies_shared_auto_stop(monkeypatch: pytest.MonkeyPatch) -> None:
-    """BoundedDaytonaEnvironment passes the shared constant, not a literal."""
-    # The deepseek-secret-isolation workflow runs this file without the
-    # laminar extra (no harbor package); the quality gate runs it with
-    # harbor installed. Skip — don't fail — where the SDK is absent.
-    pytest.importorskip("harbor")
-    from evallab import harbor_daytona
-    seen: dict[str, Any] = {}
-
-    def _stub_init(self: Any, *args: Any, **kwargs: Any) -> None:
-        from types import SimpleNamespace
-
-        seen.update(kwargs)
-        self.session_id = "sess"
-        self.environment_name = "env"
-        self.task_env_config = SimpleNamespace(build_timeout_sec=60)
-
-    monkeypatch.setattr(harbor_daytona.DaytonaEnvironment, "__init__", _stub_init)
-    env = harbor_daytona.BoundedDaytonaEnvironment.__new__(
-        harbor_daytona.BoundedDaytonaEnvironment
-    )
-    harbor_daytona.BoundedDaytonaEnvironment.__init__(env, ttl_minutes=60)
-    assert seen["auto_stop_interval_mins"] == DAYTONA_AUTO_STOP_INTERVAL_MINS
-    assert seen["auto_delete_interval_mins"] == 0

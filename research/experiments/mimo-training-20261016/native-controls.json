@@ -1,0 +1,2549 @@
+{
+  "backend": "modal",
+  "evidence_owner": "Infra",
+  "frozen_manifest": {
+    "bytes": 895106,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
+    "sha256": "7eeb54993bccd55f9b79ceb80d1f5e4538e11d9583b8cd63bdc73d30eac17411"
+  },
+  "observations": [
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001248/lab-metadata.json",
+        "sha256": "430b96399fc2ca0c88d6e112c809b90529c6dd0bd3485f05da957c454938d395"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47",
+        "reward": 1.0,
+        "task_id": "format-code-task-001248",
+        "wall_s": 125.1
+      },
+      "receipt_line": 1,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a569f544e90b00f78537333512591b79ca18584588f7ffec4a74587ec436f892",
+      "source_package_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "staged_harbor_digest": "sha256:a569f544e90b00f78537333512591b79ca18584588f7ffec4a74587ec436f892",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001248/lab-metadata.json",
+        "sha256": "ef301958b02ddccaea624bb764957956f88a811009c949198543549abe3b488d"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47",
+        "reward": 0.0,
+        "task_id": "format-code-task-001248",
+        "wall_s": 125.2
+      },
+      "receipt_line": 2,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a569f544e90b00f78537333512591b79ca18584588f7ffec4a74587ec436f892",
+      "source_package_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "staged_harbor_digest": "sha256:a569f544e90b00f78537333512591b79ca18584588f7ffec4a74587ec436f892",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000161/lab-metadata.json",
+        "sha256": "d6ee6de651738f3854356ac305a17e08fd0de113ced8fe6cea2070e47ffca345"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1",
+        "reward": 1.0,
+        "task_id": "format-code-task-000161",
+        "wall_s": 125.1
+      },
+      "receipt_line": 3,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:58ef39114fcc39acc5f5d29044f7be3237de60d8a47ed9369a0a59d4daec9d3b",
+      "source_package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+      "staged_harbor_digest": "sha256:58ef39114fcc39acc5f5d29044f7be3237de60d8a47ed9369a0a59d4daec9d3b",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000161/lab-metadata.json",
+        "sha256": "5f5157759639ca9a677f741910236b04d66dd6524119a42f1ae60a798e8ba630"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1",
+        "reward": 0.0,
+        "task_id": "format-code-task-000161",
+        "wall_s": 125.3
+      },
+      "receipt_line": 4,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:58ef39114fcc39acc5f5d29044f7be3237de60d8a47ed9369a0a59d4daec9d3b",
+      "source_package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+      "staged_harbor_digest": "sha256:58ef39114fcc39acc5f5d29044f7be3237de60d8a47ed9369a0a59d4daec9d3b",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000142/lab-metadata.json",
+        "sha256": "9982a462c017d69c2673a2f6f07213060371fe6b9fed7c49a91999141fff01d3"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f",
+        "reward": 1.0,
+        "task_id": "format-code-task-000142",
+        "wall_s": 143.6
+      },
+      "receipt_line": 5,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:1726319b27f2fae341d0ce1b8afe7fa319381c225e056fe57a90e6484cf9d919",
+      "source_package_digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+      "staged_harbor_digest": "sha256:1726319b27f2fae341d0ce1b8afe7fa319381c225e056fe57a90e6484cf9d919",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000142/lab-metadata.json",
+        "sha256": "04c1ef715938db430746778c559160815df2c09445958f0091f230710e61ff7a"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f",
+        "reward": 0.0,
+        "task_id": "format-code-task-000142",
+        "wall_s": 143.6
+      },
+      "receipt_line": 6,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:1726319b27f2fae341d0ce1b8afe7fa319381c225e056fe57a90e6484cf9d919",
+      "source_package_digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+      "staged_harbor_digest": "sha256:1726319b27f2fae341d0ce1b8afe7fa319381c225e056fe57a90e6484cf9d919",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000783/lab-metadata.json",
+        "sha256": "ece0814e2794616ac4372ab5255e488c74a9a0fcc302f763abdd4614e97a92b9"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5",
+        "reward": 1.0,
+        "task_id": "format-code-task-000783",
+        "wall_s": 125.2
+      },
+      "receipt_line": 7,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:d9d9f8b0e8f7110ed0d05583543376444b84b4c98593f2a991dc7916485b19f3",
+      "source_package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+      "staged_harbor_digest": "sha256:d9d9f8b0e8f7110ed0d05583543376444b84b4c98593f2a991dc7916485b19f3",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000783/lab-metadata.json",
+        "sha256": "554d904b501412a7f7eb1a46e6a85619d7b6ff4c561fecea4a1856b949990862"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5",
+        "reward": 0.0,
+        "task_id": "format-code-task-000783",
+        "wall_s": 125.1
+      },
+      "receipt_line": 8,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:d9d9f8b0e8f7110ed0d05583543376444b84b4c98593f2a991dc7916485b19f3",
+      "source_package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+      "staged_harbor_digest": "sha256:d9d9f8b0e8f7110ed0d05583543376444b84b4c98593f2a991dc7916485b19f3",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001399/lab-metadata.json",
+        "sha256": "223398d258296c1561a62ae1c0c0e9a43e6c11c168eba667da6d71f583d56087"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb",
+        "reward": 1.0,
+        "task_id": "format-code-task-001399",
+        "wall_s": 117.8
+      },
+      "receipt_line": 9,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "source_package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "staged_harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001399/lab-metadata.json",
+        "sha256": "dfb396e4bad70fefb2cdf757d646568007089c9cfe7a356ae166062f8219ef0a"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb",
+        "reward": 0.0,
+        "task_id": "format-code-task-001399",
+        "wall_s": 117.8
+      },
+      "receipt_line": 10,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "source_package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "staged_harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001914/lab-metadata.json",
+        "sha256": "37d675546f5f54cb3bc7713b75bc8119021aedb4489f9be6ba97783524f0d21a"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6",
+        "reward": 1.0,
+        "task_id": "format-code-task-001914",
+        "wall_s": 117.8
+      },
+      "receipt_line": 11,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:660198636dafa304b5ff61dce526661bd670253212fa7d4a48df3ec1c1ce42a1",
+      "source_package_digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+      "staged_harbor_digest": "sha256:660198636dafa304b5ff61dce526661bd670253212fa7d4a48df3ec1c1ce42a1",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001914/lab-metadata.json",
+        "sha256": "a00a9255da11d9ddee4c4142cabc1406edbe6dc0cd0b78a58753232486f1eebe"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6",
+        "reward": 0.0,
+        "task_id": "format-code-task-001914",
+        "wall_s": 117.7
+      },
+      "receipt_line": 12,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:660198636dafa304b5ff61dce526661bd670253212fa7d4a48df3ec1c1ce42a1",
+      "source_package_digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+      "staged_harbor_digest": "sha256:660198636dafa304b5ff61dce526661bd670253212fa7d4a48df3ec1c1ce42a1",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002871/lab-metadata.json",
+        "sha256": "2b445535f561d540ea015a371e94b872165bc01b74eaef6d2b9412884f698fc8"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661",
+        "reward": 1.0,
+        "task_id": "format-code-task-002871",
+        "wall_s": 185.9
+      },
+      "receipt_line": 13,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "source_package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "staged_harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002871/lab-metadata.json",
+        "sha256": "d5e0632acc439bcf329db17ef50508f4a8f7cd85bab3898932ee99260a7ada45"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661",
+        "reward": 0.0,
+        "task_id": "format-code-task-002871",
+        "wall_s": 117.7
+      },
+      "receipt_line": 14,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "source_package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "staged_harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002335/lab-metadata.json",
+        "sha256": "1c0e58dd3d06d47f1d31e00a7ca8dd624ab7fc2e30ffa14fcce7c0f2924d54f3"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df",
+        "reward": 1.0,
+        "task_id": "format-code-task-002335",
+        "wall_s": 111.2
+      },
+      "receipt_line": 15,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "source_package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "staged_harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002335/lab-metadata.json",
+        "sha256": "16a468353fbbd07f5b18ee49e9c2adbaceb2cefdf4075850c2f98f3e35e2ef31"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df",
+        "reward": 0.0,
+        "task_id": "format-code-task-002335",
+        "wall_s": 111.2
+      },
+      "receipt_line": 16,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "source_package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "staged_harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001590/lab-metadata.json",
+        "sha256": "6b0af0a092bcf57c83e3eb5ba7a942e0354540f220bc191bdd97e015898437db"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614",
+        "reward": 1.0,
+        "task_id": "format-code-task-001590",
+        "wall_s": 235.7
+      },
+      "receipt_line": 17,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "source_package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "staged_harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001590/lab-metadata.json",
+        "sha256": "f3251754c1f48f7c72afc128050dc377075ebe5e2f16ce6b71001f06e3dafbb6"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614",
+        "reward": 0.0,
+        "task_id": "format-code-task-001590",
+        "wall_s": 235.7
+      },
+      "receipt_line": 18,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "source_package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "staged_harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001480/lab-metadata.json",
+        "sha256": "f6b560437d5945ca4b978dc796cdba8547cad3c42538dcaea38f56979de474b3"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356",
+        "reward": 1.0,
+        "task_id": "format-code-task-001480",
+        "wall_s": 401.9
+      },
+      "receipt_line": 19,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f7f8cbd7dc734ec74d4f1b298f87e7f5727f47cc387fa425ebc96414356035ba",
+      "source_package_digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+      "staged_harbor_digest": "sha256:f7f8cbd7dc734ec74d4f1b298f87e7f5727f47cc387fa425ebc96414356035ba",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001480/lab-metadata.json",
+        "sha256": "a4f4551ad31e0acd7a5666318bc869cd743737193bf4f5f5574fe5dffa88fd46"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356",
+        "reward": 0.0,
+        "task_id": "format-code-task-001480",
+        "wall_s": 401.9
+      },
+      "receipt_line": 20,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f7f8cbd7dc734ec74d4f1b298f87e7f5727f47cc387fa425ebc96414356035ba",
+      "source_package_digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+      "staged_harbor_digest": "sha256:f7f8cbd7dc734ec74d4f1b298f87e7f5727f47cc387fa425ebc96414356035ba",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001371/lab-metadata.json",
+        "sha256": "ebd95a670ab42b61e0dc30a3bb8bf20637e228633b9f4456fa3224aff25ecc20"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb",
+        "reward": 1.0,
+        "task_id": "format-code-task-001371",
+        "wall_s": 235.7
+      },
+      "receipt_line": 21,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "source_package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "staged_harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001371/lab-metadata.json",
+        "sha256": "0e81448d874cfe2ce6451cadfec2621b00180021390f9ba32060c788a4e53d7d"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb",
+        "reward": 0.0,
+        "task_id": "format-code-task-001371",
+        "wall_s": 223.9
+      },
+      "receipt_line": 22,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "source_package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "staged_harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001246/lab-metadata.json",
+        "sha256": "0ff77648eaaac07cc440f0097531e8804d6f9825916bffffdff76f3c8f25f23f"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5",
+        "reward": 1.0,
+        "task_id": "format-code-task-001246",
+        "wall_s": 199.6
+      },
+      "receipt_line": 23,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a3a88f44a5785afb0f94e6fa6a529f755bd2c6903572df83d0f3a4344dd77e35",
+      "source_package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+      "staged_harbor_digest": "sha256:a3a88f44a5785afb0f94e6fa6a529f755bd2c6903572df83d0f3a4344dd77e35",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001246/lab-metadata.json",
+        "sha256": "8e26ff35582eac157d9679f716bd0d6494f8c8803b0db5551e24b1d0977cc713"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5",
+        "reward": 0.0,
+        "task_id": "format-code-task-001246",
+        "wall_s": 114.3
+      },
+      "receipt_line": 24,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a3a88f44a5785afb0f94e6fa6a529f755bd2c6903572df83d0f3a4344dd77e35",
+      "source_package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+      "staged_harbor_digest": "sha256:a3a88f44a5785afb0f94e6fa6a529f755bd2c6903572df83d0f3a4344dd77e35",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001948/lab-metadata.json",
+        "sha256": "055c0a4a054f6724b7747b60dcb03697d0cd2c4630fd631330594b2442779ad9"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": "AttributeError: 'NoneType' object has no attribute 'get'",
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611",
+        "reward": null,
+        "task_id": "format-code-task-001948",
+        "wall_s": 88.7
+      },
+      "receipt_line": 25,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "source_package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "staged_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001948/lab-metadata.json",
+        "sha256": "9dc90604524de73d420bf0dd8faf2943e599c85f0edf7a44961ffd8ad0247352"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": "AttributeError: 'NoneType' object has no attribute 'get'",
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611",
+        "reward": null,
+        "task_id": "format-code-task-001948",
+        "wall_s": 59.6
+      },
+      "receipt_line": 26,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "source_package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "staged_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001425/lab-metadata.json",
+        "sha256": "f7047e96b99ee336f3aa8c44286acd0f576a5d9e9e2d23a3c464cb6552e106cf"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/be536e940963",
+        "reward": 1.0,
+        "task_id": "format-code-task-001425",
+        "wall_s": 104.9
+      },
+      "receipt_line": 27,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:b8ca00a78bf1daf7786cddfc314ad6a0c4aa5c37585d505405ed8f15544f50f8",
+      "source_package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+      "staged_harbor_digest": "sha256:b8ca00a78bf1daf7786cddfc314ad6a0c4aa5c37585d505405ed8f15544f50f8",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001425/lab-metadata.json",
+        "sha256": "eed4bb7da83d70731eecc23e02561b461e41a3d96b7ba3567f86e293688d754f"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/be536e940963",
+        "reward": 0.0,
+        "task_id": "format-code-task-001425",
+        "wall_s": 104.9
+      },
+      "receipt_line": 28,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:b8ca00a78bf1daf7786cddfc314ad6a0c4aa5c37585d505405ed8f15544f50f8",
+      "source_package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+      "staged_harbor_digest": "sha256:b8ca00a78bf1daf7786cddfc314ad6a0c4aa5c37585d505405ed8f15544f50f8",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002395/lab-metadata.json",
+        "sha256": "b04b6ffc68d8dee5ab6313738f46cb8e75dc99102fdb5661f2d94308a2c1261d"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582",
+        "reward": 1.0,
+        "task_id": "format-code-task-002395",
+        "wall_s": 257.0
+      },
+      "receipt_line": 29,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:e51487df9ccf0be4b91371914a5134da2612de07f1793cfce2c494b7b61788bf",
+      "source_package_digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+      "staged_harbor_digest": "sha256:e51487df9ccf0be4b91371914a5134da2612de07f1793cfce2c494b7b61788bf",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002395/lab-metadata.json",
+        "sha256": "9095e3e0cec6415ff66e73fbc3c7bb0d77854c28737e1302b8835c5ca65a6790"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582",
+        "reward": 0.0,
+        "task_id": "format-code-task-002395",
+        "wall_s": 257.0
+      },
+      "receipt_line": 30,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:e51487df9ccf0be4b91371914a5134da2612de07f1793cfce2c494b7b61788bf",
+      "source_package_digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+      "staged_harbor_digest": "sha256:e51487df9ccf0be4b91371914a5134da2612de07f1793cfce2c494b7b61788bf",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002092/lab-metadata.json",
+        "sha256": "389f4fc5d39612c13574c9f4fcdc2ea4002f67a1261069e7996cd2d87cafd52f"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836",
+        "reward": 1.0,
+        "task_id": "format-code-task-002092",
+        "wall_s": 338.8
+      },
+      "receipt_line": 31,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "source_package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "staged_harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002092/lab-metadata.json",
+        "sha256": "0bd95349f81cf0d723f9548328613432ed6d906ef074ecb1e5ce76b96258d504"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836",
+        "reward": 0.0,
+        "task_id": "format-code-task-002092",
+        "wall_s": 338.8
+      },
+      "receipt_line": 32,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "source_package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "staged_harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000144/lab-metadata.json",
+        "sha256": "ea4850661b0aad096a7b17d24403468525293010e7a3f0466878b6aaf7fff4f0"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7",
+        "reward": 1.0,
+        "task_id": "format-code-task-000144",
+        "wall_s": 129.6
+      },
+      "receipt_line": 33,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "source_package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "staged_harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000144/lab-metadata.json",
+        "sha256": "294d02130af3be723ea6c48467780cab301f4d13cad833a10f34414784e0e996"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7",
+        "reward": 0.0,
+        "task_id": "format-code-task-000144",
+        "wall_s": 129.6
+      },
+      "receipt_line": 34,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "source_package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "staged_harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002915/lab-metadata.json",
+        "sha256": "f15268e17f248deaaf8d82557d8ef478e8e9eac8afe30ce5b5bd51b30fecbead"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c",
+        "reward": 1.0,
+        "task_id": "format-code-task-002915",
+        "wall_s": 108.6
+      },
+      "receipt_line": 35,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2a2cb5e822f78ac8c262d08743aded6d9e55579a0fc8d2cb1af19e788eda5373",
+      "source_package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+      "staged_harbor_digest": "sha256:2a2cb5e822f78ac8c262d08743aded6d9e55579a0fc8d2cb1af19e788eda5373",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002915/lab-metadata.json",
+        "sha256": "b440240fecbeddfd0c0a02fe6f86dd903e3dc51111a981951eae3ac66b135701"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c",
+        "reward": 0.0,
+        "task_id": "format-code-task-002915",
+        "wall_s": 108.6
+      },
+      "receipt_line": 36,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:2a2cb5e822f78ac8c262d08743aded6d9e55579a0fc8d2cb1af19e788eda5373",
+      "source_package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+      "staged_harbor_digest": "sha256:2a2cb5e822f78ac8c262d08743aded6d9e55579a0fc8d2cb1af19e788eda5373",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000143/lab-metadata.json",
+        "sha256": "b18104e489c48338d3deb23695a1c9de644591d25d3c12e50026cf2c51d5602f"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680",
+        "reward": 1.0,
+        "task_id": "format-code-task-000143",
+        "wall_s": 160.9
+      },
+      "receipt_line": 37,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:d413abaa38ef88a381bef58fdd5ca81983504bc438e1c06d6a31f17437912755",
+      "source_package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "staged_harbor_digest": "sha256:d413abaa38ef88a381bef58fdd5ca81983504bc438e1c06d6a31f17437912755",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000143/lab-metadata.json",
+        "sha256": "f6703d5f1a139569c18509a1f13ea7ea75686cfc982c44b5408c28c2fcbe8fbd"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680",
+        "reward": 0.0,
+        "task_id": "format-code-task-000143",
+        "wall_s": 160.9
+      },
+      "receipt_line": 38,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:d413abaa38ef88a381bef58fdd5ca81983504bc438e1c06d6a31f17437912755",
+      "source_package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "staged_harbor_digest": "sha256:d413abaa38ef88a381bef58fdd5ca81983504bc438e1c06d6a31f17437912755",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000149/lab-metadata.json",
+        "sha256": "7b979ec55901a2510fb62a6aeb0a0a72d93e0e26e83fa9bcba1f77e4a1d050e0"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16",
+        "reward": 1.0,
+        "task_id": "format-code-task-000149",
+        "wall_s": 138.4
+      },
+      "receipt_line": 39,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:826242a95f282ecd8a0b3756fd20a01c1a8ef21fe9e11176cd613adf1b4be3cf",
+      "source_package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "staged_harbor_digest": "sha256:826242a95f282ecd8a0b3756fd20a01c1a8ef21fe9e11176cd613adf1b4be3cf",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000149/lab-metadata.json",
+        "sha256": "92fb9f51bf99499c3a87a6daed3dd63d48a0968ac17af88b2cc07c3a8906c299"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16",
+        "reward": 0.0,
+        "task_id": "format-code-task-000149",
+        "wall_s": 138.3
+      },
+      "receipt_line": 40,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:826242a95f282ecd8a0b3756fd20a01c1a8ef21fe9e11176cd613adf1b4be3cf",
+      "source_package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "staged_harbor_digest": "sha256:826242a95f282ecd8a0b3756fd20a01c1a8ef21fe9e11176cd613adf1b4be3cf",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002989/lab-metadata.json",
+        "sha256": "705acfde99e002f860839c8fea38fdd7586aa4bab15cce4164963bb7cd53cda4"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72",
+        "reward": 1.0,
+        "task_id": "format-code-task-002989",
+        "wall_s": 120.7
+      },
+      "receipt_line": 41,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "source_package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "staged_harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002989/lab-metadata.json",
+        "sha256": "a976e9b071d5b17e775dd2e0b56741419a74fb238f05db2ecd22e47c3263e33a"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72",
+        "reward": 0.0,
+        "task_id": "format-code-task-002989",
+        "wall_s": 120.7
+      },
+      "receipt_line": 42,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "source_package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "staged_harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001199/lab-metadata.json",
+        "sha256": "b06257fde68a3796cf55b1ae3ebf3537fdd80aa915c95489fa70c02dca90390c"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a",
+        "reward": 1.0,
+        "task_id": "format-code-task-001199",
+        "wall_s": 253.4
+      },
+      "receipt_line": 43,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:5c447736904cd086ad9792ad97bced866c02cfc9d9d36ced9008a53e6dd75751",
+      "source_package_digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+      "staged_harbor_digest": "sha256:5c447736904cd086ad9792ad97bced866c02cfc9d9d36ced9008a53e6dd75751",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001199/lab-metadata.json",
+        "sha256": "524a6b3afe6142956e942c906b749d0720b456d13a6ed3839866696d62d88e21"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a",
+        "reward": 0.0,
+        "task_id": "format-code-task-001199",
+        "wall_s": 254.9
+      },
+      "receipt_line": 44,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:5c447736904cd086ad9792ad97bced866c02cfc9d9d36ced9008a53e6dd75751",
+      "source_package_digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+      "staged_harbor_digest": "sha256:5c447736904cd086ad9792ad97bced866c02cfc9d9d36ced9008a53e6dd75751",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000878/lab-metadata.json",
+        "sha256": "6ca3191770d7ed560fab00312480ebf74281aee177913a9c75951ae126c137b8"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d",
+        "reward": 1.0,
+        "task_id": "format-code-task-000878",
+        "wall_s": 214.6
+      },
+      "receipt_line": 45,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:c23089b479f826e6638f7eac15ae8f5f22eed5972f7ef1cb20be69f47546ed07",
+      "source_package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "staged_harbor_digest": "sha256:c23089b479f826e6638f7eac15ae8f5f22eed5972f7ef1cb20be69f47546ed07",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000878/lab-metadata.json",
+        "sha256": "65162beb62063030d7269e95467156c9cd75ed587d35ed19557740b3f4ae7b55"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d",
+        "reward": 0.0,
+        "task_id": "format-code-task-000878",
+        "wall_s": 214.6
+      },
+      "receipt_line": 46,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:c23089b479f826e6638f7eac15ae8f5f22eed5972f7ef1cb20be69f47546ed07",
+      "source_package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "staged_harbor_digest": "sha256:c23089b479f826e6638f7eac15ae8f5f22eed5972f7ef1cb20be69f47546ed07",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001220/lab-metadata.json",
+        "sha256": "30f397d3ca20659b611b68286b9fd158392f6a952997706347550519f0006349"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159",
+        "reward": 1.0,
+        "task_id": "format-code-task-001220",
+        "wall_s": 192.9
+      },
+      "receipt_line": 47,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "source_package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "staged_harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001220/lab-metadata.json",
+        "sha256": "345c126cbcabc9a38443dc510873b74b6834cb3db34e8b6d19c08a7f1f5c0bd4"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159",
+        "reward": 0.0,
+        "task_id": "format-code-task-001220",
+        "wall_s": 192.9
+      },
+      "receipt_line": 48,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "source_package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "staged_harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000905/lab-metadata.json",
+        "sha256": "374264ed5875c913b60fc86b7c982ff63c442f19f288da83669cb137f2fadd2a"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd",
+        "reward": 1.0,
+        "task_id": "format-code-task-000905",
+        "wall_s": 102.2
+      },
+      "receipt_line": 49,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "source_package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "staged_harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000905/lab-metadata.json",
+        "sha256": "466ead54a3290fb3c5d7684d0458a22fede9ec8673a57cd5265fc9af4c8492de"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd",
+        "reward": 0.0,
+        "task_id": "format-code-task-000905",
+        "wall_s": 102.2
+      },
+      "receipt_line": 50,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "source_package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "staged_harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002371/lab-metadata.json",
+        "sha256": "c78a1bb62adaf885336928434f4cedfe09ffba3fc1426e2e4d3b2d3b9de09704"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa",
+        "reward": 1.0,
+        "task_id": "format-code-task-002371",
+        "wall_s": 90.7
+      },
+      "receipt_line": 51,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:b936902b6c4249e9836c383298d3074998aaa57c6ac93a30a831262810f2fc91",
+      "source_package_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "staged_harbor_digest": "sha256:b936902b6c4249e9836c383298d3074998aaa57c6ac93a30a831262810f2fc91",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002371/lab-metadata.json",
+        "sha256": "b9424bf321c4e4c3fb5c8494ebe0e5600e9f558cc8ffe1e7315a1bba6e98f584"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa",
+        "reward": 0.0,
+        "task_id": "format-code-task-002371",
+        "wall_s": 90.7
+      },
+      "receipt_line": 52,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:b936902b6c4249e9836c383298d3074998aaa57c6ac93a30a831262810f2fc91",
+      "source_package_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "staged_harbor_digest": "sha256:b936902b6c4249e9836c383298d3074998aaa57c6ac93a30a831262810f2fc91",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001891/lab-metadata.json",
+        "sha256": "58b1bcfb1fb8734a87b5174922097b912ae110c03444429965ac4eeb013a8595"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd",
+        "reward": 1.0,
+        "task_id": "format-code-task-001891",
+        "wall_s": 92.7
+      },
+      "receipt_line": 53,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "source_package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "staged_harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001891/lab-metadata.json",
+        "sha256": "f4e7e4a29d12fb829cdb4e50a5cf699460252b13add32ece2c77c0ac93a040d1"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd",
+        "reward": 0.0,
+        "task_id": "format-code-task-001891",
+        "wall_s": 99.9
+      },
+      "receipt_line": 54,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "source_package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "staged_harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002451/lab-metadata.json",
+        "sha256": "e488b05d537bdf80f610279b7b3d12025c0ed392dc8767025efecde40e0f1860"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3",
+        "reward": 1.0,
+        "task_id": "format-code-task-002451",
+        "wall_s": 93.2
+      },
+      "receipt_line": 55,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:054dc3e01eabbba2c1069621b7755a99b8f1e3115782faa9237295e61b600372",
+      "source_package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+      "staged_harbor_digest": "sha256:054dc3e01eabbba2c1069621b7755a99b8f1e3115782faa9237295e61b600372",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002451/lab-metadata.json",
+        "sha256": "9e013a6b70d7bd671fb0b36bf2f7d9b3aa9132e170e68b9b690fe67ed255007f"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3",
+        "reward": 0.0,
+        "task_id": "format-code-task-002451",
+        "wall_s": 92.7
+      },
+      "receipt_line": 56,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:054dc3e01eabbba2c1069621b7755a99b8f1e3115782faa9237295e61b600372",
+      "source_package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+      "staged_harbor_digest": "sha256:054dc3e01eabbba2c1069621b7755a99b8f1e3115782faa9237295e61b600372",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002304/lab-metadata.json",
+        "sha256": "5ebd64c2ed086d0049f2e3cdd9ff317b1d0a22b66bb4c5f68871795986d73fa4"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb",
+        "reward": 1.0,
+        "task_id": "format-code-task-002304",
+        "wall_s": 152.5
+      },
+      "receipt_line": 57,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "source_package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "staged_harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002304/lab-metadata.json",
+        "sha256": "95c6636e2d104bbd10b16a5fc16822d9db5d568ccdaaf0de2eb8c4a3d908a71d"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb",
+        "reward": 0.0,
+        "task_id": "format-code-task-002304",
+        "wall_s": 152.7
+      },
+      "receipt_line": 58,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "source_package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "staged_harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000582/lab-metadata.json",
+        "sha256": "756d0390b7895611cc2c6ee26460d2ad56cc0722bfd7635a060e0ca32782c73f"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2",
+        "reward": 1.0,
+        "task_id": "format-code-task-000582",
+        "wall_s": 165.9
+      },
+      "receipt_line": 59,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "source_package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "staged_harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000582/lab-metadata.json",
+        "sha256": "7e0ff9ce7d8f5a473f11c46e1bea286de228f4f444605d9471df774e5d12534a"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2",
+        "reward": 0.0,
+        "task_id": "format-code-task-000582",
+        "wall_s": 164.4
+      },
+      "receipt_line": 60,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "source_package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "staged_harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000657/lab-metadata.json",
+        "sha256": "481ab13ee6678fca6fac3cfe6103d78610abdc9d7a8af6c78fc31388be51d2f1"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6",
+        "reward": 1.0,
+        "task_id": "format-code-task-000657",
+        "wall_s": 149.0
+      },
+      "receipt_line": 61,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "source_package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "staged_harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000657/lab-metadata.json",
+        "sha256": "de7d929cf1dc4e11a0ad2d1cc781a0a750ea194dbbcfc93a221d51279045dc03"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6",
+        "reward": 0.0,
+        "task_id": "format-code-task-000657",
+        "wall_s": 147.6
+      },
+      "receipt_line": 62,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "source_package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "staged_harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000371/lab-metadata.json",
+        "sha256": "e7efa75fb5c41be1ebbe791b84286bcdcb4c2191786d247342537d371cc1f7fc"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232",
+        "reward": 1.0,
+        "task_id": "format-code-task-000371",
+        "wall_s": 65.6
+      },
+      "receipt_line": 63,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "source_package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "staged_harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000371/lab-metadata.json",
+        "sha256": "5f10c72c709357d8ce39ea61310648da0c4fa5a7591555359c3b9810bdf20270"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232",
+        "reward": 0.0,
+        "task_id": "format-code-task-000371",
+        "wall_s": 58.9
+      },
+      "receipt_line": 64,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "source_package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "staged_harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3258,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001686/lab-metadata.json",
+        "sha256": "1cdd62297c2161169e196730193ffd613013e8e54113c9e43a1f69b5dd308e8d"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65",
+        "reward": 1.0,
+        "task_id": "format-code-task-001686",
+        "wall_s": 132.5
+      },
+      "receipt_line": 65,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "source_package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "staged_harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3240,
+        "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001686/lab-metadata.json",
+        "sha256": "54dcc396ab5786845b9640481dcf2510e66068abd10ad1f4589e5388146fcf7c"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65",
+        "reward": 0.0,
+        "task_id": "format-code-task-001686",
+        "wall_s": 132.5
+      },
+      "receipt_line": 66,
+      "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/rollout-attempts",
+        "capture": "run-time",
+        "commit": "464ce4ec0ff64faf3a6c14a99301772063dcd194",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "source_package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "staged_harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3394,
+        "path": "/private/tmp/heldout-controls-001948-fix/jobs/heldout-control-oracle-format-code-task-001948/lab-metadata.json",
+        "sha256": "96e5e10eb46fba5744373caf32983075692b5881fdfb20d34c726907631e0561"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611",
+        "reward": 1.0,
+        "task_id": "format-code-task-001948",
+        "wall_s": 95.7
+      },
+      "receipt_line": 1,
+      "receipt_source": "/private/tmp/heldout-controls-001948-fix/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/modal-python-path",
+        "capture": "run-time",
+        "commit": "5c53eb22eb389a025b2b8640fcf898121bb00ead",
+        "dirty": true,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:f0ca0a8640f1df403d6bddcf480c12061a0d1e41b50ba9f6ef41d43dd9c94c8f",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "source_package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "staged_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3376,
+        "path": "/private/tmp/heldout-controls-001948-fix/jobs/heldout-control-nop-format-code-task-001948/lab-metadata.json",
+        "sha256": "9a237bfaec898fe9dd1dbae8968e343b766c40f17c1e94cb004370db62f9ee22"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611",
+        "reward": 0.0,
+        "task_id": "format-code-task-001948",
+        "wall_s": 92.8
+      },
+      "receipt_line": 2,
+      "receipt_source": "/private/tmp/heldout-controls-001948-fix/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/modal-python-path",
+        "capture": "run-time",
+        "commit": "5c53eb22eb389a025b2b8640fcf898121bb00ead",
+        "dirty": true,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:f0ca0a8640f1df403d6bddcf480c12061a0d1e41b50ba9f6ef41d43dd9c94c8f",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "source_package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "staged_harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3395,
+        "path": "/private/tmp/heldout-controls-001647-fix/jobs/heldout-control-oracle-format-code-task-001647/lab-metadata.json",
+        "sha256": "71a40d7c832fb6ee50eedffcc73175dfdac3e7f78c1d8530b96f1e3ea13d2360"
+      },
+      "receipt": {
+        "agent": "oracle",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001647/0dccd133371a",
+        "reward": 1.0,
+        "task_id": "format-code-task-001647",
+        "wall_s": 100.0
+      },
+      "receipt_line": 1,
+      "receipt_source": "/private/tmp/heldout-controls-001647-fix/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/modal-python-path",
+        "capture": "run-time",
+        "commit": "b42138735d3078eb26d4b8f0a6cf5f97c25b3a96",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:8bfabb1429285e06841b3f610e426f34f224251ff901f32674b68fd08216c404",
+      "source_package_digest": "sha256:0dccd133371a7960fac7328c6f8a478c5e7285433706a4bfc8958de9e8fbcd3d",
+      "staged_harbor_digest": "sha256:8bfabb1429285e06841b3f610e426f34f224251ff901f32674b68fd08216c404",
+      "timed_out": false
+    },
+    {
+      "native_exit_code": 0,
+      "native_metadata": {
+        "bytes": 3377,
+        "path": "/private/tmp/heldout-controls-001647-fix/jobs/heldout-control-nop-format-code-task-001647/lab-metadata.json",
+        "sha256": "5b1eaf52fcaef570cc08286f37e63182791fe6308ede80f4f53bdac6b50044e6"
+      },
+      "receipt": {
+        "agent": "nop",
+        "error": null,
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001647/0dccd133371a",
+        "reward": 0.0,
+        "task_id": "format-code-task-001647",
+        "wall_s": 100.0
+      },
+      "receipt_line": 2,
+      "receipt_source": "/private/tmp/heldout-controls-001647-fix/controls.jsonl",
+      "runner_repository": {
+        "branch": "infra/modal-python-path",
+        "capture": "run-time",
+        "commit": "b42138735d3078eb26d4b8f0a6cf5f97c25b3a96",
+        "dirty": false,
+        "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+        "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unknown": [],
+        "untracked": [],
+        "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/qa-modal"
+      },
+      "source_harbor_digest": "sha256:8bfabb1429285e06841b3f610e426f34f224251ff901f32674b68fd08216c404",
+      "source_package_digest": "sha256:0dccd133371a7960fac7328c6f8a478c5e7285433706a4bfc8958de9e8fbcd3d",
+      "staged_harbor_digest": "sha256:8bfabb1429285e06841b3f610e426f34f224251ff901f32674b68fd08216c404",
+      "timed_out": false
+    }
+  ],
+  "qualification_scope": "Exact-v6-package oracle x1=1 and nop x1=0; not a wrong-acceptance finding and not permission to score arms.",
+  "recorded_at": "2026-10-16T07:55:29.367535+00:00",
+  "runtime_correction": "Only 001948 supersedes earlier unscored setup attempts. Infra pinned Modal PATH; packages are byte-unchanged. 001647 also qualifies under the corrected runner.",
+  "schema": "mimo.native-controls/v1",
+  "scoring_allowed": false,
+  "selected_pairs": [
+    {
+      "nop_observation": 5,
+      "oracle_observation": 4,
+      "package_digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+      "task_id": "format-code-task-000142"
+    },
+    {
+      "nop_observation": 37,
+      "oracle_observation": 36,
+      "package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "task_id": "format-code-task-000143"
+    },
+    {
+      "nop_observation": 33,
+      "oracle_observation": 32,
+      "package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "task_id": "format-code-task-000144"
+    },
+    {
+      "nop_observation": 39,
+      "oracle_observation": 38,
+      "package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "task_id": "format-code-task-000149"
+    },
+    {
+      "nop_observation": 3,
+      "oracle_observation": 2,
+      "package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+      "task_id": "format-code-task-000161"
+    },
+    {
+      "nop_observation": 63,
+      "oracle_observation": 62,
+      "package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "task_id": "format-code-task-000371"
+    },
+    {
+      "nop_observation": 59,
+      "oracle_observation": 58,
+      "package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "task_id": "format-code-task-000582"
+    },
+    {
+      "nop_observation": 61,
+      "oracle_observation": 60,
+      "package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "task_id": "format-code-task-000657"
+    },
+    {
+      "nop_observation": 7,
+      "oracle_observation": 6,
+      "package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+      "task_id": "format-code-task-000783"
+    },
+    {
+      "nop_observation": 45,
+      "oracle_observation": 44,
+      "package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "task_id": "format-code-task-000878"
+    },
+    {
+      "nop_observation": 49,
+      "oracle_observation": 48,
+      "package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "task_id": "format-code-task-000905"
+    },
+    {
+      "nop_observation": 43,
+      "oracle_observation": 42,
+      "package_digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+      "task_id": "format-code-task-001199"
+    },
+    {
+      "nop_observation": 47,
+      "oracle_observation": 46,
+      "package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "task_id": "format-code-task-001220"
+    },
+    {
+      "nop_observation": 23,
+      "oracle_observation": 22,
+      "package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+      "task_id": "format-code-task-001246"
+    },
+    {
+      "nop_observation": 1,
+      "oracle_observation": 0,
+      "package_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "task_id": "format-code-task-001248"
+    },
+    {
+      "nop_observation": 21,
+      "oracle_observation": 20,
+      "package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "task_id": "format-code-task-001371"
+    },
+    {
+      "nop_observation": 9,
+      "oracle_observation": 8,
+      "package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "task_id": "format-code-task-001399"
+    },
+    {
+      "nop_observation": 27,
+      "oracle_observation": 26,
+      "package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+      "task_id": "format-code-task-001425"
+    },
+    {
+      "nop_observation": 19,
+      "oracle_observation": 18,
+      "package_digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+      "task_id": "format-code-task-001480"
+    },
+    {
+      "nop_observation": 17,
+      "oracle_observation": 16,
+      "package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "task_id": "format-code-task-001590"
+    },
+    {
+      "nop_observation": 69,
+      "oracle_observation": 68,
+      "package_digest": "sha256:0dccd133371a7960fac7328c6f8a478c5e7285433706a4bfc8958de9e8fbcd3d",
+      "task_id": "format-code-task-001647"
+    },
+    {
+      "nop_observation": 65,
+      "oracle_observation": 64,
+      "package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "task_id": "format-code-task-001686"
+    },
+    {
+      "nop_observation": 53,
+      "oracle_observation": 52,
+      "package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "task_id": "format-code-task-001891"
+    },
+    {
+      "nop_observation": 11,
+      "oracle_observation": 10,
+      "package_digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+      "task_id": "format-code-task-001914"
+    },
+    {
+      "nop_observation": 67,
+      "oracle_observation": 66,
+      "package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "task_id": "format-code-task-001948"
+    },
+    {
+      "nop_observation": 31,
+      "oracle_observation": 30,
+      "package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "task_id": "format-code-task-002092"
+    },
+    {
+      "nop_observation": 57,
+      "oracle_observation": 56,
+      "package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "task_id": "format-code-task-002304"
+    },
+    {
+      "nop_observation": 15,
+      "oracle_observation": 14,
+      "package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "task_id": "format-code-task-002335"
+    },
+    {
+      "nop_observation": 51,
+      "oracle_observation": 50,
+      "package_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "task_id": "format-code-task-002371"
+    },
+    {
+      "nop_observation": 29,
+      "oracle_observation": 28,
+      "package_digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+      "task_id": "format-code-task-002395"
+    },
+    {
+      "nop_observation": 55,
+      "oracle_observation": 54,
+      "package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+      "task_id": "format-code-task-002451"
+    },
+    {
+      "nop_observation": 13,
+      "oracle_observation": 12,
+      "package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "task_id": "format-code-task-002871"
+    },
+    {
+      "nop_observation": 35,
+      "oracle_observation": 34,
+      "package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+      "task_id": "format-code-task-002915"
+    },
+    {
+      "nop_observation": 41,
+      "oracle_observation": 40,
+      "package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "task_id": "format-code-task-002989"
+    }
+  ],
+  "sources": [
+    {
+      "bytes": 15775,
+      "path": "/private/tmp/heldout-controls-33/controls.jsonl",
+      "sha256": "8095d167c28263e0be366efd0c16f82f01393a96a2a6a29041fee2dfd3e5ed9a"
+    },
+    {
+      "bytes": 473,
+      "path": "/private/tmp/heldout-controls-001948-fix/controls.jsonl",
+      "sha256": "85436a1ebdc7c252f20a3ebf63aea31cf448388ff64fd022ab5e9e1a541eb92b"
+    },
+    {
+      "bytes": 475,
+      "path": "/private/tmp/heldout-controls-001647-fix/controls.jsonl",
+      "sha256": "acfc569ecdb81771cda8916d25b4f8446e6d9ad4b0c1a1f62b86c2249504c1b4"
+    }
+  ]
+}

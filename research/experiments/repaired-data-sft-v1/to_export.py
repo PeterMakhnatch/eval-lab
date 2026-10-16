@@ -22,9 +22,11 @@ Two outputs, both `evallab.sft_terminus/1` directories (conversations.jsonl + ma
   model output;
 - render ≤ `--max-length` tokens: sft.py's ceiling; rows are never truncated.
 
-C is QA Trace's own C: its seeded draw already honours the active-exclusion list. Every
-C row must be eligible, and |C| must equal |eligible B|. Otherwise the script refuses,
-so a size-matched control is never improvised here.
+C is QA Trace's own draw: the first |eligible B| eligible ids of its manifest
+`c_frame.draw_order`, which already honours the active-exclusion list. A published C row
+that cannot be trained is replaced by the next id in that order (QA Trace's rule), never
+drawn here. The script refuses if the draw order is missing or does not start with the
+published C.
 
     HF_HUB_OFFLINE=1 uv run --project tools/modal-mimo-sft --locked python \
         research/experiments/repaired-data-sft-v1/to_export.py --arms <build_arms out> --out <dir>
@@ -213,14 +215,17 @@ def main() -> int:
         else:
             eligible[key] = c
     b_ids = sorted(r["execution_id"] for r in arms["B"] if r["execution_id"] in eligible)
-    c_source = sorted(r["execution_id"] for r in arms["C"])
-    c_ineligible = {i: dropped.get(i, "not in A") for i in c_source if i not in eligible}
-    if c_ineligible or len(c_source) != len(b_ids):
-        raise sft.SftError(
-            f"QA Trace C ({len(c_source)} rows) must be all-eligible and match eligible B "
-            f"({len(b_ids)} rows); ineligible C rows: {c_ineligible}"
-        )
-    selection = {"A": sorted(eligible), "B": b_ids, "C": c_source}
+    # QA Trace's replacement rule (final-v4 CURRENT_FINAL.txt): a C row that cannot be
+    # trained is replaced by the next id in manifest c_frame.draw_order, never drawn here.
+    draw_order = (source_manifest.get("c_frame") or {}).get("draw_order")
+    published_c = sorted(r["execution_id"] for r in arms["C"])
+    if not draw_order or sorted(draw_order[: len(published_c)]) != published_c:
+        raise sft.SftError("manifest c_frame.draw_order is missing or does not start with C")
+    c_ids = sorted([i for i in draw_order if i in eligible][: len(b_ids)])
+    if len(c_ids) != len(b_ids):
+        raise sft.SftError(f"c_frame has {len(c_ids)} eligible rows, B needs {len(b_ids)}")
+    c_replaced = {i: dropped.get(i, "not in A") for i in published_c if i not in c_ids}
+    selection = {"A": sorted(eligible), "B": b_ids, "C": c_ids}
     summary: dict[str, Any] = {
         "source_manifest": source_manifest,
         "source_files": source_files,
@@ -232,10 +237,11 @@ def main() -> int:
         "rules": {
             "format": "mimoagent tool calls rewritten to template text; render equality checked",
             "eligible": "fidelity == raw_completion and render <= max_length (never truncated)",
-            "c": "QA Trace's C as published; refused unless all-eligible and |C| == |eligible B|",
+            "c": "first |eligible B| eligible ids of QA Trace manifest c_frame.draw_order",
             "max_length": args.max_length,
         },
         "dropped_before_arms": dropped,
+        "c_published_rows_not_trained": c_replaced,
         "arms": {},
     }
     for name, ids in selection.items():

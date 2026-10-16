@@ -153,6 +153,58 @@ def test_production_spec_names_are_admitted() -> None:
         )
         assert spec.name.endswith("-a1")
 
+
+def test_selfhosted_specs_carry_profile_lock_and_deviations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evallab.queue as queue_module
+    from evallab import rollout
+
+    captured: list = []
+
+    class FakeQueue:
+        def approve(self, spec_id: str, *, actor: str) -> None:
+            pass
+
+        def locate(self, spec_id: str) -> Path:
+            return tmp_path / "done" / "spec.json"
+
+    class FakeExecutor:
+        queue = FakeQueue()
+
+        @classmethod
+        def from_repo(cls, root: Path, **kwargs: object) -> FakeExecutor:
+            return cls()
+
+        def submit(self, spec: object) -> None:
+            captured.append(spec)
+
+        def tick(self, **kwargs: object) -> int:
+            return 0
+
+    monkeypatch.setattr(queue_module, "Executor", FakeExecutor)
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal")
+    tasks = [_task(tmp_path, "task-a")]
+    rollout.run_rollout(
+        tasks,
+        model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b",
+        agent="mimoagent",
+        concurrency=2,
+        attempts=2,
+        out_dir=tmp_path / "out",
+        root=tmp_path,
+        actor="research-harbor",
+    )
+    assert len(captured) == 2
+    spec = captured[0]
+    assert spec.reference_profile == "xiaomi-mimo-rl"
+    assert spec.egress_lock is True
+    assert {d.field for d in spec.deviations} == {
+        "harness.additions",
+        "budgets.max_requests",
+    }
+    assert spec.name.endswith("-a1") and captured[1].name.endswith("-a2")
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"

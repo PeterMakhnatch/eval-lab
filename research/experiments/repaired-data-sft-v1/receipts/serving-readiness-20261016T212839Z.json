@@ -1,0 +1,82 @@
+{
+  "utc": "2026-10-16T21:28:39.163783+00:00",
+  "probe_started_utc": "2026-10-16T21:27:25.999743+00:00",
+  "app_id": "ap-LK1cnuIv8FUBG1v2iD3UXl",
+  "url": "https://p-makhnatch--evallab-mimo-v26-9b-lora-mimoloraserver.us-east.modal.direct",
+  "health_http_status": 200,
+  "authenticated_models_http_status": 200,
+  "authenticated_server_info_http_status": 200,
+  "model_ids": [
+    "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "rds1-a",
+    "rds1-b",
+    "rds1-c"
+  ],
+  "binding": {
+    "model_path": "/weights/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B/2367e865d009c13ac81713a2878291d33ab28177",
+    "served_model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "enable_lora": true,
+    "lora_paths": [
+      {
+        "lora_id": "0172104bd4285ef6b2f6c9066a0d761d",
+        "lora_name": "rds1-a",
+        "lora_path": "/sft/rds1-a/adapter",
+        "pinned": false
+      },
+      {
+        "lora_id": "2600b827e5125da88b4b66e009a29a33",
+        "lora_name": "rds1-b",
+        "lora_path": "/sft/rds1-b-v4e4/adapter",
+        "pinned": false
+      },
+      {
+        "lora_id": "9be5a3b4a15c5ff699eb2aa0be00fc0f",
+        "lora_name": "rds1-c",
+        "lora_path": "/sft/rds1-c-v4e4/adapter",
+        "pinned": false
+      }
+    ],
+    "lora_strict_loading": true,
+    "max_lora_rank": 64,
+    "max_loras_per_batch": 3,
+    "max_running_requests": 20,
+    "context_length": 262144
+  },
+  "expected_adapter_paths": {
+    "rds1-a": "/sft/rds1-a/adapter",
+    "rds1-b": "/sft/rds1-b-v4e4/adapter",
+    "rds1-c": "/sft/rds1-c-v4e4/adapter"
+  },
+  "binding_matches_expected": true,
+  "earlier_health_failures": [
+    {
+      "utc": "2026-10-16T21:27:26.134250+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:27:36.432331+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:27:46.662994+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:27:56.899395+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:28:07.132294+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:28:17.371455+00:00",
+      "http_status": 503
+    },
+    {
+      "utc": "2026-10-16T21:28:27.606173+00:00",
+      "http_status": 503
+    }
+  ],
+  "inference_requests": 0
+}

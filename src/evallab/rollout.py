@@ -157,6 +157,17 @@ def _slug(name: str) -> str:
     return "".join(c if c.isalnum() or c in "-._" else "-" for c in name)[:36]
 
 
+def _jobs_dir_for_model(model: str) -> str:
+    """Native jobs dir for one model/arm, e.g. ``runs/rollout-...-rds1-b``.
+
+    Arm-disjoint by construction: two arms of one batch never share a job
+    address, so a later arm cannot clobber an earlier arm's retained jobs
+    (regrade custody reads them). Outcome rows carry the resulting
+    ``job_dir``, keeping every row traceable to its arm and spec.
+    """
+    return f"runs/rollout-{_slug(model.rsplit('/', 1)[-1].replace(':', '-'))}"
+
+
 def validate_model_selector(model: str | None) -> str:
     """Fail fast on a selector the harness cannot route; return its kind.
 
@@ -278,6 +289,8 @@ def run_rollout(
             "a billable rollout requires an authorizing actor "
             "(--actor 'name as Peter's delegate, cap and steer'); never defaulted"
         )
+    if model is None:
+        raise ValueError("a queued rollout requires a model selector")
     from evallab.execution_contracts import new_ulid
     from evallab.queue import Executor
     from evallab.schemas import ExperimentSpec
@@ -303,7 +316,7 @@ def run_rollout(
                 agent=agent,
                 model=model,
                 environment="modal",
-                jobs_dir="runs",
+                jobs_dir=_jobs_dir_for_model(model),
                 submitted_by="infra-rollout",
                 timeout_seconds=timeout_seconds,
                 est_cost_usd=est_cost_usd,
@@ -336,7 +349,7 @@ def run_rollout(
     outcomes = []
     for spec in specs:
         state = states.get(str(spec.spec_id), "unknown")
-        job_dir = root / "runs" / spec.name
+        job_dir = root / spec.jobs_dir / spec.name
         error = None if state == "done" else f"queue state: {state}"
         outcomes.append(
             _outcome(root / spec.task, spec.name, job_dir, batch_wall, error)

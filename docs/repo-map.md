@@ -591,7 +591,7 @@ inputs:
   - path: src/evallab/rlm/traj_report.py
     digest: sha256:dbefe71b295c0c561913fd266e53f6643a159319ae12f2d1d924b186e5e78a2b
   - path: src/evallab/rollout.py
-    digest: sha256:ca6a457ddc8cbc2965b07eb83455256d9e4b1cedd494891c705564543eb4068c
+    digest: sha256:72b21f15b8316684ae7c2fc7ba55305050a573e394f30903f40dc9efbdfa92f6
   - path: src/evallab/roster.py
     digest: sha256:580eb3a4ce08953ade65471162763ddc902de0bada93b9c61b224ddbda80e16a
   - path: src/evallab/run_preflight.py

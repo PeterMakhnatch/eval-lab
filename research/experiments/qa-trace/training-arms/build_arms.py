@@ -29,7 +29,9 @@ from typing import Any
 
 RESULTS = Path.home() / "Developer/eval-lab-results"
 FAULT_STRATA = {"native_faulty", "previously_reviewed_faulty", "static_fault_suspected", "unclear"}
-FETCH_CMD = re.compile(r"\b(pip3? (download|install)|uv pip install|git clone|curl |wget |npm (install|i) |go get )")
+FETCH_CMD = re.compile(
+    r"\b(pip3? (download|install)|uv pip install|git clone|curl |wget |npm (install|i) |go get )"
+)
 FETCH_SEEN = re.compile(
     r"Successfully downloaded|Downloading https?://|Cloning into|HTTP request sent|"
     r"Saved /|Downloading [\w.-]+-[\d.]+.*\.(whl|tar\.gz)"
@@ -54,7 +56,7 @@ def trajectory_for(rows: list[dict[str, Any]]) -> Path | None:
 
 
 def _observation_text(step: dict[str, Any]) -> str:
-    layers = ((step.get("extra") or {}).get("step_layers") or {})
+    layers = (step.get("extra") or {}).get("step_layers") or {}
     observed = (layers.get("observed") or {}).get("output")
     if observed is not None:
         return observed
@@ -75,15 +77,24 @@ def to_messages(traj: dict[str, Any]) -> tuple[list[dict[str, Any]], list[Any] |
             continue
         if source != "agent":
             continue
-        layers = ((step.get("extra") or {}).get("step_layers") or {})
+        layers = (step.get("extra") or {}).get("step_layers") or {}
         proposed = layers.get("proposed")
         if native:
             calls = []
             for call in step.get("tool_calls") or []:
                 native_args = (call.get("extra") or {}).get("native_arguments")
-                arguments = native_args if isinstance(native_args, str) else json.dumps(call.get("arguments"))
-                calls.append({"id": call.get("tool_call_id"), "type": "function",
-                              "function": {"name": call.get("function_name"), "arguments": arguments}})
+                arguments = (
+                    native_args
+                    if isinstance(native_args, str)
+                    else json.dumps(call.get("arguments"))
+                )
+                calls.append(
+                    {
+                        "id": call.get("tool_call_id"),
+                        "type": "function",
+                        "function": {"name": call.get("function_name"), "arguments": arguments},
+                    }
+                )
             message: dict[str, Any] = {"role": "assistant", "content": step.get("message") or ""}
             if step.get("reasoning_content"):
                 message["reasoning_content"] = step["reasoning_content"]
@@ -91,8 +102,13 @@ def to_messages(traj: dict[str, Any]) -> tuple[list[dict[str, Any]], list[Any] |
                 message["tool_calls"] = calls
             messages.append(message)
             for result in (step.get("observation") or {}).get("results") or []:
-                messages.append({"role": "tool", "tool_call_id": result.get("source_call_id"),
-                                 "content": str(result.get("content", ""))})
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": result.get("source_call_id"),
+                        "content": str(result.get("content", "")),
+                    }
+                )
         elif proposed:
             message = {"role": "assistant", "content": proposed.get("message") or ""}
             if proposed.get("reasoning"):
@@ -104,11 +120,21 @@ def to_messages(traj: dict[str, Any]) -> tuple[list[dict[str, Any]], list[Any] |
         else:
             # No raw completion recorded: keep the parsed actions, labelled as such.
             fidelity = "parsed_actions_only"
-            message = {"role": "assistant", "content": step.get("message") or "",
-                       "tool_calls": [{"id": c.get("tool_call_id"), "type": "function",
-                                       "function": {"name": c.get("function_name"),
-                                                    "arguments": json.dumps(c.get("arguments"))}}
-                                      for c in step.get("tool_calls") or []]}
+            message = {
+                "role": "assistant",
+                "content": step.get("message") or "",
+                "tool_calls": [
+                    {
+                        "id": c.get("tool_call_id"),
+                        "type": "function",
+                        "function": {
+                            "name": c.get("function_name"),
+                            "arguments": json.dumps(c.get("arguments")),
+                        },
+                    }
+                    for c in step.get("tool_calls") or []
+                ],
+            }
             if step.get("reasoning_content"):
                 message["reasoning_content"] = step["reasoning_content"]
             messages.append(message)
@@ -131,16 +157,52 @@ def network_fetch(traj: dict[str, Any]) -> list[int]:
     return hits
 
 
+NAMESPACE = "mimo-v2.6-rl"
+
+
+def canonical_task(task_id: str) -> str:
+    """One form for every task id: ``mimo-v2.6-rl/<id>``.
+
+    Bare ids get the namespace; a foreign namespace is an error, never a silent miss.
+    """
+    value = task_id.strip()
+    namespace, slash, name = value.rpartition("/")
+    if not slash:
+        namespace, name = NAMESPACE, value
+    if namespace != NAMESPACE or not name or "/" in name:
+        raise ValueError(f"held-out id {task_id!r} is not a {NAMESPACE} task id")
+    return f"{NAMESPACE}/{name}"
+
+
 def heldout_tasks(path: Path | None) -> set[str] | None:
+    """Canonical held-out ids from plaintext (one per line, ``#`` comments) or JSON.
+
+    JSON may be a list or ``{"heldout": [...]}`` of ids or of objects carrying
+    ``task``/``task_id``/``task_name``. Any other shape raises.
+    """
     if path is None:
         return None
     text = path.read_text()
     try:
         doc = json.loads(text)
     except json.JSONDecodeError:
-        return {line.strip() for line in text.splitlines() if line.strip()}
+        lines = (line.strip() for line in text.splitlines())
+        return {canonical_task(line) for line in lines if line and not line.startswith("#")}
     items = doc.get("heldout") if isinstance(doc, dict) else doc
-    return {str(t).rsplit("/", 1)[-1] for t in items}
+    if not isinstance(items, list):
+        raise ValueError("held-out JSON must be a list or an object with a 'heldout' list")
+    ids = set()
+    for item in items:
+        if isinstance(item, dict):
+            item = next((item[k] for k in ("task", "task_id", "task_name") if k in item), None)
+        if not isinstance(item, str):
+            raise ValueError(f"held-out entry has no task id: {item!r}")
+        ids.add(canonical_task(item))
+    return ids
+
+
+def is_heldout(task: str, heldout: set[str] | None) -> bool:
+    return heldout is not None and canonical_task(task) in heldout
 
 
 def main() -> None:
@@ -155,7 +217,10 @@ def main() -> None:
 
     observations = jsonl(args.passes)
     regrade = json.loads(args.regrade.read_text())["rows"]
-    audit = {r["item_id"]: r["evidence_stratum"] for r in json.loads(args.audit.read_text())["observations"]}
+    audit = {
+        r["item_id"]: r["evidence_stratum"]
+        for r in json.loads(args.audit.read_text())["observations"]
+    }
     heldout = heldout_tasks(args.heldout_manifest)
 
     by_execution: dict[str, list[dict[str, Any]]] = {}
@@ -181,11 +246,15 @@ def main() -> None:
         fetches = network_fetch(traj)
 
         reasons = []
-        if heldout is not None and task.rsplit("/", 1)[-1] in heldout:
+        if is_heldout(task, heldout):
             reasons.append("heldout_task")
-        qualified = [g for g in regrades if g.get("valid_grader") and g["outcome"] in ("stays", "flips")]
+        qualified = [
+            g for g in regrades if g.get("valid_grader") and g["outcome"] in ("stays", "flips")
+        ]
         if not qualified:
-            seen = sorted({g["outcome"] if g.get("valid_grader") else "unvalidated_grader" for g in regrades})
+            seen = sorted(
+                {g["outcome"] if g.get("valid_grader") else "unvalidated_grader" for g in regrades}
+            )
             reasons.append("no_qualified_regrade:" + ("+".join(seen) if seen else "no_grader"))
         if any(g["outcome"] == "flips" for g in qualified):
             reasons.append("regrade_fails")
@@ -196,23 +265,38 @@ def main() -> None:
         if fetches:
             reasons.append("network_fetch_observed")
 
-        examples.append({
-            "execution_id": execution_id,
-            "task": task,
-            "item_ids": item_ids,
-            "agent": (traj.get("agent") or {}).get("name"),
-            "model": (traj.get("agent") or {}).get("model_name"),
-            "trajectory_path": str(path),
-            "trajectory_sha256": sha256(raw),
-            "fidelity": fidelity,
-            "recorded_reward": 1.0,
-            "regrades": [{k: g.get(k) for k in ("grader", "outcome", "regraded", "valid_grader", "controls", "matrix_receipt")} for g in regrades],
-            "evidence_strata": sorted(strata),
-            "network_fetch_steps": fetches,
-            "excluded_from_b": reasons,
-            "messages": messages,
-            **({"tools": tools} if tools else {}),
-        })
+        examples.append(
+            {
+                "execution_id": execution_id,
+                "task": task,
+                "item_ids": item_ids,
+                "agent": (traj.get("agent") or {}).get("name"),
+                "model": (traj.get("agent") or {}).get("model_name"),
+                "trajectory_path": str(path),
+                "trajectory_sha256": sha256(raw),
+                "fidelity": fidelity,
+                "recorded_reward": 1.0,
+                "regrades": [
+                    {
+                        k: g.get(k)
+                        for k in (
+                            "grader",
+                            "outcome",
+                            "regraded",
+                            "valid_grader",
+                            "controls",
+                            "matrix_receipt",
+                        )
+                    }
+                    for g in regrades
+                ],
+                "evidence_strata": sorted(strata),
+                "network_fetch_steps": fetches,
+                "excluded_from_b": reasons,
+                "messages": messages,
+                **({"tools": tools} if tools else {}),
+            }
+        )
 
     usable = [e for e in examples if "heldout_task" not in e["excluded_from_b"]]
     arm_a = usable
@@ -223,7 +307,10 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=False)
     hashes = {}
     for name, arm in (("A", arm_a), ("B", arm_b), ("C", arm_c)):
-        body = "".join(json.dumps(e, sort_keys=True) + "\n" for e in sorted(arm, key=lambda e: e["execution_id"]))
+        body = "".join(
+            json.dumps(e, sort_keys=True) + "\n"
+            for e in sorted(arm, key=lambda e: e["execution_id"])
+        )
         (args.out / f"{name}.jsonl").write_text(body)
         hashes[name] = sha256(body.encode())
 
@@ -237,16 +324,27 @@ def main() -> None:
             "passes": sha256(args.passes.read_bytes()),
             "regrade": sha256(args.regrade.read_bytes()),
             "audit": sha256(args.audit.read_bytes()),
-            "heldout_manifest": sha256(args.heldout_manifest.read_bytes()) if args.heldout_manifest else None,
+            "heldout_manifest": sha256(args.heldout_manifest.read_bytes())
+            if args.heldout_manifest
+            else None,
         },
         "heldout_applied": heldout is not None,
+        "heldout_ids": len(heldout) if heldout is not None else None,
+        "heldout_overlapping_training_tasks": sorted(
+            {e["task"] for e in examples if is_heldout(e["task"], heldout)}
+        ),
         "observations": len(observations),
         "tasks": sorted({e["task"] for e in examples}),
-        "tasks_per_arm": {name: len({e["task"] for e in arm}) for name, arm in (("A", arm_a), ("B", arm_b), ("C", arm_c))},
+        "tasks_per_arm": {
+            name: len({e["task"] for e in arm})
+            for name, arm in (("A", arm_a), ("B", arm_b), ("C", arm_c))
+        },
         "executions": len(examples),
         "heldout_excluded": len(examples) - len(usable),
         "counts": {"A": len(arm_a), "B": len(arm_b), "C": len(arm_c)},
-        "c_overlap_with_b": len({e["execution_id"] for e in arm_c} & {e["execution_id"] for e in arm_b}),
+        "c_overlap_with_b": len(
+            {e["execution_id"] for e in arm_c} & {e["execution_id"] for e in arm_b}
+        ),
         "excluded_from_b_reason_counts": dict(reason_counts),
         "fidelity_counts": dict(Counter(e["fidelity"] for e in arm_a)),
         "agents": dict(Counter(e["agent"] for e in arm_a)),
@@ -255,7 +353,22 @@ def main() -> None:
         "row_schema": "messages (OpenAI chat; assistant may carry reasoning_content/tool_calls; mimoagent rows add tools) plus provenance fields",
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(json.dumps({k: manifest[k] for k in ("executions", "heldout_applied", "counts", "c_overlap_with_b", "excluded_from_b_reason_counts", "fidelity_counts")}, indent=2))
+    print(
+        json.dumps(
+            {
+                k: manifest[k]
+                for k in (
+                    "executions",
+                    "heldout_applied",
+                    "counts",
+                    "c_overlap_with_b",
+                    "excluded_from_b_reason_counts",
+                    "fidelity_counts",
+                )
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

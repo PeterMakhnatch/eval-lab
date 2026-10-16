@@ -79,13 +79,17 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
 - every arm reports `solve_coverage` (`complete`, `observed_subset` or `unmeasured`),
   `measured_tasks` (n/33), `measured_attempts` (n/planned), `missing_task_attempts`, and
   the missing and unmeasured task ids. Planned attempts come from the required
-  `--attempts` (the authorized schedule is 2) and are printed as `planned_attempts`. An
-  observed subset is never presented as a full 33-task result, and missing slots are
-  never imputed.
-- every headline row must be a distinct cell of the authorized schedule: held-out task
-  x attempt 1..`--attempts`, read from the trial name's `-a<N>` suffix. A row on an
-  unauthorized cell (such as a3 under a 2-attempt schedule) or a second row on the same
-  cell makes the scorer refuse with exit 2. Rows are never filtered or clamped, so
+  `--attempts`, in QA Trace's canonical grammar: a uniform count (`--attempts 2`, the
+  authorized schedule) or one count per arm with each of base, A, B and C exactly once
+  (`--attempts base=1,A=1,B=2,C=2`). Anything else is refused. The schedule is printed as
+  `planned_attempts`: an integer when uniform, a per-arm map otherwise. Coverage is
+  judged per arm against its own schedule, so with the mixed schedule base and A are
+  complete at 33 cells and B and C at 66. An observed subset is never presented as a
+  full 33-task result, and missing slots are never imputed.
+- every headline row must be a distinct cell of its arm's schedule: held-out task x
+  attempt 1..N, read from the trial name's `-a<N>` suffix. A row on an unauthorized cell
+  (such as a3 under a 2-attempt schedule) or a second row on the same cell makes the
+  scorer refuse with exit 2. Rows are never filtered or clamped, so
   measured attempts can't exceed planned ones, and a missing a2 plus an extra a3 can't
   pass as complete.
 - exact Clopper–Pearson 95% intervals over measured attempts. They ignore within-task
@@ -189,6 +193,30 @@ def exact_sign_p(wins: int, losses: int) -> Fraction | None:
 Trials = dict[str, list[tuple[str, bool | None]]]
 
 
+ARMS = ("base", "A", "B", "C")
+_COUNT = r"[1-9][0-9]*"
+_ARM_COUNT = re.compile(rf"(base|A|B|C)=({_COUNT})")
+
+
+def parse_attempts(spec: str) -> int | dict[str, int]:
+    """QA Trace's canonical attempts grammar (prepare_batch sha256 65e35a56…), exactly:
+    `[1-9][0-9]*` for a uniform count, or comma-separated `(base|A|B|C)=[1-9][0-9]*`
+    naming each arm exactly once, in any order. Anything else raises ValueError: 0, a
+    leading zero, a sign, whitespace, a missing, repeated or unknown arm, an empty or
+    trailing-comma part, or a mix such as `2,base=1`."""
+    if re.fullmatch(_COUNT, spec, flags=re.ASCII):
+        return int(spec)
+    schedule: dict[str, int] = {}
+    for part in spec.split(","):
+        match = _ARM_COUNT.fullmatch(part)
+        if match is None or match.group(1) in schedule:
+            raise ValueError(f"--attempts {spec!r}: invalid or repeated part {part!r}")
+        schedule[match.group(1)] = int(match.group(2))
+    if set(schedule) != set(ARMS):
+        raise ValueError(f"--attempts {spec!r}: needs each of {', '.join(ARMS)} exactly once")
+    return schedule
+
+
 def validate_cells(by_task: Trials, heldout: list[str], planned_attempts: int) -> None:
     """Refuse unless every row is a distinct cell of the authorized schedule.
 
@@ -264,17 +292,21 @@ def paired_comparison(
     right: Trials,
     heldout: list[str],
     names: tuple[str, str],
-    planned_attempts: int,
+    planned_attempts: int | tuple[int, int],
 ) -> dict[str, Any]:
     """Task-level paired comparison on the common measured-task cohort.
 
     Each task is weighted equally by its observed per-arm solve rate; the sign test counts
     task wins and losses, discarding ties. With no common measured task the comparison is
     `unmeasured` (difference and p null). All-tied observed tasks give p = 1. Both arms
-    must hold only distinct authorized cells (`validate_cells`).
+    must hold only distinct cells of their own schedule (`validate_cells`); a single
+    count applies to both arms, a pair is (left, right).
     """
-    validate_cells(left, heldout, planned_attempts)
-    validate_cells(right, heldout, planned_attempts)
+    left_n, right_n = (
+        planned_attempts if isinstance(planned_attempts, tuple) else (planned_attempts,) * 2
+    )
+    validate_cells(left, heldout, left_n)
+    validate_cells(right, heldout, right_n)
     ln, rn = names
 
     def rate(items: list[tuple[str, bool | None]]) -> tuple[float, int] | None:
@@ -477,9 +509,10 @@ def main() -> int:
     )
     ap.add_argument(
         "--attempts",
-        type=int,
+        type=str,
         required=True,
-        help="planned attempts per task: the authorized schedule (2 on 2026-10-16)",
+        help="planned attempts per task: a uniform count (2, the authorized schedule) or "
+        "base=N,A=N,B=N,C=N with each arm exactly once",
     )
     ap.add_argument(
         "--replay-plan",
@@ -586,16 +619,29 @@ def main() -> int:
                 original[(r["arm"], r["trial"])] = bool(r["original_pass"])
 
     heldout_ids = sorted(heldout)
-    planned_attempts = args.attempts
+    try:
+        schedule = parse_attempts(args.attempts)
+    except ValueError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 2
+
+    def attempts_for(arm: str) -> int:
+        return schedule if isinstance(schedule, int) else schedule[arm]
+
     for name, by_task in arms.items():
+        if not isinstance(schedule, int) and name not in schedule:
+            print(
+                f"REFUSED: arm {name} has no entry in --attempts {args.attempts}", file=sys.stderr
+            )
+            return 2
         try:
-            validate_cells(by_task, heldout_ids, planned_attempts)
+            validate_cells(by_task, heldout_ids, attempts_for(name))
         except ValueError as exc:
             print(f"REFUSED: arm {name}: {exc}", file=sys.stderr)
             return 2
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
-        "planned_attempts": planned_attempts,
+        "planned_attempts": schedule,
         "estimand_notes": ESTIMAND_NOTES,
         "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
         "incorrect_pass_replay_mode": replay_mode,
@@ -603,6 +649,11 @@ def main() -> int:
         "arms": {},
         "paired": {},
     }
+    if not isinstance(schedule, int):
+        # Canonical per-arm authorized attempt cells, keys sorted (A, B, C, base).
+        report["authorized_attempts"] = {
+            arm: list(range(1, schedule[arm] + 1)) for arm in sorted(schedule)
+        }
     for name, by_task in arms.items():
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
         verdicts = [
@@ -617,7 +668,7 @@ def main() -> int:
             "trials": len(trials),
             "measured": sum(v is not None for _, _, v in trials),
             "errors": sum(v is None for _, _, v in trials),
-            **arm_coverage(by_task, heldout_ids, planned_attempts),
+            **arm_coverage(by_task, heldout_ids, attempts_for(name)),
             **incorrect_pass,
         }
     exposure: dict[str, dict[str, int]] = {}
@@ -644,9 +695,15 @@ def main() -> int:
     for left, right in pairs:
         if left not in arms or right not in arms:
             continue
+        pair = (attempts_for(left), attempts_for(right))
         report["paired"][f"{left}_vs_{right}"] = paired_comparison(
-            arms[left], arms[right], heldout_ids, (left, right), planned_attempts
+            arms[left], arms[right], heldout_ids, (left, right), pair
         )
+        if not isinstance(schedule, int):
+            report["paired"][f"{left}_vs_{right}"]["attempts_counted"] = {
+                left: pair[0],
+                right: pair[1],
+            }
     if "B_vs_C" in report["paired"]:
         b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))
         report["paired"]["B_vs_C"]["exposure_caveat"] = (

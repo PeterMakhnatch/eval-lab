@@ -777,6 +777,31 @@ def test_campaign_scoped_transform_still_refuses_broken_ancestry(tmp_path: Path)
         validate_request(make_variant_request(root, spec, package), repo_root=root)
 
 
+
+@pytest.mark.parametrize(
+    "transform",
+    [
+        "separate-verifier@10",
+        "agent-network-none@1",
+        "strip-future-history@1",
+        "purge-build-caches@4",
+        "purge-build-caches@5",
+        "purge-installed-copies@2",
+        "mtime-normalize@2",
+    ],
+)
+def test_campaign_scoped_admits_each_headline_transform(
+    tmp_path: Path, transform: str
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform=transform)
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest)
+    spec = make_variant_spec(root, record, package)
+    validate_request(make_variant_request(root, spec, package), repo_root=root)
+
 def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while_mimo_task_and_selfhosted_stay_gated(
     tmp_path: Path,
 ) -> None:

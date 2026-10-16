@@ -110,7 +110,7 @@ budgets:
 # other package, profile, or transform keeps the global rules.
 campaign_lineage:
   headline:
-    transforms: [separate-verifier@10, agent-network-none@1]
+    transforms: [separate-verifier@10, agent-network-none@1, strip-future-history@1, purge-build-caches@4, purge-build-caches@5, purge-installed-copies@2, mtime-normalize@2]
     package_digests:
       - sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf  # format-code-task-000142
       - sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e  # format-code-task-000143

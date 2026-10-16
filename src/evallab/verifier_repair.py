@@ -65,7 +65,7 @@ MAX_HIDDEN_TEST_BYTES = 128 * 1024
 MAX_PATCH_CHARS = 8_000
 
 #: Conservative source-fingerprint and resource checks, not an OS sandbox.
-#: Proposed code executes only in the task's native Harbor verifier.
+#: Proposed code executes only inside an isolated task-verifier container.
 _DISALLOWED_TEST_FEATURES = (
     "__file__",
     "inspect.",

@@ -2375,6 +2375,20 @@ def build_command(
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
+    if request.environment == "modal":
+        # Modal exec resolves `python3` to the image's /usr/local/bin
+        # interpreter (3.6.15 in the MiMo images); the packages' setup
+        # heredocs need the /usr/bin interpreter (3.9+), as in Docker.
+        # Pin PATH for every Modal exec, healthcheck included, so setup
+        # runs under the same interpreter on both backends. Without this,
+        # v6 packages with a purge-installed-copies setup step die in the
+        # healthcheck (001948, 001647; measured 2026-10-16).
+        command.extend(
+            [
+                "--environment-kwarg",
+                'persistent_env={"PATH": "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"}',
+            ]
+        )
     _validate_modal_app_name(request)
     if request.modal_app_name is not None:
         command.extend(["--environment-kwarg", f"app_name={request.modal_app_name}"])

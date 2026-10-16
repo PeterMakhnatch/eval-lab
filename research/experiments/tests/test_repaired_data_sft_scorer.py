@@ -33,14 +33,14 @@ IN_POPULATION = [f"task-{i:02d}" for i in range(29)]  # 33 held-out tasks minus 
 
 
 def _arm(
-    v6_pass: dict[str, bool], replays: dict[str, bool | None]
-) -> list[tuple[str, bool, bool | None]]:
-    return [(t, v, replays.get(t)) for t, v in v6_pass.items()]
+    v6_pass: dict[str, bool], replays: dict[str, bool | None], attempt: int = 1
+) -> list[tuple[str, int, bool, bool | None]]:
+    return [(t, attempt, v, replays.get(t)) for t, v in v6_pass.items()]
 
 
 def test_unreplayed_failures_are_unmeasured_not_zero() -> None:
     # Verifier's arm B: 2 v6 passes, 31 v6 failures, no replay input, no exclusions.
-    trials = [(f"t{i}", i < 2, None) for i in range(33)]
+    trials = [(f"t{i}", 1, i < 2, None) for i in range(33)]
     out = summary(trials, {})
     assert out["incorrect_pass_rate"] is None
     assert out["incorrect_pass_ci95"] is None
@@ -51,7 +51,7 @@ def test_unreplayed_failures_are_unmeasured_not_zero() -> None:
 
 
 def test_all_v6_passes_are_structurally_zero() -> None:
-    out = summary([(f"t{i}", True, None) for i in range(33)], {})
+    out = summary([(f"t{i}", 1, True, None) for i in range(33)], {})
     assert out["incorrect_pass_status"] == "complete"
     assert out["incorrect_pass_rate"] == 0.0
     assert out["incorrect_pass_unresolved_failures"] == 0
@@ -88,3 +88,30 @@ def test_unresolved_in_population_failure_still_bounds_the_rate() -> None:
     assert out["incorrect_pass_excluded"] == {"g1x": 4}
     assert out["incorrect_pass_unresolved_failures"] == 3
     assert out["incorrect_pass_bounds"] == [round(1 / 29, 4), round(4 / 29, 4)]
+
+
+def test_attempt_1_replay_mode_restricts_the_denominator_to_attempt_1() -> None:
+    # Two attempts per task; QA Trace replayed attempt 1 only. The attempt-1 v6 failures
+    # are all resolved, and the attempt-2 failures have no replay.
+    v6_a1 = {t: i % 3 == 0 for i, t in enumerate(IN_POPULATION)}
+    replays = {t: i % 5 == 1 for i, t in enumerate(IN_POPULATION) if not v6_a1[t]}
+    v6_a2 = {t: i % 2 == 0 for i, t in enumerate(IN_POPULATION)}
+    trials = _arm(v6_a1, replays, 1) + _arm(v6_a2, {}, 2)
+
+    out = summary(trials, {}, attempt_1_only=True)
+    assert out["incorrect_pass_status"] == "complete"
+    assert out["incorrect_pass_population"] == 29
+    assert out["incorrect_pass_excluded"] == {ANALYZE["ATTEMPT_MODE_REASON"]: 29}
+    assert out["incorrect_pass_rate"] == round(sum(replays.values()) / 29, 4)
+
+    # The same rows read in all-attempts mode: attempt-2 failures are unresolved.
+    all_attempts = summary(trials, {})
+    assert all_attempts["incorrect_pass_rate"] is None
+    assert all_attempts["incorrect_pass_unresolved_failures"] == sum(not v for v in v6_a2.values())
+
+
+def test_attempt_index_comes_from_rollout_trial_names() -> None:
+    attempt_of = ANALYZE["attempt_of"]
+    assert attempt_of("rollout-007-format-code-task-000371-a2") == 2
+    assert attempt_of("rollout-007-format-code-task-000371-a1") == 1
+    assert attempt_of("rollout-007-format-code-task-000371") == 1

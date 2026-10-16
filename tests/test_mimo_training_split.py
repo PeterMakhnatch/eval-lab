@@ -452,7 +452,10 @@ def test_scoring_release_requires_research_authority_before_writing(driver, make
     assert {path.name: path.read_bytes() for path in output.iterdir()} == before
 
 
-@pytest.mark.parametrize("change", ["missing_custody", "predecessor_hash", "package_binding"])
+@pytest.mark.parametrize("change", [
+    "missing_custody", "predecessor_hash", "package_binding",
+    "heldout_gate_type", "manifest_gate_type",
+])
 def test_scoring_release_still_refuses_unbound_or_changed_packages(driver, make_case, change) -> None:
     case = make_case()
     release_case(driver, case)
@@ -465,6 +468,11 @@ def test_scoring_release_still_refuses_unbound_or_changed_packages(driver, make_
         custody = json.loads(custody_path.read_text())
         custody["predecessor_package_manifest"]["sha256"] = "0" * 64
         custody_path.write_text(json.dumps(custody))
+    elif change.endswith("_gate_type"):
+        path = output / ("heldout.json" if change == "heldout_gate_type" else "manifest.json")
+        payload = json.loads(path.read_text())
+        payload["scoring_allowed"] = 1
+        driver["replace_json"](path, payload)
     else:
         manifest_path = output / "manifest.json"
         manifest = json.loads(manifest_path.read_text())

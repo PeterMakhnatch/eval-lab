@@ -549,7 +549,7 @@ def check_frozen(output_dir: Path) -> dict[str, Any]:
             "released_heldout_manifest": payload_fingerprint(output_dir / "heldout.json", expected_heldout),
             "released_package_manifest": payload_fingerprint(manifest_path, expected_manifest),
         }
-        if any(scoring.get(key) != value for key, value in released.items()):
+        if any(scoring.get(key) != value or fingerprint(Path(value["path"])) != value for key, value in released.items()):
             raise ValueError("scoring release output binding drift")
     if heldout != expected_heldout:
         raise ValueError("frozen heldout manifest drift")

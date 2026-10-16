@@ -3,8 +3,9 @@
 Inputs:
 - one `evallab rollout` `results.jsonl` per arm (`--arm NAME=PATH`, repeatable; include the
   untrained base as its own arm);
-- the frozen held-out manifest (`--heldout`), either a JSON list of task ids or a
-  `{task_id: split}` map;
+- the frozen held-out manifest (`--heldout`): MiMo data's `mimo.training-manifest/v1`
+  (`heldout: list[str]` of bare source ids). Scoring is refused unless it says
+  `scoring_allowed: true`;
 - the arm exports' `summary.json` (`--exports`), used to prove that no held-out task was
   trained on;
 - optionally, `--original-regrade` JSONL rows `{arm, task, original_pass}`. Each row comes
@@ -103,12 +104,10 @@ def main() -> int:
     args = ap.parse_args()
 
     held = json.loads(args.heldout.read_text())
-    heldout = {
-        norm(t)
-        for t in (
-            held if isinstance(held, list) else [t for t, s in held.items() if s == "heldout"]
-        )
-    }
+    if held.get("scoring_allowed") is not True:
+        print("REFUSED: held-out manifest does not set scoring_allowed: true", file=sys.stderr)
+        return 2
+    heldout = {norm(t) for t in held["heldout"]}
     exports = json.loads(args.exports.read_text())
     trained_tasks: set[str] = set()
     for arm in ("A", "B", "C", "all"):

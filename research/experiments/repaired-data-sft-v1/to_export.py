@@ -17,14 +17,14 @@ Two outputs, both `evallab.sft_terminus/1` directories (conversations.jsonl + ma
 - The script loads `all/` back through `sft.verify_export` and fails unless every A row
   loads.
 
-**`A/`, `B/`, `C/`, the training arms.** One eligibility rule, identical for every arm,
-applied before C is drawn:
+**`A/`, `B/`, `C/`, the training arms.** One eligibility rule, identical for every arm:
 - `fidelity == raw_completion`: `parsed_actions_only` rows are reconstructions, not
   model output;
 - render ≤ `--max-length` tokens: sft.py's ceiling; rows are never truncated.
 
-C is then redrawn as a seeded sample of eligible A with |C| == |eligible B|, so it stays
-a same-size random control.
+C is QA Trace's own C: its seeded draw already honours the active-exclusion list. Every
+C row must be eligible, and |C| must equal |eligible B|. Otherwise the script refuses,
+so a size-matched control is never improvised here.
 
     HF_HUB_OFFLINE=1 uv run --project tools/modal-mimo-sft --locked python \
         research/experiments/repaired-data-sft-v1/to_export.py --arms <build_arms out> --out <dir>
@@ -37,15 +37,12 @@ import ast
 import copy
 import hashlib
 import json
-import random
 import sys
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/modal-mimo-sft"))
 import sft  # noqa: E402
-
-SEED = 20261016
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -156,7 +153,7 @@ def main() -> int:
     source_files = {
         n: sha256_bytes((args.arms / f"{n}.jsonl").read_bytes()) for n in ("A", "B", "C")
     }
-    arms = {name: jsonl(args.arms / f"{name}.jsonl") for name in ("A", "B")}
+    arms = {name: jsonl(args.arms / f"{name}.jsonl") for name in ("A", "B", "C")}
     builder = "research/experiments/repaired-data-sft-v1/to_export.py"
 
     # Lossless conversion of every row.
@@ -216,8 +213,14 @@ def main() -> int:
         else:
             eligible[key] = c
     b_ids = sorted(r["execution_id"] for r in arms["B"] if r["execution_id"] in eligible)
-    c_ids = sorted(random.Random(SEED).sample(sorted(eligible), len(b_ids)))
-    selection = {"A": sorted(eligible), "B": b_ids, "C": c_ids}
+    c_source = sorted(r["execution_id"] for r in arms["C"])
+    c_ineligible = {i: dropped.get(i, "not in A") for i in c_source if i not in eligible}
+    if c_ineligible or len(c_source) != len(b_ids):
+        raise sft.SftError(
+            f"QA Trace C ({len(c_source)} rows) must be all-eligible and match eligible B "
+            f"({len(b_ids)} rows); ineligible C rows: {c_ineligible}"
+        )
+    selection = {"A": sorted(eligible), "B": b_ids, "C": c_source}
     summary: dict[str, Any] = {
         "source_manifest": source_manifest,
         "source_files": source_files,
@@ -229,7 +232,7 @@ def main() -> int:
         "rules": {
             "format": "mimoagent tool calls rewritten to template text; render equality checked",
             "eligible": "fidelity == raw_completion and render <= max_length (never truncated)",
-            "c_redraw": f"random.Random({SEED}).sample(sorted eligible A, |eligible B|)",
+            "c": "QA Trace's C as published; refused unless all-eligible and |C| == |eligible B|",
             "max_length": args.max_length,
         },
         "dropped_before_arms": dropped,

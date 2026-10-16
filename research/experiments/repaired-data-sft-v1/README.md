@@ -13,7 +13,7 @@ and produce fewer incorrect passes, than the same model trained on the original 
 |---|---|---|
 | A | every recorded ordinary MiMo pass (QA Trace `build_arms.py`, #936) | reference at natural size |
 | B | A rows whose qualified repaired-v6 regrades all pass and that carry no defect flag | primary treatment |
-| C | seeded random sample of A, same size as B | primary control (quality isolated from quantity) |
+| C | QA Trace's seeded random sample of eligible A rows (respecting its exclusion list), same size as trainable B | primary control (quality isolated from quantity) |
 
 **Primary comparison:** B vs C at equal example count (Research decision, 01:30 ET). B is
 never padded.
@@ -55,8 +55,16 @@ single optimizer step, and the first warmup step has learning rate 0.
 - render ≤ 65,536 tokens.
 
 On the 70 rows this drops 2 reconstructed rows and 6 over-length rows, leaving 62 rows over
-38 tasks (2.42M tokens). C is then redrawn as a seeded sample of eligible A, with
-|C| = |eligible B|.
+38 tasks (2.42M tokens).
+
+**C** is QA Trace's C exactly as published. The script refuses unless every C row is
+eligible and |C| = |eligible B|. Before 03:25 ET the script redrew C itself. That draw
+picked `47b895eb` (task 001373), which is on Research's exclusion list, and the redraw
+was removed.
+
+**A** (`rds1-a`) includes that one 001373 execution. A is the historical reference
+containing every recorded pass, so the row stays and is disclosed wherever A is
+reported.
 
 ## Held-out evaluation
 

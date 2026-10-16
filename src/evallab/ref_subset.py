@@ -61,6 +61,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+from evallab.execution_contracts import MODAL_PATH_PIN
 from evallab.verifier_mutation import Mutant, generate_mutants, select_mutants
 
 SCHEMA_REPORT = "evallab.ref_subset.report/v1"
@@ -451,6 +452,16 @@ def _docker(
     return subprocess.run(["docker", *args], input=input, capture_output=True, timeout=timeout)
 
 
+#: ``docker exec`` in the bare MiMo images resolves ``python3`` to the
+#: image's 3.6 interpreter, whose syntax cannot run the setup heredocs;
+#: pin PATH the way Modal execs already do (see
+#: execution_contracts.MODAL_PATH_PIN; 001948, measured 2026-10-16).
+#: The pinned /usr/bin interpreter has no pip in these images, so the
+#: setup exec also sets PIP_NO_CACHE_DIR=1: setup's own cache-disabled
+#: branch then purges the on-disk pip cache directories directly.
+_PATH_PIN: tuple[str, ...] = ("-e", f"PATH={MODAL_PATH_PIN}", "-e", "PIP_NO_CACHE_DIR=1")
+
+
 def _check(result: subprocess.CompletedProcess[bytes], what: str) -> bytes:
     if result.returncode != 0:
         raise RuntimeError(
@@ -495,7 +506,7 @@ class Sandbox:
             setup = self.package.path / "environment" / "setup"
             _check(_docker("exec", self.name, "mkdir", "-p", "/var/lib/mimo"), "mkdir")
             _check(_docker("cp", f"{setup}/.", f"{self.name}:/var/lib/mimo/"), "copy setup")
-            result = _docker("exec", self.name, "bash", "/var/lib/mimo/setup.sh", timeout=timeout)
+            result = _docker("exec", *_PATH_PIN, self.name, "bash", "/var/lib/mimo/setup.sh", timeout=timeout)
             _check(result, "task setup")
             _check(
                 _docker("cp", f"{self.package.path / 'tests'}/.", f"{self.name}:/tests/"),
@@ -601,7 +612,7 @@ def _verify(
 ) -> Grade:
     """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
-        result = _docker("exec", *exec_options, name, "bash", "/tests/test.sh", timeout=timeout)
+        result = _docker("exec", *_PATH_PIN, *exec_options, name, "bash", "/tests/test.sh", timeout=timeout)
     except subprocess.TimeoutExpired:
         return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
     raw = _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()

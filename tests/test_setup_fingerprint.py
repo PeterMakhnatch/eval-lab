@@ -811,6 +811,9 @@ def test_campaign_scoped_transform_still_refuses_broken_ancestry(tmp_path: Path)
         "purge-build-caches@5",
         "purge-installed-copies@2",
         "mtime-normalize@2",
+        "leak-close-pypi@1",
+        "env-keep-build-outputs@1",
+        "env-keep-files@1",
     ],
 )
 def test_campaign_scoped_admits_each_headline_transform(

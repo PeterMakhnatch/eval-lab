@@ -1,0 +1,1 @@
+{"ts": "2026-10-16T05:30:00Z", "tag": "2026-10-16", "item": "modal sft smoke rds1-smoke (2 rows, 2 steps, A100-80GB)", "app": "evallab-mimo-v26-9b-sft", "wall_seconds": 135.4, "usd_per_hour": 2.814912, "cost_usd": 0.105873, "basis": "estimate: receipt wall_seconds x Modal A100-80GB rate; Modal billing report reconciles"}

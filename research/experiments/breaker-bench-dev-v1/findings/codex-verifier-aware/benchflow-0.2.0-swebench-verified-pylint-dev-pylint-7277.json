@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "codex-verifier-aware:benchflow-0.2.0/swebench-verified/pylint-dev__pylint-7277",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/swebench-verified/pylint-dev__pylint-7277",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "pass",
+  "category": "tamperable",
+  "severity": "low",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "runs/bbd-pylint-dev-pylint-72-020-a1/bbd-pylint-dev-pylint-72-020-a1__ygEhhL2/verifier/test-stdout.txt",
+    "runs/bbd-pylint-dev-pylint-72-020-a2/bbd-pylint-dev-pylint-72-020-a2__sgZ6o27/verifier/test-stdout.txt"
+  ],
+  "reproducer": {
+    "kind": "harbor_trial",
+    "path": "runs/bbd-pylint-dev-pylint-72-020-a2/bbd-pylint-dev-pylint-72-020-a2__sgZ6o27",
+    "expected_reward": 0.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "codex-verifier-aware",
+    "model": "gpt-6-luna",
+    "tokens": 278230,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "codex-verifier-aware:benchflow-0.2.0/swebench-verified/pytest-dev__pytest-5809",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/swebench-verified/pytest-dev__pytest-5809",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "runs/bbd-pytest-dev-pytest-58-020-a1/bbd-pytest-dev-pytest-58-020-a1__R74EPGC/verifier/test-stdout.txt"
+  ],
+  "reproducer": {
+    "kind": "harbor_trial",
+    "path": "runs/bbd-pytest-dev-pytest-58-020-a1/bbd-pytest-dev-pytest-58-020-a1__R74EPGC",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "codex-verifier-aware",
+    "model": "gpt-6-luna",
+    "tokens": 144308,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

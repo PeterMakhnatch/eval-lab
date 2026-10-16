@@ -6,13 +6,22 @@ uses QA Trace's counterfactual regrade (`evallab qa trace regrade --passes ...
 --grader-manifest heldout-v5-graders.csv`). A v6 pass needs no replay: it cannot be an
 incorrect pass.
 
+Run every step from a venv synced with `uv sync --extra laminar`: cloud regrade refuses any
+Harbor other than the lab-pinned one.
+
     # 1. pass list for the regrade (one row per v6-failing trial, all arms)
     uv run python research/experiments/repaired-data-sft-v1/incorrect_pass.py plan \
         --arm A=runs/rollout/arm-a/results.jsonl ... --out replays.jsonl
-    # 2. replay on Modal (paid; deterministic, no model calls)
-    uv run evallab qa trace regrade --passes replays.jsonl --environment modal --workers 8 \
+    # 2a. count the uncached executions and the estimate (writes OUT/plan.json, runs nothing)
+    uv run evallab qa trace regrade --passes replays.jsonl --environment modal --plan \
         --grader-manifest research/experiments/repaired-data-sft-v1/heldout-v5-graders.csv \
         --out runs/rds1-incorrect-pass
+    # 2b. replay on Modal under the spend gate (paid; deterministic, no model calls).
+    #     2026-10-16: QA Trace launches this on the Trainer's cap. The first 2 rows are the
+    #     smoke, and it continues only if both are measured.
+    uv run evallab qa trace regrade --passes replays.jsonl --environment modal --workers 8 \
+        --grader-manifest research/experiments/repaired-data-sft-v1/heldout-v5-graders.csv \
+        --max-usd 2.00 --approve "<recorded approval>" --out runs/rds1-incorrect-pass
     # 3. analyze.py input: {arm, trial, original_pass}. Kept only when the replay ran on
     #    the task's pinned v5 package, its v5 grader controls are valid, and it was measured.
     #    The regrade also grades any test-repaired variant found for the task; `collect`
@@ -42,9 +51,15 @@ def task_id(task: str) -> str:
 
 
 def trial_dir(job_dir: Path) -> Path | None:
-    """The one Harbor trial directory inside a rollout job directory."""
-    trials = [p.parent for p in job_dir.glob("*/result.json")]
-    return trials[0] if len(trials) == 1 else None
+    """The one Harbor trial directory inside a rollout job directory: below the job's
+    own `result.json`, a directory holding both `result.json` and `config.json`.
+    """
+    trials = {
+        p.parent
+        for p in job_dir.rglob("result.json")
+        if p.parent != job_dir and (p.parent / "config.json").is_file()
+    }
+    return trials.pop() if len(trials) == 1 else None
 
 
 def plan(args: argparse.Namespace) -> int:

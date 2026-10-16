@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:c066bc2c58ffd37d951c585491b585e21e3a3c5570dcfe8f95215e7e949b8290
+    digest: sha256:dbf506cba0d2a9dd99a26c50213bb6a0c13b561fc9d3522e33d9be67b4e6ca48
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md

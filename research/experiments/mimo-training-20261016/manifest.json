@@ -82,9 +82,9 @@
     "format-code-task-001686"
   ],
   "heldout_manifest": {
-    "bytes": 1726,
+    "bytes": 1725,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
-    "sha256": "31537f049ab4aaa86246760599f5e0c895dc57ef853fb0e7104cf6cb54a6c32b"
+    "sha256": "d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de"
   },
   "historical_training_audit": {
     "action": "Downstream audit/exclusion of reported broken tasks is required; never rewrite historical A or its 42-ID exposure history.",
@@ -268,7 +268,7 @@
     ],
     "status": "accepted"
   },
-  "scoring_allowed": false,
+  "scoring_allowed": true,
   "selection_rule": {
     "base_size": 30,
     "eligibility": "built Python v6; index oracle:pass+nop:fail with recovered patch; nonempty packaged solve.sh; completed published verdict=pass OR refutation=refuted",

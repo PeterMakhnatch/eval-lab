@@ -1,0 +1,31 @@
+{
+  "actor": "research-harbor",
+  "allowed_changes": [
+    "heldout.scoring_allowed",
+    "manifest.scoring_allowed",
+    "manifest.heldout_manifest"
+  ],
+  "applied_at": "2026-10-16T13:55:50.889158+00:00",
+  "approval": "Research scoring disposition 2026-10-16: validity gate closed and Verifier-confirmed, flags ruled",
+  "predecessor_heldout_manifest": {
+    "bytes": 1726,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
+    "sha256": "31537f049ab4aaa86246760599f5e0c895dc57ef853fb0e7104cf6cb54a6c32b"
+  },
+  "predecessor_package_manifest": {
+    "bytes": 895106,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
+    "sha256": "7eeb54993bccd55f9b79ceb80d1f5e4538e11d9583b8cd63bdc73d30eac17411"
+  },
+  "released_heldout_manifest": {
+    "bytes": 1725,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
+    "sha256": "d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de"
+  },
+  "released_package_manifest": {
+    "bytes": 895105,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
+    "sha256": "5458ccc80977e245cfb80cec011a62f22623f9d5829842d60ae2aed4fe446cb2"
+  },
+  "schema": "mimo.scoring-release/v1"
+}

@@ -57,7 +57,9 @@ APP_NAME = "evallab-mimo-v26-9b-sft"
 EXPORT_CONTRACT = "evallab.sft_terminus/1"
 CONVERSATIONS_FILE = "conversations.jsonl"
 MANIFEST_FILE = "manifest.json"
-ALLOWED_ROLES = frozenset({"system", "user", "assistant"})
+# `tool` is the template's own role for tool results (mimoagent rows); its turns never
+# carry loss, and render_and_mask still verifies every prefix and mask.
+ALLOWED_ROLES = frozenset({"system", "user", "assistant", "tool"})
 
 WEIGHTS_VOLUME = "evallab-mimo-v26-9b-weights"
 SFT_VOLUME = "evallab-mimo-v26-9b-sft"

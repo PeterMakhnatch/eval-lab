@@ -123,7 +123,7 @@ Both are served by `serve_lora.py` with `EVALLAB_MIMO_LORA_ADAPTER=har129-g4/ada
 
 ```bash
 uv run python research/experiments/har129-lora/smoke_parity.py prompts prompts.json <trajectory.json>...
-EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter EVALLAB_MIMO_LORA_NAME=<name> \
+EVALLAB_MIMO_LORAS=<name>=<run>/adapter \
   uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve_lora.py
 uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_smoke.py \
   --prompts prompts.json --lora-url <lora url> --prod-url <prod url> --adapter <name> --out raw.json

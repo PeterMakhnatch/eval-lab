@@ -18,9 +18,14 @@ Two definitions:
 - **Incorrect pass:** the original grader passes a submission that the v6@10 grader
   rejects. The model would have been rewarded for wrong work under the original grader.
   - Only v6-failing trials need a replay; a v6 pass cannot be an incorrect pass.
-  - The denominator is the v6 passes plus the v6 failures whose original-grader replay
-    was measured.
-  - An unreplayed v6 failure is counted as unmeasured, never as correct.
+  - `incorrect_pass_rate` is reported only when every measured v6 failure has a measured
+    original-grader replay; its denominator is all measured trials. An arm that passes
+    every trial on v6 is therefore structurally 0.
+  - With any unresolved v6 failure, the rate is `null` and `incorrect_pass_status` says
+    `partial` or `unmeasured`. `incorrect_pass_bounds` then gives the range: every
+    unresolved failure counted as correct, and every one counted as an incorrect pass.
+    Missing replays are never rendered as 0.
+  - `incorrect_pass_unresolved_failures` is always printed.
 
 Validity-flagged pins (`--pin`, repeatable; 2026-10-16: 000657, 000371, 001686). Research
 wants these reported both ways:
@@ -160,6 +165,41 @@ def grading_role(row: dict[str, Any], v6: dict[str, str], pins: set[str]) -> str
     raise ValueError(f"{task}: not the frozen v6 package of {tid} and not a pin")
 
 
+def incorrect_pass_summary(verdicts: list[tuple[bool, bool | None]]) -> dict[str, Any]:
+    """Per-arm incorrect-pass fields from (v6_pass, original_pass) per measured trial.
+
+    `original_pass` is the original-grader replay verdict, or None when no replay was
+    measured. A v6 pass is never an incorrect pass and needs no replay. The rate is
+    reported only when every v6 failure is resolved. Otherwise the result is `null`
+    with bounds, so missing replays never read as a measured 0.
+    """
+    n = len(verdicts)
+    passes = sum(1 for v6, _ in verdicts if v6)
+    failures = [orig for v6, orig in verdicts if not v6]
+    resolved = [orig for orig in failures if orig is not None]
+    unresolved = len(failures) - len(resolved)
+    incorrect = sum(resolved)
+    if unresolved == 0:
+        status = "complete"
+    elif resolved:
+        status = "partial"
+    else:
+        status = "unmeasured"
+    return {
+        "incorrect_pass_status": status,
+        "incorrect_pass_measured": passes + len(resolved),
+        "incorrect_pass_v6_passes": passes,
+        "incorrect_pass_replayed_failures": len(resolved),
+        "incorrect_pass_unresolved_failures": unresolved,
+        "incorrect_passes": incorrect,
+        "incorrect_pass_rate": round(incorrect / n, 4) if n and unresolved == 0 else None,
+        "incorrect_pass_ci95": clopper_pearson(incorrect, n) if unresolved == 0 else None,
+        "incorrect_pass_bounds": [round(incorrect / n, 4), round((incorrect + unresolved) / n, 4)]
+        if n and unresolved
+        else None,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--arm", action="append", required=True, help="NAME=results.jsonl")
@@ -260,11 +300,8 @@ def main() -> int:
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
         measured = [v for _, _, v in trials if v is not None]
         solves = sum(measured)
-        # v6 passes plus v6 failures with a measured original-grader replay.
-        replayed = [
-            (n, v) for _, n, v in trials if v is True or (v is False and (name, n) in original)
-        ]
-        incorrect = sum(1 for n, v in replayed if v is False and original[(name, n)])
+        verdicts = [(v, original.get((name, n))) for _, n, v in trials if v is not None]
+        incorrect_pass = incorrect_pass_summary(verdicts)
         report["arms"][name] = {
             "examples": exports.get("arms", {}).get(name, {}).get("rows"),
             "tasks": len(by_task),
@@ -274,10 +311,7 @@ def main() -> int:
             "solves": solves,
             "solve_rate": round(solves / len(measured), 4) if measured else None,
             "solve_ci95": clopper_pearson(solves, len(measured)),
-            "incorrect_pass_measured": len(replayed),
-            "incorrect_passes": incorrect,
-            "incorrect_pass_rate": round(incorrect / len(replayed), 4) if replayed else None,
-            "incorrect_pass_ci95": clopper_pearson(incorrect, len(replayed)),
+            **incorrect_pass,
         }
         if len(trials) > len(by_task):
             report["arms"][name]["note"] = (

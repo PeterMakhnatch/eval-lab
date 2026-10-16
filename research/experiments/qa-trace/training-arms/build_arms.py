@@ -177,8 +177,9 @@ def canonical_task(task_id: str) -> str:
 def heldout_tasks(path: Path | None) -> set[str] | None:
     """Canonical held-out ids from plaintext (one per line, ``#`` comments) or JSON.
 
-    JSON may be a list or ``{"heldout": [...]}`` of ids or of objects carrying
-    ``task``/``task_id``/``task_name``. Any other shape raises.
+    JSON may be the canonical ``evallab.sft_split/2`` manifest, a list, or
+    ``{"heldout": [...]}`` of ids or of objects carrying ``task``/``task_id``/
+    ``task_name``. Any other shape raises.
     """
     if path is None:
         return None
@@ -188,6 +189,8 @@ def heldout_tasks(path: Path | None) -> set[str] | None:
     except json.JSONDecodeError:
         lines = (line.strip() for line in text.splitlines())
         return {canonical_task(line) for line in lines if line and not line.startswith("#")}
+    if isinstance(doc, dict) and doc.get("contract") == SFT_SPLIT_CONTRACT:
+        return _sft_split_heldout(doc)
     items = doc.get("heldout") if isinstance(doc, dict) else doc
     if not isinstance(items, list):
         raise ValueError("held-out JSON must be a list or an object with a 'heldout' list")
@@ -199,6 +202,26 @@ def heldout_tasks(path: Path | None) -> set[str] | None:
             raise ValueError(f"held-out entry has no task id: {item!r}")
         ids.add(canonical_task(item))
     return ids
+
+
+SFT_SPLIT_CONTRACT = "evallab.sft_split/2"
+
+
+def _sft_split_heldout(doc: dict[str, Any]) -> set[str]:
+    """MiMo held-out tasks of a multi-domain split manifest.
+
+    Other domains' held-out tasks cannot overlap MiMo training rows, so only the
+    MiMo namespace is kept; the per-task rows must agree with ``heldout_task_ids``.
+    """
+    rows = [row for row in doc["tasks"] if row["split"] == "heldout"]
+    if sorted(row["task_id"] for row in rows) != sorted(doc["heldout_task_ids"]):
+        raise ValueError("sft_split manifest tasks disagree with heldout_task_ids")
+    names = [row.get("task_name") or row["task_id"] for row in rows]
+    return {
+        canonical_task(name)
+        for name in names
+        if "/" not in name or name.startswith(f"{NAMESPACE}/")
+    }
 
 
 def is_heldout(task: str, heldout: set[str] | None) -> bool:

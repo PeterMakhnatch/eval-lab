@@ -19,6 +19,17 @@ TRAINING_TASK = "mimo-v2.6-rl/format-code-task-000226"
 OTHER_TASK = "mimo-v2.6-rl/format-code-task-000803"
 
 
+def _sft_split(heldout_task_ids: list[str]) -> str:
+    rows = [
+        {"task_id": "format-code-task-000226", "task_name": TRAINING_TASK, "split": "heldout"},
+        {"task_id": "other-0001", "task_name": "other-domain/other-0001", "split": "heldout"},
+        {"task_id": "format-code-task-000803", "task_name": OTHER_TASK, "split": "train"},
+    ]
+    return json.dumps(
+        {"contract": "evallab.sft_split/2", "tasks": rows, "heldout_task_ids": heldout_task_ids}
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "content"),
     [
@@ -27,6 +38,7 @@ OTHER_TASK = "mimo-v2.6-rl/format-code-task-000803"
         ("list-namespaced.json", json.dumps(["mimo-v2.6-rl/format-code-task-000226"])),
         ("object-bare.json", json.dumps({"heldout": ["format-code-task-000226"]})),
         ("records.json", json.dumps([{"task_id": "format-code-task-000226", "split": "heldout"}])),
+        ("sft-split.json", _sft_split(["format-code-task-000226", "other-0001"])),
     ],
 )
 def test_every_heldout_form_excludes_the_same_training_task(
@@ -46,6 +58,7 @@ def test_every_heldout_form_excludes_the_same_training_task(
         "other-dataset/format-code-task-000226\n",
         json.dumps({"heldout": "format-code-task-000226"}),
         json.dumps([{"split": "heldout"}]),
+        _sft_split(["format-code-task-000226"]),
     ],
 )
 def test_unrecognised_heldout_ids_fail_loudly_instead_of_matching_nothing(

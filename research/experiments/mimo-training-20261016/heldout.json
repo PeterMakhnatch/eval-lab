@@ -36,7 +36,7 @@
     "format-code-task-001686"
   ],
   "schema": "mimo.heldout/v1",
-  "scoring_allowed": false,
+  "scoring_allowed": true,
   "split": {
     "bytes": 264957,
     "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/split.json",

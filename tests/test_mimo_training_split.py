@@ -4,7 +4,9 @@ import csv
 import hashlib
 import json
 import runpy
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,8 +20,14 @@ PREFIX = "mimo-v2.6-rl/"
 
 
 @pytest.fixture
-def driver() -> dict[str, Any]:
-    return runpy.run_path(str(DRIVER))
+def driver(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    namespace = runpy.run_path(str(DRIVER))
+    monkeypatch.setitem(
+        namespace["release_scoring"].__globals__,
+        "datetime",
+        SimpleNamespace(now=lambda tz: datetime(2026, 10, 16, tzinfo=tz)),
+    )
+    return namespace
 
 
 def sha(data: bytes) -> str:
@@ -398,3 +406,77 @@ def test_released_membership_refuses_material_changes_without_reshuffling(driver
     with pytest.raises(ValueError):
         driver["check_frozen"](case["output"])
     assert (case["output"] / "split.json").read_bytes() == before
+
+
+def test_scoring_release_opens_both_gates_without_changing_frozen_bindings(driver, make_case) -> None:
+    case = make_case()
+    release_case(driver, case)
+    output = case["output"]
+    before_heldout = json.loads((output / "heldout.json").read_text())
+    before_manifest = json.loads((output / "manifest.json").read_text())
+    before_split = (output / "split.json").read_bytes()
+    before_pairs = (output / "package-pairs.csv").read_bytes()
+    predecessor_heldout = driver["fingerprint"](output / "heldout.json")
+    predecessor_manifest = driver["fingerprint"](output / "manifest.json")
+    driver["release_scoring"](output, "research-harbor", "Validity gate confirmed; flags ruled.")
+    heldout = json.loads((output / "heldout.json").read_text())
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert heldout == before_heldout | {"scoring_allowed": True}
+    assert manifest == before_manifest | {
+        "scoring_allowed": True,
+        "heldout_manifest": driver["fingerprint"](output / "heldout.json"),
+    }
+    assert (output / "split.json").read_bytes() == before_split
+    assert (output / "package-pairs.csv").read_bytes() == before_pairs
+    custody = json.loads((output / "scoring-release.json").read_text())
+    assert custody["predecessor_heldout_manifest"] == predecessor_heldout
+    assert custody["predecessor_package_manifest"] == predecessor_manifest
+    assert custody["released_heldout_manifest"] == driver["fingerprint"](output / "heldout.json")
+    assert custody["released_package_manifest"] == driver["fingerprint"](output / "manifest.json")
+    checked = driver["check_frozen"](output)
+    assert checked["heldout"] == heldout["heldout"]
+
+
+@pytest.mark.parametrize("actor,approval", [
+    ("trainer", "Validity gate confirmed."),
+    ("research-harbor", ""),
+    (None, "Validity gate confirmed."),
+])
+def test_scoring_release_requires_research_authority_before_writing(driver, make_case, actor, approval) -> None:
+    case = make_case()
+    release_case(driver, case)
+    output = case["output"]
+    before = {path.name: path.read_bytes() for path in output.iterdir()}
+    with pytest.raises(ValueError):
+        driver["release_scoring"](output, actor, approval)
+    assert {path.name: path.read_bytes() for path in output.iterdir()} == before
+
+
+@pytest.mark.parametrize("change", [
+    "missing_custody", "predecessor_hash", "package_binding",
+    "heldout_gate_type", "manifest_gate_type",
+])
+def test_scoring_release_still_refuses_unbound_or_changed_packages(driver, make_case, change) -> None:
+    case = make_case()
+    release_case(driver, case)
+    output = case["output"]
+    driver["release_scoring"](output, "research-harbor", "Validity gate confirmed; flags ruled.")
+    custody_path = output / "scoring-release.json"
+    if change == "missing_custody":
+        custody_path.unlink()
+    elif change == "predecessor_hash":
+        custody = json.loads(custody_path.read_text())
+        custody["predecessor_package_manifest"]["sha256"] = "0" * 64
+        custody_path.write_text(json.dumps(custody))
+    elif change.endswith("_gate_type"):
+        path = output / ("heldout.json" if change == "heldout_gate_type" else "manifest.json")
+        payload = json.loads(path.read_text())
+        payload["scoring_allowed"] = 1
+        driver["replace_json"](path, payload)
+    else:
+        manifest_path = output / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["tasks"][0]["evaluation_target"]["package_digest"] = "sha256:" + "f" * 64
+        manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        driver["check_frozen"](output)

@@ -13,6 +13,7 @@ import json
 import os
 import re
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -482,6 +483,25 @@ def validate_release_inputs(split: dict[str, Any], output_dir: Path, release_pat
             raise ValueError(f"heldout evidence changed; Research disposition required: {selected['task_id']}")
 
 
+def payload_fingerprint(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    data = encoded(payload).encode("utf-8")
+    return {"path": str(path.resolve()), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+
+def validate_scoring_authority(actor: Any, approval: Any) -> None:
+    if actor != "research-harbor" or not isinstance(approval, str) or not approval.strip():
+        raise ValueError("scoring release requires research-harbor and an explicit approval")
+
+
+def scoring_payloads(output_dir: Path, heldout: dict[str, Any], manifest: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    heldout = heldout | {"scoring_allowed": True}
+    manifest = manifest | {
+        "scoring_allowed": True,
+        "heldout_manifest": payload_fingerprint(output_dir / "heldout.json", heldout),
+    }
+    return heldout, manifest
+
+
 def check_frozen(output_dir: Path) -> dict[str, Any]:
     split_path = output_dir / "split.json"
     split = json.loads(split_path.read_text(encoding="utf-8"))
@@ -503,14 +523,38 @@ def check_frozen(output_dir: Path) -> dict[str, Any]:
             raise ValueError(f"frozen training inventory drift: added={sorted(current - frozen)}, removed={sorted(frozen - current)}; create an explicit successor")
         if build_split(split["config"], revision=split.get("revision")) != split:
             raise ValueError("frozen split metadata differs from deterministic regeneration; create an explicit successor")
-    if heldout != heldout_payload(split, split_path, release_path):
-        raise ValueError("frozen heldout manifest drift")
+    expected_heldout = heldout_payload(split, split_path, release_path)
     manifest_path = output_dir / "manifest.json"
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
+    expected_manifest = None
+    if manifest is not None:
         pairs_path = Path(manifest["package_pairs"]["path"])
-        if manifest_payload(split, output_dir, pairs_path, policy_revision=manifest.get("policy_revision"), release_path=release_path) != manifest:
-            raise ValueError("frozen package manifest/input drift; create an explicit successor")
+        expected_manifest = manifest_payload(split, output_dir, pairs_path, policy_revision=manifest.get("policy_revision"), release_path=release_path)
+    scoring_path = output_dir / "scoring-release.json"
+    if scoring_path.exists():
+        if expected_manifest is None or release_path is None:
+            raise ValueError("scoring release requires the validity-released package manifest")
+        scoring = json.loads(scoring_path.read_text(encoding="utf-8"))
+        validate_scoring_authority(scoring.get("actor"), scoring.get("approval"))
+        if scoring.get("schema") != "mimo.scoring-release/v1":
+            raise ValueError("unsupported scoring release schema")
+        predecessors = {
+            "predecessor_heldout_manifest": payload_fingerprint(output_dir / "heldout.json", expected_heldout),
+            "predecessor_package_manifest": payload_fingerprint(manifest_path, expected_manifest),
+        }
+        if any(scoring.get(key) != value for key, value in predecessors.items()):
+            raise ValueError("scoring release predecessor binding drift")
+        expected_heldout, expected_manifest = scoring_payloads(output_dir, expected_heldout, expected_manifest)
+        released = {
+            "released_heldout_manifest": payload_fingerprint(output_dir / "heldout.json", expected_heldout),
+            "released_package_manifest": payload_fingerprint(manifest_path, expected_manifest),
+        }
+        if any(scoring.get(key) != value or fingerprint(Path(value["path"])) != value for key, value in released.items()):
+            raise ValueError("scoring release output binding drift")
+    if heldout != expected_heldout:
+        raise ValueError("frozen heldout manifest drift")
+    if manifest is not None and expected_manifest != manifest:
+        raise ValueError("frozen package manifest/input drift; create an explicit successor")
     return split
 
 
@@ -532,6 +576,33 @@ def replace_json(path: Path, payload: dict[str, Any]) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def release_scoring(output_dir: Path, actor: str | None, approval: str | None) -> dict[str, Any]:
+    validate_scoring_authority(actor, approval)
+    split = check_frozen(output_dir)
+    heldout_path, manifest_path = output_dir / "heldout.json", output_dir / "manifest.json"
+    heldout = json.loads(heldout_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if any(payload.get("scoring_allowed") is not False
+           or payload.get("freeze_ready") is not True
+           or payload.get("validity_check_allowed") is not True
+           for payload in (heldout, manifest)):
+        raise ValueError("scoring release requires both closed scoring gates and completed validity release")
+    released_heldout, released_manifest = scoring_payloads(output_dir, heldout, manifest)
+    create_json(output_dir / "scoring-release.json", {
+        "schema": "mimo.scoring-release/v1",
+        "actor": actor, "approval": approval, "applied_at": datetime.now(UTC).isoformat(),
+        "predecessor_heldout_manifest": fingerprint(heldout_path),
+        "predecessor_package_manifest": fingerprint(manifest_path),
+        "released_heldout_manifest": payload_fingerprint(heldout_path, released_heldout),
+        "released_package_manifest": payload_fingerprint(manifest_path, released_manifest),
+        "allowed_changes": ["heldout.scoring_allowed", "manifest.scoring_allowed", "manifest.heldout_manifest"],
+    })
+    replace_json(manifest_path, released_manifest)
+    # Keep the consumer's starting gun last, after its package-manifest binding.
+    replace_json(heldout_path, released_heldout)
+    return split
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent)
@@ -546,11 +617,16 @@ def main() -> None:
     mode.add_argument("--preseal-research-correction", action="store_true")
     mode.add_argument("--preseal-target-policy", action="store_true")
     mode.add_argument("--release-validity", type=Path)
+    mode.add_argument("--release-scoring", action="store_true")
+    parser.add_argument("--actor")
+    parser.add_argument("--approval")
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     pairs_path = (args.pairs or output_dir / "package-pairs.csv").resolve()
     try:
-        if args.release_validity:
+        if args.release_scoring:
+            split = release_scoring(output_dir, args.actor, args.approval)
+        elif args.release_validity:
             release_path = args.release_validity.resolve()
             split_path = output_dir / "split.json"
             split = json.loads(split_path.read_text(encoding="utf-8"))
@@ -640,7 +716,8 @@ def main() -> None:
             create_json(output_dir / "heldout.json", heldout_payload(split, output_dir / "split.json"))
             if pairs_path.is_file():
                 create_json(output_dir / "manifest.json", manifest_payload(split, output_dir, pairs_path))
-        print(json.dumps({"counts": split["counts"], "manifest_created": (output_dir / "manifest.json").is_file(), "scoring_allowed": False}, sort_keys=True))
+        scoring_allowed = json.loads((output_dir / "heldout.json").read_text(encoding="utf-8"))["scoring_allowed"]
+        print(json.dumps({"counts": split["counts"], "manifest_created": (output_dir / "manifest.json").is_file(), "scoring_allowed": scoring_allowed}, sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         parser.exit(2, f"freeze: {exc}\n")
 

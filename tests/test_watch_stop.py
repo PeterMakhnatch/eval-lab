@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -268,24 +271,41 @@ def test_record_roundtrips_with_manifest(tmp_path: Path) -> None:
     assert stop_already_handled(watch, "task__a1") is True
 
 
-def test_host_snapshot_copies_files_with_hashes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("evidence_name", "capture_limit"),
+    [("trajectory.json", 4096), ("codex.txt", 4096), ("codex.txt", 64)],
+)
+def test_host_snapshot_preserves_evidence_before_source_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    evidence_name: str,
+    capture_limit: int,
+) -> None:
+    monkeypatch.setattr(watch_stop, "SNAPSHOT_MAX_BYTES", capture_limit)
     job = tmp_path / "job"
     trial = job / "task__a1"
     (trial / "agent").mkdir(parents=True)
-    (trial / "agent" / "trajectory.json").write_text('{"steps": []}', encoding="utf-8")
-    (trial / "config.json").write_text("{}", encoding="utf-8")
-    manifest = capture_host_snapshot(
-        job_dir=job,
-        trial="task__a1",
-        dest_dir=tmp_path / "snap",
-        alert={"rule": "history_mining"},
+    evidence = trial / "agent" / evidence_name
+    original = json.dumps(
+        {"steps": [{"source": "agent", "message": "Reading ordinary task instructions."}]}
+    ).encode()
+    evidence.write_bytes(original)
+    snapshot = tmp_path / "snap"
+    manifest = capture_host_snapshot(job_dir=job, trial=trial.name, dest_dir=snapshot)
+    evidence.write_bytes(b"later activity must not rewrite captured evidence")
+
+    captured = (snapshot / "agent" / evidence_name).read_bytes()
+    assert captured == original[:capture_limit]
+    entry = next(
+        item for item in manifest["files"] if item["path"] == f"agent/{evidence_name}"
     )
-    paths = {entry["path"] for entry in manifest["files"]}
-    assert "agent/trajectory.json" in paths
-    assert "config.json" in paths
-    assert "firing-alert.json" in paths
-    for entry in manifest["files"]:
-        assert len(entry["sha256"]) == 64
+    assert entry["sha256"] == hashlib.sha256(captured).hexdigest()
+    assert entry["bytes"] == len(captured)
+    if len(original) > capture_limit:
+        assert entry["truncated"] is True
+        assert entry["source_bytes"] == len(original)
+    else:
+        assert not entry.get("truncated")
     assert manifest["errors"] == []
 
 
@@ -384,6 +404,64 @@ def test_run_watch_on_writes_request(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert request is not None
     assert request["rule"] == "history_mining"
     assert request["requested_by"] == "auto"
+
+
+@pytest.mark.parametrize(
+    ("mode", "capture_fails"),
+    [("on", False), ("dry-run", False), ("on", True)],
+    ids=["armed", "dry-run", "failed-capture"],
+)
+def test_stop_timestamps_follow_each_capture_and_record_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, capture_fails: bool
+) -> None:
+    runs = tmp_path / "runs"
+    first = _write_mining_trial(runs)
+    second = first.with_name("task__a2")
+    shutil.copytree(first, second)
+    out = first.parent / "watch"
+    scan_started = datetime(2026, 10, 16, tzinfo=UTC).timestamp()
+    clock = [scan_started]
+    capture_finished: dict[str, float] = {}
+    record_finished: dict[str, float] = {}
+    original_write = Path.write_text
+
+    def capture(trial: str, *, pause: bool) -> dict[str, Any]:
+        clock[0] += 10
+        capture_finished[trial] = clock[0]
+        if capture_fails:
+            raise TimeoutError("capture took time before failing")
+        return {"skipped": "no Docker in this test"}
+
+    def slow_record_write(path: Path, data: str, *args: Any, **kwargs: Any) -> int:
+        written = original_write(path, data, *args, **kwargs)
+        if path.parent == out / "stop-records":
+            clock[0] += 5
+            record_finished[path.stem] = clock[0]
+        return written
+
+    monkeypatch.setattr(watch_stop.time, "time", lambda: clock[0])
+    monkeypatch.setattr(watch_stop, "docker_capture", capture)
+    monkeypatch.setattr(Path, "write_text", slow_record_write)
+    run_watch(runs_dirs=[runs], out_dir=out, stop_mode=mode, now=scan_started)
+
+    recorded_times = []
+    for trial in (first.name, second.name):
+        record = read_stop_record(out, trial)
+        assert record is not None
+        recorded = datetime.fromisoformat(record["recorded_at"]).timestamp()
+        assert capture_finished[trial] <= recorded <= record_finished[trial]
+        assert bool(record.get("capture_errors")) is capture_fails
+        recorded_times.append(recorded)
+        request = read_stop_request(out, trial)
+        if mode == "on":
+            assert request is not None
+            requested = datetime.fromisoformat(request["requested_at"]).timestamp()
+            assert requested >= record_finished[trial] > recorded
+        else:
+            assert request is None
+    assert recorded_times[1] > recorded_times[0] > scan_started
+    alerts = [json.loads(line) for line in (out / "alerts.jsonl").read_text().splitlines()]
+    assert all(datetime.fromisoformat(alert["first_seen"]).timestamp() == scan_started for alert in alerts)
 
 
 def test_drive_skips_acked_terminal_and_fleet(
@@ -628,6 +706,74 @@ def test_actuator_stops_one_trial_sibling_completes(
     assert clean.exception_info is None
     persisted = json.loads((job_dir / "task__a1" / "result.json").read_text(encoding="utf-8"))
     assert persisted["exception_info"]["exception_type"] == WATCH_STOP_EXCEPTION
+
+
+@pytest.mark.parametrize(
+    ("actions", "journal_writable"),
+    [
+        (("verification-start", "request"), True),
+        (("request", "verification-start"), True),
+        (("verification-start", "agent-end", "request"), True),
+        (("verification-start", "request"), False),
+    ],
+    ids=["event-first", "request-first", "late-agent-event", "journal-write-fails"],
+)
+def test_actuator_preserves_verification_after_dispatch(
+    tmp_path: Path, actions: tuple[str, ...], journal_writable: bool
+) -> None:
+    plugin = WatchHookPlugin()
+    plugin._job_dir = tmp_path
+    plugin._journal = tmp_path / "watch" / "hooks.jsonl"
+    if not journal_writable:
+        plugin._journal.mkdir(parents=True)
+    protected, eligible = "task__verification", "task__agent"
+
+    def request(trial: str) -> None:
+        write_stop_request(
+            tmp_path / "watch",
+            trial=trial,
+            rule="history_mining",
+            step_ref=None,
+            alert=None,
+            requested_by="auto",
+            mode="on",
+        )
+
+    async def scenario() -> tuple[asyncio.Task[str], asyncio.Task[str]]:
+        release = asyncio.Event()
+
+        async def work() -> str:
+            await release.wait()
+            return "completed"
+
+        verifier = asyncio.create_task(work())
+        agent = asyncio.create_task(work())
+        plugin._trial_tasks.update({protected: verifier, eligible: agent})
+        await asyncio.sleep(0)
+        for action in actions:
+            if action == "request":
+                request(protected)
+            else:
+                await plugin._on_event(
+                    SimpleNamespace(
+                        event=SimpleNamespace(value=action),
+                        trial_name=protected,
+                        trial_id="verification-trial",
+                        timestamp=datetime(2026, 10, 16, tzinfo=UTC),
+                    )
+                )
+        request(eligible)
+        plugin._check_stop_requests()
+        release.set()
+        await asyncio.gather(verifier, agent, return_exceptions=True)
+        return verifier, agent
+
+    verifier, agent = asyncio.run(scenario())
+    assert not verifier.cancelled()
+    assert verifier.result() == "completed"
+    assert agent.cancelled()
+    with pytest.raises(asyncio.CancelledError, match=WATCH_STOP_MESSAGE):
+        agent.result()
 
 
 def test_actuator_reraises_foreign_cancels(tmp_path: Path) -> None:

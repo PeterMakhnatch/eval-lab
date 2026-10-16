@@ -1,0 +1,38 @@
+{
+  "schema": "qa.finding/v1",
+  "id": "codex-verifier-aware:benchflow-0.2.0/terminal-bench-2/query-optimize",
+  "subject": {
+    "kind": "task",
+    "task_id": "benchflow-0.2.0/terminal-bench-2/query-optimize",
+    "task_digest": null,
+    "trial_id": null
+  },
+  "stage": "breaker",
+  "verdict": "fail",
+  "category": "tamperable",
+  "severity": "high",
+  "fault": "eval",
+  "summary": null,
+  "evidence_refs": [
+    "runs/bbd-query-optimize-020-a1/bbd-query-optimize-020-a1__EdXVovX/verifier/test-stdout.txt",
+    "runs/bbd-query-optimize-020-a2/bbd-query-optimize-020-a2__7U6dGxf/verifier/test-stdout.txt"
+  ],
+  "reproducer": {
+    "kind": "harbor_trial",
+    "path": "runs/bbd-query-optimize-020-a2/bbd-query-optimize-020-a2__7U6dGxf",
+    "expected_reward": 1.0
+  },
+  "refutation": {
+    "status": "unverified",
+    "by": null,
+    "reason": null
+  },
+  "reviewer": {
+    "agent": "codex-verifier-aware",
+    "model": "gpt-6-luna",
+    "tokens": 204308,
+    "cost_usd": 0.0
+  },
+  "measurement": "measured",
+  "root_cause": []
+}

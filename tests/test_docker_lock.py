@@ -15,9 +15,11 @@ from pathlib import Path
 import pytest
 
 from evallab.docker_lock import (
+    ENV_SLOTS,
     DockerLock,
     DockerLockTimeout,
     _write_queue_file,
+    default_slots,
     docker_slot,
     get_status,
     queue_path,
@@ -46,6 +48,41 @@ def _wait_for_queue_len(state_dir: Path, expected: int, timeout: float = 5.0) ->
     raise AssertionError(
         f"queue never reached {expected} entries: {read_queue(state_dir=state_dir)!r}"
     )
+
+
+def test_default_slots_admit_four_and_queue_the_fifth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(ENV_SLOTS, raising=False)
+    assert default_slots() == 4
+    locks = [
+        DockerLock(
+            f"holder-{index}",
+            state_dir=tmp_path,
+            poll_interval=0.01,
+            heartbeat_interval=5.0,
+        )
+        for index in range(5)
+    ]
+    try:
+        assert [lock.try_acquire_step()[0] for lock in locks] == [
+            True,
+            True,
+            True,
+            True,
+            False,
+        ]
+    finally:
+        for lock in locks:
+            lock.release()
+    assert read_queue(state_dir=tmp_path) == []
+
+
+def test_env_slots_override_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(ENV_SLOTS, "2")
+    assert default_slots() == 2
+    monkeypatch.setenv(ENV_SLOTS, "not-a-number")
+    assert default_slots() == 4
 
 
 # (a) slots=1: second acquirer waits, then gets the slot right after release.
@@ -218,11 +255,14 @@ def test_release_idempotent_and_on_exception(tmp_path: Path) -> None:
     lock.release()  # second release must not raise
     assert read_queue(state_dir=tmp_path) == []
 
-    with pytest.raises(RuntimeError, match="boom"), docker_slot(
-        "raises",
-        state_dir=tmp_path,
-        poll_interval=0.01,
-        heartbeat_interval=5.0,
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        docker_slot(
+            "raises",
+            state_dir=tmp_path,
+            poll_interval=0.01,
+            heartbeat_interval=5.0,
+        ),
     ):
         raise RuntimeError("boom")
     assert read_queue(state_dir=tmp_path) == []
@@ -265,6 +305,7 @@ def test_run_timeout_returns_124_and_removes_waiter(tmp_path: Path) -> None:
         code = run_with_lock(
             "impatient",
             ["sh", "-c", "exit 0"],
+            slots=1,
             state_dir=tmp_path,
             timeout=0.3,
             poll_interval=0.01,

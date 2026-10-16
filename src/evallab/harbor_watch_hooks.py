@@ -159,6 +159,7 @@ class WatchHookPlugin:
         self._trial_tasks: dict[str, Any] = {}
         self._end_results: dict[str, Any] = {}
         self._terminal: set[str] = set()
+        self._verification_started: set[str] = set()
         self._stop_requested: set[str] = set()
         self._stop_acted: set[str] = set()
         self._stop_poller: Any | None = None
@@ -307,7 +308,12 @@ class WatchHookPlugin:
             if path.suffix != ".json" or not path.is_file():
                 continue
             trial = self._request_trial(path)
-            if trial is None or trial in self._stop_acted or trial in self._terminal:
+            if (
+                trial is None
+                or trial in self._stop_acted
+                or trial in self._terminal
+                or trial in self._verification_started
+            ):
                 continue
             task = self._trial_tasks.get(trial)
             if task is None or getattr(task, "done", lambda: True)():
@@ -406,6 +412,10 @@ class WatchHookPlugin:
             record = _event_record(event)
             if record["trial_id"]:
                 self._trial_names[record["trial_id"]] = record["trial"]
+            if record["event"] == "verification-start" and record["trial"]:
+                # Capture/polling can outlast the dispatcher's phase check.
+                # Latch locally before best-effort journal I/O.
+                self._verification_started.add(record["trial"])
             if record["event"] in ("end", "cancel") and record["trial"]:
                 self._terminal.add(record["trial"])
             self._append([record])

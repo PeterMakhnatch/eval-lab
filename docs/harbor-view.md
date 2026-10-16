@@ -265,9 +265,16 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
   have separate rows, and `expected` (`trace-paired-v1`'s `expected_regrade`) gets
   an expected-vs-observed table only for validated graders. The JSON summary is
   always written; exit 3 means incomplete/refused/unvalidated observations.
-  - Each native execution holds the host-wide Docker FIFO lock
-    (`docs/docker-lock.md`); executions are serialized, even with multiple
-    queued workers. Harbor 0.24 (the `laminar` extra) is required.
+  - `--environment docker` (default): each native execution holds the
+    host-wide Docker FIFO lock (`docs/docker-lock.md`); executions are
+    serialized, even with multiple queued workers. Harbor 0.24 (the `laminar`
+    extra) is required. `--environment daytona|modal` skip the host lock and run
+    workers concurrently in the cloud (paid). Daytona's MiMo egress lock refuses
+    every `mimo-clean-v6` package (they declare phase network policies), so
+    Modal is the cloud path for v6; it needs Harbor's `modal` extra and Modal
+    credentials. Each row records its `environment`; cloud refusals stay
+    refusals, never rejections. The cache identity omits the backend, so a
+    backend smoke test needs items with no cached controls or replays.
   - Native patch jobs use the discoverable `runs/<qa-replay-ULID>/` root,
     matrix receipts use `runs/.executor/`, and scripts use
     `runs/qa-trace-regrade/scripts/`. Reports go to `OUT/summary.json` and

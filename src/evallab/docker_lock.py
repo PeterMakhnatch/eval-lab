@@ -35,6 +35,11 @@ DEFAULT_NAME = "docker"
 DEFAULT_TTL_SECONDS = 120.0
 DEFAULT_POLL_SECONDS = 0.5
 DEFAULT_HEARTBEAT_SECONDS = 15.0
+#: Host-wide concurrency default. The host has 16 cores and 64 GiB; the
+#: Docker VM (about 8 GiB) is the binding limit, and measured trial
+#: containers use a few hundred MiB each, so 4 concurrent holders fit.
+#: Lower it with $EVALLAB_DOCKER_LOCK_SLOTS if containers start OOMing.
+DEFAULT_SLOTS = 4
 ENV_DIR = "EVALLAB_DOCKER_LOCK_DIR"
 ENV_SLOTS = "EVALLAB_DOCKER_LOCK_SLOTS"
 
@@ -56,16 +61,16 @@ def default_state_dir() -> Path:
 
 
 def default_slots() -> int:
-    """Return the default slot count: ``$EVALLAB_DOCKER_LOCK_SLOTS`` or 1."""
+    """Return the default slot count: ``$EVALLAB_DOCKER_LOCK_SLOTS`` or 4."""
     raw = os.environ.get(ENV_SLOTS)
     if raw:
         try:
             parsed = int(raw)
         except ValueError:
-            return 1
+            return DEFAULT_SLOTS
         if parsed >= 1:
             return parsed
-    return 1
+    return DEFAULT_SLOTS
 
 
 def _validate_name(name: str) -> str:
@@ -202,7 +207,7 @@ class DockerLock:
         self,
         label: str,
         *,
-        slots: int = 1,
+        slots: int | None = None,
         name: str = DEFAULT_NAME,
         state_dir: Path | None = None,
         ttl: float = DEFAULT_TTL_SECONDS,
@@ -215,10 +220,11 @@ class DockerLock:
         pid: int | None = None,
         cwd: str | None = None,
     ) -> None:
-        if slots < 1:
+        resolved_slots = default_slots() if slots is None else slots
+        if resolved_slots < 1:
             raise ValueError("slots must be >= 1")
         self.label = label
-        self.slots = slots
+        self.slots = resolved_slots
         self.name = _validate_name(name)
         self.state_dir = state_dir
         self.ttl = ttl
@@ -408,7 +414,7 @@ class DockerLock:
 def docker_slot(
     label: str = "docker",
     *,
-    slots: int = 1,
+    slots: int | None = None,
     name: str = DEFAULT_NAME,
     state_dir: Path | None = None,
     timeout: float | None = None,
@@ -643,7 +649,7 @@ def build_docker_lock_parser(commands: argparse._SubParsersAction) -> None:  # n
         "--slots",
         type=int,
         default=None,
-        help=f"Concurrent slots (default: ${ENV_SLOTS} or 1)",
+        help=f"Concurrent slots (default: ${ENV_SLOTS} or {DEFAULT_SLOTS})",
     )
     run.add_argument("--name", default=DEFAULT_NAME, help="Lock name (default: docker)")
     run.add_argument(

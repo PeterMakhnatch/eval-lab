@@ -98,6 +98,17 @@ minimal additional tests for the omission. They do not establish completeness
 for every alias graph. The original parent has raw reward 1 but also
 `TrialBudgetExhaustedError`; that run is not represented here as exception-free.
 
+**Follow-up (2026-10-16, dataset B):** [the merge probe](probes/test_qa_probe_alias_merge.py)
+checks the prompt's 2-record and 3-record examples plus a third record linking two
+otherwise separate results, each in both provider orders. Through the same native
+runner, the reference fix passes the 4 prompt-example cases and fails both
+linking cases, and base fails all 6. The linking case therefore is not a requirement
+the task's own reference meets, so it is not counted against agents. The two
+002391 ordinary passes in training arm B (`own-scan:402`, `own-scan:416`) match
+the reference on all 6 cases and pass both alias-exclusion probes, so they stay in B.
+Receipts are in `derived/qa-trace/training-arms/2026-10-16/alias-merge-probe-b2/`
+and `alias-probe-b2/`, outside Git.
+
 ## 002486 — install-plan output does not imply unrestricted purity
 
 **Prompt clauses:** `C/format-code-task-002486/instruction.md:3–9`, also present
@@ -267,6 +278,21 @@ solution supplies, not fingerprint these filenames. Neither probe is a complete
 nested-include regression suite. The original parent also records
 `TrialBudgetExhaustedError` despite raw reward 1; its original reward is not
 presented as an exception-free model completion.
+
+## 002402 — dataset B "unclear" rows (2026-10-16 follow-up)
+
+Three ordinary 002402 passes were held out of training arm B as "unclear": diff
+review said they handle only the first `Dependent` argument constraint, which is
+narrower than the reference. [The scan probe](probes/test_qa_probe_scan_plated_uniform.py)
+runs the prompt's own `control_flow.scan` + plated `Uniform()` reproducer, plus
+the same model with array-valued `Uniform` bounds (both arguments `Dependent`).
+It checks that the model runs, every height stays within its step bounds, and
+the plated site keeps its shape across scan steps. Through the native runner,
+the reference fix passes 3/3 and base fails 3/3. Each of the three passes
+(`own-scan:377`, `:400`, `:418`) passes 3/3, so they entered B in final-v3.
+Receipts are in `derived/qa-trace/training-arms/2026-10-16/unclear-probes/`,
+outside Git. 000495 (`own-scan:473`) has no validated reference fix, so it was
+not probed and stays unclear.
 
 ## Reuse and interpretation boundaries
 

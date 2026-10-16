@@ -281,7 +281,7 @@ Production is a separate app and is never touched.
 | `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:<name>` | base + adapter (SGLang's `base:adapter` syntax; the response echoes the name) |
 
 ```bash
-EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter EVALLAB_MIMO_LORA_NAME=<name> \
+EVALLAB_MIMO_LORAS=<name>=<run>/adapter[,<name>=<run>/adapter...] \
   uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve_lora.py
 # parity and validity: the LoRA server's two names against production, temperature 0, inside Modal
 uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_smoke.py \

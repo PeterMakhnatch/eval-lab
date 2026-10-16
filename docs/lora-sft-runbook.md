@@ -115,11 +115,11 @@ uv run --project tools/modal-mimo-sft --locked modal volume get evallab-mimo-v26
 ## 3. Serve base + adapter on one server
 
 ```bash
-EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter EVALLAB_MIMO_LORA_NAME=har129 \
+EVALLAB_MIMO_LORAS=har129=<run>/adapter \
   uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve_lora.py
 ```
 
-The app `evallab-mimo-v26-9b-lora` uses production's SGLang image and launch command, plus the LoRA flags. The adapter is selected per request by the model name `<base>:<adapter>`.
+The app `evallab-mimo-v26-9b-lora` uses production's SGLang image and launch command, plus the LoRA flags. Several adapters can share one server (`EVALLAB_MIMO_LORAS=a=<run>/adapter,b=<run>/adapter`; `--max-loras-per-batch` equals their count). The adapter is selected per request by the model name `<base>:<adapter>`.
 
 | arm | queue selector | upstream |
 |---|---|---|

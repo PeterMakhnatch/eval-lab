@@ -74,10 +74,15 @@ Docker simultaneously.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `--slots N` / `$EVALLAB_DOCKER_LOCK_SLOTS` | `1` | How many queue entries may hold a slot (run) at once, host-wide. |
+| `--slots N` / `$EVALLAB_DOCKER_LOCK_SLOTS` | `4` | How many queue entries may hold a slot (run) at once, host-wide. |
 | `--name NAME` | `docker` | Lock name; selects `<name>.queue.json` + `<name>.mutex` in the state dir. Separate names are independent queues. |
 | `--timeout SECONDS` (`run` only) | none (wait forever) | Maximum wait for a slot; exits `124` on expiry. |
 | `$EVALLAB_DOCKER_LOCK_DIR` | `~/.cache/evallab/docker-lock/` | State directory shared by all tabs/worktrees. Point it at a tmp dir to isolate tests. |
+
+The default rose from 1 to 4 on 2026-10-15: the host has 16 cores and
+64 GiB, and measured trial containers use a few hundred MiB each inside
+the roughly 8 GiB Docker VM. If containers start OOMing, lower it again
+with `EVALLAB_DOCKER_LOCK_SLOTS=3` (or `--slots 3`) — no code change.
 
 ## Semantics
 

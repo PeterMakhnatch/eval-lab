@@ -1,0 +1,2123 @@
+{
+  "schema": "mimo.frozen-lineage-registration/v1",
+  "registered_at": "2026-10-16T22:38:05.509990+00:00",
+  "actor": "mimo-data-lineage-registration-20261016",
+  "approval_actor": "research-harbor",
+  "headline_count": 33,
+  "pin_diagnostic_count": 3,
+  "new_record_count": 168,
+  "unchanged_preexisting_six_edge_records": 33,
+  "replay_receipt": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/headline-replay.json",
+    "sha256": "16801d5ab23b1c53d85a29b153e035cd4028923e696b7fcdc6f87a75dd1e0d14"
+  },
+  "replay_procedure": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/mimo-lineage-registration/procedures/replay-headline.py",
+    "sha256": "1b4f690fa76cd8a8d616e2ca4744a60bf9e3de483acbafee2d27196545bcbc52"
+  },
+  "registration_procedure": {
+    "path": "/tmp/mimo-register-frozen-lineage-20261016.py",
+    "sha256": "fdc52de7d9b38f2169e4d4ac1ad6c5fa5a1bc5b9a9ee53fe417ec4e4c47fec6e"
+  },
+  "frozen_sources": [
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/heldout.json",
+      "sha256": "d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/manifest.json",
+      "sha256": "5458ccc80977e245cfb80cec011a62f22623f9d5829842d60ae2aed4fe446cb2"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+      "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+    },
+    {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/scoring-release.json",
+      "sha256": "5bed2bd6c41de308053c658d88c51bb4c786166fbe482a766173ecebdd760528"
+    }
+  ],
+  "package_bytes_changed": false,
+  "manifest_membership_changed": false,
+  "scoring_changed": false,
+  "new_grading_runs": 0,
+  "model_calls": 0,
+  "paid_spend_usd": 0,
+  "validation_scope": "Exact reconstructed package/Harbor bindings and retained reference/nop controls. Not new control executions or a semantic-validity verdict.",
+  "raw_pin_diagnostics_selected": false,
+  "created_record_paths": [
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000142/2efc9fd454cd.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000142/5e75a4afcb92.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000142/a31e1ec5ae98.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000142/c9b44e7bbe12.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000143/1ed93a8955be.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000143/3079fade00b6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000143/93b1f434100d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000143/f5b35a94d964.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000144/9e817c8afaad.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000144/a6c323c675b1.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000144/c54265fbfa26.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000144/d7d7b146900f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000149/0fcd79b49cda.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000149/77a83026b378.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000149/a3d85590b1de.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000149/ffa2aa2900a6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000161/536f61d68bf0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000161/64d9e72056c4.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000161/8b697344ac1a.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000161/f3dcfa547de2.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/0020c2ccac80.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/52e17d1f2f43.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/7de36adb1be6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/93c6f161f3ed.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/cc1349da3c95.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000582/359484f83118.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000582/46c74a854ca2.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000582/5dc965880d37.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000582/fc48249a6c55.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/230217cabc46.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/bd2d112a9259.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/da34eb301f58.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/f49772f63013.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000657/f7c4d0606980.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000783/35be34f1b1cb.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000783/f4da72222557.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000783/f5d747eaf8fa.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000783/fb52052f82f1.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000878/679d4524f7bc.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000878/8b01cf9198ef.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000878/b2bcbb892dd5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000878/d7fa3065cd75.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000905/5b2e8e86cbba.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000905/5c7cc4623fa4.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000905/95becf02103c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-000905/a670408e057c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001199/223a087fc754.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001199/6274fa0e922f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001199/d053b0c64813.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001199/d8773e7c9d57.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001220/252a3bffbadc.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001220/6b5245d74180.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001220/9c0a73fc5072.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001220/be7e65e52cb0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001246/572fb9916259.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001246/a193b38d6d9c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001246/b71c6301dc0f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001246/de90d400400d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001248/135d1285f35c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001248/3415423b4522.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001248/6f7665b9941d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001248/c49f94dd4ccd.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001371/11b0cfec2ea5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001371/3101803d8d4d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001371/acca2a7c7903.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001371/d07ee13b6cad.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001399/14c10ea3be48.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001399/464c830f7e4b.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001399/5fceb57ac950.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001399/a89276edcc6f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001425/0f41d8389359.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001425/48f5767b4fa5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001425/607f8299d5b6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001425/6281bbaba846.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001425/be536e940963.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001480/2dfc7d6575ab.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001480/89a95e29d7b0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001480/af8c1c0510e7.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001480/eda3eb043b65.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001590/1972a4e4524b.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001590/40677bfa69dc.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001590/6f76d078f6a3.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001590/e18b8d8986e9.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/35074a0de502.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/58b49b15bea1.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/616a1c40bb22.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/852e5afe1b8f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001686/b883762b93e9.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001891/0758a08b0d08.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001891/0a55e0e52b91.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001891/1fa5268426b9.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001891/b6c960dbd784.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001914/05d2d39141d9.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001914/8511e814c0c7.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001914/86dfad51b681.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001914/8fa10a3b544e.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001948/2a419a70f022.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001948/5adec9697c63.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001948/5b5b00e7bdcf.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001948/aa0ed4715dd9.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002092/1dc5d3672ed0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002092/8176f5db234f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002092/b08ca0785ebf.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002092/f3ecdc82a93f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002304/6f0785169b5a.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002304/8e6cbb2f09c8.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002304/9f300f35850d.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002304/c6d6418969db.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002335/4c8c993901da.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002335/e2f53d1ad120.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002335/ee1bcf5cd680.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002335/f82cbf5526ff.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002371/3322775066d3.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002371/bf8ba816b4d5.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002371/e4b8c46748e1.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002371/e8cd4f8633c7.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002395/4d8d219418b8.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002395/73b450caf19e.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002395/962a39c01e53.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002395/db15522e8156.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002451/2023c4c5427f.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002451/566adb9eb9bb.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002451/e8c4c5bbcac0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002451/f684d0dc2273.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002871/3a2e6121affc.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002871/b84347c378ce.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002871/cb8f80e3ac60.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002871/e08764b5b9e0.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002915/46f540f7ac4c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002915/4bc7c0014676.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002915/6ad717523c6b.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002915/e6518953c7c8.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002989/3e8bf5be0472.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002989/a9a60ad2777c.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002989/b3f9106e3005.json",
+    "library/task-variants/mimo-v2.6-rl__format-code-task-002989/ec7aad1454fa.json"
+  ],
+  "endpoints": [
+    {
+      "task_id": "format-code-task-000142",
+      "role": "headline",
+      "package_digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+      "harbor_digest": "sha256:1726319b27f2fae341d0ce1b8afe7fa319381c225e056fe57a90e6484cf9d919",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f",
+      "ledger_run_digest": "sha256:933f3c32e9720d8e2168c318e33c01a7ac9fdad9ed701d89f9b4b4d053c1d8ef",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 4,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000142/lab-metadata.json",
+            "sha256": "9982a462c017d69c2673a2f6f07213060371fe6b9fed7c49a91999141fff01d3"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 5
+        },
+        "nop": {
+          "observation_index": 5,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000142/lab-metadata.json",
+            "sha256": "04c1ef715938db430746778c559160815df2c09445958f0091f230710e61ff7a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 6
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "5ea12b728bf936578a93d1d06a566ac63361ea5b7479e613988038c1519c900d",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000143",
+      "role": "headline",
+      "package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+      "harbor_digest": "sha256:d413abaa38ef88a381bef58fdd5ca81983504bc438e1c06d6a31f17437912755",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680",
+      "ledger_run_digest": "sha256:d05069cbc1ef8773f9908166f304cf46c90e1e1d4c2b935c3128d6842097c931",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 36,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000143/lab-metadata.json",
+            "sha256": "b18104e489c48338d3deb23695a1c9de644591d25d3c12e50026cf2c51d5602f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 37
+        },
+        "nop": {
+          "observation_index": 37,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000143/lab-metadata.json",
+            "sha256": "f6703d5f1a139569c18509a1f13ea7ea75686cfc982c44b5408c28c2fcbe8fbd"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 38
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "2484c81c156b361c5feef712301d80baa42a2cbafa9a6d8ba0d86aea7a0c54d7",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000144",
+      "role": "headline",
+      "package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7",
+      "ledger_run_digest": "sha256:58699c40d9806988282282e53c2235f0b12a9403d7d4c0fe3e16cc1482bc2981",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 32,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000144/lab-metadata.json",
+            "sha256": "ea4850661b0aad096a7b17d24403468525293010e7a3f0466878b6aaf7fff4f0"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 33
+        },
+        "nop": {
+          "observation_index": 33,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000144/lab-metadata.json",
+            "sha256": "294d02130af3be723ea6c48467780cab301f4d13cad833a10f34414784e0e996"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 34
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "b14f0b6bbeda646cff811613bc6f1347c4dc4f9b31c80b4d3fd2d49bda4f5eff",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000149",
+      "role": "headline",
+      "package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+      "harbor_digest": "sha256:826242a95f282ecd8a0b3756fd20a01c1a8ef21fe9e11176cd613adf1b4be3cf",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16",
+      "ledger_run_digest": "sha256:86912a7d030e992ba39f7088ac069baa12a28bce92f56af5e845ddc8d69ea564",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 38,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000149/lab-metadata.json",
+            "sha256": "7b979ec55901a2510fb62a6aeb0a0a72d93e0e26e83fa9bcba1f77e4a1d050e0"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 39
+        },
+        "nop": {
+          "observation_index": 39,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000149/lab-metadata.json",
+            "sha256": "92fb9f51bf99499c3a87a6daed3dd63d48a0968ac17af88b2cc07c3a8906c299"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 40
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "0a8461247ba8e92d78318089a6e5363e461f669ec3410e2750be7a3a96f49525",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000161",
+      "role": "headline",
+      "package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+      "harbor_digest": "sha256:58ef39114fcc39acc5f5d29044f7be3237de60d8a47ed9369a0a59d4daec9d3b",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1",
+      "ledger_run_digest": "sha256:eee3b18c925e21496850a51bdeaecf76d744c12299a37fc9aa56bc93b65d737c",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 2,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000161/lab-metadata.json",
+            "sha256": "d6ee6de651738f3854356ac305a17e08fd0de113ced8fe6cea2070e47ffca345"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 3
+        },
+        "nop": {
+          "observation_index": 3,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000161/lab-metadata.json",
+            "sha256": "5f5157759639ca9a677f741910236b04d66dd6524119a42f1ae60a798e8ba630"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 4
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "3eab5677b8b883225862e2821805362444fa0113413ef1e719ac604dcee51a8a",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "env-keep-build-outputs@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000371",
+      "role": "headline",
+      "package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232",
+      "ledger_run_digest": "sha256:82d27a9e6d41e401298df0dd57d5ad95361837f5e3f34f4037ada0c89f9536a9",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 62,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000371/lab-metadata.json",
+            "sha256": "e7efa75fb5c41be1ebbe791b84286bcdcb4c2191786d247342537d371cc1f7fc"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 63
+        },
+        "nop": {
+          "observation_index": 63,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000371/lab-metadata.json",
+            "sha256": "5f10c72c709357d8ce39ea61310648da0c4fa5a7591555359c3b9810bdf20270"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 64
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "94bf7a30c845c93cf17e2fbfded76ff55a848143e427029a76d34d6c34bd100e",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000582",
+      "role": "headline",
+      "package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2",
+      "ledger_run_digest": "sha256:e29a380726184d6f2f2c473196a97a35c400ee636ba7717581123b7e801fb0af",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 58,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000582/lab-metadata.json",
+            "sha256": "756d0390b7895611cc2c6ee26460d2ad56cc0722bfd7635a060e0ca32782c73f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 59
+        },
+        "nop": {
+          "observation_index": 59,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000582/lab-metadata.json",
+            "sha256": "7e0ff9ce7d8f5a473f11c46e1bea286de228f4f444605d9471df774e5d12534a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 60
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "ee93e30bda754dc9d501446b2afd5e6535f1bbaf9f732aa0e26684bf4eb3f5f6",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000657",
+      "role": "headline",
+      "package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6",
+      "ledger_run_digest": "sha256:1dc560664af8090f3e4007a54aeef07249787b4eac2880ae04ea0ec2d2112277",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 60,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000657/lab-metadata.json",
+            "sha256": "481ab13ee6678fca6fac3cfe6103d78610abdc9d7a8af6c78fc31388be51d2f1"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 61
+        },
+        "nop": {
+          "observation_index": 61,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000657/lab-metadata.json",
+            "sha256": "de7d929cf1dc4e11a0ad2d1cc781a0a750ea194dbbcfc93a221d51279045dc03"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 62
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "284ed97929328bac85c1ac07ace33471a8b9921a02e73a5b9bfc9f8df6d1311c",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000783",
+      "role": "headline",
+      "package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+      "harbor_digest": "sha256:d9d9f8b0e8f7110ed0d05583543376444b84b4c98593f2a991dc7916485b19f3",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5",
+      "ledger_run_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 6,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000783/lab-metadata.json",
+            "sha256": "ece0814e2794616ac4372ab5255e488c74a9a0fcc302f763abdd4614e97a92b9"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 7
+        },
+        "nop": {
+          "observation_index": 7,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000783/lab-metadata.json",
+            "sha256": "554d904b501412a7f7eb1a46e6a85619d7b6ff4c561fecea4a1856b949990862"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 8
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "c554e891f7bc508774d3823a41ece158a086cdeb6b91bfe6433b661af8b50ee4",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000878",
+      "role": "headline",
+      "package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+      "harbor_digest": "sha256:c23089b479f826e6638f7eac15ae8f5f22eed5972f7ef1cb20be69f47546ed07",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d",
+      "ledger_run_digest": "sha256:61a327611b2e422b80f1cdee82809823a7dc836a79f2f4c403220ebd9fb90586",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 44,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000878/lab-metadata.json",
+            "sha256": "6ca3191770d7ed560fab00312480ebf74281aee177913a9c75951ae126c137b8"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 45
+        },
+        "nop": {
+          "observation_index": 45,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000878/lab-metadata.json",
+            "sha256": "65162beb62063030d7269e95467156c9cd75ed587d35ed19557740b3f4ae7b55"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 46
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "a0078e242d64bb9abda0d0f930b85a1e52d629d68ea70f67959e3cb568c548f5",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000905",
+      "role": "headline",
+      "package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd",
+      "ledger_run_digest": "sha256:bf0e19c83a7e9bae92170fb481626a2276c88dd7ffe10158426a8b29795f6a26",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 48,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-000905/lab-metadata.json",
+            "sha256": "374264ed5875c913b60fc86b7c982ff63c442f19f288da83669cb137f2fadd2a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 49
+        },
+        "nop": {
+          "observation_index": 49,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-000905/lab-metadata.json",
+            "sha256": "466ead54a3290fb3c5d7684d0458a22fede9ec8673a57cd5265fc9af4c8492de"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 50
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "d82f8396c313b64dca6bdad96a280932239b54cb08dd424ddf65dca0137104a7",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001199",
+      "role": "headline",
+      "package_digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+      "harbor_digest": "sha256:5c447736904cd086ad9792ad97bced866c02cfc9d9d36ced9008a53e6dd75751",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a",
+      "ledger_run_digest": "sha256:c6ffcb37e65cba912211831498ba360c7931ab82770135f879c2a26d754f4e31",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 42,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001199/lab-metadata.json",
+            "sha256": "b06257fde68a3796cf55b1ae3ebf3537fdd80aa915c95489fa70c02dca90390c"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 43
+        },
+        "nop": {
+          "observation_index": 43,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001199/lab-metadata.json",
+            "sha256": "524a6b3afe6142956e942c906b749d0720b456d13a6ed3839866696d62d88e21"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 44
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "5d7b32942e1eaecf1b29b91a093964ccff527a126cbf6f292f207383abef8d7e",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001220",
+      "role": "headline",
+      "package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159",
+      "ledger_run_digest": "sha256:74b71356d173e8b5fb7d74ddf59927f02a17fedf6ea8ce213e174351514d97cb",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 46,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001220/lab-metadata.json",
+            "sha256": "30f397d3ca20659b611b68286b9fd158392f6a952997706347550519f0006349"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 47
+        },
+        "nop": {
+          "observation_index": 47,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001220/lab-metadata.json",
+            "sha256": "345c126cbcabc9a38443dc510873b74b6834cb3db34e8b6d19c08a7f1f5c0bd4"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 48
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "14757dc4093445a20e6c7fac07f1b1a204418cf68172478f6cb28efc59f41bbc",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001246",
+      "role": "headline",
+      "package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+      "harbor_digest": "sha256:a3a88f44a5785afb0f94e6fa6a529f755bd2c6903572df83d0f3a4344dd77e35",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5",
+      "ledger_run_digest": "sha256:91dae7160069d5c5c5695afa20bc436a85177413bdf394ece327048061a3f77a",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 22,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001246/lab-metadata.json",
+            "sha256": "0ff77648eaaac07cc440f0097531e8804d6f9825916bffffdff76f3c8f25f23f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 23
+        },
+        "nop": {
+          "observation_index": 23,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001246/lab-metadata.json",
+            "sha256": "8e26ff35582eac157d9679f716bd0d6494f8c8803b0db5551e24b1d0977cc713"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 24
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "1bd84dd3729196ed072b37ed133deb8b8bba31290422eb69b96ccab8748af4a9",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "env-keep-files@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001248",
+      "role": "headline",
+      "package_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+      "harbor_digest": "sha256:a569f544e90b00f78537333512591b79ca18584588f7ffec4a74587ec436f892",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47",
+      "ledger_run_digest": "sha256:cfaa8ccef4c20ccded181cf82f7756da66e9d9ac73a0517bc7a6ad5421e4d721",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 0,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001248/lab-metadata.json",
+            "sha256": "430b96399fc2ca0c88d6e112c809b90529c6dd0bd3485f05da957c454938d395"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 1
+        },
+        "nop": {
+          "observation_index": 1,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001248/lab-metadata.json",
+            "sha256": "ef301958b02ddccaea624bb764957956f88a811009c949198543549abe3b488d"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 2
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "5344b445748bcd40b80ac7fee513664496554c4131f0a42fd91fb8b46eb5b365",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001371",
+      "role": "headline",
+      "package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb",
+      "ledger_run_digest": "sha256:f97a15863dbfdf04bdff857e100dd976e8329b1e70bd867f0c3b805880a0b2e1",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 20,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001371/lab-metadata.json",
+            "sha256": "ebd95a670ab42b61e0dc30a3bb8bf20637e228633b9f4456fa3224aff25ecc20"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 21
+        },
+        "nop": {
+          "observation_index": 21,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001371/lab-metadata.json",
+            "sha256": "0e81448d874cfe2ce6451cadfec2621b00180021390f9ba32060c788a4e53d7d"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 22
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "33ffdaf5bc4cef923248ee8f8b7c24ef7ebe85f0eeb257c0e25db34be59ba92c",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001399",
+      "role": "headline",
+      "package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb",
+      "ledger_run_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 8,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001399/lab-metadata.json",
+            "sha256": "223398d258296c1561a62ae1c0c0e9a43e6c11c168eba667da6d71f583d56087"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 9
+        },
+        "nop": {
+          "observation_index": 9,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001399/lab-metadata.json",
+            "sha256": "dfb396e4bad70fefb2cdf757d646568007089c9cfe7a356ae166062f8219ef0a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 10
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "412f370b0d39b454f5ba1183176cbb2b6623947aa32e2ac2de09698667e04f45",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001425",
+      "role": "headline",
+      "package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+      "harbor_digest": "sha256:b8ca00a78bf1daf7786cddfc314ad6a0c4aa5c37585d505405ed8f15544f50f8",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/be536e940963",
+      "ledger_run_digest": "sha256:aeb2f637325b77a88692d367f0d9daf3f095be8dfcca8af55eab6ea1e6c3e3fd",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001425/be536e940963.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 26,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001425/lab-metadata.json",
+            "sha256": "f7047e96b99ee336f3aa8c44286acd0f576a5d9e9e2d23a3c464cb6552e106cf"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 27
+        },
+        "nop": {
+          "observation_index": 27,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001425/lab-metadata.json",
+            "sha256": "eed4bb7da83d70731eecc23e02561b461e41a3d96b7ba3567f86e293688d754f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 28
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "c2de27016c6ad7677fe562708c77549eb843f837df6e5d95d964ae0bedf82bd5",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001480",
+      "role": "headline",
+      "package_digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+      "harbor_digest": "sha256:f7f8cbd7dc734ec74d4f1b298f87e7f5727f47cc387fa425ebc96414356035ba",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356",
+      "ledger_run_digest": "sha256:79feaf1078f4c2d031548e7d3ad244be47e25036f75fb2462dc24848a1d6db22",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 18,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001480/lab-metadata.json",
+            "sha256": "f6b560437d5945ca4b978dc796cdba8547cad3c42538dcaea38f56979de474b3"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 19
+        },
+        "nop": {
+          "observation_index": 19,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001480/lab-metadata.json",
+            "sha256": "a4f4551ad31e0acd7a5666318bc869cd743737193bf4f5f5574fe5dffa88fd46"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 20
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "142d849087ba6d35c48a4127cde4a7fc3778bb39becb45354e16c5a4ca9c8a27",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001590",
+      "role": "headline",
+      "package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614",
+      "ledger_run_digest": "sha256:18d62f5b781c88daeb67d1e01f9a6a6b9e8f946d0f07915f3984491e42b16000",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 16,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001590/lab-metadata.json",
+            "sha256": "6b0af0a092bcf57c83e3eb5ba7a942e0354540f220bc191bdd97e015898437db"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 17
+        },
+        "nop": {
+          "observation_index": 17,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001590/lab-metadata.json",
+            "sha256": "f3251754c1f48f7c72afc128050dc377075ebe5e2f16ce6b71001f06e3dafbb6"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 18
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "ceebd11a5fde94d9b4ec3c46bb6f4eebd63f120908234e58f2d82b3610e2cf85",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "env-keep-build-outputs@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001686",
+      "role": "headline",
+      "package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65",
+      "ledger_run_digest": "sha256:daef04cea99a7312392a305de2f77a03232d3fb96a43f33f94d3ae073af870ea",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 64,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001686/lab-metadata.json",
+            "sha256": "1cdd62297c2161169e196730193ffd613013e8e54113c9e43a1f69b5dd308e8d"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 65
+        },
+        "nop": {
+          "observation_index": 65,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001686/lab-metadata.json",
+            "sha256": "54dcc396ab5786845b9640481dcf2510e66068abd10ad1f4589e5388146fcf7c"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 66
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "06c8af95ce5b96e9936685f7706f0bfd2f816f93e6b8605fa547acb7bbe77b0c",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001891",
+      "role": "headline",
+      "package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd",
+      "ledger_run_digest": "sha256:3af23ad0794f3b40207a18de97efcc9fc4c9e230f4bdbb8e46c7ba090d004dea",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 52,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001891/lab-metadata.json",
+            "sha256": "58b1bcfb1fb8734a87b5174922097b912ae110c03444429965ac4eeb013a8595"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 53
+        },
+        "nop": {
+          "observation_index": 53,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001891/lab-metadata.json",
+            "sha256": "f4e7e4a29d12fb829cdb4e50a5cf699460252b13add32ece2c77c0ac93a040d1"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 54
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "f5fc67f4cdfad8c4d64fd3e8c86a7d0a4022329e1b76476077765b47a9f5f1a3",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001914",
+      "role": "headline",
+      "package_digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+      "harbor_digest": "sha256:660198636dafa304b5ff61dce526661bd670253212fa7d4a48df3ec1c1ce42a1",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6",
+      "ledger_run_digest": "sha256:9dab66d29eca8b8417f505aecdd67fcf705bdd651df97ce742b26bb1af2af321",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 10,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-001914/lab-metadata.json",
+            "sha256": "37d675546f5f54cb3bc7713b75bc8119021aedb4489f9be6ba97783524f0d21a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 11
+        },
+        "nop": {
+          "observation_index": 11,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-001914/lab-metadata.json",
+            "sha256": "a00a9255da11d9ddee4c4142cabc1406edbe6dc0cd0b78a58753232486f1eebe"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 12
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "63f64619c7916acdf84fd97de9c912be2843edaf509cb5e33b36451835b757f5",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001948",
+      "role": "headline",
+      "package_digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+      "harbor_digest": "sha256:f6869003637d3bafdd70a8639b6fab8e09d8095a5cca6f53ff5e9653be22200e",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611",
+      "ledger_run_digest": "sha256:ed7bfb0e8e58e9d1341b31239e6afb9efa5164f3fef342925dcb0c56cb30aaeb",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 66,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3394,
+            "path": "/private/tmp/heldout-controls-001948-fix/jobs/heldout-control-oracle-format-code-task-001948/lab-metadata.json",
+            "sha256": "96e5e10eb46fba5744373caf32983075692b5881fdfb20d34c726907631e0561"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-001948-fix/controls.jsonl",
+          "receipt_line": 1
+        },
+        "nop": {
+          "observation_index": 67,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3376,
+            "path": "/private/tmp/heldout-controls-001948-fix/jobs/heldout-control-nop-format-code-task-001948/lab-metadata.json",
+            "sha256": "9a237bfaec898fe9dd1dbae8968e343b766c40f17c1e94cb004370db62f9ee22"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-001948-fix/controls.jsonl",
+          "receipt_line": 2
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "996e975e745f9bcec3fff3ec5d1e2bf5ed6742edf2b1a265c16695a7b10a0c4d",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002092",
+      "role": "headline",
+      "package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836",
+      "ledger_run_digest": "sha256:f1e39c747d354730cf48d63b806689875ad7441449c017abcb67993fb02d788c",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 30,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002092/lab-metadata.json",
+            "sha256": "389f4fc5d39612c13574c9f4fcdc2ea4002f67a1261069e7996cd2d87cafd52f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 31
+        },
+        "nop": {
+          "observation_index": 31,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002092/lab-metadata.json",
+            "sha256": "0bd95349f81cf0d723f9548328613432ed6d906ef074ecb1e5ce76b96258d504"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 32
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "0b6f1a12a6c00a1a0fadd6a49e8a0aa7b22fe0f1b5cbe5e052db3ad860658a59",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002304",
+      "role": "headline",
+      "package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb",
+      "ledger_run_digest": "sha256:4b09bd0d430be558f3a5c04ad2db7e36ce83779a83bd97126f5192575af84d09",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 56,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002304/lab-metadata.json",
+            "sha256": "5ebd64c2ed086d0049f2e3cdd9ff317b1d0a22b66bb4c5f68871795986d73fa4"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 57
+        },
+        "nop": {
+          "observation_index": 57,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002304/lab-metadata.json",
+            "sha256": "95c6636e2d104bbd10b16a5fc16822d9db5d568ccdaaf0de2eb8c4a3d908a71d"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 58
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "825857ab0e67718eaaeb5f5b8efa561ce5856b06dabd1aa727175500fe0777ee",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002335",
+      "role": "headline",
+      "package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df",
+      "ledger_run_digest": "sha256:71a9a2dd878757dadfd5405b9378f64a3b250eaed3f0956a9b0a667c93d2b8e3",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 14,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002335/lab-metadata.json",
+            "sha256": "1c0e58dd3d06d47f1d31e00a7ca8dd624ab7fc2e30ffa14fcce7c0f2924d54f3"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 15
+        },
+        "nop": {
+          "observation_index": 15,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002335/lab-metadata.json",
+            "sha256": "16a468353fbbd07f5b18ee49e9c2adbaceb2cefdf4075850c2f98f3e35e2ef31"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 16
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "6ba2662b36c49e4da3a5e5baacf146af2253512f3ff3f529a57a7e7b60a97355",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002371",
+      "role": "headline",
+      "package_digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+      "harbor_digest": "sha256:b936902b6c4249e9836c383298d3074998aaa57c6ac93a30a831262810f2fc91",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa",
+      "ledger_run_digest": "sha256:d95d99dda5d528ae8c91797543b78e1cf5315f552c148709ee88034dd7531bb4",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 50,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002371/lab-metadata.json",
+            "sha256": "c78a1bb62adaf885336928434f4cedfe09ffba3fc1426e2e4d3b2d3b9de09704"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 51
+        },
+        "nop": {
+          "observation_index": 51,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002371/lab-metadata.json",
+            "sha256": "b9424bf321c4e4c3fb5c8494ebe0e5600e9f558cc8ffe1e7315a1bba6e98f584"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 52
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "b85953153187f468d8863d9a22b1e299e81e807f5014a7339b429b90d4c4a52b",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002395",
+      "role": "headline",
+      "package_digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+      "harbor_digest": "sha256:e51487df9ccf0be4b91371914a5134da2612de07f1793cfce2c494b7b61788bf",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582",
+      "ledger_run_digest": "sha256:b833dc5aa1945b0e1d96b5362aa600b938d80728c12ef5708c36eaa102575eab",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 28,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002395/lab-metadata.json",
+            "sha256": "b04b6ffc68d8dee5ab6313738f46cb8e75dc99102fdb5661f2d94308a2c1261d"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 29
+        },
+        "nop": {
+          "observation_index": 29,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002395/lab-metadata.json",
+            "sha256": "9095e3e0cec6415ff66e73fbc3c7bb0d77854c28737e1302b8835c5ca65a6790"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 30
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "136ac311826e71e88f96b3ca6bde1892e4c5c203914700c5b091ff0341386f4d",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002451",
+      "role": "headline",
+      "package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+      "harbor_digest": "sha256:054dc3e01eabbba2c1069621b7755a99b8f1e3115782faa9237295e61b600372",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3",
+      "ledger_run_digest": "sha256:78f8541d0e9df91aca63d654c276ad28784c065cdea03fda2780cc3340f39e1d",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 54,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002451/lab-metadata.json",
+            "sha256": "e488b05d537bdf80f610279b7b3d12025c0ed392dc8767025efecde40e0f1860"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 55
+        },
+        "nop": {
+          "observation_index": 55,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002451/lab-metadata.json",
+            "sha256": "9e013a6b70d7bd671fb0b36bf2f7d9b3aa9132e170e68b9b690fe67ed255007f"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 56
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "4133cec2b4f2bf4ea5cda0b60a899ef1c230d8296a7c0bb99efac931aa7f86a1",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "env-keep-build-outputs@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002871",
+      "role": "headline",
+      "package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661",
+      "ledger_run_digest": "sha256:ee254c79d32ced3e4212cefe931032f7cc93c6ff045f764b60c9ae1e3eefed48",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 12,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002871/lab-metadata.json",
+            "sha256": "2b445535f561d540ea015a371e94b872165bc01b74eaef6d2b9412884f698fc8"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 13
+        },
+        "nop": {
+          "observation_index": 13,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002871/lab-metadata.json",
+            "sha256": "d5e0632acc439bcf329db17ef50508f4a8f7cd85bab3898932ee99260a7ada45"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 14
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "639a69e0a3b7ceebe500f875602c35fb12567fe13925ee91471fb9a8fee8ccb9",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002915",
+      "role": "headline",
+      "package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+      "harbor_digest": "sha256:2a2cb5e822f78ac8c262d08743aded6d9e55579a0fc8d2cb1af19e788eda5373",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c",
+      "ledger_run_digest": "sha256:f5bd4a9b6dc1db358cb466e066401554a01a254a2b7589edebb7f65bcf6a6979",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 34,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002915/lab-metadata.json",
+            "sha256": "f15268e17f248deaaf8d82557d8ef478e8e9eac8afe30ce5b5bd51b30fecbead"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 35
+        },
+        "nop": {
+          "observation_index": 35,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002915/lab-metadata.json",
+            "sha256": "b440240fecbeddfd0c0a02fe6f86dd903e3dc51111a981951eae3ac66b135701"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 36
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "ba586819d329af3198044790600d516669fe9239d9b7ac3480e57adf9c2fa734",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-002989",
+      "role": "headline",
+      "package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72",
+      "ledger_run_digest": "sha256:0c5030c95ccdfb851a84b75e15118d73d8939b6751b1703d2a909d0299f6a3ab",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72.json",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "agent_network_mode": "no-network",
+      "controls": {
+        "oracle": {
+          "observation_index": 40,
+          "reward": 1.0,
+          "native_metadata": {
+            "bytes": 3258,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-oracle-format-code-task-002989/lab-metadata.json",
+            "sha256": "705acfde99e002f860839c8fea38fdd7586aa4bab15cce4164963bb7cd53cda4"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 41
+        },
+        "nop": {
+          "observation_index": 41,
+          "reward": 0.0,
+          "native_metadata": {
+            "bytes": 3240,
+            "path": "/private/tmp/heldout-controls-33/jobs/heldout-control-nop-format-code-task-002989/lab-metadata.json",
+            "sha256": "a976e9b071d5b17e775dd2e0b56741419a74fb238f05db2ecd22e47c3263e33a"
+          },
+          "receipt_source": "/private/tmp/heldout-controls-33/controls.jsonl",
+          "receipt_line": 42
+        }
+      },
+      "control_source": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/native-controls.json",
+        "sha256": "9121eeddbfbca7acdd1cc4cbdc7ac88fd16798ec77fe9348c4418594dd66021c"
+      },
+      "control_scope": "retained exact-digest oracle x1=1 and nop x1=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "6bb6c248bf217910b80067d9adae0b7a7f25b846c9db2c14882c6529e2128706",
+      "full_transform_chain_newest_first": [
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000371",
+      "role": "pin_diagnostic",
+      "package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+      "harbor_digest": "sha256:52f1dcba0ff62c70d6b5078a930b6377531017a45c05b6fa951b42d3002256cd",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/cc1349da3c95",
+      "ledger_run_digest": "sha256:82d27a9e6d41e401298df0dd57d5ad95361837f5e3f34f4037ada0c89f9536a9",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000371/cc1349da3c95.json",
+      "parent_package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+      "parent_harbor_digest": "sha256:255cb71b12cd6f56f74e1bb7edca844d0b33517ab8848cd402626f8615286255",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "retained_port_record": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/port/lineage/mimo-v2.6-rl__format-code-task-000371/cc1349da3c95.json",
+        "sha256": "55e7f8e4e2613c7df4f84be07d02a8c8031f2b406409aaa9bd263c4946e0b323"
+      },
+      "agent_network_mode": "no-network",
+      "network_baseline": "task.toml byte-identical to frozen v6 parent",
+      "controls": {
+        "oracle": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000371-oracle.json",
+          "sha256": "5e33446ef1e2246fea3e3983a528aabcfc2609b72b4fd81db6c4f3efff09e143",
+          "reward": 1.0,
+          "repeats": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000371-oracle"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000371-nop.json",
+          "sha256": "abb1021d6f82a8fb9d8c227a44ffaf8858f3c008f76eb8d6387f444cb4ae0c80",
+          "reward": 0.0,
+          "repeats": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000371-nop"
+        }
+      },
+      "control_scope": "retained exact-digest oracle x3=1 and nop x3=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "4f5a0fed8e3862c8fd395be0fbf45a94a94af1e23e6506106686fb1bfc787ee5",
+      "full_transform_chain_newest_first": [
+        "verifier-repair@1",
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-000657",
+      "role": "pin_diagnostic",
+      "package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+      "harbor_digest": "sha256:2dcdeca0a6d06b2120b2c1dcd821c4b6d2ec5d5da7220576c5fdf9ca1f1f6549",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/da34eb301f58",
+      "ledger_run_digest": "sha256:1dc560664af8090f3e4007a54aeef07249787b4eac2880ae04ea0ec2d2112277",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-000657/da34eb301f58.json",
+      "parent_package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+      "parent_harbor_digest": "sha256:e6d8ec451c869f20df6054028c2e1b6ea0cd2ab8e1d6ff1f8bbfdc193d07c702",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "retained_port_record": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/port/lineage/mimo-v2.6-rl__format-code-task-000657/da34eb301f58.json",
+        "sha256": "39ff2d86e290f4e4b5d62ee4eddbcefb39f77ff3756742190ec6c2bd52dd8a11"
+      },
+      "agent_network_mode": "no-network",
+      "network_baseline": "task.toml byte-identical to frozen v6 parent",
+      "controls": {
+        "oracle": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000657-oracle.json",
+          "sha256": "e68b545c17709e3d2a2382a90469bb20febecad05f29cd511242644619a130e6",
+          "reward": 1.0,
+          "repeats": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000657-oracle"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/000657-nop.json",
+          "sha256": "396ca4a862bf7a90e5d43100c584ad12ece075de81d4112dae699d43c9365f13",
+          "reward": 0.0,
+          "repeats": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-000657-nop"
+        }
+      },
+      "control_scope": "retained exact-digest oracle x3=1 and nop x3=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "f2623bedbe80b8aee85f5a412cb0e74bce5ac00502de8f5dfc7491ac45f88f19",
+      "full_transform_chain_newest_first": [
+        "verifier-repair@1",
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    },
+    {
+      "task_id": "format-code-task-001686",
+      "role": "pin_diagnostic",
+      "package_digest": "sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff",
+      "harbor_digest": "sha256:4ac36fc34c37a52c62ae324d8ecdf15c8db5aaa513b562fc295684d8d94a53d3",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/852e5afe1b8f",
+      "ledger_run_digest": "sha256:daef04cea99a7312392a305de2f77a03232d3fb96a43f33f94d3ae073af870ea",
+      "record_path": "library/task-variants/mimo-v2.6-rl__format-code-task-001686/852e5afe1b8f.json",
+      "parent_package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+      "parent_harbor_digest": "sha256:00f7c0b22387cba2b786931dc1dcd8998ca73c22aa8fbc9b88e56931cf093559",
+      "package_reproduced": true,
+      "harbor_reproduced": true,
+      "retained_port_record": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/port/lineage/mimo-v2.6-rl__format-code-task-001686/852e5afe1b8f.json",
+        "sha256": "4cc4ad2ef0a293415b13ad703dfee4b0de6559f62dfcc646d227050453bd8153"
+      },
+      "agent_network_mode": "no-network",
+      "network_baseline": "task.toml byte-identical to frozen v6 parent",
+      "controls": {
+        "oracle": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/001686-oracle.json",
+          "sha256": "802c21fd3eec1a17a8483875fa7975226154dce412024a31f5ecf5b0d6f29783",
+          "reward": 1.0,
+          "repeats": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-001686-oracle"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/trials/001686-nop.json",
+          "sha256": "adc8dbdc952398ece9cd0a097b1990ffcced12fb2aa1372183e8a9ad500ed862",
+          "reward": 0.0,
+          "repeats": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "retained_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-16/envcheck-repair/v6-controls/jobs/v6rep-001686-nop"
+        }
+      },
+      "control_scope": "retained exact-digest oracle x3=1 and nop x3=0",
+      "runtime_lock_probe": "not performed by this registration",
+      "record_sha256": "e2d78dc471d0f952e1f467f598f52d2269164a7a54e6fa5b71f8d685d7c86d06",
+      "full_transform_chain_newest_first": [
+        "verifier-repair@1",
+        "agent-network-none@1",
+        "separate-verifier@10",
+        "mtime-normalize@2",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "strip-future-history@1",
+        "leak-close-pypi@1"
+      ],
+      "ancestry_reaches_ledger_run_digest": true
+    }
+  ]
+}

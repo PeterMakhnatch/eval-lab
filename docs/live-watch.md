@@ -313,11 +313,15 @@ Ordering invariant: host snapshot first (trajectory, Codex's live
 hook-journal slice, firing alert, trial status entry), container evidence
 next, the stop request last. The in-process
 actuator (`WatchHookPlugin`, armed by default, `EVALLAB_WATCH_STOP=off`
-disarms it) polls `<job>/watch/stop-requests/*.json` about once a second
-and cancels only the named trial task; the wrapper returns the `TrialResult`
-from the trial's own `END` hook with the exception marker rewritten to
-`WatchStopCancelledError` (ordinary cancels stay `CancelledError`, counted
-separately as `n_stopped_by_watch` in merged results).
+disarms it) polls `<job>/watch/stop-requests/*.json` about once a second.
+Immediately before cancelling, it also checks its in-process terminal and
+verification-start state. A request that becomes stale during capture or polling
+does not cancel verification, even if the hook journal could not be written;
+another trial's verification does not block an eligible stop. For a cancelled
+trial, the wrapper returns the `TrialResult` from the trial's own `END` hook
+with the exception marker rewritten to `WatchStopCancelledError` (ordinary
+cancels stay `CancelledError`, counted separately as `n_stopped_by_watch`
+in merged results).
 
 The Codex stream is preserved even before its final ATIF trajectory exists.
 Like other full-file snapshots, it is capped at 8 MiB; oversized captures
@@ -332,6 +336,9 @@ upper bound, not a claimed saving) plus the snapshot files under
 `watch/stop-records/<trial>/`. `BOARD.md` gains an integrity-signals list at
 the top of each job and a `Stops` section; `status.json` gains `stop_mode`
 and `stops`.
+`requested` describes dispatch, not confirmed cancellation; a later phase
+transition can make the actuator ignore the request. The dispatch-time
+`verifier_never_ran` field is not proof that verification never ran afterward.
 
 ```bash
 EVALLAB_WATCH_STOP=on uv run evallab watch --runs-dir runs/<job> \

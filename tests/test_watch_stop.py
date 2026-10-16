@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -646,6 +647,74 @@ def test_actuator_stops_one_trial_sibling_completes(
     assert clean.exception_info is None
     persisted = json.loads((job_dir / "task__a1" / "result.json").read_text(encoding="utf-8"))
     assert persisted["exception_info"]["exception_type"] == WATCH_STOP_EXCEPTION
+
+
+@pytest.mark.parametrize(
+    ("actions", "journal_writable"),
+    [
+        (("verification-start", "request"), True),
+        (("request", "verification-start"), True),
+        (("verification-start", "agent-end", "request"), True),
+        (("verification-start", "request"), False),
+    ],
+    ids=["event-first", "request-first", "late-agent-event", "journal-write-fails"],
+)
+def test_actuator_preserves_verification_after_dispatch(
+    tmp_path: Path, actions: tuple[str, ...], journal_writable: bool
+) -> None:
+    plugin = WatchHookPlugin()
+    plugin._job_dir = tmp_path
+    plugin._journal = tmp_path / "watch" / "hooks.jsonl"
+    if not journal_writable:
+        plugin._journal.mkdir(parents=True)
+    protected, eligible = "task__verification", "task__agent"
+
+    def request(trial: str) -> None:
+        write_stop_request(
+            tmp_path / "watch",
+            trial=trial,
+            rule="history_mining",
+            step_ref=None,
+            alert=None,
+            requested_by="auto",
+            mode="on",
+        )
+
+    async def scenario() -> tuple[asyncio.Task[str], asyncio.Task[str]]:
+        release = asyncio.Event()
+
+        async def work() -> str:
+            await release.wait()
+            return "completed"
+
+        verifier = asyncio.create_task(work())
+        agent = asyncio.create_task(work())
+        plugin._trial_tasks.update({protected: verifier, eligible: agent})
+        await asyncio.sleep(0)
+        for action in actions:
+            if action == "request":
+                request(protected)
+            else:
+                await plugin._on_event(
+                    SimpleNamespace(
+                        event=SimpleNamespace(value=action),
+                        trial_name=protected,
+                        trial_id="verification-trial",
+                        timestamp=datetime(2026, 10, 16, tzinfo=UTC),
+                    )
+                )
+        request(eligible)
+        plugin._check_stop_requests()
+        release.set()
+        await asyncio.gather(verifier, agent, return_exceptions=True)
+        return verifier, agent
+
+    verifier, agent = asyncio.run(scenario())
+    assert not verifier.cancelled()
+    assert verifier.result() == "completed"
+    assert agent.cancelled()
+    with pytest.raises(asyncio.CancelledError, match=WATCH_STOP_MESSAGE):
+        agent.result()
 
 
 def test_actuator_reraises_foreign_cancels(tmp_path: Path) -> None:

@@ -5,7 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from evallab.rollout import TrialOutcome, run_rollout, sandbox_cost_usd, summarize, task_resources
+import pytest
+
+from evallab.rollout import (
+    TrialOutcome,
+    run_rollout,
+    sandbox_cost_usd,
+    summarize,
+    task_resources,
+    validate_model_selector,
+)
 
 
 def _task(tmp_path: Path, name: str, *, cpus: int = 2, memory_mb: int = 8192) -> Path:
@@ -15,6 +24,28 @@ def _task(tmp_path: Path, name: str, *, cpus: int = 2, memory_mb: int = 8192) ->
         f'[environment]\ncpus = {cpus}\nmemory_mb = {memory_mb}\n', encoding="utf-8"
     )
     return task
+
+
+def test_selector_validation_admits_the_three_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert validate_model_selector("tinker/Qwen/Qwen3.5-9B") == "tinker"
+    assert validate_model_selector("openrouter-metered/xiaomi/mimo-v2.6-flash") == "openrouter"
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://lora.example/modal")
+    base = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    assert validate_model_selector(base) == "selfhosted"
+    for adapter in ("rds1-a", "rds1-b", "rds1-c"):
+        assert validate_model_selector(f"{base}:{adapter}") == "selfhosted"
+
+
+def test_selector_validation_refuses_unknown_and_missing_upstream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", raising=False)
+    with pytest.raises(ValueError, match="EVALLAB_MIMO_SELFHOSTED_UPSTREAM"):
+        validate_model_selector("selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-a")
+    with pytest.raises(ValueError):
+        validate_model_selector("selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-z")
+    with pytest.raises(ValueError, match="unroutable"):
+        validate_model_selector("gpt-5")
 
 
 def _fake_execute(request):  # type: ignore[no-untyped-def]

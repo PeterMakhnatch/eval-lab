@@ -157,6 +157,49 @@ def _slug(name: str) -> str:
     return "".join(c if c.isalnum() or c in "-._" else "-" for c in name)[:36]
 
 
+def validate_model_selector(model: str | None) -> str:
+    """Fail fast on a selector the harness cannot route; return its kind.
+
+    Admitted: Tinker base/checkpoint selectors, the pinned OpenRouter
+    routes, and the self-hosted MiMo base plus its LoRA adapters
+    (``selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B[:rds1-a|...]``,
+    admitted by #941). The self-hosted route also needs the LoRA server
+    address in ``EVALLAB_MIMO_SELFHOSTED_UPSTREAM``; refuse here, before
+    any queue submission, when it is missing.
+    """
+    import os
+
+    from evallab.execution_contracts import (
+        MIMO_SELFHOSTED_UPSTREAM_ENV,
+        is_mimo_selfhosted_model,
+        is_openrouter_model,
+        is_tinker_terminus_model,
+        parse_mimo_selfhosted_model,
+        parse_openrouter_model,
+        parse_tinker_model,
+    )
+
+    if is_tinker_terminus_model(model):
+        parse_tinker_model(model)
+        return "tinker"
+    if is_openrouter_model(model):
+        parse_openrouter_model(model)
+        return "openrouter"
+    if is_mimo_selfhosted_model(model):
+        parse_mimo_selfhosted_model(model)
+        if not os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV):
+            raise ValueError(
+                f"self-hosted MiMo trials need {MIMO_SELFHOSTED_UPSTREAM_ENV} "
+                "set to the LoRA server URL (Trainer deploys it with "
+                "EVALLAB_MIMO_LORAS=rds1-a=..., one server for all arms)"
+            )
+        return "selfhosted"
+    raise ValueError(
+        f"unroutable model selector {model!r}: expected a tinker/, "
+        "openrouter-metered/, or selfhosted/ selector admitted by the harness"
+    )
+
+
 def run_rollout(
     tasks: list[Path],
     *,
@@ -182,6 +225,8 @@ def run_rollout(
     per task, records the caller's approval, and drains the queue with
     ``tick``. ``execute`` is a test seam with the direct-call signature.
     """
+    if execute is None:
+        validate_model_selector(model)
     jobs_dir = out_dir / "jobs"
     jobs_dir.mkdir(parents=True, exist_ok=True)
     batch_start = time.monotonic()

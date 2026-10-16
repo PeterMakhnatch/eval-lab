@@ -28,8 +28,19 @@ keys run -- uv run --no-sync evallab rollout run \
 - `--task DIR` (repeatable), `--tasks-file`, or `--tasks-dir` select the
   task packages. Tasks must live under the repo root you run from (the
   queue resolves repo-relative paths); trial jobs land in `runs/<name>`.
-- `--model` is a Tinker base selector (`tinker/<base>`) or a trained
-  checkpoint (`tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>`).
+- `--model` is one of the harness's admitted Terminus selectors:
+  - a Tinker base (`tinker/<base>`) or trained checkpoint
+    (`tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>`);
+  - a pinned OpenRouter route (`openrouter-metered/<model>`);
+  - the self-hosted MiMo base or one of its LoRA adapters
+    (`selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B[:rds1-a|:rds1-b|:rds1-c]`,
+    harness `terminus-2`). The self-hosted route reads the LoRA server
+    address from `EVALLAB_MIMO_SELFHOSTED_UPSTREAM`; the runner refuses
+    before submitting anything when it is unset. The Trainer deploys one
+    server for the base plus all adapters (`EVALLAB_MIMO_LORAS=...`), so
+    every arm differs only in the selector suffix.
+  The selector is validated before any queue submission, so a typo
+  fails in seconds instead of inside a queued trial.
 - `--actor` is required and never defaulted: billable agents run only
   through the standing-policy queue, so the runner submits one
   ExperimentSpec per task, records this approval in `queue/events.jsonl`,

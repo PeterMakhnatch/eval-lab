@@ -685,6 +685,98 @@ def test_reference_gate_refuses_unverified_verifier_only_variant(tmp_path: Path)
         validate_request(make_variant_request(root, spec, package), repo_root=root)
 
 
+def _scope_digest_in_profile(root: Path, digest: str, *, scope: str = "headline") -> None:
+    """List one fixture digest under a campaign_lineage scope (test-local)."""
+    import yaml
+
+    path = root / "research" / "setup-profiles" / "xiaomi-mimo-rl.yaml"
+    profile = yaml.safe_load(path.read_text())
+    profile.setdefault("campaign_lineage", {}).setdefault(scope, {}).setdefault(
+        "transforms", ["separate-verifier@10", "agent-network-none@1"]
+    )
+    profile["campaign_lineage"][scope].setdefault("package_digests", []).append(digest)
+    path.write_text(yaml.safe_dump(profile))
+
+
+def test_campaign_scoped_transform_admitted_for_listed_digest(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="separate-verifier@10")
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest)
+    spec = make_variant_spec(root, record, package)
+    validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_transform_refused_for_unlisted_digest(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="separate-verifier@10")
+    record = mark_validated(root, record)
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="not verifier-only/metadata-only"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_transform_refused_when_scope_removed(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="separate-verifier@10")
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest)
+    import yaml
+
+    path = root / "research" / "setup-profiles" / "xiaomi-mimo-rl.yaml"
+    profile = yaml.safe_load(path.read_text())
+    del profile["campaign_lineage"]
+    path.write_text(yaml.safe_dump(profile))
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="not verifier-only/metadata-only"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_transform_still_refuses_candidate_status(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="separate-verifier@10")
+    assert record.status == "candidate"
+    _scope_digest_in_profile(root, record.variant_digest)
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="not 'validated'"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_transform_still_refuses_broken_ancestry(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    other_parent = tmp_path / "other-parent" / TASK_ID
+    shutil.copytree(root / "tasks" / TASK_ID, other_parent)
+    (other_parent / "extra.txt").write_text("not the ledger package\n")
+    from evallab.task_variants import derive_task
+
+    record = derive_task(
+        other_parent,
+        changes={"tests/integrity/probe_criterion.py": INTEGRITY_PROBE},
+        transform="separate-verifier@10",
+        rationale="campaign lineage behaviour test",
+        created_by="har173-test",
+        parent_source={"kind": "local", "path": str(other_parent)},
+        repo_root=root,
+        variants_root=tmp_path / "variants-store",
+    )
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest)
+    package = tmp_path / "variants-store" / record.task_slug / record.digest12
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="does not reach the ledger run_digest"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
 def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while_mimo_task_and_selfhosted_stay_gated(
     tmp_path: Path,
 ) -> None:

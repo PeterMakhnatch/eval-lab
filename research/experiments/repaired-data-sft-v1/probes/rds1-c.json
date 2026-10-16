@@ -1,0 +1,65 @@
+[
+ {
+  "models": [
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c"
+  ],
+  "base_vs_adapter": {
+   "shared_prefix_tokens": 49,
+   "max_abs_logprob_diff": 0.0373668372631073,
+   "mean_abs_logprob_diff": 0.0030615952532814716
+  },
+  "base_vs_base": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.0,
+   "mean_abs_logprob_diff": 0.0
+  },
+  "adapter_vs_adapter": {
+   "shared_prefix_tokens": 49,
+   "max_abs_logprob_diff": 0.06433337926864624,
+   "mean_abs_logprob_diff": 0.0041520645039392024
+  }
+ },
+ {
+  "models": [
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c"
+  ],
+  "base_vs_adapter": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.08025774359703064,
+   "mean_abs_logprob_diff": 0.005012069449674916
+  },
+  "base_vs_base": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.0,
+   "mean_abs_logprob_diff": 0.0
+  },
+  "adapter_vs_adapter": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.052816152572631836,
+   "mean_abs_logprob_diff": 0.0028221968764746697
+  }
+ },
+ {
+  "models": [
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-c"
+  ],
+  "base_vs_adapter": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.06617546826601028,
+   "mean_abs_logprob_diff": 0.0070344060001987785
+  },
+  "base_vs_base": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.0,
+   "mean_abs_logprob_diff": 0.0
+  },
+  "adapter_vs_adapter": {
+   "shared_prefix_tokens": 64,
+   "max_abs_logprob_diff": 0.1470322161912918,
+   "mean_abs_logprob_diff": 0.008178896088957721
+  }
+ }
+]

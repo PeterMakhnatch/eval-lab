@@ -79,11 +79,15 @@ are disclosed wherever A is reported. B and C contain neither.
   `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B[:rds1-a|:rds1-b|:rds1-c]`.
 - **Trials.** They run on Infra's Modal rollout runner with the same settings for every
   arm.
+- **Pin diagnostics.** Paired snapshot regrades and unpaired fresh submissions use the
+  byte-identical v6-ported repaired graders in `heldout-pin-repaired-graders.csv`.
+  Their populations and denominators remain separate. A missing trajectory leaves a
+  paired regrade unmeasured, never inferred from the native reward.
 - **Reported per arm:**
   - example count;
   - held-out solve rate with an exact (Clopper–Pearson) 95% interval;
   - incorrect-pass rate;
-  - a paired exact McNemar test for B vs C on the same tasks.
+  - a task-level paired exact sign test for B vs C on the common measured-task cohort.
 
 ## Runs
 

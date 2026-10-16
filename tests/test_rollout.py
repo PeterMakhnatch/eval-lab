@@ -104,6 +104,19 @@ def test_cli_forwards_attempts_to_run_rollout(
     assert captured["attempts"] == 2
 
 
+
+def test_jobs_dirs_are_arm_disjoint() -> None:
+    from evallab.rollout import _jobs_dir_for_model
+
+    base = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    dirs = {
+        _jobs_dir_for_model(base),
+        *(_jobs_dir_for_model(f"{base}:{arm}") for arm in ("rds1-a", "rds1-b", "rds1-c")),
+    }
+    assert len(dirs) == 4
+    assert all(d.startswith("runs/rollout-") for d in dirs)
+    assert _jobs_dir_for_model(f"{base}:rds1-b").endswith("-rds1-b")
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"

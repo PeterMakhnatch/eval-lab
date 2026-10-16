@@ -43,6 +43,12 @@ wants these reported both ways:
   Print it wherever pin numbers appear.
 - A row on any other package of a task that is not a pin is refused.
 
+Training exposure (`--receipt NAME=receipts/<run>.json` for each trained arm; required for
+B and C). Each arm reports rows, assistant label tokens, epochs, optimizer steps and
+assistant-token presentations (label tokens × epochs). Equal steps do not mean equal
+token exposure: final-v4 B saw 1,141,500 presentations and C 844,320. `B_vs_C` therefore
+carries an `exposure_caveat` with the ratio.
+
 Uncertainty:
 - exact Clopper–Pearson 95% intervals for every rate;
 - an exact two-sided sign test on paired per-task solve rates, for B vs C (primary) and
@@ -54,6 +60,8 @@ Uncertainty:
         --pin format-code-task-000657 --pin format-code-task-000371 \
         --pin format-code-task-001686 \
         [--pin-regrade pin-regrade.jsonl --pin-manifest heldout-pin-repaired-graders.csv] \
+        --receipt A=receipts/rds1-a.json --receipt B=receipts/rds1-b-v4e4.json \
+        --receipt C=receipts/rds1-c-v4e4.json \
         --out results.json
 """
 
@@ -173,6 +181,12 @@ def main() -> int:
         default=[],
         help="validity-flagged held-out task; its non-v6 rows are the repaired-variant diagnostic",
     )
+    ap.add_argument(
+        "--receipt",
+        action="append",
+        default=[],
+        help="NAME=training receipt JSON (sft.py), for each trained arm",
+    )
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -270,6 +284,24 @@ def main() -> int:
                 "several attempts per task: the trial-level interval ignores within-task "
                 "correlation; the paired test below works per task"
             )
+    exposure: dict[str, dict[str, int]] = {}
+    for spec in args.receipt:
+        name, _, path = spec.partition("=")
+        receipt = json.loads(Path(path).read_text())
+        remote, epochs = receipt["remote"], int(receipt["train"]["sft"]["num_epochs"])
+        exposure[name] = {
+            "rows": int(remote["train_rows"]),
+            "assistant_label_tokens": int(remote["trained_tokens"]),
+            "epochs": epochs,
+            "optimizer_steps": int(remote["parameter_update"]["optimizer_steps"]),
+            "assistant_token_presentations": int(remote["trained_tokens"]) * epochs,
+        }
+    for name, entry in exposure.items():
+        if name in report["arms"]:
+            report["arms"][name]["training_exposure"] = entry
+    if {"B", "C"} <= set(arms) and not {"B", "C"} <= set(exposure):
+        print("REFUSED: B vs C needs --receipt for both B and C", file=sys.stderr)
+        return 2
 
     def task_rate(items: list[tuple[str, bool | None]]) -> float | None:
         values = [v for _, v in items if v is not None]
@@ -295,6 +327,13 @@ def main() -> int:
             else None,
             "exact_sign_p": round(mcnemar_exact(better, worse), 4),
         }
+    if "B_vs_C" in report["paired"]:
+        b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))
+        report["paired"]["B_vs_C"]["exposure_caveat"] = (
+            f"Equal rows, epochs and optimizer steps are not equal token exposure: B saw "
+            f"{b:,} assistant-token presentations vs C {c:,} ({b / c:.2f}x). A B-vs-C "
+            "difference mixes data selection with the difference in supervised tokens."
+        )
 
     # Pin diagnostics on the validity-flagged pins: unpaired (Infra's separate trials on the
     # raw repaired variants) and paired (each v6 pass regraded on the v6-ported variant).

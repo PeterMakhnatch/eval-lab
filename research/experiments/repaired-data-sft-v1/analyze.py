@@ -52,21 +52,23 @@ wants these reported both ways:
 - **Headline:** every metric above uses only trials on each task's frozen v6@10 package,
   identified by its digest directory in `package-pairs.csv`, across all 33 tasks, pins
   included.
-- **Diagnostic, unpaired** (`pins.arms.<arm>.unpaired`): Infra's extra pin trials on the
-  EnvCheck *raw* repaired variants, which are any other package of a pin. Per arm it
-  gives the v6 and repaired pin solve rates and their gap. These are separate trials of
-  different submissions, so the gap only estimates the pin incorrect-pass rate.
+- **Diagnostic, unpaired** (`pins.arms.<arm>.unpaired`): Infra's fresh pin submissions on
+  EnvCheck's v6-ported repaired variants. Per arm it gives the v6 and repaired pin solve
+  rates and their gap. These are separate trials of different submissions, so the gap
+  only estimates the pin incorrect-pass rate.
 - **Diagnostic, paired** (`pins.arms.<arm>.paired`): `--pin-regrade` rows
   `{arm, trial, repaired_pass}`. QA Trace's `pin_pairs.py` writes the regrade list and
   `incorrect_pass.py collect --field repaired_pass` collects the results. Each v6-passing
   frozen-v6 pin trial is regraded from its own snapshot on EnvCheck's *v6-ported*
   repaired variant (`--pin-manifest`, i.e. `heldout-pin-repaired-graders.csv`). A pin
   incorrect pass is a v6 pass that variant rejects. The denominator is the v6 pin passes
-  with a measured regrade. In attempt-1 replay mode both terms count attempt-1 trials
-  only (`attempts_counted`).
-- **Required caveat:** the paired and unpaired pin numbers come from sibling repairs,
-  not byte-identical graders. `pins.grader_note` states this with both digest sets.
-  Print it wherever pin numbers appear.
+  with a measured regrade. Missing trajectories leave the regrade unmeasured, never
+  inferred from the native reward. In attempt-1 replay mode both terms count attempt-1
+  trials only (`attempts_counted`).
+- **Required distinction:** the paired and unpaired pin numbers use byte-identical
+  v6-ported repaired graders but different submission populations: paired snapshots
+  versus fresh unpaired submissions. `pins.grader_note` prints this with both digest
+  sets. Print it wherever pin numbers appear.
 - A row on any other package of a task that is not a pin is refused.
 
 Training exposure (`--receipt NAME=receipts/<run>.json` for each trained arm; required for
@@ -712,8 +714,8 @@ def main() -> int:
             "difference mixes data selection with the difference in supervised tokens."
         )
 
-    # Pin diagnostics on the validity-flagged pins: unpaired (Infra's separate trials on the
-    # raw repaired variants) and paired (each v6 pass regraded on the v6-ported variant).
+    # Both pin paths use the same v6-ported repaired graders: unpaired fresh submissions
+    # and paired snapshot regrades of headline v6 passes.
     if pins:
         if args.pin_regrade and not args.pin_manifest:
             print("REFUSED: --pin-regrade needs --pin-manifest", file=sys.stderr)
@@ -736,10 +738,13 @@ def main() -> int:
         report["pins"] = {
             "tasks": sorted(pins),
             "grader_note": (
-                "Paired and unpaired pin numbers come from sibling repairs, not "
-                "byte-identical graders: paired regrades use EnvCheck's v6-ported repaired "
-                f"variants {paired}; Infra's unpaired diagnostic cells use the raw repaired "
-                f"variants {unpaired}."
+                "Paired and unpaired pin numbers use byte-identical v6-ported repaired graders: "
+                "paired regrades use retained snapshots of headline v6-passing submissions; "
+                "unpaired diagnostics use fresh submissions. Their populations and denominators "
+                "remain separate. "
+                f"Paired graders {paired}; observed unpaired graders {unpaired}. "
+                "Missing trajectories leave regrades unmeasured, never inferred from native "
+                "rewards."
             ),
             "paired_graders": paired,
             "unpaired_graders": unpaired,

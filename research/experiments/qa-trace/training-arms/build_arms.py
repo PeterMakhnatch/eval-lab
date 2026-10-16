@@ -4,7 +4,11 @@
 A (original): every recorded passing model trajectory, one per execution UUID.
 B (repaired): A rows whose every qualified repaired-v6 regrade still passes and that carry
    no defect flag.
-C (control): a seeded random sample of A with |C| == |B|.
+C (control): the first |C| rows of a seeded permutation of C's sampling frame. The frame is
+   A minus any ``--c-exclude-task`` tasks and minus rows the trainer's eligibility rule refuses
+   (``--c-eligibility``); |C| is the number of B rows that rule accepts. The manifest publishes
+   the full order, so a consumer that must replace a C row takes the next one in order and
+   never leaves the frame.
 
 Unit = execution UUID: archive aliases of one execution are one example, never several.
 Rows outside B carry the concrete reasons, so nothing is silently dropped.
@@ -13,7 +17,8 @@ Rows outside B carry the concrete reasons, so nothing is silently dropped.
         --passes <campaign>/inputs/ordinary-passes.jsonl \
         --regrade <campaign>/ordinary-76*/summary.json \
         --audit <campaign>/full-prompt-comparator-audit-v3.json \
-        --out <dir> [--heldout-manifest <json|txt>] [--seed 20261016]
+        --out <dir> [--heldout-manifest <json|txt>] [--seed 20261016] \
+        [--c-exclude-task <task-id> ...] [--c-eligibility <to_export summary.json>]
 """
 
 from __future__ import annotations
@@ -228,6 +233,36 @@ def is_heldout(task: str, heldout: set[str] | None) -> bool:
     return heldout is not None and canonical_task(task) in heldout
 
 
+def draw_control(
+    arm_a: list[dict[str, Any]],
+    size: int,
+    seed: int,
+    excluded_tasks: set[str],
+    ineligible: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return (C, draw order): C is the first ``size`` rows of a seeded permutation of the frame.
+
+    The frame is A without ``excluded_tasks`` (canonical ids) and ``ineligible`` execution
+    ids. For a fixed frame, ``random.sample`` prefixes agree across sizes, so C equals
+    ``Random(seed).sample(frame, size)``, and a consumer replacing a row keeps the same draw.
+    """
+    frame = [
+        e
+        for e in arm_a
+        if canonical_task(e["task"]) not in excluded_tasks and e["execution_id"] not in ineligible
+    ]
+    if len(frame) < size:
+        raise SystemExit(f"C sampling frame has {len(frame)} rows; C needs {size}")
+    order = random.Random(seed).sample(frame, len(frame))
+    return order[:size], order
+
+
+def arm_body(arm: list[dict[str, Any]]) -> str:
+    return "".join(
+        json.dumps(e, sort_keys=True) + "\n" for e in sorted(arm, key=lambda e: e["execution_id"])
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--passes", type=Path, required=True)
@@ -236,7 +271,20 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--heldout-manifest", type=Path)
     parser.add_argument("--seed", type=int, default=20261016)
+    parser.add_argument(
+        "--c-exclude-task",
+        action="append",
+        default=[],
+        help="task id whose executions never enter C's sampling frame (repeatable)",
+    )
+    parser.add_argument(
+        "--c-eligibility",
+        type=Path,
+        help="trainer to_export summary.json computed on this exact A; its dropped rows "
+        "leave C's frame and B's trainable count",
+    )
     args = parser.parse_args()
+    c_excluded = {canonical_task(t) for t in args.c_exclude_task}
 
     observations = jsonl(args.passes)
     regrade = json.loads(args.regrade.read_text())["rows"]
@@ -324,16 +372,31 @@ def main() -> None:
     usable = [e for e in examples if "heldout_task" not in e["excluded_from_b"]]
     arm_a = usable
     arm_b = [e for e in usable if not e["excluded_from_b"]]
-    rng = random.Random(args.seed)
-    arm_c = rng.sample(arm_a, len(arm_b))
+    unknown = c_excluded - {canonical_task(e["task"]) for e in examples}
+    if unknown:
+        raise SystemExit(f"--c-exclude-task matches no execution: {sorted(unknown)}")
+    ineligible: dict[str, str] = {}
+    eligibility_source = None
+    if args.c_eligibility:
+        summary = json.loads(args.c_eligibility.read_text())
+        a_sha = "sha256:" + sha256(arm_body(arm_a).encode())
+        if summary["source_files"]["A"] != a_sha:
+            raise SystemExit(
+                f"--c-eligibility was computed on A {summary['source_files']['A']}, not {a_sha}"
+            )
+        ineligible = summary["dropped_before_arms"]
+        eligibility_source = {
+            "path": str(args.c_eligibility),
+            "sha256": sha256(args.c_eligibility.read_bytes()),
+            "rules": summary["rules"],
+        }
+    b_trainable = [e for e in arm_b if e["execution_id"] not in ineligible]
+    arm_c, c_order = draw_control(arm_a, len(b_trainable), args.seed, c_excluded, set(ineligible))
 
     args.out.mkdir(parents=True, exist_ok=False)
     hashes = {}
     for name, arm in (("A", arm_a), ("B", arm_b), ("C", arm_c)):
-        body = "".join(
-            json.dumps(e, sort_keys=True) + "\n"
-            for e in sorted(arm, key=lambda e: e["execution_id"])
-        )
+        body = arm_body(arm)
         (args.out / f"{name}.jsonl").write_text(body)
         hashes[name] = sha256(body.encode())
 
@@ -368,6 +431,16 @@ def main() -> None:
         "c_overlap_with_b": len(
             {e["execution_id"] for e in arm_c} & {e["execution_id"] for e in arm_b}
         ),
+        "c_frame": {
+            "excluded_tasks": sorted(c_excluded),
+            "excluded_executions": sum(canonical_task(e["task"]) in c_excluded for e in arm_a),
+            "eligibility_source": eligibility_source,
+            "ineligible_executions": dict(sorted(ineligible.items())),
+            "c_size_rule": "|B| minus B rows the eligibility rule refuses",
+            "b_trainable": [e["execution_id"] for e in b_trainable],
+            "size": len(c_order),
+            "draw_order": [e["execution_id"] for e in c_order],
+        },
         "excluded_from_b_reason_counts": dict(reason_counts),
         "fidelity_counts": dict(Counter(e["fidelity"] for e in arm_a)),
         "agents": dict(Counter(e["agent"] for e in arm_a)),

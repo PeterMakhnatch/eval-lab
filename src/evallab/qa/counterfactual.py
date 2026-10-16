@@ -17,8 +17,10 @@ artifacts and ATIF are never fabricated.
 
 A grader is valid only when its nop scores 0 and its reference fix scores 1.
 Missing reference evidence leaves the grader unvalidated, not valid. Oracle/nop
-controls establish this execution gate, not semantic correctness. Each replay
-holds the host-wide Docker FIFO lock; no paid model or cloud backend is used.
+controls establish this execution gate, not semantic correctness. No model is
+ever invoked. Local replays hold the host-wide Docker FIFO lock; cloud backends
+are paid, so every cloud execution (controls included) is charged to a
+:class:`evallab.regrade.CloudSpendGate` first and needs the lab's pinned Harbor.
 """
 
 from __future__ import annotations
@@ -38,7 +40,10 @@ import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from evallab.regrade import CloudSpendGate
 
 V6 = "mimo-clean-v6"
 V10 = "separate-verifier@10"
@@ -54,10 +59,28 @@ DOCKER_SLOTS = threading.BoundedSemaphore(1)
 #: (every mimo-clean-v6 package), so Modal is the cloud backend for v6 replays.
 ENVIRONMENTS = ("docker", "daytona", "modal")
 
+#: Reserved per cloud execution (agent+verifier patch replay, or verifier-only
+#: snapshot regrade). Measured $0.003-0.008 at MiMo spec (2 CPU, 8 GiB) on
+#: Modal, 2026-10-16; rounded up so the gate errs toward stopping early.
+CLOUD_USD_PER_EXECUTION = 0.01
 
-def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractContextManager[Any]:
+
+def check_backend(environment: str, spend_gate: CloudSpendGate | None) -> None:
+    """Refuse an unknown backend, or a paid one without a spend gate and the pinned Harbor."""
+    from evallab.regrade import lab_harbor_problem
+
     if environment not in ENVIRONMENTS:
         raise ValueError(f"unsupported replay environment: {environment!r}")
+    if environment == "docker":
+        return
+    if spend_gate is None:
+        raise ValueError(f"{environment} replays are paid: pass a CloudSpendGate")
+    problem = lab_harbor_problem()
+    if problem is not None:
+        raise ValueError(f"refusing {environment} replay: {problem}")
+
+
+def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractContextManager[Any]:
     if environment != "docker":
         return contextlib.nullcontext()
     from evallab.docker_lock import docker_slot
@@ -310,16 +333,30 @@ def _replay_patch(
     repo_root: Path,
     matrix_runner: Any = None,
     environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
     """Run the recorded change as a model-free native oracle-script control.
 
     This is a new patch replay, not a recovered original workspace or ATIF.
     The canonical executor owns setup, isolation, collection and native jobs.
+    A cloud replay is charged to ``spend_gate`` before it runs.
     """
     from evallab.execution_contracts import new_ulid
     from evallab.registry import compute_task_digests
+    from evallab.regrade import SpendCapReached
     from evallab.runner import run_matrix
     from evallab.schemas import ExperimentMatrix, MatrixRun
+
+    if environment != "docker" and spend_gate is not None:
+        try:
+            spend_gate.charge()
+        except SpendCapReached:
+            return {
+                "regraded": None,
+                "input_kind": "native_patch_replay",
+                "refusals": ["spend_cap_reached"],
+                "environment": environment,
+            }
 
     config = tomllib.loads((grader.package / "task.toml").read_text(encoding="utf-8"))
     script = _patch_script(diff, config["environment"]["workdir"])
@@ -405,17 +442,25 @@ def replay(
     matrix_runner: Any = None,
     runner: Any = subprocess.run,
     environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
     """Regrade a recorded snapshot or natively replay its recorded diff.
 
     Missing source artifacts are never invented. Diff-only inputs become new,
     explicitly labelled native oracle-script controls, not patched trial records.
+    A cloud ``environment`` needs ``spend_gate``; each execution is charged to it.
     """
     from evallab.execution_contracts import new_ulid
     from evallab.heldout_verifier import scan_agent_diff
-    from evallab.regrade import read_reward_observation, regrade_trial
+    from evallab.regrade import (
+        CLOUD_REGRADE_ENVIRONMENTS,
+        LOCAL_REGRADE_ENVIRONMENTS,
+        read_reward_observation,
+        regrade_trial,
+    )
     from evallab.separate_verifier import SNAP_DIR
 
+    check_backend(environment, spend_gate)
     observation = read_reward_observation(trial_dir)
     recorded = _score((observation.rewards or {}).get("reward")) if observation else None
     row: dict[str, Any] = {
@@ -427,14 +472,22 @@ def replay(
         return {**row, "outcome": "refused", "refusals": ["source_reward_unavailable"]}
     snap = trial_dir / "artifacts" / SNAP_DIR.lstrip("/") / SNAPSHOT_ARCHIVE
     diff_path = trial_dir / "verifier" / "agent.diff"
+    snapshot_backends = {*LOCAL_REGRADE_ENVIRONMENTS, *CLOUD_REGRADE_ENVIRONMENTS}
     with _local_docker_gate(environment, f"qa-trace-regrade {grader.label}"):
         if diff_text is None and not diff_path.is_file() and snap.is_file():
+            if environment not in snapshot_backends:
+                return {
+                    **row,
+                    "outcome": "refused",
+                    "refusals": ["snapshot_regrade_backend_unsupported"],
+                }
             receipt = regrade_trial(
                 trial_dir=trial_dir,
                 task_dir=grader.package,
                 trials_dir=work / "regrades" / new_ulid().lower(),
                 environment=environment,
                 runner=runner,
+                spend_gate=spend_gate,
             )
             score = (
                 _score((receipt.regraded.rewards or {}).get("reward"))
@@ -476,6 +529,7 @@ def replay(
                     repo_root=repo_root,
                     matrix_runner=matrix_runner,
                     environment=environment,
+                    spend_gate=spend_gate,
                 )
             )
             row["dropped_binary_artifacts"] = dropped
@@ -496,6 +550,40 @@ def reference_patch(task_name: str, repo_root: Path) -> str | None:
     return info.patch_bytes.decode("utf-8", "replace") if info else None
 
 
+def cached_controls(grader: Grader, work: Path, *, repo_root: Path) -> dict[str, Any] | None:
+    """The grader's stored controls, if they still match its grader, engine and reference."""
+    cache = work / "controls.json"
+    if not cache.is_file():
+        return None
+    patch = reference_patch(grader.task_name, repo_root)
+    cached = json.loads(cache.read_text())
+    identity = _controls_identity(grader, patch)
+    if (
+        all(cached.get(k) == value for k, value in identity.items())
+        and cached.get("nop") is not None
+        and (patch is None or cached.get("reference") is not None)
+    ):
+        return cached
+    return None
+
+
+def control_executions(grader: Grader, work: Path, *, repo_root: Path) -> int:
+    """Executions :func:`grader_controls` would start: nop plus reference, unless cached."""
+    if cached_controls(grader, work, repo_root=repo_root) is not None:
+        return 0
+    return 1 + (reference_patch(grader.task_name, repo_root) is not None)
+
+
+def _controls_identity(grader: Grader, patch: str | None) -> dict[str, Any]:
+    return {
+        "grader": grader.label,
+        "engine": ENGINE_VERSION,
+        "reference_sha256": hashlib.sha256(patch.encode()).hexdigest()
+        if patch is not None
+        else None,
+    }
+
+
 def grader_controls(
     grader: Grader,
     shell_trial: Path,
@@ -504,29 +592,19 @@ def grader_controls(
     repo_root: Path,
     runner: Any = subprocess.run,
     environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
     """Nop/reference execution gate, bound to grader, engine and reference bytes.
 
     Missing references or failed executions remain unvalidated. Results are
     never treated as evidence of semantic correctness.
     """
+    cached = cached_controls(grader, work, repo_root=repo_root)
+    if cached is not None:
+        return cached
     cache = work / "controls.json"
     patch = reference_patch(grader.task_name, repo_root)
-    identity = {
-        "grader": grader.label,
-        "engine": ENGINE_VERSION,
-        "reference_sha256": hashlib.sha256(patch.encode()).hexdigest()
-        if patch is not None
-        else None,
-    }
-    if cache.is_file():
-        cached = json.loads(cache.read_text())
-        if (
-            all(cached.get(k) == value for k, value in identity.items())
-            and cached.get("nop") is not None
-            and (patch is None or cached.get("reference") is not None)
-        ):
-            return cached
+    identity = _controls_identity(grader, patch)
     nop = replay(
         shell_trial,
         grader,
@@ -535,6 +613,7 @@ def grader_controls(
         repo_root=repo_root,
         runner=runner,
         environment=environment,
+        spend_gate=spend_gate,
     )
     reference = (
         replay(
@@ -545,6 +624,7 @@ def grader_controls(
             repo_root=repo_root,
             runner=runner,
             environment=environment,
+            spend_gate=spend_gate,
         )
         if patch is not None
         else None

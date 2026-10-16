@@ -36,16 +36,23 @@ identity and old/new reward dimensions — plus the exact job command Harbor ran
 CLI dry-runs. Both refuse closed (typed reason codes, no silent skips) when the
 source job is missing or empty, when verifier tasks cannot be resolved or do
 not cover the job's tasks, or when a layout this module cannot verify
-(multi-step sources) is present. Only the local `$0` Docker path runs;
-anything else raises before any work starts, with no bypass flag.
+(multi-step sources) is present. Job regrades run on local Docker only; anything
+else raises before any work starts, with no bypass flag. A *trial* regrade may
+also run on Modal, and only under a :class:`CloudSpendGate` (a recorded approval
+and a USD cap, charged before every execution) with the lab's pinned Harbor.
 """
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
+import math
+import shutil
 import subprocess
+import threading
 import tomllib
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -57,9 +64,11 @@ from evallab.benchmark_program_contracts import canonical_json, compute_prefixed
 from evallab.schemas import ContractModel
 
 __all__ = [
+    "CLOUD_REGRADE_ENVIRONMENTS",
     "LOCAL_REGRADE_ENVIRONMENTS",
     "REGRADE_JOB_RECEIPT_FILENAME",
     "REGRADE_TRIAL_RECEIPT_FILENAME",
+    "CloudSpendGate",
     "RegradeExecution",
     "RegradeInvocation",
     "RegradeJobInvocation",
@@ -72,11 +81,13 @@ __all__ = [
     "RegradeVerdict",
     "RewardObservation",
     "SourceTrialIdentity",
+    "SpendCapReached",
     "VerifierIdentity",
     "build_job_regrade_command",
     "build_regrade_command",
     "default_regrade_job_name",
     "expand_task_dirs",
+    "lab_harbor_problem",
     "plan_regrade_job",
     "read_reward_observation",
     "regrade_job",
@@ -95,12 +106,18 @@ __all__ = [
 #: parsing `config.source_trial`.
 REGRADE_TRIAL_NAME_SUFFIX = "regrade"
 
-#: The only verifier environment the regrade path may use. Regrade is a `$0`
-#: local-Docker operation: it never invokes a model, and the verifier runs
-#: inside Harbor's Docker environment. Anything else — cloud runners, custom
-#: import paths — raises before any work starts. There is no opt-in flag: a
-#: caller boolean is not the queue's paid approval ledger.
+#: The only verifier environment a job regrade may use, and the default for a
+#: trial regrade. Regrade never invokes a model; the verifier runs inside
+#: Harbor's Docker environment at `$0`.
 LOCAL_REGRADE_ENVIRONMENTS = frozenset({"docker"})
+
+#: Paid verifier environments a *trial* regrade may use, mapped to Harbor's
+#: `--env` value. `harbor trial regrade` takes no `--environment-kwarg`, so the
+#: class fixes the settings every lab Modal run carries (PATH pin, bounded
+#: sandbox lifetime). Admitted only under a :class:`CloudSpendGate`.
+CLOUD_REGRADE_ENVIRONMENTS: Mapping[str, str] = {
+    "modal": "evallab.harbor_modal:RegradeModalEnvironment",
+}
 
 #: Job-level receipt filename, written at the new job root. The source job is
 #: never written to.
@@ -156,6 +173,101 @@ class RegradeRefusalCode(StrEnum):
     HELD_OUT_SOURCE_MISMATCH = "held_out_source_mismatch"
     HELD_OUT_RUNTIME_UNAVAILABLE = "held_out_runtime_unavailable"
     HELD_OUT_INPUT_CHANGED = "held_out_input_changed"
+    #: A paid execution would take the run past its approved USD cap.
+    SPEND_CAP_REACHED = "spend_cap_reached"
+
+
+class SpendCapReached(RuntimeError):
+    """A paid execution would take the run past its approved USD cap."""
+
+
+@dataclass
+class CloudSpendGate:
+    """Approval for paid executions: a recorded approval and a USD cap.
+
+    Every paid execution reserves ``usd_per_execution`` before it starts; one
+    that would pass ``cap_usd`` raises :class:`SpendCapReached` instead of
+    running. Reservations are estimates, not bills: a failed or short execution
+    keeps its reservation. Thread-safe: one gate is shared by a run's workers.
+    """
+
+    approval: str
+    cap_usd: float
+    usd_per_execution: float
+    executions: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.approval.strip():
+            raise ValueError("a cloud spend gate needs the recorded approval text")
+        for name in ("cap_usd", "usd_per_execution"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value > 0):
+                raise ValueError(f"{name} must be a positive number, got {value!r}")
+
+    def charge(self) -> None:
+        """Reserve one execution, or raise :class:`SpendCapReached`."""
+        with self._lock:
+            reserved = (self.executions + 1) * self.usd_per_execution
+            if reserved > self.cap_usd + 1e-9:
+                raise SpendCapReached(
+                    f"execution {self.executions + 1} would reserve ${reserved:.2f}, "
+                    f"over the approved ${self.cap_usd:.2f}"
+                )
+            self.executions += 1
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "approval": self.approval,
+            "cap_usd": self.cap_usd,
+            "usd_per_execution": self.usd_per_execution,
+            "executions": self.executions,
+            "reserved_usd": round(self.executions * self.usd_per_execution, 4),
+        }
+
+
+_HARBOR_VERSION_TIMEOUT_SECONDS = 60
+_harbor_problem: list[str | None] = []
+
+
+def lab_harbor_problem() -> str | None:
+    """Why the `harbor` on PATH is not the lab's pinned Harbor, or None.
+
+    Paid backends need the lock's Harbor. Harbor 0.21 starts a Modal separate
+    verifier from the agent's prebuilt image (no `/tests`), so every grade
+    comes back as infra; 0.24 builds `tests/Dockerfile`. Checked once per process.
+    """
+    if not _harbor_problem:
+        _harbor_problem.append(_probe_harbor())
+    return _harbor_problem[0]
+
+
+def _probe_harbor() -> str | None:
+    try:
+        pinned = importlib.metadata.version("harbor")
+    except importlib.metadata.PackageNotFoundError:
+        return "the lab environment has no pinned Harbor; run `uv sync --extra laminar`"
+    executable = shutil.which("harbor")
+    found = None
+    if executable is not None:
+        try:
+            completed = subprocess.run(
+                [executable, "--version"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_HARBOR_VERSION_TIMEOUT_SECONDS,
+            )
+            words = (completed.stdout or completed.stderr).split()
+            found = words[-1] if words else None
+        except (OSError, subprocess.TimeoutExpired):
+            found = None
+    if found != pinned:
+        return (
+            f"`harbor` on PATH is {found or 'unavailable'} ({executable}), not the lab's "
+            f"pinned {pinned}; run through `uv run` after `uv sync --extra laminar`"
+        )
+    return None
 
 
 class RegradeVerdict(StrEnum):
@@ -509,19 +621,40 @@ def _load_json_toml(path: Path) -> Mapping[str, Any] | None:
 
 
 def _check_regrade_environment(environment: str) -> None:
-    """Refuse any verifier environment other than local Docker.
+    """Refuse any job-regrade verifier environment other than local Docker.
 
     A regrade never invokes a model, but a cloud `--env` would still spend on
-    a sandbox, and a custom import path would execute unknown code. This task
-    is `$0`: anything but `"docker"` raises before any work starts, with no
-    bypass flag.
+    a sandbox, and a custom import path would execute unknown code. Job
+    regrades are `$0`: anything but `"docker"` raises before any work starts,
+    with no bypass flag.
     """
     if environment in LOCAL_REGRADE_ENVIRONMENTS:
         return
     raise ValueError(
-        f"Refusing {environment!r} verifier environment: regrade runs on local "
-        "Docker only."
+        f"Refusing {environment!r} verifier environment: regrade runs on local Docker only."
     )
+
+
+def _check_trial_regrade_environment(environment: str, spend_gate: CloudSpendGate | None) -> None:
+    """Admit local Docker, or a paid backend under a spend gate and the pinned Harbor.
+
+    Other providers and custom import paths raise before any work starts.
+    """
+    if environment in LOCAL_REGRADE_ENVIRONMENTS:
+        return
+    if environment not in CLOUD_REGRADE_ENVIRONMENTS:
+        raise ValueError(
+            f"Refusing {environment!r} verifier environment: a trial regrade runs on "
+            f"local Docker, or on {sorted(CLOUD_REGRADE_ENVIRONMENTS)} under a spend gate."
+        )
+    if spend_gate is None:
+        raise ValueError(
+            f"Refusing {environment!r} verifier environment without a spend gate "
+            "(recorded approval and USD cap)."
+        )
+    problem = lab_harbor_problem()
+    if problem is not None:
+        raise ValueError(f"Refusing {environment!r} regrade: {problem}")
 
 
 def _verifier_effective_mode(verifier: Mapping[str, Any] | None) -> str | None:
@@ -558,8 +691,7 @@ def _task_regradable_error(config: Mapping[str, Any]) -> str | None:
         shared = sorted(
             str(step.get("name", index))
             for index, step in enumerate(steps)
-            if isinstance(step, Mapping)
-            and _step_effective_mode(verifier_map, step) != "separate"
+            if isinstance(step, Mapping) and _step_effective_mode(verifier_map, step) != "separate"
         )
         if shared:
             return f"shared-mode verifier step(s): {', '.join(shared)}"
@@ -569,9 +701,7 @@ def _task_regradable_error(config: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _step_effective_mode(
-    task_verifier: Mapping[str, Any], step: Mapping[str, Any]
-) -> str | None:
+def _step_effective_mode(task_verifier: Mapping[str, Any], step: Mapping[str, Any]) -> str | None:
     """Resolve one step's verifier mode, inheriting the task level.
 
     Mirrors Harbor's `resolve_step_verifier_mode`: explicit step mode first,
@@ -579,9 +709,7 @@ def _step_effective_mode(
     resolution.
     """
     step_verifier = step.get("verifier")
-    step_map: Mapping[str, Any] = (
-        step_verifier if isinstance(step_verifier, Mapping) else {}
-    )
+    step_map: Mapping[str, Any] = step_verifier if isinstance(step_verifier, Mapping) else {}
     mode = step_map.get("environment_mode")
     if isinstance(mode, str) and mode:
         return mode
@@ -653,7 +781,7 @@ def build_regrade_command(
         "--task-path",
         str(task_dir),
         "--env",
-        environment,
+        CLOUD_REGRADE_ENVIRONMENTS.get(environment, environment),
         "--trials-dir",
         str(trials_dir),
         "--trial-name",
@@ -724,14 +852,16 @@ def regrade_trial(
     environment: str = "docker",
     runner: Any = subprocess.run,
     write_receipt: bool = True,
+    spend_gate: CloudSpendGate | None = None,
 ) -> RegradeReceiptV1:
     """Re-score one recorded trial with a task's current verifier.
 
     Never mutates the source trial. Refuses closed with typed reason codes when
     any precondition fails, rather than producing an unattributable reward.
-    Only local Docker runs: any other verifier environment raises.
+    Local Docker by default; Modal only under ``spend_gate``, which is charged
+    once just before Harbor runs. A charge over the cap refuses the trial.
     """
-    _check_regrade_environment(environment)
+    _check_trial_regrade_environment(environment, spend_gate)
     trial_dir = Path(trial_dir)
     task_dir = Path(task_dir)
     trials_dir = Path(trials_dir)
@@ -767,8 +897,20 @@ def regrade_trial(
         trials_dir=str(trials_dir),
         trial_name=trial_name,
     )
-
     trials_dir.mkdir(parents=True, exist_ok=True)
+    if spend_gate is not None and environment not in LOCAL_REGRADE_ENVIRONMENTS:
+        try:
+            spend_gate.charge()
+        except SpendCapReached:
+            return RegradeReceiptV1(
+                source=source,
+                verifier=verifier,
+                verdict=RegradeVerdict.REFUSED,
+                recorded=recorded,
+                same_verifier=same_verifier,
+                refusals=[RegradeRefusalCode.SPEND_CAP_REACHED],
+                invocation=invocation,
+            )
     completed = runner(command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
@@ -1097,11 +1239,7 @@ def _resolve_job_task_dirs(
         saved: Path | None = None
         for trial in trials:
             candidate = _saved_task_dir(trial)
-            if (
-                candidate is None
-                or not candidate.is_dir()
-                or _read_task_name(candidate) != name
-            ):
+            if candidate is None or not candidate.is_dir() or _read_task_name(candidate) != name:
                 return ([], {}, [RegradeRefusalCode.TASK_UNRESOLVED])
             if saved is None:
                 saved = candidate
@@ -1128,7 +1266,11 @@ def _validate_regrade_destination(source: Path, parent: Path, name: str) -> None
         raise ValueError("regrade name must be a single directory name")
     source = source.resolve()
     destination = (parent / name).resolve()
-    if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
+    if (
+        destination == source
+        or destination.is_relative_to(source)
+        or source.is_relative_to(destination)
+    ):
         raise ValueError("regrade output must be disjoint from the source evidence")
     if destination.exists():
         raise ValueError("regrade output already exists; choose a new explicit name")
@@ -1162,14 +1304,10 @@ def plan_regrade_job(
         "environment": environment,
     }
     if not job_dir.is_dir():
-        return RegradeJobPlan(
-            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_MISSING]
-        )
+        return RegradeJobPlan(**base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_MISSING])
     sources = _source_job_trials(job_dir)
     if not sources:
-        return RegradeJobPlan(
-            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_EMPTY]
-        )
+        return RegradeJobPlan(**base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_EMPTY])
     ordered, dirs_by_name, task_refusals = _resolve_job_task_dirs(
         source_trials=sources, task_dir=task_dir
     )
@@ -1226,10 +1364,14 @@ def plan_regrade_job(
             else []
         ),
         trials=trials,
-        refusals=list(dict.fromkeys([
-            *task_refusals,
-            *(code for trial in trials for code in trial.refusals),
-        ])),
+        refusals=list(
+            dict.fromkeys(
+                [
+                    *task_refusals,
+                    *(code for trial in trials for code in trial.refusals),
+                ]
+            )
+        ),
         runnable=runnable,
     )
 
@@ -1287,12 +1429,8 @@ def _compare_job_trial(
             if regraded is None
             else RegradeRefusalCode.SOURCE_REWARD_ABSENT
         )
-        return RegradeReceiptV1(
-            **base, verdict=RegradeVerdict.REFUSED, refusals=[missing]
-        )
-    verdict, delta = _classify(
-        recorded=recorded, regraded=regraded, same_verifier=same_verifier
-    )
+        return RegradeReceiptV1(**base, verdict=RegradeVerdict.REFUSED, refusals=[missing])
+    verdict, delta = _classify(recorded=recorded, regraded=regraded, same_verifier=same_verifier)
     return RegradeReceiptV1(**base, verdict=verdict, reward_delta=delta)
 
 
@@ -1364,9 +1502,7 @@ def _collect_job_trials(
             )
         else:
             entries.append(
-                _compare_job_trial(
-                    source=source, task_dir=task_dir, new_trial_dir=new_trial_dir
-                )
+                _compare_job_trial(source=source, task_dir=task_dir, new_trial_dir=new_trial_dir)
             )
     return entries
 
@@ -1383,8 +1519,7 @@ def _write_job_receipts(receipt: RegradeJobReceiptV1, new_job_dir: Path) -> None
         target = Path(entry.regrade_trial_dir)
         if target.is_dir():
             (target / REGRADE_TRIAL_RECEIPT_FILENAME).write_text(
-                json.dumps(entry.model_dump(mode="json"), indent=2, sort_keys=True)
-                + "\n",
+                json.dumps(entry.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
     (new_job_dir / REGRADE_JOB_RECEIPT_FILENAME).write_text(

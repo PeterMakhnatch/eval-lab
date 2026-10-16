@@ -234,6 +234,11 @@ LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_docker:LockedDockerEnvir
 HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH = (
     "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment"
 )
+#: Modal exec resolves `python3` to the image's /usr/local/bin interpreter
+#: (3.6.15 in the MiMo images); the packages' setup heredocs need the /usr/bin
+#: interpreter (3.9+), as in Docker. Every Modal environment, healthcheck
+#: included, runs with this PATH (001948, 001647; measured 2026-10-16).
+MODAL_PATH_PIN = "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -2401,18 +2406,10 @@ def build_command(
         if timeout is None:
             timeout = request.trial_watchdog_seconds
         command.extend(["--environment-kwarg", f"sandbox_timeout_secs={timeout}"])
-        # Modal exec resolves `python3` to the image's /usr/local/bin
-        # interpreter (3.6.15 in the MiMo images); the packages' setup
-        # heredocs need the /usr/bin interpreter (3.9+), as in Docker.
-        # Pin PATH for every Modal exec, healthcheck included, so setup
-        # runs under the same interpreter on both backends. Without this,
-        # v6 packages with a purge-installed-copies setup step die in the
-        # healthcheck (001948, 001647; measured 2026-10-16).
+        # Pin PATH for every Modal exec (see MODAL_PATH_PIN). Without it, v6
+        # packages with a purge-installed-copies setup step die in the healthcheck.
         command.extend(
-            [
-                "--environment-kwarg",
-                'persistent_env={"PATH": "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"}',
-            ]
+            ["--environment-kwarg", "persistent_env=" + json.dumps({"PATH": MODAL_PATH_PIN})]
         )
     _validate_modal_app_name(request)
     if request.modal_app_name is not None:

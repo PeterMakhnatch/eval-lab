@@ -76,7 +76,32 @@ On the 70 rows this drops 2 reconstructed rows and 6 over-length rows, leaving 6
 
 ## Runs
 
-| run | data (conversations sha256) | rows | seq tokens | estimate | billed |
-|---|---|---:|---:|---:|---:|
-| `rds1-smoke` | 2 rows of A (smoke only; never evaluated) | 2 | 17,255 | $0.02 + startup | ≈$0.11 (wall time × rate) |
-| `rds1-a` | `c876bc07d63aab875107ede76f86c58f0a840942aab9ee6497c613f271a03efb` | 62 | 2,417,765 | $3.38 | pending |
+The B and C runs used QA Trace `provisional-B2`. Costs are container wall time × the Modal
+A100-80GB rate, recorded in `spend.jsonl`; receipts are in `receipts/`.
+
+| run | data (conversations sha256) | rows | seq tokens | steps | estimate | cost |
+|---|---|---:|---:|---:|---:|---:|
+| `rds1-smoke` | 2 rows of A (smoke only; never evaluated) | 2 | 17,255 | 2 | $0.02 + startup | $0.11 |
+| `rds1-a` | `c876bc07d63aab875107ede76f86c58f0a840942aab9ee6497c613f271a03efb` | 62 | 2,417,765 | 16 | $3.38 | $1.95 |
+| `rds1-b` | `9f24aff74f3e1094b41769f3ce21e8690ad63db835b45757af3482c1d784f713` | 13 | 502,395 | 4 | $0.70 | $0.58 |
+| `rds1-c` | `15cd4e2ef04694d6dee4d33ac17ed5c9261e9bd4f94fedc357937d50669b39ae` | 13 | 471,331 | 4 | $0.66 | $0.53 |
+
+## Is each adapter applied? (`probes/`)
+
+`lora_logprob_probe.py` ran on one server holding the base and all three adapters. It used
+3 Terminus prompts and 64 greedy tokens, and queried each name twice.
+
+**The HAR-129 exact-zero criterion does not hold here.** Adapter-vs-adapter differences are
+nonzero on every prompt. During the rds1-a run, base-vs-base was nonzero too. I infer,
+without having tested it, that mixed LoRA batching (`--max-loras-per-batch 3`) is not
+batch-invariant.
+
+| adapter | base vs adapter, mean abs Δlogprob | noise (adapter vs adapter) | verdict |
+|---|---|---|---|
+| `rds1-a` | 0.0167 / 0.0080 / 0.0019 | 0.0029 / 0.0021 / 0.0030 | applied: 2–6× the noise; greedy text diverges at token 3 on one prompt |
+| `rds1-b` | 0.0069 / 0.0025 / 0.0096 | 0.0067 / 0.0025 / 0.0050 | effect inside the noise |
+| `rds1-c` | 0.0031 / 0.0050 / 0.0070 | 0.0042 / 0.0028 / 0.0082 | effect inside the noise |
+
+B and C took 4 optimizer steps, and the first step runs at learning rate 0. Their final
+lora_B is max 1.0e-4, against 4.1e-4 for A. At this dose a held-out difference between B
+and C is not expected to be detectable.

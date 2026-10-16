@@ -121,7 +121,7 @@ inputs:
   - path: src/evallab/docindex.py
     digest: sha256:c57bd3db7a2bea5b3aa756f4481a9432510ee15fb77127bd603f91651b4781b4
   - path: src/evallab/docker_lock.py
-    digest: sha256:9532875a3335330eb1e3fe300f6dab6a91b671a137f2c5d13476cb563970ed02
+    digest: sha256:d6a5169956b6873b4a55eeaddcdcce1bb6c996ad7018c669185993c5ddab273c
   - path: src/evallab/edit_signals.py
     digest: sha256:bc27ee609a7ff15634bbee13619f86e2096b8cc8b992ef7f44bdb81d9247182d
   - path: src/evallab/eventlog.py

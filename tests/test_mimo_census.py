@@ -1434,71 +1434,44 @@ def test_fix_extractor_remote_reports_unavailable(tmp_path: Path, monkeypatch: A
     assert "unavailable" in str(result["reason"])
 
 
-def test_run_cell_modal_app_attribution_only_on_modal(tmp_path: Path, monkeypatch: Any) -> None:
-    import evallab.execution_contracts as ec
-    import evallab.queue as queue_mod
-    from evallab.mimo_census import MODAL_CENSUS_APP_NAME, run_cell
+def test_census_rejects_changed_source_before_backend_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import queue
+    from evallab.registry import task_directory_digest
+    from evallab.runner import stage_request_task
 
-    class FakeRequest(dict):  # type: ignore[type-arg]
-        def __init__(self, *args: Any, modal_app_name: Any = None, **kwargs: Any):
-            super().__init__(modal_app_name=modal_app_name, **kwargs)
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "task.toml").write_text('[task]\nname = "digest-bound-control"\n')
+    instruction = package / "instruction.md"
+    instruction.write_text("Original task")
+    expected = task_directory_digest(package)
+    instruction.write_text("Different task after manifest publication")
+    staging = tmp_path / "staged"
 
-    class FakeExecutor:
-        @classmethod
-        def from_repo(cls, root: object) -> FakeExecutor:
-            return cls()
-
+    class StagingExecutor:
         def execute_direct(self, request: Any) -> Path:
-            cell = Path(request["jobs_dir"]) / str(request["name"])
-            cell.mkdir(parents=True, exist_ok=True)
-            return cell
+            stage_request_task(request, staging)
+            raise AssertionError("Changed task reached backend dispatch")
 
-    monkeypatch.setattr(ec, "RunRequest", FakeRequest)
-    monkeypatch.setattr(queue_mod, "Executor", FakeExecutor)
-    jobs = tmp_path / "jobs"
-    jobs.mkdir()
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    run_cell(
-        package=pkg,
-        agent="nop",
-        name="m1",
-        jobs_dir=jobs,
-        backend="modal",
-        timeout_seconds=10,
-        root=tmp_path,
-    )
-    assert (jobs / "m1").is_dir()
-    # Re-run capturing the request kwargs via a recording executor.
-    captured: dict[str, Any] = {}
-
-    class RecordingExecutor(FakeExecutor):
-        def execute_direct(self, request: Any) -> Path:
-            captured.update(dict(request))
-            return super().execute_direct(request)
-
-    monkeypatch.setattr(queue_mod, "Executor", RecordingExecutor)
-    run_cell(
-        package=pkg,
-        agent="nop",
-        name="m2",
-        jobs_dir=jobs,
-        backend="modal",
-        timeout_seconds=10,
-        root=tmp_path,
-    )
-    assert captured.get("modal_app_name") == MODAL_CENSUS_APP_NAME
-    captured.clear()
-    run_cell(
-        package=pkg,
-        agent="nop",
-        name="d1",
-        jobs_dir=jobs,
-        backend="docker",
-        timeout_seconds=10,
-        root=tmp_path,
-    )
-    assert "modal_app_name" not in captured or captured.get("modal_app_name") is None
+    monkeypatch.setattr(queue.Executor, "from_repo", lambda root: StagingExecutor())
+    with pytest.raises(ValueError):
+        census_task(
+            task_id=TASK_ID,
+            manifest_row={
+                "package_path": "package",
+                "reference_fix": "none",
+                "final_digest": expected,
+            },
+            primary=tmp_path,
+            jobs_root=tmp_path / "jobs",
+            backend="modal",
+            timeout_seconds=900,
+            root=tmp_path,
+            checks=("nop",),
+        )
+    assert not staging.exists()
 
 
 def _write_verifier_trial(

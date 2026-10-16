@@ -1,0 +1,51 @@
+{
+  "freeze_ready": true,
+  "heldout": [
+    "format-code-task-001248",
+    "format-code-task-000161",
+    "format-code-task-000142",
+    "format-code-task-000783",
+    "format-code-task-001399",
+    "format-code-task-001914",
+    "format-code-task-002871",
+    "format-code-task-002335",
+    "format-code-task-001590",
+    "format-code-task-001480",
+    "format-code-task-001371",
+    "format-code-task-001246",
+    "format-code-task-001948",
+    "format-code-task-001425",
+    "format-code-task-002395",
+    "format-code-task-002092",
+    "format-code-task-000144",
+    "format-code-task-002915",
+    "format-code-task-000143",
+    "format-code-task-000149",
+    "format-code-task-002989",
+    "format-code-task-001199",
+    "format-code-task-000878",
+    "format-code-task-001220",
+    "format-code-task-000905",
+    "format-code-task-002371",
+    "format-code-task-001891",
+    "format-code-task-002451",
+    "format-code-task-002304",
+    "format-code-task-000582",
+    "format-code-task-000657",
+    "format-code-task-000371",
+    "format-code-task-001686"
+  ],
+  "schema": "mimo.heldout/v1",
+  "scoring_allowed": false,
+  "split": {
+    "bytes": 264957,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/split.json",
+    "sha256": "3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da"
+  },
+  "validity_check_allowed": true,
+  "validity_release": {
+    "bytes": 4129,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-shared-image-restoration/research/experiments/mimo-training-20261016/validity-release.json",
+    "sha256": "5e7a8bab711294688c3af288b3df28083831c8c19f097b2b1ceac7c6dd648844"
+  }
+}

@@ -61,7 +61,7 @@ DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 28_800
 #: Time a Harbor trial spends outside its agent timeout: environment start and
 #: agent setup before, the verifier, artifact sync and teardown after. The
-#: executor's per-trial fail-safe and the Daytona sandbox TTL both allow it on
+#: executor's per-trial fail-safe and remote sandbox lifetimes allow it on
 #: top of the agent timeout. Otherwise a trial that runs its agent to the
 #: timeout is killed before Harbor can verify it.
 TRIAL_PHASE_ALLOWANCE_SECONDS = 600
@@ -877,10 +877,27 @@ def _validate_modal_resource_policy(request: RunRequest) -> None:
         return
     if request.environment != "modal":
         raise ValueError("modal_resource_policy requires the Modal backend")
-    if request.modal_app_name != "mimo-clean-census":
-        raise ValueError("modal_resource_policy is restricted to the census billing app")
+    app_name = request.modal_app_name or ""
+    if app_name != "mimo-clean-census" and not (
+        app_name.startswith("mimo-clean-census-") and SAFE_JOB_NAME.fullmatch(app_name)
+    ):
+        raise ValueError("modal_resource_policy is restricted to the census billing namespace")
     if request.modal_resource_policy != "limit":
         raise ValueError("modal_resource_policy must be 'limit' or None")
+
+
+def _validate_modal_sandbox_timeout(request: RunRequest) -> None:
+    """A provider deadline may tighten, never outlive, the local trial watchdog."""
+    timeout = request.modal_sandbox_timeout_seconds
+    if timeout is None:
+        return
+    if request.environment != "modal":
+        raise ValueError("modal_sandbox_timeout_seconds requires the Modal backend")
+    if type(timeout) is not int or not 1 <= timeout <= request.trial_watchdog_seconds:
+        raise ValueError(
+            "modal_sandbox_timeout_seconds must be a positive integer "
+            "no greater than the trial watchdog"
+        )
 
 
 def mimo_selfhosted_trial_cost_usd(
@@ -1285,6 +1302,7 @@ class RunRequest:
     egress_lock: bool | None = None
     modal_app_name: str | None = None
     modal_resource_policy: str | None = None
+    modal_sandbox_timeout_seconds: int | None = None
     diff_sources: tuple[Path, ...] = ()
     subscription_quota: dict[str, Any] | None = None
 
@@ -1932,6 +1950,7 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         )
     _validate_modal_app_name(request)
     _validate_modal_resource_policy(request)
+    _validate_modal_sandbox_timeout(request)
     proxy_limits = (
         request.max_requests,
         request.max_input_tokens,
@@ -2375,7 +2394,13 @@ def build_command(
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
+    _validate_modal_sandbox_timeout(request)
     if request.environment == "modal":
+        # Harbor otherwise defaults to a billable 24-hour Sandbox lifetime.
+        timeout = request.modal_sandbox_timeout_seconds
+        if timeout is None:
+            timeout = request.trial_watchdog_seconds
+        command.extend(["--environment-kwarg", f"sandbox_timeout_secs={timeout}"])
         # Modal exec resolves `python3` to the image's /usr/local/bin
         # interpreter (3.6.15 in the MiMo images); the packages' setup
         # heredocs need the /usr/bin interpreter (3.9+), as in Docker.

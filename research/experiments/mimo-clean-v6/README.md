@@ -338,3 +338,47 @@ Docker daemon was not restarted. The missing initial peak log caveat
 above remains; a post-run cleanup audit does not prove a historical peak.
 Operational spend for this milestone: **$0**.
 
+## Modal x1 continuation (2026-10-15, not run)
+
+Peter's subsequent approval changes the active execution scope to ordinary
+reference-fix x1 and do-nothing x1 controls on Modal: the Python subset of the
+frozen 99 first, then the Python fleet, with a $12 lane cap inside $20 shared
+and billing tag `2026-10-15`. It does not turn the earlier incomplete x3
+selection into a pass, replace plain-v6 tasks with repaired variants, or lift
+existing admission holds.
+
+[modal-readiness.json](modal-readiness.json) records the executed static intake
+and the offline native-consumer smoke. All 1,148 built Python package digests
+match the canonical manifest; all 428 reference-bearing packages contain a
+nonempty `solution/solve.sh`. There are no input gaps. The original 99 contain
+87 Python tasks: 85 references and two nop-only cases. Keeping `000803` and
+`000838` held leaves 83 pairs plus two nop-only tasks (168 x1 cells). Keeping
+the additional `000792` evidence-binding hold leaves 1,145 fleet candidates:
+426 oracle and 1,145 nop cells. The 32 skipped packages stay skipped, and all
+training exclusions remain separate from control availability.
+
+The native Harbor constructor smoke, with networking disabled, reproduced the
+old 86,400-second provider lifetime and observed 1,500 seconds for a 900-second
+request after the fix, or the explicit 600-second override. CPU/RAM remained
+LIMIT `(0.125, 2)` physical cores and `(128, 8192)` MiB. This is configuration
+proof only: it did not create provider objects, terminate a remote sandbox,
+or grade a task. The optional runtime requires `modal==1.6.1` and
+`dockerfile-parse==2.0.1`; installing only the Modal SDK left Harbor's
+Dockerfile parser unavailable.
+
+**No paid Modal trial was launched; measured v6 dollars per task is unavailable.**
+The existing direct census has no durable concurrent campaign-dollar
+reservation, and bounding Sandbox lifetimes does not bound image preparation
+or egress. The authenticated provider budget read returned
+`PermissionDeniedError: Environment budgets are not enabled for this workspace`.
+Provider documentation also distinguishes compute-only environment budgets
+from a total-usage workspace cap. Shared workspace settings were not changed,
+the $12 cap was not relaxed, and no estimate was labeled a hard total-cost
+guarantee. A preparatory journal/launcher that could never dispatch under the
+available contract was deliberately not shipped.
+
+The required native x1 runs, current measured cost/task, and fleet continuation
+remain blocked on a usable cost-admission contract covering the approved total
+scope. Operational spend for this continuation is **$0**, not a measured
+zero-dollar control result.
+

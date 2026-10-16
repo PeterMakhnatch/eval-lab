@@ -925,6 +925,13 @@ class RunProvenance(ContractModel):
     verifier_digest: str | None = None
     policy_rule: str | None = None
     package_digest: str | None = None
+    spend_tag: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        exclude_if=lambda value: value is None,
+        description="Explicit campaign billing tag supplied by the caller, never inferred.",
+    )
     task_path: str | None = None
     grid_id: str | None = None
     point_id: str | None = None

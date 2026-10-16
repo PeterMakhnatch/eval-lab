@@ -811,6 +811,9 @@ def test_campaign_scoped_transform_still_refuses_broken_ancestry(tmp_path: Path)
         "purge-build-caches@5",
         "purge-installed-copies@2",
         "mtime-normalize@2",
+        "leak-close-pypi@1",
+        "env-keep-build-outputs@1",
+        "env-keep-files@1",
     ],
 )
 def test_campaign_scoped_admits_each_headline_transform(
@@ -826,7 +829,68 @@ def test_campaign_scoped_admits_each_headline_transform(
     validate_request(make_variant_request(root, spec, package), repo_root=root)
 
 
-def test_campaign_scoped_pin_diagnostic_admitted(tmp_path: Path) -> None:
+def _derive_child(root: Path, base: Path, parent_package: Path, record, *, transform: str, marker_suffix: str = ""):
+    import re
+
+    from evallab.task_variants import derive_task
+
+    marker = re.sub(r"[^a-z0-9]+", "_", transform.lower()) + marker_suffix
+    return derive_task(
+        parent_package,
+        changes={f"tests/integrity/edge_{marker}.py": INTEGRITY_PROBE},
+        transform=transform,
+        rationale="campaign lineage behaviour test",
+        created_by="har173-test",
+        parent_source={"kind": "variant", "record": record.record_relpath().as_posix()},
+        repo_root=root,
+        variants_root=base / "variants-store",
+    )
+
+
+def _headline_endpoint(root: Path, base: Path):
+    """The six-edge headline build chain, endpoint scope-listed."""
+    transforms = [
+        "strip-future-history@1",
+        "purge-build-caches@4",
+        "purge-installed-copies@2",
+        "mtime-normalize@2",
+        "separate-verifier@10",
+        "agent-network-none@1",
+    ]
+    record, package = make_variant_package(root, base, transform=transforms[0])
+    for transform in transforms[1:]:
+        record = _derive_child(root, base, package, record, transform=transform)
+        package = base / "variants-store" / record.task_slug / record.digest12
+    record = mark_validated(root, record)
+    _scope_digest_in_profile(root, record.variant_digest)
+    return record, package
+
+
+def test_campaign_scoped_six_edge_headline_chain_admitted(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = _headline_endpoint(root, tmp_path)
+    spec = make_variant_spec(root, record, package)
+    validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_pin_diagnostic_admitted_end_to_end(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    _endpoint, endpoint_package = _headline_endpoint(root, tmp_path)
+    child = _derive_child(
+        root, tmp_path, endpoint_package, _endpoint, transform="verifier-repair@1"
+    )
+    child = mark_validated(root, child)
+    _scope_digest_in_profile(root, child.variant_digest, scope="pin_diagnostic")
+    package = tmp_path / "variants-store" / child.task_slug / child.digest12
+    spec = make_variant_spec(root, child, package)
+    validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_pin_refused_on_non_headline_parent(tmp_path: Path) -> None:
     root, _ = make_repo_root(
         tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
     )
@@ -834,7 +898,24 @@ def test_campaign_scoped_pin_diagnostic_admitted(tmp_path: Path) -> None:
     record = mark_validated(root, record)
     _scope_digest_in_profile(root, record.variant_digest, scope="pin_diagnostic")
     spec = make_variant_spec(root, record, package)
-    validate_request(make_variant_request(root, spec, package), repo_root=root)
+    with pytest.raises(ValueError, match="not verifier-only/metadata-only"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_campaign_scoped_pin_refused_when_repair_edge_skipped(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    endpoint, endpoint_package = _headline_endpoint(root, tmp_path)
+    child = _derive_child(
+        root, tmp_path, endpoint_package, endpoint, transform="separate-verifier@10", marker_suffix="_again"
+    )
+    child = mark_validated(root, child)
+    _scope_digest_in_profile(root, child.variant_digest, scope="pin_diagnostic")
+    package = tmp_path / "variants-store" / child.task_slug / child.digest12
+    spec = make_variant_spec(root, child, package)
+    with pytest.raises(ValueError, match="not verifier-only/metadata-only"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
 
 def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while_mimo_task_and_selfhosted_stay_gated(
     tmp_path: Path,

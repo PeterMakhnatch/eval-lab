@@ -806,6 +806,7 @@ def variant_lineage_summary(
         "parent_digest": None,
         "parent_digests": [],
         "transform_chain": [],
+        "edge_digests": [],
         "chain_error": None,
     }
     if not task_id or not digest:
@@ -836,6 +837,7 @@ def variant_lineage_summary(
         summary["parent_digest"] = parent.get("digest") if isinstance(parent, dict) else None
         transform = payload.get("transform")
         summary["transform_chain"] = [transform] if isinstance(transform, str) else []
+        summary["edge_digests"] = [digest]
         summary["chain_error"] = f"lineage record is invalid ({rel}): {exc}"
         return summary
     seen: set[str] = set()
@@ -845,6 +847,7 @@ def variant_lineage_summary(
             break
         seen.add(step.record.variant_digest)
         summary["transform_chain"].append(step.record.transform)
+        summary["edge_digests"].append(step.record.variant_digest)
         summary["parent_digests"].append(step.record.parent.digest)
         if step.parent_error:
             summary["chain_error"] = step.parent_error
@@ -853,38 +856,50 @@ def variant_lineage_summary(
     return summary
 
 
-def _campaign_scoped_transforms(
-    repo_root: Path, reference_profile: str | None, package_digest: str | None
-) -> frozenset[str]:
-    """Extra transforms admitted for one campaign package, never globally.
+def _campaign_scopes(
+    repo_root: Path, reference_profile: str | None
+) -> dict[str, tuple[frozenset[str], frozenset[str]]]:
+    """Campaign lineage scopes declared by the named profile, if any.
 
-    The named reference profile may declare ``campaign_lineage`` scopes:
-    ``headline`` and ``pin_diagnostic``, each with ``transforms`` and the
-    exact ``package_digests`` they cover. A transform is admitted only
-    when the run names that profile AND the package digest is listed in
-    a scope. Anything else — a different profile, an unlisted digest, a
-    malformed section — admits nothing extra, so non-campaign packages
-    keep facing the global allowlist unchanged.
+    Returns ``{scope_name: (transforms, package_digests)}`` from the
+    profile's ``campaign_lineage`` section. Anything malformed — no
+    profile, no section, wrong shapes — yields no scopes, so
+    non-campaign packages keep facing the global allowlist unchanged.
     """
-    if not reference_profile or not package_digest:
-        return frozenset()
+    if not reference_profile:
+        return {}
     try:
         profile = load_reference_profile(repo_root, reference_profile)
     except (OSError, ValueError, KeyError):
-        return frozenset()
+        return {}
     scoped = profile.get("campaign_lineage")
     if not isinstance(scoped, dict):
-        return frozenset()
-    admitted: set[str] = set()
-    for scope in scoped.values():
+        return {}
+    scopes: dict[str, tuple[frozenset[str], frozenset[str]]] = {}
+    for name, scope in scoped.items():
         if not isinstance(scope, dict):
             continue
-        digests = scope.get("package_digests")
         transforms = scope.get("transforms")
-        if not isinstance(digests, list) or package_digest not in digests:
+        digests = scope.get("package_digests")
+        if not isinstance(transforms, list) or not isinstance(digests, list):
             continue
-        if isinstance(transforms, list):
-            admitted.update(t for t in transforms if isinstance(t, str))
+        scopes[str(name)] = (
+            frozenset(t for t in transforms if isinstance(t, str)),
+            frozenset(d for d in digests if isinstance(d, str)),
+        )
+    return scopes
+
+
+def _campaign_scoped_transforms(
+    repo_root: Path, reference_profile: str | None, package_digest: str | None
+) -> frozenset[str]:
+    """Extra transforms admitted for one campaign package, never globally."""
+    if not package_digest:
+        return frozenset()
+    admitted: set[str] = set()
+    for transforms, digests in _campaign_scopes(repo_root, reference_profile).values():
+        if package_digest in digests:
+            admitted.update(transforms)
     return frozenset(admitted)
 
 
@@ -923,17 +938,36 @@ def lineage_ledger_binding(
     if summary["chain_error"]:
         binding["reason"] = f"variant lineage is broken: {summary['chain_error']}"
         return binding
-    scoped = _campaign_scoped_transforms(repo_root, reference_profile, package_digest)
-    outside = [
-        t
-        for t in summary["transform_chain"]
-        if t not in LINEAGE_ALLOWLISTED_TRANSFORMS and t not in scoped
-    ]
+    # Per-edge campaign scoping: the final edge is judged under the scope
+    # listing the package's own digest; ancestor edges under the scope
+    # listing the digest the final edge's parent produced (the headline
+    # endpoint a pin repair builds on). A pin endpoint whose parent is
+    # not a listed headline digest gets no pin scope at all, and any
+    # other digest gets none either — never a global union of scopes.
+    scopes = _campaign_scopes(repo_root, reference_profile)
+    headline = scopes.get("headline", (frozenset(), frozenset()))
+    pin = scopes.get("pin_diagnostic", (frozenset(), frozenset()))
+    if package_digest in pin[1] and summary["parent_digest"] in headline[1]:
+        final_scope, ancestor_scope = pin[0], headline[0]
+    elif package_digest in headline[1]:
+        final_scope = ancestor_scope = headline[0]
+    else:
+        final_scope = ancestor_scope = frozenset()
+    outside: list[str] = []
+    for index, (transform, _produced) in enumerate(
+        zip(summary["transform_chain"], summary["edge_digests"], strict=False)
+    ):
+        allowed = LINEAGE_ALLOWLISTED_TRANSFORMS | (
+            final_scope if index == 0 else ancestor_scope
+        )
+        if transform not in allowed:
+            outside.append(transform)
     if outside:
         binding["reason"] = (
             f"variant transform {outside[0]!r} is not verifier-only/metadata-only "
             f"(allowlist: {sorted(LINEAGE_ALLOWLISTED_TRANSFORMS)}; "
-            f"campaign-scoped for this package: {sorted(scoped)})"
+            f"campaign-scoped here: final={sorted(final_scope)}, "
+            f"ancestors={sorted(ancestor_scope)})"
         )
         return binding
     try:

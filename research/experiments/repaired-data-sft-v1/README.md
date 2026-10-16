@@ -116,3 +116,19 @@ batch-invariant.
 B and C took 4 optimizer steps, and the first step runs at learning rate 0. Their final
 lora_B is max 1.0e-4, against 4.1e-4 for A. At this dose a held-out difference between B
 and C is not expected to be detectable.
+
+### final-v4 B and C (`probes/v4/`, each on its own single-adapter server)
+
+The table gives mean |Δlogprob| over the shared greedy prefix.
+
+| adapter | base vs adapter | noise (max of base vs base, adapter vs adapter) | ratio |
+|---|---|---|---|
+| `rds1-b` → `rds1-b-v4e4` | 0.0170 / 0.0127 / 0.0136 | 0.0054 / 0.0043 / 0.0066 | 2.1–3.2× |
+| `rds1-c` → `rds1-c-v4e4` | 0.0123 / 0.0118 / 0.0008 (greedy text diverges at token 3) | 0.0043 / 0.0047 / 0.0059 | 2.5–2.9×, diverges |
+
+**Noise.** Even with a single adapter, base-vs-base is not exactly 0. It repeats run to run
+at the same values (0.0043 / 0.0043 / 0.0059), so this is a stable serving noise floor,
+not a broken probe.
+
+**Verdict.** Both final-v4 adapters change the model's outputs above that noise floor, as
+much as A did.

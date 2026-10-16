@@ -81,7 +81,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:e64f30783ac9569f78cffcde9d3474479de2b4d4deb6fc80a5a806ce7ef44302
+    digest: sha256:69ae54ed1300d0266bbf5d5191e9ebc3dd59097e1ad93520c769fb32e28a0bf6
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -403,6 +404,64 @@ def test_run_watch_on_writes_request(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert request is not None
     assert request["rule"] == "history_mining"
     assert request["requested_by"] == "auto"
+
+
+@pytest.mark.parametrize(
+    ("mode", "capture_fails"),
+    [("on", False), ("dry-run", False), ("on", True)],
+    ids=["armed", "dry-run", "failed-capture"],
+)
+def test_stop_timestamps_follow_each_capture_and_record_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, capture_fails: bool
+) -> None:
+    runs = tmp_path / "runs"
+    first = _write_mining_trial(runs)
+    second = first.with_name("task__a2")
+    shutil.copytree(first, second)
+    out = first.parent / "watch"
+    scan_started = datetime(2026, 10, 16, tzinfo=UTC).timestamp()
+    clock = [scan_started]
+    capture_finished: dict[str, float] = {}
+    record_finished: dict[str, float] = {}
+    original_write = Path.write_text
+
+    def capture(trial: str, *, pause: bool) -> dict[str, Any]:
+        clock[0] += 10
+        capture_finished[trial] = clock[0]
+        if capture_fails:
+            raise TimeoutError("capture took time before failing")
+        return {"skipped": "no Docker in this test"}
+
+    def slow_record_write(path: Path, data: str, *args: Any, **kwargs: Any) -> int:
+        written = original_write(path, data, *args, **kwargs)
+        if path.parent == out / "stop-records":
+            clock[0] += 5
+            record_finished[path.stem] = clock[0]
+        return written
+
+    monkeypatch.setattr(watch_stop.time, "time", lambda: clock[0])
+    monkeypatch.setattr(watch_stop, "docker_capture", capture)
+    monkeypatch.setattr(Path, "write_text", slow_record_write)
+    run_watch(runs_dirs=[runs], out_dir=out, stop_mode=mode, now=scan_started)
+
+    recorded_times = []
+    for trial in (first.name, second.name):
+        record = read_stop_record(out, trial)
+        assert record is not None
+        recorded = datetime.fromisoformat(record["recorded_at"]).timestamp()
+        assert capture_finished[trial] <= recorded <= record_finished[trial]
+        assert bool(record.get("capture_errors")) is capture_fails
+        recorded_times.append(recorded)
+        request = read_stop_request(out, trial)
+        if mode == "on":
+            assert request is not None
+            requested = datetime.fromisoformat(request["requested_at"]).timestamp()
+            assert requested >= record_finished[trial] > recorded
+        else:
+            assert request is None
+    assert recorded_times[1] > recorded_times[0] > scan_started
+    alerts = [json.loads(line) for line in (out / "alerts.jsonl").read_text().splitlines()]
+    assert all(datetime.fromisoformat(alert["first_seen"]).timestamp() == scan_started for alert in alerts)
 
 
 def test_drive_skips_acked_terminal_and_fleet(

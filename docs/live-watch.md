@@ -340,6 +340,15 @@ and `stops`.
 transition can make the actuator ignore the request. The dispatch-time
 `verifier_never_ran` field is not proof that verification never ran afterward.
 
+`recorded_at` and `requested_at` each sample the wall clock when their
+respective stop file is constructed: after evidence capture, and for the
+request, after the stop record has been written. They are not scan-start,
+actuator-arrival, or confirmed-cancellation timestamps. Alert `first_seen`
+and status snapshot time remain tied to the watch scan. Historical automatic
+stop files may instead reuse that earlier scan time for both stop timestamps;
+interpret them with their producing code revision, not as reliable request
+emission times. Retained evidence is not rewritten.
+
 ```bash
 EVALLAB_WATCH_STOP=on uv run evallab watch --runs-dir runs/<job> \
   --out runs/<job>/watch --interval 5

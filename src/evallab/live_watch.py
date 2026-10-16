@@ -1893,6 +1893,8 @@ def run_watch(
     and, in ``on`` mode, write a stop request the in-process actuator honors.
     Stop requests only actuate when ``out_dir`` is the job's own ``watch/``
     directory (always true for auto-attached watches).
+    ``now`` controls the scan snapshot time, not the stop-file timestamps:
+    those writers sample current time after evidence capture.
     """
     limits = thresholds or WatchThresholds()
     moment = now if now is not None else time.time()
@@ -1971,7 +1973,6 @@ def run_watch(
             hooks_by_job=hooks_by_name,
             acks_by_job=acks_by_job,
             mode=mode,
-            moment=moment,
         )
 
     _write_status(out_dir, statuses, fleet, limits, moment, stops, mode)

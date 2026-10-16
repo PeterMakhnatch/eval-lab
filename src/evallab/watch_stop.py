@@ -560,7 +560,6 @@ def drive_trial_stops(
     acks_by_job: dict[str, list[dict[str, Any]]],
     mode: str,
     requested_by: str = "auto",
-    moment: float | None = None,
 ) -> list[dict[str, Any]]:
     """Capture evidence and request stops for fresh eligible alerts.
 
@@ -568,6 +567,8 @@ def drive_trial_stops(
     ones are ignored once a request or record exists). Capture failures are
     recorded and never prevent the stop in ``on`` mode. Returns per-trial
     stop summaries for ``status.json`` and ``BOARD.md``.
+    Each stop-file writer samples its own current time after capture; scan
+    start is not a request or record emission timestamp.
     """
     watch_dir = Path(watch_dir)
     by_trial: dict[str, dict[str, Any]] = {}
@@ -630,7 +631,6 @@ def drive_trial_stops(
             usage=usage_at_stop(status),
             reason=decision.get("reason"),
             capture_errors=capture_errors or None,
-            now=moment,
         )
         request_path: Path | None = None
         if action == "stop":
@@ -642,7 +642,6 @@ def drive_trial_stops(
                 alert=alert,
                 requested_by=requested_by,
                 mode=mode,
-                now=moment,
             )
         entry = {
             "trial": trial,

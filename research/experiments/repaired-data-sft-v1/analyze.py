@@ -78,12 +78,13 @@ carries an `exposure_caveat` with the ratio.
 Coverage and uncertainty (`estimand_notes` in the output states them):
 - every arm reports `solve_coverage` (`complete`, `observed_subset` or `unmeasured`),
   `measured_tasks` (n/33), `measured_attempts` (n/planned), `missing_task_attempts`, and
-  the missing and unmeasured task ids. Planned attempts come from `--attempts`, or else
-  from the highest attempt index seen. An observed subset is never presented as a full
-  33-task result, and missing slots are never imputed.
-- exact Clopper–Pearson 95% intervals over measured attempts. These treat attempts as
-  independent, ignore within-task correlation, and are not intervals for any difference
-  between arms.
+  the missing and unmeasured task ids. Planned attempts come from the required
+  `--attempts` (the authorized schedule is 2) and are printed as `planned_attempts`. An
+  observed subset is never presented as a full 33-task result, and missing slots are
+  never imputed.
+- exact Clopper–Pearson 95% intervals over measured attempts. They ignore within-task
+  correlation between attempts, are not cluster-adjusted, and are not intervals for any
+  difference between arms.
 - paired comparisons (B vs C, primary, and each arm vs base) work on the common
   measured-task cohort. They report its size, the attempts each arm contributes and
   whether attempts per task are equal, plus the equal-task mean difference and an exact
@@ -104,7 +105,7 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
         --receipt C=receipts/rds1-c-v4e4.json \
         --replay-exclude format-code-task-001199=g1x --replay-exclude format-code-task-001246=g1x \
         --replay-exclude format-code-task-001590=g1x --replay-exclude format-code-task-002451=g1x \
-        --out results.json
+        --attempts 2 --out results.json
 """
 
 from __future__ import annotations
@@ -122,9 +123,9 @@ from typing import Any
 ESTIMAND_NOTES = {
     "solve_rate": "passes / measured attempts on the frozen v6 packages; not pass-at-k per task",
     "solve_ci95": (
-        "Clopper-Pearson over measured attempts, treated as independent: it ignores "
-        "within-task correlation between attempts, so it is narrower than a task-clustered "
-        "interval and is not an interval for any between-arm difference"
+        "Clopper-Pearson over measured attempts: it ignores within-task correlation between "
+        "attempts, is not cluster-adjusted, and is not an interval for any between-arm "
+        "difference"
     ),
     "paired": (
         "equal-weight mean of per-task observed solve-rate differences on the common "
@@ -434,7 +435,8 @@ def main() -> int:
     ap.add_argument(
         "--attempts",
         type=int,
-        help="planned attempts per task (default: the highest attempt index observed)",
+        required=True,
+        help="planned attempts per task: the authorized schedule (2 on 2026-10-16)",
     )
     ap.add_argument(
         "--replay-plan",
@@ -541,19 +543,10 @@ def main() -> int:
                 original[(r["arm"], r["trial"])] = bool(r["original_pass"])
 
     heldout_ids = sorted(heldout)
-    planned_attempts = args.attempts or max(
-        (
-            attempt_of(n)
-            for by_task in arms.values()
-            for items in by_task.values()
-            for n, _ in items
-        ),
-        default=1,
-    )
+    planned_attempts = args.attempts
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
         "planned_attempts": planned_attempts,
-        "planned_attempts_source": "--attempts" if args.attempts else "max attempt index observed",
         "estimand_notes": ESTIMAND_NOTES,
         "incorrect_pass_replay_excluded": dict(sorted(replay_excluded.items())),
         "incorrect_pass_replay_mode": replay_mode,

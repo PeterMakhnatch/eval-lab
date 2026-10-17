@@ -115,6 +115,27 @@ def support(raw: Path) -> dict[str, Any]:
     scope = load(raw / "code-cases/native-effort-01/source-patch-diagnostics-v1/result.json")
     before = load(raw / "trajectory-test-isolation/before-v2-run/result.json")
     after = load(raw / "trajectory-test-isolation/after-v2-run/result.json")
+    style_path = raw / "verification-owner-style-audit-v1.json"
+    finishing_path = raw / "verification-owner-parent-finish-v1/result.json"
+    style = load(style_path)
+    finishing = load(finishing_path)
+    finishing_arms = {}
+    for arm in ("baseline", "candidate"):
+        episodes = [row for row in style["episodes"] if row["arm"] == arm]
+        controls = [row for row in finishing["episodes"] if row["arm"] == arm]
+        finishing_arms[arm] = {
+            "episodes": len(episodes),
+            "lint_passed": sum(row["lint_exit"] == 0 for row in episodes),
+            "formatting_needed": sum(row["format_check_exit"] == 1 for row in episodes),
+            "mechanical_controls": len(controls),
+            "ast_preserved": sum(row["ast_equal"] is True for row in controls),
+            "finishing_passed": sum(
+                row["formatter_exit"] == row["after_lint_exit"] == row["after_format_exit"] == 0
+                and row["behavior_passed"] is True
+                for row in controls
+            ),
+            "feature_checks": sum(row["behavior_checks"] for row in controls),
+        }
     return {
         "devloop": {
             "identical_plan": devloop["identical_plan"],
@@ -149,6 +170,14 @@ def support(raw: Path) -> dict[str, Any]:
         "ownership_audit_sha256": digest(
             raw / "effort-trace-audit/verification-owner/metrics.json"
         ),
+        "ownership_parent_finishing": {
+            "arms": finishing_arms,
+            "style_artifact_sha256": digest(style_path),
+            "finishing_artifact_sha256": digest(finishing_path),
+            "original_trials_modified": finishing["original_trials_modified"],
+            "models_or_paid_calls": finishing["models_or_paid_calls"],
+            "limits": finishing["limits"],
+        },
         "source_patch_diagnostic_not_episode_regrade": {
             key: scope[key]
             for key in (

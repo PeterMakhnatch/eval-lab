@@ -50,6 +50,18 @@ The baseline's checks found and corrected formatting problems, so they cannot
 all be labeled wasted work. This is a useful narrow assignment pattern only
 when a real integration owner actually performs acceptance and repository gates.
 
+A separate post-hoc finishing audit makes that obligation concrete:
+
+| Arm | Lint passes | Episodes still needing formatter cleanup |
+|---|---:|---:|
+| Implementer-owned checks | 3/3 | 1/3 |
+| Edit-only worker | 3/3 | 2/3 |
+
+Mechanical formatting on disposable source copies fixed all three cases,
+preserved their ASTs, and passed all 88 evaluated behavioral probes with no new
+trial-model calls. This is not full CI or a scope regrade; original grades remain
+unchanged. Worker token savings do not justify skipping parent finishing.
+
 The local change-impact skill now binds the root/cwd, owned paths, non-goals,
 observable acceptance, available runtime, source pointers and verification owner.
 It does not impose a no-checks rule on primary implementers.

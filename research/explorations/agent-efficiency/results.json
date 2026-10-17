@@ -1,6 +1,6 @@
 {
   "baseline_revision": "5171c20c7d1f5c00d020db6087eac3041f94bf13",
-  "generated_at_utc": "2026-10-17T10:38:19.781033+00:00",
+  "generated_at_utc": "2026-10-17T11:02:19.800012+00:00",
   "generation_census": {
     "attempted_policy_sdk_generations": 114,
     "limits": [
@@ -5467,7 +5467,7 @@
     "strict_acceptance_regraded": false
   },
   "private_retention_manifest_sha256": "69749fc72da7f1c0be3fa7006cb0d5045031f84837bf6e0d6af125e6e5c63d6d",
-  "publisher_sha256": "28d9ce23b2c9af0f3707896dcd0e13920cb7cf7f1e926632d6d29c9d85496df7",
+  "publisher_sha256": "180c657011aa700ef910dca5e90f77adc12e5fc7bc138ed9362cf2d77da93bc5",
   "schema": "agent-efficiency-public-results/v1",
   "support": {
     "devloop": {
@@ -5586,6 +5586,37 @@
       "candidate_passive_command_items": 23,
       "candidate_source_patch_items": 5,
       "no_claim_all_baseline_checks_wasted": true
+    },
+    "ownership_parent_finishing": {
+      "arms": {
+        "baseline": {
+          "ast_preserved": 1,
+          "episodes": 3,
+          "feature_checks": 23,
+          "finishing_passed": 1,
+          "formatting_needed": 1,
+          "lint_passed": 3,
+          "mechanical_controls": 1
+        },
+        "candidate": {
+          "ast_preserved": 2,
+          "episodes": 3,
+          "feature_checks": 65,
+          "finishing_passed": 2,
+          "formatting_needed": 2,
+          "lint_passed": 3,
+          "mechanical_controls": 2
+        }
+      },
+      "finishing_artifact_sha256": "40d62803364c9aa245d029e11a2b00262fba15a752c91bdd7342d2cb88778b74",
+      "limits": [
+        "Post-hoc formatter control, not a preregistered native trial or full repository CI.",
+        "Thin disposable source copies; unchanged behavioral probes only, no source-scope regrade.",
+        "Original accepted and rejected grades remain unchanged."
+      ],
+      "models_or_paid_calls": 0,
+      "original_trials_modified": false,
+      "style_artifact_sha256": "0647978e13a83ef8b217f0eeae853231f1a172d00c401f9b7d9ba4d19f8c8b5e"
     },
     "source_patch_diagnostic_not_episode_regrade": {
       "diagnostics": [

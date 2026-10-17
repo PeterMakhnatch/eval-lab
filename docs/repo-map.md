@@ -62,6 +62,8 @@ inputs:
     digest: sha256:c357400e78279e8eaabab88968ad19aeceddf398b0a16a39fa8a01acc1634722
   - path: src/evallab/cheatbench.py
     digest: sha256:85df2837bbec5ffe748faf08513d9bb2c4a388622b02a7e9d46aca75b7f51c22
+  - path: src/evallab/cheatbench_fidelity.py
+    digest: sha256:22ebaef1eaa48e3f2a5fc1dfdca8ddd2bfd634a5fd0f7ecdbfdefab21be5bed1
   - path: src/evallab/cli.py
     digest: sha256:91ce141ac8a7d1da3d8c173838537354ec54e16b26530e5008d16a0601b8302d
   - path: src/evallab/codeban.py
@@ -147,7 +149,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:f3507504fb26ce7a0b5a7440be1c73be55ac158eedd5967d66e9f059d18cddae
+    digest: sha256:02943f48f0be93557bce717b50897ad84139775958c01d7aa541341786977a3c
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -439,7 +441,7 @@ inputs:
   - path: src/evallab/mimo_census.py
     digest: sha256:acb4af9965106f3854af6d2089c441470fa63af3bc11a896e15998fa4e19d1e1
   - path: src/evallab/mimo_clean.py
-    digest: sha256:cedf4550c549c320d435f715b5391b48fa9f488e7de37f0c21d16a182a44bf89
+    digest: sha256:c271ac191955ad8d3773d31a12f193211cb66dcf79795834984f03916dc0acf6
   - path: src/evallab/mimo_exploit.py
     digest: sha256:12310f6ef0c849c795b7b3b1a66c0332252c6d831168a487f40b6a6a36f7bf67
   - path: src/evallab/mimo_tool_calls.py
@@ -495,9 +497,9 @@ inputs:
   - path: src/evallab/purge_build_caches.py
     digest: sha256:336573ee395b3db127979852f4fa658376caa039de683af1fff85cd855ede0e2
   - path: src/evallab/purge_container.py
-    digest: sha256:95e8a97c5804c092e80e6812de535d5abe6cbb18b32ada90ffe1ba14e414f9b9
+    digest: sha256:acef54c9a88f8eae8543d064b6ec653942280a3240d19b670eb5976c5b51777a
   - path: src/evallab/purge_installed_copies.py
-    digest: sha256:2293c06023796b9ec2ecf38d7856eb2e49053a665ac5ac975f079e90f79b074c
+    digest: sha256:0d6adb1dffc513269c3dfeed9ed9c17e98a5ebad3107e0b180024d72353206a6
   - path: src/evallab/purge_planted_test_infra.py
     digest: sha256:b8cad81b5bebe8d5a621d8e9276f3305075e38d42e9fcfe898bdd512db8188ff
   - path: src/evallab/qa/__init__.py
@@ -507,19 +509,27 @@ inputs:
   - path: src/evallab/qa/cli.py
     digest: sha256:a980f6f50a1baa91a83deb09c5d98409a98539654f4be01014eb2be5281be1c3
   - path: src/evallab/qa/counterfactual.py
-    digest: sha256:42032124c58c7c31c2d5ab702849c6c93f31a32e3211e7090940f6526c47c5ef
+    digest: sha256:8d0d181173ff543fccb713e91f31d27a0a9d7b1f22f1e66f23ad4eeb8c5eb538
   - path: src/evallab/qa/models.py
     digest: sha256:03eee7b951f941e5a267c2e9b78b58a05b3e0481310d44b98b63c11bb7df750c
   - path: src/evallab/qa/score.py
     digest: sha256:758ab9e81599ec489aa9d04db0feeb3d52609b7bfba0159d0950728356962bd8
   - path: src/evallab/qa/task.py
-    digest: sha256:132d9809a7231672b950d5f825928f82dea79cec8268393749ccad8b076cb476
+    digest: sha256:a8b42a78d360c88cfd13d5c022d5ad60adbefb0da684d21f0d1055d2f5f7cc2a
+  - path: src/evallab/qa/task_modal.py
+    digest: sha256:3d5865174f749a07d8e45af24d174b1ba19d6bbe58adfb6afa6e2d0ccbdcf66b
   - path: src/evallab/qa/trace.py
-    digest: sha256:3cb41c4accc4326be7d94c3857a20ac87a670dcd9433b8b33ba1452efc033cc6
+    digest: sha256:182022cc130cd29039187fd3d9f13b77e54f1c5a274a9a76808183af0fc5c4e6
+  - path: src/evallab/qa/trace_agents.py
+    digest: sha256:2c8591a41751bafbe7cf4a1641dc0283d3247c8b1b3cedac71cffcae187a1dc6
+  - path: src/evallab/qa/trace_verify.py
+    digest: sha256:dd5fb35e5c478f24431b12b54bfafe4948dd8aa566193f079e643b7fb4e0fc41
+  - path: src/evallab/qa/trace_workspace.py
+    digest: sha256:bf6be3ab7e05a14f83059be33eb51f65a9eff9bb1d07579f1579759845ba7e95
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:f49c64fe049c6ef998d4396fa81ae2550ca48859e651714bbed53113e45fbb02
+    digest: sha256:d31f916fd4d4092db337dc10b563c98a48e2f4227cdbd01596ac34ba74fafe3e
   - path: src/evallab/quota.py
     digest: sha256:79b798c4710583be8c809fa7b01a158f52d06f0f3a6f5263ea2ac621befcb43c
   - path: src/evallab/readers/__init__.py
@@ -543,11 +553,13 @@ inputs:
   - path: src/evallab/ref_repair.py
     digest: sha256:db58c48b73c7619d66364b08e4a14a78ca9ddf783e242f81b5eaa582ad577b03
   - path: src/evallab/ref_subset.py
-    digest: sha256:99681acd37d1110e2447f0ac1276cb193fb98326cfc94351f50703624122412a
+    digest: sha256:ad0bb5cc53aef051bf55a9079bd56c6f7e6412170abda6c50361d0ddd37819e0
+  - path: src/evallab/ref_subset_modal.py
+    digest: sha256:7328c9ad5736a69419f80fafda8814853fd33376fbfd99e8ab42f668dcb63dba
   - path: src/evallab/registry.py
     digest: sha256:7a7d980c894d4e1c97a518cdcf9e8fe8b1fbe37c9d1bf7fec33d8170f4e350ab
   - path: src/evallab/regrade.py
-    digest: sha256:9ae5cbf8fe434a74f38fe5891692cba099b5012eb5287a0c181dabc2521a985a
+    digest: sha256:cc83228977f6963a3c0168ba09333ff13246706306a4830dcaa42dce40b1758f
   - path: src/evallab/repetition.py
     digest: sha256:bb868c3da5dea5637f5ae4a7e81f157e9590087dc832fcd546a3a7a095811899
   - path: src/evallab/repomap.py
@@ -591,7 +603,7 @@ inputs:
   - path: src/evallab/rlm/traj_report.py
     digest: sha256:dbefe71b295c0c561913fd266e53f6643a159319ae12f2d1d924b186e5e78a2b
   - path: src/evallab/rollout.py
-    digest: sha256:f518563806e6da5fcf5a2454ecbe4f6d05299717587e62f9d05b1455f1517da3
+    digest: sha256:edfc1dd043c7d6755e6e82e59a88f08a13b9ce6bbef18e564b26adebc8e726d0
   - path: src/evallab/roster.py
     digest: sha256:580eb3a4ce08953ade65471162763ddc902de0bada93b9c61b224ddbda80e16a
   - path: src/evallab/run_preflight.py
@@ -607,7 +619,7 @@ inputs:
   - path: src/evallab/semantic_facts.py
     digest: sha256:092401614015a2e57ade11f2ff5d14d0d132200de3754a11591a42956efef0c5
   - path: src/evallab/separate_verifier.py
-    digest: sha256:f82e796ff53bbf4085aa8cf64e67338cb59bdfe1d27388d04bc36174a05e578f
+    digest: sha256:74a2aa48ab44d92d3f43c19aef1983c9d89182e8c9d8b5bc799f9a0b02410e8c
   - path: src/evallab/seqgen.py
     digest: sha256:0b895d33ff3846e71e1d2e66401860c92450fabe07a96da006f4ea675e0b9948
   - path: src/evallab/setup_fingerprint.py
@@ -822,6 +834,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `cheat` | 500 | Cheat-audit lane: fixed attack ladder, verdicts from the verifier (HAR-204). | — |
 | `cheat_ladder` | 2300 | Model-free cheat-audit attack ladder (HAR-204). | — |
 | `cheatbench` | 1700 | CheatBench as a calibration source for ``evallab detectors`` and the Scout viewer. | `python -m evallab.cheatbench fetch`, `python -m evallab.cheatbench subset`, `python -m evallab.cheatbench materialize` |
+| `cheatbench_fidelity` | 1000 | Consumer-fidelity and blinding audit for external CheatBench traces. | — |
 | `cli` | 7600 | Run, inspect, and analyze agent evaluations through Harbor. | `campaign`, `plan`, `validate`, `schedule`, `install`, `uninstall`, `canary`, `import-terminal-bench`, `quality`, `audit`, `curve`, `build`, `report`, `family`, `card`, `capture`, `serve`, `link`, `smoke`, `analyze`, `worker-plan`, `worker-status`, `worker-run-one`, `worker-resolve-ambiguous`, `ingest-sidecar`, `review`, `agreement`, `trial`, `batch`, `data`, `backfill`, `db`, `init`, `list`, `attach`, `modal`, `billing-reconcile`, `spend`, `day`, `check`, `analyst`, `show`, `generate`, `semantic-facts`, `project`, `semantics`, `evidence`, `archive`, `restore`, `tasks`, `prepare`, `replay`, `import`, `lint`, `health-tags`, `derive`, `variant-status`, `pull-hf`, `catalog`, `export-eligible`, `export-broken`, `stability-run`, `admit`, `stability-collect`, `exploit-collect`, `qualify-collect`, `health-collect`, `treatment-collect`, `pool-check`, `ladder`, `screen`, `stage1`, `probe-exploit`, `registry`, `promote`, `register`, `devloop`, `tidy`, `traj`, `outline`, `queue`, `label`, `ir`, `pack`, `regrade`, `process-job`, `flight`, `record`, `probe`, `results`, `freeze`, `join` |
 | `codeban` | 200 | Task-conditional code-ban rule for ``evallab watch`` (live recall boost). | — |
 | `cohort` | 2500 | One job's retained harness-tree binding after full evidence verification. | `compare`, `power` |
@@ -1010,7 +1023,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `loopfix` | 300 | HAR-116 loop break and output cap, shared by replay and the live agent. | — |
 | `mcp_substrate` | 1900 | Shared FastMCP multi-container task-authoring substrate and runtime middleware. | — |
 | `mimo_census` | 2600 | Fleet-wide clean-set census (mimo-clean-census-v1). | — |
-| `mimo_clean` | 1800 | mimo-clean-v4: canonical clean chain for the MiMo code pool (all languages). | — |
+| `mimo_clean` | 2300 | mimo-clean-v4: canonical clean chain for the MiMo code pool (all languages). | — |
 | `mimo_exploit` | 400 | MiMo hack-probe exploit detector (HAR-83). | — |
 | `mimo_tool_calls` | 600 | Deterministic normalizer for MiMo's native tool calls on the Terminus-2 route. | — |
 | `mimoagent_trajectory` | 200 | Native Xiaomi messages to Harbor ATIF, without changing the agent's history. | — |
@@ -1038,19 +1051,23 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `profiles` | 1400 | Provider-neutral agent profiles and credential preflight seams (M003). | — |
 | `provenance` | 400 | PROVENANCE: explicit task origin classification across corpora. | `python -m evallab.provenance classify`, `python -m evallab.provenance report` |
 | `purge_build_caches` | 1300 | Remove regenerable build/module caches from MiMo code setups (``purge-build-caches@1``). | — |
-| `purge_container` | 1100 | Container-side purge for ``purge-installed-copies@1`` and ``@2``. | — |
+| `purge_container` | 1300 | Container-side purge for ``purge-installed-copies@1`` and ``@2``. | — |
 | `purge_installed_copies` | 300 | Remove installed copies of a task's own project (``purge-installed-copies@1``). | — |
 | `purge_planted_test_infra` | 200 | Purge agent-planted test hooks before MiMo code grading. | — |
 | `qa` | 100 | Shared QA contract for the task/trace/breaker agents (FOCUS plan). | — |
 | `qa.answer_key` | 100 | Answer-key loading (`qa.answer_key/v1`). | — |
 | `qa.cli` | 100 | ``evallab qa`` CLI: score a findings directory against an answer key. | — |
-| `qa.counterfactual` | 600 | Counterfactual regrade for QA Trace T3: replay a stored pass against newer graders. | — |
+| `qa.counterfactual` | 800 | Counterfactual regrade for QA Trace T3: replay a stored pass against newer graders. | — |
 | `qa.models` | 300 | Shared QA contract: findings, answer keys, and scoring (`qa.*` v1). | — |
 | `qa.score` | 300 | Score findings against an answer key; append rows to the scoreboard. | — |
-| `qa.task` | 3300 | QA Agent - Task: executed shortcut-agent & ref-subset probes with S3 confirmation. | — |
-| `qa.trace` | 2800 | ``evallab qa trace``: QA Agent - Trace (was this run's reward real, and why did it fail). | — |
+| `qa.task` | 3500 | QA Agent - Task: executed shortcut-agent & ref-subset probes with S3 confirmation. | — |
+| `qa.task_modal` | 400 | Native Harbor execution for QA Task; imported only after cloud admission. | — |
+| `qa.trace` | 2600 | ``evallab qa trace``: QA Agent - Trace (was this run's reward real, and why did it fail). | — |
+| `qa.trace_agents` | 800 | Tool-using trace scenarios and deterministic preflight evidence. | — |
+| `qa.trace_verify` | 800 | Independent claim checks, analyst revisions and executed QA Trace counterfactuals. | — |
+| `qa.trace_workspace` | 1200 | Blind, digest-bound evidence workspaces for ``qa.trace_bundle/v2``. | — |
 | `quality_audit` | 300 | HAR-25 harness-first cohort quality audit. | — |
-| `queue` | 3600 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
+| `queue` | 3700 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
 | `quota` | 1300 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
 | `readers` | 100 | Package `evallab.readers`. | — |
 | `readers.harbor_analyze` | 500 | Run Harbor's native readers on writable copies and normalize real outputs. | — |
@@ -1062,7 +1079,8 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `recovery.certify` | 300 | Defines `CertificationCriterion`, `StateCertificate`, `evaluate_archive_hash`, `evaluate_manifest_equivalence`, …. | — |
 | `recovery.wrapper` | 100 | Format starting context for the recovery agent based on experimental message mode. | — |
 | `ref_repair` | 1000 | Repair weak MiMo verifiers flagged by the ref-subset probe (QA Task S2). | — |
-| `ref_subset` | 1800 | Reference-subset probe: does part of the reference fix already pass the hidden tests? QA Agent - Task, S2 executed probe (a sibling of ``evallab hack mutate``). | — |
+| `ref_subset` | 2100 | Reference-subset probe: does part of the reference fix already pass the hidden tests? QA Agent - Task, S2 executed probe (a sibling of ``evallab hack mutate``). | — |
+| `ref_subset_modal` | 600 | Fresh-state reference-subset grades on the lab's pinned Harbor Modal adapter. | — |
 | `registry` | 2100 | Explicit task registry and admission trust boundary for eval-lab. | — |
 | `regrade` | 1700 | Zero-cost verifier re-scoring over recorded trials (`harbor trial regrade`). | — |
 | `repetition` | 600 | Deterministic, resume-safe repeated attempt matrix for TB4 campaigns. | `python -m evallab.repetition prepare`, `python -m evallab.repetition resume` |
@@ -1086,7 +1104,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `rlm.harness` | 500 | Policy-driven dspy.RLM harness shared by the synthetic bench and the Harbor agent. | — |
 | `rlm.policies` | 300 | Named, content-addressed harness policies for the lab-owned dspy.RLM agent. | — |
 | `rlm.traj_report` | 200 | Mechanical trajectory analysis for RLM runs (bench and Harbor). | — |
-| `rollout` | 600 | Batch checkpoint evaluation on Modal (the rollout engine). | — |
+| `rollout` | 700 | Batch checkpoint evaluation on Modal (the rollout engine). | — |
 | `roster` | 100 | Historical eval roster loader and read-only snapshot comparison. | — |
 | `run_preflight` | 700 | Secret-safe preflight for Z.ai / TB4 overnight campaigns. | — |
 | `run_telemetry` | 600 | Per-round run telemetry: live sampler + post-hoc extractor (HAR-126). | — |
@@ -1405,8 +1423,8 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 
 | Name | Location | Written by |
 |---|---|---|
-| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `report`, `rl_rollouts`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
-| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `report`, `rl_rollouts`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `derived root` | `derived/parquet/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `report`, `rl_rollouts`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
+| `job partitions` | `derived/parquet/job_id=*/trial_id=*/` | `analyst`, `authoring`, `behavior_episodes`, `cheatbench`, `cli`, `contextpack`, `counts`, `craft`, `evidence.atif`, `evidence.event_mart`, `evidence.facts`, `evidence.parquet_io`, `fetch`, `ingest_verify`, `interpretation.features`, `interpretation.traj_card`, `interpretation.trajectory_compliance`, `interpretation.trajectory_context`, `interpretation.trajectory_data_quality`, `interpretation.trajectory_quality`, `interpretation.trajectory_runtime`, `interpretation.trajectory_semantics`, `interpretation.trajectory_sequence`, `labels`, `lance`, `lessons`, `lineage`, `mimo_exploit`, `model_capture`, `nightly_refresh`, `qa.trace_workspace`, `report`, `rl_rollouts`, `semantic_facts`, `sft_split`, `status`, `status_generator`, `storage.attach`, `storage.data_backfill`, `storage.inspect_storage`, `storage.parquet_compaction`, `storage.paths`, `task_catalog`, `task_health`, `task_qualification`, `task_stability`, `tidy`, `training_pool`, `traj`, `trial_treatment` |
 | `acceptance_decisions.parquet` | `acceptance_decisions/acceptance_decisions.parquet` | `interpretation.trajectory_data_quality`, `interpretation.trajectory_runtime` |
 | `action_effects.parquet` | `derived/parquet/**/action_effects.parquet` | `evidence.atif` |
 | `action_transition_edges.parquet` | `derived/parquet/**/action_transition_edges.parquet` | `interpretation.trajectory_sequence` |
@@ -1442,7 +1460,7 @@ Subcommands registered in `src/evallab/cli.py`, plus module-local
 | `task_health.parquet` | `research/experiments/har108-python-census/task_health.parquet` | `counts`, `nightly_refresh`, `task_health` |
 | `task_qualification.parquet` | `derived/parquet/**/task_qualification.parquet` | `task_health`, `task_qualification` |
 | `task_stability.parquet` | `derived/parquet/**/task_stability.parquet` | `task_stability` |
-| `task_versions.parquet` | `derived/parquet/**/task_versions.parquet` | `cli`, `sft_split`, `task_catalog` |
+| `task_versions.parquet` | `derived/parquet/**/task_versions.parquet` | `cli`, `qa.trace_workspace`, `sft_split`, `task_catalog` |
 | `test.parquet` | `trajectories/test.parquet` | `rl_rollouts` |
 | `tool_calls.parquet` | `derived/parquet/**/tool_calls.parquet` | `evidence.atif`, `interpretation.trajectory_context`, `report` |
 | `tool_usage.parquet` | `derived/parquet/**/tool_usage.parquet` | `evidence.atif`, `evidence.facts` |

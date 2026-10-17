@@ -671,8 +671,17 @@ def _read_proxy_usage(
         )
     # Pricing freezes at the first reservation. A zero-call ledger keeps
     # ``pricing: null``: no rate may be invented without a physical call.
+    # The proxy always freezes a three-key card (cached rate may be None);
+    # lanes that pin only input/output omit that key. A missing cached
+    # rate means no cached rate on either side — otherwise every
+    # self-hosted trial with calls fails binding after grading.
+    def _with_cached_rate(pricing: object) -> object:
+        if isinstance(pricing, dict) and "cached_input_cost_micros_per_million" not in pricing:
+            return {**pricing, "cached_input_cost_micros_per_million": None}
+        return pricing
+
     pricing_invalid = expected_pricing is not None and (
-        payload.get("pricing") != expected_pricing
+        _with_cached_rate(payload.get("pricing")) != _with_cached_rate(expected_pricing)
         and not (not calls and payload.get("pricing") is None)
     )
     version = payload.get("schema_version")

@@ -1,0 +1,247 @@
+# More verified work per frontier-model token
+
+Exploratory engineering study started October 17, 2026, 2:12 AM ET, from
+`5171c20c7d1f5c00d020db6087eac3041f94bf13`. The objective is correct work per token,
+not merely shorter prompts. [results.json](results.json) contains the numerical
+projection; [study.json](study.json) records admission rules and follow-ups.
+[trace-findings.md](trace-findings.md) is the earlier read-only process audit,
+not the final implementation or experiment report.
+
+## Decisions
+
+The strongest observed levers are **explicit verification ownership** and
+**bounded, provenance-preserving tool output**. Smaller context alone did not
+produce a useful replicated coding-token improvement. Do not lower effort,
+weaken validators, remove checks globally, or infer invoice savings from these
+results.
+
+All token comparisons below use reported input plus output, including cached
+input. Noncached input is reported separately. Neither is a subscription quota
+meter or bill. Positive reductions mean fewer tokens; a negative reduction means
+an increase.
+
+| Experiment | Original → candidate acceptance | Input + output reduction | Noncached input reduction |
+|---|---|---:|---:|
+| Explicit implementer-owned → parent-owned verification | 3/3 → 3/3 | 39.66% | 44.89% |
+| Full → summary/range trajectory navigation | 12/12 → 12/12 | 27.05% | 23.84% |
+| Full → fused first-error navigation, held-out source cohort | 12/12 → 12/12 | 48.33% | 21.52% |
+| Context compiler, two-repeat coding main | 6/6 → 6/6 | 0.44% | −8.27% |
+| Requested high → medium effort, fixed context | 6/6 → 4/6 | 34.97% | 13.23% |
+
+These are small, bounded observations, not general quality non-inferiority.
+Coding studies reuse three original problems; repeats and individual assertions
+are not independent tasks. The two navigation cohorts have disjoint native heads
+but overlap one underlying benchmark task: twelve sources cover nine tasks.
+Do not subtract the two navigation effects to estimate a causal benefit of fusion.
+
+### Verification ownership: remove duplicated ownership, not verification
+
+Both arms used requested high effort, identical base prompts/context packs and
+snapshot-capability instructions. Complete prompts differed only inside an
+explicit ownership block. The implementer-owned arm performed authorized focused
+checks; the background-worker arm was explicitly edit-only and the parent owned
+the same unchanged external acceptance grader.
+
+The worker arm complied in all three observed episodes: no tests, lint/build,
+import/syntax or behavioral checks, and no Python commands. Both arms passed all
+82 evaluated feature assertions plus their source-scope checks. These are many
+assertions on three problems, not 82 independent successes. Output fell 58.08%.
+The baseline's checks found and corrected formatting problems, so they cannot
+all be labeled wasted work. This is a useful narrow assignment pattern only
+when a real integration owner actually performs acceptance and repository gates.
+
+The local change-impact skill now binds the root/cwd, owned paths, non-goals,
+observable acceptance, available runtime, source pointers and verification owner.
+It does not impose a no-checks rule on primary implementers.
+
+### Navigation: retrieve less text without changing the evidence
+
+The public trajectory CLI now supports:
+
+- `traj outline TARGET --summary [--json]`: full-run aggregates and provenance,
+  without individual step bodies.
+- `traj outline TARGET --steps START:END [--json]`: an inclusive range of logical
+  outline IDs, retaining each record's original source document/digest/native ID.
+- `traj outline TARGET --first-error [--json]`: the first recorded error-flagged
+  step and full-run accounting in one read. No flagged error means no step bodies,
+  not proof of success or absence of a causal failure.
+
+Default full JSON stays unchanged. Missing, malformed or entirely nonmatching
+ranges fail rather than silently returning an empty successful excerpt. Full-run
+metrics, continuation coordinates, hashes and known/unknown spend are not
+recomputed from selected steps. The trace-reading skill recommends bounded reads
+first, while retaining raw-source access when the question needs it.
+
+Each main navigation arm answered all 72 frozen fact items correctly. Actual
+command counts nevertheless increased: 33 to 53 in the first cohort and 38 to 42
+in the second. One source in each cohort cost more tokens under the candidate.
+This is a measured token result, not a promise of fewer tool calls or lower
+latency for every trace.
+
+### Context compiler: safety improvement, not a universal coding-cost win
+
+Path-scoped shedding drops generated lookup inventories before ordinary matching
+living documentation, and preserves `docs/NOW.md` until those other documents
+have shed. Discovery, relevance scores, unbudgeted behavior and retained semantic
+excerpts remain unchanged. Omission is disclosed and never waives governing
+instructions. Assignment briefs no longer prescribe unrelated task authoring or
+an obsolete separate human/reviewer handoff gate.
+
+The first coding pilot suggested a 16.26% total-token reduction, but noncached
+input already increased 2.58%. The two-repeat main did not replicate that useful
+size of gain and increased output 5.93%. Retain the structural budget-safety fix;
+do not advertise prompt-size reduction as a general coding-performance result.
+
+The exact 133-document intermediate corpus is retained privately, not reconstructed
+from today's changing docs. Replaying both compilers at three budgets reproduced
+all 54 pack hashes, byte/character/estimate counts and state-retention flags.
+Character-based budget estimates and offline encoders are not provider usage.
+
+### Effort: preserve failures and investigate their cause
+
+The original medium arm's two trajectory episodes failed the source-only scope
+check because ordinary trajectory tests created canonical behavior-label Parquet
+and lock files. The grader short-circuited: original feature acceptance was **not
+evaluated**, not demonstrated failing or passing.
+
+Separate post-hoc diagnostics copied only each recorded permitted source patch
+onto a fresh pinned baseline and ran the unchanged grader. Both passed all 43
+checks. These are source-patch diagnostics, not new coding episodes or regrades;
+the original arm remains 4/6 accepted.
+
+The real test-isolation defect is fixed. The trajectory module now supplies a
+per-test temporary `EVALLAB_DERIVED_ROOT`, and its CLI-label test verifies real
+persisted label/provenance/digest behavior there instead of pinning English
+banners. Before and after, the real existing test module exits successfully;
+before creates canonical lock/Parquet files and after changes neither. Explicit
+per-call roots and concurrent-writer coverage remain real. This matters especially
+in linked worktrees, whose default derived store is shared with the primary.
+
+An **offline replay**, not an executed cascade, selected the six observed medium
+attempts plus matched observed high attempts for the two failures. It retained all
+failed-attempt tokens and cost 11.47% more total tokens, 35.41% more noncached input
+and 2.57% more output than all-high. No fallback model calls or lower-effort default
+were adopted. Order/cache confounding and three-task clustering still apply.
+
+## Cross-family submission experiments
+
+These policy/citation probes used the existing SDK with exact requested
+`google-antigravity/gemini-4-argon-low` and
+`google-antigravity/claude-opus-5-5` routes. Native coding/navigation requested
+`gpt-6.1-sol`. Reported route identity is gateway self-report, not serving
+attestation. No new Meta coding result is claimed.
+
+| Submission | Strict items | Whole generations | Malformed | Mean total tokens | Mean output tokens |
+|---|---:|---:|---:|---:|---:|
+| Exact quote / text | 159/256 | 13/32 | 11/32 | 20,496.34 | 1,877.84 |
+| Coordinate references / text | 121/128 | 9/16 | 0/16 | 21,181.88 | 455.88 |
+| Exact quote / terminal tool | 112/128 | 10/16 | 1/16 | 20,493.13 | 1,742.13 |
+| Coordinate references / terminal tool | 122/128 | 10/16 | 0/16 | 21,348.00 | 442.50 |
+| Compact references / text | 117/128 | 5/16 | 0/16 | 19,549.94 | 502.94 |
+
+References substantially reduce copied output and serialization failures, but
+input overhead/cache changes can consume those gains. Removing coordinate labels
+reduced total tokens further while strict quality declined. It remains an
+experimental presentation, not a default. A tool call does not guarantee every
+schema bound is enforced; one quote-tool submission still exceeded its quote
+length limit. Requested native response-schema parameters were not evidence of
+upstream enforcement.
+
+All 768 choice-only items were correct as a diagnostic. This does **not** replace
+strict acceptance, which also requires grounded citations. The frozen oracle is
+narrow line overlap, not full entailment: for example, `omitted_rules` accepts only
+`docs/NOW.md:144`. Of 32 follow-up strict-ungrounded items, 31 had visible verbatim
+citations outside the hidden anchor. Keep their failures rather than widen the
+validator or claim a semantic quality result. Protocol order, cache, timing and
+framing are confounded; later cells have one repeat, original quote/text has two.
+
+## Other shipped engineering
+
+| Surface | Observed before | Observed after | What this establishes |
+|---|---:|---:|---|
+| Devloop real-checkout file reads | 1,515 | 477 | One invocation-local inventory; exact same direct-reference plan |
+| Devloop real-checkout AST parses | 1,459 | 477 | Less repeated local computation, not measured model-token savings |
+| Judge protocol input, offline o200k | 25,846 | 16,956 | Short transient handles; not live semantic-judge parity |
+| Judge protocol input, offline Claude v5 | 35,399 | 24,927 | Same canonical host-side records |
+| Judge protocol input, offline Qwen3 | 32,797 | 18,901 | Offline encoder counts, not serving-model usage |
+
+Devloop JSON now reports lane/reasons, preserves one JSON stdout document during
+child execution, streams child diagnostics to stderr, and returns its exact exit
+status. Human output and direct-reference selection remain unchanged; this is not
+transitive dependency closure.
+
+Judge handles are stable `W1..Wn` over the whole frozen pool across triage, subset
+inspection and final assessment. Only exact visible handles resolve; canonical
+source identities/hashes stay host-side and in persisted results. The offline
+measurement used 58 coordinate/error-flag projections from six real traces, with
+no command/observation/message/reasoning bodies and no live model calls. It proves
+binding preservation and protocol size, not semantic judgment quality.
+
+Capture accounting now includes Anthropic base + cache-read + cache-creation
+input, without double-counting nested TTL subsets or OpenAI already-inclusive
+input. Missing/interrupted final output stays unknown; explicit final zero remains
+zero. Cumulative SSE counters replace rather than sum. A real extractor → recorder
+→ linked-Parquet smoke changed the cached Anthropic example from 1,000 to 1,800
+reported input, preserved OpenAI 30/7, and changed interrupted 34/0 to unknown.
+That is corrected accounting, not reduced consumption; stored history is not
+silently rewritten.
+
+The earlier work-log audit found repeated tool-routing rejections, unseen edit
+ranges and assumed-home mistakes. These are exposed opportunities, not proven
+saved tokens. Required verification, post-edit rereads and parent/worker file
+overlap are not automatically waste. Constant global prompt-cache keys were
+rejected because they couple gateway session/credential state, not merely caching.
+
+## Evidence, privacy and reproduction
+
+Generation census: **86 native CLI episodes** and **114 SDK generation attempts**.
+The latter includes 96 main policy generations plus 18 technical-pilot/capability
+generations. Dry-run and unadmitted rows remain recorded separately. These units
+are not physical provider requests; upstream retries, full reasoning/cache-write
+counters and invoice costs can remain unknown. Controllers used existing included
+subscription routes, fresh quota admission and hard call limits; no paid compute,
+new API spend approval, local generative inference or standing model changes.
+
+Raw prompts, final submissions, traces, account/quota details and original IDs stay
+in an owner-private retained study directory. The exact canonical Git archive,
+36 coding source-delta bundles (including rejected data writes), runtime source
+versions, raw receipts, manifests and frozen document corpus are retained. Public
+JSON is an allowlisted numerical projection, not raw transcripts. Full snapshot
+forests are disposable only after their source deltas and receipts are retained.
+
+Reanalysis needs no models. With `EVIDENCE` set to the private retention root:
+
+```sh
+mkdir -m 700 "$EVIDENCE/reanalysis"
+for run in native-01 native-03 native-effort-01 native-owner-01; do
+  uv run --no-sync python -B research/explorations/agent-efficiency/analyze_native.py \
+    coding "$EVIDENCE/raw/code-cases/$run/run-01" \
+    --relocate-events /private/tmp/agent-efficiency "$EVIDENCE/raw" \
+    --output "$EVIDENCE/reanalysis/$run.json"
+done
+for run in trace-pilot-run trace-main-run trace-fused-holdout-run; do
+  uv run --no-sync python -B research/explorations/agent-efficiency/analyze_native.py \
+    navigation "$EVIDENCE/raw/$run" --output "$EVIDENCE/reanalysis/$run.json"
+done
+uv run --no-sync python -B research/explorations/agent-efficiency/analyze_policy.py \
+  --probe-root "$EVIDENCE/raw/policy-probe" --private-root "$EVIDENCE" \
+  --output "$EVIDENCE/reanalysis/policy"
+uv run --no-sync python -B research/explorations/agent-efficiency/measure_context.py \
+  --root "$PWD" --corpus-root "$EVIDENCE/raw/context-corpus-v1/replay-root" \
+  --budget 4000 --budget 8000 --budget 12000 --output /tmp/fresh-context-replay
+```
+
+The publisher consumes the same reports in an `analyses/` directory (use that name
+instead of `reanalysis/` when constructing a fresh retention root):
+
+```sh
+uv run --no-sync python -B research/explorations/agent-efficiency/summarize_study.py \
+  --evidence "$EVIDENCE" --output /tmp/fresh-agent-efficiency-results.json
+```
+
+Fresh-output checks preserve prior evidence. Private policy analysis requires an
+owner-private root outside Git checkouts. Compare semantic/count fields rather
+than publisher timestamps or formatter-changed analyzer-source hashes. Actual
+run-time sources are separately archived; new preparation pins current code.
+The preparation/runners default to no model execution. Do not enable
+`--run-subscription` merely to reproduce these tables.

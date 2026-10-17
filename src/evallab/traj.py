@@ -18,7 +18,7 @@ import math
 import re
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -2138,13 +2138,71 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
     )
 
 
+def _selected_outline_steps(
+    outline: TrajectoryOutline,
+    step_range: tuple[int, int] | None,
+    *,
+    first_error: bool = False,
+) -> tuple[StepOutline, ...]:
+    if first_error:
+        if step_range is not None:
+            raise ValueError("first error and step range are mutually exclusive")
+        for step in outline.steps:
+            if step.is_error:
+                return (step,)
+        return ()
+    if step_range is None:
+        return outline.steps
+    start, end = step_range
+    if start < 1 or end < start:
+        raise ValueError("step range must be positive inclusive START:END with START <= END")
+    selected = tuple(step for step in outline.steps if start <= step.step_id <= end)
+    if not selected and outline.status == "featured":
+        raise ValueError(f"no trajectory steps in requested range {start}:{end}")
+    return selected
+
+
+def outline_payload(
+    outline: TrajectoryOutline,
+    *,
+    summary: bool = False,
+    first_error: bool = False,
+    step_range: tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    """Project a readout without changing full-run metrics or source coordinates."""
+    if summary and (step_range is not None or first_error):
+        raise ValueError("summary, first error, and step range are mutually exclusive")
+    if not summary and step_range is None and not first_error:
+        return outline.to_dict()
+    selected = (
+        () if summary else _selected_outline_steps(outline, step_range, first_error=first_error)
+    )
+    payload = asdict(replace(outline, steps=selected))
+    payload["step_selection"] = {
+        "mode": "summary" if summary else "first_error" if first_error else "range",
+        "requested_range": list(step_range) if step_range is not None else None,
+        "returned_steps": len(selected),
+        "omitted_steps": len(outline.steps) - len(selected),
+        "available_first_step_id": outline.steps[0].step_id if outline.steps else None,
+        "available_last_step_id": outline.steps[-1].step_id if outline.steps else None,
+        "metrics_scope": "full_trajectory",
+    }
+    return payload
+
+
 def render_outline(
     outline: TrajectoryOutline,
     *,
     verbose: bool = False,
     max_steps: int = 15,
+    summary: bool = False,
+    first_error: bool = False,
+    step_range: tuple[int, int] | None = None,
 ) -> str:
     """Render a human-readable, deterministic step and phase outline."""
+    if summary and (step_range is not None or first_error):
+        raise ValueError("summary, first error, and step range are mutually exclusive")
+    selected_steps = _selected_outline_steps(outline, step_range, first_error=first_error)
     lines: list[str] = []
     status_label = outline.status.upper()
     lines.append(f"TRAJECTORY OUTLINE: {outline.trial_name} [{status_label}]")
@@ -2215,8 +2273,29 @@ def render_outline(
         )
 
     lines.append("")
+    if summary:
+        lines.append(
+            f"STEP DETAILS: {len(outline.steps)} steps omitted; "
+            "use --first-error, --steps START:END, or --verbose for details."
+        )
+        return "\n".join(lines)
     lines.append("STEP HIGHLIGHTS:")
-    rendered_steps = outline.steps if verbose else outline.steps[:max_steps]
+    if first_error:
+        lines.append("  First error-marked step only; metrics above cover the full trajectory.")
+        if not selected_steps:
+            lines.append(
+                "  No error-marked step is recorded; this does not establish task success."
+            )
+    if step_range is not None:
+        lines.append(
+            f"  Selected logical steps {step_range[0]}:{step_range[1]}; "
+            "metrics above cover the full trajectory."
+        )
+    rendered_steps = (
+        selected_steps
+        if verbose or step_range is not None or first_error
+        else selected_steps[:max_steps]
+    )
     for step in rendered_steps:
         tag = f"[{step.source}]"
         detail = ""
@@ -2233,10 +2312,18 @@ def render_outline(
         else:
             detail = "message"
         lines.append(f"  Step {step.step_id:3d} {tag:<8s} {detail}")
+        if (step_range is not None or first_error) and step.source_path:
+            lines.append(
+                f"    Source: {step.source_path}#{step.source_step_id} "
+                f"(sha256:{step.source_sha256})"
+            )
 
-    if not verbose and len(outline.steps) > max_steps:
+    if step_range is not None or first_error:
+        lines.append(f"  {len(outline.steps) - len(selected_steps)} other steps omitted.")
+    elif not verbose and len(outline.steps) > max_steps:
         lines.append(
-            f"  ... ({len(outline.steps) - max_steps} more steps, use --verbose to view all)"
+            f"  ... ({len(outline.steps) - max_steps} more steps; "
+            "use --steps START:END for a cited range or --verbose for all)"
         )
 
     return "\n".join(lines)

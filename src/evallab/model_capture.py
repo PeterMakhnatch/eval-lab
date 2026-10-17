@@ -363,6 +363,19 @@ def _usage_from_openai(payload: dict[str, Any]) -> dict[str, int] | None:
     return _usage_pair(usage.get("prompt_tokens"), usage.get("completion_tokens"))
 
 
+def _usage_from_anthropic(usage: Any) -> dict[str, int] | None:
+    """Normalize an observed complete usage pair without guessing cache counts."""
+    if not isinstance(usage, dict):
+        return None
+    prompt = 0
+    for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+        value = usage.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        prompt += value
+    return _usage_pair(prompt, usage.get("output_tokens"))
+
+
 def extract_from_payload(kind: str, payload: Any) -> ExtractedTurns:
     """Reassemble assistant turns from one parsed JSON response body."""
     turns = ExtractedTurns()
@@ -463,9 +476,7 @@ def _extract_anthropic_object(payload: dict[str, Any], turns: ExtractedTurns) ->
                         "arguments": json.dumps(block.get("input", {}), sort_keys=True),
                     }
                 )
-    usage = payload.get("usage")
-    if isinstance(usage, dict):
-        turns.usage = _usage_pair(usage.get("input_tokens"), usage.get("output_tokens"))
+    turns.usage = _usage_from_anthropic(payload.get("usage"))
     model = payload.get("model")
     if isinstance(model, str) and model:
         turns.model = model
@@ -595,7 +606,8 @@ def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
             turns.assistant_texts.append("".join(texts))
     elif kind == "anthropic_messages":
         texts: list[str] = []
-        input_tokens: Any = None
+        cumulative_usage: dict[str, Any] = {}
+        observed_output = False
         for payload in parse_sse_payloads(raw):
             if not isinstance(payload, dict):
                 continue
@@ -604,8 +616,8 @@ def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
                 message = payload.get("message")
                 if isinstance(message, dict):
                     usage = message.get("usage")
-                    if isinstance(usage, dict) and isinstance(usage.get("input_tokens"), int):
-                        input_tokens = usage["input_tokens"]
+                    if isinstance(usage, dict):
+                        cumulative_usage.update(usage)
                     if isinstance(message.get("model"), str):
                         turns.model = str(message["model"])
             elif event_type == "content_block_delta":
@@ -615,8 +627,9 @@ def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
             elif event_type == "message_delta":
                 usage = payload.get("usage")
                 if isinstance(usage, dict):
-                    output_tokens = usage.get("output_tokens")
-                    turns.usage = _usage_pair(input_tokens, output_tokens)
+                    cumulative_usage.update(usage)
+                    if "output_tokens" in usage:
+                        observed_output = True
             elif event_type == "content_block_start":
                 block = payload.get("content_block")
                 if (
@@ -629,8 +642,8 @@ def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
                     )
         if texts:
             turns.assistant_texts.append("".join(texts))
-        if turns.usage is None and input_tokens is not None:
-            turns.usage = _usage_pair(input_tokens, 0)
+        if observed_output:
+            turns.usage = _usage_from_anthropic(cumulative_usage)
     return turns
 
 

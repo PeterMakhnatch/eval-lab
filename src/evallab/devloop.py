@@ -125,8 +125,8 @@ def _test_roots(root: Path) -> list[str]:
         return ["tests"]
     with config_path.open("rb") as config_file:
         config = tomllib.load(config_file)
-    return config.get("tool", {}).get("pytest", {}).get("ini_options", {}).get(
-        "testpaths", ["tests"]
+    return (
+        config.get("tool", {}).get("pytest", {}).get("ini_options", {}).get("testpaths", ["tests"])
     )
 
 
@@ -147,45 +147,56 @@ def src_path_to_module(path_str: str) -> str:
     return inner.replace("/", ".")
 
 
-def test_imports_or_references(test_path: Path, target_module: str) -> bool:
-    """Check if test_path imports or string-references target_module."""
+def _referenced_modules(test_path: Path, target_modules: set[str]) -> set[str]:
+    """Read a consumer once and retain its direct matches for this invocation."""
     try:
         content = test_path.read_text(encoding="utf-8")
     except Exception:
-        return False
+        return set()
 
-    if target_module in content:
-        return True
+    matched = {target for target in target_modules if target in content}
+    remaining = target_modules - matched
+    if not remaining:
+        return matched
 
     try:
         tree = ast.parse(content, filename=str(test_path))
     except Exception:
-        return False
+        return matched
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == target_module or alias.name.startswith(target_module + "."):
-                    return True
-                if target_module == "evallab" and alias.name.startswith("evallab"):
-                    return True
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                if node.module == target_module or node.module.startswith(target_module + "."):
-                    return True
-                if target_module.startswith(node.module + "."):
-                    for alias in node.names:
-                        full = f"{node.module}.{alias.name}"
-                        if full == target_module or full.startswith(target_module + "."):
-                            return True
-        elif (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and target_module in node.value
-        ):
-            return True
+        for target in remaining:
+            if isinstance(node, ast.Import):
+                if any(
+                    alias.name == target
+                    or alias.name.startswith(target + ".")
+                    or (target == "evallab" and alias.name.startswith("evallab"))
+                    for alias in node.names
+                ):
+                    matched.add(target)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if (
+                    node.module == target
+                    or node.module.startswith(target + ".")
+                    or target.startswith(node.module + ".")
+                    and any(
+                        f"{node.module}.{alias.name}" == target
+                        or f"{node.module}.{alias.name}".startswith(target + ".")
+                        for alias in node.names
+                    )
+                ):
+                    matched.add(target)
+            elif (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and target in node.value
+            ):
+                matched.add(target)
+        remaining.difference_update(matched)
+        if not remaining:
+            break
 
-    return False
+    return matched
 
 
 def _is_unclassified(path_str: str, test_roots: Sequence[str] = ("tests",)) -> bool:
@@ -197,88 +208,85 @@ def _is_unclassified(path_str: str, test_roots: Sequence[str] = ("tests",)) -> b
 
 def affected_test_modules(changed: Sequence[str], root: Path) -> list[str]:
     """Pure function mapping changed file paths to affected test modules."""
-    if not changed:
-        return []
-
-    root_path = Path(root).resolve()
-    test_roots = _test_roots(root_path)
-
-    # 1. Check if any file triggers full suite or is an unknown config change
-    for path_str in changed:
-        if is_full_suite_trigger(path_str) or _is_unclassified(path_str, test_roots):
-            return ["__all__"]
-
-    # 2. Check if all changes are documentation-only
-    if all(is_doc_path(p) for p in changed):
-        return []
-
-    # 3. Collect affected test modules
-    available_tests = sorted({
-        test_file
-        for test_root in test_roots
-        for pattern in ("test_*.py", "*_test.py")
-        for test_file in (root_path / test_root).rglob(pattern)
-        if test_file.is_file()
-    })
-
-    affected: set[str] = set()
-
-    for path_str in changed:
-        norm = path_str.replace("\\", "/")
-        if is_test_path(norm, test_roots):
-            # Removed/renamed tests cannot be passed to pytest. Collect the remaining
-            # suite instead of silently skipping coverage formerly owned by that file.
-            if not (root_path / norm).is_file():
-                return ["__all__"]
-            affected.add(norm)
-        elif is_src_path(norm):
-            target_mod = src_path_to_module(norm)
-            for test_file in available_tests:
-                rel = test_file.relative_to(root_path).as_posix()
-                if test_imports_or_references(test_file, target_mod):
-                    affected.add(rel)
-
-    return sorted(affected)
+    return plan_devloop(changed, root).modules
 
 
 def plan_devloop(changed: Sequence[str], root: Path) -> DevloopPlan:
-    """Compute the DevloopPlan including command and reasons."""
+    """Compute selection and reasons together from one local consumer inventory."""
     root_path = Path(root).resolve()
-    modules = affected_test_modules(changed, root_path)
+    if not changed:
+        return DevloopPlan(changed=[], modules=[], command="", reasons={}, lane="none")
+
+    test_roots = _test_roots(root_path)
+    # Removed/renamed tests cannot be passed to pytest. Collect the remaining
+    # suite instead of silently skipping coverage formerly owned by that file.
+    requires_full_suite = any(
+        is_full_suite_trigger(path)
+        or _is_unclassified(path, test_roots)
+        or (is_test_path(path, test_roots) and not (root_path / path.replace("\\", "/")).is_file())
+        for path in changed
+    )
     reasons: dict[str, list[str]] = {}
 
-    if modules == ["__all__"]:
+    if requires_full_suite:
+        modules = ["__all__"]
         lane = "full"
         command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider"
-        test_roots = _test_roots(root_path)
         triggering = [
-            p for p in changed
+            p
+            for p in changed
             if is_full_suite_trigger(p)
             or _is_unclassified(p, test_roots)
             or (is_test_path(p, test_roots) and not (root_path / p).is_file())
         ]
-        reasons["__all__"] = [f"Global, configuration, or removed test change: {', '.join(triggering)}"]
-    elif not modules:
-        if changed and all(is_doc_path(p) for p in changed):
-            lane = "docs_consumer"
-            command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider -m docs_consumer"
-            reasons["docs_consumer"] = [f"Documentation-only change: {', '.join(changed)}"]
-        else:
-            lane = "none"
-            command = ""
+        reasons["__all__"] = [
+            f"Global, configuration, or removed test change: {', '.join(triggering)}"
+        ]
+    elif all(is_doc_path(p) for p in changed):
+        modules = []
+        lane = "docs_consumer"
+        command = "uv run --no-sync pytest -q -n0 -p no:cacheprovider -m docs_consumer"
+        reasons["docs_consumer"] = [f"Documentation-only change: {', '.join(changed)}"]
     else:
-        lane = "focused"
-        command = f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
-        test_roots = _test_roots(root_path)
+        targets = {src_path_to_module(path) for path in changed if is_src_path(path)}
+        test_paths: dict[str, Path] = {}
+        if targets:
+            test_paths = {
+                test_file.relative_to(root_path).as_posix(): test_file
+                for test_root in test_roots
+                for pattern in ("test_*.py", "*_test.py")
+                for test_file in (root_path / test_root).rglob(pattern)
+                if test_file.is_file()
+            }
+            # Directly changed consumers need reasons even when their names do
+            # not match pytest's discovery patterns.
+            test_paths.update(
+                {
+                    path.replace("\\", "/"): root_path / path.replace("\\", "/")
+                    for path in changed
+                    if is_test_path(path, test_roots)
+                }
+            )
+        inventory = {
+            path: _referenced_modules(path, targets) for path in sorted(set(test_paths.values()))
+        }
+        consumers = sorted(test_paths)
         for path_str in changed:
             norm = path_str.replace("\\", "/")
             if is_test_path(norm, test_roots):
                 reasons.setdefault(norm, []).append("Direct test file modification")
             elif is_src_path(norm):
                 target_mod = src_path_to_module(norm)
-                for rel in modules:
-                    if test_imports_or_references(root_path / rel, target_mod):
+                for rel in consumers:
+                    if target_mod in inventory[test_paths[rel]]:
                         reasons.setdefault(rel, []).append(f"Imports {target_mod} ({norm})")
+        modules = sorted(reasons)
+        lane = "focused" if modules else "none"
+        command = (
+            f"uv run --no-sync pytest -q -n0 -p no:cacheprovider {shlex.join(modules)}"
+            if modules
+            else ""
+        )
 
     return DevloopPlan(
         changed=list(changed),
@@ -311,10 +319,12 @@ def run_devloop(
             "changed": plan.changed,
             "modules": plan.modules,
             "command": plan.command,
+            "lane": plan.lane,
+            "reasons": plan.reasons,
         }
-        print(json.dumps(payload, indent=2))
+        print(json.dumps(payload, indent=2), flush=True)
         if run and plan.command:
-            proc = subprocess.run(shlex.split(plan.command), cwd=root_path)
+            proc = subprocess.run(shlex.split(plan.command), cwd=root_path, stdout=sys.stderr)
             return proc.returncode
         return 0
 

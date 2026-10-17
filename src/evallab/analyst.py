@@ -516,15 +516,14 @@ def create_judge_deterministic_context(
 
 
 def _judge_context(
-    windows: Sequence[TrajectoryWindowV1],
+    windows: Mapping[str, TrajectoryWindowV1],
     prior: str = "",
     deterministic_context: JudgeDeterministicContextV1 | None = None,
 ) -> str:
     rows = []
     if deterministic_context is not None:
         rows.append(
-            "Authoritative deterministic facts "
-            f"[{deterministic_context.context_digest}]:\n"
+            "Authoritative deterministic facts:\n"
             + json.dumps(
                 deterministic_context.facts,
                 sort_keys=True,
@@ -533,9 +532,9 @@ def _judge_context(
         )
     if prior:
         rows.append(f"Prior stage findings:\n{prior}")
-    for window in windows:
+    for handle, window in windows.items():
         rows.append(
-            f"[{window.window_digest}] trial={window.trial_id} "
+            f"[{handle}] trial={window.trial_id} "
             f"steps={window.start_step}-{window.end_step}\n{window.text}"
         )
     return "\n\n".join(rows)
@@ -547,15 +546,14 @@ def _confidence_value(claim: ConfidenceClaim) -> float:
 
 def _citation_from_evidence(
     citation: EvidenceCitation,
-    windows: dict[str, TrajectoryWindowV1],
+    windows: Mapping[str, TrajectoryWindowV1],
     stance: Literal["supports", "contradicts"],
 ) -> JudgeWindowCitationV1:
-    normalized_path = citation.path.strip()
-    if normalized_path.startswith("[") and normalized_path.endswith("]"):
-        normalized_path = normalized_path[1:-1].strip()
-    window = windows.get(normalized_path)
+    window = windows.get(citation.path)
     if window is None:
-        raise ValueError("trajectory judge citations must use an exact input window_digest as path")
+        raise ValueError(
+            "trajectory judge citations must use an exact visible window handle as path"
+        )
     return JudgeWindowCitationV1(
         window_digest=window.window_digest,
         trial_id=window.trial_id,
@@ -568,14 +566,13 @@ def _citation_from_evidence(
 def _judge_stage_result(
     stage: JudgeStage,
     result: AnalystResult,
-    windows: Sequence[TrajectoryWindowV1],
+    windows: Mapping[str, TrajectoryWindowV1],
 ) -> JudgeStageResultV1:
-    by_digest = {window.window_digest: window for window in windows}
     supporting = tuple(
-        _citation_from_evidence(citation, by_digest, "supports") for citation in result.evidence
+        _citation_from_evidence(citation, windows, "supports") for citation in result.evidence
     )
     contradicting = tuple(
-        _citation_from_evidence(citation, by_digest, "contradicts")
+        _citation_from_evidence(citation, windows, "contradicts")
         for citation in result.contradicting_evidence
     )
     body = {
@@ -599,17 +596,15 @@ def _judge_stage_result(
 def _analyze_judge_stage(
     analyzer: Analyzer,
     stage: JudgeStage,
-    windows: Sequence[TrajectoryWindowV1],
+    windows: Mapping[str, TrajectoryWindowV1],
     *,
     prompt: str,
     context: str,
     attempts: int = 2,
 ) -> JudgeStageResultV1:
     """Retry a stage only when its structured or citation contract is invalid."""
-    allowed = ", ".join(window.window_digest for window in windows)
-    current_prompt = (
-        prompt + "\nAllowed evidence.path values (copy exactly, without brackets): " + allowed
-    )
+    allowed = ", ".join(windows)
+    current_prompt = prompt + "\nAllowed evidence.path window handles: " + allowed
     last_error: ValueError | None = None
     for attempt in range(attempts):
         raw = analyzer.analyze(current_prompt, context)
@@ -637,7 +632,13 @@ def run_trajectory_judge(
     deterministic_context: JudgeDeterministicContextV1 | None = None,
     repeats: int = 3,
 ) -> tuple[tuple[TrajectoryJudgeRunV1, ...], JudgeDisagreementV1]:
-    """Run TRACE-style triage, inspection, and final judgment with repeated calls."""
+    """Judge a frozen window pool with run-local handles and canonical citations.
+
+    W1, W2, ... follow the full input order and remain stable across stages and
+    repeats. Only handles visible to the current stage are accepted; persisted
+    citations and deterministic-context bindings retain their canonical digests.
+    """
+    windows = tuple(windows)
     if not windows or repeats <= 0:
         raise ValueError("trajectory judge requires windows and positive repeats")
     snapshots = {window.snapshot_digest for window in windows}
@@ -651,30 +652,35 @@ def run_trajectory_judge(
         raise ValueError("deterministic judge context snapshot does not match windows")
     rubric_digest = _judge_digest({"rubric": rubric})
     judge_model = str(getattr(analyzer, "model", analyzer.__class__.__name__))
+    window_handles = {f"W{index}": window for index, window in enumerate(windows, start=1)}
     runs = []
     for repeat_index in range(repeats):
         triage = _analyze_judge_stage(
             analyzer,
             JudgeStage.TRIAGE,
-            windows,
+            window_handles,
             prompt=(
                 rubric
-                + "\nStage: TRIAGE. Select high-signal windows. Cite window digests in evidence.path."
+                + "\nStage: TRIAGE. Select high-signal windows. Cite window handles in evidence.path."
             ),
             context=_judge_context(
-                windows,
+                window_handles,
                 deterministic_context=deterministic_context,
             ),
         )
         selected_digests = {citation.window_digest for citation in triage.supporting_citations}
-        selected = [window for window in windows if window.window_digest in selected_digests]
+        selected = {
+            handle: window
+            for handle, window in window_handles.items()
+            if window.window_digest in selected_digests
+        }
         inspect = _analyze_judge_stage(
             analyzer,
             JudgeStage.INSPECT,
             selected,
             prompt=(
                 rubric
-                + "\nStage: INSPECT. Analyze the selected evidence and cite exact window digests."
+                + "\nStage: INSPECT. Analyze the selected evidence and cite exact window handles."
             ),
             context=_judge_context(
                 selected,
@@ -684,18 +690,17 @@ def run_trajectory_judge(
         )
         # Final synthesis sees the full frozen pool so it can cite counterevidence
         # outside the triaged subset while retaining the inspection summary.
-        final_windows = list(windows)
         final = _analyze_judge_stage(
             analyzer,
             JudgeStage.FINAL,
-            final_windows,
+            window_handles,
             prompt=(
                 rubric
                 + "\nStage: FINAL. Give a category, supporting and contradicting window citations, "
                 "and at least one alternative explanation."
             ),
             context=_judge_context(
-                final_windows,
+                window_handles,
                 f"Triage: {triage.summary}\nInspect: {inspect.summary}",
                 deterministic_context,
             ),

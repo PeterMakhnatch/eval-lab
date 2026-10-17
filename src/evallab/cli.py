@@ -133,7 +133,7 @@ from evallab.tracing import (
     trace_completed_jobs,
     trace_path,
 )
-from evallab.traj import outline_trajectory, render_outline
+from evallab.traj import outline_payload, outline_trajectory, render_outline
 
 
 def repo_root() -> Path:
@@ -1076,6 +1076,16 @@ def _positive_int(value: str) -> int:
     if parsed <= 0:
         raise argparse.ArgumentTypeError(f"Interval must be a positive integer, got {parsed}")
     return parsed
+
+
+def _step_range(value: str) -> tuple[int, int]:
+    parts = value.split(":")
+    if len(parts) != 2:
+        raise argparse.ArgumentTypeError("step range must be inclusive START:END")
+    start, end = (_positive_int(part) for part in parts)
+    if start > end:
+        raise argparse.ArgumentTypeError("step range START must not exceed END")
+    return start, end
 
 
 def _schedule_install_command(
@@ -4382,13 +4392,31 @@ def _traj_outline_command(
 ) -> int:
     try:
         outline = outline_trajectory(args.target, repo_root=root)
+        if args.json:
+            print(
+                json.dumps(
+                    outline_payload(
+                        outline,
+                        summary=args.summary,
+                        first_error=args.first_error,
+                        step_range=args.steps,
+                    ),
+                    indent=2,
+                )
+            )
+        else:
+            print(
+                render_outline(
+                    outline,
+                    verbose=args.verbose,
+                    summary=args.summary,
+                    first_error=args.first_error,
+                    step_range=args.steps,
+                )
+            )
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if args.json:
-        print(json.dumps(outline.to_dict(), indent=2))
-    else:
-        print(render_outline(outline, verbose=args.verbose))
     return 0 if outline.status == "featured" else 1
 
 
@@ -7026,8 +7054,25 @@ def parser() -> argparse.ArgumentParser:
     traj_outline.add_argument(
         "target", help="Trial ID, directory, result.json, or trajectory.json path"
     )
-    traj_outline.add_argument(
-        "--verbose", "-v", action="store_true", help="Include detailed step snippets"
+    outline_detail = traj_outline.add_mutually_exclusive_group()
+    outline_detail.add_argument(
+        "--verbose", "-v", action="store_true", help="Include all step snippets"
+    )
+    outline_detail.add_argument(
+        "--summary",
+        action="store_true",
+        help="Omit step bodies while retaining full-run metrics and source citations",
+    )
+    outline_detail.add_argument(
+        "--steps",
+        type=_step_range,
+        metavar="START:END",
+        help="Read an inclusive logical step range; full-run metrics stay unchanged",
+    )
+    outline_detail.add_argument(
+        "--first-error",
+        action="store_true",
+        help="Read the first error-marked logical step; no prior summary lookup is needed",
     )
     traj_outline.add_argument("--json", action="store_true", help="Emit outline as JSON")
     traj_outline.set_defaults(func=_traj_outline_command)

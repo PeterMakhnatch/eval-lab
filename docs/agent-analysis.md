@@ -59,6 +59,27 @@ unevidenced assertions from appearing as durable findings.
   `analysis_id`. Prior records are never overwritten; differing conclusions for the same trial persist
   side-by-side to highlight analyst disagreement.
 
+## Frozen-window trajectory judging
+
+`run_trajectory_judge(analyzer, windows, rubric=..., repeats=3)` runs triage,
+inspection, then final synthesis over one frozen, post-redaction window pool.
+This API uses transient `EvidenceCitation.path` values `W1`, `W2`, ... in full
+input order, not file paths or copied SHA-256 strings. Handles remain stable
+across stages and repeats; inspection can cite only its selected visible subset,
+while final synthesis can revisit the full pool for counterevidence.
+
+The host resolves an exact visible handle to its authoritative window digest,
+trial ID and step range. Returned stage/run records retain canonical citations,
+hash rules and deterministic-context bindings; the handles are not substituted
+for persisted source identity. Unknown handles, full-digest paths, brackets and
+whitespace variants are rejected rather than guessed. Existing bounded citation
+repair remains in effect.
+
+Final synthesis requires reported supporting and contradicting citations plus an
+alternative explanation. That structural requirement does not verify semantic
+support or turn disagreement into a decision: returned records remain
+`decision_eligible=False`.
+
 ## Stored Analyst Trajectories
 
 Beside each conclusion record, the analyst's ordered reasoning steps are stored at

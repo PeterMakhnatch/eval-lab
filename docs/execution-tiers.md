@@ -1093,9 +1093,25 @@ projections by the queue. Inspect them without calling another model:
 uv run evallab summarize runs/terminus-example
 uv run evallab trajectories runs/terminus-example
 uv run evallab traj outline runs/terminus-example/<trial-directory>
+# Metrics/navigation without step bodies:
+uv run evallab traj outline runs/terminus-example/<trial-directory> --summary --json
+# A known inclusive logical range, or the first error-marked action directly:
+uv run evallab traj outline runs/terminus-example/<trial-directory> --steps 20:25 --json
+uv run evallab traj outline runs/terminus-example/<trial-directory> --first-error --json
 # Rebuild derived records from retained native evidence when needed:
 uv run evallab ingest runs/terminus-example
 ```
+
+Bounded outline readouts retain full-trajectory metrics and source-file citations;
+`step_selection` records the selection and omitted-step count. Step rows keep
+their original `source_path`, `source_sha256`, and `source_step_id`, including
+continuations. `--first-error` selects the first `is_error` step in outline order,
+or an empty step list if none exists; it does not diagnose the first causal failure
+or prove success. A summary is a navigation aid, not evidence that omitted actions
+were absent. Reopen the native source for command observations and causal claims.
+Without a selection flag, JSON still contains all step bodies; `--verbose` does
+the same for text highlights. Selection flags are mutually exclusive.
+
 
 Two Terminus-specific knobs:
 

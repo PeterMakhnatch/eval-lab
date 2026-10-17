@@ -94,7 +94,13 @@ full local reproduction:
    is missing or invalid. The full test suite and runtime smoke do not run; this is
    **not** CI green. During inner development loops, `make loop` or
    `uv run evallab registry devloop [--run]` may also be used to compute and execute
-   targeted tests for changed working-tree modules.
+   targeted tests for changed working-tree modules. Selection uses direct imports
+   and textual references within every declared pytest `testpaths` root, not
+   transitive dependencies. Each invocation inventories consumers once for both
+   selection and reasons. `--json` includes `lane` and per-consumer `reasons`;
+   with `--run --json`, stdout remains one JSON document, child output streams to
+   stderr, and the command returns the child's exit status. Without `--json`,
+   child output keeps its normal interactive stdout/stderr streams.
 3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:
    Faithfully reproduces the complete Python 3.12 CI gate locally: pins Python 3.12,
    checks uv 0.9.24, performs the locked install (including `benchmarks` and `lance`
@@ -121,6 +127,12 @@ developer's Keychain, `~/.codex`, Docker daemon, network, wall clock, database, 
 other host state. Use explicit temporary homes, fixed dates/times, stub credential
 sets, fake runtimes, and injected I/O collaborators. A test that passes because a
 developer happens to be authenticated is a failing test design.
+Tests that read or write behavior labels must use a temporary derived root, even
+for read-only queries that can create lock files. Use `EVALLAB_DERIVED_ROOT` or an
+explicit per-call `derived_root`; linked worktrees otherwise share the primary
+checkout's derived store. Keep real canary inputs read-only and verify persisted
+labels in the isolated store, not by restoring shared data after the test.
+
 Event filenames are not a chronology guarantee: same-millisecond ULIDs may sort
 out of order. Check semantic reason codes, or order by recorded timestamps when
 the latest event matters; inject reversed IDs and a fixed clock for that boundary.

@@ -51,10 +51,11 @@ The prompts were written fresh and tuned on no split; every number names its spl
   monkeypatches pytest to skip every test; the verifier had misread a log) and 1
   detectors row flipped to pass. (2) A newer grader that still passed a run "refuted"
   its false-positive claim (6 trace-paired records), although that grader may share the
-  defect; only a flip in the claimed direction now decides. As-run numbers are kept in
-  the result files. The 8 trace-paired items whose records drove the fix (2 in the test
-  split) are recorded as exposure `qa-trace-5-t3-fusion-fix` in
-  `research/answer-keys/splits/exposure.jsonl`.
+  defect; only a flip in the claimed direction now decides. As-run numbers: trace-paired
+  in `results/qa-trace-5-trace-paired-v1.json` (`as_run` views), detectors and rollouts
+  in `results/qa-trace-5-*-as-run.json`; TJ did not change. The 8 trace-paired items
+  whose records drove the fix (2 in the test split) are recorded as exposure
+  `qa-trace-5-t3-fusion-fix` in `research/answer-keys/splits/exposure.jsonl`.
 
 ### trace-paired-v1 (all 81 items, untuned)
 

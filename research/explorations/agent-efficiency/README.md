@@ -27,6 +27,7 @@ an increase.
 | Full → fused first-error navigation, held-out source cohort | 12/12 → 12/12 | 48.33% | 21.52% |
 | Context compiler, two-repeat coding main | 6/6 → 6/6 | 0.44% | −8.27% |
 | Requested high → medium effort, fixed context | 6/6 → 4/6 | 34.97% | 13.23% |
+| Requested high → medium, both explicitly parent-verified | 3/3 → 3/3 | −20.31% | 10.82% |
 
 These are small, bounded observations, not general quality non-inferiority.
 Coding studies reuse three original problems; repeats and individual assertions
@@ -135,6 +136,16 @@ failed-attempt tokens and cost 11.47% more total tokens, 35.41% more noncached i
 and 2.57% more output than all-high. No fallback model calls or lower-effort default
 were adopted. Order/cache confounding and three-task clustering still apply.
 
+A separately registered six-episode composition probe gave **both arms the exact
+same complete edit-only, parent-verified prompts**, varying requested high versus
+medium effort. Both passed all 82 feature assertions and source-scope checks;
+all 30 recorded commands were passive reads, with no worker verification.
+Medium used 19.50% less output and 10.82% less noncached input, but **20.31% more
+total tokens** because cached input increased. Commands fell 17 to 13, so fewer
+commands did not imply fewer tokens. These are the same three convenience
+problems with one repeat, not new held-out coding evidence or a lower-effort
+default recommendation.
+
 ## Cross-family submission experiments
 
 These policy/citation probes used the existing SDK with exact requested
@@ -206,7 +217,7 @@ rejected because they couple gateway session/credential state, not merely cachin
 
 ## Evidence, privacy and reproduction
 
-Generation census: **86 native CLI episodes** and **114 SDK generation attempts**.
+Generation census: **92 native CLI episodes** and **114 SDK generation attempts**.
 The latter includes 96 main policy generations plus 18 technical-pilot/capability
 generations. Dry-run and unadmitted rows remain recorded separately. These units
 are not physical provider requests; upstream retries, full reasoning/cache-write
@@ -216,7 +227,7 @@ new API spend approval, local generative inference or standing model changes.
 
 Raw prompts, final submissions, traces, account/quota details and original IDs stay
 in an owner-private retained study directory. The exact canonical Git archive,
-36 coding source-delta bundles (including rejected data writes), runtime source
+42 coding source-delta bundles (including rejected data writes), runtime source
 versions, raw receipts, manifests and frozen document corpus are retained. Public
 JSON is an allowlisted numerical projection, not raw transcripts. Full snapshot
 forests are disposable only after their source deltas and receipts are retained.
@@ -225,7 +236,7 @@ Reanalysis needs no models. With `EVIDENCE` set to the private retention root:
 
 ```sh
 mkdir -m 700 "$EVIDENCE/reanalysis"
-for run in native-01 native-03 native-effort-01 native-owner-01; do
+for run in native-01 native-03 native-effort-01 native-owner-01 native-effort-owner-01; do
   uv run --no-sync python -B research/explorations/agent-efficiency/analyze_native.py \
     coding "$EVIDENCE/raw/code-cases/$run/run-01" \
     --relocate-events /private/tmp/agent-efficiency "$EVIDENCE/raw" \
@@ -255,5 +266,13 @@ Fresh-output checks preserve prior evidence. Private policy analysis requires an
 owner-private root outside Git checkouts. Compare semantic/count fields rather
 than publisher timestamps or formatter-changed analyzer-source hashes. Actual
 run-time sources are separately archived; new preparation pins current code.
+For fresh case preparation, `prepare_parent_effort_cases.py OWNER_MANIFEST
+--registration REGISTRATION --output FRESH_MANIFEST` derives both effort arms from
+the existing parent-owned candidate prompts without running models. Input and
+output manifests must share the same non-Git case directory. A zero-generation
+replay reproduced the admitted case/treatment metadata; invalid owner, effort and
+output-boundary controls were rejected. The originally admitted generator and
+registration are retained separately rather than replaced with this safer helper.
+
 The preparation/runners default to no model execution. Do not enable
 `--run-subscription` merely to reproduce these tables.

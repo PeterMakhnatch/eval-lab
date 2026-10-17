@@ -1,6 +1,6 @@
 {
   "baseline_revision": "5171c20c7d1f5c00d020db6087eac3041f94bf13",
-  "generated_at_utc": "2026-10-17T11:02:19.800012+00:00",
+  "generated_at_utc": "2026-10-17T11:53:26.689826+00:00",
   "generation_census": {
     "attempted_policy_sdk_generations": 114,
     "limits": [
@@ -9,7 +9,7 @@
       "Dry-run and quota/route-unadmitted planned rows are not attempted model generations.",
       "Preparation-only native-02 timed out before any models; original partial artifacts remain retained."
     ],
-    "native_cli_episodes": 86,
+    "native_cli_episodes": 92,
     "physical_provider_requests": null,
     "scored_main_policy_sdk_generations": 96,
     "technical_and_capability_policy_sdk_generations": 18
@@ -1285,6 +1285,428 @@
             "input_tokens": 27.973015500972235,
             "output_tokens": 34.24909773882301,
             "uncached_input_tokens": 34.52339066305165
+          },
+          "task": "traj_readout"
+        }
+      ]
+    },
+    "native-effort-owner-01": {
+      "analyzer_sha256": "81afcff35914fa3d342332b9429cc59d40fe3447e7e46a9ed7e7925a32c16fcf",
+      "arms": {
+        "baseline": {
+          "accepted_episodes": 3,
+          "attempted_episodes": 3,
+          "command_execution_items": {
+            "complete": true,
+            "known_episodes": 3,
+            "planned_episodes": 3,
+            "reported_subtotal": 17
+          },
+          "planned_episodes": 3,
+          "status_counts": {
+            "completed": 3
+          },
+          "tokens": {
+            "cached_input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 393728
+            },
+            "input_plus_output_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 510440
+            },
+            "input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 505456
+            },
+            "output_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 4984
+            },
+            "uncached_input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 111728
+            }
+          }
+        },
+        "candidate": {
+          "accepted_episodes": 3,
+          "attempted_episodes": 3,
+          "command_execution_items": {
+            "complete": true,
+            "known_episodes": 3,
+            "planned_episodes": 3,
+            "reported_subtotal": 13
+          },
+          "planned_episodes": 3,
+          "status_counts": {
+            "completed": 3
+          },
+          "tokens": {
+            "cached_input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 510464
+            },
+            "input_plus_output_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 614120
+            },
+            "input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 610108
+            },
+            "output_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 4012
+            },
+            "uncached_input_tokens": {
+              "complete": true,
+              "known_episodes": 3,
+              "planned_episodes": 3,
+              "reported_subtotal": 99644
+            }
+          }
+        }
+      },
+      "candidate_reduction_percent": {
+        "cached_input_tokens": -29.64889466840052,
+        "input_plus_output_tokens": -20.311887783089098,
+        "input_tokens": -20.70447279288405,
+        "output_tokens": 19.502407704654896,
+        "uncached_input_tokens": 10.815552054990691
+      },
+      "kind": "coding",
+      "original_cases": 3,
+      "quality_limit": "Exploratory convenience cases and nested repeats; observed acceptance is not general quality non-inferiority. Failed/missing episodes remain in the planned denominator.",
+      "source_summary_sha256": "d2dfc35cac309fc019dc8ed4aac152c5fbbfb1eb5dd2c0bfa409592636cfb9e2",
+      "tasks": [
+        {
+          "arms": {
+            "baseline": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 6
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 144256
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 185568
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 184490
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 1078
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 40234
+                }
+              }
+            },
+            "candidate": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 4
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 127232
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 162989
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 162280
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 709
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 35048
+                }
+              }
+            }
+          },
+          "candidate_reduction_percent": {
+            "cached_input_tokens": 11.801242236024844,
+            "input_plus_output_tokens": 12.167507328849801,
+            "input_tokens": 12.038592877662746,
+            "output_tokens": 34.23005565862709,
+            "uncached_input_tokens": 12.889595864194462
+          },
+          "task": "contextpack_priority"
+        },
+        {
+          "arms": {
+            "baseline": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 4
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 72704
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 92412
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 91762
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 650
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 19058
+                }
+              }
+            },
+            "candidate": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 3
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 97664
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 116466
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 115961
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 505
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 18297
+                }
+              }
+            }
+          },
+          "candidate_reduction_percent": {
+            "cached_input_tokens": -34.33098591549296,
+            "input_plus_output_tokens": -26.02908713154136,
+            "input_tokens": -26.371482748850287,
+            "output_tokens": 22.307692307692307,
+            "uncached_input_tokens": 3.993073774792738
+          },
+          "task": "devloop_json"
+        },
+        {
+          "arms": {
+            "baseline": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 7
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 176768
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 232460
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 229204
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 3256
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 52436
+                }
+              }
+            },
+            "candidate": {
+              "accepted_episodes": 1,
+              "attempted_episodes": 1,
+              "command_execution_items": {
+                "complete": true,
+                "known_episodes": 1,
+                "planned_episodes": 1,
+                "reported_subtotal": 6
+              },
+              "planned_episodes": 1,
+              "status_counts": {
+                "completed": 1
+              },
+              "tokens": {
+                "cached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 285568
+                },
+                "input_plus_output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 334665
+                },
+                "input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 331867
+                },
+                "output_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 2798
+                },
+                "uncached_input_tokens": {
+                  "complete": true,
+                  "known_episodes": 1,
+                  "planned_episodes": 1,
+                  "reported_subtotal": 46299
+                }
+              }
+            }
+          },
+          "candidate_reduction_percent": {
+            "cached_input_tokens": -61.54960173787111,
+            "input_plus_output_tokens": -43.966703949066506,
+            "input_tokens": -44.79110312210956,
+            "output_tokens": 14.066339066339067,
+            "uncached_input_tokens": 11.703791288427798
           },
           "task": "traj_readout"
         }
@@ -5466,8 +5888,9 @@
     ],
     "strict_acceptance_regraded": false
   },
+  "private_additional_study_retention_manifest_sha256": "d58e40461d838f8b251dc8a61bd3d5fad101cdd271a53f08dc0524bd8d744076",
   "private_retention_manifest_sha256": "69749fc72da7f1c0be3fa7006cb0d5045031f84837bf6e0d6af125e6e5c63d6d",
-  "publisher_sha256": "180c657011aa700ef910dca5e90f77adc12e5fc7bc138ed9362cf2d77da93bc5",
+  "publisher_sha256": "c849f5a16df426499ac2dfc36357bf04ea2339ac0707d8caf28da7dcf894391d",
   "schema": "agent-efficiency-public-results/v1",
   "support": {
     "devloop": {

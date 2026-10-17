@@ -84,6 +84,19 @@
       "controls": ["Same candidate compiler pack and requested high effort", "Same original public feature requests, complete baseline source, edit scopes, native model/binary and frozen external grader", "Same explicit snapshot capabilities and compact-diagnostic instruction in both arms", "Alternate first arm by original task", "Included subscription only, reported weekly quota below 60 percent, no generation retry or default/runtime preference adoption"],
       "acceptance": ["Retain every planned failure, missing result, timeout and quota-blocked attempt", "Report external behavioral/source-scope grades separately from instruction-compliance observations", "Report total, cached and uncached input separately plus output and deduplicated command/check/patch operations", "Preserve the original preparation manifest and grading contract; derive new owner prompts into separately pinned files"],
       "quality_limit": "Removing self-checks may remove useful correction. This three-task probe tests that tradeoff without assuming parity; equal observed grades are not broad non-inferiority and failed external grades remain failures."
+    },
+    {
+      "id": "native-parent-owned-effort-composition",
+      "registered_at_utc": "2026-10-17T11:17:52.283844+00:00",
+      "not_preregistered_with_initial_study": true,
+      "private_preregistration_sha256": "3641e18e9397632a546e6c1d0635b1ac0946824d44d9165e4059bfcb61fbb708",
+      "why_now": "The original medium failures were test-generated out-of-scope data writes, while explicit edit-only parent verification passed the three original tasks. Test the composition without assuming effects add or subtract across studies.",
+      "planned": {"original_problems": 3, "nested_repeats": 1, "arms": 2, "maximum_native_exec_invocations": 6},
+      "baseline": "Candidate compiler with explicit edit-only parent verification and requested high effort",
+      "candidate": "Identical complete parent-verified prompts and candidate compiler with requested medium effort",
+      "controls": ["Both complete prompt byte strings match within each pair", "Preserve the original source-only write scope and frozen external grader", "All six failing-baseline and positive-patch controls passed before model admission", "Fresh included-subscription quota admission and unchanged native runtime; no generation retries or default adoption"],
+      "acceptance": ["Retain every planned failed, missing, timed-out and quota-blocked attempt", "Keep instruction compliance separate from behavioral and source-scope acceptance", "Report cached, noncached, output and total usage separately; fewer commands need not imply fewer tokens", "Archive actual admitted runtime separately from subsequently safer preparation helpers"],
+      "quality_limit": "Same three convenience problems and one repeat, not independent held-out tasks, an actual fallback cascade, broad quality parity or provider attestation."
     }
   ],
   "analysis_rules": [

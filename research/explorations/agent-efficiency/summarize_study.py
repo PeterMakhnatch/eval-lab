@@ -207,7 +207,7 @@ def main() -> int:
     evidence = args.evidence.resolve()
     if args.output.exists():
         parser.error("Use a fresh --output; never overwrite a prior result")
-    census = load(evidence / "raw/generation-census-v1.json")
+    census = load(evidence / "raw/generation-census-v2.json")
     report = {
         "schema": "agent-efficiency-public-results/v1",
         "generated_at_utc": datetime.now(UTC).isoformat(),
@@ -231,6 +231,7 @@ def main() -> int:
                 "native-03",
                 "native-effort-01",
                 "native-owner-01",
+                "native-effort-owner-01",
                 "trace-main-run",
                 "trace-fused-holdout-run",
             )
@@ -238,6 +239,9 @@ def main() -> int:
         "policy": policy(evidence),
         "support": support(evidence / "raw"),
         "private_retention_manifest_sha256": digest(evidence / "retention.json"),
+        "private_additional_study_retention_manifest_sha256": digest(
+            evidence / "supplements/native-effort-owner-01-retention-v1.json"
+        ),
         "limits": [
             "Reported total input includes cached input; uncached input is their compatible difference, not an invoice or quota meter.",
             "SDK generations and native CLI episodes are distinct units; physical upstream attempts and retries remain unknown.",

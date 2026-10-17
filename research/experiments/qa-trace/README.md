@@ -10,8 +10,9 @@ OpenAI model produced); T3 verifier `codex/gpt-6-luna:medium`
 (`google-antigravity/claude-sonnet-5-5` when it would share the producer's family or the
 analyst's model). Spend: subscriptions only (Codex weekly window 23% → 49% over the
 night, shared with other tabs). Modal: at most $1.79 at the gate's $0.008 per execution
-($1.44 reserved by the two regrade prefills, ≤ $0.25 cap on the rollout batch, 12
-replays in two earlier aborted starts), inside a $2 cap; billed amounts were not pulled.
+($1.44 reserved by the two regrade prefills, ≤ $0.25 cap on the rollout batch, 12 more
+replays logged by the trace-paired run and an aborted rollout start), inside a $2 cap;
+billed amounts were not pulled.
 The prompts were written fresh and tuned on no split; every number names its split.
 
 ### Plain-language answer

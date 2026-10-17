@@ -305,6 +305,136 @@ def test_v2_selfhosted_ledger_validates_with_two_key_expected_pricing(
             },
         )
 
+
+def _event_shaped_calls(n: int = 23) -> list[dict]:
+    """Live-ledger shape: one reserved + one reconciled row per call.
+
+    Mirrors the canary's ``proxy-live/calls.jsonl``: 2n event rows for n
+    distinct ``call_id``s, reserved rows carrying status ``None`` and the
+    running ``cumulative_totals`` from *before* the call, reconciled rows
+    carrying the settled usage and the cumulative totals after it.
+    """
+    rows: list[dict] = []
+    cumulative = {
+        "requests": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cost_micros": 0,
+    }
+    for index in range(1, n + 1):
+        rows.append(
+            {
+                "call_id": index,
+                "state": "reserved",
+                "status": None,
+                "input_tokens": 4000,
+                "output_tokens": 4096,
+                "cost_micros": 0,
+                "cumulative_totals": dict(cumulative),
+            }
+        )
+        cumulative["requests"] += 1
+        cumulative["input_tokens"] += 1000 + index
+        cumulative["output_tokens"] += 100 + index
+        cumulative["total_tokens"] = cumulative["input_tokens"] + cumulative["output_tokens"]
+        rows.append(
+            {
+                "call_id": index,
+                "state": "reconciled",
+                "status": 200,
+                "input_tokens": 1000 + index,
+                "output_tokens": 100 + index,
+                "cost_micros": 0,
+                "cumulative_totals": dict(cumulative),
+            }
+        )
+    return rows
+
+
+def test_event_shaped_calls_aggregate_by_distinct_call_id() -> None:
+    """46 event rows are 23 calls: a reserved row is not a completed call."""
+    from evallab.ledger import split_calls
+
+    split = split_calls(_event_shaped_calls())
+    assert split["used"]["requests"] == 23
+    assert split["used"]["input_tokens"] == sum(1000 + i for i in range(1, 24))
+    assert split["used"]["output_tokens"] == sum(100 + i for i in range(1, 24))
+    assert split["attempted"]["requests"] == 0
+    assert split["unresolved_requests"] == 0
+    assert split["sequence"] == 46
+
+
+def test_event_shaped_v2_ledger_validates_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A v2 report carrying event rows validates against its own totals."""
+    capability, attempt_id, usage_path = _budget_env(tmp_path, monkeypatch)
+    calls = _event_shaped_calls()
+    from evallab.ledger import split_calls
+
+    split = split_calls(calls)
+    usage_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "capability_id": "sha256:" + hashlib.sha256(capability.encode()).hexdigest(),
+                "attempt_id": attempt_id,
+                "sequence": split["sequence"],
+                "limits": {
+                    "max_requests": 50,
+                    "max_input_tokens": 100000,
+                    "max_output_tokens": 100000,
+                    "max_total_tokens": 200000,
+                    "max_cost_micros": 10000000,
+                },
+                "pricing": {
+                    **SELFHOSTED_PRICING,
+                    "cached_input_cost_micros_per_million": None,
+                },
+                "totals": split["used"],
+                "attempted": split["attempted"],
+                "unresolved_requests": split["unresolved_requests"],
+                "calls": calls,
+            }
+        )
+    )
+    usage_path.chmod(0o600)
+
+    from evallab import runner as runner_module
+
+    validated = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(capability.encode()).hexdigest(),
+        attempt_id=attempt_id,
+        limits=_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing=dict(SELFHOSTED_PRICING),
+    )
+    assert validated["totals"]["requests"] == 23
+
+
+def test_event_shaped_calls_refuse_broken_lifecycles() -> None:
+    """Missing lifecycle, post-terminal events, and cumulative drift refuse."""
+    from evallab.ledger import split_calls
+
+    # Reconciled without a preceding reservation: missing lifecycle.
+    missing = [row for row in _event_shaped_calls(2) if row["state"] != "reserved"]
+    missing = [dict(row, call_id=1) for row in missing[:1]] + missing[1:]
+    with pytest.raises(ValueError):
+        split_calls(missing)
+
+    # A second terminal row for the same call: event after terminal state.
+    doubled = _event_shaped_calls(1)
+    doubled.append(dict(doubled[-1]))
+    with pytest.raises(ValueError):
+        split_calls(doubled)
+
+    # Cumulative totals that drift from the settled calls: genuine mismatch.
+    drifted = _event_shaped_calls(2)
+    drifted[-1]["cumulative_totals"]["input_tokens"] += 1
+    with pytest.raises(ValueError, match="cumulative"):
+        split_calls(drifted)
 def test_v2_tampered_totals_fail_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

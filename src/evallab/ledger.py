@@ -94,30 +94,23 @@ def _is_event_shaped(calls: list[dict[str, Any]]) -> bool:
 def _aggregate_event_calls(calls: list[dict[str, Any]]) -> dict[str, Any]:
     """Recompute used/attempted/unresolved/sequence from lifecycle events.
 
-    Strict lifecycle per distinct ``call_id`` (ids are ``1..N`` in first-
-    appearance order): the first event is ``reserved``, no event follows
-    a terminal state (``reconciled``/``exceeded``/``unresolved``), and a
-    terminal event without a preceding reservation is a missing
-    lifecycle. A ``reserved`` row is never a completed call; only the
-    terminal row's settled usage counts. ``cumulative_totals`` on any
-    row must equal the running used totals after that row — a genuine
-    mismatch refuses. Sequence counts events, matching the proxy.
+    Events fold in global chronology — concurrent calls interleave
+    (``reserve1, reserve2, reconcile2, reconcile1``) — while each
+    distinct ``call_id`` tracks its own lifecycle: ids are ``1..N`` in
+    first-appearance order, a call's first event is ``reserved``, no
+    event follows its terminal state (``reconciled``/``exceeded``/
+    ``unresolved``), and a terminal event without a preceding
+    reservation is a missing lifecycle. A ``reserved`` row is never a
+    completed call; only the terminal row's settled usage counts, at
+    the moment it arrives. ``cumulative_totals`` on any row must equal
+    the running used totals after that row — a genuine mismatch
+    refuses. Sequence counts events, matching the proxy.
     """
     used = {"requests": 0, "input_tokens": 0, "output_tokens": 0, "cost_micros": 0}
     attempted = {"requests": 0, "input_tokens": 0, "output_tokens": 0, "cost_micros": 0}
     unresolved = 0
-    groups: dict[int, list[dict[str, Any]]] = {}
-    order: list[int] = []
-    for raw_call in calls:
-        if not isinstance(raw_call, dict):
-            raise ValueError("call sequence is invalid")
-        call_id = _integer(raw_call.get("call_id"), "call_id")
-        if call_id not in groups:
-            groups[call_id] = []
-            order.append(call_id)
-        groups[call_id].append(raw_call)
-    if order != list(range(1, len(order) + 1)):
-        raise ValueError("call sequence is invalid")
+    # Per-call lifecycle: first event seen, terminal reached, final row.
+    lifecycles: dict[int, dict[str, Any]] = {}
 
     def check_cumulative(raw_call: dict[str, Any]) -> None:
         cumulative = raw_call.get("cumulative_totals")
@@ -133,34 +126,38 @@ def _aggregate_event_calls(calls: list[dict[str, Any]]) -> dict[str, Any]:
             if _integer(cumulative.get(name), f"cumulative_totals.{name}") != value:
                 raise ValueError("cumulative totals do not match provider calls")
 
-    for call_id in order:
-        events = groups[call_id]
-        states = [event.get("state") for event in events]
-        if states[0] != "reserved":
-            raise ValueError("call sequence is invalid: missing reservation")
-        terminal_at = [
-            index
-            for index, state in enumerate(states)
-            if state in USED_STATES or state == "unresolved"
-        ]
-        if len(terminal_at) > 1 or (terminal_at and terminal_at[0] != len(events) - 1):
-            raise ValueError("call sequence is invalid: event after terminal state")
-        for event in events:
-            state = event.get("state")
-            if state not in USED_STATES and state not in ATTEMPTED_STATES:
-                raise ValueError(f"invalid call state: {state!r}")
-            # Every event's token fields must be readable integers; the
-            # terminal row's values are applied below.
-            _integer(event.get("input_tokens"), "input_tokens")
-            _integer(event.get("output_tokens"), "output_tokens")
-            _integer(event.get("cost_micros"), "cost_micros")
-            if state in USED_STATES:
-                used["requests"] += 1
-                used["input_tokens"] += _integer(event.get("input_tokens"), "input_tokens")
-                used["output_tokens"] += _integer(event.get("output_tokens"), "output_tokens")
-                used["cost_micros"] += _integer(event.get("cost_micros"), "cost_micros")
-            check_cumulative(event)
-        final = events[-1]
+    for raw_call in calls:
+        if not isinstance(raw_call, dict):
+            raise ValueError("call sequence is invalid")
+        call_id = _integer(raw_call.get("call_id"), "call_id")
+        state = raw_call.get("state")
+        if state not in USED_STATES and state not in ATTEMPTED_STATES:
+            raise ValueError(f"invalid call state: {state!r}")
+        _integer(raw_call.get("input_tokens"), "input_tokens")
+        _integer(raw_call.get("output_tokens"), "output_tokens")
+        _integer(raw_call.get("cost_micros"), "cost_micros")
+        lifecycle = lifecycles.get(call_id)
+        if lifecycle is None:
+            if call_id != len(lifecycles) + 1:
+                raise ValueError("call sequence is invalid")
+            if state != "reserved":
+                raise ValueError("call sequence is invalid: missing reservation")
+            lifecycles[call_id] = {"terminal": False, "final": raw_call}
+        else:
+            if lifecycle["terminal"]:
+                raise ValueError("call sequence is invalid: event after terminal state")
+            lifecycle["final"] = raw_call
+            if state in USED_STATES or state == "unresolved":
+                lifecycle["terminal"] = True
+        if state in USED_STATES:
+            used["requests"] += 1
+            used["input_tokens"] += _integer(raw_call.get("input_tokens"), "input_tokens")
+            used["output_tokens"] += _integer(raw_call.get("output_tokens"), "output_tokens")
+            used["cost_micros"] += _integer(raw_call.get("cost_micros"), "cost_micros")
+        check_cumulative(raw_call)
+
+    for lifecycle in lifecycles.values():
+        final = lifecycle["final"]
         state = final.get("state")
         if state in ATTEMPTED_STATES:
             attempted["requests"] += 1

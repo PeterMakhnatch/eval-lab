@@ -435,6 +435,47 @@ def test_event_shaped_calls_refuse_broken_lifecycles() -> None:
     drifted[-1]["cumulative_totals"]["input_tokens"] += 1
     with pytest.raises(ValueError, match="cumulative"):
         split_calls(drifted)
+
+def test_event_shaped_calls_fold_interleaved_streams() -> None:
+    """Concurrent calls interleave: reserve1, reserve2, reconcile2, reconcile1.
+
+    Folding follows global chronology (cumulative totals cross-check at
+    each row) while tracking each call's lifecycle separately.
+    """
+    from evallab.ledger import split_calls
+
+    zero = {
+        "requests": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cost_micros": 0,
+    }
+    after_two = {
+        "requests": 1,
+        "input_tokens": 2002,
+        "output_tokens": 202,
+        "total_tokens": 2204,
+        "cost_micros": 0,
+    }
+    after_both = {
+        "requests": 2,
+        "input_tokens": 4003,
+        "output_tokens": 403,
+        "total_tokens": 4406,
+        "cost_micros": 0,
+    }
+    rows = [
+        {"call_id": 1, "state": "reserved", "status": None, "input_tokens": 4000, "output_tokens": 4096, "cost_micros": 0, "cumulative_totals": dict(zero)},
+        {"call_id": 2, "state": "reserved", "status": None, "input_tokens": 4000, "output_tokens": 4096, "cost_micros": 0, "cumulative_totals": dict(zero)},
+        {"call_id": 2, "state": "reconciled", "status": 200, "input_tokens": 2002, "output_tokens": 202, "cost_micros": 0, "cumulative_totals": dict(after_two)},
+        {"call_id": 1, "state": "reconciled", "status": 200, "input_tokens": 2001, "output_tokens": 201, "cost_micros": 0, "cumulative_totals": dict(after_both)},
+    ]
+    split = split_calls(rows)
+    assert split["used"] == after_both
+    assert split["attempted"]["requests"] == 0
+    assert split["unresolved_requests"] == 0
+    assert split["sequence"] == 4
 def test_v2_tampered_totals_fail_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

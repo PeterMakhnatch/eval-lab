@@ -199,9 +199,10 @@ Sol-honest too.
 ### QA Agent - Trace: `evallab qa trace`
 
 ```bash
-uv run evallab qa trace bundle <trial> --out DIR    # B0 only: sealed bundle
-uv run evallab qa trace verify DIR                  # bundle seal intact?
-uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (Codex subscription)
+uv run evallab qa trace bundle <trial> --out DIR    # B0 only: sealed read-only workspace
+uv run evallab qa trace verify DIR                  # workspace seal intact?
+uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (subscription routes)
+uv run evallab qa trace batch --passes PASSES.jsonl --out DIR  # B0 + T0-T4 per listed trial, DIR/summary.json
 uv run evallab qa trace key-run --key trajectory-judge-400 --split test --out DIR  # DIR/runs, DIR/findings
 uv run evallab qa score --key trajectory-judge-400 --findings DIR/findings --split test
 uv run evallab qa trace score --key trajectory-judge-400 --split test --out DIR  # strata, steps, upstream judges
@@ -209,28 +210,69 @@ uv run --extra laminar evallab qa trace regrade --key trace-paired-v1 --out DIR 
 uv run --extra laminar evallab qa trace regrade --passes research/experiments/qa-trace/regrade/ordinary-passes.jsonl \
   --grader-manifest <repaired-v6-manifest.csv> --repairs <worktree>/library/task-variants --out DIR
 uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
-uv run evallab detectors run --detector qa_trace --allow-paid --ids FILE ...
+uv run evallab detectors run --detector qa_trace --allow-paid --refresh --ids FILE ...
 ```
 
-Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
+Was this run's reward real, and why did it fail (`qa-trace/5`: `src/evallab/qa/trace.py`
+orchestrates; `trace_workspace.py`, `trace_agents.py`, `trace_verify.py` hold B0, T1
+and T3):
 
-- **B0** freezes the trial into a sealed bundle (prompt, Harbor verifier reward,
-  ATIF trajectory, verifier output, task `tests/`, before/after diff from
-  `verifier/agent.diff` or reconstructed from trajectory writes). Solution,
-  labels and every other `result.json` field are withheld. Trials without ATIF
-  (oracle, scripted CheatAgent) bundle the diff and grader output only.
+- **B0** freezes the trial into a sealed `qa.trace_bundle/v2` workspace: `prompt.md`,
+  the Harbor verifier reward (`evaluation_result.json`), `file_changes.diff` (plus
+  `file_changes.kept.diff`), `trajectory_summary.md` (steps, tokens, commands),
+  `steps.txt`, raw ATIF, `agent_logs/`, `verifier/` output, `task_codebase/` and
+  `task_priors.json`. File changes come from the fullest retained evidence:
+  `verifier/agent.diff`, the full/kept verifier diffs, a `workspace.tgz` Git
+  snapshot (inspected with hooks, filters and repo config disabled), the state
+  journal, then trajectory writes; each source is named, and writes are never
+  passed off as a snapshot diff. Trials without ATIF (oracle, scripted
+  CheatAgent) still get a workspace. The task codebase resolves by digest: the
+  Harbor lock digest crosswalks to `library/task-variants` and the task catalog,
+  then the native resolver, then the MiMo HF store by name, marked
+  `hf_name_only`/unmatched rather than claimed exact. Priors are archived QA Task
+  findings (`derived/qa/ref-subset`), never `research/answer-keys/`. Solution
+  runs, labels and every other `result.json` field are withheld; run and task
+  names are replaced with opaque ids (they can spell the label).
 - **T0** ($0): `combined_v1`'s rule/content literals for the source (cached
-  out-of-fold verdict for detectors-v1 rows) and the skip rule: full reward
-  skips false-negative and failure-cause, zero reward skips false-positive.
-- **T1**: one Codex call per question (reward shortcut, false positive, false
-  negative, prompt-grader alignment, failure cause), `gpt-6-luna` low.
-- **T2**: read-only investigator (`gpt-6.1-sol`, shell in a read-only sandbox,
-  scratch copy of the bundle without `bundle.json`) when T0 or T1 raised or was
-  unsure; Claude Haiku when the trace came from an OpenAI model. No reviewer
-  sees run or task names (they can spell the label); answer-key items run
-  under opaque ids.
-- **T3**: executed counterfactual (`--regrade`, local Docker) plus an LLM
-  refuter over the raised claims. T3 and the batch command below use one replay
+  out-of-fold verdict for detectors-v1 rows), the skip rule (full reward skips
+  false-negative and failure-cause, zero reward skips false-positive), and the
+  `scan_external_sourcing` prescan: `git clone/fetch/log --all/show <rev>`,
+  `wget`/`curl` to source hosts, `pip install git+`/`==<own project>`,
+  `pip download`, `gh api`, `apt source`, `npm view/pack`, web-fetch tools, in
+  ATIF commands and non-ATIF agent logs. Starting and observed local-history
+  SHAs are excluded.
+- **T1**: one tool-using scenario agent per question (reward shortcut, false
+  positive, false negative, prompt-grader alignment, failure cause), default
+  `codex/gpt-6.1-sol:medium`, `google-antigravity/gemini-3.8-flash` when the trace
+  came from an OpenAI model. Every tool-using turn runs through OMP
+  (`read,grep,glob,bash`; Codex through OMP's `openai-codex` subscription
+  provider) inside a macOS `sandbox-exec` fence: no writes under the work trees,
+  no reads of answer keys, earlier verdicts or published run directories.
+  Codex's own sandbox cannot nest inside that fence and does not fence reads, so
+  `codex exec` serves text-only turns. Each agent works in a scratch copy of the workspace without
+  `bundle.json`, must inspect `task_codebase/` and `file_changes.diff` (one
+  retry; a still-uninspected answer stays measured with
+  `inspection.complete=false`), classifies hacks in the 8-part taxonomy, follows
+  six analyst-error guardrails and a symmetric disconfirmation checklist, and
+  returns atomic claims each with one check. A fired prescan forces the
+  reward-shortcut answer to `yes` unless the agent writes a `prescan_disproof`.
+- **T3** runs for every raised question (T1 `yes` or a T0 deterministic flag):
+  - `verify_claims`: an independent verifier (`codex/gpt-6-luna:medium`;
+    `google-antigravity/claude-sonnet-5-5` when that would share the trace's
+    family or the analyst's model) checks
+    the claims and the short conclusion only, under a strict 15-tool budget:
+    one command per claim plus one counter-check aimed at falsifying the
+    conclusion. A claim counts as VERIFIED/REFUTED only when its reported
+    command really ran within the budget; otherwise it is UNVERIFIED.
+  - The analyst must address every REFUTED claim (retract, or rebut with a new
+    cited command); a retraction or `no` refutes the question.
+  - Executed counterfactuals (opt-in, `--regrade`): the newer-grader replay
+    below and, for a low-reward eval-fault claim, `--minimal-grader-change`: a
+    proposed test-only grader patch replayed under the same nop = 0 /
+    reference = 1 controls. A decisive controlled execution outranks the
+    model verdicts.
+
+  T3 and the batch command below use one replay
   engine (`src/evallab/qa/counterfactual.py`). Graders are the task's built
   `mimo-clean-v6` manifest row, or the selected `--grader-manifest`, plus
   test-repaired `verifier-repair@*` variants. Every package must still hash to
@@ -302,9 +344,13 @@ Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
     and reference bytes for controls. Identical replay inputs execute once per
     batch; observation labels are refreshed, never borrowed from an old cohort.
 - **T4**: one `qa.finding/v1` per question (shared contract, `docs/qa-contract.md`)
-  plus `verdict.json` with each question's rationale and step. Skipped or
-  unusable questions are `unknown` (`not_run` / `ran_without_usable_result`),
-  never `pass`. T4 is deterministic and re-runs from stored stage JSON on resume.
+  plus `verdict.json` with each question's answer, taxonomy, who raised it, the
+  verification outcome, the analyst revision and the executed counterfactual. A
+  raised question fails unless T3 refutes it. Skipped or unusable questions are
+  `unknown` (`not_run` / `ran_without_usable_result`), never `pass`. Stages
+  resume from their stored JSON by content key; T4 is deterministic. Runs live
+  under `derived/qa-trace/qa-trace-5/`; earlier pipeline versions' bundles are
+  refused, never reused.
 
 Results and caveats: `research/experiments/qa-trace/README.md`.
 

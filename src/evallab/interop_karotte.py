@@ -576,7 +576,8 @@ _TASK_INIT_TEMPLATE = '''"""Karotte task @@KAROTTE_ID@@ bridged from Harbor task
 Generic bridge (no per-task code): the student works at @@WORKDIR@@, the
 pre-scoring hook collects @@SUBMISSION_DOC@@ into root-only copies, and the
 judge restores those copies at their original absolute paths and runs the
-task's own tests/test.sh from @@WORKDIR@@, exactly like Harbor shared mode.
+task's own tests/test.sh from @@WORKDIR@@. This collected-copy boundary differs
+from Harbor shared mode, which grades the live agent filesystem.
 """
 from __future__ import annotations
 

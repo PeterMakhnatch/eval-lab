@@ -21,7 +21,9 @@ subset (empty = full ladder). Every target runner exposes
 ladder_version=None)`` returning a pass/fail/skipped/error verdict dict (reward >= 1.0 passes).
 Every live cell first checks the existing local Docker resource admission.
 Unknown/unbounded competing containers and insufficient headroom refuse the
-cell before image preparation. Infrastructure failures are errors, never scores.
+cell before image preparation. Detected admission, setup and runner failures are
+errors, not task scores. The verifiers upstream missing/malformed-reward fallback
+is still indistinguishable from a genuine task zero; see research/interop/README.md.
 
 This module is stdlib-only: ``inspect_ai``/``inspect_harbor``/``karotte`` are
 invoked in subprocesses via pinned ``uv run --with`` so exporting never

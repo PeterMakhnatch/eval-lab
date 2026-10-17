@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "research" / "experiments" / "tb2-to-tb21-v1"))
 
 import materialize  # noqa: E402
+
 from evallab.registry import compute_task_digests  # noqa: E402
 
 

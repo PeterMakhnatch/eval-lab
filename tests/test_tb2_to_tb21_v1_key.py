@@ -5,7 +5,7 @@ KEY = Path(__file__).parents[1] / "research/answer-keys/tb2-to-tb21-v1"
 
 
 def _items():
-    return [json.loads(l) for l in (KEY / "items.jsonl").read_text().splitlines() if l.strip()]
+    return [json.loads(line) for line in (KEY / "items.jsonl").read_text().splitlines() if line.strip()]
 
 
 def test_counts_and_pairs():

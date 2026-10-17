@@ -404,7 +404,9 @@ def render_headroom_notice(
         f"  observed_at          {_instant(headroom.observed_at)}",
         f"  staleness            {_age(headroom.staleness_seconds)} old",
         *(
-            ["    live Claude readings are refreshed before dispatch; missing or expired windows pause"]
+            [
+                "    live Claude readings are refreshed before dispatch; missing or expired windows pause"
+            ]
             if agent == "claude-code"
             else [f"    {QUOTA_STALENESS_NOTE}"]
         ),
@@ -1507,6 +1509,7 @@ class Executor:
         docker_observe_fn: Callable[[], tuple[float, int]] | None = None,
         smoke_gate_enabled: bool = True,
         notify_runner: Callable[..., Any] | None = None,
+        on_completion: Callable[[ExperimentSpec], None] | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1539,6 +1542,7 @@ class Executor:
         self._watch_enabled = watch_enabled
         self._watch_interval_seconds = watch_interval_seconds
         self._notify_runner = notify_runner
+        self._on_completion = on_completion
         if selfhosted_warmup_seconds <= 0:
             raise ValueError("selfhosted_warmup_seconds must be positive")
         if selfhosted_probe_timeout_seconds <= 0:
@@ -1576,6 +1580,7 @@ class Executor:
         selfhosted_warmup_seconds: float = 600.0,
         selfhosted_probe_timeout_seconds: float = 10.0,
         smoke_gate_enabled: bool = True,
+        on_completion: Callable[[ExperimentSpec], None] | None = None,
     ) -> Executor:
         return cls(
             repo_root=root,
@@ -1589,6 +1594,7 @@ class Executor:
             selfhosted_warmup_seconds=selfhosted_warmup_seconds,
             selfhosted_probe_timeout_seconds=selfhosted_probe_timeout_seconds,
             smoke_gate_enabled=smoke_gate_enabled,
+            on_completion=on_completion,
         )
 
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
@@ -2181,6 +2187,31 @@ class Executor:
         )
 
     def _dispatch_one(
+        self,
+        path: Path,
+        spec: ExperimentSpec,
+        authorizations: dict[str, PaidRunAuthorization],
+        credentials: frozenset[str],
+        *,
+        preflight_decision: PolicyDecision | None = None,
+    ) -> bool:
+        """Publish a completion only after dispatch and settlement have finished.
+
+        Observers run in the dispatch worker, so a long-running sibling cannot
+        delay persistence of this result. Observer errors propagate without
+        rewriting an already-settled queue state.
+        """
+        try:
+            return self._dispatch_one_inner(
+                path, spec, authorizations, credentials, preflight_decision=preflight_decision
+            )
+        finally:
+            if self._on_completion is not None:
+                state = self.queue.locate(str(spec.spec_id)).parent.name
+                if state in {"done", "failed"}:
+                    self._on_completion(spec)
+
+    def _dispatch_one_inner(
         self,
         path: Path,
         spec: ExperimentSpec,
@@ -3191,7 +3222,9 @@ class Executor:
             if spec.agent == "claude-code":
                 reading = self._dispatch_headroom.get(str(spec.spec_id))
                 if reading is None:
-                    raise ExecutionFailure("subscription_quota_unavailable", "no Claude dispatch reading")
+                    raise ExecutionFailure(
+                        "subscription_quota_unavailable", "no Claude dispatch reading"
+                    )
                 record = claude_dispatch_quota_record(reading)
                 request = replace(request, subscription_quota=record)
             try:

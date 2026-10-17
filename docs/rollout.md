@@ -50,12 +50,27 @@ keys run -- uv run --no-sync evallab rollout run \
 
 ## Outputs (`--out` dir)
 
-- `results.jsonl`: one row per task — reward, pass, wall and sandbox
+- `results.jsonl`: one row per task/attempt — frozen task package path,
+  deterministic name and string job dir, reward, pass, wall and sandbox
   seconds, input/output tokens, settled model cost, Modal sandbox cost
-  estimate, job dir, error.
+  estimate, and error. Each terminal trial is written immediately after
+  dispatcher settlement, even while another trial in the same wave is
+  running. The file is replaced atomically; a terminated driver leaves a
+  complete snapshot of measured terminal outcomes, not a truncated row.
+  A non-done queue state always has an error and null reward/pass, even
+  when its job contains an earlier native reward.
 - `summary.json`: trials, completed, errors, pass rate, batch wall,
-  tasks/hour, total cost, cost per task.
-- `spend.jsonl`: one row tagged `2026-10-16` for the day ledger.
+  tasks/hour, total cost, cost per task. Refreshed with each completion;
+  while a batch is active its counts cover only persisted terminal rows.
+- `spend.jsonl`: one row tagged `2026-10-16` for the day ledger, refreshed
+  with the current summary.
+
+On normal exit the results include every submitted spec, including an
+explicit error row for work still nonterminal at the driver's deadline.
+After an abrupt driver death, compare the persisted rows against the
+authorized spec list: missing specs are **unmeasured**, never passes or
+implicitly completed. Native job evidence and queue settlement remain
+authoritative; an output-filesystem error cannot reclassify a done trial.
 
 ## Cost model
 

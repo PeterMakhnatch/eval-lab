@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import tempfile
+import threading
 import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
@@ -93,9 +96,7 @@ def summarize(outcomes: list[TrialOutcome], batch_wall_seconds: float) -> dict[s
     """Batch summary: throughput and cost per task over completed trials."""
     completed = [o for o in outcomes if o.error is None]
     passed = [o for o in completed if o.passed]
-    costs = [
-        (o.model_cost_usd or 0.0) + (o.sandbox_cost_usd or 0.0) for o in completed
-    ]
+    costs = [(o.model_cost_usd or 0.0) + (o.sandbox_cost_usd or 0.0) for o in completed]
     hours = batch_wall_seconds / 3600.0
     return {
         "trials": len(outcomes),
@@ -221,7 +222,7 @@ def _arm_slug(model: str) -> str:
     reads them). Outcome rows carry the resulting ``job_dir``, keeping
     every row traceable to its arm and spec.
     """
-    tail = model.rsplit('/', 1)[-1].replace(':', '-').lower()
+    tail = model.rsplit("/", 1)[-1].replace(":", "-").lower()
     return "".join(c if c in _NAME_ALPHABET else "-" for c in tail)
 
 
@@ -299,6 +300,23 @@ def run_rollout(
     jobs_dir = out_dir / "jobs"
     jobs_dir.mkdir(parents=True, exist_ok=True)
     batch_start = time.monotonic()
+    outcomes_by_name: dict[str, TrialOutcome] = {}
+    persistence_lock = threading.Lock()
+
+    def persist(outcome: TrialOutcome) -> None:
+        # Queue dispatch invokes this in its worker after post-run settlement,
+        # not after the whole tick/wave returns.
+        with persistence_lock:
+            outcomes_by_name[outcome.name] = outcome
+            _write_batch(
+                out_dir,
+                [outcomes_by_name[name] for name in sorted(outcomes_by_name)],
+                time.monotonic() - batch_start,
+                model=model,
+                agent=agent,
+                concurrency=concurrency,
+                attempts=attempts,
+            )
 
     if execute is not None:
         from evallab.execution_contracts import RunRequest
@@ -324,12 +342,17 @@ def run_rollout(
             start = time.monotonic()
             try:
                 job_dir = execute(request)
-                return _outcome(task, name, Path(job_dir), time.monotonic() - start, None)
+                outcome = _outcome(task, name, Path(job_dir), time.monotonic() - start, None)
             except Exception as exc:  # noqa: BLE001 - one trial must not kill the batch
-                return _outcome(
-                    task, name, jobs_dir / name, time.monotonic() - start,
+                outcome = _outcome(
+                    task,
+                    name,
+                    jobs_dir / name,
+                    time.monotonic() - start,
                     f"{type(exc).__name__}: {exc}",
                 )
+            persist(outcome)
+            return outcome
 
         pairs = [
             (index, task, attempt)
@@ -339,7 +362,15 @@ def run_rollout(
         with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
             outcomes = list(pool.map(one, pairs))
         batch_wall = time.monotonic() - batch_start
-        return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency, attempts=attempts)
+        return _write_batch(
+            out_dir,
+            outcomes,
+            batch_wall,
+            model=model,
+            agent=agent,
+            concurrency=concurrency,
+            attempts=attempts,
+        )
 
     if not actor:
         raise ValueError(
@@ -353,7 +384,21 @@ def run_rollout(
     from evallab.schemas import ExperimentSpec
 
     root = root.resolve()
-    executor = Executor.from_repo(root)
+
+    def completed(spec: ExperimentSpec) -> None:
+        state = executor.queue.locate(str(spec.spec_id)).parent.name
+        if state in {"done", "failed"}:
+            persist(
+                _outcome(
+                    root / spec.task,
+                    spec.name,
+                    root / spec.jobs_dir / spec.name,
+                    time.monotonic() - batch_start,
+                    None if state == "done" else f"queue state: {state}",
+                )
+            )
+
+    executor = Executor.from_repo(root, on_completion=completed)
     mimo_fields: dict[str, Any] = {}
     if is_mimo_selfhosted_model(model):
         # HAR-149: a MiMo batch names its reference setup, locks egress,
@@ -433,6 +478,8 @@ def run_rollout(
         for spec in specs:
             path = executor.queue.locate(str(spec.spec_id))
             states[str(spec.spec_id)] = path.parent.name
+            if path.parent.name in {"done", "failed"} and spec.name not in outcomes_by_name:
+                completed(spec)
         if all(state in {"done", "failed"} for state in states.values()):
             break
         time.sleep(poll_seconds)
@@ -442,11 +489,42 @@ def run_rollout(
     for spec in specs:
         state = states.get(str(spec.spec_id), "unknown")
         job_dir = root / spec.jobs_dir / spec.name
-        error = None if state == "done" else f"queue state: {state}"
-        outcomes.append(
-            _outcome(root / spec.task, spec.name, job_dir, batch_wall, error)
-        )
-    return _write_batch(out_dir, outcomes, batch_wall, model=model, agent=agent, concurrency=concurrency, attempts=attempts)
+        outcome = outcomes_by_name.get(spec.name)
+        if outcome is None:
+            error = None if state == "done" else f"queue state: {state}"
+            outcome = _outcome(root / spec.task, spec.name, job_dir, batch_wall, error)
+        outcomes.append(outcome)
+    return _write_batch(
+        out_dir,
+        outcomes,
+        batch_wall,
+        model=model,
+        agent=agent,
+        concurrency=concurrency,
+        attempts=attempts,
+    )
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Replace a complete snapshot on the same filesystem, never truncate it."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _write_batch(
@@ -464,13 +542,13 @@ def _write_batch(
         {"model": model, "agent": agent, "concurrency": concurrency, "attempts": attempts}
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "results.jsonl").write_text(
-        "".join(json.dumps(asdict(o)) + "\n" for o in outcomes), encoding="utf-8"
+    _atomic_write(
+        out_dir / "results.jsonl",
+        "".join(json.dumps(asdict(o)) + "\n" for o in outcomes),
     )
-    (out_dir / "summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-    )
-    (out_dir / "spend.jsonl").write_text(
+    _atomic_write(out_dir / "summary.json", json.dumps(summary, indent=2) + "\n")
+    _atomic_write(
+        out_dir / "spend.jsonl",
         json.dumps(
             {
                 "tag": SPEND_TAG,
@@ -481,7 +559,6 @@ def _write_batch(
             }
         )
         + "\n",
-        encoding="utf-8",
     )
     return summary
 
@@ -556,27 +633,55 @@ def build_rollout_parser(commands: argparse._SubParsersAction) -> None:  # noqa:
         required=True,
         help="Model selector, e.g. tinker/Qwen/Qwen3.5-9B or tinker/<base>@tinker://<run>:train:0/sampler_weights/10",
     )
-    run.add_argument("--agent", default=DEFAULT_AGENT, help=f"Harbor agent (default: {DEFAULT_AGENT})")
-    run.add_argument("--concurrency", type=int, default=8, help="Trials in flight at once (default: 8)")
-    run.add_argument("--timeout", type=int, default=1200, help="Per-trial timeout seconds (default: 1200)")
+    run.add_argument(
+        "--agent", default=DEFAULT_AGENT, help=f"Harbor agent (default: {DEFAULT_AGENT})"
+    )
+    run.add_argument(
+        "--concurrency", type=int, default=8, help="Trials in flight at once (default: 8)"
+    )
+    run.add_argument(
+        "--timeout", type=int, default=1200, help="Per-trial timeout seconds (default: 1200)"
+    )
     run.add_argument("--limit", type=int, default=None, help="Only the first N tasks")
     run.add_argument(
         "--cost-limit-usd", type=float, default=None, help="Per-trial model cost ceiling"
     )
-    run.add_argument("--out", required=True, help="Output dir (results.jsonl, summary.json, spend.jsonl)")
+    run.add_argument(
+        "--out", required=True, help="Output dir (results.jsonl, summary.json, spend.jsonl)"
+    )
     run.add_argument(
         "--actor",
         required=True,
         help="Who authorizes this spend (recorded in queue/events.jsonl; never defaulted)",
     )
     run.add_argument(
-        "--est-cost-usd", type=float, default=0.25, help="Estimated cost per trial for queue admission (default: 0.25)"
+        "--est-cost-usd",
+        type=float,
+        default=0.25,
+        help="Estimated cost per trial for queue admission (default: 0.25)",
     )
-    run.add_argument("--max-requests", type=int, default=300, help="Per-trial provider request ceiling (default: 300)")
-    run.add_argument("--max-input-tokens", type=int, default=2_000_000, help="Per-trial input token ceiling (default: 2000000)")
-    run.add_argument("--max-output-tokens", type=int, default=300_000, help="Per-trial output token ceiling (default: 300000)")
     run.add_argument(
-        "--attempts", type=int, default=1,
+        "--max-requests",
+        type=int,
+        default=300,
+        help="Per-trial provider request ceiling (default: 300)",
+    )
+    run.add_argument(
+        "--max-input-tokens",
+        type=int,
+        default=2_000_000,
+        help="Per-trial input token ceiling (default: 2000000)",
+    )
+    run.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=300_000,
+        help="Per-trial output token ceiling (default: 300000)",
+    )
+    run.add_argument(
+        "--attempts",
+        type=int,
+        default=1,
         help="Independent trials per task (default: 1); use >1 to average over serving noise",
     )
     run.set_defaults(func=_rollout_run_command)

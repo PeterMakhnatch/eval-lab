@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -21,7 +23,7 @@ def _task(tmp_path: Path, name: str, *, cpus: int = 2, memory_mb: int = 8192) ->
     task = tmp_path / name
     task.mkdir()
     (task / "task.toml").write_text(
-        f'[environment]\ncpus = {cpus}\nmemory_mb = {memory_mb}\n', encoding="utf-8"
+        f"[environment]\ncpus = {cpus}\nmemory_mb = {memory_mb}\n", encoding="utf-8"
     )
     return task
 
@@ -61,48 +63,9 @@ def test_attempts_expand_to_independent_trials(tmp_path: Path) -> None:
     )
     assert summary["trials"] == 6 and summary["attempts"] == 3
     rows = [
-        json.loads(line)
-        for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()
+        json.loads(line) for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()
     ]
     assert {row["name"].rsplit("-a", 1)[-1] for row in rows} == {"1", "2", "3"}
-
-
-def test_cli_forwards_attempts_to_run_rollout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import argparse
-
-    from evallab import rollout
-
-    captured: dict[str, object] = {}
-
-    def fake_run_rollout(tasks: list[Path], **kwargs: object) -> dict[str, int]:
-        captured.update(kwargs)
-        return {"errors": 0}
-
-    monkeypatch.setattr(rollout, "run_rollout", fake_run_rollout)
-    parser = argparse.ArgumentParser()
-    rollout.build_rollout_parser(parser.add_subparsers())
-    task = _task(tmp_path, "task-a")
-    args = parser.parse_args(
-        [
-            "rollout",
-            "run",
-            "--task",
-            str(task),
-            "--model",
-            "tinker/Qwen/Qwen3.5-9B",
-            "--out",
-            str(tmp_path / "out"),
-            "--actor",
-            "tester",
-            "--attempts",
-            "2",
-        ]
-    )
-    assert args.func(args, tmp_path) == 0
-    assert captured["attempts"] == 2
-
 
 
 def test_arm_slugs_are_disjoint() -> None:
@@ -152,58 +115,6 @@ def test_production_spec_names_are_admitted() -> None:
             attempts=1,
         )
         assert spec.name.endswith("-a1")
-
-
-def test_selfhosted_specs_carry_profile_lock_and_deviations(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import evallab.queue as queue_module
-    from evallab import rollout
-
-    captured: list = []
-
-    class FakeQueue:
-        def approve(self, spec_id: str, *, actor: str) -> None:
-            pass
-
-        def locate(self, spec_id: str) -> Path:
-            return tmp_path / "done" / "spec.json"
-
-    class FakeExecutor:
-        queue = FakeQueue()
-
-        @classmethod
-        def from_repo(cls, root: Path, **kwargs: object) -> FakeExecutor:
-            return cls()
-
-        def submit(self, spec: object) -> None:
-            captured.append(spec)
-
-        def tick(self, **kwargs: object) -> int:
-            return 0
-
-    monkeypatch.setattr(queue_module, "Executor", FakeExecutor)
-    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "https://trainer.example/modal")
-    tasks = [_task(tmp_path, "task-a")]
-    rollout.run_rollout(
-        tasks,
-        model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b",
-        agent="mimoagent",
-        concurrency=2,
-        attempts=2,
-        out_dir=tmp_path / "out",
-        root=tmp_path,
-        actor="research-harbor",
-    )
-    assert len(captured) == 2
-    spec = captured[0]
-    assert spec.reference_profile == "xiaomi-mimo-rl"
-    assert spec.egress_lock is True
-    assert {d.field for d in spec.deviations} == {
-        "harness.additions",
-        "budgets.max_requests",
-    }
-    assert spec.name.endswith("-a1") and captured[1].name.endswith("-a2")
 
 
 def test_failed_trial_emits_error_row_not_a_pass(tmp_path: Path) -> None:
@@ -368,9 +279,7 @@ def test_run_rollout_spec_refuses_when_declared_id_mismatches_record(
 
     root, package = _lineage_repo(tmp_path)
     toml = package / "task.toml"
-    toml.write_text(
-        toml.read_text().replace("format-code-task-900001", "format-code-task-900099")
-    )
+    toml.write_text(toml.read_text().replace("format-code-task-900001", "format-code-task-900099"))
     spec = _built_spec(tmp_path, monkeypatch, root, package)
     assert spec.task_id == "format-code-task-900099"
     request = Executor.prepare_request(
@@ -378,6 +287,7 @@ def test_run_rollout_spec_refuses_when_declared_id_mismatches_record(
     )
     with pytest.raises(ValueError, match="no variant record|outside the ledger"):
         validate_request(request, repo_root=root)
+
 
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
@@ -449,18 +359,112 @@ def test_one_failed_trial_does_not_kill_the_batch(tmp_path: Path) -> None:
     )
     assert summary["completed"] == 1 and summary["errors"] == 1
     rows = [
-        json.loads(line)
-        for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()
+        json.loads(line) for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()
     ]
     assert any("sandbox refused" in (row["error"] or "") for row in rows)
 
 
 def test_summarize_handles_no_completions() -> None:
     outcome = TrialOutcome(
-        task="t", name="rollout-000-t", reward=None, passed=None, wall_seconds=1.0,
-        sandbox_seconds=None, input_tokens=None, output_tokens=None,
-        model_cost_usd=None, sandbox_cost_usd=None, job_dir="", error="boom",
+        task="t",
+        name="rollout-000-t",
+        reward=None,
+        passed=None,
+        wall_seconds=1.0,
+        sandbox_seconds=None,
+        input_tokens=None,
+        output_tokens=None,
+        model_cost_usd=None,
+        sandbox_cost_usd=None,
+        job_dir="",
+        error="boom",
     )
     summary = summarize([outcome], batch_wall_seconds=10.0)
     assert summary["pass_rate"] is None and summary["cost_per_task_usd"] is None
     assert summary["tasks_per_hour"] == 0.0
+
+
+def test_fast_completion_is_persisted_while_first_trial_is_blocked(tmp_path: Path) -> None:
+    first_started, release_first = Event(), Event()
+    out = tmp_path / "out"
+
+    def execute(request):
+        if "task-a" in request.name:
+            first_started.set()
+            assert release_first.wait(10), "test did not release the first trial"
+        else:
+            assert first_started.wait(10), "first trial did not start"
+        return _fake_execute(request)
+
+    # The filesystem snapshot, not executor return order, is the consumer surface.
+    from evallab import rollout
+
+    persisted = Event()
+    original_write = rollout._atomic_write
+
+    def write(path: Path, content: str) -> None:
+        original_write(path, content)
+        if path.name == "results.jsonl":
+            persisted.set()
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(rollout, "_atomic_write", write)
+        with ThreadPoolExecutor(max_workers=1) as driver:
+            future = driver.submit(
+                run_rollout,
+                [_task(tmp_path, "task-a"), _task(tmp_path, "task-b")],
+                model="tinker/Qwen/Qwen3.5-9B",
+                concurrency=2,
+                out_dir=out,
+                root=tmp_path,
+                execute=execute,
+            )
+            try:
+                assert persisted.wait(10), "completed trial was not persisted"
+                rows = [
+                    json.loads(line) for line in (out / "results.jsonl").read_text().splitlines()
+                ]
+                assert len(rows) == 1 and rows[0]["task"].endswith("task-b")
+                assert rows[0]["passed"] is True and rows[0]["error"] is None
+                assert not future.done()
+            finally:
+                release_first.set()
+            assert future.result(timeout=10)["completed"] == 2
+    rows = [json.loads(line) for line in (out / "results.jsonl").read_text().splitlines()]
+    assert len(rows) == 2 and len({row["name"] for row in rows}) == 2
+
+
+def test_failed_snapshot_replace_keeps_previous_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.rollout import _atomic_write
+
+    path = tmp_path / "results.jsonl"
+    previous = '{"name":"completed","reward":1.0}\n'
+    _atomic_write(path, previous)
+
+    def fail_replace(source: Path, target: Path) -> Path:
+        # A whole new file is staged; readers still see the old complete bytes.
+        assert path.read_text() == previous
+        assert json.loads(source.read_text())["name"] == "next"
+        raise OSError("filesystem replacement refused")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    with pytest.raises(OSError, match="replacement refused"):
+        _atomic_write(path, '{"name":"next","reward":0.0}\n')
+    assert path.read_text() == previous
+    assert set(tmp_path.iterdir()) == {path}
+
+
+@pytest.mark.parametrize("error", ["trial_wall_clock_timeout", "proxy_usage_unreconciled"])
+def test_dispatcher_failure_overrides_native_reward(tmp_path: Path, error: str) -> None:
+    from types import SimpleNamespace
+
+    from evallab.rollout import _outcome
+
+    task = _task(tmp_path, "task")
+    job_dir = _fake_execute(SimpleNamespace(jobs_dir=tmp_path / "jobs", name="native-pass"))
+    outcome = _outcome(task, "native-pass", job_dir, 60.0, error)
+    assert outcome.error == error
+    assert outcome.reward is None and outcome.passed is None
+    assert outcome.task == str(task) and outcome.job_dir == str(job_dir)

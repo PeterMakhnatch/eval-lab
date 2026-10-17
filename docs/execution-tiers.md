@@ -79,10 +79,14 @@ before first use — do not guess it.
 
 Modal launches pass `sandbox_timeout_secs` to Harbor rather than inheriting its
 24-hour provider lifetime. The default is the request's trial watchdog (agent
-timeout plus the 600-second phase allowance). An explicit
-`RunRequest.modal_sandbox_timeout_seconds` may tighten that deadline, but must
-be a positive integer no greater than the watchdog and is refused on other
-backends. The separate verifier inherits the same runtime environment kwargs.
+timeout plus the 600-second phase allowance).
+`RunRequest`, `ExperimentMatrix` and `ExperimentSpec` expose
+`modal_sandbox_timeout_seconds` to tighten that deadline. It must be a positive
+integer no greater than the watchdog and is refused on other backends.
+Matrices and queued specs also preserve `modal_app_name` and
+`modal_resource_policy: limit` through the native `RunRequest`; unset fields
+stay omitted from their serialized forms, preserving existing input identities.
+The separate verifier inherits the same runtime environment kwargs.
 A provider deadline that interrupts a control is incomplete infrastructure
 evidence, not proof that the reference fix is wrong.
 
@@ -102,6 +106,67 @@ egress; missing or delayed billing is not settled zero. A funded campaign must
 still account for those costs and other live allocations within its approved
 cap. See the [MiMo v6 readiness receipt](../research/experiments/mimo-clean-v6/README.md#modal-x1-continuation-2026-10-15-not-run)
 for the deliberately unlaunched hard-cap case.
+
+### Setup and task Python are separate runtime boundaries
+
+The native Modal route uses `evallab.harbor_modal:TaskModalEnvironment`;
+`LockedModalEnvironment` and `RegradeModalEnvironment` inherit the same
+interpreter behavior. There is **no global `persistent_env.PATH` override**.
+Agent commands, the verifier's grading script and its task test commands retain
+the image/task PATH and installed dependencies. Installing pytest into a
+different interpreter, adding dependency paths across Python versions, or
+changing a task package to mask an interpreter mismatch is not a runtime fix.
+
+MiMo's benign `environment/setup/setup.sh` needs a modern interpreter in some
+images whose task Python is older. Only that environment's setup healthcheck
+gets the `/usr/bin`-first helper PATH (`MODAL_PATH_PIN`). Healthchecks without
+that readable setup contract keep the task PATH. The primary sandbox starts
+normally, then Harbor runs its healthcheck; this route does not read or upload
+the sibling hidden `tests/`, test patch, grading source, or reference solution
+to bootstrap the agent. The helper environment is scoped to the call, not
+mutated on the environment object or leaked to later task execs.
+
+Harbor 0.24 does **not** run an equivalent setup healthcheck for a bundled
+separate verifier. The v6 `tests/test.sh` instead invokes its unchanged
+`_verifier-setup/setup.sh` before grading. During native verifier startup, the
+wrapper runs that existing benign setup bundle under the helper PATH, on the
+verifier's own pristine image, **before Harbor seeds any agent artifacts or
+submitted source**. Setup still performs its required cleanup. Because it
+removes `/tests` and `/logs`, the wrapper preserves/restores the verifier's
+own `/tests` inside its private grade directory, including on setup failure.
+No new sandbox or agent-side test upload is involved. The existing setup
+ready marker makes the grading script's subsequent setup call a no-op, so it
+cannot neutralize a seeded submission and the task tests use their original
+Python. Package, test, and solution bytes are unchanged.
+
+Actual bootstrap stdout/stderr, its return code and the observed ready marker
+are retained as `modal-setup-<session_id>.log` beside the trial. The grading
+script may reopen `verifier/setup.log` on each repeat; that file is not the
+sole setup receipt. Nonzero bootstrap exit or a missing ready marker fails
+environment startup as infrastructure, never as a fabricated task zero.
+Native sandbox TTLs, CPU/RAM enforcement and phase network policies remain
+in force; the locked subclass still records only policies Modal accepted.
+Regrades keep the 3,600-second maximum sandbox lifetime.
+
+The cheap executable smoke below uses the installed Harbor 0.24 lifecycle
+with an inert Modal SDK boundary, real local shell execution and real pytest.
+It checks open/locked/regrade startup, cleanup-before-seeding, ready-marker
+idempotence, hidden-input confidentiality, setup failure and task dependency
+resolution. It makes no provider, model, Docker or service calls:
+
+```bash
+.venv/bin/python -m pytest -q tests/test_harbor_modal.py -k native_modal
+```
+
+A smoke pass is not qualification of a real image. A native retry must keep
+the exact immutable package/image and solution digests, use a new matrix run
+name/output directory rather than overwriting the failed evidence, and retain
+the existing campaign's cumulative spend reservations. Run reference and nop
+first, then the admitted prompt-valid alternate and known-wrong control through
+the existing Eval Lab qualification path, with the same bounded Modal
+app/resources/TTL and three verifier observations for each positive control.
+A `No module named pytest` result is infrastructure evidence; neither a repair
+nor the backend is qualified until the real reference/alternate retry passes.
 
 ## Running locally (free)
 

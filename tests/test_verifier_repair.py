@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
+import os
+import re
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,7 +22,9 @@ from evallab.verifier_repair import (
     RepairError,
     RepairProposal,
     RepairTest,
+    RepairTestEdit,
     build_command_wrapper,
+    derive_repair_variant,
     ensure_quota,
     execute_repair,
     persisted_quota_record,
@@ -494,3 +501,297 @@ def test_survivor_dispositions_must_be_unique_known_and_disjoint(tmp_path, defec
         ]
     with pytest.raises(RepairError):
         validate_proposal(proposal, mutant_ids=[MUTANT], package_dir=plan.package_dir)
+
+
+def _overconstrained_fixture(tmp_path):
+    """A real patch/command fixture: either list or tuple is prompt-valid."""
+    package = tmp_path / "overconstrained"
+    (package / "tests").mkdir(parents=True)
+    (package / "solution").mkdir()
+    (package / "task.toml").write_text(
+        '[task]\nname="demo/overconstrained"\n[environment]\nworkdir="/testbed"\n'
+    )
+    requirement = "Return sorted unique integers as a list or tuple, without changing the input."
+    (package / "instruction.md").write_text(requirement + "\n")
+    (package / "solution/solve.sh").write_text("#!/bin/sh\ntrue\n")
+    (package / "tests/test.sh").write_text("git apply /tests/test.patch\n")
+    before = (
+        "def test_unique_sorted():\n"
+        "    result = normalize([3, 1, 3, 2])\n"
+        "    assert result == [1, 2, 3]\n"
+    )
+    after = (
+        "def test_unique_sorted():\n"
+        "    values = [3, 1, 3, 2]\n"
+        "    result = normalize(values)\n"
+        "    assert list(result) == [1, 2, 3]\n"
+    )
+    imports = "from answer import normalize\n\n"
+    # Separate hunks exercise count changes and subsequent destination offsets.
+    unrelated = (
+        "# Baseline file spacing\n" * 24
+        + "\ndef test_unrelated_input_is_not_changed():\n"
+        "    values = [3, 1]\n"
+        "    normalize(values)\n"
+        "    assert values == [3, 1]\n"
+    )
+    base = imports + unrelated
+    fixed = imports + before + "\n" + unrelated + "\n\ndef test_empty():\n    assert not normalize([])\n"
+    patch = "diff --git a/tests/test_contract.py b/tests/test_contract.py\n" + "".join(
+        difflib.unified_diff(
+            base.splitlines(keepends=True),
+            fixed.splitlines(keepends=True),
+            fromfile="a/tests/test_contract.py",
+            tofile="b/tests/test_contract.py",
+        )
+    )
+    (package / "tests/test.patch").write_text(patch)
+    (package / "tests/test_command.sh").write_text(
+        f"{shlex.quote(sys.executable)} -m pytest tests/test_contract.py -q\n"
+        "CHECK_RC=$?\nprintf 'full command ran\\n'\nexit \"$CHECK_RC\"\n"
+    )
+    proposal = RepairProposal(
+        repairable=True,
+        rationale="The instruction permits tuple output, not just list output.",
+        edits=[
+            RepairTestEdit(
+                repo_path="tests/test_contract.py",
+                before=before,
+                after=after,
+                prompt_requirement=requirement,
+                rationale="Compare the required values without forcing the optional list representation.",
+            )
+        ],
+        test_patch_sha256="sha256:" + hashlib.sha256(patch.encode()).hexdigest(),
+    )
+    return package, base, proposal
+
+
+def _derive_overconstraint(tmp_path, package, proposal):
+    return derive_repair_variant(
+        package,
+        proposal,
+        allow_test_edits=True,
+        repo_root=tmp_path,
+        derive_fn=lambda parent, **kwargs: derive_task(
+            parent, variants_root=tmp_path / "variants", **kwargs
+        ),
+    )
+
+
+def _grade_contract_fixture(root, package, base, implementation):
+    (root / "tests").mkdir(parents=True)
+    (root / "tests/test_contract.py").write_text(base)
+    (root / "answer.py").write_text(implementation)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "apply", str(package / "tests/test.patch")],
+        cwd=root, check=True, capture_output=True, text=True,
+    )
+    return subprocess.run(
+        ["sh", "-c", (package / "tests/test_command.sh").read_text()],
+        cwd=root,
+        env={**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "PYTEST_ADDOPTS": ""},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_replacement_accepts_prompt_valid_alternate_but_rejects_wrong_behavior(tmp_path):
+    package, base, proposal = _overconstrained_fixture(tmp_path)
+    parent_digest = compute_task_digests(package)
+    alternate = "def normalize(values):\n    return tuple(sorted(set(values)))\n"
+    original = _grade_contract_fixture(tmp_path / "original", package, base, alternate)
+    assert original.returncode != 0, original.stdout + original.stderr
+    validate_proposal(proposal, mutant_ids=[], package_dir=package, allow_test_edits=True)
+    record = _derive_overconstraint(tmp_path, package, proposal)
+    variant = materialize(
+        record, package, repo_root=tmp_path, variants_root=tmp_path / "variants"
+    )
+    for name, implementation, expected in (
+        ("reference", "def normalize(values):\n    return sorted(set(values))\n", 0),
+        ("alternate", alternate, 0),
+        ("wrong", "def normalize(values):\n    return tuple(sorted(values))\n", 1),
+        (
+            "break-unrelated",
+            "def normalize(values):\n"
+            "    result = sorted(set(values))\n"
+            "    values.clear()\n"
+            "    return tuple(result)\n",
+            1,
+        ),
+    ):
+        result = _grade_contract_fixture(tmp_path / name, variant, base, implementation)
+        assert result.returncode == expected, result.stdout + result.stderr
+        assert "full command ran" in result.stdout
+    assert compute_task_digests(package) == parent_digest
+    assert record.components_changed == ["verifier"]
+    assert record.status == "candidate"  # Local fixture execution is not native certification.
+    assert record.transform == "verifier-repair@1"
+    assert record.inputs["edits"][0] == proposal.edits[0].model_dump(mode="json")
+    assert record.inputs["test_patch_sha256"] == proposal.test_patch_sha256
+    assert (variant / "tests/test_command.sh").read_bytes() == (
+        package / "tests/test_command.sh"
+    ).read_bytes()
+
+
+@pytest.mark.parametrize("boundary", ["validate", "derive"])
+def test_existing_test_edits_need_opt_in_at_every_public_boundary(tmp_path, boundary):
+    package, _, proposal = _overconstrained_fixture(tmp_path)
+    with pytest.raises(RepairError, match="opt-in"):
+        if boundary == "validate":
+            validate_proposal(proposal, mutant_ids=[], package_dir=package)
+        else:
+            derive_repair_variant(package, proposal, repo_root=tmp_path)
+    assert not (tmp_path / "library/task-variants").exists()
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "stale-digest", "missing-digest", "wrong-preimage", "unquoted-requirement",
+        "blank-rationale", "production", "command-artifact", "unknown-test",
+        "duplicate", "rename", "signature", "decorator", "extra-module-code",
+        "no-checks", "literal-check", "constant-comparison", "skip", "catch",
+        "early-return", "generator", "source-fingerprint", "command-replacement",
+        "too-large", "no-op",
+    ],
+)
+def test_overconstraint_edits_fail_closed_before_derivation(tmp_path, defect):
+    package, _, proposal = _overconstrained_fixture(tmp_path)
+    edit = proposal.edits[0]
+    if defect == "stale-digest":
+        proposal.test_patch_sha256 = "sha256:" + "0" * 64
+    elif defect == "missing-digest":
+        proposal.test_patch_sha256 = None
+    elif defect == "wrong-preimage":
+        edit.before = edit.before.replace("[3, 1, 3, 2]", "[9, 8]")
+    elif defect == "unquoted-requirement":
+        edit.prompt_requirement = "Require only tuple output."
+    elif defect == "blank-rationale":
+        edit.rationale = " "
+    elif defect == "production":
+        edit.repo_path = "answer.py"
+    elif defect == "command-artifact":
+        edit.repo_path = "tests/test_command.sh"
+    elif defect == "unknown-test":
+        edit.repo_path = "tests/test_unknown.py"
+    elif defect == "duplicate":
+        proposal.edits.append(edit.model_copy(deep=True))
+    elif defect == "rename":
+        edit.after = edit.after.replace("test_unique_sorted", "test_other")
+    elif defect == "signature":
+        edit.after = edit.after.replace("test_unique_sorted()", "test_unique_sorted(fixture)")
+    elif defect == "decorator":
+        edit.after = "@pytest.mark.skip\n" + edit.after
+    elif defect == "extra-module-code":
+        edit.after += "\nnormalize = lambda values: [1, 2, 3]\n"
+    elif defect == "no-checks":
+        edit.after = "def test_unique_sorted():\n    pass\n"
+    elif defect == "literal-check":
+        edit.after = "def test_unique_sorted():\n    assert True\n"
+    elif defect == "constant-comparison":
+        edit.after = "def test_unique_sorted():\n    assert 1 == 1\n"
+    elif defect == "skip":
+        edit.after = edit.after.replace("    values =", "    pytest.skip('optional')\n    values =")
+    elif defect == "catch":
+        edit.after = (
+            "def test_unique_sorted():\n    try:\n"
+            "        assert list(normalize([3, 1, 3, 2])) == [1, 2, 3]\n"
+            "    except AssertionError:\n        pass\n"
+        )
+    elif defect == "early-return":
+        edit.after = edit.after.replace("    values =", "    if True:\n        return\n    values =")
+    elif defect == "generator":
+        edit.after = edit.after.replace("    values =", "    yield None\n    values =")
+    elif defect == "source-fingerprint":
+        edit.after = edit.after.replace(
+            "    values =", "    import inspect\n    inspect.getsource(normalize)\n    values ="
+        )
+    elif defect == "command-replacement":
+        proposal.command = "python -m pytest tests/test_contract.py -k nothing"
+    elif defect == "too-large":
+        edit.after += "#" * 8192 + "\n"
+    elif defect == "no-op":
+        edit.after = edit.before
+    with pytest.raises(RepairError):
+        _derive_overconstraint(tmp_path, package, proposal)
+    assert not (tmp_path / "library/task-variants").exists()
+
+
+@pytest.mark.parametrize("defect", ["bad-counts", "symlink", "context-only"])
+def test_edit_rewriter_rejects_unsupported_or_unbound_patch_preimages(tmp_path, defect):
+    package, _, proposal = _overconstrained_fixture(tmp_path)
+    path = package / "tests/test.patch"
+    patch = path.read_text()
+    if defect == "bad-counts":
+        patch = re.sub(r"(@@ -\d+),\d+", r"\1,99999", patch, count=1)
+    elif defect == "symlink":
+        patch = patch.replace(
+            "diff --git a/tests/test_contract.py b/tests/test_contract.py\n",
+            "diff --git a/tests/test_contract.py b/tests/test_contract.py\n"
+            "new file mode 120000\n",
+        )
+    else:
+        # A same-named baseline test is not an authorized hidden addition.
+        proposal.edits[0].before = (
+            "def test_unrelated_input_is_not_changed():\n"
+            "    values = [3, 1]\n"
+            "    normalize(values)\n"
+            "    assert values == [3, 1]\n"
+        )
+        proposal.edits[0].after = proposal.edits[0].before.replace("[3, 1]", "[4, 2]")
+    path.write_text(patch)
+    proposal.test_patch_sha256 = "sha256:" + hashlib.sha256(patch.encode()).hexdigest()
+    with pytest.raises(RepairError):
+        _derive_overconstraint(tmp_path, package, proposal)
+
+
+def test_edits_and_additions_both_run_with_original_command_and_failure_semantics(tmp_path):
+    package, base, proposal = _overconstrained_fixture(tmp_path)
+    root = tmp_path / "mixed-grade"
+    (package / "task.toml").write_text(
+        f'[task]\nname="demo/overconstrained"\n[environment]\nworkdir="{root}"\n'
+    )
+    proposal.edits[0].after = (
+        "def test_unique_sorted():\n"
+        "    values = [3, 1, 3, 2]\n"
+        "    try:\n"
+        "        assert list(normalize(values)) == [1, 2, 3]\n"
+        "    finally:\n"
+        "        values.clear()\n"
+    )
+    proposal.tests = [
+        RepairTest(
+            id="negatives",
+            repo_path="tests/test_negative.py",
+            code=(
+                "from answer import normalize\n\n"
+                "def test_negative_values():\n"
+                "    assert list(normalize([-3, -1, -3])) == [-3, -1]\n"
+            ),
+        )
+    ]
+    proposal.command = f"{shlex.quote(sys.executable)} -m pytest tests/test_negative.py -q"
+    record = _derive_overconstraint(tmp_path, package, proposal)
+    variant = materialize(
+        record, package, repo_root=tmp_path, variants_root=tmp_path / "variants"
+    )
+    good = _grade_contract_fixture(
+        root, variant, base, "def normalize(values):\n    return tuple(sorted(set(values)))\n"
+    )
+    assert good.returncode == 0, good.stdout + good.stderr
+    (root / "answer.py").write_text(
+        "def normalize(values):\n    return tuple(sorted({abs(value) for value in values}))\n"
+    )
+    wrong = subprocess.run(
+        ["sh", "-c", (variant / "tests/test_command.sh").read_text()],
+        cwd=root,
+        env={**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1", "PYTEST_ADDOPTS": ""},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert wrong.returncode != 0, wrong.stdout + wrong.stderr
+    assert "full command ran" in wrong.stdout

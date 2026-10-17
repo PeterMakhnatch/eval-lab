@@ -166,17 +166,60 @@ separate `--stages exploit` probe is requested.
   evidence, rather than rerunning the model blindly.
   Optional model metadata may be null: recorded identity comes from the
   caller-selected subscription route, not the proposal's self-description.
-  A null command is allowed only for an explicit not-repairable response.
+  A null command is allowed for an explicit not-repairable response or an
+  opted-in edit-only proposal; new test files always need a command.
   Malformed or unsafe proposals are `blocked`, not proof that the task is
   unrepairable. A CLI reconnect notice can be followed by one valid completed
   text-only turn; its original transcript and usage remain authoritative.
   Failed, incomplete, rerouted, or multiple turns still fail closed.
 
-  The proposal appends new test-file diffs to `tests/test.patch` and wraps
-  `tests/test_command.sh`, preserving the original suite's exit status.
-  MiMo v5's pristine and candidate phases both receive the additional tests.
-  Variants use the existing `tasks derive` implementation and lineage store;
-  original task packages, production source and solutions remain unchanged.
+  By default the proposal appends new test-file diffs to `tests/test.patch`
+  and wraps `tests/test_command.sh`, preserving the original suite's exit
+  status. MiMo v5's pristine and candidate phases both receive the additional
+  tests. Variants use the existing `tasks derive` implementation and lineage
+  store; original task packages, production source and solutions remain
+  unchanged.
+
+  **2026-10-17 contract update — explicit overconstraint repair.**
+  `--allow-test-edits` (also on `hack ref-repair`) enables optional `edits`
+  in the same `evallab.verifier_repair.proposal/v1` schema. Without this
+  caller opt-in, existing-test edits are blocked at both validation and
+  derivation. Ordinary append-only proposals are unchanged.
+  - Every edit has `repo_path`, `before`, `after`, `prompt_requirement` and
+    `rationale`. `prompt_requirement` must quote `instruction.md` verbatim;
+    rationale explains the overconstraint and retained required behavior.
+    The proposal's `test_patch_sha256` must be the SHA-256 of the **original
+    complete** `tests/test.patch`, formatted `sha256:<64 lowercase hex>`.
+  - `before` must match exactly one complete top-level Python `test_`
+    function wholly **added** by that patch, in a `test_*.py` file under
+    `test/` or `tests/`. `after` replaces just that function, with unchanged
+    name, signature and decorators. Both end in a newline. Imports needed
+    by a replacement belong inside the test, not in shared helpers.
+  - Patch context/removals, unrelated tests, helpers, command-selection
+    artifacts, production, environment, instruction and solution are not
+    writable. The rewriter adjusts hunk counts and later destination offsets.
+    Unsupported patch modes/metadata, ambiguous preimages, skips/xfails,
+    caught failures, early returns/yields, deleted checks and vacuous literal
+    assertions are blocked. Structural checks are not semantic certification.
+  - At most eight new files plus edits; each new file and each edit's
+    before/after is at most 8 KiB, with a combined 32 KiB code bound.
+    An edit-only proposal uses `tests: []` and `command: null`, leaving
+    `tests/test_command.sh` **byte-for-byte unchanged**. Mixed proposals
+    still run the entire original command before every newly added test.
+  - `derive_repair_variant(..., allow_test_edits=True)` uses the existing
+    `derive_task` / `verifier-repair@1` lineage, retaining the immutable
+    parent digest, original patch SHA-256, exact test preimages, replacements
+    and requirement/rationale. Direct derivation creates a **candidate**,
+    not a measured repair; it does not require inventing a mutation survivor.
+  - Scope-review every edit and grade the actual separate verifier on the
+    reference, nop, a prompt-valid alternate and an actually wrong submission,
+    plus all known incorrect survivors. For 001269, cover both permitted
+    strict-decorator designs, missing/fired requests and state restoration;
+    do not merely ignore the unexpected-keyword error. Reference/nop alone,
+    or a local synchronous fixture, does **not** establish 001269 repaired.
+    Report-based CLI admission and survivor-disposition requirements still
+    apply; the opt-in does not admit unadjudicated mutation survivors.
+
   Native matrix validation replays digest-checked reference and nop first;
   failed controls stop before spending time on survivors. Task admission needs
   an executed, full-reward survivor, but validation then replays **every**
@@ -301,8 +344,10 @@ separate `--stages exploit` probe is requested.
     proposals with **no model call**. Its receipt hashes the input proposal;
     it does not manufacture a quota reading or repeat token usage.
   - Test-only variants append new tests and preserve the original command's
-    exit status. Bare `python`/`python3` use `/opt/test_venv/bin/python3` when
-    available; explicit interpreter paths remain explicit.
+    exit status. `--allow-test-edits` additionally permits the preimage-bound
+    function replacements described above; it does not weaken report intake
+    or remove any expected shortcut. Bare `python`/`python3` use
+    `/opt/test_venv/bin/python3` when available; explicit paths stay explicit.
   - Acceptance requires full reference **3/3**, nop **0/3**, and every
     expected shortcut exactly once with reward 0. Missing, duplicate,
     substituted or unscored checks cannot certify a repair.
@@ -311,8 +356,18 @@ separate `--stages exploit` probe is requested.
     never `repaired`. Other outcomes are `rejected`, `unrepairable`, `blocked`.
     Unsupported patch paths, file-mode changes and symlinks are blocked,
     not silently converted into a weaker submission.
-    Reports with surviving line-level mutations are refused: this block-replay
-    stage must not silently omit those additional passing submissions.
+    By default, reports with surviving line-level mutations are refused rather
+    than silently dropping those additional passing submissions.
+  - `--supported-findings findings.jsonl --findings-root ROOT` explicitly admits
+    digest-bound, verified `qa.finding/v1` prompt-level block or line witnesses.
+    Intake binds each **complete** reproducer patch to the original report's
+    minimal/full-mutant artifact and scored full/nop/witness observations. Real
+    native `grades.log` observations may supply controls absent from a
+    line-backfill JSON summary; conflicting or duplicate observations are
+    blocked. No sibling atlas is required. Absolute original evidence paths
+    and root-relative portable copies are accepted only inside their bound
+    evidence roots. The full original report is retained, every input is
+    hash-pinned, and any unadmitted line scope keeps the result `partial`.
   - Receipts (result, expected shortcut IDs, proposal, quota when a model is
     called, usage/proposal provenance) land in `--output-dir`. Attempts are
     not overwritten; failed lineage updates remain explicit in the result.
@@ -334,6 +389,75 @@ are `survivors_found` / `no_survivors` / `no_mutants` / `task_broken` / `unscore
 The authoring procedure — legitimacy rules, channel order, honesty requirements —
 is `.omp/skills/reward-hacking-audit/SKILL.md`. Only the replay adapter is
 Harbor-specific; the ledger and rules port to other harnesses unchanged.
+
+## Repaired-test trajectories and selection studies
+
+The October 17 intervention is implemented under
+`research/experiments/test-repair-performance-20261017/`; these scripts use
+native Eval Lab execution, queueing, replay and ingestion rather than another
+provider lane. Their default plans do not dispatch models or sandboxes. Paid
+execution additionally requires the parent's cumulative native gate and
+separately attributed, independently stopped serving window inside its total
+approval. Reservations and delayed billing are not settled spend.
+
+- `partition.py inventory` binds immutable native trial UUIDs and original
+  model/reward, deduplicates byte-identical aliases and reports every manifest
+  task's coverage. `join` consumes real exact-package replay receipts. Only
+  observed original/repaired `1/1` and `1/0` become true/false passes; missing,
+  conflicting or infrastructure observations stay unmeasured. A semantic
+  `repaired` label cannot replace native reference/nop control custody.
+  Mechanically admitted `partial` variants retain their unresolved scope.
+- `correction_data.py requests` excludes **all 33 frozen parent IDs before
+  generation**, plus source and manifest contamination holds. It binds the
+  actual incomplete patch, original task text and finite-vocabulary failing
+  diagnostics; no hidden test source, expected value, exception message,
+  reference patch or historical assistant response is forwarded. Task text is
+  read with Harbor's universal-newline boundary while the raw file hash is
+  preserved; added historical instructions still fail the fidelity check.
+- `run_corrections.py` prepares the real native MiMo spec and only dispatches
+  explicitly selected, same-checkpoint requests under an authenticated owned
+  server receipt. The training endpoint uses the exact repaired package.
+  Its real native grade is a direct repaired observation, not a fabricated
+  counterfactual receipt or a reason to pay for the same grading twice.
+  Runtime ceilings and prompt additions remain explicit setup deviations.
+  Xiaomi's native protocol omits per-request `max_tokens`; the proxy reserves
+  the full served context before upstream. Cumulative trial token ceilings
+  must accommodate that reservation without introducing a response-token clamp.
+  Request, time and independent CPU/GPU spend fences remain in force. A parent
+  may explicitly close only a SHA-bound first-request proxy 429 with zero native
+  usage, no assistant turn and no candidate patch. Its dispatch stays charged;
+  sampled answers can never be discarded or rerolled through that closure.
+- `correction_data.py export --execution <executions.jsonl>` consumes untouched
+  native output: actual UUID, request/spec/lock/fingerprint, model, conversation,
+  tool calls, reasoning and retained patch custody. Only clean observed repaired
+  successes become source-faithful `evallab.sft_terminus/1` targets, rendered with
+  the pinned tokenizer and verified last-assistant loss mask. Failed, copied,
+  teacher, ambiguous, non-Idle and budget-stop outputs retain exclusion reasons.
+  An empty export is a prerequisite report, not successful training delivery.
+- `evaluation_corrections.py` is a separate fixed-plan **evaluation-only**
+  path, never a weakened training exclusion set. It generates on the original
+  frozen package; `postgrade_evaluation.py` then executes one real corrected
+  patch replay on its pinned repaired grader, explicitly reusing only
+  artifact-validated prior controls. Original-grader success is not repaired
+  success, and the new student's UUID never replaces the original a1 UUID.
+  Legacy `agent.diff` or genuinely proven pre-hidden `agent.kept.diff` is
+  required; no patch or historical workspace is synthesized.
+- `analyze.py` retains fixed attempt order, coverage and unmeasured tasks.
+  Repaired Best-of-N selection and self-correction must disclose reuse of the
+  repaired grader as their evaluation endpoint. Report the actual sample,
+  runtime/protocol confounds and uncertainty; neither a control pass nor an
+  unexecuted pass-through establishes downstream model lift.
+
+Native model admission also requires a genuine owned VariantRecord chain and
+its exact named-profile scope. Replay authentic recorded deltas through
+`derive_task` into a private package store when restoring missing records; bind
+retained real controls through append-only status evidence. Do not rewrite an
+archival local-parent record, widen the global transform allowlist, omit
+behavioral reference fields, or promote package hashes into Harbor lock hashes.
+The study-only `xiaomi-mimo-envcheck-feedback-20261017` profile does not alter
+the standing Xiaomi profile or designate its repaired endpoint as a frozen
+scoring package.
+
 
 
 ## Stage 0: read the files (free, no Docker)

@@ -27,6 +27,7 @@ import ast
 import hashlib
 import json
 import os
+from collections.abc import Iterator
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -756,11 +757,26 @@ def check_deviations(
     return uncovered, stale
 
 
+def _variant_record_paths(repo_root: Path, digest: str) -> Iterator[Path]:
+    """Try native digest filenames first without dropping legacy record lookup."""
+    root = repo_root / TASK_VARIANTS_RELATIVE
+    raw = digest.removeprefix("sha256:")
+    preferred = (
+        sorted(root.glob(f"*/{raw[:12]}.json"))
+        if len(raw) == 64 and all(char in "0123456789abcdef" for char in raw)
+        else []
+    )
+    yield from preferred
+    for path in sorted(root.glob("*/*.json")):
+        if path not in preferred:
+            yield path
+
+
 def registered_variant(repo_root: Path, task_id: str | None, digest: str | None) -> str | None:
     """Record path of a ``library/task-variants`` variant of ``task_id`` with this digest."""
     if not task_id or not digest:
         return None
-    for path in sorted((repo_root / TASK_VARIANTS_RELATIVE).glob("*/*.json")):
+    for path in _variant_record_paths(repo_root, digest):
         try:
             record = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):
@@ -813,7 +829,7 @@ def variant_lineage_summary(
         return summary
     rel: str | None = None
     payload: dict[str, Any] | None = None
-    for path in sorted((repo_root / TASK_VARIANTS_RELATIVE).glob("*/*.json")):
+    for path in _variant_record_paths(repo_root, digest):
         try:
             candidate = json.loads(path.read_text())
         except (OSError, ValueError, UnicodeDecodeError):

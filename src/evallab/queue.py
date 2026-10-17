@@ -3096,6 +3096,9 @@ class Executor:
             name=spec.name,
             jobs_dir=jobs_dir,
             environment=spec.environment,
+            modal_app_name=spec.modal_app_name,
+            modal_resource_policy=spec.modal_resource_policy,
+            modal_sandbox_timeout_seconds=spec.modal_sandbox_timeout_seconds,
             egress_lock=spec.egress_lock,
             # Harbor's installed agents hard-require a model name; specs that
             # do not pin one fall back to the per-agent default.

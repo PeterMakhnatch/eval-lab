@@ -231,14 +231,14 @@ TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
 TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_docker:LockedDockerEnvironment"
+MODAL_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_modal:TaskModalEnvironment"
 LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_modal:LockedModalEnvironment"
 HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH = (
     "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment"
 )
-#: Modal exec resolves `python3` to the image's /usr/local/bin interpreter
-#: (3.6.15 in the MiMo images); the packages' setup heredocs need the /usr/bin
-#: interpreter (3.9+), as in Docker. Every Modal environment, healthcheck
-#: included, runs with this PATH (001948, 001647; measured 2026-10-16).
+#: Setup helpers need the modern /usr/bin interpreter in images whose task
+#: Python is older (001948, 001647). This is a setup-only scope: the image's
+#: original PATH must continue to select the task interpreter and dependencies.
 MODAL_PATH_PIN = "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
@@ -2410,6 +2410,8 @@ def build_command(
         # The wrapper records the policy Modal actually applies into
         # egress-lock.json; stock Modal leaves no runtime lock record.
         environment = LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH
+    elif environment == "modal":
+        environment = MODAL_ENVIRONMENT_IMPORT_PATH
     elif environment == "docker":
         environment = HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH
     command = [
@@ -2456,11 +2458,6 @@ def build_command(
         if timeout is None:
             timeout = request.trial_watchdog_seconds
         command.extend(["--environment-kwarg", f"sandbox_timeout_secs={timeout}"])
-        # Pin PATH for every Modal exec (see MODAL_PATH_PIN). Without it, v6
-        # packages with a purge-installed-copies setup step die in the healthcheck.
-        command.extend(
-            ["--environment-kwarg", "persistent_env=" + json.dumps({"PATH": MODAL_PATH_PIN})]
-        )
     _validate_modal_app_name(request)
     if request.modal_app_name is not None:
         command.extend(["--environment-kwarg", f"app_name={request.modal_app_name}"])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 from pathlib import Path
@@ -330,18 +331,31 @@ def test_shortcut_intake_rejects_history_that_cannot_be_reconstructed():
         load_shortcuts(report)
 
 
-def test_retained_proposal_needs_no_model_or_fabricated_quota(tmp_path):
+@pytest.mark.parametrize("carries_edit", [False, True])
+def test_retained_proposal_needs_no_model_or_fabricated_quota(tmp_path, carries_edit):
     plan = _plan(tmp_path)
     proposal = tmp_path / "retained.json"
-    proposal.write_text(
-        json.dumps(
-            {
-                "schema": "evallab.verifier_repair.proposal/v1",
-                "repairable": False,
-                "rationale": "The omitted changes are outside the task contract.",
-            }
+    payload = {
+        "schema": "evallab.verifier_repair.proposal/v1",
+        "repairable": False,
+        "rationale": "The omitted changes are outside the task contract.",
+    }
+    if carries_edit:
+        payload.update(
+            repairable=True,
+            mutant_ids=[s.id for s in plan.shortcuts],
+            test_patch_sha256="sha256:" + hashlib.sha256(b"").hexdigest(),
+            edits=[
+                {
+                    "repo_path": "tests/test_hidden.py",
+                    "before": "def test_hidden():\n    assert old_behavior()\n",
+                    "after": "def test_hidden():\n    assert required_behavior()\n",
+                    "prompt_requirement": "Fix the thing.",
+                    "rationale": "A retained proposal cannot authorize its own hidden-test edits.",
+                }
+            ],
         )
-    )
+    proposal.write_text(json.dumps(payload))
 
     def forbidden(*args, **kwargs):
         pytest.fail(
@@ -358,7 +372,9 @@ def test_retained_proposal_needs_no_model_or_fabricated_quota(tmp_path):
         model_caller=forbidden,
         grader=forbidden,
     )
-    assert result.verdict == "unrepairable"
+    assert result.verdict == ("blocked" if carries_edit else "unrepairable")
+    if carries_edit:
+        assert "opt-in" in result.reason
     usage = json.loads((tmp_path / "attempt" / "model-usage.json").read_text())
     assert usage["new_model_call"] is False
     assert not (tmp_path / "attempt" / "quota.json").exists()
@@ -392,3 +408,153 @@ def test_byte_only_replay_refuses_unsupported_file_types(metadata):
 
     with pytest.raises(ValueError):
         _checked_patch_paths("diff --git a/pkg/item.py b/pkg/item.py\n" + metadata + "\n")
+
+
+def _supported_witness_inputs(tmp_path):
+    package = _package(tmp_path)
+    base = "def total(values):\n    return 0\n"
+    reference = "def total(values):\n    return sum(values)\n"
+    candidate = "def total(values):\n    return sum(values[:-1])\n"
+
+    def patch(before, after):
+        return "diff --git a/pkg/mod.py b/pkg/mod.py\n" + "".join(
+            difflib.unified_diff(
+                before.splitlines(keepends=True),
+                after.splitlines(keepends=True),
+                fromfile="a/pkg/mod.py",
+                tofile="b/pkg/mod.py",
+            )
+        )
+
+    directory = tmp_path / "report"
+    (directory / "mutants").mkdir(parents=True)
+    report = _bound_report(
+        package,
+        mutants={
+            "verdict": "fail",
+            "survivors": [{"id": "line-mutant", "edit": patch(reference, candidate)}],
+        },
+    )
+    reference_path = Path(report["reference"]["patch"])
+    reference_path.write_text(patch(base, reference))
+    report["reference"]["sha256"] = hashlib.sha256(reference_path.read_bytes()).hexdigest()
+    for grade in report["grades"]:
+        grade["rc"] = 0
+    (directory / "report.json").write_text(json.dumps(report))
+    complete = patch(base, candidate)
+    (directory / "mutants" / "line-mutant.patch").write_text(complete)
+    (directory / "grades.log").write_text(
+        "== full reward=1.0 rc=0 scored 0.1s\n"
+        "== nop reward=0.0 rc=0 scored 0.1s\n"
+        "== mutant:line-mutant reward=1.0 rc=0 scored 0.1s\n"
+    )
+    root = tmp_path / "findings-repository"
+    key = root / "research" / "answer-keys" / "mimo-weak-tests-v2"
+    (key / "witnesses").mkdir(parents=True)
+    witness_path = key / "witnesses" / "line-mutant.patch"
+    witness_path.write_text(complete)
+    finding = {
+        "schema": "qa.finding/v1",
+        "id": f"mimo-weak-tests-v2:{report['task_id']}:line-mutant",
+        "subject": {
+            "kind": "task",
+            "task_id": "mimo-v2.6-rl/" + report["task_id"],
+            "task_digest": report["package_digest"],
+        },
+        "stage": "S2.ref_mutants",
+        "verdict": "fail",
+        "category": "weak",
+        "severity": "high",
+        "fault": "eval",
+        "measurement": "measured",
+        "reproducer": {
+            "kind": "patch",
+            "path": witness_path.relative_to(root).as_posix(),
+            "expected_reward": 1.0,
+        },
+        "refutation": {"status": "verified", "by": "Traces semantic adjudication"},
+        "reviewer": {"agent": "Traces"},
+    }
+    findings = key / "findings-supported-v2.jsonl"
+    findings.write_text(json.dumps(finding) + "\n")
+    return directory, findings, root, base
+
+
+@pytest.mark.parametrize("representation", ["portable", "absolute", "line-backfill"])
+def test_supported_line_witness_replays_complete_submission_and_preserves_original_report(
+    tmp_path, representation
+):
+    from evallab.ref_subset import apply_reference
+
+    directory, findings, root, base = _supported_witness_inputs(tmp_path)
+    if representation == "absolute":
+        finding = json.loads(findings.read_text())
+        finding["reproducer"]["path"] = str(directory / "mutants" / "line-mutant.patch")
+        findings.write_text(json.dumps(finding) + "\n")
+    elif representation == "line-backfill":
+        report = json.loads((directory / "report.json").read_text())
+        report.update(grades=[], verdict="unknown")
+        (directory / "report.json").write_text(json.dumps(report))
+    original = (directory / "report.json").read_bytes()
+    with pytest.raises(ValueError):
+        plan_ref_repair(directory)
+    plan = plan_ref_repair(directory, supported_findings=findings, findings_root=root)
+    applied = apply_reference(plan.shortcuts[0].patch, {"pkg/mod.py": base.encode()})
+    namespace = {}
+    exec(applied["pkg/mod.py"], namespace)
+    assert namespace["total"]([1, 2, 3]) == 3
+    assert plan.report["mutants"]["survivors"][0]["id"] == "line-mutant"
+    assert (directory / "report.json").read_bytes() == original
+    assert plan.context["supported_findings"]["unadmitted_line_survivors"] == []
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        "witness_bytes", "package", "unverified", "unscored_control",
+        "wrong_stage", "escaping_path", "conflicting_control", "duplicate_mutant_grade",
+    ],
+)
+def test_supported_witness_requires_bound_semantic_admission_and_recorded_controls(tmp_path, broken):
+    directory, findings, root, _ = _supported_witness_inputs(tmp_path)
+    finding = json.loads(findings.read_text())
+    if broken == "witness_bytes":
+        (root / finding["reproducer"]["path"]).write_text("changed after adjudication\n")
+    elif broken == "package":
+        finding["subject"]["task_digest"] = "sha256:" + "0" * 64
+    elif broken == "unverified":
+        finding["refutation"]["status"] = "unverified"
+    elif broken == "unscored_control":
+        log = directory / "grades.log"
+        log.write_text(log.read_text().replace("rc=0 scored 0.1s", "rc=124 timeout 0.1s"))
+    elif broken == "wrong_stage":
+        finding["stage"] = "S2.ref_subset"
+    elif broken == "escaping_path":
+        finding["reproducer"]["path"] = "../outside.patch"
+    elif broken == "conflicting_control":
+        report = json.loads((directory / "report.json").read_text())
+        next(g for g in report["grades"] if g["label"] == "full")["reward"] = 0.0
+        (directory / "report.json").write_text(json.dumps(report))
+    else:
+        log = directory / "grades.log"
+        log.write_text(log.read_text() + "== mutant:line-mutant reward=0.0 rc=0 scored 0.1s\n")
+    findings.write_text(json.dumps(finding) + "\n")
+    with pytest.raises(ValueError):
+        plan_ref_repair(directory, supported_findings=findings, findings_root=root)
+
+
+@pytest.mark.parametrize(
+    ("reference", "shortcut", "expected"),
+    [
+        ([1, 1, 1], 0, "partial"),
+        ([1, 0, 1], 0, "rejected"),
+        ([1, 1, 1], 1, "rejected"),
+    ],
+)
+def test_unadmitted_line_scope_cannot_certify_full_repair_or_hide_a_failure(reference, shortcut, expected):
+    verdict, _ = classify_ref_validation(
+        _checks(reference, [0, 0, 0], [("admitted", shortcut)]),
+        shortcut_ids=["admitted"],
+        unadmitted=["unreviewed-line"],
+    )
+    assert verdict == expected

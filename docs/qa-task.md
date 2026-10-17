@@ -233,11 +233,11 @@ uv run evallab qa task --task <package-dir> --stages S2,S3 --no-model \
 # $0 Modal plan, including all selected tasks and conservative execution units
 # No backend, Harbor/Modal runtime, Docker, quota probe or model is constructed.
 uv run evallab qa task --task <package-dir> --environment modal --plan \
-  --concurrency 16 --max-usd 3 --usd-per-execution 0.05
+  --concurrency 16 --max-usd 3 --usd-per-execution 0.0025
 
 # Capped real cloud controls; approval is recorded, not implied by --plan
 uv run evallab qa task --task <package-dir> --environment modal \
-  --stages S0,S3 --no-model --max-usd 3 --usd-per-execution 0.05 \
+  --stages S0,S3 --no-model --max-usd 3 --usd-per-execution 0.0025 \
   --approve "Authorized CPU controls, at most USD 3 in reservations"
 
 # Digest-bound scorer (flagged vs verified); held-out rows drop items QA Task
@@ -255,7 +255,7 @@ Options: `--task`, `--key`, `--split {dev,heldout}`, `--item`,
 with no `solution/solve.sh`, the oracle; see "Workdir-bound packages"),
 `--resume-from` (reuse digest-bound measured checks and probes from an earlier
 run directory), `--environment {docker,modal}` (default Docker), `--plan`,
-`--max-usd`, `--approve`, `--usd-per-execution` (positive finite; default 0.05),
+`--max-usd`, `--approve`, `--usd-per-execution` (positive finite; default 0.0025),
 and `--concurrency` (default 1; Modal 1–16, Docker 1–2).
 Run directories are fresh and immutable (an existing `--run-dir` is an error)
 and must live inside the checkout. Layout: `run.json`, `summary.json`,
@@ -293,6 +293,16 @@ is in the run metadata/summary. Model `cost_usd` remains separate from cloud
 reservations. Reservations are conservative admission **estimates**, not
 observed provider bills and not a provider billing hard kill; a failed or
 short attempt retains its reservation.
+The Modal rate is per **allocation/preparation unit**, not per logical trial:
+each environment reserves image preparation and both possible creation attempts.
+A fresh environment reserves `$0.0075`; a separate agent/verifier trial reserves
+`$0.015`. Snapshot-based ref-subset grades reserve two units per clone instead.
+The [reference-subset calibration](task-quality.md) describes the October 17
+metered-usage cross-check and mean-based safety margin; slow or larger workloads
+need an explicit higher estimate. Plan totals and cap comparisons preserve
+sub-cent precision. QA Trace's `$0.01` logical-replay estimate is a different
+unit and must not replace this rate or be multiplied as an allocation rate.
+
 
 
 ## Models, quota gate and spend

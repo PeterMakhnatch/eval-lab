@@ -98,11 +98,26 @@ Its module help documents `repaired-data-sft-v2.inputs/1`. B requires at least51
 distinct, nonzero-loss rows passing both exact controlled graders. C is a seeded
 randomized **feasible subset**, not a uniform sample; supervised assistant-token
 exposure matches exactly over common complete epochs, or admission refuses.
-D targets only genuine new corrected assistant turns after source-preserving
-failed-test feedback and a native repaired-grader 0→1 transition. All33 frozen
-parents and resolved descendants are excluded from every training population.
+D consumes hash-bound EnvCheck `reset-context-feedback` requests: the original
+task prompt, actual incomplete patch, and an independently recomputed
+`source-free-outcome-projection/v1`. Raw failing stdout is retained evidence,
+not model input; historical conversations are not restored. A genuine completed
+same-model correction must change the patch and produce a native repaired-grader
+replay 0→1 transition on the same exact qualified grader with valid controls.
+Only the genuinely new final main-agent assistant target carries loss (`last`).
+Native original and repaired outcomes remain separately labelled; this is
+mechanical repaired-grader evidence, not independently established semantic truth.
+Original-positive B/C admission rejects every non-null native exception even
+when the native result also records reward1. All33 frozen parents and resolved
+descendants are excluded from every training population.
 `--plan` writes prospective accounting only; it never exports trainable arms.
 No truncation, row padding, B-as-C fallback, or fabricated D is permitted.
+
+`counterfactual.grader_controls(..., matrix_runner=...)` routes both fresh
+nop/reference executions through the caller's native matrix front door, just as
+subject replay does. Use a new owned output directory for required fresh same-run
+controls: supplying a runner does not bypass existing control-cache validation,
+authorize spend, or turn cached controls into fresh executions.
 
 `repaired-data-sft-v2/analyze.py --plan PLAN.json --out REPORT.json` validates each
 arm's complete authorized raw task/attempt map before applying the requested

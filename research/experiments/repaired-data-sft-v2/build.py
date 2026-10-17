@@ -22,18 +22,18 @@ inputs.json (repaired-data-sft-v2.inputs/1) binds every input as
   exclusions: [canonical training-excluded task IDs], optional additional exclusions.
   corrections: optional list of custody links, NOT a second EnvCheck export:
     {source: [native job UUID, trial UUID], corrected: [job UUID, trial UUID],
-     feedback: <hash-bound actual failed native verifier/test_output.log>,
+     request: <hash-bound EnvCheck envcheck.correction-request/v1 request.json>,
      failed_regrade: {document: <ref>, row: <zero-based index>},
      passed_regrade: {document: <ref>, row: <zero-based index>}}
-D reads the same native result/ATIF and counterfactual records as B. It requires
-an exact source-conversation prefix, one new user feedback turn containing ONLY
-that actual test output, followed by different assistant targets and native replay
-0 -> 1 on the SAME repaired digest. It refuses unavailable custody, source/test
-leakage, unsupported evidence and empty correction input; it never manufactures D.
-Both source and corrected native executions must use separate verifier environments;
-the corrected job's hash-bound lab-metadata.json task_staging must bind the exact
-repaired package and unchanged staged Harbor digest. No grader/reference file is
-read as feedback.
+D consumes EnvCheck's reset-context-feedback protocol, NOT restored source history.
+Its native initial user input must be the original task prompt plus the actual
+incomplete pre-hidden-test agent.diff and source-free-outcome-projection/v1 feedback.
+The raw failing stdout is retained and hash-bound, NEVER forwarded to the model.
+Genuine same-model native completion and accepted native replay 0 -> 1 on the SAME
+repaired digest are required; producer labels are not independent semantic truth.
+Both executions retain native ancestry/controls and separate verifier environments;
+the corrected job's hash-bound task staging pins the exact repaired package.
+No teacher, copied patch, restored history, hidden source, or empty input becomes D.
 
 B requires >=51 distinct full-conversation, nonzero-loss rows surviving BOTH exact
 v6 and its verifier-repair@1 child with genuine native controls. C is a seeded-
@@ -51,9 +51,9 @@ executions; only proven exact-v6 and test-only exact-v6-child routes qualify B.
 --plan writes token accounting/qualification refusals before applying the B minimum
 and does not export trainable arms. Normal build fails closed without >=51 B rows
 or exact C; a missing D is explicit in the receipt (or fatal with --require-d).
-D uses the existing loss=last contract for each genuinely new corrected assistant
-completion with its entire recorded prompt prefix. Original false-pass assistant
-turns remain context, never D targets; no future turns are included in a prompt.
+D trains the last real main-agent assistant target of each native correction with
+loss=last and its exact recorded prefix, reasoning and tools. Earlier correction
+turns stay context; original false-pass history is NOT restored or relabeled as D.
 """
 
 from __future__ import annotations
@@ -83,6 +83,14 @@ V6_CHAIN = {
     "separate-verifier@10",
     "agent-network-none@1",
 }
+CORRECTION_PROTOCOL = "reset-context-feedback"
+FEEDBACK_POLICY = "source-free-outcome-projection/v1"
+FEEDBACK_EXCEPTIONS = frozenset({
+    "AssertionError", "TypeError", "ValueError", "KeyError", "IndexError", "AttributeError",
+    "RuntimeError", "NotImplementedError", "ImportError", "ModuleNotFoundError", "NameError",
+    "ZeroDivisionError", "OverflowError", "StopIteration", "RecursionError", "SyntaxError",
+    "IndentationError", "FileNotFoundError", "PermissionError", "TimeoutError", "OSError",
+})
 # Observed bytes of the immutable model revision used by sft.py and v1. A local
 # directory with a familiar name is not proof of tokenizer/template identity.
 TOKENIZER_SHA256 = {
@@ -296,6 +304,8 @@ class Source:
     trajectory_path: Path
     parents: set[str]
     provenance: dict[str, Any]
+    correction_messages: list[dict[str, Any]] | None = None
+    correction_tools: list[Any] | None = None
 
 
 def native_source(evidence: Evidence, row: dict[str, Any]) -> Source:
@@ -373,6 +383,8 @@ def original_pass_eligible(
         raise BuildError("self-corrected targets are D, not original-pass B/C pool")
     if reward(source.result) != 1:
         raise BuildError("not an observed original native pass")
+    if source.result.get("exception_info") is not None:
+        raise BuildError("original native pass has a non-null native exception")
 
 
 def reward(result: dict[str, Any]) -> Any:
@@ -897,8 +909,21 @@ class Qualification:
         trial = self.evidence.path(row.get("trial", ""))
         original = self.evidence.observed_json(trial / "result.json")
         key = ((original.get("config") or {}).get("job_id"), original.get("id"))
-        if key != source.key or reward(original) != 1 or row.get("recorded") != 1:
-            raise BuildError("regrade source identity/original-pass binding mismatch")
+        observed = reward(original)
+        exit_status = ((original.get("agent_result") or {}).get("metadata") or {}).get(
+            "native_exit_status"
+        )
+        if (
+            key != source.key
+            or type(observed) not in (int, float)
+            or observed not in {0, 1}
+            or observed != reward(source.result)
+            or row.get("recorded") != observed
+            or original.get("exception_info") is not None
+            or not original.get("finished_at")
+            or exit_status not in {None, "Idle"}
+        ):
+            raise BuildError("regrade source identity/clean native recorded-outcome binding mismatch")
         if (
             self.evidence.capture(trial / "agent/trajectory.json")["sha256"]
             != self.evidence.capture(source.trajectory_path)["sha256"]
@@ -923,7 +948,7 @@ class Qualification:
         kept, _ = cf.strip_binary_artifacts(diff_path.read_text())
         script = cf._patch_script(kept, package["config"]["environment"]["workdir"])
         self.native_replay(row, identity, score, script=script)
-        if row.get("outcome") != ("stays" if score == 1 else "flips"):
+        if row.get("outcome") != ("stays" if score == observed else "flips"):
             raise BuildError("regrade outcome disagrees with native observed rewards")
         return roles, identity
 
@@ -1045,6 +1070,238 @@ def correction_environment(evidence: Evidence, corrected: Source, expected: str)
         raise BuildError("D correction was not executed on the exact separate repaired grader")
 
 
+def _canonical_bytes(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def _project_feedback(raw: str) -> str:
+    """Recompute EnvCheck's finite-vocabulary v1 projection, never forward a raw line."""
+    counts = r"(?:[0-9]+ (?:failed|passed|errors?|skipped|xfailed|xpassed|deselected|warnings?))"
+    summary_pattern = re.compile(
+        rf"(?:=+\s*)?({counts}(?:, {counts})*)"
+        r"(?: in [0-9]+(?:\.[0-9]+)?s(?: \([0-9:]+\))?)?(?:\s*=+)?"
+    )
+    summaries, checks, exceptions = [], {}, set()
+    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", raw)
+    for line in text.replace("\r", "\n").splitlines():
+        line = line.strip()
+        summary = summary_pattern.fullmatch(line)
+        if summary:
+            summaries.append({
+                kind: int(count)
+                for count, kind in re.findall(r"([0-9]+) ([a-z]+)", summary[1])
+            })
+        unittest = re.fullmatch(
+            r"FAILED \((failures=[0-9]+(?:, errors=[0-9]+)?|errors=[0-9]+)\)", line
+        )
+        if unittest:
+            summaries.append({
+                kind: int(count)
+                for kind, count in re.findall(r"(failures|errors)=([0-9]+)", unittest[1])
+            })
+        failed = re.match(r"^(FAILED|ERROR)\s+(\S+)(?:\s+-\s+.*)?$", line)
+        progress = re.fullmatch(r"(\S+::\S+)\s+(FAILED|ERROR)(?:\s+\[\s*[0-9]+%\])?", line)
+        unitcase = re.match(r"^(FAIL|ERROR):\s+(.+)$", line)
+        token = (
+            failed[2] if failed else progress[1] if progress else unitcase[2] if unitcase else None
+        )
+        if token:
+            check = digest(token.encode())
+            error = (
+                (failed and failed[1] == "ERROR")
+                or (progress and progress[2] == "ERROR")
+                or (unitcase and unitcase[1] == "ERROR")
+            )
+            checks[check] = {"check": check, "outcome": "error" if error else "failed"}
+        exception = re.match(r"^(?:E\s+)?([A-Za-z]+)(?::|$)", line)
+        if exception and exception[1] in FEEDBACK_EXCEPTIONS:
+            exceptions.add(exception[1])
+        if failed and " - " in line:
+            name = line.split(" - ", 1)[1].split(":", 1)[0]
+            if name in FEEDBACK_EXCEPTIONS:
+                exceptions.add(name)
+    if not checks and not exceptions and not any(
+        sum(row.get(kind, 0) for kind in ("failed", "failures", "error", "errors")) > 0
+        for row in summaries
+    ):
+        raise BuildError("D stdout has no safely recognized failing diagnostic")
+    return _canonical_bytes({
+        "policy": FEEDBACK_POLICY,
+        "outcome_counts": summaries,
+        "failing_checks": sorted(checks.values(), key=lambda item: item["check"]),
+        "exception_classes": sorted(exceptions),
+    }).decode() + "\n"
+
+
+def _correction_model(source: Source) -> str:
+    config = source.result.get("config") or {}
+    agent = config.get("agent") or {}
+    metadata = (source.result.get("agent_result") or {}).get("metadata") or {}
+    if (
+        source.result.get("exception_info") is not None
+        or config.get("source_trial")
+        or agent.get("name") in {"oracle", "nop"}
+        or "codex" in str(agent.get("name", "")).lower()
+        or metadata.get("teacher")
+        or metadata.get("copied_fix")
+    ):
+        raise BuildError("D refuses abnormal, teacher, copied or replay-only native executions")
+    info = (source.result.get("agent_info") or {}).get("model_info") or {}
+    model = agent.get("model_name")
+    if not model:
+        model = f"{info['provider']}/{info['name']}" if info.get("provider") else info.get("name")
+    if not isinstance(model, str) or not model:
+        raise BuildError("D missing actual native model selector")
+    return model
+
+
+def _correction_request(
+    evidence: Evidence,
+    ref: dict[str, Any],
+    original: Source,
+    corrected: Source,
+    before: dict[str, Any],
+    repaired_digest: str,
+    original_messages: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    """Bind the actual producer request, while independently checking its native evidence."""
+    from evallab.task_variants import task_directory_digest
+
+    request = evidence.json(ref)
+    if (
+        request.get("schema") != "envcheck.correction-request/v1"
+        or request.get("protocol") != CORRECTION_PROTOCOL
+        or request.get("purpose") != "training"
+        or request.get("heldout") is not False
+        or request.get("partition_scope") != "mechanical_repaired_grader"
+        or request.get("source_execution_id") != original.key[1]
+        or canonical_task(request.get("task")) != original.task
+        or request.get("model") != _correction_model(original)
+        or request.get("model") != _correction_model(corrected)
+    ):
+        raise BuildError("D request protocol/task/source/model binding mismatch")
+    load_heldout(evidence, request["heldout_manifest"])
+    partition = request["source_partition"]
+    variant = partition["variant"]
+    if (
+        partition.get("execution_id") != original.key[1]
+        or partition.get("task") != original.task
+        or partition.get("model") != request["model"]
+        or partition.get("partition") != "false_pass"
+        or partition.get("status") != "measured"
+        or partition.get("original_reward") != 1
+        or partition.get("repaired_reward") != 0
+        or partition.get("repaired_digest") != repaired_digest
+        or variant.get("repaired_digest") != repaired_digest
+    ):
+        raise BuildError("D request is not the bound measured original1/repaired0 source")
+    flags = partition.get("flags") or {}
+    if flags.get("alias_conflicts") or flags.get("teacher") or flags.get("copied_fix"):
+        raise BuildError("D request retains unresolved alias, teacher or copied-fix counterevidence")
+    exclusion = variant["manifest_row"]
+    if (
+        any(exclusion.get(key) for key in (
+            "training_excluded", "training_exclusion", "excluded_from_training"
+        ))
+        or exclusion.get("training_eligible") is False
+    ):
+        raise BuildError("D request carries a manifest training exclusion")
+    selected = partition["provenance"]["selected_receipt"]
+    selected_ref = {key: selected[key] for key in ("path", "sha256")}
+    index = int(selected["selector"].rsplit("/", 1)[1])
+    if (
+        selected.get("valid") is not True
+        or index < 0
+        or rows_from_document(evidence, selected_ref)[index] != before
+        or selected.get("row") != before
+        or selected.get("row_sha256") != digest(_canonical_bytes(before))
+    ):
+        raise BuildError("D producer partition differs from the untouched native failed receipt")
+    correction = request["provenance"]["correction"]
+    if (
+        correction.get("protocol") != CORRECTION_PROTOCOL
+        or correction.get("source_execution_id") != original.key[1]
+        or correction.get("partition_scope") != "mechanical_repaired_grader"
+        or any(correction.get(key) is not False for key in (
+            "hidden_test_source_included", "reference_source_included",
+            "full_historical_context_included",
+        ))
+        or correction.get("allowed_model_inputs") != [
+            "task_prompt", "source_patch", "repaired_failure_stdout"
+        ]
+    ):
+        raise BuildError("D request does not declare the bounded reset-context inputs")
+    prompt = evidence.bound(request["task_prompt"]).read_text()
+    package_prompt = evidence.bound(correction["task_prompt"]).read_text()
+    first_user = next((m for m in original_messages if m.get("role") == "user"), None)
+    if not first_user or prompt != first_user.get("content") or prompt.strip() != package_prompt.strip():
+        raise BuildError("D request differs from the actual original task prompt")
+    patch = evidence.bound(correction["source_patch"]).read_bytes()
+    actual_patch = original.result_path.parent / "verifier/agent.diff"
+    if (
+        not patch.strip()
+        or evidence.capture(actual_patch)["sha256"] != digest(patch)
+        or evidence.bound(request["patch_input"]).read_bytes() != patch
+    ):
+        raise BuildError("D request lacks the actual incomplete pre-hidden-test source patch")
+    snapshot = correction["task_package_snapshot"]
+    package = evidence.path(snapshot["path"])
+    native_fields = request["native_spec_fields"]
+    if (
+        snapshot["sha256"] != repaired_digest
+        or task_directory_digest(package) != repaired_digest
+        or native_fields.get("task_package_digest") != repaired_digest
+        or native_fields.get("model") != request["model"]
+        or native_fields.get("agent") != "mimoagent"
+        or native_fields.get("task") != original.task
+    ):
+        raise BuildError("D request repaired snapshot/model pin mismatch")
+    for file in sorted(package.rglob("*")):
+        if file.is_file():
+            evidence.capture(file)
+    if (package / "instruction.md").read_text().strip() != prompt.strip():
+        raise BuildError("D task snapshot prompt differs from the original native input")
+    feedback_path = evidence.bound(correction["feedback"])
+    failed_job = evidence.path(before["job_dir"])
+    result_path = evidence.bound(correction["feedback_result"])
+    failure = evidence.json(correction["feedback_result"])
+    if (
+        failed_job not in feedback_path.parents
+        or feedback_path.parent.name != "verifier"
+        or feedback_path.name != "test_output.log"
+        or result_path != feedback_path.parent.parent / "result.json"
+        or reward(failure) != 0
+        or failure.get("exception_info") is not None
+    ):
+        raise BuildError("D feedback is not the actual noninfra failing native repaired output")
+    raw = feedback_path.read_text()
+    safe = evidence.bound(correction["safe_feedback"]).read_text()
+    if safe != _project_feedback(raw) or request.get("feedback_policy") != {
+        "policy": FEEDBACK_POLICY, "raw_sha256": digest(raw.encode()),
+        "safe_sha256": digest(safe.encode()), "source_lines_forwarded": 0,
+        "exception_messages_forwarded": 0,
+    }:
+        raise BuildError("D feedback is not the exact source-free outcome projection")
+    extra = (
+        "Reset-context feedback correction. The following incomplete patch was produced for the task above. "
+        "Correct it in the task workspace; this is a new conversation, not restored history.\n\n"
+        "Incomplete source patch (pre-hidden-test agent diff):\n" + patch.decode() +
+        "\n\nObserved repaired-verifier failing stdout (source-free diagnostic projection; "
+        "source, tracebacks, paths and exception messages omitted):\n" + safe
+    )
+    extra_path = evidence.bound(correction["extra_instruction"])
+    if (
+        extra_path.read_text() != extra
+        or native_fields.get("extra_instruction_sha256") != digest(extra.encode())
+        or request.get("request_id") != digest(_canonical_bytes({
+            "source_execution_id": original.key[1], "repaired_digest": repaired_digest,
+            "extra_instruction_sha256": digest(extra.encode()),
+        })).removeprefix("sha256:")
+    ):
+        raise BuildError("D request contains inputs beyond its bound patch and safe feedback")
+    return request, extra
+
+
 def correction_row(
     evidence: Evidence,
     link: dict[str, Any],
@@ -1063,16 +1320,14 @@ def correction_row(
         or (original.parents | corrected.parents) & heldout
     ):
         raise BuildError("D correction identity/task/heldout ancestry refusal")
-    if reward(original.result) != 1 or reward(corrected.result) != 1:
-        raise BuildError(
-            "D requires an original native false pass and an observed corrected native pass"
-        )
+    if reward(original.result) != 1:
+        raise BuildError("D requires an observed original native false pass")
     if original.result.get("verifier_environment_mode") != "separate":
         raise BuildError("D original context has no native hidden-test/source separation evidence")
-    before_ref, after_ref = link["failed_regrade"], link["passed_regrade"]
-    if any(type(ref.get("row")) is not int or ref["row"] < 0 for ref in (before_ref, after_ref)):
-        raise BuildError("D regrade custody needs nonnegative integer row indices")
     try:
+        before_ref, after_ref = link["failed_regrade"], link["passed_regrade"]
+        if any(type(ref.get("row")) is not int or ref["row"] < 0 for ref in (before_ref, after_ref)):
+            raise BuildError("D regrade custody needs nonnegative integer row indices")
         before = rows_from_document(evidence, before_ref["document"])[before_ref["row"]]
         after = rows_from_document(evidence, after_ref["document"])[after_ref["row"]]
     except (IndexError, TypeError, KeyError) as exc:
@@ -1087,49 +1342,80 @@ def correction_row(
         raise BuildError("D requires false-pass -> true-pass on the same exact repaired grader")
     digest_before = identity_before[1]
     correction_environment(evidence, corrected, digest_before)
-    feedback_path = evidence.bound(link["feedback"])
-    feedback = feedback_path.read_text()
-    if not feedback.strip():
-        raise BuildError("D actual failing repaired-test output is empty")
-    # The feedback must be an actual retained native verifier output, not a hand-written
-    # summary, a reference diff, hidden source, or another task's feedback.
-    failed_job = evidence.path(before["job_dir"])
-    if (
-        failed_job not in feedback_path.parents
-        or feedback_path.parent.name != "verifier"
-        or feedback_path.name != "test_output.log"
-    ):
-        raise BuildError(
-            "D feedback is not retained output of the actual failing native repaired-test run"
+    try:
+        original_messages, _, fidelity = qa.to_messages(original.trajectory)
+        original_native = original.result_path.parent / "agent/mimoagent/native-trajectory.json"
+        if original_native.is_file():
+            original_messages = evidence.observed_json(original_native)["trajs"]["main"]["messages"]
+        elif fidelity != "raw_completion":
+            raise BuildError("D lacks the actual original task input and assistant targets")
+        request, extra = _correction_request(
+            evidence, link["request"], original, corrected, before, digest_before, original_messages
         )
-    messages_before, _, fidelity_before = qa.to_messages(original.trajectory)
-    messages_after, _, fidelity_after = qa.to_messages(corrected.trajectory)
-    if fidelity_before != "raw_completion" or fidelity_after != "raw_completion":
-        raise BuildError("D needs actual raw assistant self-correction targets")
-    prefix = len(messages_before)
-    if messages_after[:prefix] != messages_before or len(messages_after) < prefix + 2:
-        raise BuildError("D correction does not preserve the complete original conversation")
-    if messages_after[prefix] != {"role": "user", "content": feedback}:
-        raise BuildError(
-            "D must expose only exact failing-test output, not hidden tests/reference/instructions"
-        )
-    suffix = messages_after[prefix + 1 :]
-    if suffix[0].get("role") != "assistant" or not any(
-        m.get("role") == "assistant"
-        and (m.get("content") or m.get("reasoning_content") or m.get("tool_calls"))
-        for m in suffix
-    ):
-        raise BuildError("D has no corrected assistant targets")
+        native_path = corrected.result_path.parent / "agent/mimoagent/native-trajectory.json"
+        main = evidence.observed_json(native_path)["trajs"]["main"]
+        messages = main["messages"]
+        config = corrected.result.get("config") or {}
+        metadata = (corrected.result.get("agent_result") or {}).get("metadata") or {}
+        if (
+            (config.get("agent") or {}).get("name")
+            != "evallab.harbor_mimoagent:NativeMimoAgent"
+            or config.get("resume_trajectory") or config.get("load_trajectory")
+            or (config.get("agent") or {}).get("resume_trajectory")
+            or (config.get("agent") or {}).get("load_trajectory")
+            or metadata.get("native_exit_status") != "Idle"
+            or not corrected.result.get("finished_at")
+        ):
+            raise BuildError("D requires a clean completed native reset-context main agent")
+        first_user = next(i for i, m in enumerate(messages) if m.get("role") == "user")
+        prompt = original_messages[next(
+            i for i, m in enumerate(original_messages) if m.get("role") == "user"
+        )]["content"].strip()
+        content = messages[first_user].get("content")
+        if (
+            any(m.get("role") != "system" for m in messages[:first_user])
+            or not isinstance(content, str)
+            or not content.strip().startswith(prompt)
+            or content.strip()[len(prompt):].strip() != extra.strip()
+        ):
+            raise BuildError("D native input is not the exact task plus bounded reset feedback")
+        target = max(i for i, m in enumerate(messages) if m.get("role") == "assistant")
+        message = messages[target]
+        if (
+            target <= first_user
+            or not (message.get("content") or message.get("reasoning_content") or message.get("tool_calls"))
+            or message in [m for m in original_messages if m.get("role") == "assistant"]
+        ):
+            raise BuildError("D has no genuinely new final native assistant target")
+        source_patch = evidence.bound(request["provenance"]["correction"]["source_patch"]).read_bytes()
+        corrected_patch = corrected.result_path.parent / "verifier/agent.diff"
+        evidence.capture(corrected_patch)
+        if not corrected_patch.read_bytes().strip() or corrected_patch.read_bytes() == source_patch:
+            raise BuildError("D reuses the incomplete source patch instead of a native correction")
+    except (KeyError, TypeError, IndexError, StopIteration, ValueError) as exc:
+        if isinstance(exc, BuildError):
+            raise
+        raise BuildError(f"D missing/malformed native reset-context request: {exc}") from exc
     if qa.network_fetch(corrected.trajectory):
         raise BuildError("D correction contains observed network answer retrieval")
-    previous_targets = [m for m in messages_before if m.get("role") == "assistant"]
-    if not any(m.get("role") == "assistant" and m not in previous_targets for m in suffix):
-        raise BuildError("D repeats old assistant targets instead of a self-correction")
+    corrected.correction_messages, corrected.correction_tools = messages, main.get("tools")
     corrected.provenance = {
         **corrected.provenance,
         "self_correction": link,
+        "native_trajectory": evidence.capture(native_path),
         "repaired_digest": digest_before,
-        "correction_message_start": prefix + 1,
+        "correction_protocol": CORRECTION_PROTOCOL,
+        "feedback_policy": FEEDBACK_POLICY,
+        "partition_scope": "mechanical_repaired_grader",
+        "semantic_truth": "not_independently_established",
+        "full_historical_context_included": False,
+        "source_original_reward": reward(original.result),
+        "native_original_reward": reward(corrected.result),
+        "repaired_before_reward": 0,
+        "repaired_after_reward": 1,
+        "envcheck_variant": request["source_partition"]["variant"],
+        "correction_target_turn": target,
+        "target_message_sha256": digest(_canonical_bytes(message)),
     }
     return corrected
 
@@ -1181,20 +1467,21 @@ def prepare(
     *,
     target_turn: int | None = None,
 ) -> Prepared:
-    messages, tools, fidelity = qa.to_messages(source.trajectory)
-    if fidelity != "raw_completion":
-        raise BuildError(f"source fidelity={fidelity}; parsed actions are not assistant targets")
     loss = "all"
-    if target_turn is not None:
-        first_corrected = source.provenance.get("correction_message_start")
+    if target_turn is None:
+        messages, tools, fidelity = qa.to_messages(source.trajectory)
+        if fidelity != "raw_completion":
+            raise BuildError(f"source fidelity={fidelity}; parsed actions are not assistant targets")
+    else:
         if (
-            first_corrected is None
-            or target_turn < first_corrected
-            or messages[target_turn].get("role") != "assistant"
+            source.correction_messages is None
+            or target_turn != source.provenance.get("correction_target_turn")
+            or not 0 <= target_turn < len(source.correction_messages)
+            or source.correction_messages[target_turn].get("role") != "assistant"
         ):
-            raise BuildError("D target is not a newly generated corrected assistant completion")
-        messages = messages[: target_turn + 1]
-        loss = "last"
+            raise BuildError("D target is not the genuinely new final native assistant completion")
+        messages = source.correction_messages[: target_turn + 1]
+        tools, fidelity, loss = source.correction_tools, "native_messages", "last"
     row = {
         "messages": messages,
         "tools": tools,
@@ -1212,7 +1499,10 @@ def prepare(
         )
     except (sft.SftError, ValueError) as exc:
         raise BuildError(str(exc)) from exc
-    model = ((source.result.get("agent_info") or {}).get("model_info") or {}).get("name")
+    model = (
+        _correction_model(source) if target_turn is not None
+        else ((source.result.get("agent_info") or {}).get("model_info") or {}).get("name")
+    )
     provenance = {
         **source.provenance,
         "native_pair": list(source.key),
@@ -1361,6 +1651,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if inputs.get("corrections")
         else "missing_genuine_verified_corrections",
         "input_links": len(inputs.get("corrections", [])),
+        "protocol": CORRECTION_PROTOCOL,
+        "feedback_policy": FEEDBACK_POLICY,
     }
     if args.out.exists():
         raise BuildError(f"refusing to overwrite existing output/data: {args.out}")
@@ -1384,19 +1676,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 corrected = correction_row(
                     evidence, link, source_map, qualification, heldout | excluded, qa
                 )
-                messages, _, _ = qa.to_messages(corrected.trajectory)
-                start = corrected.provenance["correction_message_start"]
-                targets = [
-                    index
-                    for index in range(start, len(messages))
-                    if messages[index].get("role") == "assistant"
-                ]
-                # One example per actual corrected completion, each with its full
-                # served context and last-only loss; false-pass turns stay context.
-                d.extend(
-                    prepare(corrected, tokenizer, v1, qa, sft, args.max_length, target_turn=index)
-                    for index in targets
-                )
+                d.append(prepare(
+                    corrected, tokenizer, v1, qa, sft, args.max_length,
+                    target_turn=corrected.provenance["correction_target_turn"],
+                ))
             except BuildError as exc:
                 d_refusals.append(
                     {
@@ -1412,6 +1695,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "status": "ready" if d and not d_refusals else "missing_genuine_verified_corrections",
             "refusals": d_refusals,
             "input_links": len(inputs.get("corrections", [])),
+            "protocol": CORRECTION_PROTOCOL,
+            "feedback_policy": FEEDBACK_POLICY,
         }
         if d_refusals or (args.require_d and not d):
             raise BuildError(
@@ -1448,8 +1733,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             }
             if arm == "D":
                 manifest["schedule"] = {**receipt["schedule"], "loss": "last"}
+                manifest["protocol"] = CORRECTION_PROTOCOL
+                manifest["feedback_policy"] = FEEDBACK_POLICY
+                manifest["partition_scope"] = "mechanical_repaired_grader"
+                manifest["semantic_truth"] = "not_independently_established"
                 manifest["target_policy"] = (
-                    "corrected_assistant_completions_only_with_complete_prompt_prefix"
+                    "last_native_main_assistant_target_with_exact_reset_context_prefix"
                 )
             write_arm(args.out / arm, rows, manifest, v1, sft)
         receipt["status"] = "ready"

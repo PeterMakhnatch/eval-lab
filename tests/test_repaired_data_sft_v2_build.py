@@ -10,6 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
@@ -36,6 +37,7 @@ def native(
     job: str = "job-1",
     task: str = "format-code-task-000001",
     ancestry: list | None = None,
+    exception: dict | None = None,
 ):
     root = tmp_path / job / trial
     result = {
@@ -43,6 +45,8 @@ def native(
         "task_name": task,
         "config": {"job_id": job, "task": {}},
         "verifier_result": {"rewards": {"reward": 1.0}},
+        "exception_info": exception,
+        "finished_at": "2026-10-17T06:00:02Z",
     }
     trajectory = {"agent": {"name": "mimoagent"}, "steps": []}
     row = {
@@ -128,6 +132,20 @@ def test_plain_heldout_and_correction_targets_never_enter_original_pool(tmp_path
         build.original_pass_eligible(source, set(), set(), set())
 
 
+@pytest.mark.parametrize("exception", [
+    {"exception_type": "TrialBudgetExhaustedError", "exception_message": "retained budget stop"},
+    {},
+])
+def test_reward_one_does_not_override_nonnull_original_native_exception(tmp_path, exception):
+    source, _, _ = native(tmp_path / "abnormal", exception=exception)
+    with pytest.raises(build.BuildError, match="non-null native exception"):
+        build.original_pass_eligible(source, set(), set(), set())
+    assert build.reward(source.result) == 1
+    assert source.result["exception_info"] == exception
+    clean, _, _ = native(tmp_path / "clean", exception=None)
+    build.original_pass_eligible(clean, set(), set(), set())
+
+
 def test_native_pair_deduplication_does_not_inflate_minimum(tmp_path):
     source, _, _ = native(tmp_path)
     alias = copy.deepcopy(source)
@@ -202,6 +220,7 @@ def replay(
     package: Path | None = None,
     script: str | None = None,
     name: str = "qa-replay-native",
+    task_id: str = "format-code-task-000001",
 ):
     from evallab.registry import compute_task_digests
     from evallab.runner import staged_matrix_request
@@ -212,7 +231,7 @@ def replay(
         (task / "solution").mkdir(parents=True)
         (task / "tests").mkdir()
         (task / "task.toml").write_text(
-            f'[task]\nname = "{TASK}"\n[environment]\nworkdir = "/testbed"\n'
+            f'[task]\nname = "mimo-v2.6-rl/{task_id}"\n[environment]\nworkdir = "/testbed"\n'
         )
         (task / "solution/solve.sh").write_text("#!/bin/bash\nexit 0\n")
         (task / "tests/test.sh").write_text("#!/bin/bash\nexit 0\n")
@@ -230,7 +249,7 @@ def replay(
         name=run.name,
         hypothesis="A retained native patch replay qualifies a clean observation.",
         benchmark_family="qa-trace-regrade",
-        task_id="format-code-task-000001",
+        task_id=task_id,
         task=str(task),
         task_package_digest=expected,
         verifier_digest=digests.verifier,
@@ -277,7 +296,7 @@ def replay(
         {
             "id": "native-trial",
             "trial_name": "native-trial",
-            "task_name": "mimo-v2.6-rl/format-code-task-000001",
+            "task_name": "mimo-v2.6-rl/" + task_id,
             "finished_at": "2026-10-17T06:00:02Z",
             "exception_info": None,
             "agent_execution": {
@@ -291,7 +310,7 @@ def replay(
     (trial / "agent/oracle.txt").write_text("")
     row = {
         "grader": f"mimo-clean-v6:{expected[7:19]}",
-        "grader_identity": {"task_name": TASK, "variant_digest": expected},
+        "grader_identity": {"task_name": "mimo-v2.6-rl/" + task_id, "variant_digest": expected},
         "input_kind": "native_patch_replay",
         "matrix_receipt": str(path),
         "job_dir": str(job),
@@ -305,7 +324,7 @@ def replay(
     return qualification, row, expected, script, receipt, path
 
 
-def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
+def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False, task: str = TASK):
     """Real /3 selections, lineage and retained native jobs; never runs an executor."""
     from evallab import task_variants
     from evallab.mimo_clean import MANIFEST_COLUMNS, write_manifest
@@ -319,7 +338,7 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
     (parent / "instruction.md").write_text("Replace old with new.\n")
     (parent / "task.toml").write_text(
         'schema_version = "1.4"\n'
-        f'[task]\nname = "{TASK}"\n'
+        f'[task]\nname = "{task}"\n'
         '[environment]\nworkdir = "/testbed"\ndocker_image = "fixture:never-executed"\n'
         "[verifier]\n" + ("" if composed else 'environment_mode = "separate"\n')
     )
@@ -344,10 +363,10 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
     before_path = records / before_v6.task_slug / f"{before_v6.digest12}.json"
     before_package = store / before_v6.task_slug / before_v6.digest12
     final = (
-        cf.separate_over(before_package, TASK, tmp_path, via="verifier-repair@1")
+        cf.separate_over(before_package, task, tmp_path, via="verifier-repair@1")
         if composed
         else cf.Grader(
-            TASK, "verifier-repair@1", before_v6.variant_digest, before_package, str(before_path)
+            task, "verifier-repair@1", before_v6.variant_digest, before_package, str(before_path)
         )
     )
     assert final is not None
@@ -367,7 +386,7 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
     manifest = tmp_path / "v6.csv"
     manifest_row = {
         **dict.fromkeys(MANIFEST_COLUMNS, ""),
-        "task_id": TASK.rsplit("/", 1)[-1],
+        "task_id": task.rsplit("/", 1)[-1],
         "status": "built",
         "chain": ">".join(sorted(build.V6_CHAIN)),
         "final_digest": final.variant_digest,
@@ -375,9 +394,9 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
     }
     write_manifest([manifest_row], manifest)
     repair_paths = [before_path, before_path, repaired_path]
-    graders = cf.newer_graders(TASK, tmp_path, cf.repair_records(repair_paths), manifest=manifest)
+    graders = cf.newer_graders(task, tmp_path, cf.repair_records(repair_paths), manifest=manifest)
     assert len(graders) == 2
-    source, _, _ = native(tmp_path)
+    source, _, _ = native(tmp_path, task=task)
     trial = source.result_path.parent
     (trial / "verifier").mkdir()
     (trial / "verifier/agent.diff").write_text(patch)
@@ -398,6 +417,7 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
                 package=grader.package,
                 script=cf._patch_script(kept, "/testbed"),
                 name=f"qa-replay-{index}-{kind}",
+                task_id=task.rsplit("/", 1)[-1],
             )
             assert expected == grader.variant_digest
             native_rows[kind] = {
@@ -456,6 +476,9 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False):
         repaired_path=repaired_path,
         v6_digest=final.variant_digest,
         repaired_digest=repaired.variant_digest,
+        v6_package=final.package,
+        repaired_package=store / repaired.task_slug / repaired.digest12,
+        graders=graders,
         qualification=lambda: build.Qualification(build.Evidence(tmp_path), inputs),
     )
 
@@ -797,8 +820,9 @@ def test_missing_real_envcheck_correction_is_a_refusal_not_a_fabricated_row(tmp_
         )
 
 
-def envcheck_controls(tmp_path: Path, change: str | None = None):
-    expected = "sha256:" + "a" * 64
+def envcheck_controls(
+    tmp_path: Path, change: str | None = None, *, expected: str = "sha256:" + "a" * 64,
+):
     task = "mimo-v2.6-rl/format-code-task-000169"
     identity = task, expected
     variant = {
@@ -1022,3 +1046,399 @@ def test_correction_regrade_keeps_proven_repair_role_and_full_native_fail_to_pas
     expected = {"verifier-repair@1"}, (TASK, case.repaired_digest)
     assert qualification.regrade(failed, case.source, 0) == expected
     assert qualification.regrade(passed, case.source, 1) == expected
+
+
+def reset_correction(tmp_path: Path, monkeypatch, change: str | None = None, *, native_reward: int = 0):
+    """Immutable native-shaped evidence, not model execution or invented training rows."""
+    from evallab.qa import counterfactual as cf
+    from evallab.task_variants import task_directory_digest
+
+    task = "mimo-v2.6-rl/format-code-task-000169"
+    model = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b"
+    qa = build._module(
+        "rds2_correction_fixture_qa",
+        _PATH.parents[3] / "research/experiments/qa-trace/training-arms/build_arms.py",
+    )
+    case = qualified_case(tmp_path, monkeypatch, task=task)
+    packages = {"v6": case.v6_package, "repaired": case.repaired_package}
+    repaired_digest = case.repaired_digest
+    grader = next(grader for grader in case.graders if grader.variant_digest == repaired_digest)
+    task_prompt = (packages["v6"] / "instruction.md").read_text()
+    snapshot = tmp_path / "runs/requests/packages" / repaired_digest[7:]
+    shutil.copytree(packages["repaired"], snapshot)
+    tools = [{
+        "type": "function",
+        "function": {"name": "bash", "description": "Run a task command.", "parameters": {
+            "type": "object", "properties": {"command": {"type": "string"}},
+            "required": ["command"],
+        }},
+    }]
+    original_messages = [
+        {"role": "system", "content": "Native system."},
+        {"role": "user", "content": task_prompt},
+        {"role": "assistant", "content": "Actual incomplete completion.",
+         "reasoning_content": "Original recorded reasoning."},
+    ]
+    incomplete = "diff --git a/code.py b/code.py\n--- a/code.py\n+++ b/code.py\n@@ -1 +1 @@\n-bug\n+incomplete\n"
+    fixed = incomplete.replace("+incomplete", "+corrected")
+
+    def text_ref(path, text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return {"path": str(path), "sha256": build.digest(path.read_bytes())}
+
+    def model_trial(number, messages, patch, score, package):
+        root = tmp_path / "native" / str(UUID(int=100 + number)) / str(UUID(int=number))
+        metadata = {"native_exit_status": "Idle"}
+        if number == 2 and change == "teacher":
+            metadata["teacher"] = True
+        if number == 2 and change == "nonidle":
+            metadata["native_exit_status"] = "Error"
+        exception = None
+        if (number == 1 and change == "original_exception") or (
+            number == 2 and change == "correction_exception"
+        ):
+            exception = {"exception_type": "TrialBudgetExhaustedError"}
+        result = {
+            "id": str(UUID(int=number)), "task_name": task, "trial_name": "native-a1__retained",
+            "config": {
+                "job_id": str(UUID(int=100 + number)), "task": {"path": str(package)},
+                "agent": {
+                    "name": (
+                        "mimoagent" if number == 2 and change == "native_selector"
+                        else "evallab.harbor_mimoagent:NativeMimoAgent"
+                    ),
+                    "model_name": model + (
+                        "-substituted" if number == 2 and change == "model" else ""
+                    ),
+                },
+            },
+            "agent_info": {"name": "mimoagent", "model_info": {"name": model}},
+            "agent_result": {"metadata": metadata},
+            "exception_info": exception,
+            "finished_at": None if number == 2 and change == "unfinished" else "2026-10-17T06:00:02Z",
+            "verifier_environment_mode": "separate",
+            "verifier_result": {"rewards": {"reward": score}},
+        }
+        if number == 2 and change == "restored_history":
+            result["config"]["agent"]["resume_trajectory"] = "retained-history"
+        steps = []
+        for message in messages:
+            if message["role"] in {"system", "user"}:
+                steps.append({"source": message["role"], "message": message["content"]})
+            elif message["role"] == "assistant":
+                steps.append({
+                    "source": "agent", "message": message.get("content", ""),
+                    "reasoning_content": message.get("reasoning_content"),
+                    "tool_calls": [{
+                        "tool_call_id": call["id"], "function_name": call["function"]["name"],
+                        "arguments": json.loads(call["function"]["arguments"]),
+                        "extra": {"native_arguments": call["function"]["arguments"]},
+                    } for call in message.get("tool_calls", [])],
+                })
+            else:
+                steps[-1]["observation"] = {"results": [{
+                    "source_call_id": message["tool_call_id"], "content": message["content"],
+                }]}
+        row = {
+            "result": document(root / "result.json", result),
+            "trajectory": document(root / "agent/trajectory.json", {
+                "agent": {"name": "mimoagent", "tool_definitions": tools}, "steps": steps,
+            }),
+            "metadata": document(root.parent / "lab-metadata.json", {"task_staging": {
+                "source_package_digest": task_directory_digest(package),
+                "declared_task_name": task, "source_harbor_digest": "sha256:" + "c" * 64,
+                "staged_harbor_digest": "sha256:" + "c" * 64,
+            }}),
+        }
+        document(root / "agent/mimoagent/native-trajectory.json", {"trajs": {
+            "main": {"messages": messages, "tools": tools},
+            "child": {"messages": [{"role": "assistant", "content": "Never a main-agent target."}]},
+        }})
+        text_ref(root / "verifier/agent.diff", patch)
+        return build.native_source(build.Evidence(tmp_path), row)
+
+    def file_ref(path):
+        path = Path(path)
+        return {"path": str(path), "sha256": build.digest(path.read_bytes())}
+
+    original = model_trial(1, original_messages, incomplete, 1, packages["v6"])
+    original_root = original.result_path.parent
+    source_files = {
+        key: file_ref(original_root / relative) for key, relative in {
+            "result": "result.json", "patch": "verifier/agent.diff",
+            "trajectory": "agent/trajectory.json", "native": "agent/mimoagent/native-trajectory.json",
+        }.items()
+    }
+    source_metadata = original.result["agent_result"]["metadata"]
+    source_flags = {
+        "exception_info": original.result["exception_info"], "native_exit_status": "Idle",
+        "teacher": False, "copied_fix": False, "agent_metadata": source_metadata,
+        "fidelity": "native_messages", "fidelity_error": None,
+        "attempt_evidence": {"native-a1__retained": 1}, "attempt_conflict": False,
+        "source_patch_missing": False, "extra_instruction_paths": None, "extra_instructions": None,
+    }
+    if change == "alias_conflict":
+        source_flags["alias_conflicts"] = ["original_reward"]
+    source_alias = {
+        "trial": str(original_root), "trial_uuid": original.key[1], "job_uuid": original.key[0],
+        "source_digest": "sha256:" + cf.source_digest(original_root), "files": source_files,
+        "task_checksum": None, "executed_task_digest": None, "flags": source_flags,
+    }
+
+    def grade(source, score, name):
+        patch = (source.result_path.parent / "verifier/agent.diff").read_text()
+        script = cf._patch_script(patch, "/testbed")
+        _, row, _, _, _, _ = replay(
+            tmp_path / name, score, package=packages["repaired"], script=script,
+            task_id="format-code-task-000169",
+        )
+        return {
+            **row, "engine": cf.ENGINE_VERSION, "execution_id": source.key[1],
+            "trial": str(source.result_path.parent), "task": task,
+            "source_digest": cf.source_digest(source.result_path.parent),
+            "recorded": build.reward(source.result),
+            "transform": grader.transform, "grader": grader.label,
+            "grader_identity": grader.identity_json, "grader_source": grader.to_json(),
+            "outcome": "stays" if build.reward(source.result) == score else "flips",
+            "valid_grader": True, "controls": {"nop": 0, "reference": 1},
+        }
+
+    before = grade(original, 0, "failed-replay")
+    before_ref = document(tmp_path / "failed.json", {"rows": [before]})
+    feedback_trial = Path(before["job_dir"]) / "native-trial"
+    raw = (
+        "FAILED tests/hidden.py::test_private - AssertionError: SECRET_REFERENCE\n"
+        "> assert expected == hidden_reference()\n"
+        "E AssertionError: SECRET_REFERENCE\n"
+        "================== 1 failed, 2 passed in 0.12s ==================\n"
+    )
+    feedback = text_ref(feedback_trial / "verifier/test_output.log", raw)
+    diagnostic = {
+        "policy": "source-free-outcome-projection/v1",
+        "outcome_counts": [{"failed": 1, "passed": 2}],
+        "failing_checks": [{
+            "check": build.digest(b"tests/hidden.py::test_private"), "outcome": "failed",
+        }],
+        "exception_classes": ["AssertionError"],
+    }
+    safe = json.dumps(diagnostic, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
+    if change == "unsafe_feedback":
+        safe += "SECRET_REFERENCE: assert expected == hidden_reference()\n"
+    request_root = tmp_path / "runs/requests/source"
+    safe_ref = text_ref(request_root / "feedback.txt", safe)
+    extra = (
+        "Reset-context feedback correction. The following incomplete patch was produced for the task above. "
+        "Correct it in the task workspace; this is a new conversation, not restored history.\n\n"
+        "Incomplete source patch (pre-hidden-test agent diff):\n" + incomplete +
+        "\n\nObserved repaired-verifier failing stdout (source-free diagnostic projection; "
+        "source, tracebacks, paths and exception messages omitted):\n" + safe
+    )
+    extra_ref = text_ref(request_root / "extra-instruction.txt", extra)
+    variant = {
+        "task": task, "repaired_digest": repaired_digest, "package_path": str(packages["repaired"]),
+        "qualified": True, "measurement_eligible": True,
+        "manifest_row": {"task": task, "status": "repaired", "declared_survivors": 0},
+    }
+    request_id_bytes = json.dumps({
+        "source_execution_id": original.key[1], "repaired_digest": repaired_digest,
+        "extra_instruction_sha256": extra_ref["sha256"],
+    }, sort_keys=True, separators=(",", ":")).encode()
+    request = {
+        "schema": "envcheck.correction-request/v1", "request_id": build.digest(request_id_bytes)[7:],
+        "purpose": "training", "protocol": "reset-context-feedback",
+        "task": task, "model": model, "source_execution_id": original.key[1], "heldout": False,
+        "heldout_manifest": document(tmp_path / "heldout.json", {
+            "schema": "mimo.heldout/v1", "heldout": sorted(build.FROZEN_HELDOUT),
+        }),
+        "partition_scope": "mechanical_repaired_grader",
+        "feedback_policy": {
+            "policy": "source-free-outcome-projection/v1",
+            "raw_sha256": feedback["sha256"], "safe_sha256": safe_ref["sha256"],
+            "source_lines_forwarded": 0, "exception_messages_forwarded": 0,
+        },
+        "source_partition": {
+            "execution_id": original.key[1], "task": task, "model": model,
+            "source_trial": str(original_root), "attempt": 1, "agent": "mimoagent", "started_at": None,
+            "original_reward": 1.0, "repaired_reward": 0.0, "repaired_digest": repaired_digest,
+            "partition": "false_pass", "status": "measured",
+            "partition_scope": "mechanical_repaired_grader", "variant": variant, "flags": source_flags,
+            "provenance": {
+                "trial_uuid": original.key[1], "job_uuid": original.key[0],
+                "source_result_sha256": source_files["result"]["sha256"], "aliases": [source_alias],
+                "selected_receipt": {
+                    **before_ref, "selector": str(Path(before_ref["path"])) + "#rows/0",
+                    "valid": True, "problems": [], "row": before,
+                    "row_sha256": build.digest(json.dumps(
+                        before, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                    ).encode()),
+                    "native_results": [{
+                        **file_ref(feedback_trial / "result.json"),
+                        "trial_uuid": "native-trial", "job_uuid": None,
+                        "reward": 0.0, "exception_info": None,
+                    }],
+                    "attachments": {"matrix_receipt": file_ref(before["matrix_receipt"])},
+                },
+            },
+        },
+        "task_prompt": text_ref(request_root / "task-prompt.txt", task_prompt),
+        "patch_input": text_ref(request_root / "source.patch", incomplete),
+        "native_spec_fields": {
+            "task": task, "task_path": snapshot.relative_to(tmp_path).as_posix(),
+            "task_package_digest": "sha256:" + "f" * 64 if change == "digest" else repaired_digest,
+            "agent": "mimoagent", "model": model,
+            "extra_instruction_path": Path(extra_ref["path"]).relative_to(tmp_path).as_posix(),
+            "extra_instruction_sha256": extra_ref["sha256"],
+        },
+        "provenance": {"correction": {
+            "source_execution_id": original.key[1], "protocol": "reset-context-feedback",
+            "partition_scope": "mechanical_repaired_grader", "extra_instruction": extra_ref,
+            "source_patch": source_files["patch"],
+            "feedback": feedback, "safe_feedback": safe_ref,
+            "task_prompt": file_ref(packages["repaired"] / "instruction.md"),
+            "feedback_result": file_ref(feedback_trial / "result.json"),
+            "task_package_snapshot": {"path": str(snapshot), "sha256": repaired_digest},
+            "allowed_model_inputs": ["task_prompt", "source_patch", "repaired_failure_stdout"],
+            "hidden_test_source_included": False, "reference_source_included": False,
+            "full_historical_context_included": False,
+        }},
+    }
+    messages = [
+        {"role": "system", "content": "Native system."},
+        {"role": "user", "content": task_prompt + "\n\n" + extra + (
+            raw if change == "unsafe_prompt" else ""
+        )},
+        {"role": "assistant", "content": "", "reasoning_content": "Actual repair reasoning.",
+         "tool_calls": [{"id": "native-call", "type": "function",
+                         "function": {"name": "bash", "arguments": '{"command":"inspect code.py"}'}}]},
+        {"role": "tool", "tool_call_id": "native-call", "content": "Actual task-visible code."},
+        {"role": "assistant", "content": "Actual corrected completion.",
+         "reasoning_content": "Actual final repair reasoning."},
+    ]
+    if change == "reused_target":
+        messages[-1] = copy.deepcopy(original_messages[-1])
+    corrected = model_trial(
+        2, messages, incomplete if change == "reused_patch" else fixed, native_reward, snapshot,
+    )
+    after = grade(corrected, 1, "passed-replay")
+    if change == "recorded":
+        after["recorded"] = 1 - native_reward
+    if change == "unmeasured":
+        after["regraded"] = None
+    after_ref = document(tmp_path / "passed.json", {"rows": [after]})
+    control_qual, identity, _ = envcheck_controls(tmp_path / "controls", expected=repaired_digest)
+    control_variant, archive = control_qual.envcheck_controls[identity]
+    inputs = {
+        "v6_manifest": case.inputs["v6_manifest"],
+        "repairs": case.inputs["repairs"],
+        "envcheck_manifest": document(archive / "manifest.json", {"variants": [control_variant]}),
+    }
+    if change == "missing_controls":
+        del inputs["envcheck_manifest"]
+    link = {
+        "source": list(original.key), "corrected": list(corrected.key),
+        "request": document(request_root / "request.json", request),
+        "failed_regrade": {"document": before_ref, "row": 0},
+        "passed_regrade": {"document": after_ref, "row": 0},
+    }
+    if change == "hash":
+        link["request"]["sha256"] = "sha256:" + "f" * 64
+    # Freeze consumed native evidence only; staged_matrix_request owns private package copies.
+    package_roots = (*packages.values(), tmp_path / "variants", tmp_path / "before-v6",
+                     tmp_path / "manifest-package", snapshot)
+    for path in tmp_path.rglob("*"):
+        if path.is_file() and not any(path.is_relative_to(root) for root in package_roots):
+            path.chmod(0o444)
+    evidence = build.Evidence(tmp_path)
+    return {
+        "original": original, "corrected": corrected, "link": link, "messages": messages,
+        "sources": {source.key: source for source in (original, corrected)},
+        "evidence": evidence, "qualification": build.Qualification(evidence, inputs),
+        "qa": qa,
+        "before": before, "after": after,
+    }
+
+
+def admit_reset_correction(fixture, heldout=None):
+    return build.correction_row(
+        fixture["evidence"], fixture["link"], fixture["sources"], fixture["qualification"],
+        set(build.FROZEN_HELDOUT) if heldout is None else heldout, fixture["qa"],
+    )
+
+
+@pytest.mark.parametrize("native_reward", [0, 1])
+def test_bounded_native_reset_context_admits_repaired_success_not_semantic_truth(
+    tmp_path, monkeypatch, native_reward
+):
+    fixture = reset_correction(tmp_path, monkeypatch, native_reward=native_reward)
+    corrected = admit_reset_correction(fixture)
+    assert corrected.correction_messages == fixture["messages"]
+    assert "Actual incomplete completion." not in json.dumps(corrected.correction_messages)
+    assert "Never a main-agent target." not in json.dumps(corrected.correction_messages)
+    assert corrected.correction_tools[0]["function"]["name"] == "bash"
+    provenance = corrected.provenance
+    assert provenance["correction_protocol"] == "reset-context-feedback"
+    assert provenance["feedback_policy"] == "source-free-outcome-projection/v1"
+    assert provenance["partition_scope"] == "mechanical_repaired_grader"
+    assert provenance["semantic_truth"] == "not_independently_established"
+    assert provenance["full_historical_context_included"] is False
+    assert provenance["native_original_reward"] == native_reward
+    assert provenance["repaired_before_reward"] == 0 and provenance["repaired_after_reward"] == 1
+    assert provenance["correction_target_turn"] == 4
+    assert corrected.correction_messages[4]["content"] == "Actual corrected completion."
+    prompt = corrected.correction_messages[1]["content"]
+    assert "SECRET_REFERENCE" not in prompt and "tests/hidden.py" not in prompt
+    assert "1 failed" not in prompt  # Counts are structured, never a forwarded stdout line.
+    assert any(path.endswith("verifier/stability.json") for path in fixture["evidence"].files)
+    assert any(path.endswith("verifier/test_output.log") for path in fixture["evidence"].files)
+    assert fixture["after"]["outcome"] == ("flips" if native_reward == 0 else "stays")
+    build.original_pass_eligible(fixture["original"], set(), set(), set())
+    if native_reward == 0:
+        with pytest.raises(build.BuildError, match="not an observed original native pass"):
+            build.original_pass_eligible(corrected, set(), set(), set())
+    # Every nonfinal completion remains context, never a last-loss target.
+    with pytest.raises(build.BuildError, match="final native assistant"):
+        build.prepare(corrected, None, None, fixture["qa"], None, 65536, target_turn=2)
+
+
+@pytest.mark.parametrize(("change", "reason"), [
+    ("model", "model binding"),
+    ("digest", "snapshot/model pin"),
+    ("hash", "hash mismatch"),
+    ("unsafe_feedback", "source-free outcome projection"),
+    ("unsafe_prompt", "bounded reset feedback"),
+    ("restored_history", "reset-context main agent"),
+    ("native_selector", "reset-context main agent"),
+    ("reused_target", "genuinely new final"),
+    ("reused_patch", "reuses the incomplete source patch"),
+    ("teacher", "teacher"),
+    ("recorded", "recorded-outcome binding"),
+    ("original_exception", "recorded-outcome binding"),
+    ("correction_exception", "recorded-outcome binding"),
+    ("unfinished", "recorded-outcome binding"),
+    ("nonidle", "recorded-outcome binding"),
+    ("alias_conflict", "unresolved alias"),
+    ("unmeasured", "unscored"),
+    ("missing_controls", "native nop/reference controls"),
+])
+def test_reset_context_claims_cannot_override_native_counterevidence(tmp_path, monkeypatch, change, reason):
+    fixture = reset_correction(tmp_path, monkeypatch, change)
+    with pytest.raises(build.BuildError, match=reason):
+        admit_reset_correction(fixture)
+    assert fixture["corrected"].correction_messages is None
+    assert "correction_target_turn" not in fixture["corrected"].provenance
+
+
+def test_reset_context_correction_never_bypasses_heldout_ancestry(tmp_path, monkeypatch):
+    fixture = reset_correction(tmp_path, monkeypatch)
+    with pytest.raises(build.BuildError, match="heldout ancestry"):
+        admit_reset_correction(fixture, {fixture["original"].task})
+
+
+@pytest.mark.parametrize("native_reward", [None, 0.5, 2, True])
+def test_repaired_success_cannot_normalize_nonbinary_native_source_outcome(tmp_path, monkeypatch, native_reward):
+    fixture = reset_correction(tmp_path, monkeypatch, native_reward=native_reward)
+    assert fixture["corrected"].result["exception_info"] is None
+    assert fixture["after"]["recorded"] == build.reward(fixture["corrected"].result)
+    with pytest.raises(build.BuildError, match="recorded-outcome binding"):
+        admit_reset_correction(fixture)

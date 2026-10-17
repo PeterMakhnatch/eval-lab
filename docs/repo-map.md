@@ -509,7 +509,7 @@ inputs:
   - path: src/evallab/qa/cli.py
     digest: sha256:a980f6f50a1baa91a83deb09c5d98409a98539654f4be01014eb2be5281be1c3
   - path: src/evallab/qa/counterfactual.py
-    digest: sha256:4d9628959fa55e557b16080595712a91967c5c102a8f73f242d7f82fce14a185
+    digest: sha256:8d0d181173ff543fccb713e91f31d27a0a9d7b1f22f1e66f23ad4eeb8c5eb538
   - path: src/evallab/qa/models.py
     digest: sha256:03eee7b951f941e5a267c2e9b78b58a05b3e0481310d44b98b63c11bb7df750c
   - path: src/evallab/qa/score.py

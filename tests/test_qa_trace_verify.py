@@ -477,7 +477,8 @@ def test_minimal_grader_change_uses_same_variant_for_controls_and_recorded_diff(
     seen: list[tuple[Path, str]] = []
 
     def replay(
-        trial_dir, grader, work, *, diff_text, repo_root, environment, spend_gate, runner=None
+        trial_dir, grader, work, *, diff_text, repo_root, environment, spend_gate, runner=None,
+        matrix_runner=None,
     ):
         assert grader.package != package
         assert (grader.package / "tests/test_case.py").read_text() == "assert value == 2\n"

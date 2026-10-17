@@ -119,6 +119,14 @@ subject replay does. Use a new owned output directory for required fresh same-ru
 controls: supplying a runner does not bypass existing control-cache validation,
 authorize spend, or turn cached controls into fresh executions.
 
+Spec-driven MiMo oracle replays also require an effective egress lock (explicit
+`egress_lock=true` on Modal) and a registered variant for the exact
+solution-overridden snapshot. Derive these inputs with `derive_task` and
+`qa-trace-patch-replay@1`, retaining the repaired physical grader as parent and
+unchanged verifier bytes. The candidate records describe replay inputs only:
+they are not validated tasks, measured controls/outcomes, or SFT rows. Registering
+them does not replace fresh same-run controls or change model-run lineage policy.
+
 `repaired-data-sft-v2/analyze.py --plan PLAN.json --out REPORT.json` validates each
 arm's complete authorized raw task/attempt map before applying the requested
 cohort and selected-attempt view. The `repaired-data-sft.analysis-plan/v2` contract

@@ -24,9 +24,23 @@ from evallab.ref_subset import Job, probe_task, sweep
 from evallab.registry import task_directory_digest
 from evallab.regrade import CloudSpendGate
 
-pytest.importorskip("harbor.models.task.config", exc_type=ImportError)
-pytest.importorskip("modal", exc_type=ImportError)
-ref_subset_modal = importlib.import_module("evallab.ref_subset_modal")
+try:
+    ref_subset_modal = importlib.import_module("evallab.ref_subset_modal")
+except ModuleNotFoundError as error:
+    if not (
+        error.name in {"harbor", "modal"} or (error.name or "").startswith(("harbor.", "modal."))
+    ):
+        raise
+    # Keep every test collected in the base profile; only runtime execution
+    # requires the optional native dependency, as in test_harbor_docker.
+    ref_subset_modal = None
+
+
+@pytest.fixture(autouse=True)
+def _require_native_modal():
+    if ref_subset_modal is None:
+        pytest.skip("native Modal regressions require uv sync --extra laminar")
+
 
 _PATCH = """diff --git a/a.go b/a.go
 --- a/a.go
@@ -109,7 +123,7 @@ class _Provider:
         }
 
 
-class _Native(ref_subset_modal.ModalEnvironment):
+class _Native(ref_subset_modal.ModalEnvironment if ref_subset_modal is not None else object):
     """Inert stand-in for native environment operations, not the adapter logic."""
 
     provider: _Provider

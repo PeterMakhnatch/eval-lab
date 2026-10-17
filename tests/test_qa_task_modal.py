@@ -22,9 +22,15 @@ from evallab.qa import task as qa
 from evallab.registry import task_directory_digest
 from evallab.regrade import CloudSpendGate
 
-modal_qa = pytest.importorskip(
-    "evallab.qa.task_modal", reason="native Modal regressions require uv sync --extra laminar"
-)
+modal_qa: Any = None
+
+
+@pytest.fixture(autouse=True)
+def _require_native_modal():
+    global modal_qa
+    modal_qa = pytest.importorskip(
+        "evallab.qa.task_modal", reason="native Modal regressions require uv sync --extra laminar"
+    )
 
 
 def _package(root: Path, name: str = "modal-task", *, separate: bool = False) -> Path:

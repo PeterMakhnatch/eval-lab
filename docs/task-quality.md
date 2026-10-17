@@ -237,13 +237,17 @@ separate `--stages exploit` probe is requested.
     attempt reservations remain charged estimates. At the default 24-grade
     limit the conservative bound is **51 reservation units for raw MiMo** and
     **54 for separate verifiers**, plus **two per requested mutant**. Reads
-    share preparation sandboxes. Immutable native filesystem snapshots avoid
-    repeating setup and have an explicit **24-hour retention**, never indefinite
-    or the SDK's month-long default. Every grade clones that pristine snapshot,
-    clears old rewards, preserves submitted bytes/modes, and tears down its
-    sandbox even on errors. CPU/memory and sandbox lifetimes are bounded;
-    GPU/TPU requests are refused before provider work because this estimate
-    does not price them. A stopped verifier, missing reward or cloud budget
+    share preparation sandboxes. Declared native setup healthchecks run before
+    reference reads or snapshots, with uploaded loose environment inputs and a
+    bounded deadline. Immutable native filesystem snapshots avoid repeating
+    setup or healthchecks on grade clones and have an explicit **24-hour
+    retention**, never indefinite or the SDK's month-long default. Every grade
+    clones that pristine snapshot, clears old rewards, preserves submitted
+    bytes/modes, and tears down its sandbox even on errors. CPU/memory and
+    sandbox lifetimes are bounded. GPU/TPU requests, Windows, declared multi-step
+    tasks and Compose packages are refused before provider work; this backend
+    prices and executes only supported single-environment Linux tasks.
+    A failed healthcheck, stopped verifier, missing reward or cloud budget
     exhaustion is **unmeasured/unknown**, never a pass.
     Reservations are **not a provider billing hard kill**: actual charges can
     differ. `report.json` includes native commands, sandbox/snapshot identities,

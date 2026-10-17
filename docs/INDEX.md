@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:dbf506cba0d2a9dd99a26c50213bb6a0c13b561fc9d3522e33d9be67b4e6ca48
+    digest: sha256:1a7bc9864967749f53440ca57f44a0a2716826af6ed6229e5884cbe62f804cc8
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -139,7 +139,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:623833b7cf628a5f9ee23bc452a35ac228a654af450ba7f38728258f81f8e6f6
+    digest: sha256:f7433fd7fa5bae6bfe151851b70d4df151f239ed8293bc0df19ac9bad069bc0b
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

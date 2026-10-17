@@ -52,9 +52,10 @@ For every clean-set manifest row, four checks on the FINAL clean package
     establish coverage of these attacks. Bind rejection, selected/armed
     evidence, and oracle/nop controls to the exact repaired package digest;
     synthetic wrapper regressions or controls on a rebuilt package cannot
-    certify another input. The [HAR-208 receipt](separate-verifier.md#har-208-exact-input-acceptance-2026-10-17-blocked)
-    records the current exact-input local-admission block without changing
-    manifest qualification.
+    certify another input. The [HAR-208 receipt](separate-verifier.md#har-208-exact-input-acceptance-2026-10-17)
+    records the exact-package lineage, native `oracle-x3`/`nop-x3` controls,
+    and native `CheatAgent` ladder-v3 rejections for `002139` and `002866`
+    without claiming fleet-wide certification.
 (d) **fix-content census = 0 locations with a real positive control** —
     for all reference tasks, `evallab.fix_content_census` stages signatures
     from the actual indexed patch and measures BOTH the published-image

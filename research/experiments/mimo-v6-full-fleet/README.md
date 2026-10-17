@@ -112,13 +112,17 @@ probe is unavailable; it does not relax a lock or provide a fallback shim.
 
 `mimo-v6-intake-census.csv` freezes the old-package intake.
 `mimo-v6-fleet-census.csv` describes the release's exact current packages.
-The measured intake and first rebuilt-release census differ because changed
-package bytes invalidate old controls:
+Changed package bytes invalidate old controls; the final census adds only
+new executed, exact-input pairs:
 
 | Package census | `v6_verified` | `v6_unverified` | `broken_ref_or_env` | `missing_ref` |
 |---|---:|---:|---:|---:|
 | Retained intake | 34 | 530 | 3 | 0 |
 | Rebuilt release, before new controls | 2 | 564 | 1 | 0 |
+| Final reviewed release, after exact-source controls | 5 | 562 | 0 | 0 |
+
+The final inventory deduplicates 397 native execution UUIDs across retained
+generations; only full-package and Harbor-digest-matching evidence qualifies.
 
 Generate the latter with explicitly retained evidence roots, for example:
 
@@ -168,9 +172,22 @@ are not provider billing receipts.
 ## Capped native controls
 
 `run_controls.py` uses the first-party `Executor.execute_direct` / `RunRequest`
-oracle and nop route, native Harbor 0.24.0 and Modal. Its default is a
-provider-free plan, including for the full fleet. For the three recovered
-reference/environment targets:
+oracle and nop route, native Harbor 0.24.0 and Modal. The final `f42bd0c9…`
+manifest's recovered/repaired targets completed six actual native calls:
+
+| Task | Reference reward | NOP reward |
+|---|---:|---:|
+| `000081` | 1.0 | 0.0 |
+| `000838` | 1.0 | 0.0 |
+| `001373` | 1.0 | 0.0 |
+
+All six have positive recognized case execution, no native exception and
+verified executed-lock/config/staging identity bound to the current full package
+and Harbor digests. The earlier six calls on `e204b8bf…` remain separate evidence
+and are not transferred. These pairs qualify reference/nop controls only.
+
+The default command is a provider-free plan, including for the full fleet.
+For the three recovered reference/environment targets:
 
 ```bash
 uv run --extra laminar python research/experiments/mimo-v6-full-fleet/run_controls.py \
@@ -192,6 +209,12 @@ explicitly; all paid and uncertain admissions retain their full chargeable units
 The lane uses the existing census billing namespace and `limit` resource policy,
 does not exceed the tasks' declared 2-CPU/8-GiB caps, rejects GPUs, and bounds
 native sandbox lifetimes at 900 seconds.
+
+The final journal retains 12 executed native calls across the two manifests and
+six proven zero-provider refusals: **$3.60 chargeable reservations / $5.40 total
+historical reservations**, with the explicit v1-to-v2 accounting migration.
+An actual provider-free plan for one further unverified pair proposes **$4.20**
+and is refused by the unchanged $4 cap. Actual provider billing is unmeasured.
 
 The measured fresh-ledger full-fleet plan requested **1,134 native executions,
 6,804 allocation/preparation reservation units and $340.20**, so the default

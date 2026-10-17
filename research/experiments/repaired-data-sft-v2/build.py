@@ -480,9 +480,7 @@ class Qualification:
             self._packages[key] = {"path": package, "config": config, "task": task}
         return self._packages[key]
 
-    def selection(
-        self, alias: Any, task: str, v6: dict[str, str]
-    ) -> tuple[set[str], set[str]]:
+    def selection(self, alias: Any, task: str, v6: dict[str, str]) -> tuple[set[str], set[str]]:
         """Prove a selection route; provenance alone does not grant a qualification role."""
         from evallab.task_variants import VariantRecord
 
@@ -546,8 +544,12 @@ class Qualification:
                     for rec, ref in self.repairs.get(task, [])
                     if self.evidence.bound(ref) == path
                 ]
-                if not matching or any(grader_identity(rec) != (task, expected) for rec in matching):
-                    raise BuildError("repair alias lacks its exact native task/digest/record binding")
+                if not matching or any(
+                    grader_identity(rec) != (task, expected) for rec in matching
+                ):
+                    raise BuildError(
+                        "repair alias lacks its exact native task/digest/record binding"
+                    )
                 record = matching[0]
                 parent = (record.get("parent") or {}).get("digest")
                 if parent == expected:
@@ -574,7 +576,9 @@ class Qualification:
                         )
                         self.package(str(parent_package), parent, task)
                     else:
-                        raise BuildError("repair alias lacks retained native original-package custody")
+                        raise BuildError(
+                            "repair alias lacks retained native original-package custody"
+                        )
                 if parent == v6["final_digest"]:
                     if set(record.get("components_changed", [])) - {"verifier"}:
                         raise BuildError("repair changes agent-visible task/environment/solution")

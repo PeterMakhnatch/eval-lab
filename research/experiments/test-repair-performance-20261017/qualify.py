@@ -4,6 +4,9 @@ The first two runs must be reference and nop, in that order; remaining runs
 are admitted known-wrong submissions unless explicitly named as prompt-valid
 alternates. Positive controls each use three native verifier invocations.
 Controls do not certify model capability. Reservations are not invoices.
+
+Each invocation must name its current approval and owned Modal app explicitly;
+persisted reservations cannot be transferred between approval scopes.
 """
 
 from __future__ import annotations
@@ -27,9 +30,6 @@ from evallab.runner import (
     staged_matrix_request,
 )
 
-APP = "mimo-clean-census-envcheck-20261017"
-APPROVAL = "FOCUS.md Overnight plan 2026-10-17: EnvCheck $4 Modal lane cap"
-
 
 def sha256(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
@@ -42,8 +42,10 @@ def write_json(path: Path, value: Any) -> None:
     temporary.replace(path)
 
 
-def load_gate(path: Path, cap_usd: float, reserve_usd: float) -> CloudSpendGate:
-    gate = CloudSpendGate(APPROVAL, cap_usd, reserve_usd)
+def load_gate(
+    path: Path, cap_usd: float, reserve_usd: float, *, approval: str,
+) -> CloudSpendGate:
+    gate = CloudSpendGate(approval, cap_usd, reserve_usd)
     if path.exists():
         prior = json.loads(path.read_text())
         for key in ("approval", "cap_usd", "usd_per_execution"):
@@ -64,6 +66,7 @@ def execute_matrix(
     gate: CloudSpendGate,
     gate_path: Path,
     sandbox_timeout: int,
+    modal_app_name: str,
     execute: bool,
     valid_alternates: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
@@ -99,7 +102,7 @@ def execute_matrix(
         "matrix_sha256": matrix_digest,
         "package_digest": digests.package,
         "verifier_digest": digests.verifier,
-        "modal_app_name": APP,
+        "modal_app_name": modal_app_name,
         "sandbox_timeout_seconds": sandbox_timeout,
         "valid_alternate_runs": sorted(valid_alternates),
         "checks": [],
@@ -129,7 +132,7 @@ def execute_matrix(
             request = dataclasses.replace(
                 request,
                 allow_billable=True,
-                modal_app_name=APP,
+                modal_app_name=modal_app_name,
                 modal_resource_policy="limit",
                 modal_sandbox_timeout_seconds=sandbox_timeout,
                 verifier_repeat_n=3 if repeated else None,
@@ -185,6 +188,8 @@ def main() -> int:
     parser.add_argument("--budget", type=Path, required=True)
     parser.add_argument("--max-usd", type=float, required=True)
     parser.add_argument("--reserve-usd", type=float, required=True)
+    parser.add_argument("--approval", required=True, help="Current approval receipt, not a grant")
+    parser.add_argument("--modal-app-name", required=True, help="Dedicated owned census app")
     parser.add_argument("--sandbox-timeout-seconds", type=int, default=600)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument(
@@ -192,19 +197,20 @@ def main() -> int:
         help="Explicit trailing prompt-valid positive control; repeatable within one matrix",
     )
     args = parser.parse_args()
-    if args.max_usd > 4.0:
-        parser.error("the current EnvCheck approval is at most $4 Modal")
+    if args.max_usd > 6.0:
+        parser.error("the current EnvCheck v7 approval is at most $6 Modal")
     if args.sandbox_timeout_seconds < 1:
         parser.error("sandbox timeout must be positive")
     root = args.root.resolve()
     output = args.out.resolve()
     if not output.is_relative_to(root / "runs"):
         parser.error("qualification output must live under this owned worktree's runs/")
-    gate = load_gate(args.budget, args.max_usd, args.reserve_usd)
+    gate = load_gate(args.budget, args.max_usd, args.reserve_usd, approval=args.approval)
     os.environ["EVALLAB_STATE_JOURNAL"] = "off"
-    os.environ["EVALLAB_DERIVED_ROOT"] = str(root / "derived" / "parquet")
+    os.environ["EVALLAB_DERIVED_ROOT"] = str(output / "derived" / "parquet")
     rows = [execute_matrix(path, root=root, output=output, gate=gate, gate_path=args.budget,
-                           sandbox_timeout=args.sandbox_timeout_seconds, execute=args.execute,
+                           sandbox_timeout=args.sandbox_timeout_seconds,
+                           modal_app_name=args.modal_app_name, execute=args.execute,
                            valid_alternates=frozenset(args.valid_alternate_run))
             for path in args.matrix]
     print(json.dumps({"execute": args.execute, "tasks": rows, "reservations": gate.to_json()}, indent=2))

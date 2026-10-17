@@ -125,7 +125,7 @@ inputs:
   - path: docs/research/trajectory-intelligence.md
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
   - path: docs/rollout.md
-    digest: sha256:3826791118cae61da822e5c3478fc25cf77efa1adc6dd4595dfa4c2922d62d13
+    digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md

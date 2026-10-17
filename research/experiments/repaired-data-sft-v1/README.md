@@ -98,6 +98,9 @@ are disclosed wherever A is reported. B and C contain neither.
   also reports example count, coverage and incorrect-pass rate. Held-out solve rates
   have exact Clopper–Pearson 95% intervals; these ignore within-task correlation, are
   not cluster-adjusted and are not intervals for the B–C difference.
+  `paired.B_vs_C_full_schedule` separately compares full per-task means on its common
+  cohort with `role=secondary` and `attempts_counted={B:2,C:1}`; it is not the primary
+  attempt-matched comparison. Replay mode never selects the headline attempt view.
 - **Paired snapshot regrades — primary pin evidence.** Regrade each rewarded frozen-v6
   pin submission from its own retained snapshot using the byte-identical v6-ported
   repaired graders in `heldout-pin-repaired-graders.csv`. The paired denominator is the
@@ -112,8 +115,12 @@ are disclosed wherever A is reported. B and C contain neither.
   diagnostic, with missing attempts explicitly counted rather than claimed complete.
   `missing_diagnostic_attempts` counts planned cells without a measured result,
   including errored cells, which are also counted in `errored_diagnostic_attempts`.
-  No diagnostic rows means `status=unavailable`, `reason=skipped_by_budget`; present but
-  all-errored rows mean `status=unmeasured`, not skipped by budget.
+  No diagnostic rows, or rows marked `error=skipped_by_budget` (optionally followed by
+  `: detail`) with no executions measured, mean `status=unavailable`,
+  `reason=skipped_by_budget`. Explicit markers count in `skipped_diagnostic_attempts`,
+  not execution errors or observed unpaired grader digests; they still undergo cell
+  validation. Per-task row counts retain these markers, not evidence of execution.
+  Other all-errored rows remain `status=unmeasured`.
 
 ## Runs
 

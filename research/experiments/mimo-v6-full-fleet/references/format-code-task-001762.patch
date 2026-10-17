@@ -1,0 +1,152 @@
+diff --git a/plumber/api/importer.py b/plumber/api/importer.py
+index 19fe5d2..025eb8a 100644
+--- a/plumber/api/importer.py
++++ b/plumber/api/importer.py
+@@ -12,6 +12,7 @@ from .filesystem import GameFileSystem
+ class AssetType(Enum):
+     """Types of assets that can be imported."""
+ 
++    VMF = "vmf"
+     MDL = "mdl"
+     VMT = "vmt"
+     VTF = "vtf"
+@@ -93,7 +94,7 @@ class ParallelImportBuilder:
+     Ensures that each asset is imported only once during the process, even if there are
+     dependencies between assets (e.g., a material depends on a texture) or if duplicate
+     imports are requested. This deduplication happens automatically across all queued
+-    import jobs.
++    import jobs, except VMF imports.
+     """
+ 
+     def __init__(
+@@ -106,6 +107,30 @@ class ParallelImportBuilder:
+         material_texture_interpolation: str = "Linear",
+         material_allow_culling: bool = False,
+         material_editor_materials: bool = False,
++        # VMF settings
++        vmf_import_lights: bool = True,
++        vmf_light_factor: float = 1.0,
++        vmf_sun_factor: float = 1.0,
++        vmf_ambient_factor: float = 1.0,
++        vmf_import_sky_camera: bool = True,
++        vmf_sky_equi_height: int = 1024,
++        vmf_import_unknown_entities: bool = False,
++        vmf_import_brushes: bool = True,
++        vmf_import_overlays: bool = True,
++        vmf_epsilon: float = 0.01,
++        vmf_cut_threshold: float = 0.1,
++        vmf_merge_solids: str = "MERGE",
++        vmf_invisible_solids: str = "SKIP",
++        vmf_import_props: bool = True,
++        vmf_import_entities: bool = True,
++        vmf_import_sky: bool = True,
++        vmf_scale: float = 1.0,
++        # VMF collections
++        vmf_brush_collection=None,
++        vmf_overlay_collection=None,
++        vmf_prop_collection=None,
++        vmf_light_collection=None,
++        vmf_entity_collection=None,
+         # Asset search settings
+         asset_search_path: Optional[str] = None,
+         # MDL settings
+@@ -130,9 +155,34 @@ class ParallelImportBuilder:
+             material_allow_culling: Enable backface culling
+             material_editor_materials: Import editor materials instead of invisible ones
+ 
++            # VMF settings
++            vmf_import_lights: Import lighting
++            vmf_light_factor: Light brightness multiplier
++            vmf_sun_factor: Sunlight brightness multiplier
++            vmf_ambient_factor: Ambient light brightness multiplier
++            vmf_import_sky_camera: Import sky camera
++            vmf_sky_equi_height: Sky equirectangular texture height
++            vmf_import_unknown_entities: Import unknown entities as empties
++            vmf_import_brushes: Import brush geometry
++            vmf_import_overlays: Import overlay geometry
++            vmf_epsilon: Geometry epsilon for calculations
++            vmf_cut_threshold: Cut threshold for geometry
++            vmf_merge_solids: How to merge solids ("MERGE", "SEPARATE")
++            vmf_invisible_solids: How to handle invisible solids ("IMPORT", "SKIP")
++            vmf_import_props: Import props
++            vmf_import_entities: Import entities
++            vmf_import_sky: Import skybox
++            vmf_scale: VMF-specific scale factor
++
+             # Asset search settings
+             asset_search_path: Additional search path for assets
+ 
++            vmf_brush_collection: Collection for brushes (VMF imports)
++            vmf_overlay_collection: Collection for overlays (VMF imports)
++            vmf_prop_collection: Collection for props (VMF imports)
++            vmf_light_collection: Collection for lights (VMF imports)
++            vmf_entity_collection: Collection for entities (VMF imports)
++
+             # Asset search settings
+             asset_search_path: Additional search directories for assets
+ 
+@@ -157,6 +207,24 @@ class ParallelImportBuilder:
+             "material_texture_interpolation": material_texture_interpolation,
+             "material_allow_culling": material_allow_culling,
+             "material_editor_materials": material_editor_materials,
++            # VMF settings
++            "vmf_import_lights": vmf_import_lights,
++            "vmf_light_factor": vmf_light_factor,
++            "vmf_sun_factor": vmf_sun_factor,
++            "vmf_ambient_factor": vmf_ambient_factor,
++            "vmf_import_sky_camera": vmf_import_sky_camera,
++            "vmf_sky_equi_height": vmf_sky_equi_height,
++            "vmf_import_unknown_entities": vmf_import_unknown_entities,
++            "vmf_import_brushes": vmf_import_brushes,
++            "vmf_import_overlays": vmf_import_overlays,
++            "vmf_epsilon": vmf_epsilon,
++            "vmf_cut_threshold": vmf_cut_threshold,
++            "vmf_merge_solids": vmf_merge_solids,
++            "vmf_invisible_solids": vmf_invisible_solids,
++            "vmf_import_props": vmf_import_props,
++            "vmf_import_entities": vmf_import_entities,
++            "vmf_import_sky": vmf_import_sky,
++            "vmf_scale": vmf_scale,
+             # Asset search settings
+             "asset_search_path": asset_search_path,
+             # MDL settings
+@@ -168,9 +236,28 @@ class ParallelImportBuilder:
+         # Store AssetCallbacks settings
+         self._asset_callbacks_settings = {
+             "main_collection": main_collection,
++            "brush_collection": vmf_brush_collection,
++            "overlay_collection": vmf_overlay_collection,
++            "prop_collection": vmf_prop_collection,
++            "light_collection": vmf_light_collection,
++            "entity_collection": vmf_entity_collection,
+             "apply_armatures": mdl_apply_armatures,
+         }
+ 
++    def add_vmf(self, path: str, from_game: bool = True) -> "ParallelImportBuilder":
++        """
++        Add a VMF import job.
++
++        Args:
++            path: Path to VMF file
++            from_game: Whether to load from game file system
++
++        Returns:
++            Self for method chaining
++        """
++        self._jobs.append(ImportJob(AssetType.VMF, path, from_game))
++        return self
++
+     def add_mdl(self, path: str, from_game: bool = True) -> "ParallelImportBuilder":
+         """
+         Add an MDL import job.
+@@ -250,7 +337,9 @@ class ParallelImportBuilder:
+ 
+             # Add all jobs to the API importer
+             for job in self._jobs:
+-                if job.asset_type == AssetType.MDL:
++                if job.asset_type == AssetType.VMF:
++                    api_importer.add_vmf_job(job.path, job.from_game)
++                elif job.asset_type == AssetType.MDL:
+                     api_importer.add_mdl_job(job.path, job.from_game)
+                 elif job.asset_type == AssetType.VMT:
+                     api_importer.add_vmt_job(job.path, job.from_game)

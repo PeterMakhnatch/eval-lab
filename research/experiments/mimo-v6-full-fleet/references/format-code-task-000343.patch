@@ -1,0 +1,103 @@
+diff --git a/fpgaconvnet/models/network/Network.py b/fpgaconvnet/models/network/Network.py
+index 3c3abae..bf04b47 100644
+--- a/fpgaconvnet/models/network/Network.py
++++ b/fpgaconvnet/models/network/Network.py
+@@ -4,6 +4,7 @@ import os
+ import json
+ import pydot
+ import copy
++import math
+ import numpy as np
+ import networkx as nx
+ 
+@@ -88,6 +89,83 @@ class Network():
+     from fpgaconvnet.models.network.visualise import plot_percentage_resource_per_layer_type
+     from fpgaconvnet.models.network.visualise import visualise_partitions_nx
+ 
++    def get_memory_usage_estimate(self):
++
++        # for sequential networks, our worst-case memory usage is
++        # going to be both the largest input and output featuremap pair
++
++        # get the largest input featuremap size
++        max_input_size = 0
++        max_output_size = 0
++        for partition in self.partitions:
++            input_node  = partition.input_nodes[0]
++            output_node = partition.output_nodes[0]
++            partition_input_size  = partition.graph.nodes[input_node]['hw'].workload_in()*partition.batch_size
++            partition_output_size = partition.graph.nodes[output_node]['hw'].workload_out()*partition.batch_size*partition.wr_factor
++            if partition_input_size > max_input_size:
++                max_input_size = partition_input_size
++            if partition_output_size > max_output_size:
++                max_output_size = partition_output_size
++
++        return math.ceil(((max_input_size + max_output_size)*2)) # TODO *self.data_width)/8)
++
++    def get_inter_latency(self, delay, partition_list=None):
++        # latency between partitions
++        if partition_list == None:
++            partition_list = list(range(len(self.partitions)))
++        if len(partition_list) == 1:
++            return 0
++        else:
++            return len(partition_list)*delay
++
++    def get_cycle(self, pipeline, partition_list=None):
++        if partition_list == None:
++            partition_list = list(range(len(self.partitions)))
++
++        if pipeline:
++            # partitions pipelined
++            max_interval = 0
++            pipeline_depth = 0
++            for partition_index, partition in enumerate(self.partitions):
++                if partition_index not in partition_list:
++                    continue
++                max_interval = max(max_interval, partition.get_interval())
++                pipeline_depth += partition.get_pipeline_depth()
++            cycle = int(max_interval*self.batch_size+pipeline_depth)
++        else:
++            # partitions sequential scheduled
++            cycle = 0
++            for partition_index, partition in enumerate(self.partitions):
++                if partition_index not in partition_list:
++                    continue
++                # accumulate cycle for each partition
++                cycle += partition.get_cycle()
++        # return the total cycle
++        return cycle
++
++    def get_latency(self, freq, pipeline, delay, partition_list=None):
++        if partition_list == None:
++            partition_list = list(range(len(self.partitions)))
++
++        batch_cycle = self.get_cycle(pipeline, partition_list)
++        latency = batch_cycle/(freq*1000000)
++        # return the total latency
++        return latency + self.get_inter_latency(delay, partition_list)
++
++    def get_throughput(self, freq, pipeline, delay, partition_list=None):
++        if partition_list == None:
++            partition_list = list(range(len(self.partitions)))
++
++        # return the frames per second
++        return float(self.batch_size)/self.get_latency(freq, pipeline, delay, partition_list)
++
++    def get_interval(self, partition_list=None):
++        assert self.multi_fpga, "get_interval() only works for multi-fpga implementation"
++        intervals = []
++        for i in partition_list:
++            intervals.append(self.partitions[i].get_interval())
++        return max(intervals)
++
+     def visualise(self, output_path, mode="dot"):
+         g = pydot.Dot(graph_type='digraph', splines="ortho", fontsize=25)
+         main_cluster = pydot.Cluster("network", label="Network")
+@@ -152,4 +230,4 @@ class Network():
+             if not is_valid:
+                 raise AssertionError(f"Partition {partition_index} is not valid: {err_msg}")
+ 
+-        return True
++        return True
+\ No newline at end of file

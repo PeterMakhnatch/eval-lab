@@ -1,0 +1,228 @@
+diff --git a/mne/epochs.py b/mne/epochs.py
+index dd11bb52d5..e37385c004 100644
+--- a/mne/epochs.py
++++ b/mne/epochs.py
+@@ -10,7 +10,7 @@
+ #
+ # License: BSD (3-clause)
+ 
+-from collections import OrderedDict, Counter
++from collections import Counter
+ from copy import deepcopy
+ import json
+ import operator
+@@ -46,9 +46,11 @@ from .fixes import _get_args
+ from .viz import (plot_epochs, plot_epochs_psd, plot_epochs_psd_topomap,
+                   plot_epochs_image, plot_topo_image_epochs, plot_drop_log)
+ from .utils import (check_fname, logger, verbose, _check_type_picks,
+-                    _time_mask, check_random_state, warn, _pl, _ensure_int,
++                    _time_mask, check_random_state, warn, _pl,
+                     sizeof_fmt, SizeMixin, copy_function_doc_to_method_doc,
+-                    _check_pandas_installed, _check_preload, GetEpochsMixin)
++                    _check_pandas_installed, _check_preload, GetEpochsMixin,
++                    _prepare_read_metadata, _prepare_write_metadata,
++                    _check_event_id, _gen_events)
+ 
+ 
+ def _save_split(epochs, fname, part_idx, n_parts, fmt):
+@@ -111,12 +113,7 @@ def _save_split(epochs, fname, part_idx, n_parts, fmt):
+     # Metadata
+     if epochs.metadata is not None:
+         start_block(fid, FIFF.FIFFB_MNE_METADATA)
+-        metadata = epochs.metadata
+-        if not isinstance(metadata, list):
+-            metadata = metadata.to_json(orient='records')
+-        else:  # Pandas DataFrame
+-            metadata = json.dumps(metadata)
+-        assert isinstance(metadata, str)
++        metadata = _prepare_write_metadata(epochs.metadata)
+         write_string(fid, FIFF.FIFF_DESCRIPTION, metadata)
+         end_block(fid, FIFF.FIFFB_MNE_METADATA)
+ 
+@@ -257,23 +254,7 @@ class BaseEpochs(ProjMixin, ContainsMixin, UpdateChannelsMixin,
+         if events is not None:  # RtEpochs can have events=None
+             events = np.asarray(events)
+ 
+-        # check out event_id dict
+-        if event_id is None:  # convert to int to make typing-checks happy
+-            event_id = list(np.unique(events[:, 2]))
+-        if isinstance(event_id, dict):
+-            for key in event_id.keys():
+-                if not isinstance(key, str):
+-                    raise TypeError('Event names must be of type str, '
+-                                    'got %s (%s)' % (key, type(key)))
+-            event_id = dict((key, _ensure_int(val, 'event_id[%s]' % key))
+-                            for key, val in event_id.items())
+-        elif isinstance(event_id, list):
+-            event_id = [_ensure_int(v, 'event_id[%s]' % vi)
+-                        for vi, v in enumerate(event_id)]
+-            event_id = dict(zip((str(i) for i in event_id), event_id))
+-        else:
+-            event_id = _ensure_int(event_id, 'event_id')
+-            event_id = {str(event_id): event_id}
++        event_id = _check_event_id(event_id, events)
+         self.event_id = event_id
+         del event_id
+ 
+@@ -1955,8 +1936,7 @@ class EpochsArray(BaseEpochs):
+                              'channels.')
+         if events is None:
+             n_epochs = len(data)
+-            events = np.c_[np.arange(n_epochs), np.zeros(n_epochs, int),
+-                           np.ones(n_epochs, int)]
++            events = _gen_events(n_epochs)
+         if data.shape[0] != len(events):
+             raise ValueError('The number of epochs and the number of events'
+                              'must match')
+@@ -2197,15 +2177,7 @@ def _read_one_epoch_file(f, tree, preload):
+                 pos = dd.pos
+                 if kind == FIFF.FIFF_DESCRIPTION:
+                     metadata = read_tag(fid, pos).data
+-                    pd = _check_pandas_installed(strict=False)
+-                    # use json.loads because this preserves ordering
+-                    # (which is necessary for round-trip equivalence)
+-                    metadata = json.loads(metadata,
+-                                          object_pairs_hook=OrderedDict)
+-                    assert isinstance(metadata, list)
+-                    if pd is not False:
+-                        metadata = pd.DataFrame.from_records(metadata)
+-                        assert isinstance(metadata, pd.DataFrame)
++                    metadata = _prepare_read_metadata(metadata)
+                     break
+ 
+         #   Locate the data of interest
+diff --git a/mne/time_frequency/tfr.py b/mne/time_frequency/tfr.py
+index 1dd87cd749..98e42a08b1 100644
+--- a/mne/time_frequency/tfr.py
++++ b/mne/time_frequency/tfr.py
+@@ -20,7 +20,8 @@ from scipy.fftpack import fft, ifft
+ from ..baseline import rescale
+ from ..parallel import parallel_func
+ from ..utils import (logger, verbose, _time_mask, check_fname, sizeof_fmt,
+-                     GetEpochsMixin)
++                     GetEpochsMixin, _prepare_read_metadata,
++                     _prepare_write_metadata, _check_event_id, _gen_events)
+ from ..channels.channels import ContainsMixin, UpdateChannelsMixin
+ from ..channels.layout import _pair_grad_sensors
+ from ..io.pick import (pick_info, _pick_data_channels,
+@@ -1968,10 +1969,13 @@ class EpochsTFR(_BaseTFR, GetEpochsMixin):
+     method : str | None, defaults to None
+         Comment on the method used to compute the data, e.g., morlet wavelet.
+     events : ndarray, shape (n_events, 3) | None
+-        The events as stored in the Epochs class
++        The events as stored in the Epochs class. If None (default), all event
++        values are set to 1 and event time-samples are set to range(n_epochs).
+     event_id : dict | None
+         Example: dict(auditory=1, visual=3). They keys can be used to access
+-        associated events.
++        associated events. If None, all events will be used and a dict is
++        created with string integer names corresponding to the event id
++        integers.
+     metadata : instance of pandas.DataFrame | None
+         A :class:`pandas.DataFrame` containing pertinent information for each
+         trial. See :class:`mne.Epochs` for further details
+@@ -2023,6 +2027,10 @@ class EpochsTFR(_BaseTFR, GetEpochsMixin):
+         if n_times != len(times):
+             raise ValueError("Number of times and data size don't match"
+                              " (%d != %d)." % (n_times, len(times)))
++        if events is None:
++            n_epochs = len(data)
++            events = _gen_events(n_epochs)
++        event_id = _check_event_id(event_id, events)
+         self.data = data
+         self.times = np.array(times, dtype=float)
+         self.freqs = np.array(freqs, dtype=float)
+@@ -2249,9 +2257,13 @@ def _prepare_write_tfr(tfr, condition):
+     """Aux function."""
+     attributes = dict(times=tfr.times, freqs=tfr.freqs, data=tfr.data,
+                       info=tfr.info, comment=tfr.comment, method=tfr.method)
+-    if hasattr(tfr, 'nave'):
++    if hasattr(tfr, 'nave'):  # if AverageTFR
+         attributes['nave'] = tfr.nave
+-    return (condition, attributes)
++    elif hasattr(tfr, 'events'):  # if EpochsTFR
++        attributes['events'] = tfr.events
++        attributes['event_id'] = tfr.event_id
++        attributes['metadata'] = _prepare_write_metadata(tfr.metadata)
++    return condition, attributes
+ 
+ 
+ def read_tfrs(fname, condition=None):
+@@ -2285,6 +2297,8 @@ def read_tfrs(fname, condition=None):
+     tfr_data = read_hdf5(fname, title='mnepython')
+     for k, tfr in tfr_data:
+         tfr['info'] = Info(tfr['info'])
++        if 'metadata' in tfr:
++            tfr['metadata'] = _prepare_read_metadata(tfr['metadata'])
+     is_average = 'nave' in tfr
+     if condition is not None:
+         if not is_average:
+diff --git a/mne/utils.py b/mne/utils.py
+index f3d272f8aa..85168712ad 100644
+--- a/mne/utils.py
++++ b/mne/utils.py
+@@ -5,7 +5,7 @@
+ # License: BSD (3-clause)
+ 
+ import atexit
+-from collections import Iterable
++from collections import Iterable, OrderedDict
+ from contextlib import contextmanager
+ from distutils.version import LooseVersion
+ from functools import wraps
+@@ -3528,3 +3528,55 @@ class GetEpochsMixin(object):
+             action = 'Not setting' if metadata is None else 'Adding'
+         logger.info('%s metadata%s' % (action, n_col))
+         self._metadata = metadata
++
++
++def _prepare_write_metadata(metadata):
++    """Convert metadata to JSON for saving."""
++    if metadata is not None:
++        if not isinstance(metadata, list):
++            metadata = metadata.to_json(orient='records')
++        else:  # Pandas DataFrame
++            metadata = json.dumps(metadata)
++        assert isinstance(metadata, str)
++    return metadata
++
++
++def _prepare_read_metadata(metadata):
++    """Convert saved metadata back from JSON."""
++    if metadata is not None:
++        pd = _check_pandas_installed(strict=False)
++        # use json.loads because this preserves ordering
++        # (which is necessary for round-trip equivalence)
++        metadata = json.loads(metadata, object_pairs_hook=OrderedDict)
++        assert isinstance(metadata, list)
++        if pd is not False:
++            metadata = pd.DataFrame.from_records(metadata)
++            assert isinstance(metadata, pd.DataFrame)
++    return metadata
++
++
++def _check_event_id(event_id, events):
++    """Check event_id and convert to default format."""
++    # check out event_id dict
++    if event_id is None:  # convert to int to make typing-checks happy
++        event_id = list(np.unique(events[:, 2]))
++    if isinstance(event_id, dict):
++        for key in event_id.keys():
++            _validate_type(key, str, 'Event names')
++        event_id = dict((key, _ensure_int(val, 'event_id[%s]' % key))
++                        for key, val in event_id.items())
++    elif isinstance(event_id, list):
++        event_id = [_ensure_int(v, 'event_id[%s]' % vi)
++                    for vi, v in enumerate(event_id)]
++        event_id = dict(zip((str(i) for i in event_id), event_id))
++    else:
++        event_id = _ensure_int(event_id, 'event_id')
++        event_id = {str(event_id): event_id}
++    return event_id
++
++
++def _gen_events(n_epochs):
++    """Generate event structure from number of epochs."""
++    events = np.c_[np.arange(n_epochs), np.zeros(n_epochs, int),
++                   np.ones(n_epochs, int)]
++    return events

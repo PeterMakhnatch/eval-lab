@@ -1,0 +1,53 @@
+diff --git a/wordcloud/wordcloud.py b/wordcloud/wordcloud.py
+index d548df0..5974363 100644
+--- a/wordcloud/wordcloud.py
++++ b/wordcloud/wordcloud.py
+@@ -671,6 +671,48 @@ class WordCloud(object):
+ 
+         return self._draw_contour(img=img)
+ 
++    def recolor(self, random_state=None, color_func=None, colormap=None):
++        """Recolor existing layout.
++
++        Applying a new coloring is much faster than generating the whole
++        wordcloud.
++
++        Parameters
++        ----------
++        random_state : RandomState, int, or None, default=None
++            If not None, a fixed random state is used. If an int is given, this
++            is used as seed for a random.Random state.
++
++        color_func : function or None, default=None
++            Function to generate new color from word count, font size, position
++            and orientation.  If None, self.color_func is used.
++
++        colormap : string or matplotlib colormap, default=None
++            Use this colormap to generate new colors. Ignored if color_func
++            is specified. If None, self.color_func (or self.color_map) is used.
++
++        Returns
++        -------
++        self
++        """
++        if isinstance(random_state, int):
++            random_state = Random(random_state)
++        self._check_generated()
++
++        if color_func is None:
++            if colormap is None:
++                color_func = self.color_func
++            else:
++                color_func = colormap_color_func(colormap)
++        self.layout_ = [(word_freq, font_size, position, orientation,
++                         color_func(word=word_freq[0], font_size=font_size,
++                                    position=position, orientation=orientation,
++                                    random_state=random_state,
++                                    font_path=self.font_path))
++                        for word_freq, font_size, position, orientation, _
++                        in self.layout_]
++        return self
++
+     def to_file(self, filename):
+         """Export to image file.
+ 

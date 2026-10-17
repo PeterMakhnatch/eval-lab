@@ -1,0 +1,83 @@
+diff --git a/doc/source/timeseries.rst b/doc/source/timeseries.rst
+index 1dd80aec4f..8f02a86adb 100644
+--- a/doc/source/timeseries.rst
++++ b/doc/source/timeseries.rst
+@@ -1092,9 +1092,9 @@ frequencies. We will refer to these aliases as *offset aliases*
+     "BQ", "business quarter endfrequency"
+     "QS", "quarter start frequency"
+     "BQS", "business quarter start frequency"
+-    "A", "year end frequency"
++    "A, Y", "year end frequency"
+     "BA", "business year end frequency"
+-    "AS", "year start frequency"
++    "AS, YS", "year start frequency"
+     "BAS", "business year start frequency"
+     "BH", "business hour frequency"
+     "H", "hourly frequency"
+diff --git a/doc/source/whatsnew/v0.21.0.txt b/doc/source/whatsnew/v0.21.0.txt
+index 4801e5c530..9a6016c82e 100644
+--- a/doc/source/whatsnew/v0.21.0.txt
++++ b/doc/source/whatsnew/v0.21.0.txt
+@@ -72,6 +72,8 @@ Other Enhancements
+ - :func:`DataFrame.clip()` and :func:`Series.clip()` have gained an ``inplace`` argument. (:issue:`15388`)
+ - :func:`crosstab` has gained a ``margins_name`` parameter to define the name of the row / column that will contain the totals when ``margins=True``. (:issue:`15972`)
+ - :func:`DataFrame.select_dtypes` now accepts scalar values for include/exclude as well as list-like. (:issue:`16855`)
++- :func:`date_range` now accepts 'YS' in addition to 'AS' as an alias for start of year (:issue:`9313`)
++- :func:`date_range` now accepts 'Y' in addition to 'A' as an alias for end of year (:issue:`9313`)
+ 
+ .. _whatsnew_0210.api_breaking:
+ 
+diff --git a/pandas/tseries/frequencies.py b/pandas/tseries/frequencies.py
+index c5f6c00a40..aa33a3849a 100644
+--- a/pandas/tseries/frequencies.py
++++ b/pandas/tseries/frequencies.py
+@@ -399,10 +399,14 @@ _offset_to_period_map = {
+     'Q': 'Q',
+     'A': 'A',
+     'W': 'W',
+-    'M': 'M'
++    'M': 'M',
++    'Y': 'A',
++    'BY': 'A',
++    'YS': 'A',
++    'BYS': 'A',
+ }
+ 
+-need_suffix = ['QS', 'BQ', 'BQS', 'AS', 'BA', 'BAS']
++need_suffix = ['QS', 'BQ', 'BQS', 'YS', 'AS', 'BY', 'BA', 'BYS', 'BAS']
+ for __prefix in need_suffix:
+     for _m in tslib._MONTHS:
+         _offset_to_period_map['%s-%s' % (__prefix, _m)] = \
+@@ -427,9 +431,13 @@ _lite_rule_alias = {
+     'Q': 'Q-DEC',
+ 
+     'A': 'A-DEC',  # YearEnd(month=12),
++    'Y': 'A-DEC',
+     'AS': 'AS-JAN',  # YearBegin(month=1),
++    'YS': 'AS-JAN',
+     'BA': 'BA-DEC',  # BYearEnd(month=12),
++    'BY': 'BA-DEC',
+     'BAS': 'BAS-JAN',  # BYearBegin(month=1),
++    'BYS': 'BAS-JAN',
+ 
+     'Min': 'T',
+     'min': 'T',
+@@ -708,7 +716,17 @@ _reverse_period_code_map = {}
+ for _k, _v in compat.iteritems(_period_code_map):
+     _reverse_period_code_map[_v] = _k
+ 
+-# Additional aliases
++# Yearly aliases
++year_aliases = {}
++
++for k, v in compat.iteritems(_period_code_map):
++    if k.startswith("A-"):
++        alias = "Y" + k[1:]
++        year_aliases[alias] = v
++
++_period_code_map.update(**year_aliases)
++del year_aliases
++
+ _period_code_map.update({
+     "Q": 2000,  # Quarterly - December year end (default quarterly)
+     "A": 1000,  # Annual

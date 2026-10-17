@@ -1,0 +1,61 @@
+diff --git a/doc/source/whatsnew/v0.24.0.rst b/doc/source/whatsnew/v0.24.0.rst
+index 9499cf040f..7da60c76ac 100644
+--- a/doc/source/whatsnew/v0.24.0.rst
++++ b/doc/source/whatsnew/v0.24.0.rst
+@@ -1116,7 +1116,9 @@ from :class:`Period`, :class:`PeriodIndex`, and in some cases
+ :class:`Timestamp`, :class:`DatetimeIndex` and :class:`TimedeltaIndex`.
+ 
+ This usage is now deprecated.  Instead add or subtract integer multiples of
+-the object's ``freq`` attribute (:issue:`21939`)
++the object's ``freq`` attribute. The result of subtraction of :class:`Period`
++objects will be agnostic of the multiplier of the objects' ``freq`` attribute
++(:issue:`21939`, :issue:`23878`).
+ 
+ Previous Behavior:
+ 
+diff --git a/pandas/_libs/tslibs/offsets.pyx b/pandas/_libs/tslibs/offsets.pyx
+index f3ac102bf1..7685ddd76d 100644
+--- a/pandas/_libs/tslibs/offsets.pyx
++++ b/pandas/_libs/tslibs/offsets.pyx
+@@ -352,6 +352,14 @@ class _BaseOffset(object):
+                 if name not in ['n', 'normalize']}
+         return {name: kwds[name] for name in kwds if kwds[name] is not None}
+ 
++    @property
++    def base(self):
++        """
++        Returns a copy of the calling offset object with n=1 and all other
++        attributes equal.
++        """
++        return type(self)(n=1, normalize=self.normalize, **self.kwds)
++
+     def __add__(self, other):
+         if getattr(other, "_typ", None) in ["datetimeindex", "periodindex",
+                                             "datetimearray", "periodarray",
+diff --git a/pandas/_libs/tslibs/period.pyx b/pandas/_libs/tslibs/period.pyx
+index dfbf24cf17..1ad2688b70 100644
+--- a/pandas/_libs/tslibs/period.pyx
++++ b/pandas/_libs/tslibs/period.pyx
+@@ -1686,7 +1686,8 @@ cdef class _Period(object):
+                 if other.freq != self.freq:
+                     msg = _DIFFERENT_FREQ.format(self.freqstr, other.freqstr)
+                     raise IncompatibleFrequency(msg)
+-                return (self.ordinal - other.ordinal) * self.freq
++                # GH 23915 - mul by base freq since __add__ is agnostic of n
++                return (self.ordinal - other.ordinal) * self.freq.base
+             elif getattr(other, '_typ', None) == 'periodindex':
+                 # GH#21314 PeriodIndex - Period returns an object-index
+                 # of DateOffset objects, for which we cannot use __neg__
+diff --git a/pandas/core/arrays/datetimelike.py b/pandas/core/arrays/datetimelike.py
+index 45eec41e49..ceaf9e748f 100644
+--- a/pandas/core/arrays/datetimelike.py
++++ b/pandas/core/arrays/datetimelike.py
+@@ -710,7 +710,7 @@ class DatetimeLikeArrayMixin(ExtensionOpsMixin, AttributesMixin):
+                                           arr_mask=self._isnan,
+                                           b_mask=other._isnan)
+ 
+-        new_values = np.array([self.freq * x for x in new_values])
++        new_values = np.array([self.freq.base * x for x in new_values])
+         if self.hasnans or other.hasnans:
+             mask = (self._isnan) | (other._isnan)
+             new_values[mask] = NaT

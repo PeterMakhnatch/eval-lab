@@ -1,0 +1,33 @@
+{
+  "schema": "mimo-v6-reference-issues/v1",
+  "scope": "Reported failure is not erased by repackaging; a repaired reference requires fresh exact-input oracle/nop controls. These are retained reports, not fresh measured outcomes.",
+  "issues": [
+    {
+      "task_id": "format-code-task-000081",
+      "disposition": "reported_reference_failure",
+      "reference_patch_sha256": "6f7b9f6490f0ff6f016290d53fe3e6fa32609319d29a5b39d1c2dfb6b2f69d83",
+      "reported_v6_package_digest": "sha256:d720964b423b4fdf9acf5d0788119f3c09d3036ae2bf5d8d395bcac50f40866c",
+      "source": "research/experiments/mimo-training-20261016/README.md",
+      "source_sha256": "181efb08352d64fe08e2053df0592c5513cb2764387eea85e5243684dacfd4e7",
+      "reason": "Research reports broken reference; accepted without confirming rerun"
+    },
+    {
+      "task_id": "format-code-task-000838",
+      "disposition": "reported_reference_failure",
+      "reference_patch_sha256": "f285e604f57dfefb4b2b5f32ac495b2519ba837c1698095547acb0007d856bd7",
+      "reported_v6_package_digest": "sha256:498a4b0034d9f6323dcc98439c2cecb5b58db9cccc76a118e76ec26633010094",
+      "source": "research/experiments/mimo-training-20261016/split.json",
+      "source_sha256": "3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da",
+      "reason": "Research reports own-v6-reference failure; active training/evaluation excluded"
+    },
+    {
+      "task_id": "format-code-task-001373",
+      "disposition": "reported_reference_failure",
+      "reference_patch_sha256": "01105d836f415bda7621039feb150acd9478edb7cc019be6bf09916acc727496",
+      "reported_v6_package_digest": "sha256:f79b884bc65fe79b30c93a900c5ba54db4a05318faab5c3e9422419a41873fd1",
+      "source": "research/experiments/mimo-training-20261016/split.json",
+      "source_sha256": "3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da",
+      "reason": "Research reports own-v6-reference failure; active training/evaluation excluded"
+    }
+  ]
+}

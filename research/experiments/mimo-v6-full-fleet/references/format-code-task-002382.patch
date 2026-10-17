@@ -1,0 +1,28 @@
+diff --git a/pyecharts/charts/base.py b/pyecharts/charts/base.py
+index f7830e9c..218ba2e9 100644
+--- a/pyecharts/charts/base.py
++++ b/pyecharts/charts/base.py
+@@ -51,7 +51,7 @@ class Base:
+         return utils.remove_key_with_none_value(self.options)
+ 
+     def dump_options(self) -> str:
+-        return utils.replace_placeholder(
++        return utils.replace_placeholder_without_quotes(
+             json.dumps(self.get_options(), indent=4, default=default, ignore_nan=True)
+         )
+ 
+diff --git a/pyecharts/commons/utils.py b/pyecharts/commons/utils.py
+index 120c18e9..1c54c556 100644
+--- a/pyecharts/commons/utils.py
++++ b/pyecharts/commons/utils.py
+@@ -55,6 +55,10 @@ def replace_placeholder(html: str) -> str:
+     return re.sub('"?--x_x--0_0--"?', "", html)
+ 
+ 
++def replace_placeholder_without_quotes(html: str) -> str:
++    return re.sub('--x_x--0_0--', "", html)
++
++
+ def _flat(obj):
+     if hasattr(obj, "js_dependencies"):
+         return list(obj.js_dependencies)

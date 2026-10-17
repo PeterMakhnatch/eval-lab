@@ -1,0 +1,70 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index bf0da76..3eb7997 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,8 +1,9 @@
+ # Changelog
+ 
+-## [Unrealeased]
++## [Unreleased]
+ ### Added
+ - Add support to Python 3.12 and 3.13dev
++- Prevent branch mode warnings in unstaged mode (#183)
+ 
+ ## [0.5.0] - 2023-07-27
+ ### Added
+diff --git a/pytest_picked/modes.py b/pytest_picked/modes.py
+index 6b4d86e..1a2d8a5 100644
+--- a/pytest_picked/modes.py
++++ b/pytest_picked/modes.py
+@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
+ 
+ 
+ class Mode(ABC):
+-    def __init__(self, test_file_convention):
++    def __init__(self, test_file_convention, **kwargs):
+         self.test_file_convention = test_file_convention
+ 
+     def affected_tests(self):
+@@ -50,8 +50,8 @@ class Mode(ABC):
+ 
+ 
+ class Branch(Mode):
+-    def __init__(self, test_file_convention, parent_branch="main"):
+-        super().__init__(test_file_convention)
++    def __init__(self, test_file_convention, parent_branch="main", **kwargs):
++        super().__init__(test_file_convention, **kwargs)
+         warnings.warn("Now `main` is the default parent branch")
+         self.parent_branch = parent_branch
+ 
+diff --git a/pytest_picked/plugin.py b/pytest_picked/plugin.py
+index 714b1f9..04254c0 100644
+--- a/pytest_picked/plugin.py
++++ b/pytest_picked/plugin.py
+@@ -39,22 +39,21 @@ def pytest_addoption(parser):
+ 
+ def _get_affected_paths(config):
+     picked_mode = config.getoption("picked_mode")
+-    parent_branch = config.getoption("parent_branch")
+     test_file_convention = config._getini("python_files")  # pylint: disable=W0212
+ 
+     modes = {
+-        "branch": Branch(test_file_convention, parent_branch),
+-        "unstaged": Unstaged(test_file_convention),
++        "branch": Branch,
++        "unstaged": Unstaged,
+     }
+     try:
+         mode = modes[picked_mode]
++        options = config.option.__dict__
+     except KeyError:
+         error = "Invalid mode. Options: `{}`.".format(", ".join(modes.keys()))
+         _write(config, [error])
+         config.args = []
+         raise ValueError(error)
+-    else:
+-        return mode.affected_tests()
++    return mode(test_file_convention, **options).affected_tests()
+ 
+ 
+ def pytest_configure(config):

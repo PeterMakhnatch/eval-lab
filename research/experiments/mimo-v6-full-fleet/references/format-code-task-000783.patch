@@ -1,0 +1,170 @@
+diff --git a/experiments/LongBench/edu_rerank_example.py b/experiments/LongBench/edu_rerank_example.py
+index ea57464..857dcb4 100644
+--- a/experiments/LongBench/edu_rerank_example.py
++++ b/experiments/LongBench/edu_rerank_example.py
+@@ -9,10 +9,11 @@ Core Process:
+ 3. Filtered nodes -> LLM -> Answer
+ """
+ 
++import os
+ import json
+ import time
+ import requests
+-from typing import Dict, List, Optional
++from typing import Dict, List, Optional, Any, Tuple
+ 
+ # ================= Configuration Section =================
+ # Note: Replace with actual API Key and Endpoint when using
+@@ -27,6 +28,18 @@ class EduConfig:
+     AccessKeyId = ""
+     AccessKeySecret = ""
+ 
++# ================= Utility Functions =================
++
++def count_tokens(text: str) -> int:
++    """Calculate the number of tokens in text (using tiktoken cl100k_base encoding)"""
++    try:
++        import tiktoken
++        tokenizer = tiktoken.get_encoding("cl100k_base")
++        return len(tokenizer.encode(text, disallowed_special=()))
++    except:
++        return len(text) // 4  # Fallback estimation
++
++
+ def call_rerank_api(
+     api_key: str, 
+     endpoint: str, 
+@@ -266,3 +279,133 @@ class EduRerankProcessor:
+         
+         return result_text
+ 
++
++# ================= Complete Processing Flow Example =================
++
++def process_context_with_edu_rerank(
++    processor: EduRerankProcessor,
++    context: str,
++    query: str,
++    temp_dir: str = "temp",
++    top_k_per_level: int = 3
++) -> Tuple[str, Dict[str, Any]]:
++    """
++    Complete LingoEDU Structural Decomposition + Rerank Processing Flow
++    
++    Args:
++        processor: EduRerankProcessor instance
++        context: Original context text
++        query: Query question
++        temp_dir: Temporary file directory
++        top_k_per_level: Number of Top-K nodes to keep at each level
++    
++    Returns:
++        (filtered_text, stats_dict)
++        - filtered_text: Filtered text
++        - stats_dict: Statistics {"orig_tokens", "new_tokens", "ratio"}
++    """
++    orig_tokens = count_tokens(context)
++    
++    if not context:
++        return "", {"orig_tokens": 0, "new_tokens": 0, "ratio": 0.0}
++    
++    # Create temporary directory
++    os.makedirs(temp_dir, exist_ok=True)
++    
++    # Write temporary file
++    import uuid
++    safe_id = str(uuid.uuid4())
++    txt_path = os.path.join(temp_dir, f"{safe_id}.txt")
++    
++    try:
++        with open(txt_path, "w", encoding="utf-8") as f:
++            f.write(context)
++    except Exception as e:
++        print(f"Failed to write temp file: {e}")
++        return context, {
++            "orig_tokens": orig_tokens, 
++            "new_tokens": orig_tokens, 
++            "ratio": 1.0
++        }
++    
++    # LingoEDU structural decomposition
++    parsed_json = processor.parse_file(txt_path)
++    
++    # Clean up temporary file
++    if os.path.exists(txt_path):
++        os.remove(txt_path)
++    
++    if not parsed_json:
++        return context, {
++            "orig_tokens": orig_tokens, 
++            "new_tokens": orig_tokens, 
++            "ratio": 1.0
++        }
++    
++    # Rerank filtering
++    filtered_text = processor.semantic_filter(
++        parsed_json, 
++        query, 
++        top_k_per_level=top_k_per_level
++    )
++    
++    if not filtered_text:
++        return context, {
++            "orig_tokens": orig_tokens, 
++            "new_tokens": orig_tokens, 
++            "ratio": 1.0
++        }
++    
++    # Calculate new length statistics
++    new_tokens = count_tokens(filtered_text)
++    ratio = new_tokens / orig_tokens if orig_tokens > 0 else 0.0
++    
++    return filtered_text, {
++        "orig_tokens": orig_tokens,
++        "new_tokens": new_tokens,
++        "ratio": round(ratio, 4)
++    }
++
++
++# ================= Usage Example =================
++
++if __name__ == "__main__":
++    # Example: Process a long text context
++    
++    # 1. Initialize processor
++    processor = EduRerankProcessor()
++    
++    # 2. Prepare data
++    context = """
++    [Translated]document content。[Translated]，[Translated] LongBench [Translated] context [Translated]。
++    
++    Chapter 1: Introduction
++    This is the content of the first chapter, containing important information.
++    
++    Chapter 2: Methods
++    This is the content of the second chapter, describing specific methods.
++    
++    Chapter 3: Results
++    This is the content of the third chapter, showing experimental results.
++    """
++    
++    query = "What methods are mentioned in the document?"
++    
++    # 3. Execute processing
++    filtered_text, stats = process_context_with_edu_rerank(
++        processor=processor,
++        context=context,
++        query=query,
++        top_k_per_level=3
++    )
++    
++    # 4. View results
++    print("=" * 50)
++    print("Original text tokens:", stats["orig_tokens"])
++    print("Filtered tokens:", stats["new_tokens"])
++    print("Compression ratio:", stats["ratio"])
++    print("=" * 50)
++    print("Filtered text:")
++    print(filtered_text)
++    print("=" * 50)
++

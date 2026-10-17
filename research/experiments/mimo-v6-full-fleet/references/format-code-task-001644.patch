@@ -1,0 +1,49 @@
+diff --git a/source/mail/mail-model.js b/source/mail/mail-model.js
+index febb11f..cc553d4 100644
+--- a/source/mail/mail-model.js
++++ b/source/mail/mail-model.js
+@@ -1299,6 +1299,44 @@ Object.assign( connection, {
+         return this;
+     },
+ 
++    report: function ( messages, asSpam, allowUndo ) {
++        var messageSKs = [];
++        var accounts = {};
++        var accountId;
++
++        messages.forEach( function ( message ) {
++            var accountId = message.get( 'accountId' );
++            var account = accounts[ accountId ] ||
++                ( accounts[ accountId ] = [] );
++            account.push( message.get( 'id' ) );
++            messageSKs.push( message.get( 'storeKey' ) );
++        });
++
++        for ( accountId in accounts ) {
++            this.callMethod( 'Email/report', {
++                accountId: accountId,
++                ids: accounts[ accountId ],
++                type: asSpam ? 'spam' : 'notspam',
++            });
++        }
++
++        if ( allowUndo ) {
++            this.undoManager.pushUndoData({
++                method: 'report',
++                messageSKs: messageSKs,
++                args: [
++                    null,
++                    !asSpam,
++                    true
++                ],
++            });
++        }
++
++        return this;
++    },
++
++    // ---
++
+     create: function ( message ) {
+         var thread = message.getThreadIfReady();
+         var mailboxes = message.get( 'mailboxes' );

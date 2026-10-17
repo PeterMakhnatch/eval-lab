@@ -1,0 +1,132 @@
+diff --git a/src/ralph/security/api.py b/src/ralph/security/api.py
+index 711b8a041..866a61516 100644
+--- a/src/ralph/security/api.py
++++ b/src/ralph/security/api.py
+@@ -2,6 +2,7 @@
+ from collections import OrderedDict
+ 
+ import django_filters
++from django.db import transaction
+ from rest_framework import serializers
+ 
+ from ralph.api import RalphAPISerializer, RalphAPIViewSet, router
+@@ -92,6 +93,18 @@ class SecurityScanViewSet(RalphAPIViewSet):
+ 
+     additional_filter_class = IPFilter
+ 
++    @transaction.atomic
++    def create(self, request, *args, **kwargs):
++        ip = IPAddress.objects.filter(address=self.request.data.get(
++            'host_ip', None)
++        ).first()
++        if ip:
++            # one scan can exist for ip (because there are linked by onetoone)
++            # so this removes old scan to allow updates by post
++            SecurityScan.objects.filter(base_object=ip.base_object.id).delete()
++        return super().create(request, *args, **kwargs)
++
++
+ router.register(r'vulnerabilities', VulnerabilityViewSet)
+ router.register(r'security-scans', SecurityScanViewSet)
+ urlpatterns = []
+diff --git a/src/ralph/security/migrations/0004_auto_20170321_1332.py b/src/ralph/security/migrations/0004_auto_20170321_1332.py
+new file mode 100644
+index 000000000..139b17a1c
+--- /dev/null
++++ b/src/ralph/security/migrations/0004_auto_20170321_1332.py
+@@ -0,0 +1,44 @@
++# -*- coding: utf-8 -*-
++from __future__ import unicode_literals
++
++from django.db import migrations, models
++from django.db.models import Q
++
++
++def leave_only_last_security_scan(apps, schema_editor):
++    SecurityScan = apps.get_model("security", "SecurityScan")
++
++    total_scans = SecurityScan.objects.count()
++
++    base_object_ids = set(
++        SecurityScan.objects.values_list('base_object', flat=True)
++    )
++    for base_object_id in base_object_ids:
++        last_scan_id = SecurityScan.objects.filter(
++            base_object_id=base_object_id
++        ).latest("last_scan_date").id
++        SecurityScan.objects.filter(
++            Q(base_object_id=base_object_id) &
++            ~Q(id=last_scan_id)
++        ).delete()
++
++    print()
++    print("Total scans: {}".format(total_scans))
++    print("Deleted scans: {}".format(
++        total_scans - SecurityScan.objects.count()
++    ))
++
++
++def reverse_func(apps, schema_editor):
++    pass
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('security', '0003_auto_20170110_1352'),
++    ]
++
++    operations = [
++        migrations.RunPython(leave_only_last_security_scan, reverse_func),
++    ]
+diff --git a/src/ralph/security/migrations/0005_auto_20170322_0902.py b/src/ralph/security/migrations/0005_auto_20170322_0902.py
+new file mode 100644
+index 000000000..d6b09804a
+--- /dev/null
++++ b/src/ralph/security/migrations/0005_auto_20170322_0902.py
+@@ -0,0 +1,19 @@
++# -*- coding: utf-8 -*-
++from __future__ import unicode_literals
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('security', '0004_auto_20170321_1332'),
++    ]
++
++    operations = [
++        migrations.AlterField(
++            model_name='securityscan',
++            name='base_object',
++            field=models.OneToOneField(to='assets.BaseObject'),
++        ),
++    ]
+diff --git a/src/ralph/security/models.py b/src/ralph/security/models.py
+index f2ef1c08c..faf18dbe2 100644
+--- a/src/ralph/security/models.py
++++ b/src/ralph/security/models.py
+@@ -65,5 +65,8 @@ class SecurityScan(
+     next_scan_date = models.DateTimeField()
+     details_url = models.URLField(max_length=255, blank=True)
+     rescan_url = models.URLField(blank=True, verbose_name=_('Rescan url'))
+-    base_object = models.ForeignKey(BaseObject)
++    base_object = models.OneToOneField(
++        BaseObject,
++        on_delete=models.CASCADE,
++    )
+     vulnerabilities = models.ManyToManyField(Vulnerability, blank=True)
+diff --git a/src/ralph/security/views.py b/src/ralph/security/views.py
+index b5b124c76..23ded3967 100644
+--- a/src/ralph/security/views.py
++++ b/src/ralph/security/views.py
+@@ -14,5 +14,6 @@ class SecurityInfo(RalphDetailView):
+     def get_context_data(self, **kwargs):
+         context = super().get_context_data(**kwargs)
+         context['security_scan'] = SecurityScan.objects.filter(
+-            base_object=self.object).last()
++            base_object=self.object
++        )
+         return context

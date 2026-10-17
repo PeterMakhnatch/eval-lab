@@ -1,0 +1,43 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d9d25cc49..186e4e79d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ ### Added
+ 
+ - Support e2e tests in Tilt and Makefile ([#3516](https://github.com/grafana/oncall/pull/3516))
++- Support PATCH method for outgoing webhooks by @ravishankar15 ([#3580](https://github.com/grafana/oncall/pull/3580))
+ 
+ ### Changed
+ 
+diff --git a/engine/apps/webhooks/models/webhook.py b/engine/apps/webhooks/models/webhook.py
+index 1219d923f..425fcda38 100644
+--- a/engine/apps/webhooks/models/webhook.py
++++ b/engine/apps/webhooks/models/webhook.py
+@@ -32,7 +32,7 @@ if typing.TYPE_CHECKING:
+     from apps.alerts.models import EscalationPolicy
+ 
+ WEBHOOK_FIELD_PLACEHOLDER = "****************"
+-PUBLIC_WEBHOOK_HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
++PUBLIC_WEBHOOK_HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+ 
+ logger = get_task_logger(__name__)
+ logger.setLevel(logging.DEBUG)
+@@ -186,7 +186,7 @@ class Webhook(models.Model):
+         if self.authorization_header:
+             request_kwargs["headers"]["Authorization"] = self.authorization_header
+ 
+-        if self.http_method in ["POST", "PUT"]:
++        if self.http_method in ["POST", "PUT", "PATCH"]:
+             if self.forward_all:
+                 request_kwargs["json"] = event_data
+                 if self.is_legacy:
+@@ -255,6 +255,8 @@ class Webhook(models.Model):
+             r = requests.delete(url, timeout=OUTGOING_WEBHOOK_TIMEOUT, **request_kwargs)
+         elif self.http_method == "OPTIONS":
+             r = requests.options(url, timeout=OUTGOING_WEBHOOK_TIMEOUT, **request_kwargs)
++        elif self.http_method == "PATCH":
++            r = requests.patch(url, timeout=OUTGOING_WEBHOOK_TIMEOUT, **request_kwargs)
+         else:
+             raise ValueError(f"Unsupported http method: {self.http_method}")
+         return r

@@ -1,0 +1,675 @@
+diff --git a/fastNLP/core/action.py b/fastNLP/core/action.py
+deleted file mode 100644
+index c6cf2d63..00000000
+--- a/fastNLP/core/action.py
++++ /dev/null
+@@ -1,182 +0,0 @@
+-from collections import Counter
+-
+-import numpy as np
+-import torch
+-
+-
+-def convert_to_torch_tensor(data_list, use_cuda):
+-    """Convert lists into (cuda) Tensors.
+-
+-    :param data_list: 2-level lists
+-    :param use_cuda: bool, whether to use GPU or not
+-    :return data_list: PyTorch Tensor of shape [batch_size, max_seq_len]
+-    """
+-    data_list = torch.Tensor(data_list).long()
+-    if torch.cuda.is_available() and use_cuda:
+-        data_list = data_list.cuda()
+-    return data_list
+-
+-
+-def k_means_1d(x, k, max_iter=100):
+-    """Perform k-means on 1-D data.
+-
+-    :param x: list of int, representing points in 1-D.
+-    :param k: the number of clusters required.
+-    :param max_iter: maximum iteration
+-    :return centroids: numpy array, centroids of the k clusters
+-            assignment: numpy array, 1-D, the bucket id assigned to each example.
+-    """
+-    sorted_x = sorted(list(set(x)))
+-    if len(sorted_x) < k:
+-        raise ValueError("too few buckets")
+-    gap = len(sorted_x) / k
+-
+-    centroids = np.array([sorted_x[int(x * gap)] for x in range(k)])
+-    assign = None
+-
+-    for i in range(max_iter):
+-        # Cluster Assignment step
+-        assign = np.array([np.argmin([np.absolute(x_i - x) for x in centroids]) for x_i in x])
+-        # Move centroids step
+-        new_centroids = np.array([x[assign == k].mean() for k in range(k)])
+-        if (new_centroids == centroids).all():
+-            centroids = new_centroids
+-            break
+-        centroids = new_centroids
+-    return np.array(centroids), assign
+-
+-
+-def k_means_bucketing(all_inst, buckets):
+-    """Assign all instances into possible buckets using k-means, such that instances in the same bucket have similar lengths.
+-
+-    :param all_inst: 3-level list
+-            E.g. ::
+-
+-                [
+-                    [[word_11, word_12, word_13], [label_11. label_12]],  # sample 1
+-                    [[word_21, word_22, word_23], [label_21. label_22]],  # sample 2
+-                    ...
+-                ]
+-
+-    :param buckets: list of int. The length of the list is the number of buckets. Each integer is the maximum length
+-        threshold for each bucket (This is usually None.).
+-    :return data: 2-level list
+-            ::
+-
+-                [
+-                    [index_11, index_12, ...],  # bucket 1
+-                    [index_21, index_22, ...],  # bucket 2
+-                    ...
+-                ]
+-
+-    """
+-    bucket_data = [[] for _ in buckets]
+-    num_buckets = len(buckets)
+-    lengths = np.array([len(inst[0]) for inst in all_inst])
+-    _, assignments = k_means_1d(lengths, num_buckets)
+-
+-    for idx, bucket_id in enumerate(assignments):
+-        if buckets[bucket_id] is None or lengths[idx] <= buckets[bucket_id]:
+-            bucket_data[bucket_id].append(idx)
+-    return bucket_data
+-
+-
+-class BaseSampler(object):
+-    """The base class of all samplers.
+-
+-    """
+-
+-    def __call__(self, *args, **kwargs):
+-        raise NotImplementedError
+-
+-
+-class SequentialSampler(BaseSampler):
+-    """Sample data in the original order.
+-
+-    """
+-
+-    def __call__(self, data_set):
+-        return list(range(len(data_set)))
+-
+-
+-class RandomSampler(BaseSampler):
+-    """Sample data in random permutation order.
+-
+-    """
+-
+-    def __call__(self, data_set):
+-        return list(np.random.permutation(len(data_set)))
+-
+-
+-
+-class Batchifier(object):
+-    """Wrap random or sequential sampler to generate a mini-batch.
+-
+-    """
+-
+-    def __init__(self, sampler, batch_size, drop_last=True):
+-        """
+-
+-        :param sampler: a Sampler object
+-        :param batch_size: int, the size of the mini-batch
+-        :param drop_last: bool, whether to drop the last examples that are not enough to make a mini-batch.
+-
+-        """
+-        super(Batchifier, self).__init__()
+-        self.sampler = sampler
+-        self.batch_size = batch_size
+-        self.drop_last = drop_last
+-
+-    def __iter__(self):
+-        batch = []
+-        for example in self.sampler:
+-            batch.append(example)
+-            if len(batch) == self.batch_size:
+-                yield batch
+-                batch = []
+-        if 0 < len(batch) < self.batch_size and self.drop_last is False:
+-            yield batch
+-
+-
+-class BucketBatchifier(Batchifier):
+-    """Partition all samples into multiple buckets, each of which contains sentences of approximately the same length.
+-    In sampling, first random choose a bucket. Then sample data from it.
+-    The number of buckets is decided dynamically by the variance of sentence lengths.
+-    TODO: merge it into Batch
+-    """
+-
+-    def __init__(self, data_set, batch_size, num_buckets, drop_last=True, sampler=None):
+-        """
+-
+-        :param data_set: three-level list, shape [num_samples, 2]
+-        :param batch_size: int
+-        :param num_buckets: int, number of buckets for grouping these sequences.
+-        :param drop_last: bool, useless currently.
+-        :param sampler: Sampler, useless currently.
+-
+-        """
+-        super(BucketBatchifier, self).__init__(sampler, batch_size, drop_last)
+-        buckets = ([None] * num_buckets)
+-        self.data = data_set
+-        self.batch_size = batch_size
+-        self.length_freq = dict(Counter([len(example) for example in data_set]))
+-        self.buckets = k_means_bucketing(data_set, buckets)
+-
+-    def __iter__(self):
+-        """Make a min-batch of data."""
+-        for _ in range(len(self.data) // self.batch_size):
+-            bucket_samples = self.buckets[np.random.randint(0, len(self.buckets))]
+-            np.random.shuffle(bucket_samples)
+-            yield [self.data[idx] for idx in bucket_samples[:batch_size]]
+-
+-
+-if __name__ == "__main__":
+-    import random
+-
+-    data = [[[y] * random.randint(0, 50), [y]] for y in range(500)]
+-    batch_size = 8
+-    iterator = iter(BucketBatchifier(data, batch_size, num_buckets=5))
+-    for d in iterator:
+-        print("\nbatch:")
+-        for dd in d:
+-            print(len(dd[0]), end=" ")
+diff --git a/fastNLP/core/batch.py b/fastNLP/core/batch.py
+index 0a5e9712..8a73b132 100644
+--- a/fastNLP/core/batch.py
++++ b/fastNLP/core/batch.py
+@@ -2,10 +2,6 @@ from collections import defaultdict
+ 
+ import torch
+ 
+-from fastNLP.core.dataset import DataSet
+-from fastNLP.core.field import TextField, LabelField
+-from fastNLP.core.instance import Instance
+-
+ 
+ class Batch(object):
+     """Batch is an iterable object which iterates over mini-batches.
+@@ -16,6 +12,14 @@ class Batch(object):
+     """
+ 
+     def __init__(self, dataset, batch_size, sampler, use_cuda):
++        """
++
++        :param dataset: a DataSet object
++        :param batch_size: int, the size of the batch
++        :param sampler: a Sampler object
++        :param use_cuda: bool, whetjher to use GPU
++
++        """
+         self.dataset = dataset
+         self.batch_size = batch_size
+         self.sampler = sampler
+@@ -81,46 +85,3 @@ class Batch(object):
+             self.curidx += endidx
+             return batch_x, batch_y
+ 
+-
+-if __name__ == "__main__":
+-    """simple running example
+-    """
+-    texts = ["i am a cat",
+-             "this is a test of new batch",
+-             "haha"
+-             ]
+-    labels = [0, 1, 0]
+-
+-    # prepare vocabulary
+-    vocab = {}
+-    for text in texts:
+-        for tokens in text.split():
+-            if tokens not in vocab:
+-                vocab[tokens] = len(vocab)
+-    print("vocabulary: ", vocab)
+-
+-    # prepare input dataset    
+-    data = DataSet()
+-    for text, label in zip(texts, labels):
+-        x = TextField(text.split(), False)
+-        y = LabelField(label, is_target=True)
+-        ins = Instance(text=x, label=y)
+-        data.append(ins)
+-
+-    # use vocabulary to index data
+-    data.index_field("text", vocab)
+-
+-
+-    # define naive sampler for batch class
+-    class SeqSampler:
+-        def __call__(self, dataset):
+-            return list(range(len(dataset)))
+-
+-
+-    # use batch to iterate dataset
+-    data_iterator = Batch(data, 2, SeqSampler(), False)
+-    for epoch in range(1):
+-        for batch_x, batch_y in data_iterator:
+-            print(batch_x)
+-            print(batch_y)
+-            # do stuff
+diff --git a/fastNLP/core/predictor.py b/fastNLP/core/predictor.py
+index c83b2069..6bbb1bee 100644
+--- a/fastNLP/core/predictor.py
++++ b/fastNLP/core/predictor.py
+@@ -1,10 +1,10 @@
+ import numpy as np
+ import torch
+ 
+-from fastNLP.core.action import SequentialSampler
+ from fastNLP.core.batch import Batch
+ from fastNLP.core.dataset import create_dataset_from_lists
+ from fastNLP.core.preprocess import load_pickle
++from fastNLP.core.sampler import SequentialSampler
+ 
+ 
+ class Predictor(object):
+@@ -62,9 +62,13 @@ class Predictor(object):
+ 
+     def data_forward(self, network, x):
+         """Forward through network."""
+-        y = network(**x)
+         if self._task == "seq_label":
++            y = network(x["word_seq"], x["word_seq_origin_len"])
+             y = network.prediction(y)
++        elif self._task == "text_classify":
++            y = network(x["word_seq"])
++        else:
++            raise NotImplementedError("Unknown task type {}.".format(self._task))
+         return y
+ 
+     def prepare_input(self, data):
+diff --git a/fastNLP/core/preprocess.py b/fastNLP/core/preprocess.py
+index 2671b4f4..619d3967 100644
+--- a/fastNLP/core/preprocess.py
++++ b/fastNLP/core/preprocess.py
+@@ -52,21 +52,28 @@ def pickle_exist(pickle_path, pickle_name):
+         return False
+ 
+ 
+-class BasePreprocess(object):
+-    """Base class of all preprocessors.
+-    Preprocessors are responsible for converting data of strings into data of indices.
++class Preprocessor(object):
++    """Preprocessors are responsible for converting data of strings into data of indices.
+     During the pre-processing, the following pickle files will be built:
+ 
+-        - "word2id.pkl", a mapping from words(tokens) to indices
+-        - "id2word.pkl", a reversed dictionary
++        - "word2id.pkl", a Vocabulary object, mapping words to indices.
++        - "class2id.pkl", a Vocabulary object, mapping labels to indices.
++        - "data_train.pkl", a DataSet object for training
++        - "data_dev.pkl", a DataSet object for validation, if train_dev_split > 0.
++        - "data_test.pkl", a DataSet object for testing, if test_data is not None.
+ 
+     These four pickle files are expected to be saved in the given pickle directory once they are constructed.
+     Preprocessors will check if those files are already in the directory and will reuse them in future calls.
+     """
+ 
+-    def __init__(self):
++    def __init__(self, label_is_seq=False):
++        """
++
++        :param label_is_seq: bool, whether label is a sequence. If True, label vocabulary will preserve
++                several special tokens for sequence processing.
++        """
+         self.data_vocab = Vocabulary()
+-        self.label_vocab = Vocabulary()
++        self.label_vocab = Vocabulary(need_default=label_is_seq)
+ 
+     @property
+     def vocab_size(self):
+@@ -259,20 +266,20 @@ class BasePreprocess(object):
+         return data_set
+ 
+ 
+-class SeqLabelPreprocess(BasePreprocess):
++class SeqLabelPreprocess(Preprocessor):
+     def __init__(self):
+-
++        print("[FastNLP warning] SeqLabelPreprocess is about to deprecate. Please use Preprocess directly.")
+         super(SeqLabelPreprocess, self).__init__()
+ 
+ 
+-
+-class ClassPreprocess(BasePreprocess):
++class ClassPreprocess(Preprocessor):
+     def __init__(self):
++        print("[FastNLP warning] ClassPreprocess is about to deprecate. Please use Preprocess directly.")
+         super(ClassPreprocess, self).__init__()
+ 
+ 
+ if __name__ == "__main__":
+-    p = BasePreprocess()
++    p = Preprocessor()
+     train_dev_data = [[["I", "am", "a", "good", "student", "."], "0"],
+                       [["You", "are", "pretty", "."], "1"]
+                       ]
+diff --git a/fastNLP/core/sampler.py b/fastNLP/core/sampler.py
+new file mode 100644
+index 00000000..79dd56c0
+--- /dev/null
++++ b/fastNLP/core/sampler.py
+@@ -0,0 +1,152 @@
++import numpy as np
++import torch
++
++
++def convert_to_torch_tensor(data_list, use_cuda):
++    """Convert lists into (cuda) Tensors.
++
++    :param data_list: 2-level lists
++    :param use_cuda: bool, whether to use GPU or not
++    :return data_list: PyTorch Tensor of shape [batch_size, max_seq_len]
++    """
++    data_list = torch.Tensor(data_list).long()
++    if torch.cuda.is_available() and use_cuda:
++        data_list = data_list.cuda()
++    return data_list
++
++
++class BaseSampler(object):
++    """The base class of all samplers.
++
++        Sub-classes must implement the __call__ method.
++        __call__ takes a DataSet object and returns a list of int - the sampling indices.
++    """
++
++    def __call__(self, *args, **kwargs):
++        raise NotImplementedError
++
++
++class SequentialSampler(BaseSampler):
++    """Sample data in the original order.
++
++    """
++
++    def __call__(self, data_set):
++        return list(range(len(data_set)))
++
++
++class RandomSampler(BaseSampler):
++    """Sample data in random permutation order.
++
++    """
++
++    def __call__(self, data_set):
++        return list(np.random.permutation(len(data_set)))
++
++
++def simple_sort_bucketing(lengths):
++    """
++
++    :param lengths: list of int, the lengths of all examples.
++    :param buckets: list of int. The length of the list is the number of buckets. Each integer is the maximum length
++        threshold for each bucket (This is usually None.).
++    :return data: 2-level list
++            ::
++
++                [
++                    [index_11, index_12, ...],  # bucket 1
++                    [index_21, index_22, ...],  # bucket 2
++                    ...
++                ]
++
++    """
++    lengths_mapping = [(idx, length) for idx, length in enumerate(lengths)]
++    sorted_lengths = sorted(lengths_mapping, key=lambda x: x[1])
++    # TODO: need to return buckets
++    return [idx for idx, _ in sorted_lengths]
++
++def k_means_1d(x, k, max_iter=100):
++    """Perform k-means on 1-D data.
++
++    :param x: list of int, representing points in 1-D.
++    :param k: the number of clusters required.
++    :param max_iter: maximum iteration
++    :return centroids: numpy array, centroids of the k clusters
++            assignment: numpy array, 1-D, the bucket id assigned to each example.
++    """
++    sorted_x = sorted(list(set(x)))
++    if len(sorted_x) < k:
++        raise ValueError("too few buckets")
++    gap = len(sorted_x) / k
++
++    centroids = np.array([sorted_x[int(x * gap)] for x in range(k)])
++    assign = None
++
++    for i in range(max_iter):
++        # Cluster Assignment step
++        assign = np.array([np.argmin([np.absolute(x_i - x) for x in centroids]) for x_i in x])
++        # Move centroids step
++        new_centroids = np.array([x[assign == k].mean() for k in range(k)])
++        if (new_centroids == centroids).all():
++            centroids = new_centroids
++            break
++        centroids = new_centroids
++    return np.array(centroids), assign
++
++
++def k_means_bucketing(lengths, buckets):
++    """Assign all instances into possible buckets using k-means, such that instances in the same bucket have similar lengths.
++
++    :param lengths: list of int, the length of all samples.
++    :param buckets: list of int. The length of the list is the number of buckets. Each integer is the maximum length
++        threshold for each bucket (This is usually None.).
++    :return data: 2-level list
++            ::
++
++                [
++                    [index_11, index_12, ...],  # bucket 1
++                    [index_21, index_22, ...],  # bucket 2
++                    ...
++                ]
++
++    """
++    bucket_data = [[] for _ in buckets]
++    num_buckets = len(buckets)
++    _, assignments = k_means_1d(lengths, num_buckets)
++
++    for idx, bucket_id in enumerate(assignments):
++        if buckets[bucket_id] is None or lengths[idx] <= buckets[bucket_id]:
++            bucket_data[bucket_id].append(idx)
++    return bucket_data
++
++
++class BucketSampler(BaseSampler):
++    """Partition all samples into multiple buckets, each of which contains sentences of approximately the same length.
++    In sampling, first random choose a bucket. Then sample data from it.
++    The number of buckets is decided dynamically by the variance of sentence lengths.
++
++    """
++
++    def __call__(self, data_set, batch_size, num_buckets):
++        return self._process(data_set, batch_size, num_buckets)
++
++    def _process(self, data_set, batch_size, num_buckets, use_kmeans=False):
++        """
++
++        :param data_set: a DataSet object
++        :param batch_size: int
++        :param num_buckets: int, number of buckets for grouping these sequences.
++        :param use_kmeans: bool, whether to use k-means to create buckets.
++
++        """
++        buckets = ([None] * num_buckets)
++        if use_kmeans is True:
++            buckets = k_means_bucketing(data_set, buckets)
++        else:
++            buckets = simple_sort_bucketing(data_set)
++        index_list = []
++        for _ in range(len(data_set) // batch_size):
++            chosen_bucket = buckets[np.random.randint(0, len(buckets))]
++            np.random.shuffle(chosen_bucket)
++            index_list += [idx for idx in chosen_bucket[:batch_size]]
++        return index_list
+diff --git a/fastNLP/core/tester.py b/fastNLP/core/tester.py
+index aaa96283..0a75f46a 100644
+--- a/fastNLP/core/tester.py
++++ b/fastNLP/core/tester.py
+@@ -1,32 +1,32 @@
+ import numpy as np
+ import torch
+ 
+-from fastNLP.core.action import RandomSampler
+ from fastNLP.core.batch import Batch
++from fastNLP.core.sampler import RandomSampler
+ from fastNLP.saver.logger import create_logger
+ 
+ logger = create_logger(__name__, "./train_test.log")
+ 
+ 
+-class BaseTester(object):
++class Tester(object):
+     """An collection of model inference and evaluation of performance, used over validation/dev set and test set. """
+ 
+     def __init__(self, **kwargs):
+         """
+         :param kwargs: a dict-like object that has __getitem__ method, can be accessed by "test_args["key_str"]"
+         """
+-        super(BaseTester, self).__init__()
++        super(Tester, self).__init__()
+         """
+             "default_args" provides default value for important settings. 
+             The initialization arguments "kwargs" with the same key (name) will override the default value. 
+             "kwargs" must have the same type as "default_args" on corresponding keys. 
+             Otherwise, error will raise.
+         """
+-        default_args = {"save_output": False,  # collect outputs of validation set
+-                        "save_loss": False,  # collect losses in validation
++        default_args = {"save_output": True,  # collect outputs of validation set
++                        "save_loss": True,  # collect losses in validation
+                         "save_best_dev": False,  # save best model during validation
+                         "batch_size": 8,
+-                        "use_cuda": True,
++                        "use_cuda": False,
+                         "pickle_path": "./save/",
+                         "model_name": "dev_best_model.pkl",
+                         "print_every_step": 1,
+@@ -55,7 +55,7 @@ class BaseTester(object):
+                     logger.error(msg)
+                     raise ValueError(msg)
+             else:
+-                # BaseTester doesn't care about extra arguments
++                # Tester doesn't care about extra arguments
+                 pass
+         print(default_args)
+ 
+@@ -208,7 +208,7 @@ class BaseTester(object):
+         return self.show_metrics()
+ 
+ 
+-class SeqLabelTester(BaseTester):
++class SeqLabelTester(Tester):
+     def __init__(self, **test_args):
+         test_args.update({"task": "seq_label"})
+         print(
+@@ -216,9 +216,9 @@ class SeqLabelTester(BaseTester):
+         super(SeqLabelTester, self).__init__(**test_args)
+ 
+ 
+-class ClassificationTester(BaseTester):
++class ClassificationTester(Tester):
+     def __init__(self, **test_args):
+-        test_args.update({"task": "seq_label"})
++        test_args.update({"task": "text_classify"})
+         print(
+             "[FastNLP Warning] ClassificationTester will be deprecated. Please use Tester with argument 'task'='text_classify'.")
+         super(ClassificationTester, self).__init__(**test_args)
+diff --git a/fastNLP/core/trainer.py b/fastNLP/core/trainer.py
+index e638fdde..a73229b2 100644
+--- a/fastNLP/core/trainer.py
++++ b/fastNLP/core/trainer.py
+@@ -6,10 +6,10 @@ from datetime import timedelta
+ import torch
+ from tensorboardX import SummaryWriter
+ 
+-from fastNLP.core.action import RandomSampler
+ from fastNLP.core.batch import Batch
+ from fastNLP.core.loss import Loss
+ from fastNLP.core.optimizer import Optimizer
++from fastNLP.core.sampler import RandomSampler
+ from fastNLP.core.tester import SeqLabelTester, ClassificationTester
+ from fastNLP.saver.logger import create_logger
+ from fastNLP.saver.model_saver import ModelSaver
+@@ -17,7 +17,7 @@ from fastNLP.saver.model_saver import ModelSaver
+ logger = create_logger(__name__, "./train_test.log")
+ 
+ 
+-class BaseTrainer(object):
++class Trainer(object):
+     """Operations of training a model, including data loading, gradient descent, and validation.
+ 
+     """
+@@ -32,7 +32,7 @@ class BaseTrainer(object):
+             - batch_size: int
+             - pickle_path: str, the path to pickle files for pre-processing
+         """
+-        super(BaseTrainer, self).__init__()
++        super(Trainer, self).__init__()
+ 
+         """
+             "default_args" provides default value for important settings. 
+@@ -40,8 +40,8 @@ class BaseTrainer(object):
+             "kwargs" must have the same type as "default_args" on corresponding keys. 
+             Otherwise, error will raise.
+         """
+-        default_args = {"epochs": 3, "batch_size": 8, "validate": True, "use_cuda": True, "pickle_path": "./save/",
+-                        "save_best_dev": True, "model_name": "default_model_name.pkl", "print_every_step": 1,
++        default_args = {"epochs": 1, "batch_size": 2, "validate": False, "use_cuda": False, "pickle_path": "./save/",
++                        "save_best_dev": False, "model_name": "default_model_name.pkl", "print_every_step": 1,
+                         "loss": Loss(None),  # used to pass type check
+                         "optimizer": Optimizer("Adam", lr=0.001, weight_decay=0)
+                         }
+@@ -69,7 +69,7 @@ class BaseTrainer(object):
+                     logger.error(msg)
+                     raise ValueError(msg)
+             else:
+-                # BaseTrainer doesn't care about extra arguments
++                # Trainer doesn't care about extra arguments
+                 pass
+         print(default_args)
+ 
+@@ -136,6 +136,9 @@ class BaseTrainer(object):
+ 
+             # validation
+             if self.validate:
++                if dev_data is None:
++                    raise RuntimeError(
++                        "self.validate is True in trainer, but dev_data is None. Please provide the validation data.")
+                 logger.info("validation started")
+                 validator.test(network, dev_data)
+ 
+@@ -314,7 +317,7 @@ class BaseTrainer(object):
+         raise NotImplementedError
+ 
+ 
+-class SeqLabelTrainer(BaseTrainer):
++class SeqLabelTrainer(Trainer):
+     """Trainer for Sequence Labeling
+ 
+     """
+@@ -328,7 +331,7 @@ class SeqLabelTrainer(BaseTrainer):
+         return SeqLabelTester(**valid_args)
+ 
+ 
+-class ClassificationTrainer(BaseTrainer):
++class ClassificationTrainer(Trainer):
+     """Trainer for text classification."""
+ 
+     def __init__(self, **train_args):

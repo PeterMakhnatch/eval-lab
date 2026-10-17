@@ -1,0 +1,55 @@
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 4a97cc731..08b584651 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -3834,8 +3834,15 @@ class Update(DML):
+         )
+ 
+ 
++# DuckDB supports VALUES followed by https://duckdb.org/docs/stable/sql/query_syntax/limit
+ class Values(UDTF):
+-    arg_types = {"expressions": True, "alias": False}
++    arg_types = {
++        "expressions": True,
++        "alias": False,
++        "order": False,
++        "limit": False,
++        "offset": False,
++    }
+ 
+ 
+ class Var(Expression):
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index f3e32f687..721704927 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -2223,6 +2223,7 @@ class Generator(metaclass=_Generator):
+                 and (alias or isinstance(expression.parent, (exp.From, exp.Table)))
+                 else values
+             )
++            values = self.query_modifiers(expression, values)
+             return f"{values} AS {alias}" if alias else values
+ 
+         # Converts `VALUES...` expression into a series of select unions.
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 74dddca25..373e8e491 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -1473,7 +1473,7 @@ class Parser(metaclass=_Parser):
+ 
+     RECURSIVE_CTE_SEARCH_KIND = {"BREADTH", "DEPTH", "CYCLE"}
+ 
+-    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows)
++    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows, exp.Values)
+ 
+     STRICT_CAST = True
+ 
+@@ -5815,7 +5815,7 @@ class Parser(metaclass=_Parser):
+             this = self.expression(exp.Tuple)
+         elif isinstance(this, exp.UNWRAPPED_QUERIES):
+             this = self._parse_subquery(this=this, parse_alias=False)
+-        elif isinstance(this, exp.Subquery):
++        elif isinstance(this, (exp.Subquery, exp.Values)):
+             this = self._parse_subquery(
+                 this=self._parse_query_modifiers(self._parse_set_operations(this)),
+                 parse_alias=False,

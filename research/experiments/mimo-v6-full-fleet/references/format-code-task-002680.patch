@@ -1,0 +1,78 @@
+diff --git a/sc3/seq/patterns/eventpatterns.py b/sc3/seq/patterns/eventpatterns.py
+index 26634ea..48fd9dd 100644
+--- a/sc3/seq/patterns/eventpatterns.py
++++ b/sc3/seq/patterns/eventpatterns.py
+@@ -4,6 +4,7 @@ import logging
+ 
+ from ...base import stream as stm
+ from ...base import builtins as bi
++from ...base import _taskq as tsq
+ from .. import pattern as ptt
+ from .. import eventstream as est
+ from .. import event as evt
+@@ -213,3 +214,65 @@ class Pmono(Pbind):
+             cleanup.run()
+         return inevent
+ 
++
++### Ppar.sc ###
++
++
++class Ppar(EventPattern):
++    def __init__(self, *patterns):
++        self.patterns = list(patterns)
++
++    def __embed__(self, inevent):
++        # assn?
++        queue = tsq.TaskQueue()
++        now = 0.0
++        self._init_streams(queue)
++        # // If first event not at time zero.
++        if not queue.empty():
++            nexttime = queue.peek()[0]
++            if nexttime > 0.0:
++                outevent = evt.silent(nexttime, inevent)
++                inevent = yield outevent
++                now = nexttime
++        while not queue.empty():
++            try:
++                stream = queue.pop()[1]
++                outevent = stream.next(inevent)
++                outevent = evt.event(outevent)  # as_event
++                # // Requeue stream.
++                queue.add(now + float(outevent('delta')), stream)
++                nexttime = queue.peek()[0]
++                outevent['delta'] = nexttime - now
++                inevent = yield outevent
++                now = nexttime
++            except stm.StopStream:  # next
++                if not queue.empty():
++                    # // That child stream ended, so rest until next one.
++                    nexttime = queue.peek()[0]
++                    outevent = evt.silent(nexttime - now, inevent)
++                    inevent = yield outevent
++                    now = nexttime
++                else:
++                    queue.clear()
++        return inevent
++
++    def _init_streams(self, queue):
++        for pattern in self.patterns:
++            queue.add(0.0, stm.stream(pattern))
++
++
++# class Ptpar(Ppar):
++#     def __init__(self, *args):  # (0, patter)?
++#         self.args = list(args)
++#
++#     def _init_streams(self, queue):
++#         for i in range(0, len(self.args) - 1, 2):  # gen_cclumps(lst, 2)
++#             queue.add(self.args[i], stm.stream(self.args[i + 1]))
++
++
++# class Pgpar(Ppar):
++#     ...
++
++
++# class Pgtpar(Pgpar):
++#     ...

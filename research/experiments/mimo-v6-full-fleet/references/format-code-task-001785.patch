@@ -1,0 +1,19 @@
+diff --git a/src/action/channel.js b/src/action/channel.js
+index ed694948..d6d38f1e 100644
+--- a/src/action/channel.js
++++ b/src/action/channel.js
+@@ -261,9 +261,12 @@ class ChannelAction {
+    */
+   async closeSelectedChannel() {
+     try {
+-      const { selectedChannel } = this._store;
++      const { selectedChannel: selected } = this._store;
+       this._nav.goChannels();
+-      await this.closeChannel({ channelPoint: selectedChannel.channelPoint });
++      await this.closeChannel({
++        channelPoint: selected.channelPoint,
++        force: selected.status !== 'open' || !selected.active,
++      });
+     } catch (err) {
+       this._notification.display({ msg: 'Closing channel failed!', err });
+     }

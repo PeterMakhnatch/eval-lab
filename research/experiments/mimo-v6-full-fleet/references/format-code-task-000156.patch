@@ -1,0 +1,45 @@
+diff --git a/robocop/checkers/duplications.py b/robocop/checkers/duplications.py
+index ef67d4a7..9dbde75c 100644
+--- a/robocop/checkers/duplications.py
++++ b/robocop/checkers/duplications.py
+@@ -372,8 +372,8 @@ class DuplicationsChecker(VisitorChecker):
+     def visit_VariablesImport(self, node):  # noqa
+         if not node.name:
+             return
+-        # only python files can have arguments - covered in E0404 variables-import-with-args
+-        if not node.name.endswith(".py") and node.get_token(Token.ARGUMENT):
++        # only YAML files can't have arguments - covered in E0404 variables-import-with-args
++        if node.name.endswith((".yaml", ".yml")) and node.get_token(Token.ARGUMENT):
+             return
+         name_with_args = node.name + "".join(token.value for token in node.data_tokens[2:])
+         self.variable_imports[name_with_args].append(node)
+diff --git a/robocop/checkers/errors.py b/robocop/checkers/errors.py
+index 86f2dbbc..1132af64 100644
+--- a/robocop/checkers/errors.py
++++ b/robocop/checkers/errors.py
+@@ -60,14 +60,15 @@ rules = {
+     "0404": Rule(
+         rule_id="0404",
+         name="variables-import-with-args",
+-        msg="Robot and YAML variable files do not take arguments",
++        msg="YAML variable files do not take arguments",
+         severity=RuleSeverity.ERROR,
+         docs="""
+         Example of rule violation::
+         
+             *** Settings ***
+-            Variables    vars.yaml    arg1
+-            Variables    variables.robot    arg
++            Variables    vars.yaml        arg1
++            Variables    variables.yml    arg2
++            Variables    module           arg3  # valid from RF > 5
+         
+         """,
+     ),
+@@ -611,5 +612,5 @@ class VariablesImportErrorChecker(VisitorChecker):
+     reports = ("variables-import-with-args",)
+ 
+     def visit_VariablesImport(self, node):  # noqa
+-        if node.name and not node.name.endswith(".py") and node.get_token(Token.ARGUMENT):
++        if node.name and node.name.endswith((".yaml", ".yml")) and node.get_token(Token.ARGUMENT):
+             self.report("variables-import-with-args", node=node)

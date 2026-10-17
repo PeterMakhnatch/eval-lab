@@ -1,0 +1,23 @@
+diff --git a/warehouse/filters.py b/warehouse/filters.py
+index 03cfbc0f2..d3bc581e5 100644
+--- a/warehouse/filters.py
++++ b/warehouse/filters.py
+@@ -28,6 +28,7 @@ import jinja2
+ import packaging.version
+ import pytz
+ 
++from natsort import natsorted
+ from pyramid.threadlocal import get_current_request
+ 
+ from warehouse.utils.http import is_valid_uri
+@@ -137,6 +138,10 @@ def format_classifiers(classifiers):
+                 structured[key] = []
+             structured[key].append(value[0])
+ 
++    # Sort all the values in our data structure
++    for key, value in structured.items():
++        structured[key] = natsorted(value)
++
+     return structured
+ 
+ 

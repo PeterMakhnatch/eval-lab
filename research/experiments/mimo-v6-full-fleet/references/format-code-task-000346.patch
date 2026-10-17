@@ -1,0 +1,112 @@
+diff --git a/cmd_sorted_set.go b/cmd_sorted_set.go
+index ab25c25..8e7e4ee 100644
+--- a/cmd_sorted_set.go
++++ b/cmd_sorted_set.go
+@@ -33,6 +33,7 @@ func commandsSortedSet(m *Miniredis) {
+ 	m.srv.Register("ZREVRANGEBYSCORE", m.makeCmdZrangebyscore(true))
+ 	m.srv.Register("ZREVRANK", m.makeCmdZrank(true))
+ 	m.srv.Register("ZSCORE", m.cmdZscore)
++	m.srv.Register("ZMSCORE", m.cmdZMscore)
+ 	m.srv.Register("ZUNION", m.cmdZunion)
+ 	m.srv.Register("ZUNIONSTORE", m.cmdZunionstore)
+ 	m.srv.Register("ZSCAN", m.cmdZscan)
+@@ -1044,6 +1045,49 @@ func (m *Miniredis) cmdZscore(c *server.Peer, cmd string, args []string) {
+ 	})
+ }
+ 
++// ZMSCORE
++func (m *Miniredis) cmdZMscore(c *server.Peer, cmd string, args []string) {
++	if len(args) < 2 {
++		setDirty(c)
++		c.WriteError(errWrongNumber(cmd))
++		return
++	}
++	if !m.handleAuth(c) {
++		return
++	}
++	if m.checkPubsub(c, cmd) {
++		return
++	}
++
++	key, members := args[0], args[1:]
++
++	withTx(m, c, func(c *server.Peer, ctx *connCtx) {
++		db := m.db(ctx.selectedDB)
++
++		if !db.exists(key) {
++			c.WriteLen(len(members))
++			for range members {
++				c.WriteNull()
++			}
++			return
++		}
++
++		if db.t(key) != "zset" {
++			c.WriteError(ErrWrongType.Error())
++			return
++		}
++
++		c.WriteLen(len(args) - 1)
++		for _, member := range members {
++			if !db.ssetExists(key, member) {
++				c.WriteNull()
++				continue
++			}
++			c.WriteFloat(db.ssetScore(key, member))
++		}
++	})
++}
++
+ // parseFloatRange handles ZRANGEBYSCORE floats. They are inclusive unless the
+ // string starts with '('
+ func parseFloatRange(s string) (float64, bool, error) {
+diff --git a/db.go b/db.go
+index d6df96a..388d5fb 100644
+--- a/db.go
++++ b/db.go
+@@ -468,6 +468,16 @@ func (db *RedisDB) ssetScore(key, member string) float64 {
+ 	return ss[member]
+ }
+ 
++// ssetMScore returns multiple scores of a list of members in a sorted set.
++func (db *RedisDB) ssetMScore(key string, members []string) []float64 {
++	scores := make([]float64, 0, len(members))
++	ss := db.sortedsetKeys[key]
++	for _, member := range members {
++		scores = append(scores, ss[member])
++	}
++	return scores
++}
++
+ // ssetRem is sorted set key delete.
+ func (db *RedisDB) ssetRem(key, member string) bool {
+ 	ss := db.sortedsetKeys[key]
+diff --git a/direct.go b/direct.go
+index cd2323c..607c4e0 100644
+--- a/direct.go
++++ b/direct.go
+@@ -666,6 +666,24 @@ func (db *RedisDB) ZScore(k, member string) (float64, error) {
+ 	return db.ssetScore(k, member), nil
+ }
+ 
++// ZScore gives scores of a list of members in a sorted set.
++func (m *Miniredis) ZMScore(k string, members ...string) ([]float64, error) {
++	return m.DB(m.selectedDB).ZMScore(k, members)
++}
++
++func (db *RedisDB) ZMScore(k string, members []string) ([]float64, error) {
++	db.master.Lock()
++	defer db.master.Unlock()
++
++	if !db.exists(k) {
++		return nil, ErrKeyNotFound
++	}
++	if db.t(k) != "zset" {
++		return nil, ErrWrongType
++	}
++	return db.ssetMScore(k, members), nil
++}
++
+ // XAdd adds an entry to a stream. `id` can be left empty or be '*'.
+ // If a value is given normal XADD rules apply. Values should be an even
+ // length.

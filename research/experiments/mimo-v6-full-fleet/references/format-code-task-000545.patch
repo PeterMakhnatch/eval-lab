@@ -1,0 +1,389 @@
+diff --git a/behave.ini b/behave.ini
+index 379b90e6..30f7e560 100644
+--- a/behave.ini
++++ b/behave.ini
+@@ -1,7 +1,7 @@
+ # =============================================================================
+ # BEHAVE CONFIGURATION
+ # =============================================================================
+-# FILE: .behaverc, behave.ini, setup.cfg, tox.ini
++# FILE: .behaverc, behave.ini, setup.cfg, tox.ini, pyproject.toml
+ #
+ # SEE ALSO:
+ #  * http://packages.python.org/behave/behave.html#configuration-files
+diff --git a/behave/configuration.py b/behave/configuration.py
+index 4a9cda63..4bdaf164 100644
+--- a/behave/configuration.py
++++ b/behave/configuration.py
+@@ -3,6 +3,7 @@
+ from __future__ import absolute_import, print_function
+ import argparse
+ import inspect
++import json
+ import logging
+ import os
+ import re
+@@ -28,6 +29,17 @@ ConfigParser = configparser.ConfigParser
+ if six.PY2:
+     ConfigParser = configparser.SafeConfigParser
+ 
++try:
++    if sys.version_info >= (3, 11):
++        import tomllib
++    elif sys.version_info < (3, 0):
++        import toml as tomllib
++    else:
++        import tomli as tomllib
++    _TOML_AVAILABLE = True
++except ImportError:
++    _TOML_AVAILABLE = False
++
+ 
+ # -----------------------------------------------------------------------------
+ # CONSTANTS:
+@@ -382,41 +394,49 @@ raw_value_options = frozenset([
+ ])
+ 
+ 
+-def read_configuration(path):
+-    # pylint: disable=too-many-locals, too-many-branches
+-    config = ConfigParser()
+-    config.optionxform = str    # -- SUPPORT: case-sensitive keys
+-    config.read(path)
+-    config_dir = os.path.dirname(path)
+-    result = {}
++def values_to_str(d):
++    return json.loads(
++        json.dumps(d),
++        parse_float=str,
++        parse_int=str,
++        parse_constant=str
++    )
++
++
++def decode_options(config):
+     for fixed, keywords in options:
+         if "dest" in keywords:
+             dest = keywords["dest"]
+         else:
++            dest = None
+             for opt in fixed:
+                 if opt.startswith("--"):
+                     dest = opt[2:].replace("-", "_")
+                 else:
+                     assert len(opt) == 2
+                     dest = opt[1:]
+-        if dest in "tags_help lang_list lang_help version".split():
++        if (
++            not dest
++        ) or (
++            dest in "tags_help lang_list lang_help version".split()
++        ):
+             continue
+-        if not config.has_option("behave", dest):
++        try:
++            if dest not in config["behave"]:
++                continue
++        except AttributeError as exc:
++            # SafeConfigParser instance has no attribute '__getitem__' (py27)
++            if "__getitem__" not in str(exc):
++                raise
++            if not config.has_option("behave", dest):
++                continue
++        except KeyError:
+             continue
+         action = keywords.get("action", "store")
+-        if action == "store":
+-            use_raw_value = dest in raw_value_options
+-            result[dest] = config.get("behave", dest, raw=use_raw_value)
+-        elif action in ("store_true", "store_false"):
+-            result[dest] = config.getboolean("behave", dest)
+-        elif action == "append":
+-            if dest == "userdata_defines":
+-                continue    # -- SKIP-CONFIGFILE: Command-line only option.
+-            result[dest] = \
+-                [s.strip() for s in config.get("behave", dest).splitlines()]
+-        else:
+-            raise ValueError('action "%s" not implemented' % action)
++        yield dest, action
+ 
++
++def format_outfiles_coupling(result, config_dir):
+     # -- STEP: format/outfiles coupling
+     if "format" in result:
+         # -- OPTIONS: format/outfiles are coupled in configuration file.
+@@ -442,6 +462,32 @@ def read_configuration(path):
+             result[paths_name] = \
+                 [os.path.normpath(os.path.join(config_dir, p)) for p in paths]
+ 
++
++def read_configparser(path):
++    # pylint: disable=too-many-locals, too-many-branches
++    config = ConfigParser()
++    config.optionxform = str    # -- SUPPORT: case-sensitive keys
++    config.read(path)
++    config_dir = os.path.dirname(path)
++    result = {}
++
++    for dest, action in decode_options(config):
++        if action == "store":
++            result[dest] = config.get(
++                "behave", dest, raw=dest in raw_value_options
++            )
++        elif action in ("store_true", "store_false"):
++            result[dest] = config.getboolean("behave", dest)
++        elif action == "append":
++            if dest == "userdata_defines":
++                continue    # -- SKIP-CONFIGFILE: Command-line only option.
++            result[dest] = \
++                [s.strip() for s in config.get("behave", dest).splitlines()]
++        else:
++            raise ValueError('action "%s" not implemented' % action)
++
++    format_outfiles_coupling(result, config_dir)
++
+     # -- STEP: Special additional configuration sections.
+     # SCHEMA: config_section: data_name
+     special_config_section_map = {
+@@ -457,14 +503,82 @@ def read_configuration(path):
+     return result
+ 
+ 
++def read_toml(path):
++    """Read configuration from pyproject.toml file.
++
++    Configuration should be stored inside the 'tool.behave' table.
++
++    See https://www.python.org/dev/peps/pep-0518/#tool-table
++    """
++    # pylint: disable=too-many-locals, too-many-branches
++    with open(path, "rb") as tomlfile:
++        config = json.loads(json.dumps(tomllib.load(tomlfile)))  # simple dict
++
++    config = config['tool']
++    config_dir = os.path.dirname(path)
++    result = {}
++
++    for dest, action in decode_options(config):
++        raw = config["behave"][dest]
++        if action == "store":
++            result[dest] = str(raw)
++        elif action in ("store_true", "store_false"):
++            result[dest] = bool(raw)
++        elif action == "append":
++            if dest == "userdata_defines":
++                continue    # -- SKIP-CONFIGFILE: Command-line only option.
++            # toml has native arrays and quoted strings, so there's no
++            # need to split by newlines or strip values
++            result[dest] = raw
++        else:
++            raise ValueError('action "%s" not implemented' % action)
++    format_outfiles_coupling(result, config_dir)
++
++    # -- STEP: Special additional configuration sections.
++    # SCHEMA: config_section: data_name
++    special_config_section_map = {
++        "formatters": "more_formatters",
++        "userdata":   "userdata",
++    }
++    for section_name, data_name in special_config_section_map.items():
++        result[data_name] = {}
++        try:
++            result[data_name] = values_to_str(config["behave"][section_name])
++        except KeyError:
++            result[data_name] = {}
++
++    return result
++
++
++def read_configuration(path, verbose=False):
++    ext = path.split(".")[-1]
++    parsers = {
++        "ini": read_configparser,
++        "cfg": read_configparser,
++        "behaverc": read_configparser,
++    }
++
++    if _TOML_AVAILABLE:
++        parsers["toml"] = read_toml
++    parse_func = parsers.get(ext, None)
++    if not parse_func:
++        if verbose:
++            print('Unable to find a parser for "%s"' % path)
++        return {}
++    parsed = parse_func(path)
++
++    return parsed
++
++
+ def config_filenames():
+     paths = ["./", os.path.expanduser("~")]
+     if sys.platform in ("cygwin", "win32") and "APPDATA" in os.environ:
+         paths.append(os.path.join(os.environ["APPDATA"]))
+ 
+     for path in reversed(paths):
+-        for filename in reversed(
+-                ("behave.ini", ".behaverc", "setup.cfg", "tox.ini")):
++        for filename in reversed((
++            "behave.ini", ".behaverc", "setup.cfg", "tox.ini", "pyproject.toml"
++        )):
+             filename = os.path.join(path, filename)
+             if os.path.isfile(filename):
+                 yield filename
+@@ -474,7 +588,7 @@ def load_configuration(defaults, verbose=False):
+     for filename in config_filenames():
+         if verbose:
+             print('Loading config defaults from "%s"' % filename)
+-        defaults.update(read_configuration(filename))
++        defaults.update(read_configuration(filename, verbose))
+ 
+     if verbose:
+         print("Using CONFIGURATION DEFAULTS:")
+diff --git a/docs/behave.rst b/docs/behave.rst
+index e27036bb..93a25a9c 100644
+--- a/docs/behave.rst
++++ b/docs/behave.rst
+@@ -287,9 +287,9 @@ You can also exclude several tags::
+ Configuration Files
+ ===================
+ 
+-Configuration files for *behave* are called either ".behaverc",
+-"behave.ini", "setup.cfg" or "tox.ini" (your preference) and are located in
+-one of three places:
++Configuration files for *behave* are called either ".behaverc", "behave.ini",
++"setup.cfg", "tox.ini", or "pyproject.toml" (your preference) and are located
++in one of three places:
+ 
+ 1. the current working directory (good for per-project settings),
+ 2. your home directory ($HOME), or
+@@ -308,6 +308,16 @@ formatted in the Windows INI style, for example:
+     logging_clear_handlers=yes
+     logging_filter=-suds
+ 
++Alternatively, if using "pyproject.toml" instead (note the "tool." prefix):
++
++.. code-block:: toml
++
++    [tool.behave]
++    format = "plain"
++    logging_clear_handlers = true
++    logging_filter = "-suds"
++
++NOTE: toml does not support `'%'` interpolations.
+ 
+ Configuration Parameter Types
+ -----------------------------
+@@ -322,6 +332,7 @@ The following types are supported (and used):
+     The text describes the functionality when the value is true.
+     True values are "1", "yes", "true", and "on".
+     False values are "0", "no", "false", and "off".
++    TOML: toml only accepts its native `true`
+ 
+ **sequence<text>**
+     These fields accept one or more values on new lines, for example a tag
+@@ -335,6 +346,7 @@ The following types are supported (and used):
+ 
+         --tags="(@foo or not @bar) and @zap"
+ 
++    TOML: toml can use arrays natively.
+ 
+ 
+ Configuration Parameters
+diff --git a/docs/behave.rst-template b/docs/behave.rst-template
+index 6487afad..64f55002 100644
+--- a/docs/behave.rst-template
++++ b/docs/behave.rst-template
+@@ -29,9 +29,9 @@ Tag Expression
+ Configuration Files
+ ===================
+ 
+-Configuration files for *behave* are called either ".behaverc",
+-"behave.ini", "setup.cfg" or "tox.ini" (your preference) and are located in
+-one of three places:
++Configuration files for *behave* are called either ".behaverc", "behave.ini",
++"setup.cfg", "tox.ini", or "pyproject.toml" (your preference) and are located
++in one of three places:
+ 
+ 1. the current working directory (good for per-project settings),
+ 2. your home directory ($HOME), or
+@@ -50,6 +50,16 @@ formatted in the Windows INI style, for example:
+     logging_clear_handlers=yes
+     logging_filter=-suds
+ 
++Alternatively, if using "pyproject.toml" instead (note the "tool." prefix):
++
++.. code-block:: toml
++
++    [tool.behave]
++    format = "plain"
++    logging_clear_handlers = true
++    logging_filter = "-suds"
++
++NOTE: toml does not support `'%'` interpolations.
+ 
+ Configuration Parameter Types
+ -----------------------------
+@@ -64,6 +74,7 @@ The following types are supported (and used):
+     The text describes the functionality when the value is true.
+     True values are "1", "yes", "true", and "on".
+     False values are "0", "no", "false", and "off".
++    TOML: toml only accepts its native `true`
+ 
+ **sequence<text>**
+     These fields accept one or more values on new lines, for example a tag
+@@ -77,6 +88,7 @@ The following types are supported (and used):
+ 
+         --tags="(@foo or not @bar) and @zap"
+ 
++    TOML: toml can use arrays natively.
+ 
+ 
+ Configuration Parameters
+diff --git a/docs/install.rst b/docs/install.rst
+index a3cd8be9..1b3fb6e0 100644
+--- a/docs/install.rst
++++ b/docs/install.rst
+@@ -70,6 +70,9 @@ Installation Target     Description
+ ``behave[develop]``     Optional packages helpful for local development.
+ ``behave[formatters]``  Install formatters from `behave-contrib`_ to extend the list of
+                         :ref:`formatters <id.appendix.formatters>` provided by default.
++``behave[toml]``        Optional toml package to configure behave from 'toml' files,
++                        like 'pyproject.toml' from `pep-518`_.
+ ======================= ===================================================================
+ 
+ .. _`behave-contrib`: https://github.com/behave-contrib
++.. _`pep-518`: https://peps.python.org/pep-0518/#tool-table
+diff --git a/py.requirements/testing.txt b/py.requirements/testing.txt
+index 0afd2f03..b5a209c9 100644
+--- a/py.requirements/testing.txt
++++ b/py.requirements/testing.txt
+@@ -20,6 +20,9 @@ PyHamcrest <  2.0;   python_version <  '3.0'
+ # HINT: path.py => path (python-install-package was renamed for python3)
+ path.py >=11.5.0,<13.0; python_version <  '3.5'
+ path >= 13.1.0;         python_version >= '3.5'
++# NOTE: toml extra for pyproject.toml-based config
++.[toml]
++
+ 
+ # -- PYTHON2 BACKPORTS:
+ pathlib;    python_version <= '3.4'
+diff --git a/setup.py b/setup.py
+index 6041a497..bd739deb 100644
+--- a/setup.py
++++ b/setup.py
+@@ -137,6 +137,10 @@ setup(
+         'formatters': [
+             "behave-html-formatter",
+         ],
++        'toml': [  # Enable pyproject.toml support.
++            "tomli>=1.1.0; python_version >=  '3.0' and python_version < '3.11'",
++            "toml>=0.10.2; python_version <  '3.0'",  # py27 support
++        ],
+     },
+     license="BSD",
+     classifiers=[
+@@ -161,4 +165,3 @@ setup(
+     ],
+     zip_safe = True,
+ )
+-

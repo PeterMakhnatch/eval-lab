@@ -1,0 +1,861 @@
+diff --git a/xgi/classes/__init__.py b/xgi/classes/__init__.py
+index 099affa..f277785 100644
+--- a/xgi/classes/__init__.py
++++ b/xgi/classes/__init__.py
+@@ -2,3 +2,4 @@ from xgi.classes import hypergraphviews, reportviews
+ 
+ from .function import *
+ from .hypergraph import Hypergraph
++from .simplicialcomplex import SimplicialComplex
+diff --git a/xgi/classes/hypergraph.py b/xgi/classes/hypergraph.py
+index ad27165..1cadbb0 100644
+--- a/xgi/classes/hypergraph.py
++++ b/xgi/classes/hypergraph.py
+@@ -7,9 +7,11 @@ Multiedges and self-loops are allowed.
+ """
+ from copy import deepcopy
+ 
++import numpy as np
+ import xgi
+ import xgi.convert as convert
+-from xgi.classes.reportviews import DegreeView, EdgeSizeView, EdgeView, NodeView
++from xgi.classes.reportviews import (DegreeView, EdgeSizeView, EdgeView,
++                                     NodeView)
+ from xgi.exception import XGIError
+ from xgi.utils import XGICounter
+ 
+@@ -1152,6 +1154,18 @@ class Hypergraph:
+         self.remove_nodes_from(self.isolates(ignore_singletons))
+         return self
+ 
++    def duplicate_edges(self):
++        """A list of all duplicate edges.
++        
++        See also
++        --------
++        remove_duplicates
++        """
++
++        edges = [tuple(e) for e in self._edge.values()]
++        edges_unique, counts = np.unique(edges, return_counts=True)
++        return list(edges_unique[np.where(counts > 1)])
++
+     def is_uniform(self):
+         """Returns d>=1 if the hypergraph is d-uniform, that is if
+         all edges in the hypergraph (excluding singletons, i.e. nodes)
+diff --git a/xgi/classes/simplicialcomplex.py b/xgi/classes/simplicialcomplex.py
+new file mode 100644
+index 0000000..5834a76
+--- /dev/null
++++ b/xgi/classes/simplicialcomplex.py
+@@ -0,0 +1,305 @@
++"""Base class for undirected simplicial complexes.
++
++The SimplicialComplex class allows any hashable object as a node
++and can associate key/value attribute pairs with each undirected simplex and node.
++
++Multi-simplices are not allowed.
++"""
++from copy import deepcopy
++from itertools import combinations
++
++import xgi
++import xgi.convert as convert
++from xgi.classes import Hypergraph
++from xgi.classes.reportviews import (DegreeView, EdgeSizeView, EdgeView,
++                                     NodeView)
++from xgi.exception import XGIError
++from xgi.utils import XGICounter
++
++__all__ = ["SimplicialComplex"]
++
++class SimplicialComplex(Hypergraph) :
++    """A class to represent undirected simplicial complexes."""
++
++    def __str__(self):
++        """Returns a short summary of the simplicial complex.
++
++        Returns
++        -------
++        string
++            SimplicialComplex information
++
++        Examples
++        --------
++        >>> import xgi
++        >>> H = xgi.SimplicialComplex(name="foo")
++        >>> str(H)
++        "SimplicialComplex named 'foo' with 0 nodes and 0 edges"
++
++        """
++        try:
++            return f"{type(self).__name__} named {self['name']} with {self.num_nodes} nodes and {self.num_edges} simplices"
++        except:
++            return f"Unnamed {type(self).__name__} with {self.num_nodes} nodes and {self.num_edges} simplices"
++
++    def add_edge(self, edge, **attr):
++        raise XGIError("Cannot add_edge to SimplicialComplex, use add_simplex instead")
++
++    def add_edges_from(self, edges, **attr):
++        raise XGIError("Cannot add_edges_from to SimplicialComplex, use add_simplices_from instead")
++
++    def add_weighted_edges_from(self, ebunch_to_add, weight="weight", **attr):
++        raise XGIError("Cannot add_weighted_edges_from to SimplicialComplex, use add_weighted_simplices_from instead")
++
++    def remove_edge(self, id):
++        raise XGIError("Cannot remove_edge to SimplicialComplex, use remove_simplex instead")
++
++    def remove_edges_from(self, ebunch):
++        raise XGIError("Cannot remove_edges_from to SimplicialComplex, use remove_simplices_from instead")
++
++    def add_simplex(self, simplex, **attr):
++        """Add a simplex to the simplicial complex, and all its subfaces that do
++        not exist yet. The universal ID is automatically assigned to the simplex(s).
++
++        Simplex attributes can be specified with keywords or by directly
++        accessing the simplex's attribute dictionary. The attributes do not propagate
++        to the subfaces. See examples below.
++
++        Parameters
++        ----------
++        simplex : an container or iterable of hashables
++            A list of node ids
++        attr : keyword arguments, optional
++            Simplex data (or labels or objects) can be assigned using
++            keyword arguments.
++
++        See Also
++        --------
++        add_simplices_from : add a collection of simplexs
++
++        Notes
++        -----
++        Currently cannot add empty edges.
++        """
++
++        if not self.has_simplex(simplex) :
++
++            # add simplex and its nodes
++            if simplex:
++                uid = self._edge_uid()
++            else:
++                raise XGIError("Cannot add an empty simplex.")
++            for node in simplex:
++                if node not in self._node:
++                    if node is None:
++                        raise ValueError("None cannot be a node")
++                    self._node[node] = list()
++                    self._node_attr[node] = self.node_attr_dict_factory()
++                self._node[node].append(uid)
++
++            try:
++                self._edge[uid] = frozenset(simplex)
++                self._edge_attr[uid] = self.hyperedge_attr_dict_factory()
++            except:
++                raise XGIError("The simplex cannot be cast to a frozenset.")
++
++            self._edge_attr[uid].update(attr)
++
++            # add all subfaces
++            faces = self._subfaces(simplex)
++            self.add_simplices_from(faces)
++
++    def _subfaces(self, simplex):
++        """Returns list of subfaces of simplex"""
++        size = len(simplex)
++        faces = []
++        for n in range(size, 2, -1): 
++            for face in combinations(simplex, n-1):
++                faces.append(face)
++
++        return faces 
++
++    def _supfaces(self, simplex): 
++        """Returns list of simplices that contain simplex"""
++
++        return [s for s in self._edge.values() if simplex < s]
++
++    def _supfaces_id(self, simplex): 
++        """Returns list of IDs of simplices that contain simplex"""
++
++        return [id_ for id_, s in self._edge.items() if simplex < s]
++
++    def add_simplices_from(self, ebunch_to_add, **attr):
++        """Add all the simplices in ebunch_to_add.
++
++        Parameters
++        ----------
++        ebunch_to_add : container of simplices
++            Each simplex given in the container will be added to the
++            graph. Each simplex must be given as as a container of nodes
++            or a container with the last entry as a dictionary.
++        attr : keyword arguments, optional
++            Simplex data (or labels or objects) can be assigned using
++            keyword arguments.
++
++        See Also
++        --------
++        add_edge : add a single simplex
++        add_weighted_simplices_from : convenient way to add weighted simplices
++
++        Notes
++        -----
++        Adding the same simplex twice will add it only once. Currently
++        cannot add empty simplices; the method skips over them.
++        """
++
++        for simplex in ebunch_to_add:
++
++            try:
++                if isinstance(simplex[-1], dict):
++                    dd = simplex[-1]
++                    simplex = simplex[:-1]
++                else:
++                    dd = {}
++            except:
++                pass
++
++            if simplex and not self.has_simplex(simplex) :
++                uid = self._edge_uid()
++
++                for n in simplex:
++                    if n not in self._node:
++                        if n is None:
++                            raise ValueError("None cannot be a node")
++                        self._node[n] = list()
++                        self._node_attr[n] = self.node_attr_dict_factory()
++                    self._node[n].append(uid)
++
++                try:
++                    self._edge[uid] = frozenset(simplex)
++                    self._edge_attr[uid] = self.hyperedge_attr_dict_factory()
++                except:
++                    raise XGIError("The simplex cannot be cast to a frozenset.")
++
++                self._edge_attr[uid].update(attr)
++                self._edge_attr[uid].update(dd)
++
++                # add subfaces 
++                faces = self._subfaces(simplex)
++                self.add_simplices_from(faces)
++
++    def add_weighted_simplices_from(self, ebunch_to_add, weight="weight", **attr):
++        """Add weighted simplices in `ebunch_to_add` with specified weight attr
++
++        Parameters
++        ----------
++        ebunch_to_add : container of simplices
++            Each simplex given in the list or container will be added
++            to the graph. The simplices must be given as containers.
++        weight : string, optional (default= 'weight')
++            The attribute name for the simplex weights to be added.
++        attr : keyword arguments, optional (default= no attributes)
++            simplex attributes to add/update for all simplices.
++
++        See Also
++        --------
++        add_simplex : add a single simplex
++        add_simplices_from : add multiple simplices
++
++        Notes
++        -----
++        Adding the same simplex twice will add it only once.
++        """
++
++        try:
++            self.add_edges_from(
++                ((edge[:-1], {weight: edge[-1]}) for edge in ebunch_to_add), **attr
++            )
++        except:
++            XGIError("Empty or invalid edges specified.")
++
++    def remove_simplex_id(self, id):
++        """Remove a simplex with a given id.
++
++        This also removes all simplices of which this simplex is face,
++        to preserve the simplicial complex structure.
++
++        Parameters
++        ----------
++        id : Hashable
++            edge ID to remove
++
++        Raises
++        ------
++        XGIError
++            If no edge has that ID.
++
++        See Also
++        --------
++        remove_edges_from : remove a collection of edges
++        """
++        try:
++
++            # remove all simplices that contain simplex
++            supfaces_ids = self._supfaces_id(self._edge[id])
++            self.remove_simplex_ids_from(supfaces_ids)
++
++            # remove simplex
++            for node in self.edges.members(id):
++                self._node[node].remove(id)
++            del self._edge[id]
++            del self._edge_attr[id]
++
++        except KeyError as e:
++            raise XGIError(f"Simplex {id} is not in the Simplicialcomplex") from e
++
++    def remove_simplex_ids_from(self, ebunch):
++        """Remove all simplicies specified in ebunch.
++
++        Parameters
++        ----------
++        ebunch: list or container of hashables
++            Each edge id given in the list or container will be removed
++            from the hypergraph.
++
++        See Also
++        --------
++        remove_simplex_id : remove a single simplex by ID
++
++        Notes
++        -----
++        Will fail silently if an edge in ebunch is not in the simplicial complex.
++        """
++        for id in ebunch:
++            try:
++                for node in self.edges.members(id):
++                    self._node[node].remove(id)
++                del self._edge[id]
++                del self._edge_attr[id]
++            except:
++                pass
++
++    def has_simplex(self, simplex):
++        """Whether a simplex appears in the simplicial complex.
++
++        Parameters
++        ----------
++        simplex : list or set
++            A container of hashables that specifies an simplex
++
++        Returns
++        -------
++        bool
++           Whether or not simplex is as a simplex in the simplicial complex.
++
++        Examples
++        --------
++        >>> import xgi
++        >>> hyperedge_list = [[1, 2], [2, 3, 4]]
++        >>> H = xgi.SimplicialComplex(hyperedge_list)
++        >>> H.has_simplex([1, 2])
++        True
++        >>> H.has_simplex({1, 3})
++        False
++        """
++        return set(simplex) in (set(self.edges.members(s)) for s in self.edges)
+diff --git a/xgi/generators/classic.py b/xgi/generators/classic.py
+index aa1c948..b43d306 100644
+--- a/xgi/generators/classic.py
++++ b/xgi/generators/classic.py
+@@ -2,11 +2,11 @@
+ in this module return a Hypergraph class (i.e. a simple, undirected hypergraph).
+ """
+ 
++from itertools import combinations
++
+ from xgi.classes import Hypergraph
+ 
+-__all__ = [
+-    "empty_hypergraph",
+-]
++__all__ = ["empty_hypergraph", "star_clique"]
+ 
+ 
+ def empty_hypergraph(create_using=None, default=Hypergraph):
+@@ -45,3 +45,61 @@ def empty_hypergraph(create_using=None, default=Hypergraph):
+         # try create_using as constructor
+         H = create_using()
+     return H
++
++
++def star_clique(n_star, n_clique, d_max):
++    """Generate a star-clique structure
++
++    That is a star network and a clique network,
++    connected by one pairwise edge connecting the centre of the star to the clique.
++    network, the each clique is promoted to a hyperedge
++    up to order d_max.
++
++    Parameters
++    ----------
++    n_star : int
++        Number of legs of the star
++    n_clique : int
++        Number of nodes in the clique
++    d_max : int
++        Maximum order up to which to promote
++        cliques to hyperedges
++
++    Returns
++    -------
++    H : xgi.Hypergraph
++
++    Notes
++    -----
++    The total number of nodes is n_star + n_clique.
++
++    """
++
++    if n_star <= 0:
++        raise ValueError("n_star must be an integer > 0.")
++    if n_clique <= 0:
++        raise ValueError("n_clique must be an integer > 0.")
++    if d_max < 0:
++        raise ValueError("d_max must be an integer >= 0.")
++    elif d_max > n_clique - 1:
++        raise ValueError("d_max must be <= n_clique - 1.")
++
++    nodes_star = range(n_star)
++    nodes_clique = range(n_star, n_star + n_clique)
++    nodes = list(nodes_star) + list(nodes_clique)
++
++    H = empty_hypergraph()
++    H.add_nodes_from(nodes)
++
++    # add star edges (center of the star is 0-th node)
++    H.add_edges_from([(nodes_star[0], nodes_star[i]) for i in range(1, n_star)])
++
++    # connect clique and star by adding last star leg
++    H.add_edge((nodes_star[0], nodes_clique[0]))
++
++    # add clique hyperedges up to order d_max
++    H.add_edges_from(
++        [e for d in range(1, d_max + 1) for e in combinations(nodes_clique, d + 1)]
++    )
++
++    return H
+diff --git a/xgi/generators/nonuniform.py b/xgi/generators/nonuniform.py
+index 23bb94d..391dc0a 100644
+--- a/xgi/generators/nonuniform.py
++++ b/xgi/generators/nonuniform.py
+@@ -5,7 +5,6 @@ from collections import defaultdict
+ from itertools import combinations
+ 
+ import numpy as np
+-
+ import xgi
+ from xgi.utils import py_random_state
+ 
+@@ -13,6 +12,8 @@ __all__ = [
+     "chung_lu_hypergraph",
+     "dcsbm_hypergraph",
+     "random_hypergraph",
++    "random_simplicial_complex",
++    "random_maximal_simplicial_complex_d2",
+ ]
+ 
+ 
+@@ -262,7 +263,7 @@ def random_hypergraph(N, ps, seed=None):
+     -------
+     Hypergraph object
+         The generated hypergraph
+-    
++
+     References
+     ----------
+     Described as 'random hypergraph' by M. Dewar et al. in https://arxiv.org/abs/1703.07686
+@@ -296,3 +297,107 @@ def random_hypergraph(N, ps, seed=None):
+     H.add_edges_from(hyperedges)
+ 
+     return H
++
++
++@py_random_state(2)
++def random_simplicial_complex(N, ps):
++    """Generates a random hypergraph
++
++    Generate N nodes, and connect any d+1 nodes
++    by a simplex with probability ps[d-1]. For each simplex,
++    add all its subfaces if they do not already exist.
++
++    Parameters
++    ----------
++    N : int
++        Number of nodes
++    ps : list of float
++        List of probabilities (between 0 and 1) to create a
++        hyperedge at each order d between any d+1 nodes. For example,
++        ps[0] is the wiring probability of any edge (2 nodes), ps[1]
++        of any triangles (3 nodes).
++
++    Returns
++    -------
++    Simplicialcomplex object
++        The generated simplicial complex
++
++    References
++    ----------
++    Described as 'random simplicial complex' in
++    "Simplicial Models of Social Contagion", Nature Communications 10(1), 2485,
++    by I. Iacopini, G. Petri, A. Barrat & V. Latora (2019).
++    https://doi.org/10.1038/s41467-019-10431-6
++
++    Example
++    -------
++    >>> import xgi
++    >>> N = 100
++    >>> ps = [0.1, 0.01]
++    >>> H = xgi.random_simplicial_complex(N, ps)
++
++    """
++
++    if (np.any(np.array(ps) < 0)) or (np.any(np.array(ps) > 1)):
++        raise ValueError("All elements of ps must be between 0 and 1 included.")
++
++    nodes = range(N)
++    simplices = [[i] for i in nodes]  # add singleton edges
++
++    for i, p in enumerate(ps):
++        d = i + 1  # order, ps[0] is prob of edges (d=1)
++
++        for simplex in combinations(nodes, d + 1):
++            if seed.random() <= p:
++                simplices.append(simplex)
++
++    S = xgi.Simplicialcomplex()
++    S.add_nodes_from(nodes)
++    S.add_edges_from(simplices)
++
++    return H
++
++
++@py_random_state(2)
++def random_maximal_simplicial_complex_d2(N, p, seed=None):
++    """Generate a maximal simplicial complex (up to order 2) from a
++    $G_{N,p}$ Erdős-Rényi random graph by filling all empty triangles with 2-simplices.
++
++    Parameters
++    ----------
++    N : int
++        Number of nodes
++    p : float
++        Probabilities (between 0 and 1) to create an edge
++        between any 2 nodes
++
++    Returns
++    -------
++    hyperedges_final : list of tuples
++        List of hyperedges, i.e. tuples of length 2 and 3.
++
++    Notes
++    -----
++    Computing all cliques quickly becomes heavy for large networks.
++
++    """
++
++    if (p < 0) or (p > 1):
++        raise ValueError("p must be between 0 and 1 included.")
++
++    G = nx.fast_gnp_random_graph(N, p, seed=seed)
++
++    nodes = G.nodes()
++    edges = list(G.edges())
++
++    # compute all triangles to fill
++    all_cliques = list(nx.enumerate_all_cliques(G))
++    triad_cliques = [tuple(x) for x in all_cliques if len(x) == 3]
++
++    simplices = edges + triad_cliques
++
++    S = xgi.Simplicialcomplex()
++    S.add_nodes_from(nodes)
++    S.add_edges_from(simplices)
++
++    return S
+diff --git a/xgi/linalg/matrix.py b/xgi/linalg/matrix.py
+index 50a5f83..450f0b8 100644
+--- a/xgi/linalg/matrix.py
++++ b/xgi/linalg/matrix.py
+@@ -4,11 +4,15 @@ from scipy.sparse import csr_matrix
+ __all__ = [
+     "incidence_matrix",
+     "adjacency_matrix",
++    "intersection_profile",
++    "laplacian",
+     "clique_motif_matrix",
+ ]
+ 
+ 
+-def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1):
++def incidence_matrix(
++    H, order=None, sparse=True, index=False, weight=lambda node, edge, H: 1
++):
+     """
+     A function to generate a weighted incidence matrix from a Hypergraph object,
+     where the rows correspond to nodes and the columns correspond to edges.
+@@ -17,32 +21,37 @@ def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1
+     ----------
+     H: Hypergraph object
+         The hypergraph of interest
++    order: int, optional
++        Order of interactions to use. If None (default), all orders are used. If int,
++        must be >= 1.
+     sparse: bool, default: True
+         Specifies whether the output matrix is a scipy sparse matrix or a numpy matrix
+     index: bool, default: False
+-        Specifies whether to output disctionaries mapping the node and edge IDs to indices
++        Specifies whether to output dictionaries mapping the node and edge IDs to indices
+     weight: lambda function, default=lambda function outputting 1
+         A function specifying the weight, given a node and edge
+ 
+     Returns
+     -------
+-    numpy.ndarray or scipy csr_matrix
+-        The incidence matrix
+-    dict
++    I: numpy.ndarray or scipy csr_matrix
++        The incidence matrix, has dimension (n_nodes, n_edges)
++    rowdict: dict
+         The dictionary mapping indices to node IDs, if index is True
+-    dict
++    coldict: dict
+         The dictionary mapping indices to edge IDs, if index is True
+ 
+     Examples
+     --------
+         >>> import xgi
+-        >>> n = 1000
+-        >>> ps = [0.01, 0.001]
+-        >>> H = xgi.random_hypergraph(n, ps)
++        >>> N = 100
++        >>> ps = [0.1, 0.01]
++        >>> H = xgi.random_hypergraph(N, ps)
+         >>> I = xgi.incidence_matrix(H)
+     """
+ 
+     edge_ids = H.edges
++    if order is not None:
++        edge_ids = [id_ for id_, edge in H._edge.items() if len(edge) == order + 1]
+     node_ids = H.nodes
+     num_edges = len(edge_ids)
+     num_nodes = len(node_ids)
+@@ -50,7 +59,7 @@ def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1
+     node_dict = dict(zip(node_ids, range(num_nodes)))
+     edge_dict = dict(zip(edge_ids, range(num_edges)))
+ 
+-    if len(node_dict) != 0:
++    if len(node_dict) != 0 and len(edge_dict) != 0:
+ 
+         if index:
+             rowdict = {v: k for k, v in node_dict.items()}
+@@ -61,7 +70,7 @@ def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1
+             rows = list()
+             cols = list()
+             data = list()
+-            for edge in H.edges:
++            for edge in edge_ids:
+                 members = H.edges.members(edge)
+                 for node in members:
+                     data.append(weight(node, edge, H))
+@@ -71,7 +80,7 @@ def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1
+         else:
+             # Create an np.matrix
+             I = np.zeros((num_nodes, num_edges), dtype=int)
+-            for edge in H.edges:
++            for edge in edge_ids:
+                 members = H.edges.members(edge)
+                 for node in members:
+                     I[node_dict[node], edge_dict[edge]] = weight(node, edge, H)
+@@ -86,23 +95,26 @@ def incidence_matrix(H, sparse=True, index=False, weight=lambda node, edge, H: 1
+             return np.zeros(1)
+ 
+ 
+-def adjacency_matrix(H, s=1, index=False):
++def adjacency_matrix(H, order=None, s=1, weighted=False, index=False):
+     """
+-    A function to generate an unweighted adjacency matrix from a Hypergraph object.
++    A function to generate an adjacency matrix (N,N) from a Hypergraph object.
+ 
+     Parameters
+     ----------
+     H: Hypergraph object
+         The hypergraph of interest
++    order: int, optional
++        Order of interactions to use. If None (default), all orders are used. If int,
++        must be >= 1.
+     s: int, default: 1
+         Specifies the number of overlapping edges to be considered connected.
+     index: bool, default: False
+-        Specifies whether to output disctionaries mapping the node and edge IDs to indices
++        Specifies whether to output disctionaries mapping the node IDs to indices
+ 
+     Returns
+     -------
+     if index is True:
+-        return A, rowdict, coldict
++        return A, rowdict
+     else:
+         return A
+ 
+@@ -116,20 +128,143 @@ def adjacency_matrix(H, s=1, index=False):
+     """
+ 
+     if index:
+-        I, row_dict, _ = incidence_matrix(H, index=True)
++        I, rowdict, _ = incidence_matrix(H, index=True, order=order)
+     else:
+-        I = incidence_matrix(H, index=False)
++        I = incidence_matrix(H, index=False, order=order)
+ 
+     A = I.dot(I.T)
+     A.setdiag(0)
+-    A = (A >= s) * 1
++
++    if not weighted:
++        A = (A >= s) * 1
++    else:
++        A[A < s] = 0
+ 
+     if index:
+-        return A, row_dict
++        return A, rowdict
+     else:
+         return A
+ 
+ 
++def intersection_profile(H, order=None, index=False):
++    """
++    A function to generate an intersection profile from a Hypergraph object.
++
++    Parameters
++    ----------
++    H: Hypergraph object
++        The hypergraph of interest
++    order: int, optional
++        Order of interactions to use. If None (default), all orders are used. If int,
++        must be >= 1.
++    index: bool, default: False
++        Specifies whether to output dictionaries mapping the edge IDs to indices
++
++    Returns
++    -------
++    if index is True:
++        return P, rowdict, coldict
++    else:
++        return P
++
++    Examples
++    --------
++        >>> import xgi
++        >>> N = 100
++        >>> ps = [0.1, 0.01]
++        >>> H = xgi.random_hypergraph(N, ps)
++        >>> P = xgi.intersection_profile(H)
++    """
++
++    if index:
++        I, _, coldict = incidence_matrix(H, order=order, index=True)
++    else:
++        I = incidence_matrix(H, order=order, index=False)
++
++    P = I.T.dot(I)
++
++    if index:
++        return P, coldict
++    else:
++        return P
++
++
++def _degree(H, order=None, index=False):
++    """Returns the degree of each node as an array
++
++    Parameters
++    ----------
++    H: Hypergraph object
++        The hypergraph of interest
++    order: int, optional
++        Order of interactions to use. If None (default), all orders are used. If int,
++        must be >= 1.
++    index: bool, default: False
++        Specifies whether to output disctionaries mapping the node and edge IDs to indices
++
++    Returns
++    -------
++    if index is True:
++        return K, rowdict
++    else:
++        return K
++    """
++
++    if index:
++        I, row_dict, _ = incidence_matrix(H, index=True, order=order)
++    else:
++        I = incidence_matrix(H, index=False, order=order)
++
++    K = np.sum(I, axis=1)
++
++    if index:
++        return K, row_dict
++    else:
++        return K
++
++
++def laplacian(H, order=1, rescale_per_node=False, index=False):
++
++    """Laplacian matrix of order d, see [1]_.
++
++    Parameters
++    ----------
++    HG : horss.HyperGraph
++        Hypergraph
++    order : int
++        Order of interactions to consider. If order=1 (default),
++        returns the usual graph Laplacian
++    index: bool, default: False
++        Specifies whether to output disctionaries mapping the node and edge IDs to indices
++
++    Returns
++    -------
++    L_d : numpy array
++        Array of dim (N, N)
++    if index is True:
++        return rowdict
++    References
++    ----------
++    .. [1] Lucas, M., Cencetti, G., & Battiston, F. (2020).
++        Multiorder Laplacian for synchronization in higher-order networks.
++        Physical Review Research, 2(3), 033410.
++    """
++
++    A, row_dict = adjacency_matrix(H, order=order, weighted=True, index=True)
++    K = _degree(H, order=order, index=False)
++
++    L = order * np.diag(np.ravel(K)) - A  # ravel needed to convert sparse matrix
++    L = np.asarray(L)
++
++    if rescale_per_node:
++        L = L / order
++
++    if index:
++        return L, row_dict
++    else:
++        return L
++
++
+ def clique_motif_matrix(H, index=False):
+     """
+     A function to generate a weighted clique motif matrix
+@@ -159,9 +294,9 @@ def clique_motif_matrix(H, index=False):
+     Examples
+     --------
+         >>> import xgi
+-        >>> n = 1000
+-        >>> ps = [0.01, 0.001]
+-        >>> H = xgi.random_hypergraph(n, ps)
++        >>> N = 100
++        >>> ps = [0.1, 0.01]
++        >>> H = xgi.random_hypergraph(N, ps)
+         >>> W = xgi.clique_motif_matrix(H)
+     """
+     if index:

@@ -1,0 +1,82 @@
+diff --git a/pkg/tasker/tasker.go b/pkg/tasker/tasker.go
+index 79f0768..e514db6 100644
+--- a/pkg/tasker/tasker.go
++++ b/pkg/tasker/tasker.go
+@@ -11,6 +11,7 @@ import (
+ 	"reflect"
+ 	"strings"
+ 	"sync"
++	"sync/atomic"
+ 	"syscall"
+ 	"time"
+ 
+@@ -45,6 +46,7 @@ type Tasker struct {
+ 	Log       *log.Logger
+ 	exprs     map[string][]string
+ 	tasks     map[string]TaskFunc
++	mutex     map[string]*uint32
+ 	ctxCancel context.CancelFunc
+ 	wg        sync.WaitGroup
+ 	verbose   bool
+@@ -141,12 +143,13 @@ const taskIDFormat = "[%s][#%d]"
+ 
+ // Task appends new task handler for given cron expr.
+ // It returns Tasker (itself) for fluency and bails if expr is invalid.
+-func (t *Tasker) Task(expr string, task TaskFunc) *Tasker {
++func (t *Tasker) Task(expr string, task TaskFunc, concurrent ...bool) *Tasker {
+ 	segs, err := gronx.Segments(expr)
+ 	if err != nil {
+ 		log.Fatalf("invalid cron expr: %+v", err)
+ 	}
+ 
++	concurrent = append(concurrent, true)
+ 	old, expr := gronx.SpaceRe.ReplaceAllString(expr, " "), strings.Join(segs, " ")
+ 	if _, ok := t.exprs[expr]; !ok {
+ 		if !t.gron.IsValid(expr) {
+@@ -161,6 +164,13 @@ func (t *Tasker) Task(expr string, task TaskFunc) *Tasker {
+ 	t.exprs[expr] = append(t.exprs[expr], ref)
+ 	t.tasks[ref] = task
+ 
++	if !concurrent[0] {
++		if len(t.mutex) == 0 {
++			t.mutex = make(map[string]*uint32)
++		}
++		t.mutex[ref] = new(uint32)
++	}
++
+ 	return t
+ }
+ 
+@@ -322,6 +332,10 @@ func (t *Tasker) runTasks(tasks map[string]TaskFunc) {
+ 	}
+ 
+ 	for ref, task := range tasks {
++		if !t.canRun(ref) {
++			continue
++		}
++
+ 		t.wg.Add(1)
+ 		rc := make(chan result)
+ 
+@@ -330,6 +344,11 @@ func (t *Tasker) runTasks(tasks map[string]TaskFunc) {
+ 	}
+ }
+ 
++func (t *Tasker) canRun(ref string) bool {
++	lock, ok := t.mutex[ref]
++	return !ok || atomic.CompareAndSwapUint32(lock, 0, 1)
++}
++
+ func (t *Tasker) doRun(ctx context.Context, ref string, task TaskFunc, rc chan result) {
+ 	defer t.wg.Done()
+ 	if t.abort || t.timeout {
+@@ -341,6 +360,9 @@ func (t *Tasker) doRun(ctx context.Context, ref string, task TaskFunc, rc chan r
+ 	}
+ 
+ 	code, err := task(ctx)
++	if lock, ok := t.mutex[ref]; ok {
++		atomic.StoreUint32(lock, 0)
++	}
+ 
+ 	rc <- result{err, ref, code}
+ }

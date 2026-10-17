@@ -1,0 +1,23 @@
+diff --git a/lib/BootBot.js b/lib/BootBot.js
+index a737212..09fdbe3 100644
+--- a/lib/BootBot.js
++++ b/lib/BootBot.js
+@@ -268,13 +268,12 @@ class BootBot extends EventEmitter {
+           payload: 'BOOTBOT_QR_' + normalizeString(reply)
+         };
+       } else if (reply && reply.title) {
+-        return {
+-          content_type: reply.content_type || 'text',
+-          title: reply.title,
+-          payload: reply.payload || 'BOOTBOT_QR_' + normalizeString(reply.title)
+-        };
++        return Object.assign({
++          content_type: 'text',
++          payload:'BOOTBOT_QR_' + normalizeString(reply.title)
++        }, reply);
+       }
+-      return {};
++      return reply;
+     });
+   }
+ 

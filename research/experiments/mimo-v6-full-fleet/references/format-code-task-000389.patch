@@ -1,0 +1,26 @@
+diff --git a/changelogs/fragments/779-fix-address.yaml b/changelogs/fragments/779-fix-address.yaml
+new file mode 100644
+index 0000000..cce1371
+--- /dev/null
++++ b/changelogs/fragments/779-fix-address.yaml
+@@ -0,0 +1,2 @@
++bugfixes:
++  - "postgresql_pg_hba - fixes #777 the module will ignore the 'address' and 'netmask' options again when the contype is 'local' (https://github.com/ansible-collections/community.postgresql/pull/779)"
+diff --git a/plugins/modules/postgresql_pg_hba.py b/plugins/modules/postgresql_pg_hba.py
+index b309d19..53335a9 100644
+--- a/plugins/modules/postgresql_pg_hba.py
++++ b/plugins/modules/postgresql_pg_hba.py
+@@ -1084,12 +1084,7 @@ class PgHbaRule:
+                 if self._address_type.startswith("IP") and self._prefix_len == -1:
+                     raise PgHbaRuleError("If the address is a bare ip-address without a CIDR suffix, "
+                                          "the rule needs to contain a netmask")
+-
+-        # if the contype is "local", the rule can't contain an address or netmask
+-        else:
+-            if (("address" in rule_dict and rule_dict["address"])
+-                    or ("netmask" in rule_dict and rule_dict["netmask"])):
+-                raise PgHbaRuleError("Rule can't contain an address and netmask if the connection-type is 'local'")
++        # we ignore address / netmask when contype is 'local'
+ 
+         # verify the method
+         self._auth_method = _strip_quotes(rule_dict["method"])

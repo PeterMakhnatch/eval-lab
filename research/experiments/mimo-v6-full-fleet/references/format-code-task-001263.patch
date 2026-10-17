@@ -1,0 +1,451 @@
+diff --git a/moto/ses/models.py b/moto/ses/models.py
+index d7bb447cd..396bfd365 100644
+--- a/moto/ses/models.py
++++ b/moto/ses/models.py
+@@ -33,6 +33,15 @@ from .utils import get_random_message_id, is_valid_address
+ 
+ RECIPIENT_LIMIT = 50
+ 
++PAGINATION_MODEL = {
++    "list_configuration_sets": {
++        "input_token": "next_token",
++        "limit_key": "max_items",
++        "limit_default": 100,
++        "unique_attribute": ["configuration_set_name"],
++    },
++}
++
+ 
+ class SESFeedback(BaseModel):
+     BOUNCE = "Bounce"
+@@ -130,6 +139,42 @@ class SESQuota(BaseModel):
+         return self.sent
+ 
+ 
++class ConfigurationSet(BaseModel):
++    def __init__(
++        self,
++        configuration_set_name: str,
++        tracking_options: Optional[Dict[str, str]] = {},
++        delivery_options: Optional[Dict[str, Any]] = {},
++        reputation_options: Optional[Dict[str, Any]] = {},
++        sending_options: Optional[Dict[str, bool]] = {},
++        tags: Optional[List[Dict[str, str]]] = [],
++        suppression_options: Optional[Dict[str, List[str]]] = {},
++        vdm_options: Optional[Dict[str, Dict[str, str]]] = {},
++    ) -> None:
++        # Shared between SES and SESv2
++        self.configuration_set_name = configuration_set_name
++        self.tracking_options = tracking_options
++        self.delivery_options = delivery_options
++        self.reputation_options = reputation_options
++        self.enabled = sending_options  # Enabled in v1, SendingOptions in v2
++        # SESv2 specific fields
++        self.tags = tags
++        self.suppression_options = suppression_options
++        self.vdm_options = vdm_options
++
++    def to_dict_v2(self) -> Dict[str, Any]:
++        return {
++            "ConfigurationSetName": self.configuration_set_name,
++            "TrackingOptions": self.tracking_options,
++            "DeliveryOptions": self.delivery_options,
++            "ReputationOptions": self.reputation_options,
++            "SendingOptions": {"SendingEnabled": self.enabled},
++            "Tags": self.tags,
++            "SuppressionOptions": self.suppression_options,
++            "VdmOptions": self.vdm_options,
++        }
++
++
+ class SESBackend(BaseBackend):
+     """
+     Responsible for mocking calls to SES.
+@@ -155,7 +200,7 @@ class SESBackend(BaseBackend):
+         self.sent_message_count = 0
+         self.rejected_messages_count = 0
+         self.sns_topics: Dict[str, Dict[str, Any]] = {}
+-        self.config_set: Dict[str, int] = {}
++        self.config_sets: Dict[str, ConfigurationSet] = {}
+         self.config_set_event_destination: Dict[str, Dict[str, Any]] = {}
+         self.event_destinations: Dict[str, int] = {}
+         self.identity_mail_from_domains: Dict[str, Dict[str, Any]] = {}
+@@ -411,22 +456,61 @@ class SESBackend(BaseBackend):
+         self.sns_topics[identity] = identity_sns_topics
+ 
+     def create_configuration_set(self, configuration_set_name: str) -> None:
+-        if configuration_set_name in self.config_set:
++        if configuration_set_name in self.config_sets:
+             raise ConfigurationSetAlreadyExists(
+                 f"Configuration set <{configuration_set_name}> already exists"
+             )
+-        self.config_set[configuration_set_name] = 1
++        config_set = ConfigurationSet(configuration_set_name=configuration_set_name)
++        self.config_sets[configuration_set_name] = config_set
+ 
+-    def describe_configuration_set(self, configuration_set_name: str) -> None:
+-        if configuration_set_name not in self.config_set:
++    def create_configuration_set_v2(
++        self,
++        configuration_set_name: str,
++        tracking_options: Dict[str, str],
++        delivery_options: Dict[str, Any],
++        reputation_options: Dict[str, Any],
++        sending_options: Dict[str, bool],
++        tags: List[Dict[str, str]],
++        suppression_options: Dict[str, List[str]],
++        vdm_options: Dict[str, Dict[str, str]],
++    ) -> None:
++        if configuration_set_name in self.config_sets:
++            raise ConfigurationSetAlreadyExists(
++                f"Configuration set <{configuration_set_name}> already exists"
++            )
++        new_config_set = ConfigurationSet(
++            configuration_set_name=configuration_set_name,
++            tracking_options=tracking_options,
++            delivery_options=delivery_options,
++            reputation_options=reputation_options,
++            sending_options=sending_options,
++            tags=tags,
++            suppression_options=suppression_options,
++            vdm_options=vdm_options,
++        )
++        self.config_sets[configuration_set_name] = new_config_set
++
++    def describe_configuration_set(
++        self, configuration_set_name: str
++    ) -> ConfigurationSet:
++        if configuration_set_name not in self.config_sets:
+             raise ConfigurationSetDoesNotExist(
+                 f"Configuration set <{configuration_set_name}> does not exist"
+             )
++        return self.config_sets[configuration_set_name]
++
++    def delete_configuration_set(self, configuration_set_name: str) -> None:
++        self.config_sets.pop(configuration_set_name)
++
++    def list_configuration_sets(
++        self, next_token: Optional[str], max_items: Optional[int]
++    ) -> List[str]:
++        return list(self.config_sets.keys())
+ 
+     def create_configuration_set_event_destination(
+         self, configuration_set_name: str, event_destination: Dict[str, Any]
+     ) -> None:
+-        if self.config_set.get(configuration_set_name) is None:
++        if self.config_sets.get(configuration_set_name) is None:
+             raise ConfigurationSetDoesNotExist("Invalid Configuration Set Name.")
+ 
+         if self.event_destinations.get(event_destination["Name"]):
+diff --git a/moto/ses/responses.py b/moto/ses/responses.py
+index a3be227fe..3499fcee1 100644
+--- a/moto/ses/responses.py
++++ b/moto/ses/responses.py
+@@ -216,9 +216,9 @@ class EmailResponse(BaseResponse):
+ 
+     def describe_configuration_set(self) -> str:
+         configuration_set_name = self.querystring.get("ConfigurationSetName")[0]  # type: ignore
+-        self.backend.describe_configuration_set(configuration_set_name)
++        config_set = self.backend.describe_configuration_set(configuration_set_name)
+         template = self.response_template(DESCRIBE_CONFIGURATION_SET)
+-        return template.render(name=configuration_set_name)
++        return template.render(name=config_set.configuration_set_name)
+ 
+     def create_configuration_set_event_destination(self) -> str:
+         configuration_set_name = self._get_param("ConfigurationSetName")
+@@ -378,6 +378,29 @@ class EmailResponse(BaseResponse):
+         template = self.response_template(GET_IDENTITY_VERIFICATION_ATTRIBUTES_TEMPLATE)
+         return template.render(verification_attributes=verification_attributes)
+ 
++    def delete_configuration_set(self) -> str:
++        params = self._get_params()
++        configuration_set_name = params.get("ConfigurationSetName")
++        if configuration_set_name:
++            self.backend.delete_configuration_set(
++                configuration_set_name=str(configuration_set_name),
++            )
++            template = self.response_template(DELETE_CONFIGURATION_SET_TEMPLATE)
++        return template.render()
++
++    def list_configuration_sets(self) -> str:
++        params = self._get_params()
++        next_token = params.get("NextToken")
++        max_items = params.get("MaxItems")
++        configuration_sets = self.backend.list_configuration_sets(
++            next_token=next_token,
++            max_items=max_items,
++        )
++        template = self.response_template(LIST_CONFIGURATION_SETS_TEMPLATE)
++        return template.render(
++            configuration_sets=configuration_sets, next_token=next_token
++        )
++
+ 
+ VERIFY_EMAIL_IDENTITY = """<VerifyEmailIdentityResponse xmlns="http://ses.amazonaws.com/doc/2010-12-01/">
+   <VerifyEmailIdentityResult/>
+@@ -814,3 +837,26 @@ GET_IDENTITY_VERIFICATION_ATTRIBUTES_TEMPLATE = """<GetIdentityVerificationAttri
+     <RequestId>d435c1b8-a225-4b89-acff-81fcf7ef9236</RequestId>
+   </ResponseMetadata>
+ </GetIdentityVerificationAttributesResponse>"""
++
++DELETE_CONFIGURATION_SET_TEMPLATE = """<DeleteConfigurationSetResponse xmlns="http://ses.amazonaws.com/doc/2010-12-01/">
++  <ResponseMetadata>
++    <RequestId>1549581b-12b7-11e3-895e-1334aEXAMPLE</RequestId>
++  </ResponseMetadata>
++  <DeleteConfigurationSetResult/>
++</DeleteConfigurationSetResponse>"""
++
++LIST_CONFIGURATION_SETS_TEMPLATE = """<ListConfigurationSetsResponse xmlns="http://ses.amazonaws.com/doc/2010-12-01/">
++  <ResponseMetadata>
++    <RequestId>1549581b-12b7-11e3-895e-1334aEXAMPLE</RequestId>
++  </ResponseMetadata>
++  <ListConfigurationSetsResult>
++    <ConfigurationSets>
++{% for configurationset in configuration_sets %}
++      <member>
++        <Name>{{ configurationset }}</Name>
++      </member>
++{% endfor %}
++    </ConfigurationSets>
++    <NextToken>{{ next_token }}</NextToken>
++  </ListConfigurationSetsResult>
++</ListConfigurationSetsResponse>"""
+diff --git a/moto/sesv2/models.py b/moto/sesv2/models.py
+index 73c6f326a..d51bc04d5 100644
+--- a/moto/sesv2/models.py
++++ b/moto/sesv2/models.py
+@@ -5,10 +5,20 @@ from typing import Any, Dict, List
+ from moto.core.base_backend import BackendDict, BaseBackend
+ from moto.core.common_models import BaseModel
+ from moto.core.utils import iso_8601_datetime_with_milliseconds
++from moto.utilities.paginator import paginate
+ 
+-from ..ses.models import Message, RawMessage, ses_backends
++from ..ses.models import ConfigurationSet, Message, RawMessage, ses_backends
+ from .exceptions import NotFoundException
+ 
++PAGINATION_MODEL = {
++    "list_dedicated_ip_pools": {
++        "input_token": "next_token",
++        "limit_key": "page_size",
++        "limit_default": 100,
++        "unique_attribute": ["pool_name"],
++    },
++}
++
+ 
+ class Contact(BaseModel):
+     def __init__(
+@@ -91,6 +101,22 @@ class ContactList(BaseModel):
+         }
+ 
+ 
++class DedicatedIpPool(BaseModel):
++    def __init__(
++        self, pool_name: str, scaling_mode: str, tags: List[Dict[str, str]]
++    ) -> None:
++        self.pool_name = pool_name
++        self.scaling_mode = scaling_mode
++        self.tags = tags
++
++    def to_dict(self) -> Dict[str, Any]:
++        return {
++            "PoolName": self.pool_name,
++            "Tags": self.tags,
++            "ScalingMode": self.scaling_mode,
++        }
++
++
+ class SESV2Backend(BaseBackend):
+     """Implementation of SESV2 APIs, piggy back on v1 SES"""
+ 
+@@ -98,6 +124,8 @@ class SESV2Backend(BaseBackend):
+         super().__init__(region_name, account_id)
+         self.contacts: Dict[str, Contact] = {}
+         self.contacts_lists: Dict[str, ContactList] = {}
++        self.v1_backend = ses_backends[self.account_id][self.region_name]
++        self.dedicated_ip_pools: Dict[str, DedicatedIpPool] = {}
+ 
+     def create_contact_list(self, params: Dict[str, Any]) -> None:
+         name = params["ContactListName"]
+@@ -146,8 +174,7 @@ class SESV2Backend(BaseBackend):
+     def send_email(
+         self, source: str, destinations: Dict[str, List[str]], subject: str, body: str
+     ) -> Message:
+-        v1_backend = ses_backends[self.account_id][self.region_name]
+-        message = v1_backend.send_email(
++        message = self.v1_backend.send_email(
+             source=source,
+             destinations=destinations,
+             subject=subject,
+@@ -158,11 +185,67 @@ class SESV2Backend(BaseBackend):
+     def send_raw_email(
+         self, source: str, destinations: List[str], raw_data: str
+     ) -> RawMessage:
+-        v1_backend = ses_backends[self.account_id][self.region_name]
+-        message = v1_backend.send_raw_email(
++        message = self.v1_backend.send_raw_email(
+             source=source, destinations=destinations, raw_data=raw_data
+         )
+         return message
+ 
++    def create_configuration_set(
++        self,
++        configuration_set_name: str,
++        tracking_options: Dict[str, str],
++        delivery_options: Dict[str, Any],
++        reputation_options: Dict[str, Any],
++        sending_options: Dict[str, bool],
++        tags: List[Dict[str, str]],
++        suppression_options: Dict[str, List[str]],
++        vdm_options: Dict[str, Dict[str, str]],
++    ) -> None:
++        self.v1_backend.create_configuration_set_v2(
++            configuration_set_name=configuration_set_name,
++            tracking_options=tracking_options,
++            delivery_options=delivery_options,
++            reputation_options=reputation_options,
++            sending_options=sending_options,
++            tags=tags,
++            suppression_options=suppression_options,
++            vdm_options=vdm_options,
++        )
++
++    def delete_configuration_set(self, configuration_set_name: str) -> None:
++        self.v1_backend.delete_configuration_set(configuration_set_name)
++
++    def get_configuration_set(self, configuration_set_name: str) -> ConfigurationSet:
++        config_set = self.v1_backend.describe_configuration_set(
++            configuration_set_name=configuration_set_name
++        )
++        return config_set
++
++    def list_configuration_sets(self, next_token: str, page_size: int) -> List[str]:
++        return self.v1_backend.list_configuration_sets(
++            next_token=next_token, max_items=page_size
++        )
++
++    def create_dedicated_ip_pool(
++        self, pool_name: str, tags: List[Dict[str, str]], scaling_mode: str
++    ) -> None:
++        if pool_name not in self.dedicated_ip_pools:
++            new_pool = DedicatedIpPool(
++                pool_name=pool_name, tags=tags, scaling_mode=scaling_mode
++            )
++            self.dedicated_ip_pools[pool_name] = new_pool
++
++    def delete_dedicated_ip_pool(self, pool_name: str) -> None:
++        self.dedicated_ip_pools.pop(pool_name)
++
++    @paginate(pagination_model=PAGINATION_MODEL)
++    def list_dedicated_ip_pools(self) -> List[str]:
++        return list(self.dedicated_ip_pools.keys())
++
++    def get_dedicated_ip_pool(self, pool_name: str) -> DedicatedIpPool:
++        if not self.dedicated_ip_pools.get(pool_name, None):
++            raise NotFoundException(pool_name)
++        return self.dedicated_ip_pools[pool_name]
++
+ 
+ sesv2_backends = BackendDict(SESV2Backend, "sesv2")
+diff --git a/moto/sesv2/responses.py b/moto/sesv2/responses.py
+index c8c09a663..3f4d8224d 100644
+--- a/moto/sesv2/responses.py
++++ b/moto/sesv2/responses.py
+@@ -99,3 +99,83 @@ class SESV2Response(BaseResponse):
+         contact_list_name = self._get_param("ContactListName")
+         self.sesv2_backend.delete_contact(unquote(email), contact_list_name)
+         return json.dumps({})
++
++    def create_configuration_set(self) -> str:
++        configuration_set_name = self._get_param("ConfigurationSetName")
++        tracking_options = self._get_param("TrackingOptions")
++        delivery_options = self._get_param("DeliveryOptions")
++        reputation_options = self._get_param("ReputationOptions")
++        sending_options = self._get_param("SendingOptions")
++        tags = self._get_param("Tags")
++        suppression_options = self._get_param("SuppressionOptions")
++        vdm_options = self._get_param("VdmOptions")
++        self.sesv2_backend.create_configuration_set(
++            configuration_set_name=configuration_set_name,
++            tracking_options=tracking_options,
++            delivery_options=delivery_options,
++            reputation_options=reputation_options,
++            sending_options=sending_options,
++            tags=tags,
++            suppression_options=suppression_options,
++            vdm_options=vdm_options,
++        )
++        return json.dumps({})
++
++    def delete_configuration_set(self) -> str:
++        configuration_set_name = self._get_param("ConfigurationSetName")
++        self.sesv2_backend.delete_configuration_set(
++            configuration_set_name=configuration_set_name,
++        )
++        return json.dumps({})
++
++    def get_configuration_set(self) -> str:
++        configuration_set_name = self._get_param("ConfigurationSetName")
++        config_set = self.sesv2_backend.get_configuration_set(
++            configuration_set_name=configuration_set_name,
++        )
++        return json.dumps(config_set.to_dict_v2())
++
++    def list_configuration_sets(self) -> str:
++        next_token = self._get_param("NextToken")
++        page_size = self._get_param("PageSize")
++        configuration_sets = self.sesv2_backend.list_configuration_sets(
++            next_token=next_token, page_size=page_size
++        )
++        return json.dumps(
++            dict(ConfigurationSets=configuration_sets, NextToken=next_token)
++        )
++
++    def create_dedicated_ip_pool(self) -> str:
++        pool_name = self._get_param("PoolName")
++        tags = self._get_param("Tags")
++        scaling_mode = self._get_param("ScalingMode")
++        self.sesv2_backend.create_dedicated_ip_pool(
++            pool_name=pool_name,
++            tags=tags,
++            scaling_mode=scaling_mode,
++        )
++        return json.dumps({})
++
++    def delete_dedicated_ip_pool(self) -> str:
++        pool_name = self._get_param("PoolName")
++        self.sesv2_backend.delete_dedicated_ip_pool(
++            pool_name=pool_name,
++        )
++        return json.dumps({})
++
++    def list_dedicated_ip_pools(self) -> str:
++        next_token = self._get_param("NextToken")
++        page_size = self._get_param("PageSize")
++        dedicated_ip_pools, next_token = self.sesv2_backend.list_dedicated_ip_pools(
++            next_token=next_token, page_size=page_size
++        )
++        return json.dumps(
++            dict(DedicatedIpPools=dedicated_ip_pools, NextToken=next_token)
++        )
++
++    def get_dedicated_ip_pool(self) -> str:
++        pool_name = self._get_param("PoolName")
++        dedicated_ip_pool = self.sesv2_backend.get_dedicated_ip_pool(
++            pool_name=pool_name,
++        )
++        return json.dumps(dict(DedicatedIpPool=dedicated_ip_pool.to_dict()))
+diff --git a/moto/sesv2/urls.py b/moto/sesv2/urls.py
+index 652a30b21..476997223 100644
+--- a/moto/sesv2/urls.py
++++ b/moto/sesv2/urls.py
+@@ -17,4 +17,8 @@ url_paths = {
+     "{0}/v2/email/contact-lists/(?P<name>[^/]+)/contacts/(?P<email>[^/]+)$": response.dispatch,
+     "{0}/v2/email/contact-lists$": response.dispatch,
+     "{0}/v2/.*$": response.dispatch,
++    "{0}/v2/email/configuration-sets$": SESV2Response.dispatch,
++    "{0}/v2/email/configuration-sets/(?P<ConfigurationSetName>[^/]+)$": SESV2Response.dispatch,
++    "{0}/v2/email/dedicated-ip-pools$": SESV2Response.dispatch,
++    "{0}/v2/email/dedicated-ip-pools/(?P<PoolName>[^/]+)$": SESV2Response.dispatch,
+ }

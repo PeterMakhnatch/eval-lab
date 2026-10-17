@@ -1,0 +1,56 @@
+diff --git a/docs/tutorials/scan-unused-services.md b/docs/tutorials/scan-unused-services.md
+index af3257171..187026766 100644
+--- a/docs/tutorials/scan-unused-services.md
++++ b/docs/tutorials/scan-unused-services.md
+@@ -30,9 +30,10 @@ If EBS default encyption is not enabled, sensitive information at rest is not pr
+ 
+   - `ec2_ebs_default_encryption`
+ 
+-If your Security groups are not properly configured the attack surface is increased, nonetheless, Prowler will detect those security groups that are being used (they are attached) to only notify those that are being used. This logic applies to the 15 checks related to open ports in security groups.
++If your Security groups are not properly configured the attack surface is increased, nonetheless, Prowler will detect those security groups that are being used (they are attached) to only notify those that are being used. This logic applies to the 15 checks related to open ports in security groups and the check for the default security group.
+ 
+   - `ec2_securitygroup_allow_ingress_from_internet_to_port_X` (15 checks)
++  - `ec2_securitygroup_default_restrict_traffic`
+ 
+ Prowler will also check for used Network ACLs to only alerts those with open ports that are being used.
+ 
+diff --git a/prowler/providers/aws/services/ec2/ec2_securitygroup_default_restrict_traffic/ec2_securitygroup_default_restrict_traffic.py b/prowler/providers/aws/services/ec2/ec2_securitygroup_default_restrict_traffic/ec2_securitygroup_default_restrict_traffic.py
+index 5def29694..b9a4c3008 100644
+--- a/prowler/providers/aws/services/ec2/ec2_securitygroup_default_restrict_traffic/ec2_securitygroup_default_restrict_traffic.py
++++ b/prowler/providers/aws/services/ec2/ec2_securitygroup_default_restrict_traffic/ec2_securitygroup_default_restrict_traffic.py
+@@ -1,19 +1,27 @@
+ from prowler.lib.check.models import Check, Check_Report_AWS
+ from prowler.providers.aws.services.ec2.ec2_client import ec2_client
++from prowler.providers.aws.services.vpc.vpc_client import vpc_client
+ 
+ 
+ class ec2_securitygroup_default_restrict_traffic(Check):
+     def execute(self):
+         findings = []
+         for security_group in ec2_client.security_groups:
+-            report = Check_Report_AWS(self.metadata())
+-            report.region = security_group.region
+-            report.resource_details = security_group.name
+-            report.resource_id = security_group.id
+-            report.resource_arn = security_group.arn
+-            report.resource_tags = security_group.tags
+-            # Find default security group
+-            if security_group.name == "default":
++            # Check if ignoring flag is set and if the VPC and the default SG are in used
++            if security_group.name == "default" and (
++                ec2_client.provider.scan_unused_services
++                or (
++                    security_group.vpc_id in vpc_client.vpcs
++                    and vpc_client.vpcs[security_group.vpc_id].in_use
++                    and len(security_group.network_interfaces) > 0
++                )
++            ):
++                report = Check_Report_AWS(self.metadata())
++                report.region = security_group.region
++                report.resource_details = security_group.name
++                report.resource_id = security_group.id
++                report.resource_arn = security_group.arn
++                report.resource_tags = security_group.tags
+                 report.status = "FAIL"
+                 report.status_extended = (
+                     f"Default Security Group ({security_group.id}) rules allow traffic."

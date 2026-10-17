@@ -1,0 +1,193 @@
+diff --git a/can/__init__.py b/can/__init__.py
+index 618ef347..c95b19eb 100644
+--- a/can/__init__.py
++++ b/can/__init__.py
+@@ -25,7 +25,7 @@ from .exceptions import (
+ )
+ 
+ from .io import Logger, SizedRotatingLogger, Printer, LogReader, MessageSync
+-from .io import ASCWriter, ASCReader
++from .io import ASCWriter, ASCReader, GzipASCWriter, GzipASCReader
+ from .io import BLFReader, BLFWriter
+ from .io import CanutilsLogReader, CanutilsLogWriter
+ from .io import CSVWriter, CSVReader
+diff --git a/can/io/__init__.py b/can/io/__init__.py
+index 0d3741b0..66e3a8c5 100644
+--- a/can/io/__init__.py
++++ b/can/io/__init__.py
+@@ -8,7 +8,7 @@ from .logger import Logger, BaseRotatingLogger, SizedRotatingLogger
+ from .player import LogReader, MessageSync
+ 
+ # Format specific
+-from .asc import ASCWriter, ASCReader
++from .asc import ASCWriter, ASCReader, GzipASCWriter, GzipASCReader
+ from .blf import BLFReader, BLFWriter
+ from .canutils import CanutilsLogReader, CanutilsLogWriter
+ from .csv import CSVWriter, CSVReader
+diff --git a/can/io/asc.py b/can/io/asc.py
+index d708de6e..4e78d752 100644
+--- a/can/io/asc.py
++++ b/can/io/asc.py
+@@ -5,13 +5,14 @@ Example .asc files:
+     - https://bitbucket.org/tobylorenz/vector_asc/src/47556e1a6d32c859224ca62d075e1efcc67fa690/src/Vector/ASC/tests/unittests/data/CAN_Log_Trigger_3_2.asc?at=master&fileviewer=file-view-default
+     - under `test/data/logfile.asc`
+ """
+-
+-from typing import cast, Any, Generator, IO, List, Optional, Dict
++import gzip
++from typing import cast, Any, Generator, IO, List, Optional, Dict, Union
+ 
+ from datetime import datetime
+ import time
+ import logging
+ 
++from .. import typechecking
+ from ..message import Message
+ from ..listener import Listener
+ from ..util import channel2int
+@@ -396,3 +397,69 @@ class ASCWriter(FileIOMessageWriter, Listener):
+                 data=" ".join(data),
+             )
+         self.log_event(serialized, msg.timestamp)
++
++
++class GzipASCReader(ASCReader):
++    """Gzipped version of :class:`~can.ASCReader`"""
++
++    def __init__(
++        self,
++        file: Union[typechecking.FileLike, typechecking.StringPathLike],
++        base: str = "hex",
++        relative_timestamp: bool = True,
++    ):
++        """
++        :param file: a path-like object or as file-like object to read from
++                     If this is a file-like object, is has to opened in text
++                     read mode, not binary read mode.
++        :param base: Select the base(hex or dec) of id and data.
++                     If the header of the asc file contains base information,
++                     this value will be overwritten. Default "hex".
++        :param relative_timestamp: Select whether the timestamps are
++                     `relative` (starting at 0.0) or `absolute` (starting at
++                     the system time). Default `True = relative`.
++        """
++        self._fileobj = None
++        if file is not None and (hasattr(file, "read") and hasattr(file, "write")):
++            # file is None or some file-like object
++            self._fileobj = file
++        super(GzipASCReader, self).__init__(
++            gzip.open(file, mode="rt"), base, relative_timestamp
++        )
++
++    def stop(self) -> None:
++        super(GzipASCReader, self).stop()
++        if self._fileobj is not None:
++            self._fileobj.close()
++
++
++class GzipASCWriter(ASCWriter):
++    """Gzipped version of :class:`~can.ASCWriter`"""
++
++    def __init__(
++        self,
++        file: Union[typechecking.FileLike, typechecking.StringPathLike],
++        channel: int = 1,
++        compresslevel: int = 6,
++    ):
++        """
++        :param file: a path-like object or as file-like object to write to
++                     If this is a file-like object, is has to opened in text
++                     write mode, not binary write mode.
++        :param channel: a default channel to use when the message does not
++                        have a channel set
++        :param compresslevel: Gzip compresslevel, see
++                              :class:`~gzip.GzipFile` for details. The default is 6.
++        """
++        self._fileobj = None
++        if file is not None and (hasattr(file, "read") and hasattr(file, "write")):
++            # file is None or some file-like object
++            self._fileobj = file
++        super(GzipASCWriter, self).__init__(
++            gzip.open(file, mode="wt", compresslevel=compresslevel), channel
++        )
++
++    def stop(self) -> None:
++        super(GzipASCWriter, self).stop()
++        if self._fileobj is not None:
++            self._fileobj.close()
+diff --git a/can/io/logger.py b/can/io/logger.py
+index 1fc2a848..3890e743 100644
+--- a/can/io/logger.py
++++ b/can/io/logger.py
+@@ -21,7 +21,7 @@ from pkg_resources import iter_entry_points
+ from ..message import Message
+ from ..listener import Listener
+ from .generic import BaseIOHandler, FileIOMessageWriter
+-from .asc import ASCWriter
++from .asc import ASCWriter, GzipASCWriter
+ from .blf import BLFWriter
+ from .canutils import CanutilsLogWriter
+ from .csv import CSVWriter
+@@ -36,6 +36,7 @@ class Logger(BaseIOHandler, Listener):  # pylint: disable=abstract-method
+ 
+     The format is determined from the file format which can be one of:
+       * .asc: :class:`can.ASCWriter`
++      * .asc.gz: :class:`can.CompressedASCWriter`
+       * .blf :class:`can.BLFWriter`
+       * .csv: :class:`can.CSVWriter`
+       * .db: :class:`can.SqliteWriter`
+@@ -54,6 +55,7 @@ class Logger(BaseIOHandler, Listener):  # pylint: disable=abstract-method
+     fetched_plugins = False
+     message_writers = {
+         ".asc": ASCWriter,
++        ".asc.gz": GzipASCWriter,
+         ".blf": BLFWriter,
+         ".csv": CSVWriter,
+         ".db": SqliteWriter,
+@@ -83,7 +85,7 @@ class Logger(BaseIOHandler, Listener):  # pylint: disable=abstract-method
+             )
+             Logger.fetched_plugins = True
+ 
+-        suffix = pathlib.PurePath(filename).suffix.lower()
++        suffix = "".join(s.lower() for s in pathlib.PurePath(filename).suffixes)
+         try:
+             return cast(
+                 Listener, Logger.message_writers[suffix](filename, *args, **kwargs)
+diff --git a/can/io/player.py b/can/io/player.py
+index e39d52c5..f710e15d 100644
+--- a/can/io/player.py
++++ b/can/io/player.py
+@@ -14,7 +14,7 @@ if typing.TYPE_CHECKING:
+     import can
+ 
+ from .generic import BaseIOHandler, MessageReader
+-from .asc import ASCReader
++from .asc import ASCReader, GzipASCReader
+ from .blf import BLFReader
+ from .canutils import CanutilsLogReader
+ from .csv import CSVReader
+@@ -27,6 +27,7 @@ class LogReader(BaseIOHandler):
+ 
+     The format is determined from the file format which can be one of:
+       * .asc
++      * .asc.gz
+       * .blf
+       * .csv
+       * .db
+@@ -49,6 +50,7 @@ class LogReader(BaseIOHandler):
+     fetched_plugins = False
+     message_readers = {
+         ".asc": ASCReader,
++        ".asc.gz": GzipASCReader,
+         ".blf": BLFReader,
+         ".csv": CSVReader,
+         ".db": SqliteReader,
+@@ -75,7 +77,7 @@ class LogReader(BaseIOHandler):
+             )
+             LogReader.fetched_plugins = True
+ 
+-        suffix = pathlib.PurePath(filename).suffix.lower()
++        suffix = "".join(s.lower() for s in pathlib.PurePath(filename).suffixes)
+         try:
+             return typing.cast(
+                 MessageReader,

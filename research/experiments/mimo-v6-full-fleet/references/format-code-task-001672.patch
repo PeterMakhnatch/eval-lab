@@ -1,0 +1,19 @@
+diff --git a/packages/rendermime/src/factories.ts b/packages/rendermime/src/factories.ts
+index 4f8d31b793..eaa36808cf 100644
+--- a/packages/rendermime/src/factories.ts
++++ b/packages/rendermime/src/factories.ts
+@@ -20,7 +20,13 @@ export const htmlRendererFactory: IRenderMime.IRendererFactory = {
+  */
+ export const imageRendererFactory: IRenderMime.IRendererFactory = {
+   safe: true,
+-  mimeTypes: ['image/bmp', 'image/png', 'image/jpeg', 'image/gif'],
++  mimeTypes: [
++    'image/bmp',
++    'image/png',
++    'image/jpeg',
++    'image/gif',
++    'image/webp'
++  ],
+   defaultRank: 90,
+   createRenderer: options => new widgets.RenderedImage(options)
+ };

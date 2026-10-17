@@ -1,0 +1,36 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 02f83770..af15c429 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - Extend `EnumStr` raising `ValueError` for invalid value ([#1479](https://github.com/Lightning-AI/metrics/pull/1479))
+ 
+ 
++- Changed `__iter__` method from raising `NotImplementedError` to `TypeError` by setting to `None` ([#1538](https://github.com/Lightning-AI/metrics/pull/1538))
++
+ ### Deprecated
+ 
+ -
+@@ -64,7 +66,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - Fixed `multilabel` in `ExactMatch` ([#1474](https://github.com/Lightning-AI/metrics/pull/1474))
+ 
+ 
+-
+ ## [0.11.1] - 2023-01-30
+ 
+ ### Fixed
+diff --git a/src/torchmetrics/metric.py b/src/torchmetrics/metric.py
+index 2030ca31..0affe09c 100644
+--- a/src/torchmetrics/metric.py
++++ b/src/torchmetrics/metric.py
+@@ -920,9 +920,7 @@ class Metric(Module, ABC):
+         """Needede method for construction of new metrics __new__ method."""
+         return (Metric.__str__(self),)
+ 
+-    def __iter__(self):
+-        """Iteration over metrics are not allowed. Use metric collections for nesting metrics."""
+-        raise NotImplementedError("Metrics does not support iteration.")
++    __iter__ = None
+ 
+ 
+ def _neg(x: Tensor) -> Tensor:

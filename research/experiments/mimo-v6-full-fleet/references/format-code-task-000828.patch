@@ -1,0 +1,86 @@
+diff --git a/package.json b/package.json
+index 20f0dd0..e6df247 100644
+--- a/package.json
++++ b/package.json
+@@ -44,7 +44,6 @@
+   ],
+   "license": "ISC",
+   "devDependencies": {
+-    "@microsoft/api-extractor": "^7.57.0",
+     "@types/node": "^25.9.2",
+     "@types/react": "^19.2.6",
+     "@types/react-dom": "^19.2.3",
+diff --git a/src/utils.ts b/src/utils.ts
+index 7da738b..efb7bd0 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -20,6 +20,69 @@ export const areCropsEqual = (cropA: Partial<Crop>, cropB: Partial<Crop>) =>
+     cropA.y === cropB.y &&
+     cropA.unit === cropB.unit)
+ 
++export function makeAspectCrop(
++  crop: Pick<PercentCrop, 'unit'> & Partial<Omit<PercentCrop, 'unit'>>,
++  aspect: number,
++  containerWidth: number,
++  containerHeight: number
++): PercentCrop
++export function makeAspectCrop(
++  crop: Pick<PixelCrop, 'unit'> & Partial<Omit<PixelCrop, 'unit'>>,
++  aspect: number,
++  containerWidth: number,
++  containerHeight: number
++): PixelCrop
++export function makeAspectCrop(crop: Partial<Crop>, aspect: number, containerWidth: number, containerHeight: number) {
++  const pixelCrop = convertToPixelCrop(crop, containerWidth, containerHeight)
++
++  if (crop.width) {
++    pixelCrop.height = pixelCrop.width / aspect
++  }
++
++  if (crop.height) {
++    pixelCrop.width = pixelCrop.height * aspect
++  }
++
++  if (pixelCrop.y + pixelCrop.height > containerHeight) {
++    pixelCrop.height = containerHeight - pixelCrop.y
++    pixelCrop.width = pixelCrop.height * aspect
++  }
++
++  if (pixelCrop.x + pixelCrop.width > containerWidth) {
++    pixelCrop.width = containerWidth - pixelCrop.x
++    pixelCrop.height = pixelCrop.width / aspect
++  }
++
++  if (crop.unit === '%') {
++    return convertToPercentCrop(pixelCrop, containerWidth, containerHeight)
++  }
++
++  return pixelCrop
++}
++
++export function centerCrop(
++  crop: Pick<PercentCrop, 'unit'> & Partial<Omit<PercentCrop, 'unit'>>,
++  containerWidth: number,
++  containerHeight: number
++): PercentCrop
++export function centerCrop(
++  crop: Pick<PixelCrop, 'unit'> & Partial<Omit<PixelCrop, 'unit'>>,
++  containerWidth: number,
++  containerHeight: number
++): PixelCrop
++export function centerCrop(crop: Partial<Crop>, containerWidth: number, containerHeight: number) {
++  const pixelCrop = convertToPixelCrop(crop, containerWidth, containerHeight)
++
++  pixelCrop.x = (containerWidth - pixelCrop.width) / 2
++  pixelCrop.y = (containerHeight - pixelCrop.height) / 2
++
++  if (crop.unit === '%') {
++    return convertToPercentCrop(pixelCrop, containerWidth, containerHeight)
++  }
++
++  return pixelCrop
++}
++
+ export function convertToPercentCrop(
+   crop: Partial<Crop>,
+   containerWidth: number,

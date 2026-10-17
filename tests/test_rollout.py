@@ -118,10 +118,10 @@ def test_production_spec_names_are_admitted() -> None:
         assert spec.name.endswith("-a1")
 
 
-@pytest.mark.parametrize("reward", [None, 0.0, 1.0])
+@pytest.mark.parametrize("reward,passed", [(None, None), (0.0, False), (1.0, True)])
 @pytest.mark.parametrize("exception_info", [{"exception_type": "RuntimeError"}, {}])
-def test_native_exception_precedes_any_verifier_reward(
-    tmp_path: Path, reward: float | None, exception_info: dict[str, str]
+def test_clean_dispatcher_measures_verifier_reward_despite_native_exception(
+    tmp_path: Path, reward: float | None, passed: bool | None, exception_info: dict[str, str]
 ) -> None:
     from evallab.rollout import _outcome
 
@@ -137,13 +137,15 @@ def test_native_exception_precedes_any_verifier_reward(
         )
     )
     outcome = _outcome(tmp_path / "task", "rollout-x", job_dir, 1.0, None)
-    assert outcome.reward is None
-    assert outcome.passed is None
-    assert outcome.error is not None
-    if exception_info:
-        assert "RuntimeError" in outcome.error
+    assert outcome.reward == reward
+    assert outcome.passed is passed
     summary = summarize([outcome], 1.0)
-    assert summary["completed"] == 0 and summary["errors"] == 1
+    if reward is None:
+        assert outcome.error == f"trial exception: {'RuntimeError' if exception_info else 'unknown'}"
+        assert summary["completed"] == 0 and summary["errors"] == 1
+    else:
+        assert outcome.error is None
+        assert summary["completed"] == 1 and summary["errors"] == 0
 
 
 def _capture_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:

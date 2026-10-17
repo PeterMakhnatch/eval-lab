@@ -58,10 +58,14 @@ keys run -- uv run --no-sync evallab rollout run \
   running. The file is replaced atomically; a terminated driver leaves a
   complete snapshot of measured terminal outcomes, not a truncated row.
   A non-done queue state always has an error and null reward/pass, even
-  when its job contains an earlier native reward. Otherwise any non-null
-  native exception takes precedence over a coincident verifier reward.
-  A missing verifier reward is also an explicit unmeasured error, not a
-  completed trial in the pass-rate denominator.
+  when its job contains an earlier native reward. Once dispatch completes
+  cleanly, the verifier reward determines the benchmark outcome, even if
+  the agent reported a native exception; this does not claim successful
+  agent completion. Without a reward, the native exception explains the
+  unmeasured error, or the row reports `missing verifier reward`.
+  Benchmark measurement is separate from SFT admission: the latter still
+  refuses non-null native exceptions. Native results retain the original
+  exception evidence.
 - `summary.json`: trials, measured completions, errors, pass rate, batch
   wall, tasks/hour, total cost, cost per completed task. Cost includes
   **all persisted outcomes**, including failed/unmeasured trials; only

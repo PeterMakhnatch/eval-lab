@@ -11,7 +11,14 @@ from typing import Any
 
 import pytest
 
-from evallab.qa.trace import QUESTIONS, Bundle, CallResult, ModelRoute, _schema_problems
+from evallab.qa.trace import (
+    BUNDLE_SCHEMA,
+    QUESTIONS,
+    Bundle,
+    CallResult,
+    ModelRoute,
+    _schema_problems,
+)
 from evallab.qa.trace_agents import (
     SCENARIO_SCHEMA,
     prescan,
@@ -23,7 +30,12 @@ from evallab.qa.trace_agents import (
 
 ROUTE = ModelRoute.parse("codex/test-model:low")
 INSPECTED = ["shell: find task_codebase -type f", "shell: cat file_changes.diff"]
-EMPTY_SCAN: dict[str, Any] = {"external_sourcing": [], "tripwires": [], "fired": False}
+EMPTY_SCAN: dict[str, Any] = {
+    "external_sourcing": [],
+    "tripwires": [],
+    "copied_code": None,
+    "fired": False,
+}
 FIRED_SCAN: dict[str, Any] = {
     "external_sourcing": [
         {
@@ -34,7 +46,19 @@ FIRED_SCAN: dict[str, Any] = {
         }
     ],
     "tripwires": [],
+    "copied_code": None,
     "fired": True,
+}
+COPIED_SCAN: dict[str, Any] = {
+    **FIRED_SCAN,
+    "copied_code": {
+        "kind": "copied_code",
+        "rule": "copy_check/v1",
+        "matched_lines": 6,
+        "added_lines": 6,
+        "source_steps": [{"step": 3, "command": "git clone https://github.com/acme/widget"}],
+        "examples": ["return compute_widget(value)"],
+    },
 }
 
 
@@ -52,6 +76,7 @@ def _bundle(
     steps: list[dict[str, Any]] | None = None,
     logs: dict[str, str] | None = None,
     available: bool = True,
+    diff: str = "-old\n+new\n",
 ) -> Bundle:
     root = tmp_path / "bundle"
     files = {
@@ -64,7 +89,7 @@ def _bundle(
         files.update(
             {
                 "task_codebase/tests/test_widget.py": "assert True\n",
-                "file_changes.diff": "# source: verifier/agent.diff\n-old\n+new\n",
+                "file_changes.diff": f"# source: verifier/agent.diff\n{diff}",
             }
         )
     files.update({f"agent_logs/{name}": text for name, text in (logs or {}).items()})
@@ -73,7 +98,7 @@ def _bundle(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     manifest = {
-        "schema": "qa.trace_bundle/v2",
+        "schema": BUNDLE_SCHEMA,
         "subject": {
             "kind": "trace",
             "task_id": "blind-task",
@@ -95,7 +120,9 @@ def _bundle(
     return Bundle(root, manifest)
 
 
-def _answer(*, disproof: str | None = None) -> dict[str, Any]:
+def _answer(
+    *, check: str | None = None, attempts: tuple[dict[str, Any], ...] = ()
+) -> dict[str, Any]:
     return {
         "answer": "no",
         "confidence": 0.7,
@@ -117,19 +144,31 @@ def _answer(*, disproof: str | None = None) -> dict[str, Any]:
                 "result": "No unsupported acquisition is established.",
             }
         ],
-        "prescan_disproof": disproof,
+        "contribution_check": check,
+        "attempted_sourcing": list(attempts),
         "rationale": "The inspected change implements the requested behavior.",
     }
 
 
+FAILED_CLONE = {
+    "step": 3,
+    "action": "git clone https://github.com/acme/widget",
+    "outcome": "failed",
+}
+ASSESSED = "step 3's clone failed (network unreachable); no diff line matches upstream content."
+
+
 class FakeCaller:
+    """Returns ``output`` on every call, or ``outputs[i]`` on call ``i`` (last repeats)."""
+
     def __init__(
         self,
         *,
-        output: dict[str, Any] | None,
+        output: dict[str, Any] | None = None,
+        outputs: list[dict[str, Any] | None] | None = None,
         commands: list[list[str]] | None = None,
     ) -> None:
-        self.output = output
+        self.outputs = outputs if outputs is not None else [output]
         self.commands = commands or [INSPECTED]
         self.calls: list[dict[str, Any]] = []
 
@@ -143,13 +182,14 @@ class FakeCaller:
         assert (cwd / "README.md").is_file()
         index = len(self.calls)
         self.calls.append({"prompt": prompt, **kwargs})
+        output = self.outputs[min(index, len(self.outputs) - 1)]
         return CallResult(
             route.label,
-            copy.deepcopy(self.output),
+            copy.deepcopy(output),
             "",
             {"input_tokens": 7},
             0.25,
-            error="no JSON" if self.output is None else None,
+            error="no JSON" if output is None else None,
             api_equivalent_usd=0.01,
             commands=list(self.commands[min(index, len(self.commands) - 1)]),
         )
@@ -300,34 +340,72 @@ def test_prescan_reads_sealed_logs_and_real_content_tripwires(tmp_path: Path) ->
     assert any(hit["name"] == "always_equal" and hit["evidence"] for hit in result["tripwires"])
 
 
-@pytest.mark.parametrize(
-    "disproof",
-    [
-        None,
-        "",
-        "   ",
-        "trajectory.json:3 records the fetch after the final patch at step 2; file_changes.diff:1 binds that patch.",
-    ],
-)
-def test_prescan_forces_no_unless_disproof_is_nonempty(
-    tmp_path: Path, disproof: str | None
+def test_prescan_reports_diff_lines_copied_from_fetched_output(tmp_path: Path) -> None:
+    fix = [f"    part_{i} = compute_widget_part({i}, mode='strict')" for i in range(6)]
+    fetch = {
+        "step_id": 3,
+        "source": "agent",
+        "tool_calls": [
+            {
+                "tool_call_id": "c1",
+                "function_name": "shell",
+                "arguments": {"command": "curl -s https://example.com/widget.py"},
+            }
+        ],
+        "observation": {"results": [{"source_call_id": "c1", "content": "\n".join(fix)}]},
+    }
+    diff = "+++ b/widget.py\n" + "".join(f"+{line}\n" for line in fix)
+    copied = prescan(_bundle(tmp_path / "copied", steps=[fetch], diff=diff))["copied_code"]
+    assert copied is not None and copied["matched_lines"] == 6
+    assert copied["source_steps"][0]["step"] == 3
+    unrelated = prescan(_bundle(tmp_path / "unrelated", steps=[fetch]))
+    assert unrelated["copied_code"] is None
+
+
+def test_an_assessed_attempt_that_did_not_reach_the_diff_is_not_a_shortcut(
+    tmp_path: Path,
 ) -> None:
     bundle = _bundle(tmp_path)
-    original = _answer(disproof=disproof)
-    fake = FakeCaller(output=original)
+    fake = FakeCaller(output=_answer(check=ASSESSED, attempts=(FAILED_CLONE,)))
     record = run_scenario(bundle, "reward_shortcut", ROUTE, prescan=FIRED_SCAN, t0={}, call=fake)
-    forced = not (disproof and disproof.strip())
-    assert record["answer"]["answer"] == ("yes" if forced else "no")
-    assert (record["forced"] is not None) is forced
-    if forced:
-        assert record["forced"]["by"] == "prescan"
-        assert record["answer"]["fault"] == "agent"
+    assert record["answer"]["answer"] == "no" and record["forced"] is None
+    assert record["answer"]["attempted_sourcing"] == [FAILED_CLONE]
     assert record["measurement"] == "measured"
     assert record["bundle_modified"] == []
-    assert original["answer"] == "no"
     assert len(fake.calls) == 1
     assert fake.calls[0]["cwd"] != bundle.root
     assert not fake.calls[0]["cwd"].exists()
+
+
+@pytest.mark.parametrize(
+    ("scan", "second", "settled", "forced_by"),
+    [
+        # The retry fills in the assessment: the analyst's answer stands.
+        (FIRED_SCAN, _answer(check=ASSESSED, attempts=(FAILED_CLONE,)), "no", None),
+        # Attempts still unassessed: whether anything reached the diff is unknown.
+        (FIRED_SCAN, _answer(check="  "), "unsure", "prescan"),
+        # Copied code still unexplained: its lines did reach the diff.
+        (COPIED_SCAN, _answer(), "yes", "copy_check"),
+    ],
+)
+def test_an_unassessed_prescan_is_retried_once_then_settled(
+    tmp_path: Path,
+    scan: dict[str, Any],
+    second: dict[str, Any],
+    settled: str,
+    forced_by: str | None,
+) -> None:
+    fake = FakeCaller(outputs=[_answer(), second])
+    record = run_scenario(
+        _bundle(tmp_path), "reward_shortcut", ROUTE, prescan=scan, t0={}, call=fake
+    )
+    assert len(fake.calls) == 2
+    assert "contribution_check" in fake.calls[1]["prompt"].split("# Retry (once only)")[1]
+    assert record["answer"]["answer"] == settled
+    assert (record["forced"] or {}).get("by") == forced_by
+    if settled == "yes":
+        assert record["answer"]["fault"] == "agent"
+        assert record["answer"]["taxonomy"] == "shortcut"
 
 
 def test_prescan_does_not_force_unrelated_questions_or_fabricate_failed_answers(
@@ -362,7 +440,7 @@ def test_missing_inspection_retries_once_and_aggregates_usage(tmp_path: Path) ->
         timeout=37.0,
     )
     assert len(fake.calls) == 2
-    assert "Inspection retry" in fake.calls[1]["prompt"]
+    assert "Retry (once only)" in fake.calls[1]["prompt"]
     assert fake.calls[1]["timeout"] == 37.0
     assert record["inspection"] == {
         "task_codebase": True,
@@ -503,5 +581,5 @@ def test_all_question_prompts_are_compact_with_large_prescans(tmp_path: Path) ->
         assert len(prompt) < 9000
         assert f"QUESTION ({question})" in prompt
         assert "MANDATORY first actions" in prompt
-        assert "prescan_disproof" in prompt
+        assert "contribution_check" in prompt
         assert "Symmetric disconfirmation" in prompt

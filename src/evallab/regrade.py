@@ -113,8 +113,8 @@ LOCAL_REGRADE_ENVIRONMENTS = frozenset({"docker"})
 
 #: Paid verifier environments a *trial* regrade may use, mapped to Harbor's
 #: `--env` value. `harbor trial regrade` takes no `--environment-kwarg`, so the
-#: class fixes the settings every lab Modal run carries (PATH pin, bounded
-#: sandbox lifetime). Admitted only under a :class:`CloudSpendGate`.
+#: class fixes the shared setup/task interpreter boundary and bounded sandbox
+#: lifetime. Admitted only under a :class:`CloudSpendGate`.
 CLOUD_REGRADE_ENVIRONMENTS: Mapping[str, str] = {
     "modal": "evallab.harbor_modal:RegradeModalEnvironment",
 }

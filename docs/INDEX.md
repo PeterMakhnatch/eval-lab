@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:aef1041ec83125a0fa45b8f9a65f3d3b33dbfcd70ce21369168f6f15c93895ca
+    digest: sha256:9c1383224ea48f50a9f2496db0aa46550328693f36f6ff37cc7d32f64155be9e
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -139,7 +139,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:623833b7cf628a5f9ee23bc452a35ac228a654af450ba7f38728258f81f8e6f6
+    digest: sha256:ab4399b816c899a4af9ee6372867e7bc7c47201f8dea62a0206ea0bd476867be
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

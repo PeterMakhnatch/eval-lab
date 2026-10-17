@@ -439,24 +439,6 @@ def test_modal_metered_proxy_rejected_as_integration_gap(tmp_path: Path) -> None
         validate_request(req)
 
 
-def test_modal_command_pins_python_path_for_setup_heredocs(tmp_path: Path) -> None:
-    req = RunRequest(
-        task=_task_dir(tmp_path),
-        agent="oracle",
-        name="modal-path",
-        jobs_dir=tmp_path / "jobs",
-        environment="modal",
-        allow_billable=True,
-    )
-    command = build_command(req, setup_fingerprint="test")
-    assert (
-        'persistent_env={"PATH": "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"}'
-        in command
-    )
-    docker = build_command(replace(req, environment="docker"), setup_fingerprint="test")
-    assert not any(value.startswith("persistent_env=") for value in docker)
-
-
 @pytest.mark.parametrize("backend", ["docker", "daytona"])
 def test_modal_billing_app_cannot_change_backend(tmp_path: Path, backend: str) -> None:
     req = RunRequest(

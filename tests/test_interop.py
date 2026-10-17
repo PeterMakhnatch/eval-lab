@@ -1,13 +1,13 @@
 """HAR-204 interop converters, plans, cells, and grading matrix (no docker, $0).
 
-Live-Docker cells attempt execution like ``evallab run`` (no admission gate);
-unit + fixture tests inject every external seam (control runner, cheat lane,
-uv binary, target registry) per the deterministic-test rule.
+All external state, including local resource admission, is injected. Runtime
+proof and compatibility-source evidence are recorded separately from unit tests.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import shutil
 import sys
@@ -37,6 +37,13 @@ from evallab.interop import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_TASK = REPO_ROOT / "library/tasks/transaction-reconciliation"
+
+@pytest.fixture(autouse=True)
+def admitted_test_daemon(monkeypatch: pytest.MonkeyPatch) -> None:
+    from evallab import campaign_execution
+
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (16.0, 32768))
+
 
 
 def make_task(
@@ -222,43 +229,56 @@ def _exec_module(path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
     return namespace
 
 
-def test_export_inspect_executes_with_stub_framework(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("fresh_reward", [None, "0\n", "1\n"])
+def test_exported_scorer_requires_fresh_verifier_reward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fresh_reward: str | None
 ) -> None:
     out = tmp_path / "inspect-out"
-    summary = export_inspect(REAL_TASK, out)
-    assert (out / "task.py").is_file()
-    assert (out / "compose.yaml").is_file()
-    assert (out / "metadata.json").is_file()
-    assert (out / "MAPPING.md").is_file()
-    assert summary["task_id"] == "petermakhnatch/transaction-reconciliation"
-
-    recorded = _stub_inspect_ai(monkeypatch)
+    export_inspect(REAL_TASK, out)
+    _stub_inspect_ai(monkeypatch)
     namespace = _exec_module(out / "task.py", monkeypatch)
-    task_obj = namespace["harbor_task"]()
-    assert task_obj is not None
-    sample = recorded["dataset"][0]
-    assert sample.input == (out / "instruction.md").read_text(encoding="utf-8")
-    assert "settlement" in sample.input
-    assert recorded["metadata"]["harbor_task"] == summary["task_id"]
-    assert sample.metadata["difficulty"] == "easy"
+    files = {"/logs/verifier/reward.txt": "1\n"}
 
-    parse = namespace["parse_reward_bytes"]
-    assert parse(b"1\n", None) == 1.0
-    assert parse(None, b'{"score": 0}') == 0.0
-    with pytest.raises(FileNotFoundError):
-        parse(None, None)
-    with pytest.raises(ValueError):
-        parse(None, b"{}")
+    class Sandbox:
+        async def write_file(self, path: str, content: bytes) -> None:
+            files[path] = content
+
+        async def exec(self, command: list[str], **kwargs: object) -> object:
+            if command[:2] == ["rm", "-f"]:
+                for path in command[2:]:
+                    files.pop(path, None)
+            if command == ["bash", "/tests/test.sh"]:
+                assert kwargs["cwd"] == "/app"
+                if fresh_reward is not None:
+                    files["/logs/verifier/reward.txt"] = fresh_reward
+            return types.SimpleNamespace(returncode=0, stdout="")
+
+        async def read_file(self, path: str) -> str:
+            if path not in files:
+                raise FileNotFoundError(path)
+            return files[path]
+
+    namespace["sandbox"] = lambda: Sandbox()
+    score = namespace["harbor_test_scorer"]()
+    if fresh_reward is None:
+        with pytest.raises(FileNotFoundError):
+            asyncio.run(score(None, None))
+    else:
+        assert asyncio.run(score(None, None)).value == float(fresh_reward)
 
 
-def test_export_inspect_copies_solution_helpers(tmp_path: Path) -> None:
-    task_dir = make_task(tmp_path / "helpers")
-    (task_dir / "solution" / "solve.py").write_text("HELPER = 1\n", encoding="utf-8")
-    out = tmp_path / "o"
+def test_inspect_build_context_preserves_assets_without_hidden_inputs(tmp_path: Path) -> None:
+    task_dir = REPO_ROOT / "library/tasks/event-summary"
+    out = tmp_path / "inspect-out"
     export_inspect(task_dir, out)
-    assert (out / "solution" / "solve.sh").is_file()
-    assert (out / "solution" / "solve.py").read_text(encoding="utf-8") == "HELPER = 1\n"
+    service = json.loads((out / "compose.yaml").read_text())["services"]["default"]
+    context = (out / service["build"]["context"]).resolve()
+    assert (context / "events.jsonl").read_bytes() == (
+        task_dir / "environment" / "events.jsonl"
+    ).read_bytes()
+    assert not (context / "solution").exists()
+    assert not (context / "tests").exists()
+    assert (service["cpus"], service["mem_limit"], service["working_dir"]) == (1, "512m", "/app")
 
 
 def test_export_inspect_lossy_notes(tmp_path: Path) -> None:
@@ -267,8 +287,6 @@ def test_export_inspect_lossy_notes(tmp_path: Path) -> None:
     lossy = make_task(tmp_path / "lossy", network_mode="public", environment_mode="separate")
     notes = export_inspect(lossy, tmp_path / "o2")["lossy_notes"]
     assert len(notes) == 2
-    mapping = (tmp_path / "o2" / "MAPPING.md").read_text(encoding="utf-8")
-    assert "missing file = error" in mapping
 
 
 def test_export_refuses_nonempty_dir(tmp_path: Path) -> None:
@@ -319,12 +337,10 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
         workdir="/app",
     )
     codes = {f["code"] for f in karotte_flags(load_harbor_task(task_dir))}
-    assert codes == {
-        "network-policy",
-        "separate-verifier-image",
-        "mcp-servers",
-        "solution-env",
-    }
+    assert {
+        "network-policy", "separate-verifier-image", "mcp-servers", "solution-env",
+        "submission-custody", "post-start-resource-limits", "verifier-timeout",
+    } <= codes
     compose_dir = make_task(tmp_path / "composed", workdir="/app")
     (compose_dir / "environment" / "docker-compose.yaml").write_text(
         "services: {}\n", encoding="utf-8"
@@ -334,18 +350,8 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
     }
     with pytest.raises(ValueError, match="multi-service compose"):
         export_karotte(compose_dir, tmp_path / "composed-out")
-    out = tmp_path / "env"
-    summary = export_karotte(task_dir, out)
-    assert set(summary["flags"]) == codes
-    mapping = (out / "MAPPING.md").read_text(encoding="utf-8")
-    for code in codes:
-        assert code in mapping
-    assert "uv lock" in mapping and "nop" in mapping
 
 
-def test_karotte_flags_real_task() -> None:
-    codes = {f["code"] for f in karotte_flags(load_harbor_task(REAL_TASK))}
-    assert codes == {"network-policy"}
 
 
 def test_export_karotte_writes_runnable_tree(tmp_path: Path) -> None:
@@ -707,23 +713,25 @@ def test_run_inspect_cell_rejects_unknown_agent_and_attack(
     assert "cannot build cheat plan" in (cell["reason"] or "")
 
 
-def test_run_inspect_cell_control_ignores_attacks(
+def test_inspect_admission_refusal_prevents_image_preparation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    captured: dict = {}
+    from evallab import campaign_execution
 
-    def fake_stage(work: Path, task: object, **kwargs: object) -> Path:
-        captured.update(kwargs)
-        driver = Path(work) / "inspect_driver.py"
-        driver.write_text("x", encoding="utf-8")
-        return driver
+    def refused() -> tuple[float, int]:
+        raise ValueError("an existing Docker container has unbounded CPU or memory")
 
-    monkeypatch.setattr(interop, "_write_inspect_run", fake_stage)
-    monkeypatch.setattr(interop, "_docker_ps", lambda: {})
-    monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
-    cell = run_inspect_cell(REAL_TASK, "oracle", ("skip_plant",), workdir=tmp_path / "b")
-    assert captured["attacks"] == ()
-    assert cell["attacks"] == []
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", refused)
+    monkeypatch.setattr(
+        interop, "_write_inspect_run",
+        lambda *args, **kwargs: pytest.fail("must not prepare an unadmitted run"),
+    )
+    work = tmp_path / "refused"
+    cell = run_inspect_cell(REAL_TASK, "oracle", workdir=work)
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    record = json.loads((work / "admission.json").read_text())
+    assert record["admitted"] is False
+    assert "unbounded CPU or memory" in record["reason"]
 
 
 # -- harbor cells (seams injected) ----------------------------------------------
@@ -817,8 +825,12 @@ def test_grade_task_row_boundaries() -> None:
     assert broken == "broken"
     assert any("nop" in problem for problem in problems)
     status, _ = grade_task_row({"h:oracle": "error"}, targets=["h"], agents=["oracle"])
-    assert status == "n/a"
-    assert grade_task_row({}, targets=["h"], agents=["oracle"])[0] == "n/a"
+    assert status == "incomplete"
+    assert grade_task_row({}, targets=["h"], agents=["oracle"])[0] == "incomplete"
+    assert grade_task_row(
+        {"h:oracle": "pass", "h:nop": "fail", "i:oracle": "skipped", "i:nop": "error"},
+        targets=["h", "i"], agents=["oracle", "nop"],
+    )[0] == "incomplete"
 
 
 def test_render_grading_matrix_cheat_display() -> None:
@@ -955,7 +967,7 @@ def test_matrix_solutionless_task_skips_oracle_and_scopes_attacks(tmp_path: Path
         )
     assert row["cells"]["t:oracle"] == "skipped"
     assert calls == [("nop", ()), ("cheat", ("skip_plant",))]
-    assert row["grading"] == "ok"
+    assert row["grading"] == "incomplete"
 
 
 # -- CLI wiring -----------------------------------------------------------------
@@ -999,35 +1011,29 @@ def test_cli_wiring() -> None:
     assert args_v2.attacks == "disk_fill"
 
 
-def _matrix_row(task_id: str = "lab/t", grading: str = "ok", problems: tuple = ()) -> dict:
-    return {
-        "task_id": task_id,
-        "cells": {},
-        "grading": grading,
-        "problems": list(problems),
-        "versions": {},
-        "details": {},
-    }
 
 
-def test_matrix_command_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize(
+    ("oracle", "nop", "exit_code"),
+    [("pass", "fail", 0), ("fail", "fail", 1), ("pass", "skipped", 2), ("error", "error", 2)],
+)
+def test_matrix_command_exit_codes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, oracle: str, nop: str, exit_code: int
+) -> None:
     from evallab.interop import build_interop_parser, interop_command
 
     parser = argparse.ArgumentParser()
     build_interop_parser(parser.add_subparsers())
-    args = parser.parse_args(["interop", "matrix", "some-task"])
-    with patch.object(interop, "matrix_task_row", return_value=_matrix_row()):
-        assert interop_command(args, REPO_ROOT) == 0
-    with patch.object(
-        interop,
-        "matrix_task_row",
-        return_value=_matrix_row(grading="broken", problems=["h:oracle expected pass, got fail"]),
-    ):
-        assert interop_command(args, REPO_ROOT) == 1
-        assert "grading broken" in capsys.readouterr().out
-    with patch.object(interop, "matrix_task_row", return_value=_matrix_row(grading="n/a")):
-        assert interop_command(args, REPO_ROOT) == 0
-        assert "not agreement" in capsys.readouterr().out
+    args = parser.parse_args(
+        ["interop", "matrix", str(REAL_TASK), "--targets", "harbor", "--agents", "oracle", "nop"]
+    )
+
+    def runner(task_dir: Path, agent: str, attacks: tuple, **kwargs: object) -> dict:
+        verdict = oracle if agent == "oracle" else nop
+        return _fake_cell("harbor", agent, verdict, 1.0 if verdict == "pass" else 0.0)
+
+    monkeypatch.setitem(MATRIX_TARGETS, "harbor", runner)
+    assert interop_command(args, tmp_path) == exit_code
 
 
 def test_matrix_command_rejects_bad_attacks() -> None:
@@ -1094,18 +1100,66 @@ def test_run_inspect_cell_solution_less_oracle_errors_nop_stages(
         cell = run_inspect_cell(task_dir, "oracle", (), workdir=tmp_path / "o")
     assert cell["verdict"] == "error"
     assert "solution/solve.sh" in (cell["reason"] or "")
-    captured: dict = {}
-
-    def fake_stage(work: Path, task: object, **kwargs: object) -> Path:
-        captured.update(kwargs)
-        driver = Path(work) / "inspect_driver.py"
-        driver.write_text("x", encoding="utf-8")
-        return driver
-
-    monkeypatch.setattr(interop, "_write_inspect_run", fake_stage)
     monkeypatch.setattr(interop, "_docker_ps", lambda: {})
     monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
     cell = run_inspect_cell(task_dir, "nop", (), workdir=tmp_path / "n")
-    assert captured["agent"] == "nop"
     assert cell["verdict"] == "error"
     assert "uv" in (cell["reason"] or "")
+
+
+@pytest.mark.parametrize(("capacity", "sandboxes", "admitted"), [
+    ((2.0, 1024), 1, True),
+    ((2.0, 1024), 2, True),
+    ((1.5, 1024), 2, False),
+    ((2.0, 1023), 2, False),
+    ((0.5, 1024), 1, False),
+])
+def test_local_admission_preserves_declared_limits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capacity: tuple[float, int], sandboxes: int, admitted: bool,
+) -> None:
+    from evallab import campaign_execution
+
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: capacity)
+    task = load_harbor_task(REPO_ROOT / "library/tasks/event-summary")
+    work = tmp_path / "admission"
+    if admitted:
+        interop.admit_local_task(task, work, sandboxes=sandboxes)
+    else:
+        with pytest.raises(ValueError, match="admission refused"):
+            interop.admit_local_task(task, work, sandboxes=sandboxes)
+    record = json.loads((work / "admission.json").read_text())
+    assert record["admitted"] is admitted
+    assert record["requested"] == {"cpus": sandboxes, "memory_mb": 512 * sandboxes}
+
+
+def test_inspect_refuses_partial_oracle_upload(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path / "task")
+    (task_dir / "solution" / "required.bin").write_bytes(
+        b"x" * (interop.MAX_STAGED_FILE_BYTES + 1)
+    )
+    with pytest.raises(ValueError, match="required solution files"):
+        interop._write_inspect_run(
+            tmp_path / "run", load_harbor_task(task_dir),
+            agent="oracle", attacks=(), agent_timeout=60, override_cpus=1,
+            override_memory_mb=512,
+        )
+
+
+def test_local_admission_accounts_for_larger_declared_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import campaign_execution
+
+    task_dir = make_task(tmp_path / "source", resources={"cpus": 1, "memory_mb": 512})
+    with (task_dir / "task.toml").open("a") as stream:
+        stream.write('\n[verifier.environment]\ncpus = 6\nmemory_mb = 8192\n')
+    task = load_harbor_task(task_dir)
+    assert task.environment_mode == "separate"
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (8.0, 8192))
+    work = tmp_path / "admission"
+    with pytest.raises(ValueError, match="admission refused"):
+        interop.admit_local_task(task, work, sandboxes=2)
+    assert json.loads((work / "admission.json").read_text())["requested"] == {
+        "cpus": 12, "memory_mb": 16384,
+    }

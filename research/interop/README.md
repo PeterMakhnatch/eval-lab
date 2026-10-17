@@ -1,10 +1,38 @@
 # Experience Infra interop (HAR-204): Harbor <-> Inspect AI <-> Karotte <-> verifiers
 
-Model-free, $0-only bridges. No RL training infra. Live-Docker cells attempt
-execution exactly like `evallab run` / `evallab cheat run` (direct execution,
-no campaign-queue admission gate): infrastructure failures are `error` cells,
-never `fail`. Unit + fixture tests (`tests/test_interop.py`) inject every
-external seam and carry acceptance.
+Model-free, $0-only bridges. No RL training infrastructure. Every runnable cell
+uses the existing local Docker capacity probe before image preparation; unknown
+capacity, unbounded competing containers and insufficient CPU/RAM refuse it.
+Infrastructure failures are `error`, never task scores. Deterministic tests
+prove contracts, **not** end-to-end destination-tool execution.
+
+## Current acceptance — 2026-10-17
+
+**HAR-204 remains blocked on admitted local execution.** The actual command
+`evallab interop matrix library/tasks/event-summary --targets harbor inspect
+karotte verifiers --agents oracle nop --json` returned **2**, with all eight
+cells `error` and grading `incomplete`. Harbor, Inspect and Karotte were refused
+because an existing shared-daemon container has unbounded CPU or memory.
+Verifiers rejected the real task's unenforced disk limit and unbuilt separate
+verifier image before Docker mutation. No shared service was altered, no
+container/model/cloud/price probe was started, and no resources were downsized.
+
+The [dated evidence receipt](../evidence/har204-interop-20261017.json) separates:
+
+- **Actual source regression:** the old Inspect export omitted `events.jsonl`
+  from the Docker `COPY` context and included `solution/` and `tests/` in that
+  context. The revised context preserves the real input and excludes hidden
+  inputs. Real `docker compose config` resolves 1 CPU, 512 MiB and `/app`.
+- **Actual framework construction, not execution:** the emitted real task loads
+  as Inspect 0.3.276 `Task` objects for oracle/nop and as Karotte 3.0.59 `Task`
+  and `Step` objects. No solver, judge or sandbox ran in these construction probes.
+- **Historical AgentEnv evidence:** the retained eleven-control receipt was
+  read and its published SHA-256 verified, including zero model calls and the
+  reachable-data-plane limitation. This is not a Harbor conversion.
+- **Outstanding acceptance:** run the emitted Inspect task's oracle and nop,
+  run the converted Karotte task's oracle and nop, and compare their real grades
+  to same-version native Harbor controls after normal local admission succeeds.
+  The historical matrix below does not discharge this requirement.
 
 ## Commands
 
@@ -16,9 +44,11 @@ evallab interop matrix library/tasks/<a> [library/tasks/<b>...] [--targets harbo
 
 `--out` must be empty (exports refuse non-empty dirs). `matrix` runs every
 (target, agent) cell, renders a table where control cells show pass/fail and
-cheat cells show cracked/clean, flags "grading broken" when a comparable
-oracle cell is not pass or a nop cell is not fail, and exits 1 on any broken
-row. `--json` prints the envelope (rows + versions + evidence paths).
+cheat cells show cracked/clean, and distinguishes wrong controls (`broken`)
+from unscored/skipped/missing controls (`incomplete`). Exit status is 1 for
+wrong controls, 2 for incomplete execution, and 0 only when every requested cell
+is scored. `--json` prints the envelope; the same envelope and per-cell admission
+records persist under the owned worktree's `runs/interop/`.
 `--attacks` selects the cheat-ladder subset for cheat cells only.
 
 ## Pinned versions
@@ -26,30 +56,39 @@ row. `--json` prints the envelope (rows + versions + evidence paths).
 | Component | Pin | Source |
 | --- | --- | --- |
 | harbor (lab lock) | 0.24.0 | uv.lock |
-| harbor (uv tool, CI + this laptop) | 0.21.0 | `harbor --version` |
+| harbor (historical tool runs) | 0.21.0 | older receipts; not a current-runtime claim |
 | inspect-ai | 0.3.276 | uv.lock (`inspect` group) |
 | inspect-harbor | 1.0.0 | uv.lock (`inspect` group) |
 | karotte (generic runner) | 3.0.59 | `src/evallab/interop.py: KAROTTE_PIN` |
 
-Every run output records the exact versions that produced it (Harbor revision
-per cell, pinned inspect/karotte revisions). `export-harbor --to inspect`
-never imports `inspect_harbor`; matrix live cells provision the pinned inspect
-stack in a subprocess (`uv run --no-project --with ...`) so the lab venv
-stays lean.
+Envelopes record the detected Harbor command and configured adapter pins;
+failed admission does not establish that a destination framework ran.
+`export-harbor --to inspect` never imports `inspect_harbor`; matrix Inspect
+cells provision the pinned stack in a subprocess (`uv run --no-project
+--with ...`) so the lab venv stays lean.
 
 ## Harbor -> Inspect mapping
 
 | Harbor | Inspect export |
 | --- | --- |
 | instruction.md | `Sample` input (`task.py harbor_task`) |
-| solution/solve.sh | `oracle_solver` (stages solution/, runs solve.sh) |
-| tests/test.sh | `harbor_test_scorer` (runs test.sh, grades reward file) |
+| solution/solve.sh | oracle solver only; `-T agent=nop` never stages the solution |
+| tests/test.sh | scorer clears stale rewards, runs test.sh in the task workdir |
 | reward.txt / reward.json | `parse_reward_bytes`; **missing file = error, never fail** |
 | task.toml [task] + [metadata] | metadata.json + Sample/Task metadata |
-| environment/Dockerfile | environment/Dockerfile via compose.yaml |
+| environment/ or docker_image | complete unchanged build context, or declared image |
+| CPU / RAM / workdir | bounded Compose service; working_dir |
 | verifier.timeout_sec | scorer `timeout=` |
-| network_mode != bridge/none | flagged (no sandbox equivalent; default docker network) |
-| verifier.environment_mode = separate | flagged (verifier-only image must be folded in manually) |
+| network / user / environment overrides / MCP | explicitly reported when not replayed |
+| separate verifier / GPU / storage / agent timeout | explicitly reported, not equivalent |
+
+Exports refuse multi-service Compose tasks rather than emitting a broken single
+container. Large or symlinked oracle helpers in the matrix Inspect upload path
+are refused, not silently omitted. The matrix's Inspect target uses
+`inspect_harbor`; loading the pure `export-harbor --to inspect` output is a
+different path. Its actual sandbox execution is still outstanding. Direct
+`inspect eval` is outside Eval Lab admission and must not be used after an
+admission refusal.
 
 ## Harbor -> Karotte mapping
 
@@ -59,36 +98,43 @@ import, no `uv lock`, no docker): the `environment` support package vendored
 from the pinned karotte template, a generic task package, a nop fake model,
 the task's own `tests/` under root-only `root_data/`, a harness
 Containerfile `FROM` the Harbor student image, and a pinned project file.
-Grading replays Harbor shared mode: the step hook collects the submission
-paths root-only (killing student processes, wiping the workdir), the judge
-restores the copies at their original absolute paths, runs the task's own
-`tests/test.sh` from the workdir as root, and converts the reward files with
-the embedded `interop.parse_reward_bytes`.
+Grading has different custody from Harbor shared mode: the step hook collects
+submission paths root-only, kills student processes and wipes the workdir.
+The judge restores those copies, runs the task's own `tests/test.sh` as root,
+and converts its reward. Agreement does not erase this isolation difference.
 
 | Harbor | Karotte env |
 | --- | --- |
 | instruction.md | `Step.instructions` (generic task package) |
 | task artifacts (else workdir) | `Step.submission_paths` (collected, restored, graded) |
 | tests/test.sh | generic judge: restore copies, `bash /tests/test.sh`, parse reward |
-| reward.txt / reward.json | score via embedded `parse_reward_bytes`; missing = 0 + error |
+| reward.txt / reward.json | missing/malformed/timeout = error; never a valid task zero |
 | solution/solve.sh | mounted at `/solution` for oracle cells only |
 | environment/Dockerfile (or docker_image) | harness Containerfile `FROM` the Harbor student image |
 | task.toml [task] + [metadata] | Task.id + module docstring |
 
-Lossy/impossible mappings are detected by `karotte_flags()` and written to
-the generated `MAPPING.md`, never silently dropped. Only real losses of the
-generic path are flagged: verifier packaging, artifact-less tasks, and
-task-declared cpus/memory_mb (which bound the run container like elsewhere)
-all map faithfully.
+Detected losses are emitted by `karotte_flags()` in `MAPPING.md`:
 
-- `multi-service-compose`: own Compose file -> export errors (single image only).
-- `network-policy`: karotte cannot enforce Harbor network policies.
-- `separate-verifier-image`: grading runs in the task container, not the verifier image.
-- `mcp-servers`: no sidecar support.
-- `solution-env`: the oracle runs solve.sh without `[solution.env]` overrides.
+- `submission-custody`: collected-copy grading, not Harbor's live filesystem.
+- `post-start-resource-limits`: CPU/RAM are applied by `docker update` after
+  startup, not at creation. A run with unapplied bounds is now an error.
+- `multi-service-compose`: export refuses single-image conversion.
+- `network-policy` / `agent-network-policy`: Harbor network policies and phase
+  changes are not enforced.
+- `separate-verifier-image`: no fresh verifier image or artifact-transfer boundary.
+- `agent-user` / `verifier-user`: Karotte student identity and root grading replace
+  task-specified users.
+- `mcp-servers`, `solution-env`, `environment-env`: unsupported lifecycle/overrides.
+- `storage-gpu-limits`: only CPU and RAM are bounded.
+- `agent-timeout` / `verifier-timeout`: whole-run timeout and 300–2100-second
+  verifier clamp differ from Harbor's phase budgets. The real event-summary
+  export demonstrates 60 seconds becoming 300 seconds.
 
-Example: `library/tasks/transaction-reconciliation` flags only
-`network-policy` (`public`).
+Setup is baked/cached into the Karotte image, not rerun at every container start;
+the harness also adds its own Python, packages and identity changes. These are
+additional environment drift, not proof of task equivalence. A fatal transcript,
+judge error metadata, nonzero runner exit or unapplied resource bound is an
+infrastructure error, even when a numeric placeholder score is present.
 
 ## Cells and grading
 
@@ -128,8 +174,20 @@ uses) and runs it with the attack subset. Targets are wired through the
   locally first (verifiers never builds images). Each cell records the
   isolation mode that graded it (`shared`, or `separate` when the task
   declares a separate verifier); `run_cell(..., isolation="shared")` forces
-  shared grading. Tasks declaring `[verifier].user` are rejected upstream
-  (`ValueError: [verifier].user is not supported`) and report `error`.
+  shared grading and records discarded isolation. Known unsupported contracts
+  are refused before image building: users/additional services, Compose,
+  unbuilt separate verifier Dockerfiles, advisory-only disk limits, unsupported
+  multi-step/environment features and incompatible phase/CIDR network policies.
+  Declared separate CPU/RAM limits are preserved, with conservative admission
+  reserving two sandboxes at the larger of agent/verifier requirements.
+
+These limits were checked against the actual locked verifiers 0.3.1 wheel
+(`105cd114184625895b3d1a07ddc418f08a0ddadcd9cb20dad5acb763ccb01725`):
+`tasksets/harbor/taskset.py` (`parse_task`, `parse_verifier_extras`,
+`parse_verifier_environment`), `runtimes/docker/__init__.py` (`DockerConfig.disk`
+is advisory), and `configs/runtime.py` (`network_rule_matches` uses host globs).
+The dated receipt preserves actual parser results and source hashes. No paid
+probe or fallback environment establishes compatibility.
 
 All targets run the plan command in the same container workdir
 (`interop.task_workdir`: task.toml `[environment].workdir`, else final-stage
@@ -141,15 +199,16 @@ Dockerfile `WORKDIR`, else `/` per Harbor 0.24).
 | --- | --- | --- |
 | AgentEnv (`agentenv-framework`, Scale, `scaleapi/agentenv-framework`) | **already-ran** | Eval Lab ran it in `research/experiments/agentenv-mimo-bench/README.md` (HAR-190): AgentEnv 0.9.1275 on local Docker, model-free scripted controls (oracle pass, nop fail), graded by AgentEnv's `env_outcome_verifier`. The earlier row naming PyPI `agentenv` 0.0.1 was wrong: that is an unrelated stub, not Scale's framework. No Harbor converter exists (noted as a next step there); a matrix target would need one. |
 
-## Follow-ups (not in this slice)
+## Remaining live proof
 
-1. Inspect export execution: the emitted task is `inspect eval`-ready
-   (compose sandbox + oracle solver + reward scorer) but has not been
-   executed end-to-end here; covered structurally by exec-against-stub tests.
-   (The matrix `inspect` target runs the same task dir through the pinned
-   inspect_harbor interface instead -- smoked live in the next section.)
+After the existing admission probe succeeds without changing someone else's
+services, run the converted task in both destinations and native Harbor at pinned
+task/framework versions. Preserve actual oracle/nop grades and native destination
+logs; constructor checks, skipped cells and the historical table are not parity.
+Admission is a fresh capacity observation, **not** a host-global reservation
+against unrelated concurrent launchers.
 
-## Live matrix (2026-10-09, this laptop, $0, full 12-attack ladder)
+## Historical reported matrix (2026-10-09, not current acceptance)
 
 `evallab interop matrix library/tasks/transaction-reconciliation
 <MiMo format-code-task-002552> --targets harbor inspect karotte verifiers

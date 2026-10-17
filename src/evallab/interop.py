@@ -19,9 +19,9 @@ stages the stdlib-only ``evallab.cheat_ladder`` and runs it with the attack
 subset (empty = full ladder). Every target runner exposes
 ``run_cell(task_dir, agent, attacks, *, workdir, timeout_seconds,
 ladder_version=None)`` returning a pass/fail/skipped/error verdict dict (reward >= 1.0 passes).
-Live-Docker paths attempt execution exactly like ``evallab run`` /
-``evallab cheat run`` (direct execution, no campaign-queue admission gate):
-infrastructure failures are ``error`` cells, never ``fail``.
+Every live cell first checks the existing local Docker resource admission.
+Unknown/unbounded competing containers and insufficient headroom refuse the
+cell before image preparation. Infrastructure failures are errors, never scores.
 
 This module is stdlib-only: ``inspect_ai``/``inspect_harbor``/``karotte`` are
 invoked in subprocesses via pinned ``uv run --with`` so exporting never
@@ -34,6 +34,7 @@ import argparse
 import datetime
 import importlib.metadata
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -90,7 +91,11 @@ class HarborTask:
     @property
     def environment_mode(self) -> str | None:
         verifier = self.config.get("verifier")
-        return verifier.get("environment_mode") if isinstance(verifier, dict) else None
+        if not isinstance(verifier, dict):
+            return None
+        return verifier.get("environment_mode") or (
+            "separate" if isinstance(verifier.get("environment"), dict) else None
+        )
 
 
 def load_harbor_task(task_dir: str | Path, *, require_solution: bool = True) -> HarborTask:
@@ -339,11 +344,9 @@ def run_harbor_control(
 ) -> dict[str, Any]:
     """Run the Harbor-native oracle/nop control locally (docker, $0).
 
-    Direct execution through ``Executor.execute_direct`` -- the same path
-    ``evallab run`` uses, with no campaign-queue admission gate. Returns a
-    verdict dict; infrastructure failures are ``error``, never ``fail``.
-    ``require_solution=False`` loads solution-less tasks (nop needs no
-    reference solution); whether Harbor itself then runs is its verdict.
+    Execution uses ``Executor.execute_direct`` after local resource admission.
+    Infrastructure failures are ``error``, never ``fail``.
+    ``require_solution=False`` supports solution-less nop controls.
     """
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
@@ -354,9 +357,12 @@ def run_harbor_control(
     root = Path(repo_root)
     task = load_harbor_task(task_dir, require_solution=require_solution)
     harbor_rev = harbor_revision()
-    work = (
-        Path(jobs_dir) if jobs_dir is not None else Path(tempfile.mkdtemp(prefix="interop-jobs-"))
-    )
+    if jobs_dir is None:
+        parent = root / "runs" / "interop"
+        parent.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="harbor-", dir=parent))
+    else:
+        work = Path(jobs_dir)
     work.mkdir(parents=True, exist_ok=True)
     request_kwargs: dict[str, Any] = {
         "task": task.task_dir,
@@ -369,6 +375,7 @@ def run_harbor_control(
         request_kwargs["timeout_seconds"] = timeout_seconds
     request = RunRequest(**request_kwargs)  # type: ignore[arg-type]
     try:
+        admit_local_task(task, work, sandboxes=2 if task.environment_mode == "separate" else 1)
         job_dir = Executor.from_repo(root, create_queue=False).execute_direct(request, ingest=False)
     except Exception as exc:
         return {
@@ -379,6 +386,7 @@ def run_harbor_control(
             "reward": None,
             "reason": f"harbor execution failed: {type(exc).__name__}: {exc}",
             "job_dir": None,
+            "evidence": str(work),
             "harbor_rev": harbor_rev,
         }
     try:
@@ -503,7 +511,7 @@ def run_harbor_cell(
                 "verdict": result["verdict"],
                 "reward": result.get("reward"),
                 "reason": result.get("reason"),
-                "evidence": result.get("job_dir"),
+                "evidence": result.get("evidence") or result.get("job_dir"),
             }
         )
         return cell
@@ -526,6 +534,7 @@ def run_harbor_cell(
         if ladder_version is not None:
             cell["ladder_version"] = ladder_gen
         try:
+            admit_local_task(task, work, sandboxes=2 if task.environment_mode == "separate" else 1)
             from evallab.harbor_view import installed_harbor_version
 
             version = installed_harbor_version()
@@ -573,13 +582,78 @@ def run_harbor_cell(
     return cell
 
 
-#: Live runs deliberately skip the campaign queue's dedicated-host admission
-#: gate (``campaign_execution.docker_available_resources`` refuses whenever
-#: ANY container on the shared laptop daemon is unbounded, e.g. the lab's own
-#: postgres or another agent's long-running container). Local ``evallab run``
-#: and ``evallab cheat run`` use no such pre-check: they attempt direct
-#: execution and surface Docker failures as errors. Interop live cells do the
-#: same -- infrastructure failures are ``error`` cells, never ``fail``.
+def admit_local_task(
+    task: HarborTask, workdir: Path, *, sandboxes: int = 1
+) -> dict[str, Any]:
+    """Check fresh Docker headroom and preserve both admission and refusal.
+
+    Reuse the grid/campaign capacity probe, including its controller reserve
+    and refusal of unbounded competing containers. Matrix cells are sequential;
+    this observation is not a host-global reservation against other launchers.
+    """
+    from evallab.campaign_execution import docker_available_resources
+
+    workdir.mkdir(parents=True, exist_ok=True)
+    record: dict[str, Any] = {
+        "observed_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        "task_id": task.task_id,
+        "admitted": False,
+        "sandboxes": sandboxes,
+    }
+    try:
+        if isinstance(sandboxes, bool) or sandboxes not in (1, 2):
+            raise ValueError("local controls allow one or two sandboxes only")
+        resources = task.resources
+        cpus = resources.get("cpus", DEFAULT_INSPECT_CPUS)
+        memory = resources.get("memory_mb", DEFAULT_INSPECT_MEMORY_MB)
+        if (
+            isinstance(cpus, bool)
+            or not isinstance(cpus, (int, float))
+            or not math.isfinite(cpus)
+            or cpus <= 0
+            or isinstance(memory, bool)
+            or not isinstance(memory, int)
+            or memory <= 0
+        ):
+            raise ValueError("task CPU and memory limits must be finite and positive")
+        if resources.get("gpus", 0):
+            raise ValueError("local no-model controls do not admit GPU tasks")
+        verifier = (task.config.get("verifier") or {}).get("environment")
+        if sandboxes == 2 and isinstance(verifier, dict):
+            verifier_cpus = verifier.get("cpus", DEFAULT_INSPECT_CPUS)
+            verifier_memory = verifier.get("memory_mb", DEFAULT_INSPECT_MEMORY_MB)
+            if (
+                isinstance(verifier_cpus, bool)
+                or not isinstance(verifier_cpus, (int, float))
+                or not math.isfinite(verifier_cpus)
+                or verifier_cpus <= 0
+                or isinstance(verifier_memory, bool)
+                or not isinstance(verifier_memory, int)
+                or verifier_memory <= 0
+            ):
+                raise ValueError("verifier CPU and memory limits must be finite and positive")
+            if verifier.get("gpus", 0):
+                raise ValueError("local no-model controls do not admit GPU verifiers")
+            cpus = max(cpus, verifier_cpus)
+            memory = max(memory, verifier_memory)
+        record["requested"] = {
+            "cpus": cpus * sandboxes,
+            "memory_mb": memory * sandboxes,
+        }
+        available_cpus, available_memory = docker_available_resources()
+        record["available"] = {"cpus": available_cpus, "memory_mb": available_memory}
+        if available_cpus < cpus * sandboxes or available_memory < memory * sandboxes:
+            raise ValueError(
+                f"need {cpus * sandboxes:g} CPU / {memory * sandboxes} MiB, "
+                f"available {available_cpus:g} CPU / {available_memory} MiB"
+            )
+        record["admitted"] = True
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        record["reason"] = f"local Docker admission refused: {exc}"
+        (workdir / "admission.json").write_text(json.dumps(record, indent=2) + "\n")
+        raise ValueError(record["reason"]) from exc
+    (workdir / "admission.json").write_text(json.dumps(record, indent=2) + "\n")
+    return record
 
 
 # ---------------------------------------------------------------------------
@@ -610,6 +684,7 @@ from inspect_ai.util import sandbox
 TASK_ID = "@@TASK_ID@@"
 TASK_DIR = Path(__file__).resolve().parent
 VERIFIER_TIMEOUT = @@VERIFIER_TIMEOUT@@
+CONTAINER_WORKDIR = @@WORKDIR_REPR@@
 METADATA = json.loads((TASK_DIR / "metadata.json").read_text(encoding="utf-8"))
 
 
@@ -647,7 +722,20 @@ def oracle_solver() -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         await _copy_dir(TASK_DIR / "solution", "/solution")
-        await sandbox().exec(["bash", "/solution/solve.sh"])
+        completed = await sandbox().exec(
+            ["bash", "/solution/solve.sh"], cwd=CONTAINER_WORKDIR
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(f"reference solution exited {completed.returncode}")
+        return state
+
+    return solve
+
+
+@solver
+def nop_solver() -> Solver:
+    """Model-free negative control; never stages the reference solution."""
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
         return state
 
     return solve
@@ -660,17 +748,20 @@ def harbor_test_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         await sandbox().exec(["mkdir", "-p", "/tests", "/logs/verifier"])
         await _copy_dir(TASK_DIR / "tests", "/tests")
+        await sandbox().exec(
+            ["rm", "-f", "/logs/verifier/reward.txt", "/logs/verifier/reward.json"]
+        )
         completed = await sandbox().exec(
-            ["bash", "/tests/test.sh"], timeout=VERIFIER_TIMEOUT
+            ["bash", "/tests/test.sh"], cwd=CONTAINER_WORKDIR, timeout=VERIFIER_TIMEOUT
         )
         log = f"Test exit code: {completed.returncode}\\n\\n{(completed.stdout or '')[-2000:]}"
         try:
             txt_raw = await sandbox().read_file("/logs/verifier/reward.txt")
-        except Exception:
+        except FileNotFoundError:
             txt_raw = None
         try:
             json_raw = await sandbox().read_file("/logs/verifier/reward.json")
-        except Exception:
+        except FileNotFoundError:
             json_raw = None
         txt = txt_raw.encode() if isinstance(txt_raw, str) else txt_raw
         js = json_raw.encode() if isinstance(json_raw, str) else json_raw
@@ -690,7 +781,9 @@ def harbor_test_scorer() -> Scorer:
 
 
 @task
-def harbor_task() -> Task:
+def harbor_task(agent: str = "oracle") -> Task:
+    if agent not in ("oracle", "nop"):
+        raise ValueError("exported controls support oracle/nop only")
     instruction = (TASK_DIR / "instruction.md").read_text(encoding="utf-8")
     return Task(
         dataset=[
@@ -700,54 +793,36 @@ def harbor_task() -> Task:
                 metadata=METADATA.get("metadata", {}),
             )
         ],
-        solver=[oracle_solver()],
+        solver=[oracle_solver() if agent == "oracle" else nop_solver()],
         scorer=harbor_test_scorer(),
         sandbox=("docker", str(TASK_DIR / "compose.yaml")),
         metadata={"harbor_task": TASK_ID, **METADATA.get("metadata", {})},
     )
 '''
 
-INSPECT_COMPOSE_TEMPLATE = """# Sandbox image for the exported Inspect AI task (Harbor: @@TASK_ID@@).
-# Built from the Harbor environment Dockerfile, unchanged.
-services:
-  default:
-    build:
-      context: .
-      dockerfile: environment/Dockerfile
-"""
 
 
 def export_inspect(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
-    """Export a Harbor task dir to a self-contained Inspect AI task dir."""
+    """Export the complete build context and model-free Inspect controls."""
     task = load_harbor_task(task_dir)
+    env = task.config.get("environment") or {}
+    env_dir = task.task_dir / "environment"
+    if any((env_dir / name).is_file() for name in ("docker-compose.yaml", "docker-compose.yml")):
+        raise ValueError("multi-service compose has no single-sandbox Inspect export mapping")
+    image = env.get("docker_image")
+    if not image and not (env_dir / "Dockerfile").is_file():
+        raise ValueError("Inspect export requires environment/Dockerfile or docker_image")
     out = Path(out_dir)
     if out.exists() and any(out.iterdir()):
         raise ValueError(f"refusing to write into non-empty directory: {out}")
-    (out / "solution").mkdir(parents=True, exist_ok=True)
-    (out / "tests").mkdir(parents=True, exist_ok=True)
-    (out / "environment").mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
+    for name in ("solution", "tests", "environment"):
+        source = task.task_dir / name
+        if source.is_dir():
+            shutil.copytree(source, out / name, dirs_exist_ok=True)
     (out / "instruction.md").write_text(task.instruction, encoding="utf-8")
-    # Copy the whole solution dir (solve.sh plus any helpers like solve.py):
-    # oracle_solver stages all of solution/ into the sandbox at runtime.
-    for child in sorted((task.task_dir / "solution").iterdir()):
-        dest = out / "solution" / child.name
-        if child.is_dir():
-            shutil.copytree(child, dest, dirs_exist_ok=True)
-        else:
-            shutil.copy2(child, dest)
-    for child in sorted((task.task_dir / task.tests_dir).iterdir()):
-        dest = out / "tests" / child.name
-        if child.is_dir():
-            shutil.copytree(child, dest, dirs_exist_ok=True)
-        else:
-            shutil.copy2(child, dest)
-    dockerfile = task.task_dir / "environment" / "Dockerfile"
-    if dockerfile.is_file():
-        shutil.copy2(dockerfile, out / "environment" / "Dockerfile")
-    verifier = task.config.get("verifier")
-    timeout = 600
-    if isinstance(verifier, dict) and isinstance(verifier.get("timeout_sec"), (int, float)):
-        timeout = int(verifier["timeout_sec"])
+    verifier = task.config.get("verifier") or {}
+    timeout = verifier.get("timeout_sec", 600)
     metadata_payload = {
         "harbor_task": task.task_id,
         "metadata": task.metadata,
@@ -757,44 +832,70 @@ def export_inspect(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
         json.dumps(metadata_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     (out / "task.py").write_text(
-        INSPECT_TASK_TEMPLATE.replace("@@TASK_ID@@", task.task_id).replace(
-            "@@VERIFIER_TIMEOUT@@", str(timeout)
-        ),
+        INSPECT_TASK_TEMPLATE.replace("@@TASK_ID@@", task.task_id)
+        .replace("@@VERIFIER_TIMEOUT@@", repr(timeout))
+        .replace("@@WORKDIR_REPR@@", repr(task_workdir(task))),
         encoding="utf-8",
     )
+    service: dict[str, Any] = {
+        "working_dir": task_workdir(task),
+        "cpus": task.resources.get("cpus", DEFAULT_INSPECT_CPUS),
+        "mem_limit": f"{task.resources.get('memory_mb', DEFAULT_INSPECT_MEMORY_MB)}m",
+    }
+    if image:
+        service["image"] = image
+    else:
+        # Keep COPY/ADD assets and .dockerignore in Harbor's original build context.
+        # tests/ and solution/ remain outside it, preventing answer leakage.
+        service["build"] = {"context": "./environment", "dockerfile": "Dockerfile"}
     (out / "compose.yaml").write_text(
-        INSPECT_COMPOSE_TEMPLATE.replace("@@TASK_ID@@", task.task_id), encoding="utf-8"
+        json.dumps({"services": {"default": service}}, indent=2) + "\n", encoding="utf-8"
     )
     notes: list[str] = []
-    if task.network_mode not in (None, "bridge", "none"):
+    if task.network_mode is not None:
         notes.append(
-            f"network_mode={task.network_mode!r}: the Harbor agent/verifier network "
-            "policy has no Inspect-AI-sandbox equivalent; the exported compose service "
-            "uses the default docker network."
+            f"network_mode={task.network_mode!r}: the export uses the default Docker "
+            "network, not Harbor's network policy or Eval Lab host-isolation backend."
         )
     if task.environment_mode == "separate":
         notes.append(
-            "verifier.environment_mode=separate: Harbor runs this verifier in a "
-            "separate image (see tests/Dockerfile); the export scores in the same "
-            "sandbox image, so verifier-only system deps must be folded in manually."
+            "verifier.environment_mode=separate: the export grades in the agent sandbox, "
+            "not a fresh verifier image with declared-artifact transfer."
         )
+    agent_config = task.config.get("agent") or {}
+    if agent_config.get("network_mode"):
+        notes.append("agent.network_mode: phase-specific network changes are not replayed.")
+    if verifier.get("user"):
+        notes.append("verifier.user: grading uses the image's default user, not this override.")
+    if env.get("mcp_servers"):
+        notes.append("environment.mcp_servers: no MCP sidecar lifecycle is exported.")
+    if env.get("env"):
+        notes.append("environment.env: environment variable overrides are not exported.")
+    if (task.config.get("solution") or {}).get("env"):
+        notes.append("solution.env: oracle environment overrides are not replayed.")
+    if task.resources.get("gpus") or task.resources.get("storage_mb"):
+        notes.append("GPU/storage limits are not enforced; only CPU and memory map to Compose.")
+    if agent_config.get("timeout_sec"):
+        notes.append("agent.timeout_sec: the exported solver uses Inspect's execution timeout.")
     mapping = (
         f"# Inspect export mapping: {task.task_id}\n\n"
         f"Source: `{task.task_dir}`\n\n"
         "| Harbor | Inspect export |\n"
         "| --- | --- |\n"
-        "| instruction.md | Sample input (task.py `harbor_task`) |\n"
-        "| solution/solve.sh | `oracle_solver` (copies solution/, runs solve.sh) |\n"
-        "| tests/test.sh | `harbor_test_scorer` (runs test.sh, grades reward file) |\n"
-        "| reward.txt / reward.json | `parse_reward_bytes`; missing file = error |\n"
+        "| instruction.md | Sample input |\n"
+        "| solution/solve.sh | oracle solver only; nop stages no solution |\n"
+        "| tests/test.sh | scorer; missing file = error |\n"
         "| task.toml [task] + [metadata] | metadata.json + Sample/Task metadata |\n"
-        "| environment/Dockerfile | environment/Dockerfile via compose.yaml |\n"
+        "| environment/ | unchanged build context, or declared docker_image |\n"
+        "| CPU / RAM / workdir | Compose service limits and working_dir |\n"
         "\n## Lossy mappings\n\n"
-        + (
-            "".join(f"- {note}\n" for note in notes)
-            if notes
-            else "None: every Harbor surface above has a direct Inspect equivalent.\n"
-        )
+        + ("".join(f"- {note}\n" for note in notes) if notes else "No detected losses.\n")
+        + "\n## Model-free controls\n\n"
+        "- `inspect eval task.py -T agent=oracle --model mockllm/model`\n"
+        "- `inspect eval task.py -T agent=nop --model mockllm/model`\n"
+        "\nDirect Inspect execution is outside Eval Lab admission; first obtain the same "
+        "local resource admission as an interop matrix cell. A rendered export is not "
+        "evidence that either control executed.\n"
     )
     (out / "MAPPING.md").write_text(mapping, encoding="utf-8")
     return {
@@ -810,16 +911,23 @@ def export_inspect(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
 # export-harbor --to karotte
 # ---------------------------------------------------------------------------
 def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
-    """Flag every lossy or impossible Harbor -> Karotte mapping.
+    """Report detected contract drift in the single-container Karotte mapping.
 
-    Returns ``[{code, detail}]``; an empty list means a faithful mapping.
-    Anything detected here lands in the generated MAPPING.md, never dropped.
-    Only real losses of the generic runner are flagged: the judge replays the
-    task's own tests/test.sh as root against collected submission copies, so
-    verifier packaging (apt/sudo) and artifact-less tasks map faithfully, and
-    task-declared cpus/memory_mb bound the run container like elsewhere.
+    Even when verdicts agree, Karotte's root-only submission collection and
+    post-start resource enforcement differ from native Harbor execution.
     """
-    flags: list[dict[str, str]] = []
+    flags: list[dict[str, str]] = [
+        {
+            "code": "submission-custody",
+            "detail": "Karotte kills student processes, wipes the workdir and grades collected "
+            "submission copies, rather than grading Harbor's live agent filesystem.",
+        },
+        {
+            "code": "post-start-resource-limits",
+            "detail": "CPU/RAM limits are applied after container startup by docker update; "
+            "they are not creation-time limits. A run with unapplied bounds is an error.",
+        },
+    ]
     env_dir = task.task_dir / "environment"
     if any((env_dir / name).is_file() for name in ("docker-compose.yaml", "docker-compose.yml")):
         flags.append(
@@ -832,7 +940,7 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 ),
             }
         )
-    if task.network_mode not in (None, "none"):
+    if task.network_mode is not None:
         flags.append(
             {
                 "code": "network-policy",
@@ -880,6 +988,27 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 ),
             }
         )
+    agent_config = task.config.get("agent") or {}
+    verifier = task.config.get("verifier") or {}
+    for code, declared, detail in (
+        ("agent-network-policy", agent_config.get("network_mode"),
+         "Per-agent network phase changes are not replayed."),
+        ("agent-user", agent_config.get("user"), "Karotte uses its own student identity."),
+        ("verifier-user", verifier.get("user"), "The generic judge grades as root."),
+        ("environment-env", (env or {}).get("env"), "Environment variable overrides are not replayed."),
+        ("agent-timeout", agent_config.get("timeout_sec"),
+         "The runner's timeout bounds the whole Karotte run, not Harbor's agent phase."),
+        ("storage-gpu-limits", task.resources.get("storage_mb") or task.resources.get("gpus"),
+         "Only CPU/RAM limits are applied; task storage/GPU requests are not mapped."),
+    ):
+        if declared:
+            flags.append({"code": code, "detail": detail})
+    timeout = verifier.get("timeout_sec")
+    if isinstance(timeout, (int, float)) and not 300 <= timeout <= 2100:
+        flags.append({
+            "code": "verifier-timeout",
+            "detail": f"Declared verifier timeout {timeout:g}s is clamped to the runner's 300–2100s range.",
+        })
     return flags
 
 
@@ -1081,20 +1210,19 @@ if __name__ == '__main__':
 
 
 def _collect_solution_files(task: HarborTask) -> tuple[list[str], list[str]]:
-    """Stageable ``solution/`` files (task-relative posix) plus skipped-large.
+    """Stageable solution files plus files exceeding the sandbox upload bound.
 
-    Oracle cells only: the reference solution lands at ``/solution`` like
-    Harbor's oracle upload. Agents never see ``tests/`` (Harbor uploads tests
-    after the agent) and nop/cheat never see the solution, so staging nothing
-    else keeps cheat cells as blind as on Harbor. Files over
-    ``MAX_STAGED_FILE_BYTES`` are skipped and reported.
+    Oracle cells only: nop/cheat never see tests or reference solution bytes.
+    The caller refuses incomplete plans instead of silently omitting helpers.
     """
     collected: list[str] = []
     skipped: list[str] = []
     root = task.task_dir / "solution"
     paths = sorted(root.rglob("*")) if root.is_dir() else []
     for path in paths:
-        if not path.is_file() or path.is_symlink():
+        if path.is_symlink():
+            raise ValueError(f"Inspect cannot faithfully stage solution symlink: {path}")
+        if not path.is_file():
             continue
         rel = path.relative_to(task.task_dir).as_posix()
         if path.stat().st_size > MAX_STAGED_FILE_BYTES:
@@ -1130,6 +1258,8 @@ def _write_inspect_run(
         (stage / name).write_bytes(data)
         blobs.append([container_path, f"stage/{name}"])
     task_files, skipped = _collect_solution_files(task) if agent == "oracle" else ([], [])
+    if skipped:
+        raise ValueError(f"Inspect upload limit excludes required solution files: {skipped}")
     manifest = {
         "agent": agent,
         "attacks": list(attacks),
@@ -1270,9 +1400,15 @@ def run_inspect_cell(
         return _fail(f"cannot build {agent} plan: {exc}")
     if ladder_version is not None and agent == "cheat":
         cell["ladder_version"] = parse_ladder_version(ladder_version)
+    try:
+        admit_local_task(task, work)
+    except (OSError, ValueError) as exc:
+        return _fail(str(exc))
     agent_timeout = timeout_seconds or 900
     resources = task.resources
     raw_cpus = resources.get("cpus")
+    if isinstance(raw_cpus, float) and not raw_cpus.is_integer():
+        return _fail("Inspect CPU overrides require whole CPUs; refusing fractional task limits")
     override_cpus = (
         int(raw_cpus)
         if isinstance(raw_cpus, (int, float)) and not isinstance(raw_cpus, bool) and raw_cpus > 0
@@ -1324,6 +1460,15 @@ def run_inspect_cell(
         _cleanup_inspect_containers(before, work)
         return _fail(f"inspect run timed out after {exc.timeout}s")
     _cleanup_inspect_containers(before, work)
+    (work / "driver-output.json").write_text(
+        json.dumps(
+            {"returncode": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr},
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    if completed.returncode != 0:
+        return _fail(f"Inspect driver exited {completed.returncode}; see driver-output.json")
     payload: dict[str, Any] | None = None
     for line in (completed.stdout or "").strip().splitlines()[::-1]:
         try:
@@ -1397,28 +1542,26 @@ def _cell_display(target: str, agent: str, verdict: str) -> str:
 def grade_task_row(
     cells: dict[str, str], *, targets: list[str], agents: list[str]
 ) -> tuple[str, list[str]]:
-    """Grade one task row: ``ok`` | ``broken`` | ``n/a`` plus problem list.
-
-    Grading is broken when a comparable oracle cell is not ``pass`` or a
-    comparable nop cell is not ``fail``. Skipped/error cells carry no grading
-    signal; rows with no comparable control cell grade ``n/a``.
-    """
+    """Distinguish wrong controls, incomplete execution, and actual agreement."""
     problems: list[str] = []
+    incomplete: list[str] = []
     seen_control = False
     for target in targets:
         for agent in agents:
             if agent not in ("oracle", "nop"):
                 continue
+            seen_control = True
             verdict = cells.get(f"{target}:{agent}")
             if verdict not in ("pass", "fail"):
-                continue
-            seen_control = True
-            if agent == "oracle" and verdict != "pass":
+                incomplete.append(f"{target}:{agent} unscored ({verdict or 'missing'})")
+            elif agent == "oracle" and verdict != "pass":
                 problems.append(f"{target}:oracle expected pass, got {verdict}")
-            if agent == "nop" and verdict != "fail":
+            elif agent == "nop" and verdict != "fail":
                 problems.append(f"{target}:nop expected fail, got {verdict}")
     if problems:
-        return "broken", problems
+        return "broken", problems + incomplete
+    if incomplete:
+        return "incomplete", incomplete
     return ("ok" if seen_control else "n/a"), []
 
 
@@ -1608,7 +1751,9 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
             return 2
         targets = list(args.targets)
         agents = list(args.agents)
-        work = Path(tempfile.mkdtemp(prefix="interop-matrix-"))
+        parent = root / "runs" / "interop"
+        parent.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="matrix-", dir=parent))
         rows = [
             matrix_task_row(
                 task_dir,
@@ -1636,6 +1781,9 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
         }
         if args.ladder_version is not None:
             envelope["ladder_version"] = ladder_version
+        (work / "matrix.json").write_text(
+            json.dumps(envelope, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         if args.json:
             print(json.dumps(envelope, indent=2, sort_keys=True))
         else:
@@ -1645,18 +1793,22 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
             print(f"workdir: {work}")
             for row in rows:
                 for problem in row["problems"]:
-                    print(f"  {row['task_id']}: grading broken -- {problem}")
+                    print(f"  {row['task_id']}: grading {row['grading']} -- {problem}")
                 for key, detail in row["details"].items():
                     reason = detail.get("reason") if isinstance(detail, dict) else None
                     if reason and detail.get("verdict") not in ("pass", "fail"):
                         print(f"  {row['task_id']} {key}: {reason}")
-        broken = sum(1 for r in rows if r["grading"] == "broken")
-        if not broken and all(r["grading"] == "n/a" for r in rows):
-            print(
-                "note: no row had a comparable control cell "
-                "(all skipped/error); exit 0 is not agreement"
-            )
-        return 1 if broken else 0
+        if any(row["grading"] == "broken" for row in rows):
+            return 1
+        if any(
+            row["cells"].get(f"{target}:{agent}") not in ("pass", "fail")
+            for row in rows
+            for target in targets
+            for agent in agents
+        ):
+            print("interop matrix: incomplete execution is not agreement", file=sys.stderr)
+            return 2
+        return 0
     print("interop: unknown command", file=sys.stderr)
     return 2
 

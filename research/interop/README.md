@@ -40,6 +40,13 @@ Karotte's collected-copy grading is not Harbor shared-mode custody. Actual
 Inspect/Karotte exports exercised the corrected wording, without building or
 starting a sandbox. No live-parity acceptance is claimed.
 
+The **12:05 PM ET fifth-resume probe** still refused normal admission before
+image preparation. Its [source-citation errata](../evidence/har204-source-citation-errata-20261017.json)
+preserve the original evidence while correcting two insufficient native-source
+references: Compose/MCP declarations and separate-verifier/collected-copy
+custody. All sixteen exclusions remain source-qualified support boundaries,
+not live destination qualification. The runtime prerequisite remains open.
+
 The [dated evidence receipt](../evidence/har204-interop-20261017.json) separates:
 
 - **Actual source regression:** the old Inspect export omitted `events.jsonl`

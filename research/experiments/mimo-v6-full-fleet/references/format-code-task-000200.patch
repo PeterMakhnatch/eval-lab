@@ -1,0 +1,25 @@
+diff --git a/doc/releases/changelog-dev.md b/doc/releases/changelog-dev.md
+index 4a6d1393b..0d4e563fe 100644
+--- a/doc/releases/changelog-dev.md
++++ b/doc/releases/changelog-dev.md
+@@ -273,6 +273,9 @@
+ * The QAOA module now accepts both NetworkX and RetworkX graphs as function inputs.
+   [(#1791)](https://github.com/PennyLaneAI/pennylane/pull/1791)
+ 
++* Barrier now supports `adjoint` method.
++  [(#2063)](https://github.com/PennyLaneAI/pennylane/pull/2063)
++
+ <h3>Breaking changes</h3>
+ 
+ * The behaviour of `RotosolveOptimizer` has been changed regarding
+diff --git a/pennylane/ops/qubit/non_parametric_ops.py b/pennylane/ops/qubit/non_parametric_ops.py
+index cc2fcf93f..98dcde6b9 100644
+--- a/pennylane/ops/qubit/non_parametric_ops.py
++++ b/pennylane/ops/qubit/non_parametric_ops.py
+@@ -1186,3 +1186,6 @@ class Barrier(Operation):
+ 
+     def label(self, decimals=None):
+         return "||"
++
++    def adjoint(self):
++        return Barrier(wires=self.wires)

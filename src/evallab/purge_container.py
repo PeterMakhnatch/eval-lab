@@ -9,6 +9,7 @@ installs keep working. Neither touches other distributions or worktree source.
 
 from __future__ import annotations
 
+import ast
 import configparser
 import importlib.util
 import json
@@ -19,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -397,42 +399,191 @@ def _v2_is_test_py(installed_rel: str) -> bool:
     )
 
 
-def v2_project_tops(cwd: Path, tracked: list[str] | None = None) -> tuple[set[str], set[str]]:
-    """``(package tops, single-module tops)`` installed from this worktree.
+@dataclass(frozen=True)
+class V2PackageOwnership:
+    """Installed-relative owned trees, shared boundaries and exact BASE files.
 
-    Package tops are first components of tracked non-test ``.py`` files that
-    either ship a tracked ``__init__.py`` or hold at least two tracked
-    non-test modules; single-module tops are tracked root ``.py`` files
-    (e.g. ``pyupgrade``). ``src/`` layouts map to their installed names.
+    A namespace initializer belongs to BASE, not to every distribution below
+    its directory. The nearest tree/namespace boundary decides whether an
+    untracked file is ours to delete; exact tracked files always remain ours.
+    """
+
+    roots: frozenset[str]
+    namespaces: frozenset[str] = frozenset()
+    files: frozenset[str] = frozenset()
+
+    @property
+    def tops(self) -> set[str]:
+        return {rel.split("/", 1)[0] for rel in self.roots | self.files}
+
+    def owns_directory(self, rel: str) -> bool:
+        parts = rel.split("/")
+        for end in range(len(parts), 0, -1):
+            parent = "/".join(parts[:end])
+            if parent in self.namespaces:
+                return False
+            if parent in self.roots:
+                return True
+        return False
+
+
+def _v2_namespace_packages(cwd: Path, tracked: list[str]) -> set[str]:
+    """Read legacy namespace declarations without executing project setup code."""
+    names: set[str] = set()
+
+    def add(values: object) -> None:
+        if not isinstance(values, (list, tuple, set)) or any(
+            not isinstance(value, str) or not all(part.isidentifier() for part in value.split("."))
+            for value in values
+        ):
+            raise SystemExit(V2_ID + ": cannot determine declared namespace ownership")
+        names.update(value.replace(".", "/") for value in values)
+
+    if "setup.cfg" in tracked:
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            parser.read_string((cwd / "setup.cfg").read_text(encoding="utf-8"))
+            value = parser.get("options", "namespace_packages", fallback="")
+        except (OSError, UnicodeError, configparser.Error) as exc:
+            raise SystemExit(V2_ID + ": cannot read namespace ownership from setup.cfg") from exc
+        add(value.replace(",", " ").split())
+    if "setup.py" not in tracked:
+        return names
+    try:
+        text = (cwd / "setup.py").read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise SystemExit(V2_ID + ": cannot read namespace ownership from setup.py") from exc
+    if "namespace_packages" not in text:
+        return names
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise SystemExit(V2_ID + ": cannot parse namespace ownership from setup.py") from exc
+    recognized: set[ast.AST] = set()
+    assignments = {
+        target.id: (target, node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+
+    def literal(node: ast.AST, seen: frozenset[str] = frozenset()) -> object:
+        recognized.add(node)
+        if isinstance(node, ast.Name) and node.id in assignments and node.id not in seen:
+            target, value = assignments[node.id]
+            recognized.add(target)
+            return literal(value, seen | {node.id})
+        try:
+            value = ast.literal_eval(node)
+        except (ValueError, TypeError, SyntaxError) as exc:
+            raise SystemExit(V2_ID + ": cannot determine namespace ownership from setup.py") from exc
+        recognized.update(ast.walk(node))
+        return value
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "namespace_packages":
+            recognized.add(node)
+            add(literal(node.value))
+        elif isinstance(node, ast.Dict):
+            for index, key in enumerate(node.keys):
+                value = node.values[index]
+                if isinstance(key, ast.Constant) and key.value == "namespace_packages":
+                    recognized.add(key)
+                    add(literal(value))
+    for node in ast.walk(tree):
+        if node in recognized:
+            continue
+        # A namespace marker in a subscript, attribute, indirect call or other
+        # unsupported form is not evidence that the declaration is absent.
+        if (
+            (isinstance(node, ast.Constant) and node.value == "namespace_packages")
+            or (isinstance(node, ast.Name) and node.id == "namespace_packages")
+            or (isinstance(node, ast.Attribute) and node.attr == "namespace_packages")
+        ):
+            raise SystemExit(V2_ID + ": cannot determine namespace ownership from setup.py")
+    return names
+
+
+def _v2_namespace_init(content: bytes) -> bool:
+    """Recognize pkgutil/pkg_resources namespaces, including imported aliases."""
+    try:
+        tree = ast.parse(content)
+    except (SyntaxError, ValueError):
+        # Python-2-only initializers still occur in BASE. A possible namespace
+        # marker narrows ownership even when this interpreter cannot parse it.
+        return re.search(rb"\b(declare_namespace|extend_path|__path__)\b", content) is not None
+    calls = {"declare_namespace", "extend_path"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in {"pkgutil", "pkg_resources"}:
+            calls.update(alias.asname or alias.name for alias in node.names if alias.name in calls)
+    return any(
+        (
+            isinstance(node, ast.Call)
+            and (
+                (isinstance(node.func, ast.Attribute) and node.func.attr in calls)
+                or (isinstance(node.func, ast.Name) and node.func.id in calls)
+            )
+        )
+        or (
+            isinstance(node, ast.Name)
+            and node.id == "__path__"
+            and isinstance(node.ctx, ast.Store)
+        )
+        for node in ast.walk(tree)
+    )
+
+
+def v2_project_tops(
+    cwd: Path, tracked: list[str] | None = None
+) -> tuple[V2PackageOwnership, set[str]]:
+    """Return source-truthful package ownership and single-module tops.
+
+    Regular tracked ``__init__.py`` files establish owned trees. Missing
+    initializers (PEP 420), namespace initializers and static setuptools
+    ``namespace_packages`` declarations establish shared boundaries instead.
+    Tracked files at those boundaries are exact matches, never permission to
+    delete sibling distributions. ``src/`` maps to installed-relative paths.
     """
     if tracked is None:
         tracked = v2_ls_files(cwd)
-    counts: dict[str, int] = {}
-    inits: set[str] = set()
-    for entry in tracked:
-        rel = _v2_installed_rel(entry)
-        comps = rel.split("/")
-        if not rel.endswith(".py") or _v2_is_test_py(rel) or len(comps) != 2:
-            continue
-        if comps[1] == "__init__.py":
-            inits.add(comps[0])
-        counts[comps[0]] = counts.get(comps[0], 0) + 1
-    packages = {top for top, total in counts.items() if top.isidentifier()}
-    packages = {
-        top
-        for top in packages
-        if (top in inits or counts[top] >= 2) and top not in _V2_NON_TOP_DIRS
-    }
+    installed = {_v2_installed_rel(entry): entry for entry in tracked}
+    directories: set[str] = set()
+    tops: set[str] = set()
     modules: set[str] = set()
-    for entry in tracked:
-        rel = _v2_installed_rel(entry)
+    for rel in installed:
         comps = rel.split("/")
-        if len(comps) != 1 or not rel.endswith(".py") or _v2_is_test_py(rel):
+        if not rel.endswith(".py") or _v2_is_test_py(rel):
             continue
-        stem = comps[0][:-3]
-        if stem.isidentifier() and stem not in _V2_NON_MODULE_STEMS:
-            modules.add(stem)
-    return packages, modules
+        if len(comps) == 1:
+            stem = comps[0][:-3]
+            if stem.isidentifier() and stem not in _V2_NON_MODULE_STEMS:
+                modules.add(stem)
+        elif comps[0] not in _V2_NON_TOP_DIRS and all(part.isidentifier() for part in comps[:-1]):
+            tops.add(comps[0])
+            directories.update("/".join(comps[:end]) for end in range(1, len(comps)))
+    namespaces = _v2_namespace_packages(cwd, tracked) if directories else set()
+    roots: set[str] = set()
+    for directory in sorted(directories):
+        init = directory + "/__init__.py"
+        if init not in installed:
+            namespaces.add(directory)
+            continue
+        content = _v2_read_base(cwd, installed[init])
+        if content is None:
+            raise SystemExit(V2_ID + ": cannot determine namespace ownership from " + init)
+        if directory in namespaces or _v2_namespace_init(content):
+            namespaces.add(directory)
+        else:
+            roots.add(directory)
+    files = {
+        rel
+        for rel in installed
+        if "/" in rel
+        and rel.split("/", 1)[0] in tops
+        and not any(part.endswith(_V2_METADATA_SUFFIXES) for part in rel.split("/"))
+    }
+    return V2PackageOwnership(frozenset(roots), frozenset(namespaces), frozenset(files)), modules
 
 
 def _v2_read_base(cwd: Path, tracked: str) -> bytes | None:
@@ -444,16 +595,15 @@ def _v2_read_base(cwd: Path, tracked: str) -> bytes | None:
 
 def v2_base_map(
     cwd: Path,
-    packages: set[str],
+    packages: V2PackageOwnership,
     modules: set[str],
     tracked: list[str] | None = None,
 ) -> dict[str, bytes | None]:
     """Installed-relative path -> BASE bytes (``None`` when unreadable).
 
-    Covers all tracked ``.py`` files under package tops (tests included:
-    installed trees ship them, and excluding them misclassifies those copies
-    as fix-added deletions), single-module tops, and package data (other
-    tracked files living in package dirs).
+    Covers tracked package sources (including shared namespace initializers,
+    tests and data), plus single-module tops. The same ownership matcher drives
+    collection and verification; shared siblings never become fix-added files.
     """
     if tracked is None:
         tracked = v2_ls_files(cwd)
@@ -463,10 +613,7 @@ def v2_base_map(
         comps = rel.split("/")
         if any(comp.endswith(_V2_METADATA_SUFFIXES) for comp in comps):
             continue
-        if len(comps) == 1:
-            if comps[0][:-3] in modules and rel.endswith(".py") and not _v2_is_test_py(rel):
-                base[rel] = _v2_read_base(cwd, entry)
-        elif comps[0] in packages:
+        if v2_match_rel(rel, packages, modules) is not None:
             base[rel] = _v2_read_base(cwd, entry)
     return base
 
@@ -588,7 +735,7 @@ def _v2_find_named(prefixes: list[str], name: str, maxdepth: int, want: str) -> 
 
 def v2_find_roots(
     cwd: Path,
-    packages: set[str],
+    packages: V2PackageOwnership,
     modules: set[str],
     base: dict[str, bytes | None] | None = None,
     sys_path: list[str] | None = None,
@@ -660,7 +807,7 @@ def v2_find_roots(
     if base is None:
         base = v2_base_map(cwd, packages, modules)
     stray_pkgs: list[tuple[Path, str]] = []
-    for top in sorted(packages):
+    for top in sorted(packages.tops):
         sample = [rel for rel in base if rel.startswith(top + "/")][:50]
         for hit in _v2_find_named(["/testbed", "/workspace"], top, 4, "dir"):
             try:
@@ -689,17 +836,42 @@ def v2_find_roots(
     return site, build, stray_pkgs, stray_mods
 
 
-def v2_match_rel(rel: str, packages: set[str], modules: set[str]) -> str | None:
-    """Installed-relative path under a search root -> tracked rel, or None.
+def _v2_bytecode_source(rel: str) -> str | None:
+    """Return the exact source counterpart of legacy or PEP 3147/488 bytecode."""
+    if not rel.endswith((".pyc", ".pyo")):
+        return None
+    if "__pycache__" in rel.split("/"):
+        try:
+            # Older tagged caches use .pyo; their source layout is identical.
+            return importlib.util.source_from_cache(rel[:-1] + "c")
+        except (ValueError, NotImplementedError):
+            return None
+    return rel[:-1]
 
-    The suffix must start at the project's own top-level package (direct
-    child of the searched root), so vendored copies inside other packages
-    (``setuptools/_vendor/...``) never match. Single-module tops match only
-    directly under the root.
+
+def v2_match_rel(rel: str, packages: V2PackageOwnership, modules: set[str]) -> str | None:
+    """Map only exact BASE files or files inside proven owned package trees.
+
+    Paths remain anchored at the search root: vendored nested copies never
+    match. A shared namespace boundary blocks broad matching until a deeper
+    owned package begins. Single-module tops still match directly at the root.
     """
     comps = rel.split("/")
-    if len(comps) >= 2 and comps[0].replace("-", "_") in packages:
-        return comps[0].replace("-", "_") + "/" + "/".join(comps[1:])
+    comps[0] = comps[0].replace("-", "_")
+    normalized = "/".join(comps)
+    source = _v2_bytecode_source(normalized)
+    if source is not None and (
+        source in packages.files or ("/" not in source and source[:-3] in modules)
+    ):
+        return normalized
+    if "__pycache__" in comps:
+        # An owned tree alone does not identify a cache's source. Keep sibling
+        # and unrecognized caches unless an exact BASE module proves ownership.
+        return None
+    if len(comps) >= 2 and (
+        normalized in packages.files or packages.owns_directory("/".join(comps[:-1]))
+    ):
+        return normalized
     if len(comps) == 1 and rel.endswith(".py") and comps[0][:-3] in modules:
         return rel
     return None
@@ -716,7 +888,7 @@ def _v2_under_worktree(path: Path, cwd_resolved: Path) -> bool:
 def _v2_walk_root(
     root: Path,
     cwd_resolved: Path,
-    packages: set[str],
+    packages: V2PackageOwnership,
     modules: set[str],
     add: Callable[[Path, str, str], None],
     only_top: str | None = None,
@@ -726,17 +898,31 @@ def _v2_walk_root(
         keep: list[str] = []
         for name in dirnames:
             full = Path(current) / name
-            if name == "__pycache__" or name.endswith(_V2_METADATA_SUFFIXES):
+            if Path(current).name == "__pycache__" or name.endswith(_V2_METADATA_SUFFIXES):
                 continue
             if only_top is not None and Path(current) == root and name != only_top:
                 continue
+            if name == "__pycache__":
+                if not full.is_symlink():
+                    keep.append(name)
+                continue
             if full.is_symlink():
-                if (
-                    Path(current) == root
-                    and name.replace("-", "_") in packages
-                    and not _v2_under_worktree(full, cwd_resolved)
+                if _v2_under_worktree(full, cwd_resolved):
+                    continue
+                parts = full.relative_to(root).parts
+                rel = "/".join((parts[0].replace("-", "_"),) + parts[1:])
+                owned = packages.owns_directory(rel)
+                shared_below = any(
+                    boundary.startswith(rel + "/") for boundary in packages.namespaces
+                )
+                if owned and not shared_below:
+                    add(full, rel + "/", "linkdir")
+                elif owned or any(
+                    source.startswith(rel + "/") for source in packages.roots | packages.files
                 ):
-                    add(full, name.replace("-", "_") + "/", "linkdir")
+                    raise SystemExit(
+                        V2_ID + ": cannot safely neutralize linked shared namespace " + str(full)
+                    )
                 continue
             keep.append(name)
         dirnames[:] = keep
@@ -758,7 +944,7 @@ def _v2_walk_root(
 
 def v2_collect_matches(
     cwd: Path,
-    packages: set[str],
+    packages: V2PackageOwnership,
     modules: set[str],
     site_roots: list[Path],
     build_roots: list[Path],
@@ -803,12 +989,14 @@ def _v2_drop(path: Path) -> None:
 
 
 def _v2_drop_adjacent_pyc(path: Path, log: list[str]) -> None:
-    """Delete ``__pycache__`` entries compiled from a neutralized module."""
+    """Delete only adjacent bytecode with this exact module as its source."""
     if path.suffix != ".py":
         return
     cache = path.parent / "__pycache__"
     if cache.is_dir() and not cache.is_symlink():
-        for child in sorted(cache.glob(path.stem + ".*.pyc")):
+        for child in sorted(cache.iterdir()):
+            if _v2_bytecode_source(child.as_posix()) != path.as_posix():
+                continue
             try:
                 child.unlink()
             except OSError:
@@ -860,6 +1048,9 @@ def v2_neutralize_matches(
         if tracked in base and content is None:
             raise SystemExit(V2_ID + ": cannot read BASE bytes for " + tracked)
         if tracked not in base:
+            # A preceding source match may already have removed this cache.
+            if not path.exists() and not path.is_symlink():
+                continue
             if path.suffix in _V2_COMPILED_EXTS and path.is_file():
                 log.append(V2_ID + " kept compiled artifact " + path.as_posix())
                 continue
@@ -962,7 +1153,7 @@ def v2_action_neutralize(
 ) -> None:
     """@2 setup step one: overwrite copies with BASE bytes, record prestate."""
     packages, modules = v2_project_tops(cwd, tracked=tracked)
-    tops = sorted(packages | modules)
+    tops = sorted(packages.tops | modules)
     log_path = _v2_log_path(state_dir)
     if not tops:
         line = V2_ID + ": no project tops in " + str(cwd) + "; nothing to do"

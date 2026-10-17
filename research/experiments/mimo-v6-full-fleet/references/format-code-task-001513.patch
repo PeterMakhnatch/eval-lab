@@ -1,0 +1,26 @@
+diff --git a/src/adapter/aws-lambda/handler.ts b/src/adapter/aws-lambda/handler.ts
+index 30d40c33..58557a67 100644
+--- a/src/adapter/aws-lambda/handler.ts
++++ b/src/adapter/aws-lambda/handler.ts
+@@ -261,7 +261,7 @@ const isProxyEventV2 = (event: LambdaEvent): event is APIGatewayProxyEventV2 =>
+ }
+ 
+ export const isContentTypeBinary = (contentType: string) => {
+-  return !/^(text\/(plain|html|css|javascript|csv).*|application\/(.*json|.*xml).*|image\/svg\+xml)$/.test(
++  return !/^(text\/(plain|html|css|javascript|csv).*|application\/(.*json|.*xml).*|image\/svg\+xml.*)$/.test(
+     contentType
+   )
+ }
+diff --git a/src/adapter/lambda-edge/handler.ts b/src/adapter/lambda-edge/handler.ts
+index 45d39066..5316eaf8 100644
+--- a/src/adapter/lambda-edge/handler.ts
++++ b/src/adapter/lambda-edge/handler.ts
+@@ -158,7 +158,7 @@ const createRequest = (event: CloudFrontEdgeEvent) => {
+ }
+ 
+ export const isContentTypeBinary = (contentType: string) => {
+-  return !/^(text\/(plain|html|css|javascript|csv).*|application\/(.*json|.*xml).*|image\/svg\+xml)$/.test(
++  return !/^(text\/(plain|html|css|javascript|csv).*|application\/(.*json|.*xml).*|image\/svg\+xml.*)$/.test(
+     contentType
+   )
+ }

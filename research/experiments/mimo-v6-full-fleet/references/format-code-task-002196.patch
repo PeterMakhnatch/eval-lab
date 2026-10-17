@@ -1,0 +1,36 @@
+diff --git a/doc/source/whatsnew/v0.21.0.txt b/doc/source/whatsnew/v0.21.0.txt
+index 2d55144848..1931ffff4b 100644
+--- a/doc/source/whatsnew/v0.21.0.txt
++++ b/doc/source/whatsnew/v0.21.0.txt
+@@ -312,6 +312,7 @@ Reshaping
+ - Bug when using :func:`isin` on a large object series and large comparison array (:issue:`16012`)
+ - Fixes regression from 0.20, :func:`Series.aggregate` and :func:`DataFrame.aggregate` allow dictionaries as return values again (:issue:`16741`)
+ - Fixes dtype of result with integer dtype input, from :func:`pivot_table` when called with ``margins=True`` (:issue:`17013`)
++- Bug in ``pd.crosstab()`` where passing two ``Series`` with the same name raised a ``KeyError`` (:issue:`13279`)
+ 
+ Numeric
+ ^^^^^^^
+diff --git a/pandas/core/reshape/pivot.py b/pandas/core/reshape/pivot.py
+index fe525eb0a3..d4ea49c130 100644
+--- a/pandas/core/reshape/pivot.py
++++ b/pandas/core/reshape/pivot.py
+@@ -148,8 +148,17 @@ def pivot_table(data, values=None, index=None, columns=None, aggfunc='mean',
+ 
+     table = agged
+     if table.index.nlevels > 1:
+-        to_unstack = [agged.index.names[i] or i
+-                      for i in range(len(index), len(keys))]
++        # Related GH #17123
++        # If index_names are integers, determine whether the integers refer
++        # to the level position or name.
++        index_names = agged.index.names[:len(index)]
++        to_unstack = []
++        for i in range(len(index), len(keys)):
++            name = agged.index.names[i]
++            if name is None or name in index_names:
++                to_unstack.append(i)
++            else:
++                to_unstack.append(name)
+         table = agged.unstack(to_unstack)
+ 
+     if not dropna:

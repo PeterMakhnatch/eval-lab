@@ -1,0 +1,48 @@
+diff --git a/CHANGELOG.rst b/CHANGELOG.rst
+index bc2910d..ed9eb05 100644
+--- a/CHANGELOG.rst
++++ b/CHANGELOG.rst
+@@ -2,6 +2,10 @@
+ Changelog
+ =========
+ 
++* Fix bug in ``STORAGES`` fixer when only one of ``DEFAULT_FILE_STORAGE`` or ``STATICFILES_STORAGE`` was defined.
++
++  Thanks to Bruno Alla in `PR #376 <https://github.com/adamchainz/django-upgrade/pull/376>`__.
++
+ 1.14.0 (2023-06-14)
+ -------------------
+ 
+diff --git a/src/django_upgrade/fixers/settings_storages.py b/src/django_upgrade/fixers/settings_storages.py
+index 4603ba8..6148993 100644
+--- a/src/django_upgrade/fixers/settings_storages.py
++++ b/src/django_upgrade/fixers/settings_storages.py
+@@ -33,6 +33,11 @@ NAME_MAP = {
+     "DEFAULT_FILE_STORAGE": "default",
+     "STATICFILES_STORAGE": "staticfiles",
+ }
++# Keep initial values from Django if one isn't defined
++INITIAL_VALUES = {
++    "default": "django.core.files.storage.FileSystemStorage",
++    "staticfiles": "django.contrib.staticfiles.storage.StaticFilesStorage",
++}
+ 
+ 
+ class SettingsDetails:
+@@ -138,5 +143,16 @@ def replace_storages(
+                         "    },",
+                     ]
+                 )
++            elif not details.settings_star_import:
++                new_name = NAME_MAP[name]
++                initial_value = INITIAL_VALUES[new_name]
++                src_fragments.extend(
++                    [
++                        f'    "{new_name}": {{',
++                        f'        "BACKEND": "{initial_value}",',
++                        "    },",
++                    ]
++                )
++
+         src_fragments.append("}\n")
+         insert(tokens, i, new_src="\n".join(src_fragments))

@@ -1,0 +1,51 @@
+diff --git a/docs/changelog.rst b/docs/changelog.rst
+index c94a13bdbc..d585d31b9d 100755
+--- a/docs/changelog.rst
++++ b/docs/changelog.rst
+@@ -14,6 +14,7 @@ Changelog
+ * :bug:`-` Bitmex balances will now be queried correctly.
+ * :bug:`-` Interactions with aave via safe should no longer be missing interest events.
+ * :bug:`-` Aave v3 withdrawals of native assets should now have proper ordering and include interest earned.
++* :bug:`9200` Editing a Kraken event to include a custom asset should no longer botch history events retrieval.
+ 
+ * :release:`1.37.0 <2024-12-24>`
+ * :feature:`7144` Users will be able to import multiple addresses into the address book via CSV.
+diff --git a/rotkehlchen/history/events/structures/base.py b/rotkehlchen/history/events/structures/base.py
+index cef38e6c1b..7a8058161a 100644
+--- a/rotkehlchen/history/events/structures/base.py
++++ b/rotkehlchen/history/events/structures/base.py
+@@ -281,26 +281,26 @@ class HistoryBaseEntry(AccountingEventMixin, ABC, Generic[ExtraDataType]):
+         if self.location == Location.KRAKEN and not self.notes:
+             if self.event_type == HistoryEventType.TRADE:
+                 if self.event_subtype == HistoryEventSubType.SPEND:
+-                    serialized_data['notes'] = f'Swap {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} in Kraken'  # noqa: E501
++                    serialized_data['notes'] = f'Swap {self.balance.amount} {self.asset.symbol_or_name()} in Kraken'  # noqa: E501
+                 elif self.event_subtype == HistoryEventSubType.RECEIVE:
+-                    serialized_data['notes'] = f'Receive {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} as a result of a Kraken swap'  # noqa: E501
++                    serialized_data['notes'] = f'Receive {self.balance.amount} {self.asset.symbol_or_name()} as a result of a Kraken swap'  # noqa: E501
+                 elif self.event_subtype == HistoryEventSubType.FEE:
+-                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} as Kraken trading fee'  # noqa: E501
++                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.symbol_or_name()} as Kraken trading fee'  # noqa: E501
+ 
+             elif self.event_type == HistoryEventType.STAKING:
+                 if self.event_subtype == HistoryEventSubType.REWARD:
+-                    serialized_data['notes'] = f'Gain {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} from Kraken staking'  # noqa: E501
++                    serialized_data['notes'] = f'Gain {self.balance.amount} {self.asset.symbol_or_name()} from Kraken staking'  # noqa: E501
+                 elif self.event_subtype == HistoryEventSubType.FEE:
+-                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} as Kraken staking fee'  # noqa: E501
++                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.symbol_or_name()} as Kraken staking fee'  # noqa: E501
+ 
+             elif self.event_type == HistoryEventType.WITHDRAWAL:
+                 if self.event_subtype == HistoryEventSubType.REMOVE_ASSET:
+-                    serialized_data['notes'] = f'Withdraw {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} from Kraken'  # noqa: E501
++                    serialized_data['notes'] = f'Withdraw {self.balance.amount} {self.asset.symbol_or_name()} from Kraken'  # noqa: E501
+                 elif self.event_subtype == HistoryEventSubType.FEE:
+-                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} as Kraken withdrawal fee'  # noqa: E501
++                    serialized_data['notes'] = f'Spend {self.balance.amount} {self.asset.symbol_or_name()} as Kraken withdrawal fee'  # noqa: E501
+ 
+             elif self.event_type == HistoryEventType.DEPOSIT and self.event_subtype == HistoryEventSubType.DEPOSIT_ASSET:  # noqa: E501
+-                serialized_data['notes'] = f'Deposit {self.balance.amount} {self.asset.resolve_to_asset_with_symbol().symbol} to Kraken'  # noqa: E501
++                serialized_data['notes'] = f'Deposit {self.balance.amount} {self.asset.symbol_or_name()} to Kraken'  # noqa: E501
+ 
+         return serialized_data
+ 

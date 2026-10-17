@@ -1,0 +1,13 @@
+diff --git a/packages/dd-trace/src/plugins/util/redis.js b/packages/dd-trace/src/plugins/util/redis.js
+index 69752992f..9550b0e3f 100644
+--- a/packages/dd-trace/src/plugins/util/redis.js
++++ b/packages/dd-trace/src/plugins/util/redis.js
+@@ -42,7 +42,7 @@ const redis = {
+ function formatCommand (command, args) {
+   command = command.toUpperCase()
+ 
+-  if (!args) return command
++  if (!args || command === 'AUTH') return command
+ 
+   for (let i = 0, l = args.length; i < l; i++) {
+     if (typeof args[i] === 'function') continue

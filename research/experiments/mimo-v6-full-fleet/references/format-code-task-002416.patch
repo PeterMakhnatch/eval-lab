@@ -1,0 +1,35 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 00f94aac..4741a06c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,6 +1,7 @@
+ # **Upcoming release**
+ 
+-- #492, Feat: Global configuration support
++- #492 Feat: Global configuration support
++- #509 Fix read/write analysis of the left-hand side of an augmented assignment
+ 
+ # Release 1.4.0
+ 
+diff --git a/rope/refactor/extract.py b/rope/refactor/extract.py
+index ff762d73..fd576292 100644
+--- a/rope/refactor/extract.py
++++ b/rope/refactor/extract.py
+@@ -856,12 +856,12 @@ class _FunctionInformationCollector:
+ 
+     def _AugAssign(self, node):
+         ast.walk(node.value, self)
+-        if isinstance(node.target, ast.Subscript):
+-            target_id = node.target.value.id
+-        else:
++        if isinstance(node.target, ast.Name):
+             target_id = node.target.id
+-        self._read_variable(target_id, node.target.lineno)
+-        self._written_variable(target_id, node.target.lineno)
++            self._read_variable(target_id, node.target.lineno)
++            self._written_variable(target_id, node.target.lineno)
++        else:
++            ast.walk(node.target, self)
+ 
+     def _ClassDef(self, node):
+         self._written_variable(node.name, node.lineno)

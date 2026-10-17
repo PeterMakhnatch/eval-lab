@@ -1,0 +1,12 @@
+diff --git a/fabricio/docker/image.py b/fabricio/docker/image.py
+index 9c5eda6..c63b6db 100644
+--- a/fabricio/docker/image.py
++++ b/fabricio/docker/image.py
+@@ -120,6 +120,7 @@ class Image(object):
+                 ('name', name),
+                 ('rm', temporary),
+                 ('tty', temporary),
++                ('interactive', temporary),
+                 ('detach', temporary is not None and not temporary),
+             ),
+             **options

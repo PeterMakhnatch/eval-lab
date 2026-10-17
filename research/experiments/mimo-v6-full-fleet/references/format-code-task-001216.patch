@@ -1,0 +1,124 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index cf7d7e27..470d9687 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -57,6 +57,9 @@ The versions follow [semantic versioning](https://semver.org).
+ 
+ - `addheader` now recognises many more extensions. Too many to list here.
+ 
++- `addheader` now also recognises full filenames such as `Makefile` and
++  `.gitignore`.
++
+ - Added BibTex comment style.
+ 
+ ### Changed
+diff --git a/docs/conf.py b/docs/conf.py
+index 91876206..177ad017 100644
+--- a/docs/conf.py
++++ b/docs/conf.py
+@@ -22,7 +22,7 @@ import os
+ import sys
+ from shutil import copyfile
+ 
+-from pkg_resources import get_distribution, DistributionNotFound
++from pkg_resources import DistributionNotFound, get_distribution
+ 
+ sys.path.insert(0, os.path.abspath("../src/"))
+ 
+diff --git a/src/reuse/_comment.py b/src/reuse/_comment.py
+index 4ee36c7e..c42e2b7d 100644
+--- a/src/reuse/_comment.py
++++ b/src/reuse/_comment.py
+@@ -1,5 +1,6 @@
+-# SPDX-FileCopyrightText: 2019 Free Software Foundation Europe e.V.
++# SPDX-FileCopyrightText: 2019-2020 Free Software Foundation Europe e.V.
+ # SPDX-FileCopyrightText: 2019 Kirill Elagin
++# SPDX-FileCopyrightText: 2020 Dmitry Bogatov
+ #
+ # SPDX-License-Identifier: GPL-3.0-or-later
+ 
+@@ -341,7 +342,7 @@ class TexCommentStyle(CommentStyle):
+ 
+ 
+ #: A map of (common) file extensions against comment types.
+-COMMENT_STYLE_MAP = {
++EXTENSION_COMMENT_STYLE_MAP = {
+     ".adb": HaskellCommentStyle,
+     ".ads": HaskellCommentStyle,
+     ".ahk": LispCommentStyle,
+@@ -442,6 +443,20 @@ COMMENT_STYLE_MAP = {
+     ".zsh": PythonCommentStyle,
+ }
+ 
++FILENAME_COMMENT_STYLE_MAP = {
++    ".gitattributes": PythonCommentStyle,
++    ".gitignore": PythonCommentStyle,
++    ".gitmodules": PythonCommentStyle,
++    ".editorconfig": PythonCommentStyle,
++    ".pylintrc": PythonCommentStyle,
++    "Dockerfile": PythonCommentStyle,
++    "Makefile": PythonCommentStyle,
++    "Manifest.in": PythonCommentStyle,
++    "manifest": PythonCommentStyle,  # used by cdist
++    "requirements.txt": PythonCommentStyle,
++    "setup.cfg": PythonCommentStyle,
++}
++
+ # IMPORTANT: !!! When adding a new style, also edit usage.rst !!!
+ #: A map of human-friendly names against style classes.
+ NAME_STYLE_MAP = {
+diff --git a/src/reuse/header.py b/src/reuse/header.py
+index cb2ddb54..f917404d 100644
+--- a/src/reuse/header.py
++++ b/src/reuse/header.py
+@@ -1,6 +1,7 @@
+-# SPDX-FileCopyrightText: 2019 Free Software Foundation Europe e.V.
++# SPDX-FileCopyrightText: 2019-2020 Free Software Foundation Europe e.V.
+ # SPDX-FileCopyrightText: 2019 Stefan Bakker <s.bakker777@gmail.com>
+ # SPDX-FileCopyrightText: 2019 Kirill Elagin <kirelagin@gmail.com>
++# SPDX-FileCopyrightText: 2020 Dmitry Bogatov
+ #
+ # SPDX-License-Identifier: GPL-3.0-or-later
+ 
+@@ -23,7 +24,8 @@ from license_expression import ExpressionError
+ 
+ from . import SpdxInfo
+ from ._comment import (
+-    COMMENT_STYLE_MAP,
++    EXTENSION_COMMENT_STYLE_MAP,
++    FILENAME_COMMENT_STYLE_MAP,
+     NAME_STYLE_MAP,
+     CommentCreateError,
+     CommentParseError,
+@@ -268,10 +270,21 @@ def find_and_replace_header(
+     return new_text
+ 
+ 
++def _get_comment_style(path: Path) -> CommentStyle:
++    """Return value of CommentStyle detected for *path*.
++
++    :raises KeyError: if no comment style is detected.
++    """
++    style = FILENAME_COMMENT_STYLE_MAP.get(path.name)
++    if style is None:
++        style = EXTENSION_COMMENT_STYLE_MAP[path.suffix]
++    return style
++
++
+ def _verify_paths_supported(paths, parser):
+     for path in paths:
+         try:
+-            COMMENT_STYLE_MAP[path.suffix]
++            _get_comment_style(path)
+         except KeyError:
+             # TODO: This check is duplicated.
+             if not is_binary(str(path)):
+@@ -321,7 +334,7 @@ def _add_header_to_file(
+     if style is not None:
+         style = NAME_STYLE_MAP[style]
+     else:
+-        style = COMMENT_STYLE_MAP[path.suffix]
++        style = _get_comment_style(path)
+ 
+     with path.open("r") as fp:
+         text = fp.read()

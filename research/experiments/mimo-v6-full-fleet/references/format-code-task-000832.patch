@@ -1,0 +1,26 @@
+diff --git a/README.rst b/README.rst
+index 0cbb5be..a80ac98 100644
+--- a/README.rst
++++ b/README.rst
+@@ -321,7 +321,8 @@ This is a separate operation that should be called after verification to handle
+ 
+     try:
+         exclude_old_transactions=False # if True, include only the latest renewal transaction
+-        validation_result = await validator.validate('receipt', 'optional-shared-secret', exclude_old_transactions=exclude_old_transactions)
++        async with validator:  # Use async context manager to ensure proper session management
++            validation_result = await validator.validate('receipt', 'optional-shared-secret', exclude_old_transactions=exclude_old_transactions)
+     except InAppPyValidationError as ex:
+         # handle validation error
+         response_from_apple = ex.raw_response  # contains actual response from AppStore service.
+diff --git a/inapppy/asyncio/appstore.py b/inapppy/asyncio/appstore.py
+index 91558bd..e05d549 100644
+--- a/inapppy/asyncio/appstore.py
++++ b/inapppy/asyncio/appstore.py
+@@ -19,6 +19,7 @@ class AppStoreValidator(AppStoreValidator):
+ 
+     async def __aenter__(self):
+         self._session = ClientSession()
++        return self
+ 
+     async def __aexit__(self, exc_type, exc_val, exc_tb):
+         await self._session.close()

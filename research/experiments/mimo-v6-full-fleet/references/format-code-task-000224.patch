@@ -1,0 +1,82 @@
+diff --git a/docs/release_notes.rst b/docs/release_notes.rst
+index d6eb8ec..7b02c79 100644
+--- a/docs/release_notes.rst
++++ b/docs/release_notes.rst
+@@ -10,8 +10,8 @@ Current Development Version
+ Major Updates
+ 
+ * Support for Python 2.6 has been dropped (#206, #217).
+-* Support for PyPy3 2.6 has been temporarily dropped, until it will be
+-  equivalent to CPython 3.3+ (#223).
++* Support for PyPy3 has been temporarily dropped, until it will be
++  equivalent to CPython 3.3+ and supported by ``pip`` (#223).
+ * Support for the ``pep257`` console script has been dropped. Only the
+   ``pydocstyle`` console script should be used (#216, #218).
+ 
+@@ -19,6 +19,7 @@ New Features
+ 
+ * Decorator-based skipping via ``--ignore-decorators`` has been added (#204).
+ * Support for using pycodestyle style wildcards has been added (#72, #209).
++* Superfluous opening quotes are now reported as part of D300 (#166, #224).
+ 
+ Bug Fixes
+ 
+@@ -27,6 +28,7 @@ Bug Fixes
+   underscore. This is a bugfix where "public module" (D100) was reported
+   regardless of module name (#199, #222).
+ 
++
+ 1.1.1 - October 4th, 2016
+ -------------------------
+ 
+diff --git a/docs/snippets/publicity.rst b/docs/snippets/publicity.rst
+index 8bc272d..9945f40 100644
+--- a/docs/snippets/publicity.rst
++++ b/docs/snippets/publicity.rst
+@@ -4,7 +4,7 @@ determined and what its effects are.
+ 
+ 
+ How publicity is determined
+-===========================
++^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ Publicity for all constructs is determined as follows: a construct is
+ considered *public* if -
+@@ -27,7 +27,7 @@ name does not begin with a single underscore.
+ 
+ 
+ How publicity affects error reports
+-===================================
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The immediate effect of a construct being determined as private is that no
+ D1xx errors will be reported for it (or its children, as the previous section
+diff --git a/src/pydocstyle/checker.py b/src/pydocstyle/checker.py
+index 9b830ee..5d139ab 100644
+--- a/src/pydocstyle/checker.py
++++ b/src/pydocstyle/checker.py
+@@ -275,16 +275,17 @@ class PEP257Checker(object):
+ 
+         '''
+         if docstring:
+-            opening = docstring[:5].lower()
+-            if '"""' in ast.literal_eval(docstring) and opening.startswith(
+-                    ("'''", "r'''", "u'''", "ur'''")):
++            if '"""' in ast.literal_eval(docstring):
+                 # Allow ''' quotes if docstring contains """, because
+                 # otherwise """ quotes could not be expressed inside
+                 # docstring. Not in PEP 257.
+-                return
+-            if not opening.startswith(('"""', 'r"""', 'u"""', 'ur"""')):
+-                quotes = "'''" if "'''" in opening else "'"
+-                return violations.D300(quotes)
++                regex = re(r"[uU]?[rR]?'''[^'].*")
++            else:
++                regex = re(r'[uU]?[rR]?"""[^"].*')
++
++            illegal_matcher = re(r"""[uU]?[rR]?("+|'+).*""")
++            if not regex.match(docstring):
++                return violations.D300(illegal_matcher.match(docstring).group(1))
+ 
+     @check_for(Definition)
+     def check_backslashes(self, definition, docstring):

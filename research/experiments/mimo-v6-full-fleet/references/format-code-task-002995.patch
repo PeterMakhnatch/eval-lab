@@ -1,0 +1,96 @@
+diff --git a/wemake_python_styleguide/violations/consistency.py b/wemake_python_styleguide/violations/consistency.py
+index 969b35d5..4b86d17a 100644
+--- a/wemake_python_styleguide/violations/consistency.py
++++ b/wemake_python_styleguide/violations/consistency.py
+@@ -44,6 +44,7 @@ Summary
+    ComparisonOrderViolation
+    MultipleInComparisonViolation
+    RedundantComparisonViolation
++   MissingSpaceBetweenKeywordAndParenViolation
+ 
+ Consistency checks
+ ------------------
+@@ -61,6 +62,7 @@ Consistency checks
+ .. autoclass:: ComparisonOrderViolation
+ .. autoclass:: MultipleInComparisonViolation
+ .. autoclass:: RedundantComparisonViolation
++.. autoclass:: MissingSpaceBetweenKeywordAndParenViolation
+ 
+ """
+ 
+@@ -496,3 +498,39 @@ class RedundantComparisonViolation(ASTViolation):
+     #: Error message shown to the user.
+     error_template = 'Found comparison between same variable'
+     code = 312
++
++
++class MissingSpaceBetweenKeywordAndParenViolation(TokenizeViolation):
++    """
++    Forbid opening parenthesis from following keyword without space in between.
++
++    Reasoning:
++        Some people use ``return`` and ``yield`` keywords as functions.
++        The same happened to good old ``print`` in Python2.
++    Solution:
++        Insert space symbol between keyword and open paren.
++
++    Example::
++
++        # Wrong:
++        def func():
++            a = 1
++            b = 2
++            del(a, b)
++            yield(1, 2, 3)
++
++        # Correct:
++        def func():
++            a = 1
++            del (a, b)
++            yield (1, 2, 3)
++
++    Note:
++        Returns Z313 as error code
++
++    """
++
++    should_use_text = False
++    #: Error message shown to the user.
++    error_template = 'Found paren right after a keyword'
++    code = 313
+diff --git a/wemake_python_styleguide/visitors/tokenize/keywords.py b/wemake_python_styleguide/visitors/tokenize/keywords.py
+new file mode 100644
+index 00000000..2808b905
+--- /dev/null
++++ b/wemake_python_styleguide/visitors/tokenize/keywords.py
+@@ -0,0 +1,30 @@
++# -*- coding: utf-8 -*-
++
++import keyword
++import tokenize
++
++from wemake_python_styleguide.violations.consistency import (
++    MissingSpaceBetweenKeywordAndParenViolation,
++)
++from wemake_python_styleguide.visitors.base import BaseTokenVisitor
++
++
++class WrongKeywordTokenVisitor(BaseTokenVisitor):
++    """Visits keywords and finds violations related to their usage."""
++
++    def _check_space_before_open_paren(self, token: tokenize.TokenInfo) -> None:
++        if token.line[token.end[1]:].startswith('('):
++            self.add_violation(
++                MissingSpaceBetweenKeywordAndParenViolation(token),
++            )
++
++    def visit_name(self, token: tokenize.TokenInfo) -> None:
++        """
++        Check keywords related rules.
++
++        Raises:
++            MissingSpaceBetweenKeywordAndParenViolation
++
++        """
++        if keyword.iskeyword(token.string):
++            self._check_space_before_open_paren(token)

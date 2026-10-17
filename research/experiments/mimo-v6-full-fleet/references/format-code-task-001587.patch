@@ -1,0 +1,42 @@
+diff --git a/docs/users/queries/whois.rst b/docs/users/queries/whois.rst
+index 8feb732..a3f7669 100644
+--- a/docs/users/queries/whois.rst
++++ b/docs/users/queries/whois.rst
+@@ -120,7 +120,10 @@ IRRd style queries
+ * ``!m<object-class>,<primary-key>`` searches for objects exactly matching
+   the primary key, of the specified RPSL object class. For example:
+   ``!maut-num,AS23456``. Stops at the first object. The key is case
+-  sensitive.
++  sensitive. If the object class is `route` or `route6`, any spaces or dashes
++  in the key are ignored for legacy IRRd compatibility in composite keys.
++  This allows querying for e.g. ``!mroute,192.0.2.0/24AS65530``, but also
++  the legacy options ``192.0.2.0/24 AS65530`` and ``!mroute,192.0.2.0/24-AS65530``
+ * ``!o<mntner-name>`` searches for all objects with the specified maintainer
+   in its `mnt-by` attribute.
+ * ``!n<free-text>`` identifies the client querying IRRd. Optional, but may
+diff --git a/irrd/server/whois/query_parser.py b/irrd/server/whois/query_parser.py
+index 8c2a2b2..dd9dfac 100644
+--- a/irrd/server/whois/query_parser.py
++++ b/irrd/server/whois/query_parser.py
+@@ -277,6 +277,8 @@ class WhoisQueryParser:
+         except ValueError:
+             raise InvalidQueryException(f'Invalid argument for object lookup: {parameter}')
+ 
++        if object_class in ['route', 'route6']:
++            rpsl_pk = rpsl_pk.upper().replace(' ', '').replace('-', '')
+         query = self.query_resolver.key_lookup(object_class, rpsl_pk)
+         return self._flatten_query_output(query)
+ 
+diff --git a/irrd/storage/queries.py b/irrd/storage/queries.py
+index 084051e..e5c65dd 100644
+--- a/irrd/storage/queries.py
++++ b/irrd/storage/queries.py
+@@ -38,7 +38,7 @@ class BaseRPSLObjectDatabaseQuery:
+         return self._filter(self.columns.pk.in_(pks))
+ 
+     def rpsl_pk(self, rpsl_pk: str):
+-        """Filter on an exact RPSL PK (e.g. 192.0.2.0/24,AS65537)."""
++        """Filter on an exact RPSL PK (e.g. 192.0.2.0/24AS65537)."""
+         return self.rpsl_pks([rpsl_pk])
+ 
+     def rpsl_pks(self, rpsl_pks: List[str]):

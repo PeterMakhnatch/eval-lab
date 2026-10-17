@@ -1,0 +1,85 @@
+diff --git a/torus/configuration.py b/torus/configuration.py
+index e677af4..3e856ae 100644
+--- a/torus/configuration.py
++++ b/torus/configuration.py
+@@ -4,9 +4,11 @@ Copyright (c) 2013, Agora Games, LLC All rights reserved.
+ https://github.com/agoragames/torus/blob/master/LICENSE.txt
+ '''
+ 
++import imp
++import hashlib
+ import logging
+ 
+-from torus.schema import Schema
++from torus.schema import Schema, long_or_float
+ from torus.aggregates import Aggregates
+ 
+ class Configuration(object):
+@@ -15,6 +17,7 @@ class Configuration(object):
+   '''
+ 
+   def __init__(self):
++    self._files = []
+     self._debug = 0
+     self._schemas = []
+     self._aggregates = Aggregates()
+@@ -25,6 +28,26 @@ class Configuration(object):
+   def debug(self):
+     return self._debug
+ 
++  def load(self, fname):
++    '''
++    Load a file and cache the rename for future reloading.
++    '''
++    self._files.append( fname )
++    self._load_source( fname, notify='on_load' )
++
++  def reload(self):
++    '''
++    Reload all of the configurations.
++    '''
++    self._debug = 0
++    self._schemas = []
++    self._aggregates = Aggregates()
++    self._transforms = {}
++    self._macros = {}
++    
++    for fname in self._files:
++      self._load_source( fname, notify='on_reload' )
++
+   def transform(self, name):
+     '''
+     Get a named transform from the configurations, or None if not found.
+@@ -91,3 +114,32 @@ class Configuration(object):
+ 
+   def load_aggregate(self, spec):
+     self._aggregates.add( spec )
++
++  def _load_source(self, fname, notify='on_load'):
++    '''
++    Load the file source.
++    '''
++    mod_name = hashlib.sha1(fname).hexdigest()
++    with open(fname, 'r') as source:
++      mod = imp.load_module( mod_name, source, fname, ('py','r',imp.PY_SOURCE) )
++      mod.__dict__['long_or_float'] = long_or_float
++
++      schemas = getattr(mod,'SCHEMAS',{})
++      aggregates = getattr(mod,'AGGREGATES',[])
++      transforms = getattr(mod,'TRANSFORMS',{})
++      macros = getattr(mod,'MACROS',{})
++
++      for name,schema in schemas.items():
++        self.load_schema(name, schema)
++      self.load_aggregate( aggregates )
++
++      for name,func in transforms.items():
++        self._transforms[name] = func
++
++      for name,macro in macros.items():
++        self._macros[name] = macro
++      
++      self._debug = getattr(mod, 'DEBUG', self._debug)
++
++      if callable( getattr(mod, notify, None) ):
++        getattr(mod, notify)()

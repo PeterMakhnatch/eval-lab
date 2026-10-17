@@ -1,0 +1,121 @@
+diff --git a/doc/source/whatsnew/v1.0.0.rst b/doc/source/whatsnew/v1.0.0.rst
+index 9847324147..b45bec37e8 100644
+--- a/doc/source/whatsnew/v1.0.0.rst
++++ b/doc/source/whatsnew/v1.0.0.rst
+@@ -304,6 +304,26 @@ The following methods now also correctly output values for unobserved categories
+    df.groupby(["cat_1", "cat_2"], observed=False)["value"].count()
+ 
+ 
++By default :meth:`Categorical.min` now returns the minimum instead of np.nan
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++When :class:`Categorical` contains ``np.nan``,
++:meth:`Categorical.min` no longer return ``np.nan`` by default (skipna=True) (:issue:`25303`)
++
++*pandas 0.25.x*
++
++.. code-block:: ipython
++
++   In [1]: pd.Categorical([1, 2, np.nan], ordered=True).min()
++   Out[1]: nan
++
++
++*pandas 1.0.0*
++
++.. ipython:: python
++
++   pd.Categorical([1, 2, np.nan], ordered=True).min()
++
+ .. _whatsnew_1000.api_breaking.deps:
+ 
+ Increased minimum versions for dependencies
+@@ -410,6 +430,8 @@ Deprecations
+ - :func:`is_extension_type` is deprecated, :func:`is_extension_array_dtype` should be used instead (:issue:`29457`)
+ - :func:`eval` keyword argument "truediv" is deprecated and will be removed in a future version (:issue:`29812`)
+ - :meth:`Categorical.take_nd` is deprecated, use :meth:`Categorical.take` instead (:issue:`27745`)
++- The parameter ``numeric_only`` of :meth:`Categorical.min` and :meth:`Categorical.max` is deprecated and replaced with ``skipna`` (:issue:`25303`)
++-
+ 
+ .. _whatsnew_1000.prior_deprecations:
+ 
+diff --git a/pandas/core/arrays/categorical.py b/pandas/core/arrays/categorical.py
+index 83f6051b84..f4a20b8082 100644
+--- a/pandas/core/arrays/categorical.py
++++ b/pandas/core/arrays/categorical.py
+@@ -2123,7 +2123,8 @@ class Categorical(ExtensionArray, PandasObject):
+             raise TypeError(f"Categorical cannot perform the operation {name}")
+         return func(**kwargs)
+ 
+-    def min(self, numeric_only=None, **kwargs):
++    @deprecate_kwarg(old_arg_name="numeric_only", new_arg_name="skipna")
++    def min(self, skipna=True):
+         """
+         The minimum value of the object.
+ 
+@@ -2139,17 +2140,18 @@ class Categorical(ExtensionArray, PandasObject):
+         min : the minimum of this `Categorical`
+         """
+         self.check_for_ordered("min")
+-        if numeric_only:
+-            good = self._codes != -1
+-            pointer = self._codes[good].min(**kwargs)
+-        else:
+-            pointer = self._codes.min(**kwargs)
+-        if pointer == -1:
+-            return np.nan
++        good = self._codes != -1
++        if not good.all():
++            if skipna:
++                pointer = self._codes[good].min()
++            else:
++                return np.nan
+         else:
+-            return self.categories[pointer]
++            pointer = self._codes.min()
++        return self.categories[pointer]
+ 
+-    def max(self, numeric_only=None, **kwargs):
++    @deprecate_kwarg(old_arg_name="numeric_only", new_arg_name="skipna")
++    def max(self, skipna=True):
+         """
+         The maximum value of the object.
+ 
+@@ -2165,15 +2167,15 @@ class Categorical(ExtensionArray, PandasObject):
+         max : the maximum of this `Categorical`
+         """
+         self.check_for_ordered("max")
+-        if numeric_only:
+-            good = self._codes != -1
+-            pointer = self._codes[good].max(**kwargs)
+-        else:
+-            pointer = self._codes.max(**kwargs)
+-        if pointer == -1:
+-            return np.nan
++        good = self._codes != -1
++        if not good.all():
++            if skipna:
++                pointer = self._codes[good].max()
++            else:
++                return np.nan
+         else:
+-            return self.categories[pointer]
++            pointer = self._codes.max()
++        return self.categories[pointer]
+ 
+     def mode(self, dropna=True):
+         """
+diff --git a/pandas/core/series.py b/pandas/core/series.py
+index a8232f137f..11e87a4eed 100644
+--- a/pandas/core/series.py
++++ b/pandas/core/series.py
+@@ -3820,9 +3820,7 @@ class Series(base.IndexOpsMixin, generic.NDFrame):
+             self._get_axis_number(axis)
+ 
+         if isinstance(delegate, Categorical):
+-            # TODO deprecate numeric_only argument for Categorical and use
+-            # skipna as well, see GH25303
+-            return delegate._reduce(name, numeric_only=numeric_only, **kwds)
++            return delegate._reduce(name, skipna=skipna, **kwds)
+         elif isinstance(delegate, ExtensionArray):
+             # dispatch to ExtensionArray interface
+             return delegate._reduce(name, skipna=skipna, **kwds)

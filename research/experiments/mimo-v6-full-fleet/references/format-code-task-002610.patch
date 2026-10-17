@@ -1,0 +1,93 @@
+diff --git a/.gitignore b/.gitignore
+index b411b77..d12bc36 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -128,3 +128,5 @@ tags
+ [._]*.un~
+ 
+ # End of https://www.gitignore.io/api/vim,python
++
++.vscode
+diff --git a/docs/conf.py b/docs/conf.py
+index 9a74f56..eec2595 100644
+--- a/docs/conf.py
++++ b/docs/conf.py
+@@ -30,7 +30,7 @@ VERSION = __version__.rsplit('.', 1)[0]
+ # -- General configuration ------------------------------------------------
+ 
+ # If your documentation needs a minimal Sphinx version, state it here.
+-# needs_sphinx = '1.0'
++needs_sphinx = '6.0'
+ 
+ # Add any Sphinx extension module names here, as strings. They can be
+ # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+@@ -308,4 +308,4 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
+ # Wrap text in tables
+ # https://github.com/snide/sphinx_rtd_theme/issues/117#issuecomment-41571653
+ def setup(app):
+-    app.add_stylesheet("theme_overrides.css")
++    app.add_css_file("theme_overrides.css")
+diff --git a/docs/configuration.rst b/docs/configuration.rst
+index 408fa66..fce0b2b 100644
+--- a/docs/configuration.rst
++++ b/docs/configuration.rst
+@@ -81,9 +81,9 @@ The following is a list of all available configuration options:
+ ================  ============================================  ===============
+ Option            Description                                   Scope
+ ================  ============================================  ===============
+-``requirements``  Path to the project's requirements file, and  global only
+-                  to any additional eggs that should be
+-                  deployed to Scrapy Cloud. See
++``requirements``  Path to the project's requirements file, and  global default
++                  to any additional eggs that should be         and project-\
++                  deployed to Scrapy Cloud. See                 specific
+                   :ref:`deploying-dependencies`.
+ ``stack``         `Scrapy Cloud stack`_ to use (this is the     global default
+                   environment that your project will run in,    and project-\
+@@ -236,3 +236,20 @@ as well as different API endpoints::
+     apikeys:
+       default: 0bbf4f0f691e0d9378ae00ca7bcf7f0c
+       vagrant: a1aeecc4cd52744730b1ea6cd3e8412a
++
++Global and project-specific requirements. ``requirements.txt`` is used for projects ``prod`` and ``some``, ``requirements-dev.txt`` and eggs for ``dev``::
++
++  projects:
++    prod: 12345
++    dev:
++        id: 345
++        requirements:
++            file: requirements-dev.txt
++            eggs:
++            - ./egg1.egg
++            - ./egg2.egg
++    some: 567
++  requirements:
++    file: requirements.txt
++  stacks:
++    default: "scrapy:2.8"
+diff --git a/shub/config.py b/shub/config.py
+index 150888b..6bad500 100644
+--- a/shub/config.py
++++ b/shub/config.py
+@@ -292,6 +292,9 @@ class ShubConfig(object):
+                            "" % proj['endpoint'])
+                 raise MissingAuthException(msg)
+             apikey = None
++        proj_requirements = proj.get('requirements', {})
++        requirements = proj_requirements.get('file', self.requirements_file)
++        eggs = proj_requirements.get('eggs', self.eggs)
+         return Target(
+             project_id=proj['id'],
+             endpoint=self.endpoints[proj['endpoint']],
+@@ -299,9 +302,9 @@ class ShubConfig(object):
+             stack=(self.stacks.get(proj['stack'], proj['stack'])
+                    if 'stack' in proj else self.stacks.get('default')),
+             image=self._select_image_for_project(target, proj),
+-            requirements_file=self.requirements_file,
++            requirements_file=requirements,
+             version=self.get_version(),
+-            eggs=self.eggs,
++            eggs=eggs,
+         )
+ 
+     def _select_image_for_project(self, target, project):

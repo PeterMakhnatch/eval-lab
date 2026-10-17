@@ -1,0 +1,87 @@
+diff --git a/README.md b/README.md
+index 6c9a748..8f02226 100644
+--- a/README.md
++++ b/README.md
+@@ -110,11 +110,22 @@ app.controler('ExampleController', function($scope, name, year, close) {
+ });
+ ```
+ 
++You can also provide a controller function directly to the modal, with or without the controllerAs attribute :
++
++```js
++ModalService.showModal({
++  template: "<div>Fry lives in {{futurama.city}}</div>",
++  controller: function() {
++    this.city = "New New York";
++  },
++  controllerAs : "futurama"
++})
++```
+ #### ShowModal Options
+ 
+ The `showModal` function takes an object with these fields:
+ 
+-* `controller`: The name of the controller to created.
++* `controller`: The name of the controller to created. It could be a function.
+ * `controllerAs` : The name of the variable on the scope the controller is assigned to - (optional).
+ * `templateUrl`: The URL of the HTML template to use for the modal.
+ * `template`: If `templateUrl` is not specified, you can specify `template` as raw
+@@ -216,14 +227,14 @@ to manually close the modal. Then call the `close` function as normal:
+ 
+ ```js
+ app.controller('ExampleModalController', [
+-  '$scope', '$element', 'close', 
++  '$scope', '$element', 'close',
+   function($scope, $element, close) {
+ 
+   $scope.closeModal = function() {
+ 
+     //  Manually hide the modal using bootstrap.
+     $element.modal('hide');
+-    
++
+     //  Now close as normal, but give 500ms for bootstrap to animate
+     close(null, 500);
+   };
+diff --git a/src/angular-modal-service.js b/src/angular-modal-service.js
+index edf8cd7..0d8287d 100644
+--- a/src/angular-modal-service.js
++++ b/src/angular-modal-service.js
+@@ -62,12 +62,6 @@
+           return deferred.promise;
+         }
+ 
+-        //  If a 'controllerAs' option has been provided, we change the controller
+-        //  name to use 'as' syntax. $controller will automatically handle this.
+-        if(options.controllerAs) {
+-          controllerName = controllerName + " as " + options.controllerAs;
+-        }
+-
+         //  Get the actual html of the template.
+         getTemplate(options.template, options.templateUrl)
+           .then(function(template) {
+@@ -93,9 +87,9 @@
+                   //  We can now clean up the scope and remove the element from the DOM.
+                   modalScope.$destroy();
+                   modalElement.remove();
+-                  
++
+                   //  Unless we null out all of these objects we seem to suffer
+-                  //  from memory leaks, if anyone can explain why then I'd 
++                  //  from memory leaks, if anyone can explain why then I'd
+                   //  be very interested to know.
+                   inputs.close = null;
+                   deferred = null;
+@@ -125,8 +119,11 @@
+             inputs.$element = modalElement;
+ 
+             //  Create the controller, explicitly specifying the scope to use.
+-            var modalController = $controller(controllerName, inputs);
++            var modalController = $controller(options.controller, inputs);
+ 
++            if(options.controllerAs){
++              modalScope[options.controllerAs] = modalController ;
++            }
+             //  Finally, append the modal to the dom.
+             if (options.appendElement) {
+               // append to custom append element

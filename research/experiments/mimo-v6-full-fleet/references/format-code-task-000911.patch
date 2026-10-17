@@ -1,0 +1,47 @@
+diff --git a/docs/src/pages/docs/functions/helpers.md b/docs/src/pages/docs/functions/helpers.md
+index 38252630..c39040ba 100644
+--- a/docs/src/pages/docs/functions/helpers.md
++++ b/docs/src/pages/docs/functions/helpers.md
+@@ -1000,7 +1000,7 @@ exercise some discipline here to not mutate.
+ `crocks/Result/tryCatch`
+ 
+ ```haskell
+-tryCatch :: (a -> b) -> a -> Result e b
++tryCatch :: ((*) -> b) -> (*) -> Result e b
+ ```
+ 
+ Typical try-catch blocks are very imperative in their usage. This `tryCatch`
+diff --git a/docs/src/pages/docs/functions/index.md b/docs/src/pages/docs/functions/index.md
+index 7dfabb75..45659fb3 100644
+--- a/docs/src/pages/docs/functions/index.md
++++ b/docs/src/pages/docs/functions/index.md
+@@ -99,7 +99,7 @@ need to account for for the rest of your flow.
+ | [`setPath`][setpath] | <code>[ String &#124; Integer ] -> a -> (Object &#124; Array) -> (Object &#124; Array)</code> | `crocks/helpers/setPath` |
+ | [`tap`][tap] | `(a -> b) -> a -> a` | `crocks/helpers/tap` |
+ | [`toPairs`][topairs] | `Object -> List (Pair String a)` | `crocks/Pair/toPairs` |
+-| [`tryCatch`][trycatch] | `(a -> b) -> a -> Result e b` | `crocks/Result/tryCatch` |
++| [`tryCatch`][trycatch] | `((*) -> b) -> (*) -> Result e b` | `crocks/Result/tryCatch` |
+ | [`unary`][unary] | `((*) -> b) -> a -> b` | `crocks/helpers/unary` |
+ | [`unit`][unit] | `() -> undefined` | `crocks/helpers/unit` |
+ | [`unsetPath`][unsetpath] |  <code>[ String &#124; Integer] -> (Object &#124; Array) -> (Object &#124; Array)</code>  | `crocks/helpers/unsetPath` |
+diff --git a/src/Result/tryCatch.js b/src/Result/tryCatch.js
+index 8a30d6e1..263dacd9 100644
+--- a/src/Result/tryCatch.js
++++ b/src/Result/tryCatch.js
+@@ -10,10 +10,14 @@ function tryCatch(fn) {
+     throw new TypeError('tryCatch: Function required for first argument')
+   }
+ 
+-  return function(x) {
+-    try { return Ok(fn(x)) }
++  const safe = function() {
++    try { return Ok(fn.apply(this, arguments)) }
+     catch(e) { return Err(e) }
+   }
++
++  Object.defineProperty(safe, 'length', { value: fn.length })
++
++  return safe
+ }
+ 
+ module.exports = curry(tryCatch)

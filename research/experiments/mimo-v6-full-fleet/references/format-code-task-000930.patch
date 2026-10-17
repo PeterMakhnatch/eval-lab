@@ -1,0 +1,69 @@
+diff --git a/fastavro/reader.py b/fastavro/reader.py
+index 7724a5f..d291401 100644
+--- a/fastavro/reader.py
++++ b/fastavro/reader.py
+@@ -323,9 +323,12 @@ class iter_avro:
+             raise ValueError('cannot read header - is it an avro file?')
+ 
+         # `meta` values are bytes. So, the actual decoding has to be external.
++        self.metadata = \
++            {k: btou(v) for k, v in iteritems(self._header['meta'])}
++
+         self.schema = schema = \
+-            json.loads(btou(self._header['meta']['avro.schema']))
+-        self.codec = btou(self._header['meta'].get('avro.codec', b'null'))
++            json.loads(self.metadata['avro.schema'])
++        self.codec = self.metadata.get('avro.codec', 'null')
+ 
+         acquaint_schema(schema)
+         self._records = _iter_avro(fo, self._header, self.codec, schema)
+diff --git a/fastavro/writer.py b/fastavro/writer.py
+index 4d4f336..cd5a04c 100644
+--- a/fastavro/writer.py
++++ b/fastavro/writer.py
+@@ -277,13 +277,10 @@ def write_data(fo, datum, schema):
+     return WRITERS[extract_record_type(schema)](fo, datum, schema)
+ 
+ 
+-def write_header(fo, schema, codec, sync_marker):
++def write_header(fo, metadata, sync_marker):
+     header = {
+         'magic': MAGIC,
+-        'meta': {
+-            'avro.codec': utob(codec),
+-            'avro.schema': utob(json.dumps(schema)),
+-        },
++        'meta': {key: utob(value) for key, value in iteritems(metadata)},
+         'sync': sync_marker
+     }
+     write_data(fo, header, HEADER_SCHEMA)
+@@ -327,10 +324,19 @@ except ImportError:
+     pass
+ 
+ 
+-def writer(fo, schema, records, codec='null', sync_interval=1000 * SYNC_SIZE):
++def writer(fo,
++           schema,
++           records,
++           codec='null',
++           sync_interval=1000 * SYNC_SIZE,
++           metadata=None):
+     sync_marker = urandom(SYNC_SIZE)
+     io = MemoryIO()
+     block_count = 0
++    if metadata is None:
++        metadata = {}
++    metadata['avro.codec'] = codec
++    metadata['avro.schema'] = json.dumps(schema)
+ 
+     try:
+         block_writer = BLOCK_WRITERS[codec]
+@@ -346,7 +352,7 @@ def writer(fo, schema, records, codec='null', sync_interval=1000 * SYNC_SIZE):
+         io.truncate(0)
+         return io
+ 
+-    write_header(fo, schema, codec, sync_marker)
++    write_header(fo, metadata, sync_marker)
+     acquaint_schema(schema)
+ 
+     for record in records:

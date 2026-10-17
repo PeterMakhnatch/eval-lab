@@ -1,0 +1,68 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 33c4a6a..c768c3c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -11,6 +11,10 @@ Possible log types:
+ - `[fixed]` for any bug fixes.
+ - `[security]` to invite users to upgrade in case of vulnerabilities.
+ 
++## [Unreleased]
++
++- `[added]` Implement `unwrap_or_raise` (#95)
++
+ ## [0.8.0] - 2022-04-17
+ 
+ - `[added]` `as_result` decorator to turn regular functions into
+diff --git a/README.rst b/README.rst
+index 2c6e75d..61d4236 100644
+--- a/README.rst
++++ b/README.rst
+@@ -235,6 +235,18 @@ A default value can be returned instead by using ``unwrap_or`` or ``unwrap_or_el
+     >>> res2.unwrap_or_else(str.upper)
+     'NAY'
+ 
++The unwrap method will raised a UnwrapError. A custom exception can be raised by
++using the unwrap_or_raise method in stead:
++
++.. sourcecode:: python
++
++    >>> res1 = Ok('yay')
++    >>> res2 = Err('nay')
++    >>> res1.unwrap_or_raise(ValueError)
++    'yay'
++    >>> res2.unwrap_or_raise(ValueError)
++    ValueError: nay
++
+ Values and errors can be mapped using ``map``, ``map_or``, ``map_or_else`` and
+ ``map_err``:
+ 
+diff --git a/src/result/result.py b/src/result/result.py
+index 7b61bcd..9fd2611 100644
+--- a/src/result/result.py
++++ b/src/result/result.py
+@@ -123,6 +123,12 @@ class Ok(Generic[T]):
+         """
+         return self._value
+ 
++    def unwrap_or_raise(self, e: Type[TBE]) -> T:
++        """
++        Return the value.
++        """
++        return self._value
++
+     def map(self, op: Callable[[T], U]) -> Result[U, E]:
+         """
+         The contained result is `Ok`, so return `Ok` with original value mapped to
+@@ -253,6 +259,12 @@ class Err(Generic[E]):
+         """
+         return op(self._value)
+ 
++    def unwrap_or_raise(self, e: Type[TBE]) -> NoReturn:
++        """
++        The contained result is ``Err``, so raise the exception with the value.
++        """
++        raise e(self._value)
++
+     def map(self, op: Callable[[T], U]) -> Result[U, E]:
+         """
+         Return `Err` with the same value

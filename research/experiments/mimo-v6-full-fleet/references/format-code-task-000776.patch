@@ -1,0 +1,32 @@
+diff --git a/packages/netlify-cms-lib-widgets/src/stringTemplate.ts b/packages/netlify-cms-lib-widgets/src/stringTemplate.ts
+index 9671a2332..7773316d1 100644
+--- a/packages/netlify-cms-lib-widgets/src/stringTemplate.ts
++++ b/packages/netlify-cms-lib-widgets/src/stringTemplate.ts
+@@ -13,6 +13,14 @@ const filters = [
+     pattern: /^date\('(.+)'\)$/,
+     transform: (str: string, match: RegExpMatchArray) => moment(str).format(match[1]),
+   },
++  {
++    pattern: /^default\('(.+)'\)$/,
++    transform: (str: string, match: RegExpMatchArray) => (str ? str : match[1]),
++  },
++  {
++    pattern: /^ternary\('(.*)',\s*'(.*)'\)$/,
++    transform: (str: string, match: RegExpMatchArray) => (str ? match[1] : match[2]),
++  },
+ ];
+ 
+ const FIELD_PREFIX = 'fields.';
+diff --git a/website/content/docs/beta-features.md b/website/content/docs/beta-features.md
+index 80005d0d5..41fa722a3 100644
+--- a/website/content/docs/beta-features.md
++++ b/website/content/docs/beta-features.md
+@@ -545,7 +545,7 @@ collections:
+ ```
+ 
+ The above config will transform the title field to uppercase and format the date field using `YYYY-MM-DD` format.
+-Available transformations are `upper`, `lower` and `date('<format>')`
++Available transformations are `upper`, `lower`, `date('<format>'), default('defaultValue') and ternary('valueForTrue','valueForFalse')`
+ 
+ ## Registering to CMS Events
+ 

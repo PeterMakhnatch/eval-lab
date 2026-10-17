@@ -1,0 +1,69 @@
+diff --git a/skore/src/skore/sklearn/_cross_validation/metrics_accessor.py b/skore/src/skore/sklearn/_cross_validation/metrics_accessor.py
+index 1f11ade8..56f8e17e 100644
+--- a/skore/src/skore/sklearn/_cross_validation/metrics_accessor.py
++++ b/skore/src/skore/sklearn/_cross_validation/metrics_accessor.py
+@@ -16,7 +16,7 @@ from skore.sklearn._plot import (
+     PredictionErrorDisplay,
+     RocCurveDisplay,
+ )
+-from skore.utils._accessor import _check_supported_ml_task
++from skore.utils._accessor import _check_estimator_has_method, _check_supported_ml_task
+ from skore.utils._index import flatten_multi_index
+ from skore.utils._parallel import Parallel, delayed
+ from skore.utils._progress_bar import progress_decorator
+@@ -458,6 +458,7 @@ class _MetricsAccessor(_BaseAccessor["CrossValidationReport"], DirNamesMixin):
+     @available_if(
+         _check_supported_ml_task(supported_ml_tasks=["binary-classification"])
+     )
++    @available_if(_check_estimator_has_method(method_name="predict_proba"))
+     def brier_score(
+         self,
+         *,
+diff --git a/skore/src/skore/sklearn/_estimator/metrics_accessor.py b/skore/src/skore/sklearn/_estimator/metrics_accessor.py
+index c8c208ba..03ce2a3e 100644
+--- a/skore/src/skore/sklearn/_estimator/metrics_accessor.py
++++ b/skore/src/skore/sklearn/_estimator/metrics_accessor.py
+@@ -20,7 +20,7 @@ from skore.sklearn._plot import (
+     RocCurveDisplay,
+ )
+ from skore.sklearn.types import SKLearnScorer
+-from skore.utils._accessor import _check_supported_ml_task
++from skore.utils._accessor import _check_estimator_has_method, _check_supported_ml_task
+ from skore.utils._index import flatten_multi_index
+ 
+ DataSource = Literal["test", "train", "X_y"]
+@@ -818,6 +818,7 @@ class _MetricsAccessor(_BaseAccessor["EstimatorReport"], DirNamesMixin):
+     @available_if(
+         _check_supported_ml_task(supported_ml_tasks=["binary-classification"])
+     )
++    @available_if(_check_estimator_has_method(method_name="predict_proba"))
+     def brier_score(
+         self,
+         *,
+diff --git a/skore/src/skore/utils/_accessor.py b/skore/src/skore/utils/_accessor.py
+index dcacb146..91e16fc5 100644
+--- a/skore/src/skore/utils/_accessor.py
++++ b/skore/src/skore/utils/_accessor.py
+@@ -20,6 +20,22 @@ def _check_supported_ml_task(supported_ml_tasks: list[str]) -> Callable:
+     return check
+ 
+ 
++def _check_estimator_has_method(method_name: str) -> Callable:
++    def check(accessor: Any) -> bool:
++        parent_estimator = accessor._parent.estimator_
++
++        if hasattr(parent_estimator, method_name):
++            return True
++
++        raise AttributeError(
++            f"Estimator {parent_estimator} is not a supported estimator by "
++            f"the function called. The estimator should have a `{method_name}` "
++            "method."
++        )
++
++    return check
++
++
+ def _check_has_coef() -> Callable:
+     def check(accessor: Any) -> bool:
+         """Check if the estimator has a `coef_` attribute."""

@@ -1,0 +1,40 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 125dbcb5..0c65e6e3 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -98,6 +98,7 @@ Semantic versioning in our case means:
+ - Fixes `WPS469` detecting incorrect names of raised exceptions, #3109
+ - Fixes unnormalized pathes in formatter output
+ - Fixes `WPS434` to allow reassignment in a form of `x = [y, *x]`
++- Fixes `WPS221` to ignore PEP695's `TypeAlias` from line complexity checks
+ 
+ ### Misc
+ 
+diff --git a/wemake_python_styleguide/compat/nodes.py b/wemake_python_styleguide/compat/nodes.py
+index 2b3716e7..41593b82 100644
+--- a/wemake_python_styleguide/compat/nodes.py
++++ b/wemake_python_styleguide/compat/nodes.py
+@@ -30,3 +30,4 @@ else:  # pragma: <3.12 cover
+ 
+         name: ast.Name
+         type_params: list[ast.stmt]
++        value: ast.expr  # noqa: WPS110
+diff --git a/wemake_python_styleguide/visitors/ast/complexity/jones.py b/wemake_python_styleguide/visitors/ast/complexity/jones.py
+index 2925218c..f1174f44 100644
+--- a/wemake_python_styleguide/visitors/ast/complexity/jones.py
++++ b/wemake_python_styleguide/visitors/ast/complexity/jones.py
+@@ -14,6 +14,7 @@ from statistics import median
+ from typing_extensions import final
+ 
+ from wemake_python_styleguide.compat.aliases import FunctionNodes
++from wemake_python_styleguide.compat.nodes import TypeAlias as ast_TypeAlias
+ from wemake_python_styleguide.violations.complexity import (
+     JonesScoreViolation,
+     LineComplexityViolation,
+@@ -97,4 +98,6 @@ class JonesComplexityVisitor(BaseNodeVisitor):
+     def _maybe_ignore_child(self, node: ast.AST) -> bool:
+         if isinstance(node, ast.AnnAssign):
+             self._to_ignore.update(ast.walk(node.annotation))
++        if isinstance(node, ast_TypeAlias):  # pragma: >=3.12 cover
++            self._to_ignore.update(ast.walk(node.value))
+         return node in self._to_ignore

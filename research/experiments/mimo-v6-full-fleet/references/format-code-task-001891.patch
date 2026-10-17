@@ -1,0 +1,36 @@
+diff --git a/docs/markdown/Reference-tables.md b/docs/markdown/Reference-tables.md
+index e4e964c2d..a5d0d5cdc 100644
+--- a/docs/markdown/Reference-tables.md
++++ b/docs/markdown/Reference-tables.md
+@@ -182,6 +182,7 @@ Native names as returned by the `.kernel()` method.
+ | freebsd | |
+ | openbsd | |
+ | netbsd  | |
++| gnu     | GNU Hurd |
+ | nt      | |
+ | xnu                 | Kernel of various Apple OSes    |
+ | illumos             | Kernel derived from OpenSolaris by community efforts |
+diff --git a/mesonbuild/environment.py b/mesonbuild/environment.py
+index 71a2f3afc..2621b9ca2 100644
+--- a/mesonbuild/environment.py
++++ b/mesonbuild/environment.py
+@@ -476,6 +476,7 @@ KERNEL_MAPPINGS: T.Mapping[str, str] = {'freebsd': 'freebsd',
+                                         'darwin': 'xnu',
+                                         'dragonfly': 'dragonfly',
+                                         'haiku': 'haiku',
++                                        'gnu': 'gnu',
+                                         }
+ 
+ def detect_kernel(system: str) -> T.Optional[str]:
+diff --git a/mesonbuild/scripts/env2mfile.py b/mesonbuild/scripts/env2mfile.py
+index 207d75749..b2c9a45b2 100755
+--- a/mesonbuild/scripts/env2mfile.py
++++ b/mesonbuild/scripts/env2mfile.py
+@@ -156,6 +156,7 @@ deb_os_map = {
+ # map from DEB_HOST_ARCH_OS to Meson machine.kernel()
+ deb_kernel_map = {
+     'kfreebsd': 'freebsd',
++    'hurd': 'gnu',
+ }
+ 
+ def replace_special_cases(special_cases: T.Mapping[str, str], name: str) -> str:

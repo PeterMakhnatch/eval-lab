@@ -1,0 +1,112 @@
+diff --git a/src/js/components/Heading/Heading.js b/src/js/components/Heading/Heading.js
+index f38c2ebe2e..869cc7107b 100644
+--- a/src/js/components/Heading/Heading.js
++++ b/src/js/components/Heading/Heading.js
+@@ -5,7 +5,7 @@ import { HeadingPropTypes } from './propTypes';
+ 
+ const Heading = forwardRef(
+   (
+-    { color, fill, level, ...rest },
++    { color, fill, level, weight, ...rest },
+     ref, // munged to avoid styled-components putting it in the DOM
+   ) => (
+     // enforce level to be a number
+@@ -14,6 +14,7 @@ const Heading = forwardRef(
+       colorProp={color}
+       fillProp={fill}
+       level={+level}
++      weight={weight}
+       {...rest}
+       ref={ref}
+     />
+diff --git a/src/js/components/Heading/StyledHeading.js b/src/js/components/Heading/StyledHeading.js
+index 068425e75e..6bc3e7acf4 100644
+--- a/src/js/components/Heading/StyledHeading.js
++++ b/src/js/components/Heading/StyledHeading.js
+@@ -8,7 +8,7 @@ import {
+ } from '../../utils';
+ import { defaultProps } from '../../default-props';
+ 
+-const sizeStyle = props => {
++const sizeStyle = (props) => {
+   // size is a combination of the level and size properties
+   const size = props.size || 'medium';
+   const headingTheme = props.theme.heading;
+@@ -20,9 +20,11 @@ const sizeStyle = props => {
+         font-size: ${data ? data.size : size};
+         line-height: ${data ? data.height : 'normal'};
+         max-width: ${(props.fillProp && 'none') ||
+-          (data && data.maxWidth) ||
+-          levelStyle.medium.maxWidth};
+-        font-weight: ${levelStyle.font.weight || headingTheme.weight};
++        (data && data.maxWidth) ||
++        levelStyle.medium.maxWidth};
++        font-weight: ${props.weight ||
++        levelStyle.font.weight ||
++        headingTheme.weight};
+       `,
+     ];
+     if (props.responsive && headingTheme.responsiveBreakpoint) {
+@@ -53,7 +55,7 @@ const sizeStyle = props => {
+   return '';
+ };
+ 
+-const fontFamily = props => {
++const fontFamily = (props) => {
+   const { font } = props.theme.heading.level[props.level] || {};
+   if (font && font.family) {
+     return css`
+@@ -74,18 +76,18 @@ const truncateStyle = `
+ `;
+ 
+ const colorStyle = css`
+-  color: ${props =>
++  color: ${(props) =>
+     normalizeColor(props.colorProp || props.theme.heading.color, props.theme)};
+ `;
+ 
+ const StyledHeading = styled.h1`
+   ${genericStyles}
+-  ${props => fontFamily(props)}
+-  ${props => sizeStyle(props)}
+-  ${props => props.textAlign && textAlignStyle}
+-  ${props => props.truncate && truncateStyle}
+-  ${props => (props.colorProp || props.theme.heading.color) && colorStyle}
+-  ${props => props.theme.heading && props.theme.heading.extend}
++  ${(props) => fontFamily(props)}
++  ${(props) => sizeStyle(props)}
++  ${(props) => props.textAlign && textAlignStyle}
++  ${(props) => props.truncate && truncateStyle}
++  ${(props) => (props.colorProp || props.theme.heading.color) && colorStyle}
++  ${(props) => props.theme.heading && props.theme.heading.extend}
+ `;
+ 
+ StyledHeading.defaultProps = {};
+diff --git a/src/js/components/Heading/index.d.ts b/src/js/components/Heading/index.d.ts
+index d870a0498b..450bee8361 100644
+--- a/src/js/components/Heading/index.d.ts
++++ b/src/js/components/Heading/index.d.ts
+@@ -23,6 +23,7 @@ export interface HeadingProps {
+   size?: 'small' | 'medium' | 'large' | 'xlarge' | string;
+   textAlign?: TextAlignType;
+   truncate?: boolean;
++  weight?: 'normal' | 'bold' | 'lighter' | 'bolder' | number | string;
+ }
+ 
+ type hProps =
+diff --git a/src/js/components/Heading/propTypes.js b/src/js/components/Heading/propTypes.js
+index 54b142d53c..4ed76993fe 100644
+--- a/src/js/components/Heading/propTypes.js
++++ b/src/js/components/Heading/propTypes.js
+@@ -15,6 +15,11 @@ if (process.env.NODE_ENV !== 'production') {
+     ]),
+     textAlign: PropTypes.oneOf(['start', 'center', 'end', 'justify']),
+     truncate: PropTypes.bool,
++    weight: PropTypes.oneOfType([
++      PropTypes.oneOf(['normal', 'bold', 'lighter', 'bolder']),
++      PropTypes.number,
++      PropTypes.string,
++    ]),
+   };
+ }
+ export const HeadingPropTypes = PropType;

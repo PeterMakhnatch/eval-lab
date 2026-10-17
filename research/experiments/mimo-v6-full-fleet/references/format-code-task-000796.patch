@@ -1,0 +1,42 @@
+diff --git a/README.md b/README.md
+index b16c121..65538fe 100644
+--- a/README.md
++++ b/README.md
+@@ -21,8 +21,7 @@ While there are quite a few [JavaScript client implementations](http://jsonapi.o
+ import JsonApi from 'devour-api-client'
+ 
+ // Bootstrap
+-let jsonApi = JsonApi.getInstance()
+-jsonApi.setup('http://your-api-here.com')
++const jsonApi = new JsonApi('http://your-api-here.com')
+ 
+ // Define Model
+ jsonApi.define('post', {
+diff --git a/index.js b/index.js
+index 87dfc3a..876bae7 100644
+--- a/index.js
++++ b/index.js
+@@ -34,22 +34,9 @@ let jsonApiMiddleware = [
+ ]
+ 
+ 
+-/*
+-*   We are creating a singleton, so we cache the reference to the instance
+-*   outside our class closure and check it during instantiation.
+-*/
+-let instance = null
+-
+ class JsonApi {
+ 
+-  static getInstance() {
+-    if(!instance) {
+-      instance = new JsonApi()
+-    }
+-    return instance
+-  }
+-
+-  setup(apiUrl, middleware = jsonApiMiddleware) {
++  constructor(apiUrl, middleware = jsonApiMiddleware.slice(0)) {
+     this._originalMiddleware = middleware.slice(0)
+     this.middleware = middleware
+     this.headers = {}

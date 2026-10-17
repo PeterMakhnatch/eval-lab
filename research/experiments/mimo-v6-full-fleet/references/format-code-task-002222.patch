@@ -1,0 +1,36 @@
+diff --git a/doc/source/whatsnew/v1.2.4.rst b/doc/source/whatsnew/v1.2.4.rst
+index 54652ecc4d..dd74091b64 100644
+--- a/doc/source/whatsnew/v1.2.4.rst
++++ b/doc/source/whatsnew/v1.2.4.rst
+@@ -21,6 +21,7 @@ Fixed regressions
+ - Fixed regression in :meth:`DataFrame.where` not returning a copy in the case of an all True condition (:issue:`39595`)
+ - Fixed regression in :meth:`DataFrame.replace` raising ``IndexError`` when ``regex`` was a multi-key dictionary (:issue:`39338`)
+ - Fixed regression in repr of floats in an ``object`` column not respecting ``float_format`` when printed in the console or outputted through :meth:`DataFrame.to_string`, :meth:`DataFrame.to_html`, and :meth:`DataFrame.to_latex` (:issue:`40024`)
++- Fixed regression in NumPy ufuncs such as ``np.add`` not passing through all arguments for :class:`DataFrame` (:issue:`40662`)
+ 
+ .. ---------------------------------------------------------------------------
+ 
+diff --git a/pandas/core/arraylike.py b/pandas/core/arraylike.py
+index b110d62b60..031ff6a766 100644
+--- a/pandas/core/arraylike.py
++++ b/pandas/core/arraylike.py
+@@ -357,15 +357,17 @@ def array_ufunc(self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any)
+         # * len(inputs) > 1 is doable when we know that we have
+         #   aligned blocks / dtypes.
+         inputs = tuple(np.asarray(x) for x in inputs)
+-        result = getattr(ufunc, method)(*inputs)
++        result = getattr(ufunc, method)(*inputs, **kwargs)
+     elif self.ndim == 1:
+         # ufunc(series, ...)
+         inputs = tuple(extract_array(x, extract_numpy=True) for x in inputs)
+         result = getattr(ufunc, method)(*inputs, **kwargs)
+     else:
+         # ufunc(dataframe)
+-        if method == "__call__":
++        if method == "__call__" and not kwargs:
+             # for np.<ufunc>(..) calls
++            # kwargs cannot necessarily be handled block-by-block, so only
++            # take this path if there are no kwargs
+             mgr = inputs[0]._mgr
+             result = mgr.apply(getattr(ufunc, method))
+         else:

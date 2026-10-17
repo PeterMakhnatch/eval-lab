@@ -1,0 +1,128 @@
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+index 6eff4f1c..cd6646fe 100644
+--- a/.idea/misc.xml
++++ b/.idea/misc.xml
+@@ -5,4 +5,7 @@
+     <option name="languageLevel" value="ES6" />
+   </component>
+   <component name="ProjectRootManager" version="2" languageLevel="JDK_1_3" assert-keyword="false" jdk-15="false" />
++  <component name="WebPackConfiguration">
++    <option name="path" value="$PROJECT_DIR$/webpack.config.js" />
++  </component>
+ </project>
+\ No newline at end of file
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 28697b7b..cf844b1c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,8 @@
+     require five tokens of lookahead. A smaller default avoids these potential slow downs while still allows
+     override in unique cases which require a large lookahead.
+     
++#### Bug Fixes
++- [Separator DSL methods lookahead issue.](https://github.com/SAP/chevrotain/issues/391)
+     
+ 
+ ## 0.28.3 (5-1-2017)
+diff --git a/examples/language_services/tslint.json b/examples/language_services/tslint.json
+index 50fdaf18..9fd367e3 100644
+--- a/examples/language_services/tslint.json
++++ b/examples/language_services/tslint.json
+@@ -9,7 +9,6 @@
+       "spaces"
+     ],
+     "label-position": true,
+-    "label-undefined": true,
+     "max-line-length": [
+       true,
+       140
+@@ -27,7 +26,6 @@
+     "no-construct": true,
+     "no-debugger": true,
+     "no-var-keyword": true,
+-    "no-duplicate-key": true,
+     "no-duplicate-variable": true,
+     "no-eval": true,
+     "no-string-literal": true,
+@@ -35,7 +33,6 @@
+     "no-trailing-whitespace": true,
+     "no-unused-expression": true,
+     "no-unused-variable": false,
+-    "no-unreachable": true,
+     "no-use-before-declare": true,
+     "one-line": [
+       true,
+diff --git a/src/parse/grammar/interpreter.ts b/src/parse/grammar/interpreter.ts
+index 0de153d9..ca3179bb 100644
+--- a/src/parse/grammar/interpreter.ts
++++ b/src/parse/grammar/interpreter.ts
+@@ -8,6 +8,7 @@ import {first} from "./first"
+ import {TokenConstructor} from "../../scan/lexer_public"
+ import {TokenMatcher} from "../parser_public"
+ import IProduction = gast.IProduction
++
+ /* tslint:enable:no-use-before-declare */
+ 
+ export abstract class AbstractNextPossibleTokensWalker extends RestWalker {
+@@ -219,8 +220,8 @@ export function possiblePathsFrom(targetDef:gast.IProduction[], maxLength:number
+         return nextDef.concat(drop(targetDef, i + 1))
+     }
+ 
+-    function getAlternativesForProd(prod:gast.AbstractProduction) {
+-        let alternatives = possiblePathsFrom(remainingPathWith(prod.definition), maxLength, currPath)
++    function getAlternativesForProd(definition:gast.IProduction[]) {
++        let alternatives = possiblePathsFrom(remainingPathWith(definition), maxLength, currPath)
+         return result.concat(alternatives)
+     }
+ 
+@@ -235,29 +236,33 @@ export function possiblePathsFrom(targetDef:gast.IProduction[], maxLength:number
+         let prod = targetDef[i]
+ 
+         if (prod instanceof gast.Flat) {
+-            return getAlternativesForProd(prod)
++            return getAlternativesForProd(prod.definition)
+         }
+         else if (prod instanceof gast.NonTerminal) {
+-            return getAlternativesForProd(prod)
++            return getAlternativesForProd(prod.definition)
+         }
+         else if (prod instanceof gast.Option) {
+-            result = getAlternativesForProd(prod)
++            result = getAlternativesForProd(prod.definition)
+         }
+         else if (prod instanceof gast.RepetitionMandatory) {
+-            return getAlternativesForProd(prod)
++            return getAlternativesForProd(prod.definition)
+         }
+         else if (prod instanceof gast.RepetitionMandatoryWithSeparator) {
+-            return getAlternativesForProd(prod)
++            const newDef =
++                [new gast.Flat(prod.definition), new gast.Repetition([new gast.Terminal(prod.separator)].concat(<any>prod.definition))]
++            return getAlternativesForProd(newDef)
+         }
+         else if (prod instanceof gast.RepetitionWithSeparator) {
+-            result = getAlternativesForProd(prod)
++            const newDef =
++                prod.definition.concat([new gast.Repetition([new gast.Terminal(prod.separator)].concat(<any>prod.definition))])
++            result = getAlternativesForProd(newDef)
+         }
+         else if (prod instanceof gast.Repetition) {
+-            result = getAlternativesForProd(prod)
++            result = getAlternativesForProd(prod.definition)
+         }
+         else if (prod instanceof gast.Alternation) {
+             forEach(prod.definition, (currAlt) => {
+-                result = getAlternativesForProd(currAlt)
++                result = getAlternativesForProd(currAlt.definition)
+             })
+             return result
+         }
+@@ -272,7 +277,7 @@ export function possiblePathsFrom(targetDef:gast.IProduction[], maxLength:number
+     }
+     result.push({
+         partialPath: currPath,
+-        suffixDef:   drop(targetDef, 1)
++        suffixDef:   drop(targetDef, i)
+     })
+ 
+     return result

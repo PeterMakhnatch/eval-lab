@@ -1,0 +1,190 @@
+diff --git a/doc/releases/changelog-dev.md b/doc/releases/changelog-dev.md
+index 48ed2d4f2..405f61e95 100644
+--- a/doc/releases/changelog-dev.md
++++ b/doc/releases/changelog-dev.md
+@@ -4,6 +4,14 @@
+ 
+ <h3>New features since last release</h3>
+ 
++* Added a modified version of the `simplify` function to the `hf` module.
++  [(#2103)](https://github.com/PennyLaneAI/pennylane/pull/2103)
++
++  This function combines redundant terms in a Hamiltonian and eliminates terms with a coefficient
++  smaller than a cutoff value. The new function makes construction of molecular Hamiltonians more
++  efficient. For LiH, as an example, the time to construct the Hamiltonian is reduced roughly by a
++  factor of 20.
++
+ * The JAX interface now supports evaluating vector-valued QNodes. Vector-valued
+   QNodes include those with:
+   * `qml.probs`;
+diff --git a/pennylane/hf/hamiltonian.py b/pennylane/hf/hamiltonian.py
+index 160a7651d..3479a3951 100644
+--- a/pennylane/hf/hamiltonian.py
++++ b/pennylane/hf/hamiltonian.py
+@@ -247,7 +247,8 @@ def generate_hamiltonian(mol, cutoff=1.0e-12, core=None, active=None):
+         for n, t in enumerate(h_ferm[1]):
+ 
+             if len(t) == 0:
+-                coeffs = np.array([h_ferm[0][n]])
++                coeffs = anp.array([0.0])
++                coeffs = coeffs + np.array([h_ferm[0][n]])
+                 ops = ops + [qml.Identity(0)]
+ 
+             elif len(t) == 2:
+@@ -282,7 +283,7 @@ def generate_hamiltonian(mol, cutoff=1.0e-12, core=None, active=None):
+                     coeffs = np.concatenate([coeffs, np.array(op[0]) * h_ferm[0][n]])
+                     ops = ops + op[1]
+ 
+-        h = qml.Hamiltonian(coeffs, ops, simplify=True)
++        h = simplify(qml.Hamiltonian(coeffs, ops), cutoff=cutoff)
+ 
+         return h
+ 
+@@ -355,6 +356,54 @@ def _generate_qubit_operator(op):
+     return c, o
+ 
+ 
++def simplify(h, cutoff=1.0e-12):
++    r"""Add together identical terms in the Hamiltonian.
++
++    The Hamiltonian terms with identical Pauli words are added together and eliminated if the
++    overall coefficient is smaller than a cutoff value.
++
++    Args:
++        h (Hamiltonian): PennyLane Hamiltonian
++        cutoff (float): cutoff value for discarding the negligible terms
++
++    Returns:
++        Hamiltonian: Simplified PennyLane Hamiltonian
++
++    **Example**
++
++    >>> c = np.array([0.5, 0.5])
++    >>> h = qml.Hamiltonian(c, [qml.PauliX(0) @ qml.PauliY(1), qml.PauliX(0) @ qml.PauliY(1)])
++    >>> print(simplify(h))
++    (1.0) [X0 Y1]
++    """
++    wiremap = dict(zip(h.wires, range(len(h.wires) + 1)))
++
++    c = []
++    o = []
++    for i, op in enumerate(h.terms[1]):
++        op = qml.operation.Tensor(op).prune()
++        op = qml.grouping.pauli_word_to_string(op, wire_map=wiremap)
++        if op not in o:
++            c.append(h.terms[0][i])
++            o.append(op)
++        else:
++            c[o.index(op)] += h.terms[0][i]
++
++    coeffs = []
++    ops = []
++    nonzero_ind = np.argwhere(abs(np.array(c)) > cutoff).flatten()
++    for i in nonzero_ind:
++        coeffs.append(c[i])
++        ops.append(qml.grouping.string_to_pauli_word(o[i], wire_map=wiremap))
++
++    try:
++        coeffs = qml.math.stack(coeffs)
++    except ValueError:
++        pass
++
++    return qml.Hamiltonian(coeffs, ops)
++
++
+ def _pauli_mult(p1, p2):
+     r"""Return the result of multiplication between two tensor products of Pauli operators.
+ 
+diff --git a/pennylane/hf/tapering.py b/pennylane/hf/tapering.py
+index b1ef7c949..184ddce97 100644
+--- a/pennylane/hf/tapering.py
++++ b/pennylane/hf/tapering.py
+@@ -17,11 +17,12 @@ This module contains the functions needed for tapering qubits using symmetries.
+ # pylint: disable=unnecessary-lambda
+ 
+ import functools
+-import numpy
++
+ import autograd.numpy as anp
++import numpy
+ import pennylane as qml
+ from pennylane import numpy as np
+-from pennylane.hf.hamiltonian import _generate_qubit_operator
++from pennylane.hf.hamiltonian import _generate_qubit_operator, simplify
+ 
+ 
+ def _binary_matrix(terms, num_qubits, wire_map=None):
+@@ -193,7 +194,7 @@ def get_generators(nullspace, num_qubits):
+             x, z = op
+             tau @= pauli_map[f"{x}{z}"](idx)
+ 
+-        ham = qml.Hamiltonian([1.0], [tau], simplify=True)
++        ham = simplify(qml.Hamiltonian([1.0], [tau]))
+         generators.append(ham)
+ 
+     return generators
+@@ -328,54 +329,7 @@ def _observable_mult(obs_a, obs_b):
+             o.append(op)
+             c.append(phase * obs_a.terms[0][i] * obs_b.terms[0][j])
+ 
+-    return _simplify(qml.Hamiltonian(qml.math.stack(c), o))
+-
+-
+-def _simplify(h, cutoff=1.0e-12):
+-    r"""Add together identical terms in the Hamiltonian.
+-
+-    The Hamiltonian terms with identical Pauli words are added together and eliminated if the
+-    overall coefficient is zero.
+-
+-    Args:
+-        h (Hamiltonian): PennyLane Hamiltonian
+-        cutoff (float): cutoff value for discarding the negligible terms
+-
+-    Returns:
+-        Hamiltonian: Simplified PennyLane Hamiltonian
+-
+-    **Example**
+-
+-    >>> c = np.array([0.5, 0.5])
+-    >>> h = qml.Hamiltonian(c, [qml.PauliX(0) @ qml.PauliY(1), qml.PauliX(0) @ qml.PauliY(1)])
+-    >>> print(_simplify(h))
+-    (1.0) [X0 Y1]
+-    """
+-    s = []
+-    wiremap = dict(zip(h.wires, range(len(h.wires) + 1)))
+-
+-    for term in h.terms[1]:
+-        term = qml.operation.Tensor(term).prune()
+-        s.append(qml.grouping.pauli_word_to_string(term, wire_map=wiremap))
+-
+-    o = list(set(s))
+-    c = [0.0] * len(o)
+-    for i, item in enumerate(s):
+-        c[o.index(item)] += h.terms[0][i]
+-    c = qml.math.stack(c)
+-
+-    coeffs = []
+-    ops = []
+-    nonzero_ind = np.argwhere(abs(c) > cutoff).flatten()
+-    for i in nonzero_ind:
+-        coeffs.append(c[i])
+-        ops.append(qml.grouping.string_to_pauli_word(o[i], wire_map=wiremap))
+-    try:
+-        coeffs = qml.math.stack(coeffs)
+-    except ValueError:
+-        pass
+-
+-    return qml.Hamiltonian(coeffs, ops)
++    return simplify(qml.Hamiltonian(qml.math.stack(c), o))
+ 
+ 
+ def clifford(generators, paulix_ops):
+@@ -478,7 +432,7 @@ def transform_hamiltonian(h, generators, paulix_ops, paulix_sector):
+     c = anp.multiply(val, h.terms[0])
+     c = qml.math.stack(c)
+ 
+-    return _simplify(qml.Hamiltonian(c, o))
++    return simplify(qml.Hamiltonian(c, o))
+ 
+ 
+ def optimal_sector(qubit_op, generators, active_electrons):

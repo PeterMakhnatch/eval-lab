@@ -1,0 +1,86 @@
+diff --git a/sourmash/cli/__init__.py b/sourmash/cli/__init__.py
+index d7cfe04d..083d097f 100644
+--- a/sourmash/cli/__init__.py
++++ b/sourmash/cli/__init__.py
+@@ -34,6 +34,7 @@ from . import watch
+ # Subcommand groups
+ from . import lca
+ from . import sig
++from . import signature
+ from . import storage
+ 
+ 
+@@ -94,6 +95,9 @@ def get_parser():
+         'sig': 'Manipulate signature files',
+         'storage': 'Operations on storage',
+     }
++    alias = {
++        "sig": "signature"
++    }
+     expert = set(['categorize', 'dump', 'import_csv', 'migrate', 'multigather', 'sbt_combine', 'watch'])
+ 
+     clidir = os.path.dirname(__file__)
+@@ -107,9 +111,13 @@ def get_parser():
+     cmd_group_dirs = next(os.walk(clidir))[1]
+     cmd_group_dirs = filter(utils.opfilter, cmd_group_dirs)
+     cmd_group_dirs = sorted(cmd_group_dirs)
+-    for dirpath in cmd_group_dirs:
++
++    cmd_group_usage = [cmd for cmd in cmd_group_dirs if cmd not in alias.values()]
++    for dirpath in cmd_group_usage:
+         usage += '\n    ' + module_descs[dirpath] + '\n'
+         usage += '        sourmash {gd:s} --help\n'.format(gd=dirpath)
++        if dirpath in alias:
++            usage += '        sourmash {gd:s} --help\n'.format(gd=alias[dirpath])
+ 
+     desc = 'Compute, compare, manipulate, and analyze MinHash sketches of DNA sequences.\n\nUsage instructions:\n' + usage
+     parser = SourmashParser(prog='sourmash', description=desc, formatter_class=RawDescriptionHelpFormatter, usage=SUPPRESS)
+diff --git a/sourmash/cli/signature/__init__.py b/sourmash/cli/signature/__init__.py
+new file mode 100644
+index 00000000..90d839ae
+--- /dev/null
++++ b/sourmash/cli/signature/__init__.py
+@@ -0,0 +1,43 @@
++"""Define the command line interface for sourmash signature.
++
++Copy commands over from 'sourmash sig'.
++
++This can be removed once Python 2.7 is no longer supported, in favor of an
++'aliases' argument to add_subparser in ../sig/__init__.py.
++"""
++
++from ..sig import describe
++from ..sig import downsample
++from ..sig import extract
++from ..sig import filter
++from ..sig import flatten
++from ..sig import intersect
++from ..sig import merge
++from ..sig import rename
++from ..sig import subtract
++from ..sig import ingest
++from ..sig import export
++from ..sig import overlap
++from ..utils import command_list
++from argparse import SUPPRESS, RawDescriptionHelpFormatter
++import os
++import sys
++
++
++def subparser(subparsers):
++    subparser = subparsers.add_parser('signature', formatter_class=RawDescriptionHelpFormatter, usage=SUPPRESS)
++    desc = 'Operations\n'
++    clidir = os.path.join(os.path.dirname(__file__), '../sig/')
++    ops = command_list(clidir)
++    for subcmd in ops:
++        docstring = getattr(sys.modules[__name__], subcmd).__doc__
++        helpstring = 'sourmash signature {op:s} --help'.format(op=subcmd)
++        desc += '        {hs:33s} {ds:s}\n'.format(hs=helpstring, ds=docstring)
++    s = subparser.add_subparsers(
++        title='Manipulate signature files', dest='subcmd', metavar='subcmd', help=SUPPRESS,
++        description=desc
++    )
++    for subcmd in ops:
++        getattr(sys.modules[__name__], subcmd).subparser(s)
++    subparser._action_groups.reverse()
++    subparser._optionals.title = 'Options'

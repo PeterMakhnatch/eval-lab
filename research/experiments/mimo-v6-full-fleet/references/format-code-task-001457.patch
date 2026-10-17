@@ -1,0 +1,50 @@
+diff --git a/README.md b/README.md
+index 25cecfe..25d858c 100644
+--- a/README.md
++++ b/README.md
+@@ -388,7 +388,7 @@ Here are all the inputs available through `with`:
+ | Input               | Description                                                                                                                                          | Default | Required |
+ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- |
+ | `url`               | The URL for the vault endpoint                                                                                                                       |         | ✔        |
+-| `secrets`           | A semicolon-separated list of secrets to retrieve. These will automatically be converted to environmental variable keys. See README for more details |         | ✔        |
++| `secrets`           | A semicolon-separated list of secrets to retrieve. These will automatically be converted to environmental variable keys. See README for more details |         |          |
+ | `namespace`         | The Vault namespace from which to query secrets. Vault Enterprise only, unset by default                                                             |         |          |
+ | `method`            | The method to use to authenticate with Vault.                                                                                                        | `token` |          |
+ | `role`              | Vault role for specified auth method                                                                                                                 |         |          |
+diff --git a/action.yml b/action.yml
+index 3af26db..5a06b95 100644
+--- a/action.yml
++++ b/action.yml
+@@ -6,7 +6,7 @@ inputs:
+     required: true
+   secrets:
+     description: 'A semicolon-separated list of secrets to retrieve. These will automatically be converted to environmental variable keys. See README for more details'
+-    required: true
++    required: false
+   namespace:
+     description: 'The Vault namespace from which to query secrets. Vault Enterprise only, unset by default'
+     required: false
+diff --git a/src/action.js b/src/action.js
+index d301605..435f86e 100644
+--- a/src/action.js
++++ b/src/action.js
+@@ -14,7 +14,7 @@ async function exportSecrets() {
+     const exportEnv = core.getInput('exportEnv', { required: false }) != 'false';
+     const exportToken = (core.getInput('exportToken', { required: false }) || 'false').toLowerCase() != 'false';
+ 
+-    const secretsInput = core.getInput('secrets', { required: true });
++    const secretsInput = core.getInput('secrets', { required: false });
+     const secretRequests = parseSecretsInput(secretsInput);
+ 
+     const vaultMethod = (core.getInput('method', { required: false }) || 'token').toLowerCase();
+@@ -103,6 +103,10 @@ async function exportSecrets() {
+  * @param {string} secretsInput
+  */
+ function parseSecretsInput(secretsInput) {
++    if (!secretsInput) {
++      return []
++    }
++
+     const secrets = secretsInput
+         .split(';')
+         .filter(key => !!key)

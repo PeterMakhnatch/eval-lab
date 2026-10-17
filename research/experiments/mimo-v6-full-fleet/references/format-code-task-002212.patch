@@ -1,0 +1,41 @@
+diff --git a/doc/source/whatsnew/v1.1.0.rst b/doc/source/whatsnew/v1.1.0.rst
+index 60aa175995..9d151c78b2 100644
+--- a/doc/source/whatsnew/v1.1.0.rst
++++ b/doc/source/whatsnew/v1.1.0.rst
+@@ -1121,6 +1121,7 @@ Other
+ - :class:`IntegerArray` now implements the ``sum`` operation (:issue:`33172`)
+ - Bug in :class:`Tick` comparisons raising ``TypeError`` when comparing against timedelta-like objects (:issue:`34088`)
+ - Bug in :class:`Tick` multiplication raising ``TypeError`` when multiplying by a float (:issue:`34486`)
++- Passing a `set` as `names` argument to :func:`pandas.read_csv`, :func:`pandas.read_table`, or :func:`pandas.read_fwf` will raise ``ValueError: Names should be an ordered collection.`` (:issue:`34946`)
+ 
+ .. ---------------------------------------------------------------------------
+ 
+diff --git a/pandas/io/parsers.py b/pandas/io/parsers.py
+index 679cf4c2d8..62347f7110 100644
+--- a/pandas/io/parsers.py
++++ b/pandas/io/parsers.py
+@@ -397,7 +397,8 @@ def _validate_integer(name, val, min_val=0):
+ 
+ def _validate_names(names):
+     """
+-    Raise ValueError if the `names` parameter contains duplicates.
++    Raise ValueError if the `names` parameter contains duplicates or has an
++    invalid data type.
+ 
+     Parameters
+     ----------
+@@ -407,11 +408,13 @@ def _validate_names(names):
+     Raises
+     ------
+     ValueError
+-        If names are not unique.
++        If names are not unique or are not ordered (e.g. set).
+     """
+     if names is not None:
+         if len(names) != len(set(names)):
+             raise ValueError("Duplicate names are not allowed.")
++        if not is_list_like(names, allow_sets=False):
++            raise ValueError("Names should be an ordered collection.")
+ 
+ 
+ def _read(filepath_or_buffer: FilePathOrBuffer, kwds):

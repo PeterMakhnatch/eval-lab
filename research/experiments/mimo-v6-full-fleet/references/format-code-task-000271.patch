@@ -1,0 +1,125 @@
+diff --git a/packages/ts-interface-generator/package.json b/packages/ts-interface-generator/package.json
+index d3cd1fc..3605eb6 100644
+--- a/packages/ts-interface-generator/package.json
++++ b/packages/ts-interface-generator/package.json
+@@ -38,7 +38,7 @@
+     "@types/hjson": "2.4.6",
+     "@types/jest": "29.5.12",
+     "@types/node": "20.14.9",
+-    "@types/openui5": "1.117.0",
++    "@types/openui5": "1.127.0",
+     "@types/yargs": "17.0.32",
+     "@typescript-eslint/eslint-plugin": "7.14.1",
+     "@typescript-eslint/parser": "7.14.1",
+diff --git a/packages/ts-interface-generator/src/astGenerationHelper.ts b/packages/ts-interface-generator/src/astGenerationHelper.ts
+index 0843015..728ffb5 100644
+--- a/packages/ts-interface-generator/src/astGenerationHelper.ts
++++ b/packages/ts-interface-generator/src/astGenerationHelper.ts
+@@ -579,7 +579,16 @@ function generateMethods(
+             ]),
+           ),
+         ],
+-        factory.createThisTypeNode(),
++        factory.createUnionTypeNode([
++          // the removed child or null if not found
++          createTSTypeNode(
++            aggregation.type,
++            requiredImports,
++            knownGlobals,
++            currentClassName,
++          ),
++          factory.createLiteralTypeNode(ts.factory.createNull()),
++        ]),
+       );
+       addJSDocCommentToNode(
+         remove,
+diff --git a/packages/ts-interface-generator/src/types.d.ts b/packages/ts-interface-generator/src/types.d.ts
+index c6853c8..e433c0d 100644
+--- a/packages/ts-interface-generator/src/types.d.ts
++++ b/packages/ts-interface-generator/src/types.d.ts
+@@ -48,7 +48,7 @@ interface Property extends APIMemberWithMethods, APIMemberWithType {
+ 
+ interface Aggregation extends APIMemberWithMethods, APIMemberWithType {
+   cardinality: "0..1" | "0..n";
+-  altTypes: [string];
++  altTypes: [string] | null;
+   //dnd: any,
+   singularName: string;
+   bindable: boolean;
+diff --git a/yarn.lock b/yarn.lock
+index b416296..ec4aa40 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -1606,13 +1606,6 @@
+     expect "^29.0.0"
+     pretty-format "^29.0.0"
+ 
+-"@types/jquery@*":
+-  version "3.5.30"
+-  resolved "https://registry.yarnpkg.com/@types/jquery/-/jquery-3.5.30.tgz#888d584cbf844d3df56834b69925085038fd80f7"
+-  integrity sha512-nbWKkkyb919DOUxjmRVk8vwtDb0/k8FKncmUKFi+NY+QXqWltooxTrswvz4LspQwxvLdvzBN1TImr6cw3aQx2A==
+-  dependencies:
+-    "@types/sizzle" "*"
+-
+ "@types/jquery@3.5.13":
+   version "3.5.13"
+   resolved "https://registry.yarnpkg.com/@types/jquery/-/jquery-3.5.13.tgz#5482d3ee325d5862f77a91c09369ae0a5b082bf3"
+@@ -1620,6 +1613,13 @@
+   dependencies:
+     "@types/sizzle" "*"
+ 
++"@types/jquery@~3.5.13":
++  version "3.5.30"
++  resolved "https://registry.yarnpkg.com/@types/jquery/-/jquery-3.5.30.tgz#888d584cbf844d3df56834b69925085038fd80f7"
++  integrity sha512-nbWKkkyb919DOUxjmRVk8vwtDb0/k8FKncmUKFi+NY+QXqWltooxTrswvz4LspQwxvLdvzBN1TImr6cw3aQx2A==
++  dependencies:
++    "@types/sizzle" "*"
++
+ "@types/json5@^0.0.29":
+   version "0.0.29"
+   resolved "https://registry.yarnpkg.com/@types/json5/-/json5-0.0.29.tgz#ee28707ae94e11d2b827bcbe5270bcea7f3e71ee"
+@@ -1659,24 +1659,24 @@
+   resolved "https://registry.yarnpkg.com/@types/normalize-package-data/-/normalize-package-data-2.4.4.tgz#56e2cc26c397c038fab0e3a917a12d5c5909e901"
+   integrity sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==
+ 
+-"@types/openui5@1.117.0":
+-  version "1.117.0"
+-  resolved "https://registry.yarnpkg.com/@types/openui5/-/openui5-1.117.0.tgz#24525e588717a20f915c77c26c1412150439dc40"
+-  integrity sha512-cSrT++FOAVQbjxnosbaqjiEEq67LSkCc0U+PwPDtZhqiLPQ8otFWJTZGXMj4kqookmeO9fSRZGnxCGRPlPmNuA==
++"@types/openui5@1.127.0":
++  version "1.127.0"
++  resolved "https://registry.yarnpkg.com/@types/openui5/-/openui5-1.127.0.tgz#4b84a5fd721a3cfda3d9e3445a38f705626e2a2a"
++  integrity sha512-MIauyuHgaNnN7PDMZ71vS9XqpVlo0tXL6EaMhdmNjQTMblm6IJxlmOz0UX1BkdJwGKIA2rVE+2WGz6xn7ndJaQ==
+   dependencies:
+-    "@types/jquery" "*"
+-    "@types/qunit" "*"
+-
+-"@types/qunit@*":
+-  version "2.19.10"
+-  resolved "https://registry.yarnpkg.com/@types/qunit/-/qunit-2.19.10.tgz#ab859a76a1e6aadcba45d20d6d6307cd1fc11a01"
+-  integrity sha512-gVB+rxvxmbyPFWa6yjjKgcumWal3hyqoTXI0Oil161uWfo1OCzWZ/rnEumsx+6uVgrwPrCrhpQbLkzfildkSbg==
++    "@types/jquery" "~3.5.13"
++    "@types/qunit" "^2.5.4"
+ 
+ "@types/qunit@2.5.4":
+   version "2.5.4"
+   resolved "https://registry.yarnpkg.com/@types/qunit/-/qunit-2.5.4.tgz#0518940acc6013259a8619a1ec34ce0e4ff8d1c4"
+   integrity sha512-VHi2lEd4/zp8OOouf43JXGJJ5ZxHvdLL1dU0Yakp6Iy73SjpuXl7yjwAwmh1qhTv8krDgHteSwaySr++uXX9YQ==
+ 
++"@types/qunit@^2.5.4":
++  version "2.19.10"
++  resolved "https://registry.yarnpkg.com/@types/qunit/-/qunit-2.19.10.tgz#ab859a76a1e6aadcba45d20d6d6307cd1fc11a01"
++  integrity sha512-gVB+rxvxmbyPFWa6yjjKgcumWal3hyqoTXI0Oil161uWfo1OCzWZ/rnEumsx+6uVgrwPrCrhpQbLkzfildkSbg==
++
+ "@types/sanitize-html@2.11.0":
+   version "2.11.0"
+   resolved "https://registry.yarnpkg.com/@types/sanitize-html/-/sanitize-html-2.11.0.tgz#582d8c72215c0228e3af2be136e40e0b531addf2"
+@@ -1793,7 +1793,7 @@
+     eslint-visitor-keys "^3.4.3"
+ 
+ "@ui5/dts-generator@link:packages/dts-generator":
+-  version "3.1.0"
++  version "3.3.0"
+   dependencies:
+     "@definitelytyped/dtslint" latest
+     "@definitelytyped/eslint-plugin" latest

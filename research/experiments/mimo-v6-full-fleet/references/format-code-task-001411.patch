@@ -1,0 +1,13 @@
+diff --git a/src/js/components/List/List.js b/src/js/components/List/List.js
+index ad7f1254f0..09ba178cd3 100644
+--- a/src/js/components/List/List.js
++++ b/src/js/components/List/List.js
+@@ -234,7 +234,7 @@ const List = React.forwardRef(
+     const sendAnalytics = useAnalytics();
+ 
+     const ariaProps = {
+-      role: onClickItem || onOrder ? 'listbox' : 'list',
++      role: onClickItem ? 'listbox' : 'list',
+     };
+ 
+     if (active >= 0) {

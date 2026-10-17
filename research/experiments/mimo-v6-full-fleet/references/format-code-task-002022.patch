@@ -1,0 +1,27 @@
+diff --git a/changes/3617.changed b/changes/3617.changed
+new file mode 100644
+index 000000000..0c218c5d0
+--- /dev/null
++++ b/changes/3617.changed
+@@ -0,0 +1 @@
++SearchForms on Nautobot homepage now redirect users to login page when they are not authenticated.
+diff --git a/nautobot/core/views/__init__.py b/nautobot/core/views/__init__.py
+index 4b62c6b6f..1bd9cb3a6 100644
+--- a/nautobot/core/views/__init__.py
++++ b/nautobot/core/views/__init__.py
+@@ -107,9 +107,14 @@ class HomeView(AccessMixin, TemplateView):
+         return self.render_to_response(context)
+ 
+ 
+-class SearchView(View):
++class SearchView(AccessMixin, View):
+     def get(self, request):
+ 
++        # if user is not authenticated, redirect to login page
++        # when attempting to search
++        if not request.user.is_authenticated:
++            return self.handle_no_permission()
++
+         # No query
+         if "q" not in request.GET:
+             return render(

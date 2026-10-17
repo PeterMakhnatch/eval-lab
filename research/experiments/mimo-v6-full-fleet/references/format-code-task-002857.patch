@@ -1,0 +1,104 @@
+diff --git a/sqlglot/dialects/mysql.py b/sqlglot/dialects/mysql.py
+index f9249eb7a..a3203298f 100644
+--- a/sqlglot/dialects/mysql.py
++++ b/sqlglot/dialects/mysql.py
+@@ -555,7 +555,19 @@ class MySQL(Dialect):
+             exp.WeekOfYear: rename_func("WEEKOFYEAR"),
+         }
+ 
+-        TYPE_MAPPING = generator.Generator.TYPE_MAPPING.copy()
++        UNSIGNED_TYPE_MAPPING = {
++            exp.DataType.Type.UBIGINT: "BIGINT",
++            exp.DataType.Type.UINT: "INT",
++            exp.DataType.Type.UMEDIUMINT: "MEDIUMINT",
++            exp.DataType.Type.USMALLINT: "SMALLINT",
++            exp.DataType.Type.UTINYINT: "TINYINT",
++        }
++
++        TYPE_MAPPING = {
++            **generator.Generator.TYPE_MAPPING,
++            **UNSIGNED_TYPE_MAPPING,
++        }
++
+         TYPE_MAPPING.pop(exp.DataType.Type.MEDIUMTEXT)
+         TYPE_MAPPING.pop(exp.DataType.Type.LONGTEXT)
+         TYPE_MAPPING.pop(exp.DataType.Type.MEDIUMBLOB)
+@@ -580,6 +592,13 @@ class MySQL(Dialect):
+             exp.DataType.Type.VARCHAR: "CHAR",
+         }
+ 
++        def datatype_sql(self, expression: exp.DataType) -> str:
++            # https://dev.mysql.com/doc/refman/8.0/en/numeric-type-syntax.html
++            result = super().datatype_sql(expression)
++            if expression.this in self.UNSIGNED_TYPE_MAPPING:
++                result = f"{result} UNSIGNED"
++            return result
++
+         def limit_sql(self, expression: exp.Limit, top: bool = False) -> str:
+             # MySQL requires simple literal values for its LIMIT clause.
+             expression = simplify_literal(expression.copy())
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 85f86aca1..6a72a6387 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -3543,6 +3543,7 @@ class DataType(Expression):
+         UINT = auto()
+         UINT128 = auto()
+         UINT256 = auto()
++        UMEDIUMINT = auto()
+         UNIQUEIDENTIFIER = auto()
+         UNKNOWN = auto()  # Sentinel value, useful for type annotation
+         USERDEFINED = "USER-DEFINED"
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index cc6909cb6..09da03fb3 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -137,6 +137,7 @@ class Parser(metaclass=_Parser):
+         TokenType.INT256,
+         TokenType.UINT256,
+         TokenType.MEDIUMINT,
++        TokenType.UMEDIUMINT,
+         TokenType.FIXEDSTRING,
+         TokenType.FLOAT,
+         TokenType.DOUBLE,
+@@ -206,6 +207,14 @@ class Parser(metaclass=_Parser):
+         *NESTED_TYPE_TOKENS,
+     }
+ 
++    SIGNED_TO_UNSIGNED_TYPE_TOKEN = {
++        TokenType.BIGINT: TokenType.UBIGINT,
++        TokenType.INT: TokenType.UINT,
++        TokenType.MEDIUMINT: TokenType.UMEDIUMINT,
++        TokenType.SMALLINT: TokenType.USMALLINT,
++        TokenType.TINYINT: TokenType.UTINYINT,
++    }
++
+     SUBQUERY_PREDICATES = {
+         TokenType.ANY: exp.Any,
+         TokenType.ALL: exp.All,
+@@ -3359,6 +3368,13 @@ class Parser(metaclass=_Parser):
+             self._retreat(index2)
+ 
+         if not this:
++            if self._match_text_seq("UNSIGNED"):
++                unsigned_type_token = self.SIGNED_TO_UNSIGNED_TYPE_TOKEN.get(type_token)
++                if not unsigned_type_token:
++                    self.raise_error(f"Cannot convert {type_token.value} to unsigned.")
++
++                type_token = unsigned_type_token or type_token
++
+             this = exp.DataType(
+                 this=exp.DataType.Type[type_token.value],
+                 expressions=expressions,
+diff --git a/sqlglot/tokens.py b/sqlglot/tokens.py
+index 83b97d654..3ba8195e4 100644
+--- a/sqlglot/tokens.py
++++ b/sqlglot/tokens.py
+@@ -86,6 +86,7 @@ class TokenType(AutoName):
+     SMALLINT = auto()
+     USMALLINT = auto()
+     MEDIUMINT = auto()
++    UMEDIUMINT = auto()
+     INT = auto()
+     UINT = auto()
+     BIGINT = auto()

@@ -1,0 +1,140 @@
+diff --git a/nucypher/policy/conditions/utils.py b/nucypher/policy/conditions/utils.py
+index 4cc5d9004..9473f8eea 100644
+--- a/nucypher/policy/conditions/utils.py
++++ b/nucypher/policy/conditions/utils.py
+@@ -1,5 +1,6 @@
+ import re
+-from typing import Dict, Iterator, List, Tuple, Union
++from http import HTTPStatus
++from typing import Dict, Iterator, List, Optional, Tuple, Union
+ 
+ from marshmallow import Schema, post_dump
+ from marshmallow.exceptions import SCHEMA
+@@ -8,11 +9,21 @@ from web3.middleware import geth_poa_middleware
+ from web3.providers import BaseProvider
+ 
+ from nucypher.policy.conditions.exceptions import (
++    ConditionEvaluationFailed,
++    ContextVariableVerificationFailed,
++    InvalidCondition,
++    InvalidConditionLingo,
+     InvalidConnectionToChain,
++    InvalidContextVariableData,
+     NoConnectionToChain,
++    RequiredContextVariable,
++    ReturnValueEvaluationError,
+ )
++from nucypher.policy.conditions.types import ContextDict, Lingo
+ from nucypher.utilities.logging import Logger
+ 
++__LOGGER = Logger("condition-eval")
++
+ 
+ class ConditionProviderManager:
+     def __init__(self, providers: Dict[int, List[HTTPProvider]]):
+@@ -65,6 +76,13 @@ class ConditionProviderManager:
+             )
+ 
+ 
++class ConditionEvalError(Exception):
++    """Exception when execution condition evaluation."""
++    def __init__(self, message: str, status_code: int):
++        self.message = message
++        self.status_code = status_code
++
++
+ def to_camelcase(s):
+     parts = iter(s.split("_"))
+     return next(parts) + "".join(i.title() for i in parts)
+@@ -92,6 +110,91 @@ class CamelCaseSchema(Schema):
+         }
+ 
+ 
++def evaluate_condition_lingo(
++    condition_lingo: Lingo,
++    providers: Optional[ConditionProviderManager] = None,
++    context: Optional[ContextDict] = None,
++    log: Logger = __LOGGER,
++):
++    """
++    Evaluates condition lingo with the give providers and user supplied context.
++    If all conditions are satisfied this function returns None.
++
++    # TODO: Evaluate all conditions even if one fails and report the result
++    """
++
++    # prevent circular import
++    from nucypher.policy.conditions.lingo import ConditionLingo
++
++    # Setup (don't use mutable defaults)
++    context = context or dict()
++    providers = providers or ConditionProviderManager(providers=dict())
++    error = None
++
++    # Evaluate
++    try:
++        if condition_lingo:
++            log.info(f"Evaluating access conditions {condition_lingo}")
++            lingo = ConditionLingo.from_dict(condition_lingo)
++            result = lingo.eval(providers=providers, **context)
++            if not result:
++                # explicit condition failure
++                error = ConditionEvalError(
++                    "Decryption conditions not satisfied", HTTPStatus.FORBIDDEN
++                )
++    except ReturnValueEvaluationError as e:
++        error = ConditionEvalError(
++            f"Unable to evaluate return value: {e}",
++            HTTPStatus.BAD_REQUEST,
++        )
++    except InvalidConditionLingo as e:
++        error = ConditionEvalError(
++            f"Invalid condition grammar: {e}",
++            HTTPStatus.BAD_REQUEST,
++        )
++    except InvalidCondition as e:
++        error = ConditionEvalError(
++            f"Incorrect value provided for condition: {e}",
++            HTTPStatus.BAD_REQUEST,
++        )
++    except RequiredContextVariable as e:
++        # TODO: be more specific and name the missing inputs, etc
++        error = ConditionEvalError(
++            f"Missing required inputs: {e}", HTTPStatus.BAD_REQUEST
++        )
++    except InvalidContextVariableData as e:
++        error = ConditionEvalError(
++            f"Invalid data provided for context variable: {e}",
++            HTTPStatus.BAD_REQUEST,
++        )
++    except ContextVariableVerificationFailed as e:
++        error = ConditionEvalError(
++            f"Context variable data could not be verified: {e}",
++            HTTPStatus.FORBIDDEN,
++        )
++    except NoConnectionToChain as e:
++        error = ConditionEvalError(
++            f"Node does not have a connection to chain ID {e.chain}",
++            HTTPStatus.NOT_IMPLEMENTED,
++        )
++    except ConditionEvaluationFailed as e:
++        error = ConditionEvalError(
++            f"Decryption condition not evaluated: {e}", HTTPStatus.BAD_REQUEST
++        )
++    except Exception as e:
++        # TODO: Unsure why we ended up here
++        message = (
++            f"Unexpected exception while evaluating "
++            f"decryption condition ({e.__class__.__name__}): {e}"
++        )
++        error = ConditionEvalError(message, HTTPStatus.INTERNAL_SERVER_ERROR)
++        log.warn(message)
++
++    if error:
++        log.info(error.message)  # log error message
++        raise error
++
++
+ def extract_single_error_message_from_schema_errors(
+     errors: Dict[str, List[str]],
+ ) -> str:

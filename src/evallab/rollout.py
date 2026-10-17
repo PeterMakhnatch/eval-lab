@@ -158,11 +158,9 @@ def _trial_error(job_dir: Path) -> str | None:
 def _outcome(
     task: Path, name: str, job_dir: Path, wall_seconds: float, error: str | None
 ) -> TrialOutcome:
-    if error is None:
-        error = _trial_error(job_dir)
     reward = _trial_reward(job_dir) if error is None else None
     if error is None and reward is None:
-        error = "missing verifier reward"
+        error = _trial_error(job_dir) or "missing verifier reward"
     sandbox_seconds: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None

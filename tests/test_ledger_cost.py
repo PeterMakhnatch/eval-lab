@@ -240,6 +240,71 @@ def test_v2_round_trip_excludes_open_reservation_from_totals(
     assert validated["schema_version"] == 2
 
 
+def test_v2_selfhosted_ledger_validates_with_two_key_expected_pricing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A graded self-hosted trial must not fail bookkeeping after the fact.
+
+    Canary shape (2026-10-16): 23 reconciled model calls at the (0, 0)
+    self-hosted rates. The proxy freezes a three-key card with a null
+    cached rate; the runner's production expected pricing for the lane
+    pins only input/output. Binding must admit that card, and still
+    refuse a genuinely different rate.
+    """
+    module = _proxy_module()
+    capability, attempt_id, usage_path = _budget_env(tmp_path, monkeypatch)
+    budget = module.TrialBudget()
+    for index in range(23):
+        call_id = budget.reserve(
+            input_tokens=1000 + index,
+            output_tokens=100 + index,
+            cost_micros=0,
+            requested_model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:rds1-b",
+            rates=(0, 0),
+        )
+        assert call_id is not None
+        budget.reconcile(
+            call_id=call_id,
+            used_input=1000 + index,
+            used_output=100 + index,
+            used_cost=0,
+            status=200,
+            returned_model="XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        )
+    ledger = json.loads(usage_path.read_text())
+    assert ledger["pricing"] == {
+        **SELFHOSTED_PRICING,
+        "cached_input_cost_micros_per_million": None,
+    }
+    assert len(ledger["calls"]) == 23
+
+    from evallab import runner as runner_module
+    from evallab.execution_contracts import ExecutionFailure
+
+    validated = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(capability.encode()).hexdigest(),
+        attempt_id=attempt_id,
+        limits=_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing=dict(SELFHOSTED_PRICING),
+    )
+    assert validated["totals"]["requests"] == 23
+    assert validated["unresolved_requests"] == 0
+
+    with pytest.raises(ExecutionFailure, match="binding does not match"):
+        runner_module._read_proxy_usage(
+            usage_path,
+            capability_id="sha256:" + hashlib.sha256(capability.encode()).hexdigest(),
+            attempt_id=attempt_id,
+            limits=_limits(),
+            provider_label="MiMo self-hosted",
+            expected_pricing={
+                "input_cost_micros_per_million": 1,
+                "output_cost_micros_per_million": 0,
+            },
+        )
+
 def test_v2_tampered_totals_fail_validation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

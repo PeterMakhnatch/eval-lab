@@ -191,8 +191,13 @@ def _cli(
     *,
     attempts: str = "2",
     other_arms: dict[str, dict[str, list[tuple[str, bool | None]]]] | None = None,
+    pins: list[str] | None = None,
+    diagnostic_trials: dict[str, dict[str, list[tuple[str, bool | None]]]] | None = None,
+    pin_regrades: list[dict[str, str | bool]] | None = None,
+    replay_mode: str | None = None,
 ) -> subprocess.CompletedProcess:
     digest = {t: hashlib.sha256(t.encode()).hexdigest() for t in TASKS}
+    repaired_digest = {t: hashlib.sha256(f"repaired-{t}".encode()).hexdigest() for t in TASKS}
     (tmp_path / "heldout.json").write_text(json.dumps({"scoring_allowed": True, "heldout": TASKS}))
     (tmp_path / "exports.json").write_text(
         json.dumps({"source_manifest": {"tasks": ["training-only"]}, "arms": {}})
@@ -214,11 +219,42 @@ def _cli(
     for flag in ("heldout", "exports", "package-pairs"):
         suffix = ".csv" if flag == "package-pairs" else ".json"
         command += [f"--{flag}", str(tmp_path / f"{flag}{suffix}")]
+    for task in pins or []:
+        command += ["--pin", task]
+    if pins:
+        (tmp_path / "pin-manifest.csv").write_text(
+            "task_id,final_digest\n"
+            + "".join(f"{t},sha256:{repaired_digest[t]}\n" for t in pins)
+        )
+        command += ["--pin-manifest", str(tmp_path / "pin-manifest.csv")]
+    if pin_regrades is not None:
+        (tmp_path / "pin-regrades.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in pin_regrades)
+        )
+        command += ["--pin-regrade", str(tmp_path / "pin-regrades.jsonl")]
+    if replay_mode is not None:
+        (tmp_path / "replay-plan.json").write_text(json.dumps({"mode": replay_mode}))
+        command += ["--replay-plan", str(tmp_path / "replay-plan.json")]
     arms = {"B": b_trials, "C": _full(False), **(other_arms or {})}
     for arm, trials in arms.items():
         rows = [
-            {"task": f"/store/fixture__{t}/{digest.get(t, '0' * 12)[:12]}", "name": n, "passed": v}
+            {
+                "task": f"/store/fixture__{t}/{digest.get(t, '0' * 12)[:12]}",
+                "name": n,
+                "passed": v,
+                **({"error": "synthetic trial failure"} if v is None else {}),
+            }
             for t, items in trials.items()
+            for n, v in items
+        ]
+        rows += [
+            {
+                "task": f"/store/fixture__{t}/{repaired_digest[t][:12]}",
+                "name": n,
+                "passed": v,
+                **({"error": "synthetic trial failure"} if v is None else {}),
+            }
+            for t, items in (diagnostic_trials or {}).get(arm, {}).items()
             for n, v in items
         ]
         (tmp_path / f"{arm}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
@@ -407,3 +443,296 @@ def test_cli_mixed_schedule_refusals_write_no_report(tmp_path: Path, attempts: s
     assert run.returncode == 2
     assert "REFUSED" in run.stderr
     assert not (tmp_path / "out.json").exists()
+
+
+# Research's calibrated schedule keeps B's second attempt secondary, not in the primary
+# B-vs-C cohort. Base and A are authorized for one attempt but unmeasured tonight.
+CALIBRATED = "base=1,A=1,B=2,C=1"
+PINS = TASKS[:3]
+
+
+def _calibrated_b() -> dict[str, list[tuple[str, bool | None]]]:
+    return _trials("B", {t: [False, True] for t in TASKS})
+
+
+def test_cli_calibrated_primary_is_attempt_1_not_the_secondary_b_rate(tmp_path: Path) -> None:
+    run = _cli(
+        tmp_path, _calibrated_b(), attempts=CALIBRATED, other_arms={"C": _once("C", True)}
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["planned_attempts"] == {"base": 1, "A": 1, "B": 2, "C": 1}
+    assert report["authorized_attempts"] == {"A": [1], "B": [1, 2], "C": [1], "base": [1]}
+    assert list(report["authorized_attempts"]) == ["A", "B", "C", "base"]
+    assert set(report["arms"]) == {"base", "A", "B", "C"}
+    for arm in ("base", "A"):
+        empty = report["arms"][arm]
+        assert empty["solve_coverage"] == "unmeasured"
+        assert empty["measurement_reason"] == "no_arm_input"
+        assert empty["solve_rate"] is None and empty["solve_ci95"] is None
+        assert (empty["measured_tasks"], empty["measured_attempts"]) == ("0/33", "0/33")
+        assert (empty["present_rows"], empty["missing_rows"], empty["error_rows"]) == (0, 33, 0)
+        assert empty["missing_task_attempts"] == 33
+        assert empty["missing_task_ids"] == TASKS
+    b, c = report["arms"]["B"], report["arms"]["C"]
+    assert (b["solves"], b["measured_attempts"], b["solve_rate"]) == (33, "66/66", 0.5)
+    assert (b["attempts_counted"], b["solve_rate_role"]) == (2, "secondary")
+    assert (c["solves"], c["measured_attempts"], c["solve_rate"]) == (33, "33/33", 1.0)
+    assert (c["attempts_counted"], c["solve_rate_role"]) == (1, "attempt_matched")
+    assert b["solve_coverage"] == c["solve_coverage"] == "complete"
+    assert set(report["paired"]) == {"B_vs_C"}
+    pair = report["paired"]["B_vs_C"]
+    assert pair["role"] == "primary"
+    assert pair["attempts_counted"] == {"B": 1, "C": 1}
+    assert pair["matched_attempt_ids"] == [1]
+    assert pair["status"] == "measured"
+    assert pair["comparison_coverage"] == "complete"
+    assert (pair["tasks"], pair["common_task_cohort"]) == (33, "33/33")
+    assert pair["missing_or_unpaired_task_ids"] == []
+    assert (pair["B_attempts_in_cohort"], pair["C_attempts_in_cohort"]) == (33, 33)
+    assert pair["equal_attempts_per_task"] is True
+    assert (pair["B_solve_rate"], pair["C_solve_rate"]) == (0.0, 1.0)
+    assert pair["mean_difference"] == -1.0
+    assert (pair["B_better"], pair["C_better"], pair["tied_tasks"]) == (0, 33, 0)
+    assert pair["exact_sign_fraction"] == "1/4294967296"
+    assert pair["exact_sign_p"] == float(Fraction(1, 2**32))
+
+
+def test_cli_calibrated_schedule_key_order_does_not_change_the_report(tmp_path: Path) -> None:
+    reports = []
+    for schedule in (CALIBRATED, "C=1,B=2,A=1,base=1"):
+        run = _cli(
+            tmp_path, _calibrated_b(), attempts=schedule, other_arms={"C": _once("C", True)}
+        )
+        assert run.returncode == 0, run.stderr
+        reports.append(json.loads((tmp_path / "out.json").read_text()))
+    assert reports[0] == reports[1]
+
+
+def test_attempt_matching_is_opt_in_for_direct_comparisons() -> None:
+    b, c = _calibrated_b(), _once("C", True)
+    full = paired(b, c, TASKS, ("B", "C"), (2, 1))
+    matched = paired(b, c, TASKS, ("B", "C"), (2, 1), matched_attempts=1)
+    assert full["mean_difference"] == -0.5
+    assert (full["B_attempts_in_cohort"], full["C_attempts_in_cohort"]) == (66, 33)
+    assert full["equal_attempts_per_task"] is False
+    assert matched["mean_difference"] == -1.0
+    assert (matched["B_attempts_in_cohort"], matched["C_attempts_in_cohort"]) == (33, 33)
+
+
+@pytest.mark.parametrize("first_attempt", ["missing", "errored"])
+def test_cli_calibrated_missing_a1_is_not_replaced_by_a2(
+    tmp_path: Path, first_attempt: str
+) -> None:
+    b = _calibrated_b()
+    if first_attempt == "missing":
+        b[TASKS[0]] = b[TASKS[0]][1:]
+    else:
+        b[TASKS[0]][0] = (b[TASKS[0]][0][0], None)
+    run = _cli(tmp_path, b, attempts=CALIBRATED, other_arms={"C": _once("C", True)})
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["arms"]["B"]["measured_attempts"] == "65/66"
+    assert report["arms"]["B"]["solve_coverage"] == "observed_subset"
+    assert report["arms"]["B"]["solve_rate"] == round(33 / 65, 4)
+    pair = report["paired"]["B_vs_C"]
+    assert pair["comparison_coverage"] == "observed_subset"
+    assert (pair["tasks"], pair["common_task_cohort"]) == (32, "32/33")
+    assert pair["missing_or_unpaired_task_ids"] == [TASKS[0]]
+    assert (pair["B_attempts_in_cohort"], pair["C_attempts_in_cohort"]) == (32, 32)
+    assert (pair["B_solve_rate"], pair["C_solve_rate"]) == (0.0, 1.0)
+    assert pair["mean_difference"] == -1.0
+    assert (pair["B_better"], pair["C_better"]) == (0, 32)
+    assert pair["attempts_counted"] == {"B": 1, "C": 1}
+    assert pair["exact_sign_fraction"] == str(Fraction(1, 2**31))
+
+
+def test_cli_calibrated_a2_only_is_an_unmeasured_primary_pair(tmp_path: Path) -> None:
+    b = {t: items[1:] for t, items in _calibrated_b().items()}
+    run = _cli(tmp_path, b, attempts=CALIBRATED, other_arms={"C": _once("C", True)})
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["arms"]["B"]["solve_rate"] == 1.0
+    assert report["arms"]["B"]["measured_attempts"] == "33/66"
+    pair = report["paired"]["B_vs_C"]
+    assert pair["status"] == pair["comparison_coverage"] == "unmeasured"
+    assert (pair["tasks"], pair["common_task_cohort"]) == (0, "0/33")
+    assert pair["missing_or_unpaired_task_ids"] == TASKS
+    assert pair["B_solve_rate"] is None and pair["C_solve_rate"] is None
+    assert pair["mean_difference"] is None
+    assert pair["exact_sign_p"] is None and pair["exact_sign_fraction"] is None
+
+
+@pytest.mark.parametrize(
+    ("arm", "attempt"),
+    [("B", 3), ("C", 2), ("B", 2), ("C", 1)],
+    ids=["B-a3", "C-a2", "B-duplicate-unselected-a2", "C-duplicate-a1"],
+)
+def test_calibrated_matching_refuses_invalid_original_cells_without_a_report(
+    tmp_path: Path, arm: str, attempt: int
+) -> None:
+    arms = {"B": _calibrated_b(), "C": _once("C", True)}
+    arms[arm][TASKS[0]].append((f"extra-{arm}-{TASKS[0]}-a{attempt}", True))
+    with pytest.raises(ValueError, match="authorized"):
+        paired(arms["B"], arms["C"], TASKS, ("B", "C"), (2, 1), matched_attempts=1)
+    run = _cli(tmp_path, arms["B"], attempts=CALIBRATED, other_arms={"C": arms["C"]})
+    assert run.returncode == 2
+    assert "REFUSED" in run.stderr
+    assert not (tmp_path / "out.json").exists()
+
+
+@pytest.mark.parametrize("unmeasured_cells", ["missing", "errored"])
+def test_cli_partial_and_absent_fresh_diagnostics_do_not_block_headline_scoring(
+    tmp_path: Path, unmeasured_cells: str
+) -> None:
+    values: Values = {PINS[0]: [False]}
+    if unmeasured_cells == "errored":
+        values = {t: [None, None] for t in PINS}
+        values[PINS[0]][0] = False
+    run = _cli(
+        tmp_path,
+        _calibrated_b(),
+        attempts=CALIBRATED,
+        other_arms={"C": _once("C", True)},
+        pins=PINS,
+        diagnostic_trials={"B": _trials("B-repaired", values)},
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["arms"]["B"]["measured_attempts"] == "66/66"
+    assert report["arms"]["C"]["measured_attempts"] == "33/33"
+    assert report["paired"]["B_vs_C"]["comparison_coverage"] == "complete"
+    assert report["paired"]["B_vs_C"]["mean_difference"] == -1.0
+    b = report["pins"]["arms"]["B"]["unpaired"]
+    assert b["status"] == "observed_subset"
+    assert (b["planned_diagnostic_attempts"], b["missing_diagnostic_attempts"]) == (6, 5)
+    assert b["errored_diagnostic_attempts"] == (5 if unmeasured_cells == "errored" else 0)
+    assert (b["v6_measured"], b["v6_solves"]) == (6, 3)
+    assert (b["repaired_measured"], b["repaired_solves"]) == (1, 0)
+    assert b["repaired_solve_ci95"] is not None
+    assert b["pass_gap"] == 0.5
+    assert b["repaired_trials_by_task"] == {t: len(values.get(t, [])) for t in PINS}
+    for arm in ("C", "base", "A"):
+        missing = report["pins"]["arms"][arm]["unpaired"]
+        assert missing["status"] == "unavailable"
+        assert missing["reason"] == "skipped_by_budget"
+        assert (missing["planned_diagnostic_attempts"], missing["missing_diagnostic_attempts"]) == (
+            3,
+            3,
+        )
+        assert missing["errored_diagnostic_attempts"] == 0
+        assert missing["repaired_measured"] == 0
+        assert missing["repaired_solve_ci95"] is None and missing["pass_gap"] is None
+
+
+@pytest.mark.parametrize(
+    ("diagnostic_pass", "status"), [(False, "complete"), (None, "unmeasured")]
+)
+def test_cli_complete_and_all_errored_fresh_diagnostics_are_distinct_from_absent(
+    tmp_path: Path, diagnostic_pass: bool | None, status: str
+) -> None:
+    run = _cli(
+        tmp_path,
+        _calibrated_b(),
+        attempts=CALIBRATED,
+        other_arms={"C": _once("C", True)},
+        pins=PINS,
+        diagnostic_trials={
+            "B": _trials("B-repaired", {t: [diagnostic_pass, diagnostic_pass] for t in PINS}),
+            "C": _trials("C-repaired", {t: [diagnostic_pass] for t in PINS}),
+        },
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["paired"]["B_vs_C"]["comparison_coverage"] == "complete"
+    assert report["paired"]["B_vs_C"]["mean_difference"] == -1.0
+    for arm, count in (("B", 2), ("C", 1)):
+        diagnostic = report["pins"]["arms"][arm]["unpaired"]
+        planned = len(PINS) * count
+        unmeasured = planned if diagnostic_pass is None else 0
+        assert diagnostic["status"] == status
+        assert diagnostic.get("reason") != "skipped_by_budget"
+        assert diagnostic["planned_diagnostic_attempts"] == planned
+        assert diagnostic["missing_diagnostic_attempts"] == unmeasured
+        assert diagnostic["errored_diagnostic_attempts"] == unmeasured
+        assert diagnostic["repaired_measured"] == planned - unmeasured
+        assert diagnostic["repaired_solves"] == 0
+        assert diagnostic["repaired_trials_by_task"] == {t: count for t in PINS}
+        if diagnostic_pass is None:
+            assert diagnostic["repaired_solve_ci95"] is None
+            assert diagnostic["pass_gap"] is None
+        else:
+            assert diagnostic["repaired_solve_ci95"] is not None
+            assert diagnostic["pass_gap"] == (0.5 if arm == "B" else 1.0)
+
+
+@pytest.mark.parametrize(
+    ("arm", "attempt"),
+    [("B", 3), ("C", 2), ("B", 1), ("C", 1)],
+    ids=["B-a3", "C-a2", "B-duplicate-a1", "C-duplicate-a1"],
+)
+def test_cli_refuses_unauthorized_or_duplicate_diagnostic_cells_without_a_report(
+    tmp_path: Path, arm: str, attempt: int
+) -> None:
+    diagnostics = {
+        "B": _trials("B-repaired", {PINS[0]: [False]}),
+        "C": _trials("C-repaired", {PINS[0]: [True]}),
+    }
+    diagnostics[arm][PINS[0]].append((f"extra-{arm}-{PINS[0]}-a{attempt}", None))
+    run = _cli(
+        tmp_path,
+        _calibrated_b(),
+        attempts=CALIBRATED,
+        other_arms={"C": _once("C", True)},
+        pins=PINS,
+        diagnostic_trials=diagnostics,
+    )
+    assert run.returncode == 2
+    assert "REFUSED" in run.stderr
+    assert not (tmp_path / "out.json").exists()
+
+
+@pytest.mark.parametrize("replay_mode", ["attempt-1", "all attempts"])
+def test_cli_paired_pin_regrades_keep_an_independent_replay_denominator(
+    tmp_path: Path, replay_mode: str
+) -> None:
+    b, c = _calibrated_b(), _once("C", True)
+    regrades = [
+        {"arm": arm, "trial": trials[task][-1][0], "repaired_pass": bool(i)}
+        for arm, trials in (("B", b), ("C", c))
+        for i, task in enumerate(PINS[:2])
+    ]
+    run = _cli(
+        tmp_path,
+        b,
+        attempts=CALIBRATED,
+        other_arms={"C": c},
+        pins=PINS,
+        diagnostic_trials={"B": _trials("B-repaired", {PINS[0]: [True]})},
+        pin_regrades=regrades,
+        replay_mode=replay_mode,
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    assert report["incorrect_pass_replay_mode"] == replay_mode
+    assert report["paired"]["B_vs_C"]["attempts_counted"] == {"B": 1, "C": 1}
+    assert report["paired"]["B_vs_C"]["mean_difference"] == -1.0
+    pins = report["pins"]["arms"]
+    assert pins["B"]["unpaired"]["repaired_measured"] == 1
+    assert pins["B"]["unpaired"]["pass_gap"] == -0.5
+    assert pins["C"]["unpaired"]["status"] == "unavailable"
+    assert pins["C"]["unpaired"]["repaired_measured"] == 0
+    # The third rewarded snapshot has no regrade: it is not inferred to be a pass.
+    c_paired = pins["C"]["paired"]
+    assert (c_paired["v6_pin_passes"], c_paired["regrade_measured"]) == (3, 2)
+    assert (c_paired["pin_incorrect_passes"], c_paired["pin_incorrect_pass_rate"]) == (1, 0.5)
+    b_paired = pins["B"]["paired"]
+    if replay_mode == "all attempts":
+        assert b_paired["attempts_counted"] == "all"
+        assert (b_paired["v6_pin_passes"], b_paired["regrade_measured"]) == (3, 2)
+        assert (b_paired["pin_incorrect_passes"], b_paired["pin_incorrect_pass_rate"]) == (1, 0.5)
+    else:
+        assert b_paired["attempts_counted"] == "attempt 1 only"
+        assert (b_paired["v6_pin_passes"], b_paired["regrade_measured"]) == (0, 0)
+        assert b_paired["pin_incorrect_pass_rate"] is None
+        assert b_paired["pin_incorrect_pass_ci95"] is None

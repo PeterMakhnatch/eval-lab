@@ -1,0 +1,52 @@
+diff --git a/webpush/__init__.py b/webpush/__init__.py
+index e69de29..b89650a 100644
+--- a/webpush/__init__.py
++++ b/webpush/__init__.py
+@@ -0,0 +1,13 @@
++import json
++
++from .utils import send_notification_to_group, send_notification_to_user
++
++
++def send_group_notification(group_name, payload, ttl=0, exclude_user_id=None):
++    payload = json.dumps(payload)
++    send_notification_to_group(group_name, payload, ttl, exclude_user_id)
++
++
++def send_user_notification(user, payload, ttl=0):
++    payload = json.dumps(payload)
++    send_notification_to_user(user, payload, ttl)
+diff --git a/webpush/utils.py b/webpush/utils.py
+index fc3ba6e..d155a38 100644
+--- a/webpush/utils.py
++++ b/webpush/utils.py
+@@ -5,6 +5,29 @@ from django.urls import reverse
+ from pywebpush import WebPushException, webpush
+ 
+ 
++def send_notification_to_user(user, payload, ttl=0):
++    # Get all the push_info of the user
++
++    push_infos = user.webpush_info.select_related("subscription")
++    for push_info in push_infos:
++        _send_notification(push_info.subscription, payload, ttl)
++
++
++def send_notification_to_group(group_name, payload, ttl=0, exclude_user_id=None):
++    from .models import Group
++
++    push_infos = Group.objects.get(name=group_name).webpush_info.select_related("subscription")
++
++    # Exclude the current user from receiving notifications if they are part of the target group.
++    # This prevents users from receiving redundant notifications when they trigger an event themselves.
++    if exclude_user_id is not None:
++        push_infos = push_infos.exclude(user__id=exclude_user_id)
++
++    for push_info in push_infos:
++        _send_notification(push_info.subscription, payload, ttl)
++
++
++
+ def send_to_subscription(subscription, payload, ttl=0):
+     return _send_notification(subscription, payload, ttl)
+ 

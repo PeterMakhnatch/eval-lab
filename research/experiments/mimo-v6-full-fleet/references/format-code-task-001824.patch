@@ -1,0 +1,45 @@
+diff --git a/ludwig/features/date_feature.py b/ludwig/features/date_feature.py
+index 1c21793a1..5ebae88e9 100644
+--- a/ludwig/features/date_feature.py
++++ b/ludwig/features/date_feature.py
+@@ -44,7 +44,7 @@ class DateFeatureMixin:
+         'missing_value_strategy': {'type': 'string', 'enum': MISSING_VALUE_STRATEGY_OPTIONS},
+         'fill_value': {'type': 'string'},
+         'computed_fill_value': {'type': 'string'},
+-        'datetime_format': {'type': 'string'},
++        'datetime_format': {'type': ['string', 'null']},
+     }
+ 
+     @staticmethod
+diff --git a/ludwig/features/sequence_feature.py b/ludwig/features/sequence_feature.py
+index b5846d6dd..91eb79495 100644
+--- a/ludwig/features/sequence_feature.py
++++ b/ludwig/features/sequence_feature.py
+@@ -75,6 +75,7 @@ class SequenceFeatureMixin:
+         'padding': {'type': 'string', 'enum': ['right', 'left']},
+         'tokenizer': {'type': 'string', 'enum': sorted(list(tokenizer_registry.keys()))},
+         'lowercase': {'type': 'boolean'},
++        'vocab_file': {'type': ['string', 'null']},
+         'missing_value_strategy': {'type': 'string', 'enum': MISSING_VALUE_STRATEGY_OPTIONS},
+         'fill_value': {'type': 'string'},
+         'computed_fill_value': {'type': 'string'},
+diff --git a/ludwig/features/text_feature.py b/ludwig/features/text_feature.py
+index f8b4d0284..3c87fee26 100644
+--- a/ludwig/features/text_feature.py
++++ b/ludwig/features/text_feature.py
+@@ -67,12 +67,12 @@ class TextFeatureMixin:
+ 
+     preprocessing_schema = {
+         'char_tokenizer': {'type': 'string', 'enum': sorted(list(tokenizer_registry.keys()))},
+-        'char_vocab_file': {'type': 'string'},
++        'char_vocab_file': {'type': ['string', 'null']},
+         'char_sequence_length_limit': {'type': 'integer', 'minimum': 0},
+         'char_most_common': {'type': 'integer', 'minimum': 0},
+         'word_tokenizer': {'type': 'string', 'enum': sorted(list(tokenizer_registry.keys()))},
+-        'pretrained_model_name_or_path': {'type': 'string'},
+-        'word_vocab_file': {'type': 'string'},
++        'pretrained_model_name_or_path': {'type': ['string', 'null']},
++        'word_vocab_file': {'type': ['string', 'null']},
+         'word_sequence_length_limit': {'type': 'integer', 'minimum': 0},
+         'word_most_common': {'type': 'integer', 'minimum': 0},
+         'padding_symbol': {'type': 'string'},

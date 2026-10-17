@@ -52,32 +52,87 @@ Invalid submissions are unusable, never passes.
 
 ### Execution backend
 
-`HarborBackend.run_container_trial` mirrors Harbor's separate-verifier flow.
+The default `--environment docker` uses `HarborBackend.run_container_trial`,
+which mirrors Harbor's separate-verifier flow.
 `run_task` holds one slot of the shared host-wide Docker FIFO lock
 (`evallab.docker_lock.docker_slot`, label `qa-task/<task>`) for all of a
 task's container work (S0, S2, S3), so the queue is joined once per task and
 not once per trial; S1 runs before it and needs no container. The backend's
 per-trial, `leak`, ref-subset and mutation calls re-enter that slot
-(`HarborBackend.slot` is reentrant; `docker_slot` itself is not). At most one
-QA Task container runs at a time and other tabs interleave between tasks:
+(`HarborBackend.slot` is reentrant; `docker_slot` itself is not). By default one
+QA Task container runs at a time and other tabs interleave between tasks.
+Explicit Docker task concurrency is restricted to 1–2 and retains that same
+host-wide admission:
 
 1. build (and cache per package digest) the environment image and, for
-   `environment_mode = "separate"`, the `tests/` image;
-2. start one agent container; run oracle `solution/solve.sh` (optionally
-   replaced by a mutation/capture script), a shortcut script, or nothing
-   (nop); run any `[[verifier.collect]]` hooks; optionally copy the agent's
-   `/logs/artifacts` out (mutation captures);
-3. copy every `task.toml` artifact out (directory artifacts keep their tree;
-   dict artifacts honour `exclude`);
-4. remove the agent container, start a fresh verifier container, upload the
-   artifacts to their declared paths, run `tests/test.sh`, read
+   `environment_mode = "separate"`, the `tests/` image (adding
+   `--platform linux/amd64` when `Dockerfile` or `tests/wheels/*.whl` requires
+   `x86_64` / `amd64`);
+2. start one agent container (or, for `environment/docker-compose.yaml`
+   packages, bring up the Compose stack under the same FIFO slot); run oracle
+   `solution/solve.sh` (optionally replaced by a mutation/capture script), a
+   shortcut script, or nothing (nop); run `[[verifier.collect]]` hooks for
+   `main`; optionally copy the agent's `/logs/artifacts` out (mutation
+   captures);
+3. copy `main` `task.toml` artifacts out (directory artifacts keep their tree;
+   dict artifacts honour `exclude`); for Compose packages with sidecar hooks or
+   sidecar `artifacts = [{source, service}]`, stop `main` first so sidecar
+   collection sees a quiescent state, then run sidecar `[[verifier.collect]]`
+   hooks and copy sidecar artifacts;
+4. remove the agent container (or tear down the Compose stack), start a fresh
+   verifier container, upload the artifacts to their declared paths, run
+   `tests/test.sh` with a world-writable `/logs/verifier`, read
    `/logs/verifier/reward.txt` (or `reward.json`), and copy `/logs/verifier/`
    out (coverage traces);
 5. shared-mode tasks are graded in the agent container instead.
-
 Every trial writes `agent/oracle.txt`, `verifier/test-stdout.txt` and
 `result.json` under its trial directory; those are the grader outputs fed back
 to the shortcut agent on the next attempt.
+
+#### Modal: native Harbor trials, not local Docker
+
+Real execution needs the pinned lab Harbor and its Modal extra
+(`uv sync --extra laminar`); package-only `--plan` needs neither the optional
+runtime nor Modal credentials.
+
+`--environment modal` runs S0 controls/leak inspection, S2 shortcut,
+reference-subset and mutation trials, and S3 confirmations on native Harbor
+Modal environments. QA inherits the logical stages, patch staging and replay
+rules; native `Trial.create(...).run()` owns healthchecks, execution, collect
+hooks, artifact destinations/exclusions, separate/shared verifier isolation,
+reward parsing and cleanup. A script-only `BaseAgent` runs the submitted script
+without a model. Reference-subset uses its native Modal backend and the same
+run-wide spend gate. This path never joins a Docker slot, builds/pulls/runs
+local Docker, or falls back to Docker.
+
+Every agent or verifier allocation is admitted separately, **before** native
+image preparation/provider execution. The reservation includes preparation and
+both possible native sandbox-creation attempts (three units per environment);
+unused attempts retain their estimates. Reference-subset accounts for its own
+image preparation, immutable snapshot and bounded grade attempts, included in
+the plan. A separate verifier therefore needs its own reservation even after
+the agent succeeds. A failed script/setup/verifier, missing/invalid reward,
+budget exhaustion or package-digest change is unmeasured, not a pass or a
+measured zero. Native raw `result.json` is preserved; `qa-execution.json`
+records QA's usability decision and spend receipt. `agent/oracle.txt` and
+`verifier/test-stdout.txt` keep the existing reproducer/report interface.
+
+The adapter combines `LockedModalEnvironment`'s actual accepted egress-policy
+evidence (`egress-lock.json`) with `RegradeModalEnvironment`'s PATH pin and
+at-most-one-hour sandbox lifetime. It does not claim a public policy was
+locked. Native trial cleanup runs on success and failure; failed starts also
+attempt bounded cleanup. Longer requested trial timeouts do not extend the
+one-hour sandbox lifetime. Script overrides and synthesized patch oracles are
+staged outside the package; reports, findings and native trial config retain
+the original package path/digest.
+
+Compose packages are explicitly unsupported on this backend (no implicit
+Docker-in-Docker). GPU/TPU tasks are refused before allocation because the
+CPU reservation estimate is **not** qualified accelerator pricing. This is
+not cloud GPU qualification. Windows and declared multi-step packages are
+also unsupported by this single-step shell-control backend. Unsupported tasks
+remain unmeasured with their reason.
+
 
 ### Workdir-bound packages (MiMo code tasks)
 
@@ -108,6 +163,12 @@ package, and no TB4 package declares a `workdir`.
   `docker exec -w <workdir>`, as Harbor does. A v6 MiMo `solve.sh` finds its repository
   with `git rev-parse --show-toplevel || pwd`; in the image's default directory (`/`)
   its patch had nothing to apply to and every control came back unmeasured.
+- **Embedded reference patch for v6 ref-subset.** A v6 separate-verifier MiMo
+  package embeds its base64 reference patch in `solution/solve.sh`
+  (`echo <b64> | base64 -d`). `HarborBackend.ref_subset` extracts it
+  automatically and stages a temporary direct-grading `tests/test.sh` for the
+  S2b block-drop and line-mutant pass, while S3 replays every candidate against
+  the v6 package's own separate verifier.
 - **Subject id.** The resolver strips the namespace from `[task].name`; `run_task`
   restores the package's own (`mimo-v2.6-rl/<id>`, `terminal-bench/<id>`) so a
   finding binds to its key. A package with no namespaced name keeps the TB2
@@ -169,6 +230,16 @@ uv run evallab qa task --task <package-dir> --stages S0,S2,S3 --no-model \
 uv run evallab qa task --task <package-dir> --stages S2,S3 --no-model \
   --evidence <candidate-finding-or-dir>
 
+# $0 Modal plan, including all selected tasks and conservative execution units
+# No backend, Harbor/Modal runtime, Docker, quota probe or model is constructed.
+uv run evallab qa task --task <package-dir> --environment modal --plan \
+  --concurrency 16 --max-usd 3 --usd-per-execution 0.05
+
+# Capped real cloud controls; approval is recorded, not implied by --plan
+uv run evallab qa task --task <package-dir> --environment modal \
+  --stages S0,S3 --no-model --max-usd 3 --usd-per-execution 0.05 \
+  --approve "Authorized CPU controls, at most USD 3 in reservations"
+
 # Digest-bound scorer (flagged vs verified); held-out rows drop items QA Task
 # was tuned on, per research/answer-keys/splits/exposure.jsonl
 uv run evallab qa task-score --key envcheck-tb4-39 \
@@ -180,9 +251,12 @@ Options: `--task`, `--key`, `--split {dev,heldout}`, `--item`,
 `--packages-root`, `--run-dir`, `--stages` (default `S0,S1,S2,S3`),
 `--trial-timeout` (default 1800), `--rubric`, `--model` (default
 `codex/gpt-6-luna`), `--no-model`, `--mutants`, `--evidence`, `--triplet`,
-and `--ref-patch` (the reference patch: ref-subset's reference and, for a package
-with no `solution/solve.sh`, the oracle; see "Workdir-bound packages").
-
+`--ref-patch` (the reference patch: ref-subset's reference and, for a package
+with no `solution/solve.sh`, the oracle; see "Workdir-bound packages"),
+`--resume-from` (reuse digest-bound measured checks and probes from an earlier
+run directory), `--environment {docker,modal}` (default Docker), `--plan`,
+`--max-usd`, `--approve`, `--usd-per-execution` (positive finite; default 0.05),
+and `--concurrency` (default 1; Modal 1–16, Docker 1–2).
 Run directories are fresh and immutable (an existing `--run-dir` is an error)
 and must live inside the checkout. Layout: `run.json`, `summary.json`,
 `tasks/<slug>/report.json`, `tasks/<slug>/s2-shortcut-a<N>/`,
@@ -190,6 +264,36 @@ and must live inside the checkout. Layout: `run.json`, `summary.json`,
 `tasks/<slug>/s3-replay-<suffix>/`, `tasks/<slug>/leak/`,
 `findings/<sha256(finding.id)>.json`, and `codex/spend.jsonl`. Mutation trial
 directories live under `runs/ec-*` (the mutation audit's own convention).
+
+`--plan` only reads selected package/evidence metadata and prints JSON. It
+creates no run directory, calls no provider or subscription model, and always
+reports zero executed/reserved USD. Each selected task appears with digest,
+unsupported reason, per-stage reservation upper bounds and estimated USD.
+The aggregate exposes `fits_cap`, `runnable` and refusal reasons (including
+missing real-run approval/cap). The bound reserves possible fresh S3 controls
+and confirmations, ref-subset preparation/grades/mutants, and mutation
+captures/coverage/blank controls/mutants, rather than counting only successful
+trials. A shared-verifier package with neither `solution/patch.diff` nor an
+explicit `--ref-patch` has no applicable ref-subset execution or confirmation
+reservation; binding a reference restores both to the bound. An actual capped
+run may deliberately be smaller than this full-audit
+bound: allocations stop at the gate and all unfinished measurements stay
+unknown. A plan is not an approval or a promise that the cap completes every
+stage.
+
+Real Modal execution requires both recorded nonempty `--approve` text and a
+positive finite `--max-usd`. One thread-safe `CloudSpendGate` is shared across
+all stages and tasks, with a distinct backend and model lane/scratch directory
+per task. Cloud concurrency 16 means 16 independent task threads, not 16 calls
+into one mutable backend. Docker's default remains sequential. Modal run
+metadata, per-task reports, `cloud-spend.json` and `summary.json` include the
+gate receipt (`approval`, `cap_usd`, `usd_per_execution`, `executions`,
+`reserved_usd`). Per-task receipts are run-wide snapshots; the final receipt
+is in the run metadata/summary. Model `cost_usd` remains separate from cloud
+reservations. Reservations are conservative admission **estimates**, not
+observed provider bills and not a provider billing hard kill; a failed or
+short attempt retains its reservation.
+
 
 ## Models, quota gate and spend
 
@@ -201,7 +305,8 @@ only). Before **every** call it re-checks the Codex 7-day quota via
 `not_run`. Calls are $0 subscription usage, logged with
 `SPEND_TAG = "2026-10-15"` and the weekly used fraction to
 `<run>/codex/spend.jsonl`. Model tokens count usable replies only (a lower
-bound, not a bill). No paid API is used.
+bound, not a bill). No paid model API is used; Modal cloud execution has its
+own explicit reservation gate described above.
 
 ## Scoring (`evallab qa task-score`)
 

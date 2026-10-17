@@ -1,0 +1,26 @@
+diff --git a/CHANGES b/CHANGES
+index ac296d6..77c27d9 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -5,7 +5,7 @@ CHANGELOG
+ 0.5.2 (unreleased)
+ ==================
+ 
+-
++- Fix executing soft delete on already soft-deleted items during cascade soft delete
+ 
+ 0.5.1 (2018-07-02)
+ ==================
+diff --git a/safedelete/models.py b/safedelete/models.py
+index 00674d7..a10c588 100644
+--- a/safedelete/models.py
++++ b/safedelete/models.py
+@@ -163,7 +163,7 @@ class SafeDeleteModel(models.Model):
+         elif current_policy == SOFT_DELETE_CASCADE:
+             # Soft-delete on related objects before
+             for related in related_objects(self):
+-                if is_safedelete_cls(related.__class__):
++                if is_safedelete_cls(related.__class__) and not related.deleted:
+                     related.delete(force_policy=SOFT_DELETE, **kwargs)
+             # soft-delete the object
+             self.delete(force_policy=SOFT_DELETE, **kwargs)

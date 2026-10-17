@@ -1,0 +1,298 @@
+{
+ "key": "trace-paired-v1",
+ "measured": 81,
+ "method": "evallab.qa.trace.score_paired over verdict.json flags (flagged_any = any fail finding; reward_hacking = the reward_shortcut finding), bootstrap 2000",
+ "pipeline": "qa-trace/5",
+ "views": {
+  "any_finding": {
+   "as_run": {
+    "abstained": 0,
+    "flag_rate": {
+     "clean": {
+      "flagged": 18,
+      "n": 21,
+      "rate": 0.857
+     },
+     "loud": {
+      "flagged": 60,
+      "n": 60,
+      "rate": 1.0
+     }
+    },
+    "n_items": 81,
+    "paired": {
+     "all_faults": {
+      "ci95": [
+       0.0,
+       0.143
+      ],
+      "delta": 0.05,
+      "n": 60
+     },
+     "loud": {
+      "ci95": [
+       0.0,
+       0.147
+      ],
+      "delta": 0.05,
+      "n": 60
+     }
+    },
+    "recall_by_type": {}
+   },
+   "on_qa_trace_3_measured_pairs": {
+    "pairs": 23,
+    "qa_trace_3": {
+     "abstained": 0,
+     "flag_rate": {
+      "clean": {
+       "flagged": 6,
+       "n": 11,
+       "rate": 0.545
+      },
+      "loud": {
+       "flagged": 23,
+       "n": 23,
+       "rate": 1.0
+      }
+     },
+     "n_items": 34,
+     "paired": {
+      "all_faults": {
+       "ci95": [
+        0.174,
+        0.688
+       ],
+       "delta": 0.391,
+       "n": 23
+      },
+      "loud": {
+       "ci95": [
+        0.188,
+        0.692
+       ],
+       "delta": 0.391,
+       "n": 23
+      }
+     },
+     "recall_by_type": {}
+    },
+    "qa_trace_5": {
+     "abstained": 0,
+     "flag_rate": {
+      "clean": {
+       "flagged": 10,
+       "n": 11,
+       "rate": 0.909
+      },
+      "loud": {
+       "flagged": 23,
+       "n": 23,
+       "rate": 1.0
+      }
+     },
+     "n_items": 34,
+     "paired": {
+      "all_faults": {
+       "ci95": [
+        0.0,
+        0.2
+       ],
+       "delta": 0.043,
+       "n": 23
+      },
+      "loud": {
+       "ci95": [
+        0.0,
+        0.2
+       ],
+       "delta": 0.043,
+       "n": 23
+      }
+     },
+     "recall_by_type": {}
+    }
+   },
+   "re_derived": {
+    "abstained": 0,
+    "flag_rate": {
+     "clean": {
+      "flagged": 18,
+      "n": 21,
+      "rate": 0.857
+     },
+     "loud": {
+      "flagged": 60,
+      "n": 60,
+      "rate": 1.0
+     }
+    },
+    "n_items": 81,
+    "paired": {
+     "all_faults": {
+      "ci95": [
+       0.0,
+       0.143
+      ],
+      "delta": 0.05,
+      "n": 60
+     },
+     "loud": {
+      "ci95": [
+       0.0,
+       0.147
+      ],
+      "delta": 0.05,
+      "n": 60
+     }
+    },
+    "recall_by_type": {}
+   }
+  },
+  "reward_shortcut": {
+   "as_run": {
+    "abstained": 3,
+    "flag_rate": {
+     "clean": {
+      "flagged": 4,
+      "n": 18,
+      "rate": 0.222
+     },
+     "loud": {
+      "flagged": 53,
+      "n": 60,
+      "rate": 0.883
+     }
+    },
+    "n_items": 81,
+    "paired": {
+     "all_faults": {
+      "ci95": [
+       0.202,
+       0.875
+      ],
+      "delta": 0.49,
+      "n": 51
+     },
+     "loud": {
+      "ci95": [
+       0.188,
+       0.875
+      ],
+      "delta": 0.49,
+      "n": 51
+     }
+    },
+    "recall_by_type": {}
+   },
+   "on_qa_trace_3_measured_pairs": {
+    "pairs": 23,
+    "qa_trace_3": {
+     "abstained": 0,
+     "flag_rate": {
+      "clean": {
+       "flagged": 1,
+       "n": 11,
+       "rate": 0.091
+      },
+      "loud": {
+       "flagged": 20,
+       "n": 23,
+       "rate": 0.87
+      }
+     },
+     "n_items": 34,
+     "paired": {
+      "all_faults": {
+       "ci95": [
+        0.429,
+        1.0
+       ],
+       "delta": 0.609,
+       "n": 23
+      },
+      "loud": {
+       "ci95": [
+        0.429,
+        1.0
+       ],
+       "delta": 0.609,
+       "n": 23
+      }
+     },
+     "recall_by_type": {}
+    },
+    "qa_trace_5": {
+     "abstained": 0,
+     "flag_rate": {
+      "clean": {
+       "flagged": 4,
+       "n": 11,
+       "rate": 0.364
+      },
+      "loud": {
+       "flagged": 21,
+       "n": 23,
+       "rate": 0.913
+      }
+     },
+     "n_items": 34,
+     "paired": {
+      "all_faults": {
+       "ci95": [
+        0.119,
+        0.882
+       ],
+       "delta": 0.391,
+       "n": 23
+      },
+      "loud": {
+       "ci95": [
+        0.113,
+        0.875
+       ],
+       "delta": 0.391,
+       "n": 23
+      }
+     },
+     "recall_by_type": {}
+    }
+   },
+   "re_derived": {
+    "abstained": 3,
+    "flag_rate": {
+     "clean": {
+      "flagged": 4,
+      "n": 18,
+      "rate": 0.222
+     },
+     "loud": {
+      "flagged": 55,
+      "n": 60,
+      "rate": 0.917
+     }
+    },
+    "n_items": 81,
+    "paired": {
+     "all_faults": {
+      "ci95": [
+       0.247,
+       0.907
+      ],
+      "delta": 0.529,
+      "n": 51
+     },
+     "loud": {
+      "ci95": [
+       0.233,
+       0.9
+      ],
+      "delta": 0.529,
+      "n": 51
+     }
+    },
+    "recall_by_type": {}
+   }
+  }
+ }
+}

@@ -1,0 +1,109 @@
+diff --git a/asu/api.py b/asu/api.py
+index 2491001..0af5bf0 100644
+--- a/asu/api.py
++++ b/asu/api.py
+@@ -47,7 +47,7 @@ def api_v1_revision(version, target, subtarget):
+     return jsonify(
+         {
+             "revision": get_redis()
+-            .get(f"revision-{version}-{target}/{subtarget}" or b"")
++            .get(f"revision-{version}-{target}/{subtarget}")
+             .decode()
+         }
+     )
+diff --git a/asu/build.py b/asu/build.py
+index ed1bbdc..4ebbe4d 100644
+--- a/asu/build.py
++++ b/asu/build.py
+@@ -4,7 +4,7 @@ import re
+ import subprocess
+ from datetime import datetime
+ from pathlib import Path
+-from shutil import rmtree, copyfile
++from shutil import copyfile, rmtree
+ 
+ import requests
+ from rq import get_current_job
+@@ -201,19 +201,20 @@ def build(req: dict):
+                 f"Received inncorrect version {version_code} (requested {req['version_code']})"
+             )
+ 
+-    if req.get("diff_packages", False):
+-        default_packages = set(
+-            re.search(r"Default Packages: (.*)\n", info_run.stdout).group(1).split()
+-        )
+-        profile_packages = set(
+-            re.search(
+-                r"{}:\n    .+\n    Packages: (.*?)\n".format(req["profile"]),
+-                info_run.stdout,
+-                re.MULTILINE,
+-            )
+-            .group(1)
+-            .split()
++    default_packages = set(
++        re.search(r"Default Packages: (.*)\n", info_run.stdout).group(1).split()
++    )
++    profile_packages = set(
++        re.search(
++            r"{}:\n    .+\n    Packages: (.*?)\n".format(req["profile"]),
++            info_run.stdout,
++            re.MULTILINE,
+         )
++        .group(1)
++        .split()
++    )
++
++    if req.get("diff_packages", False):
+         remove_packages = (default_packages | profile_packages) - req["packages"]
+         req["packages"] = req["packages"] | set(map(lambda p: f"-{p}", remove_packages))
+ 
+@@ -265,8 +266,6 @@ def build(req: dict):
+ 
+     log.debug("Created store path: %s", req["store_path"] / bin_dir)
+ 
+-
+-
+     if "filesystem" in req:
+         config_path = cache / subtarget / ".config"
+         config = config_path.read_text()
+@@ -285,7 +284,7 @@ def build(req: dict):
+                 config = config.replace(
+                     f"# CONFIG_TARGET_ROOTFS_{filesystem.upper()} is not set",
+                     f"CONFIG_TARGET_ROOTFS_{filesystem.upper()}=y",
+-            )
++                )
+ 
+         config_path.write_text(config)
+     else:
+@@ -364,6 +363,12 @@ def build(req: dict):
+         ),
+     )
+ 
++    extra_packages = set(req.get("packages", [])) - (
++        default_packages | profile_packages
++    )
++    for package in extra_packages:
++        job.connection.hincrby("stats-packages", package)
++
+     log.debug("JSON content %s", json_content)
+ 
+     return json_content
+diff --git a/asu/metrics.py b/asu/metrics.py
+index d8fb4f0..48f9b33 100644
+--- a/asu/metrics.py
++++ b/asu/metrics.py
+@@ -34,3 +34,14 @@ class BuildCollector(object):
+         yield GaugeMetricFamily(
+             "cache_misses", "Cache misses of build images in percent", value=misses
+         )
++
++        extra_package_installs = GaugeMetricFamily(
++            "extra_package_installs",
++            "Package installation that are not installed by default",
++            labels=["package"],
++        )
++
++        for package, count in self.connection.hgetall("stats-packages").items():
++            extra_package_installs.add_metric([package.decode()], count)
++
++        yield extra_package_installs

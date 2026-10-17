@@ -1,0 +1,276 @@
+diff --git a/agent/endpoint.go b/agent/endpoint.go
+index 8718263..b50b5b1 100644
+--- a/agent/endpoint.go
++++ b/agent/endpoint.go
+@@ -10,6 +10,7 @@ import (
+ 	"github.com/andydunstall/piko/agent/config"
+ 	"github.com/andydunstall/piko/pkg/backoff"
+ 	"github.com/andydunstall/piko/pkg/conn"
++	"github.com/andydunstall/piko/pkg/conn/websocket"
+ 	"github.com/andydunstall/piko/pkg/log"
+ 	"github.com/andydunstall/piko/pkg/rpc"
+ 	"go.uber.org/zap"
+@@ -109,7 +110,9 @@ func (e *Endpoint) connect(ctx context.Context) (rpc.Stream, error) {
+ 		e.conf.Server.ReconnectMaxBackoff,
+ 	)
+ 	for {
+-		c, err := conn.DialWebsocket(ctx, e.serverURL(), e.conf.Auth.APIKey)
++		c, err := websocket.Dial(
++			ctx, e.serverURL(), websocket.WithToken(e.conf.Auth.APIKey),
++		)
+ 		if err == nil {
+ 			return rpc.NewStream(c, e.rpcServer.Handler(), e.logger), nil
+ 		}
+diff --git a/pkg/conn/conn.go b/pkg/conn/conn.go
+index b308818..2b830b5 100644
+--- a/pkg/conn/conn.go
++++ b/pkg/conn/conn.go
+@@ -7,6 +7,10 @@ type RetryableError struct {
+ 	err error
+ }
+ 
++func NewRetryableError(err error) *RetryableError {
++	return &RetryableError{err}
++}
++
+ func (e *RetryableError) Unwrap() error {
+ 	return e.err
+ }
+diff --git a/pkg/conn/websocket.go b/pkg/conn/websocket.go
+deleted file mode 100644
+index c841303..0000000
+--- a/pkg/conn/websocket.go
++++ /dev/null
+@@ -1,91 +0,0 @@
+-package conn
+-
+-import (
+-	"context"
+-	"fmt"
+-	"io"
+-	"net/http"
+-
+-	"github.com/gorilla/websocket"
+-)
+-
+-// retryableStatusCodes contains a set of HTTP status codes that should be
+-// retried.
+-var retryableStatusCodes = map[int]struct{}{
+-	http.StatusRequestTimeout:      {},
+-	http.StatusTooManyRequests:     {},
+-	http.StatusInternalServerError: {},
+-	http.StatusBadGateway:          {},
+-	http.StatusServiceUnavailable:  {},
+-	http.StatusGatewayTimeout:      {},
+-}
+-
+-type WebsocketConn struct {
+-	wsConn *websocket.Conn
+-}
+-
+-func NewWebsocketConn(wsConn *websocket.Conn) *WebsocketConn {
+-	return &WebsocketConn{
+-		wsConn: wsConn,
+-	}
+-}
+-
+-func DialWebsocket(ctx context.Context, url string, token string) (*WebsocketConn, error) {
+-	header := make(http.Header)
+-	if token != "" {
+-		header.Set("Authorization", "Bearer "+token)
+-	}
+-	wsConn, resp, err := websocket.DefaultDialer.DialContext(
+-		ctx, url, header,
+-	)
+-	if err != nil {
+-		if resp != nil {
+-			if _, ok := retryableStatusCodes[resp.StatusCode]; ok {
+-				return nil, &RetryableError{err}
+-			}
+-			return nil, fmt.Errorf("%d: %w", resp.StatusCode, err)
+-		}
+-		return nil, &RetryableError{err}
+-	}
+-	return NewWebsocketConn(wsConn), nil
+-}
+-
+-func (t *WebsocketConn) ReadMessage() ([]byte, error) {
+-	mt, message, err := t.wsConn.ReadMessage()
+-	if err != nil {
+-		return nil, err
+-	}
+-	if mt != websocket.BinaryMessage {
+-		return nil, fmt.Errorf("unexpected websocket message type: %d", mt)
+-	}
+-	return message, nil
+-}
+-
+-func (t *WebsocketConn) NextReader() (io.Reader, error) {
+-	mt, r, err := t.wsConn.NextReader()
+-	if err != nil {
+-		return nil, err
+-	}
+-	if mt != websocket.BinaryMessage {
+-		return nil, fmt.Errorf("unexpected websocket message type: %d", mt)
+-	}
+-	return r, nil
+-}
+-
+-func (t *WebsocketConn) WriteMessage(b []byte) error {
+-	return t.wsConn.WriteMessage(websocket.BinaryMessage, b)
+-}
+-
+-func (t *WebsocketConn) NextWriter() (io.WriteCloser, error) {
+-	return t.wsConn.NextWriter(websocket.BinaryMessage)
+-}
+-
+-func (t *WebsocketConn) Addr() string {
+-	return t.wsConn.RemoteAddr().String()
+-}
+-
+-func (t *WebsocketConn) Close() error {
+-	return t.wsConn.Close()
+-}
+-
+-var _ Conn = &WebsocketConn{}
+diff --git a/pkg/conn/websocket/websocket.go b/pkg/conn/websocket/websocket.go
+new file mode 100644
+index 0000000..60a408e
+--- /dev/null
++++ b/pkg/conn/websocket/websocket.go
+@@ -0,0 +1,113 @@
++package websocket
++
++import (
++	"context"
++	"fmt"
++	"io"
++	"net/http"
++
++	"github.com/andydunstall/piko/pkg/conn"
++	"github.com/gorilla/websocket"
++)
++
++// retryableStatusCodes contains a set of HTTP status codes that should be
++// retried.
++var retryableStatusCodes = map[int]struct{}{
++	http.StatusRequestTimeout:      {},
++	http.StatusTooManyRequests:     {},
++	http.StatusInternalServerError: {},
++	http.StatusBadGateway:          {},
++	http.StatusServiceUnavailable:  {},
++	http.StatusGatewayTimeout:      {},
++}
++
++type Options struct {
++	token string
++}
++
++type Option interface {
++	apply(*Options)
++}
++
++type tokenOption string
++
++func (o tokenOption) apply(opts *Options) {
++	opts.token = string(o)
++}
++
++func WithToken(token string) Option {
++	return tokenOption(token)
++}
++
++type Conn struct {
++	wsConn *websocket.Conn
++}
++
++func NewConn(wsConn *websocket.Conn) *Conn {
++	return &Conn{
++		wsConn: wsConn,
++	}
++}
++
++func Dial(ctx context.Context, url string, opts ...Option) (*Conn, error) {
++	options := Options{}
++	for _, o := range opts {
++		o.apply(&options)
++	}
++
++	header := make(http.Header)
++	if options.token != "" {
++		header.Set("Authorization", "Bearer "+options.token)
++	}
++	wsConn, resp, err := websocket.DefaultDialer.DialContext(
++		ctx, url, header,
++	)
++	if err != nil {
++		if resp != nil {
++			if _, ok := retryableStatusCodes[resp.StatusCode]; ok {
++				return nil, conn.NewRetryableError(err)
++			}
++			return nil, fmt.Errorf("%d: %w", resp.StatusCode, err)
++		}
++		return nil, conn.NewRetryableError(err)
++	}
++	return NewConn(wsConn), nil
++}
++
++func (c *Conn) ReadMessage() ([]byte, error) {
++	mt, message, err := c.wsConn.ReadMessage()
++	if err != nil {
++		return nil, err
++	}
++	if mt != websocket.BinaryMessage {
++		return nil, fmt.Errorf("unexpected websocket message type: %d", mt)
++	}
++	return message, nil
++}
++
++func (c *Conn) NextReader() (io.Reader, error) {
++	mt, r, err := c.wsConn.NextReader()
++	if err != nil {
++		return nil, err
++	}
++	if mt != websocket.BinaryMessage {
++		return nil, fmt.Errorf("unexpected websocket message type: %d", mt)
++	}
++	return r, nil
++}
++
++func (c *Conn) WriteMessage(b []byte) error {
++	return c.wsConn.WriteMessage(websocket.BinaryMessage, b)
++}
++
++func (c *Conn) NextWriter() (io.WriteCloser, error) {
++	return c.wsConn.NextWriter(websocket.BinaryMessage)
++}
++
++func (c *Conn) Addr() string {
++	return c.wsConn.RemoteAddr().String()
++}
++
++func (c *Conn) Close() error {
++	return c.wsConn.Close()
++}
+diff --git a/server/server/upstream/server.go b/server/server/upstream/server.go
+index 13a6fe6..2dc4249 100644
+--- a/server/server/upstream/server.go
++++ b/server/server/upstream/server.go
+@@ -7,7 +7,7 @@ import (
+ 	"net/http"
+ 	"time"
+ 
+-	"github.com/andydunstall/piko/pkg/conn"
++	pikowebsocket "github.com/andydunstall/piko/pkg/conn/websocket"
+ 	"github.com/andydunstall/piko/pkg/log"
+ 	"github.com/andydunstall/piko/pkg/rpc"
+ 	"github.com/andydunstall/piko/server/auth"
+@@ -131,7 +131,7 @@ func (s *Server) listenerRoute(c *gin.Context) {
+ 		return
+ 	}
+ 	stream := rpc.NewStream(
+-		conn.NewWebsocketConn(wsConn),
++		pikowebsocket.NewConn(wsConn),
+ 		s.rpcServer.Handler(),
+ 		s.logger,
+ 	)

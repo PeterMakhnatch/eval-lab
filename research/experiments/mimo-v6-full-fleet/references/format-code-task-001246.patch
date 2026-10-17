@@ -1,0 +1,189 @@
+diff --git a/burnman/classes/solution.py b/burnman/classes/solution.py
+index b370f439..4a889d81 100644
+--- a/burnman/classes/solution.py
++++ b/burnman/classes/solution.py
+@@ -209,6 +209,25 @@ class Solution(Mineral):
+ 
+         return formula
+ 
++    @material_property
++    def activities(self):
++        """
++        Returns a list of endmember activities [unitless].
++        """
++        return self.solution_model.activities(
++            self.pressure, self.temperature, self.molar_fractions
++        )
++
++    @material_property
++    def activity_coefficients(self):
++        """
++        Returns a list of endmember activity coefficients
++        (gamma = activity / ideal activity) [unitless].
++        """
++        return self.solution_model.activity_coefficients(
++            self.pressure, self.temperature, self.molar_fractions
++        )
++
+     @material_property
+     def molar_internal_energy(self):
+         """
+diff --git a/burnman/classes/solutionmodel.py b/burnman/classes/solutionmodel.py
+index e08ec127..9235878d 100644
+--- a/burnman/classes/solutionmodel.py
++++ b/burnman/classes/solutionmodel.py
+@@ -26,6 +26,25 @@ except ImportError as err:
+     )
+ 
+ 
++def _ideal_activities_fct(
++    molar_fractions,
++    endmember_noccupancies,
++    n_endmembers,
++    n_occupancies,
++    site_multiplicities,
++    endmember_configurational_entropies,
++):
++    site_noccupancies = np.dot(molar_fractions, endmember_noccupancies)
++    site_multiplicities = np.einsum("i, ij", molar_fractions, site_multiplicities)
++    site_occupancies = site_noccupancies * inverseish(site_multiplicities)
++
++    a = np.power(site_occupancies, endmember_noccupancies).prod(-1)
++    normalisation_constants = np.exp(
++        endmember_configurational_entropies / constants.gas_constant
++    )
++    return normalisation_constants * a
++
++
+ def _non_ideal_hessian_fct(phi, molar_fractions, n_endmembers, alpha, W):
+     q = np.eye(n_endmembers) - phi * np.ones((n_endmembers, n_endmembers))
+     sum_pa = np.dot(molar_fractions, alpha)
+@@ -398,6 +417,13 @@ class MechanicalSolution(SolutionModel):
+     def excess_partial_entropies(self, pressure, temperature, molar_fractions):
+         return np.zeros_like(molar_fractions)
+ 
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        return np.ones_like(molar_fractions)
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return np.ones_like(molar_fractions)
++
++
+ class IdealSolution(SolutionModel):
+     """
+     A solution model representing ideal mixing between endmembers.
+@@ -533,6 +559,22 @@ class IdealSolution(SolutionModel):
+ 
+         return dlnadp
+ 
++    def _ideal_activities(self, molar_fractions):
++        return _ideal_activities_fct(
++            molar_fractions,
++            self.endmember_noccupancies,
++            self.n_endmembers,
++            self.n_occupancies,
++            self.site_multiplicities,
++            self.endmember_configurational_entropies,
++        )
++
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        return np.ones_like(molar_fractions)
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return self._ideal_activities(molar_fractions)
++
+     @cached_property
+     def ones(self):
+         """
+@@ -718,6 +760,23 @@ class AsymmetricRegularSolution(IdealSolution):
+             phi, molar_fractions, self.n_endmembers, self.alphas, self.Wv
+         )
+ 
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        if temperature > 1.0e-10:
++            return np.exp(
++                self._non_ideal_excess_partial_gibbs(
++                    pressure, temperature, molar_fractions
++                )
++                / (constants.gas_constant * temperature)
++            )
++        else:
++            raise Exception("Activity coefficients not defined at 0 K.")
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return IdealSolution.activities(
++            self, pressure, temperature, molar_fractions
++        ) * self.activity_coefficients(pressure, temperature, molar_fractions)
++
++
+ class SymmetricRegularSolution(AsymmetricRegularSolution):
+     """
+     Solution model implementing the Symmetric Regular Solution Model.
+@@ -959,6 +1018,23 @@ class SubregularSolution(IdealSolution):
+         n = len(molar_fractions)
+         return _non_ideal_hessian_subreg(molar_fractions, n, self.Wijkv)
+ 
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        if temperature > 1.0e-10:
++            return np.exp(
++                self._non_ideal_excess_partial_gibbs(
++                    pressure, temperature, molar_fractions
++                )
++                / (constants.gas_constant * temperature)
++            )
++        else:
++            raise Exception("Activity coefficients not defined at 0 K.")
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return IdealSolution.activities(
++            self, pressure, temperature, molar_fractions
++        ) * self.activity_coefficients(pressure, temperature, molar_fractions)
++
++
+ class FunctionSolution(IdealSolution):
+     """
+     Solution model implementing a generalized solution model.
+@@ -1118,6 +1194,23 @@ class FunctionSolution(IdealSolution):
+         )
+         return ideal_entropy_hessian + nonideal_entropy_hessian
+ 
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        if temperature > 1.0e-10:
++            return np.exp(
++                self._non_ideal_excess_partial_gibbs(
++                    pressure, temperature, molar_fractions
++                )
++                / (constants.gas_constant * temperature)
++            )
++        else:
++            raise Exception("Activity coefficients not defined at 0 K.")
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return IdealSolution.activities(
++            self, pressure, temperature, molar_fractions
++        ) * self.activity_coefficients(pressure, temperature, molar_fractions)
++
++
+ class PolynomialSolution(IdealSolution):
+     """
+     Solution model implementing a general polynomial solution model.
+@@ -1606,3 +1699,19 @@ class PolynomialSolution(IdealSolution):
+             ]
+         )
+         return np.einsum("i, i", mbr_scalar, mbr_d2gibbsdpdp)
++
++    def activity_coefficients(self, pressure, temperature, molar_fractions):
++        if temperature > 1.0e-10:
++            return np.exp(
++                self._non_ideal_excess_partial_gibbs(
++                    pressure, temperature, molar_fractions
++                )
++                / (constants.gas_constant * temperature)
++            )
++        else:
++            raise Exception("Activity coefficients not defined at 0 K.")
++
++    def activities(self, pressure, temperature, molar_fractions):
++        return IdealSolution.activities(
++            self, pressure, temperature, molar_fractions
++        ) * self.activity_coefficients(pressure, temperature, molar_fractions)

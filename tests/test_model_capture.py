@@ -1550,14 +1550,16 @@ def test_capture_smoke_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s2")
 
 
+@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
 def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
 ) -> None:
-    """The :har129 leg smokes through the same proxy/capture chain."""
+    """Every admitted arm retains its native identity through the capture chain."""
     from evallab.model_capture import run_capture_smoke
 
     _RecordingStub.received = []
-    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    native = f"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}"
+    _RecordingStub.echo_model = native
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     try:
@@ -1565,18 +1567,19 @@ def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
         summary = run_capture_smoke(
             upstream=f"http://127.0.0.1:{stub.server_address[1]}",
             out_dir=tmp_path / "smoke-adapter",
-            model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+            model=f"selfhosted/{native}",
         )
     finally:
         stub.shutdown()
         _RecordingStub.echo_model = None
     assert summary["status"] == 200
-    assert summary["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    assert summary["model"] == native
     assert "smoke-fake-key-002" not in json.dumps(summary)
 
 
+@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
 def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
 ) -> None:
     """An adapter request echoing the base id fails the runner identity rule."""
     import pytest as _pytest
@@ -1593,7 +1596,7 @@ def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
             run_capture_smoke(
                 upstream=f"http://127.0.0.1:{stub.server_address[1]}",
                 out_dir=tmp_path / "smoke-mismatch",
-                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+                model=f"selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}",
             )
     finally:
         stub.shutdown()

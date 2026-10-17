@@ -1,0 +1,48 @@
+diff --git a/pkg/scanners/cloudformation/parser/fn_condition.go b/pkg/scanners/cloudformation/parser/fn_condition.go
+new file mode 100644
+index 000000000..8d5c92393
+--- /dev/null
++++ b/pkg/scanners/cloudformation/parser/fn_condition.go
+@@ -0,0 +1,21 @@
++package parser
++
++func ResolveCondition(property *Property) (resolved *Property, success bool) {
++	if !property.isFunction() {
++		return property, true
++	}
++
++	refProp := property.AsMap()["Condition"]
++	if refProp.IsNotString() {
++		return nil, false
++	}
++	refValue := refProp.AsString()
++
++	for k, prop := range property.ctx.Conditions {
++		if k == refValue {
++			return prop.resolveValue()
++		}
++	}
++
++	return nil, false
++}
+diff --git a/pkg/scanners/cloudformation/parser/intrinsics.go b/pkg/scanners/cloudformation/parser/intrinsics.go
+index 877457005..49a8b4cf6 100644
+--- a/pkg/scanners/cloudformation/parser/intrinsics.go
++++ b/pkg/scanners/cloudformation/parser/intrinsics.go
+@@ -27,6 +27,7 @@ func init() {
+ 		"Fn::And":         ResolveAnd,
+ 		"Fn::Or":          ResolveOr,
+ 		"Fn::Not":         ResolveNot,
++		"Condition":       ResolveCondition,
+ 	}
+ }
+ 
+@@ -45,7 +46,7 @@ func IsIntrinsicFunc(node *yaml.Node) bool {
+ 	}
+ 
+ 	nodeTag := strings.TrimPrefix(node.Tag, "!")
+-	if nodeTag != "Ref" {
++	if nodeTag != "Ref" && nodeTag != "Condition" {
+ 		nodeTag = fmt.Sprintf("Fn::%s", nodeTag)
+ 	}
+ 	for tag := range intrinsicFuncs {

@@ -1,0 +1,43 @@
+diff --git a/CHANGES.md b/CHANGES.md
+index 10c9b58..46462e0 100644
+--- a/CHANGES.md
++++ b/CHANGES.md
+@@ -11,6 +11,7 @@
+ * update rio-tiler and cogeo-mosaic minimal versions (https://github.com/developmentseed/titiler/pull/220, https://github.com/developmentseed/titiler/pull/213)
+ * move STAC related dependencies to `titiler.dependencies (https://github.com/developmentseed/titiler/pull/225)
+ * add `rio_tiler.io.MultiBandReader` bands dependencies (https://github.com/developmentseed/titiler/pull/226)
++* depreciate *empty* GET endpoint for MosaicTilerFactory read (https://github.com/developmentseed/titiler/pull/232)
+ 
+ ## 0.1.0a14 (2021-01-05)
+ 
+diff --git a/docs/concepts/tiler_factories.md b/docs/concepts/tiler_factories.md
+index f63b38f..69335c7 100644
+--- a/docs/concepts/tiler_factories.md
++++ b/docs/concepts/tiler_factories.md
+@@ -21,8 +21,6 @@ Tiler factories (`titiler.endpoints.factory.TilerFactory|MosaicTilerFactory`) ar
+ | Method | URL                                                             | Output    | Description
+ | ------ | --------------------------------------------------------------- |---------- |--------------
+ | `GET`  | `/`                                                             | JSON      | return a MosaicJSON document
+-| `POST` | `/`                                                             | JSON      | create a MosaicJSON from a list of files
+-| `PUT`  | `/`                                                             | JSON      | update a MosaicJSON from a list of files
+ | `GET`  | `/bounds`                                                       | JSON      | return bounds info for a MosaicJSON
+ | `GET`  | `/info`                                                         | JSON      | return basic info for a MosaicJSON
+ | `GET`  | `/info.geojson`                                                 | GeoJSON   | return basic info for a MosaicJSON as a GeoJSON feature
+diff --git a/titiler/endpoints/factory.py b/titiler/endpoints/factory.py
+index d1e9ea4..dbf7dfa 100644
+--- a/titiler/endpoints/factory.py
++++ b/titiler/endpoints/factory.py
+@@ -722,6 +722,13 @@ class MosaicTilerFactory(BaseTilerFactory):
+             response_model=MosaicJSON,
+             response_model_exclude_none=True,
+             responses={200: {"description": "Return MosaicJSON definition"}},
++            deprecated=True,
++        )
++        @self.router.get(
++            "/",
++            response_model=MosaicJSON,
++            response_model_exclude_none=True,
++            responses={200: {"description": "Return MosaicJSON definition"}},
+         )
+         def read(src_path=Depends(self.path_dependency),):
+             """Read a MosaicJSON"""

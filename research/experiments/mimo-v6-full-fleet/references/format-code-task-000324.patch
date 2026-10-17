@@ -1,0 +1,52 @@
+diff --git a/aiohttp_session/__init__.py b/aiohttp_session/__init__.py
+index eb8d714..fb37eaf 100644
+--- a/aiohttp_session/__init__.py
++++ b/aiohttp_session/__init__.py
+@@ -287,3 +287,47 @@ class AbstractStorage(metaclass=abc.ABCMeta):
+         else:
+             response.set_cookie(self._cookie_name, cookie_data, **params)
+ 
++
++class SimpleCookieStorage(AbstractStorage):
++    """Simple JSON storage.
++
++    Doesn't any encryption/validation, use it for tests only"""
++
++    def __init__(
++        self,
++        *,
++        cookie_name: str = "AIOHTTP_SESSION",
++        domain: str | None = None,
++        max_age: int | None = None,
++        path: str = "/",
++        secure: bool | None = None,
++        httponly: bool = True,
++        samesite: str | None = None,
++        encoder: Callable[[object], str] = json.dumps,
++        decoder: Callable[[str], Any] = json.loads,
++    ) -> None:
++        super().__init__(
++            cookie_name=cookie_name,
++            domain=domain,
++            max_age=max_age,
++            path=path,
++            secure=secure,
++            httponly=httponly,
++            samesite=samesite,
++            encoder=encoder,
++            decoder=decoder,
++        )
++
++    async def load_session(self, request: web.Request) -> Session:
++        cookie = self.load_cookie(request)
++        if cookie is None:
++            return Session(None, data=None, new=True, max_age=self.max_age)
++
++        data = self._decoder(cookie)
++        return Session(None, data=data, new=False, max_age=self.max_age)
++
++    async def save_session(
++        self, request: web.Request, response: web.StreamResponse, session: Session
++    ) -> None:
++        cookie_data = self._encoder(self._get_session_data(session))
++        self.save_cookie(response, cookie_data, max_age=session.max_age)

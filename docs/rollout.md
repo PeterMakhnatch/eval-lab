@@ -50,22 +50,65 @@ keys run -- uv run --no-sync evallab rollout run \
 
 ## Outputs (`--out` dir)
 
-- `results.jsonl`: one row per task — reward, pass, wall and sandbox
+- `results.jsonl`: one row per task/attempt — frozen task package path,
+  deterministic name and string job dir, reward, pass, wall and sandbox
   seconds, input/output tokens, settled model cost, Modal sandbox cost
-  estimate, job dir, error.
-- `summary.json`: trials, completed, errors, pass rate, batch wall,
-  tasks/hour, total cost, cost per task.
-- `spend.jsonl`: one row tagged `2026-10-16` for the day ledger.
+  estimate, and error. Each terminal trial is written immediately after
+  dispatcher settlement, even while another trial in the same wave is
+  running. The file is replaced atomically; a terminated driver leaves a
+  complete snapshot of measured terminal outcomes, not a truncated row.
+  A non-done queue state always has an error and null reward/pass, even
+  when its job contains an earlier native reward. Once dispatch completes
+  cleanly, the verifier reward determines the benchmark outcome, even if
+  the agent reported a native exception; this does not claim successful
+  agent completion. Without a reward, the native exception explains the
+  unmeasured error, or the row reports `missing verifier reward`.
+  Benchmark measurement is separate from SFT admission: the latter still
+  refuses non-null native exceptions. Native results retain the original
+  exception evidence.
+- `summary.json`: trials, measured completions, errors, pass rate, batch
+  wall, tasks/hour, total cost, cost per completed task. Cost includes
+  **all persisted outcomes**, including failed/unmeasured trials; only
+  measured completions enter throughput and pass-rate denominators.
+  Cost per completed task uses that whole-batch numerator. Both cost
+  totals remain null if any outcome lacks model-cost or sandbox-duration
+  evidence. Refreshed with each completion; while a batch is active its
+  counts cover only persisted terminal rows.
+- `spend.jsonl`: one row tagged `2026-10-16` for the day ledger, refreshed
+  with the current all-outcome cost, including null when incomplete.
+
+On normal exit the results include every submitted spec, including an
+explicit error row for work still nonterminal at the driver's deadline.
+After an abrupt driver death, compare the persisted rows against the
+authorized spec list: missing specs are **unmeasured**, never passes or
+implicitly completed. Native job evidence and queue settlement remain
+authoritative; an output-filesystem error cannot reclassify a done trial.
 
 ## Cost model
 
-Model tokens settle through the proxy ledger at the pinned Tinker
-prices recorded in `lab-metadata.json`. The Modal sandbox is an
-estimate: Harbor trial seconds at Modal list prices (CPU
-$0.0000131/core/s, memory $0.00000222/GiB/s) with the task's declared
-`[environment]` resources. Rows keep the two apart; the summary adds
-them. Modal's billed total also lands in the day ledger under the
-default Harbor app.
+Model tokens and dollars come from the shared strict proxy-ledger reader
+over `lab-metadata.json#provider_usage`, not an unvalidated flat usage
+summary. It reads the actual v1/v2 call lifecycle and cross-checks v2
+totals: settled input/output tokens exclude unresolved reservations;
+settled dollars require a complete recorded pinned input/output price table
+(nonnegative integer micros per million tokens). Missing, partial or invalid
+pricing leaves model cost unknown even when settled token totals are valid;
+a numeric cumulative cost alone is not pricing evidence. Malformed lifecycle
+states refuse accounting without preventing publication of the actual dispatcher
+error or clean verifier grade. Accounting gaps never retroactively fail an
+observed trial grade.
+
+The Modal sandbox cost is an estimate: recorded job seconds at Modal
+list prices (CPU $0.0000131/core/s, memory $0.00000222/GiB/s) with the
+task's declared `[environment]` resources. Missing durations are unknown,
+not zero. Rows preserve each component even when the batch total cannot
+be established.
+
+Zero token prices on a self-hosted route do **not** price its serving
+app: model cost and the batch total remain null. That separate time and
+billing evidence must be accounted independently. The rollout estimate is neither a
+provider invoice nor a financial-cap guard; serving, unresolved
+exposure and other unpriced resources require their own accounting.
 
 ## Throughput
 

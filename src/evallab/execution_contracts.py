@@ -535,8 +535,10 @@ MIMO_SELFHOSTED_MODEL_SELECTOR = f"{MIMO_SELFHOSTED_MODEL_PREFIX}{MIMO_SELFHOSTE
 #: is the HAR-129 SFT adapter (tuned arm of the 2026-10-01 paired eval).
 #: ``rds1-a``/``rds1-b``/``rds1-c`` are the repaired-data SFT arms (original passes,
 #: repaired-only passes, same-size random control; research/experiments/repaired-data-sft-v1).
+#: ``rds2-b``/``rds2-c``/``rds2-d`` name the scaled clean, token-matched random,
+#: and self-correction arms. Admission does not establish training or deployment.
 #: Mirrored in ``containers/zai_openapi_secret_proxy.py``.
-MIMO_SELFHOSTED_ADAPTERS = ("har129", "rds1-a", "rds1-b", "rds1-c")
+MIMO_SELFHOSTED_ADAPTERS = ("har129", "rds1-a", "rds1-b", "rds1-c", "rds2-b", "rds2-c", "rds2-d")
 MIMO_SELFHOSTED_NATIVE_MODELS: frozenset[str] = frozenset(
     {MIMO_SELFHOSTED_NATIVE_MODEL}
     | {f"{MIMO_SELFHOSTED_NATIVE_MODEL}:{adapter}" for adapter in MIMO_SELFHOSTED_ADAPTERS}

@@ -1,0 +1,103 @@
+diff --git a/src/scirpy/ir_dist/__init__.py b/src/scirpy/ir_dist/__init__.py
+index c900f31..ad3c7d9 100644
+--- a/src/scirpy/ir_dist/__init__.py
++++ b/src/scirpy/ir_dist/__init__.py
+@@ -1,16 +1,26 @@
+ """Compute distances between immune receptor sequences"""
+ 
++from collections.abc import Sequence
+ from typing import Literal
+ 
+ import numpy as np
+ from scanpy import logging
++from scipy.sparse import csr_matrix
+ 
+ from scirpy.get import airr as get_airr
+-from scirpy.util import DataHandler, _doc_params, _is_na
++from scirpy.util import DataHandler, _doc_params, _is_na, deprecated
+ 
+ from . import metrics
+ 
+ 
++@deprecated(
++    "Due to added BCR support, this function has been renamed "
++    "to `sequence_dist`. The old version will be removed in a future release. "
++)
++def tcr_dist(*args, **kwargs):
++    return sequence_dist(*args, **kwargs)
++
++
+ def TcrNeighbors(*args, **kwargs):
+     raise RuntimeError("TcrNeighbors has been renamed in v0.5.0 and removed in v0.7.0.")
+ 
+@@ -258,3 +268,70 @@ def _ir_dist(
+         params.adata.uns[key_added] = result
+     else:
+         return result
++
++
++@_doc_params(metric=_doc_metrics, cutoff=_doc_cutoff, dist_mat=metrics._doc_dist_mat)
++def sequence_dist(
++    seqs: Sequence[str],
++    seqs2: Sequence[str] | None = None,
++    *,
++    metric: MetricType = "identity",
++    cutoff: None | int = None,
++    n_jobs: int = -1,
++    **kwargs,
++) -> csr_matrix:
++    """
++    Calculate a sequence x sequence distance matrix.
++
++    {dist_mat}
++
++    When `seqs` or `seqs2` includes non-unique values, the function internally
++    uses only unique sequences to calculate the distances. Note that, if the
++    input arrays contain large numbers of duplicated values (i.e. hundreds each),
++    this will lead to large "dense" blocks in the sparse matrix. This will result in
++    slow processing and high memory usage.
++
++    Parameters
++    ----------
++    seqs
++        Numpy array of nucleotide or amino acid sequences.
++        Note that not all distance metrics support nucleotide sequences.
++    seqs2
++        Second array sequences. When omitted, `sequence_dist` computes
++        the square matrix of `unique_seqs`.
++    {metric}
++    {cutoff}
++    n_jobs
++        Number of CPU cores to use when running a DistanceCalculator that supports
++        paralellization.
++
++        A cutoff of 0 implies the `identity` metric.
++    kwargs
++        Additional parameters passed to the :class:`~scirpy.ir_dist.metrics.DistanceCalculator`.
++
++    Returns
++    -------
++    Symmetrical, sparse pairwise distance matrix.
++    """
++    seqs = [x.upper() for x in seqs]
++    seqs_unique, seqs_unique_inverse = np.unique(seqs, return_inverse=True)  # type: ignore
++    if seqs2 is not None:
++        seqs2 = [x.upper() for x in seqs2]
++        seqs2_unique, seqs2_unique_inverse = np.unique(seqs2, return_inverse=True)  # type: ignore
++    else:
++        seqs2_unique, seqs2_unique_inverse = None, seqs_unique_inverse
++
++    dist_calc = _get_distance_calculator(metric, cutoff, n_jobs=n_jobs, **kwargs)
++
++    logging.info(f"Calculating distances with metric {metric}")
++
++    dist_mat = dist_calc.calc_dist_mat(seqs_unique, seqs2_unique)
++
++    # Slicing with CSR is faster than with DOK
++    dist_mat = dist_mat.tocsr()
++
++    logging.hint("Expanding non-unique sequences to sequence x sequence matrix")
++    i, j = np.meshgrid(seqs_unique_inverse, seqs2_unique_inverse, sparse=True, indexing="ij")
++    dist_mat = dist_mat[i, j]
++
++    return dist_mat

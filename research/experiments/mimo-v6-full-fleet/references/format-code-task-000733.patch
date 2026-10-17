@@ -1,0 +1,64 @@
+diff --git a/lib/BWT.js b/lib/BWT.js
+index b2b7d82..d4786fe 100644
+--- a/lib/BWT.js
++++ b/lib/BWT.js
+@@ -362,5 +362,59 @@ define(['./freeze', './Util'], function(freeze, Util) {
+         C = null;
+     };
+ 
++    /** Burrows-Wheeler Transform.
++        A should be Int32Array (signed!); T can be any typed array.
++        U is the same type as T (it is used for output).
++        alphabetSize is optional if T is an Uint8Array or Uint16Array.
++        ASSUMES STRING IS CYCLIC.
++        (XXX: this is twice as inefficient as I'd like! [CSA])
++    */
++    BWT.bwtransform2 = function(T, U, n, alphabetSize) {
++        var i, j, pidx = 0;
++        ASSERT( T && U );
++        ASSERT( T.length >= n && U.length >= n );
++        if (n <= 1) {
++            if (n === 1) { U[0] = T[0]; }
++            return 0;
++        }
++        if (!alphabetSize) {
++            if (T.BYTES_PER_ELEMENT === 1) { alphabetSize = 256; }
++            else if (T.BYTES_PER_ELEMENT === 2) { alphabetSize = 65536; }
++            else throw new Error('Need to specify alphabetSize');
++        }
++        ASSERT( alphabetSize > 0 );
++        if (T.BYTES_PER_ELEMENT) {
++            ASSERT( alphabetSize <= (1 << (T.BYTES_PER_ELEMENT*8) ) );
++        }
++        // double length of T
++        var TT;
++        if (T.length >= n*2) {
++            TT = T; // do it in place if possible
++        } else if (alphabetSize <= 256) {
++            TT = Util.makeU8Buffer(n*2);
++        } else if (alphabetSize <= 65536) {
++            TT = Util.makeU16Buffer(n*2);
++        } else {
++            TT = Util.makeU32Buffer(n*2);
++        }
++        if (TT!==T) {
++            for (i=0; i<n; i++) { TT[i] = T[i]; }
++        }
++        for (i=0; i<n; i++) { TT[n+i] = TT[i]; }
++        // sort doubled string
++        var A = Util.makeS32Buffer(n*2);
++        SA_IS(TT, A, 0, n*2, alphabetSize, false);
++        for (i=0, j=0; i<2*n; i++) {
++            var s = A[i];
++            if (s < n) {
++                if (s === 0) { pidx = j; }
++                if (--s < 0) { s = n-1; }
++                U[j++] = T[s];
++            }
++        }
++        ASSERT(j===n);
++        return pidx;
++    };
++
+     return freeze(BWT);
+ });

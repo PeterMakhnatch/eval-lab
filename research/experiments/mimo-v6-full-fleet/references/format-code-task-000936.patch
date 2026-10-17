@@ -1,0 +1,10 @@
+diff --git a/templates/plugin/index.js b/templates/plugin/index.js
+index 9fa66d9..3e053ec 100644
+--- a/templates/plugin/index.js
++++ b/templates/plugin/index.js
+@@ -6,4 +6,4 @@ module.exports = fp(async function (fastify, opts) {
+   fastify.decorate('exampleDecorator', () => {
+     return 'decorated'
+   })
+-}, { fastify: '^4.x' })
++}, { fastify: '^5.x' })

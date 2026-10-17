@@ -1,0 +1,46 @@
+diff --git a/docs/rules/sort-comp.md b/docs/rules/sort-comp.md
+index 1e03d12e..d0b26486 100644
+--- a/docs/rules/sort-comp.md
++++ b/docs/rules/sort-comp.md
+@@ -90,7 +90,7 @@ The default configuration is:
+   }
+ }
+ ```
+-
++* `static-variables` This group is not specified by default, but can be used to enforce class static variable positioning.
+ * `static-methods` is a special keyword that refers to static class methods.
+ * `lifecycle` refers to the `lifecycle` group defined in `groups`.
+ * `everything-else` is a special group that matches all of the methods that do not match any of the other groups.
+diff --git a/lib/rules/sort-comp.js b/lib/rules/sort-comp.js
+index 293b830f..752a53bd 100644
+--- a/lib/rules/sort-comp.js
++++ b/lib/rules/sort-comp.js
+@@ -148,8 +148,12 @@ module.exports = {
+           if (method.typeAnnotation) {
+             methodGroupIndexes.push(groupIndex);
+           }
++        } else if (currentGroup === 'static-variables') {
++          if (method.staticVariable) {
++            methodGroupIndexes.push(groupIndex);
++          }
+         } else if (currentGroup === 'static-methods') {
+-          if (method.static) {
++          if (method.staticMethod) {
+             methodGroupIndexes.push(groupIndex);
+           }
+         } else if (currentGroup === 'instance-variables') {
+@@ -380,7 +384,13 @@ module.exports = {
+         name: getPropertyName(node),
+         getter: node.kind === 'get',
+         setter: node.kind === 'set',
+-        static: node.static,
++        staticVariable: node.static &&
++          node.type === 'ClassProperty' &&
++          (!node.value || !astUtil.isFunctionLikeExpression(node.value)),
++        staticMethod: node.static &&
++          (node.type === 'ClassProperty' || node.type === 'MethodDefinition') &&
++          node.value &&
++          (astUtil.isFunctionLikeExpression(node.value)),
+         instanceVariable: !node.static &&
+           node.type === 'ClassProperty' &&
+           (!node.value || !astUtil.isFunctionLikeExpression(node.value)),

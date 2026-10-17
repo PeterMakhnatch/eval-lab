@@ -1,0 +1,240 @@
+diff --git a/spatialpandas/dask.py b/spatialpandas/dask.py
+index db1c543..188b305 100644
+--- a/spatialpandas/dask.py
++++ b/spatialpandas/dask.py
+@@ -10,6 +10,7 @@ import numpy as np
+ import pandas as pd
+ import pyarrow as pa
+ import pyarrow.parquet as pq
++from dask import delayed
+ from dask.dataframe.core import get_parallel_type
+ from dask.dataframe.dispatch import make_meta_dispatch
+ from dask.dataframe.extensions import make_array_nonempty
+@@ -17,7 +18,7 @@ from dask.dataframe.utils import meta_nonempty
+ from retrying import retry
+ 
+ from .geodataframe import GeoDataFrame
+-from .geometry.base import GeometryArray, GeometryDtype
++from .geometry.base import GeometryArray, GeometryDtype, _BaseCoordinateIndexer
+ from .geoseries import GeoSeries
+ from .spatialindex import HilbertRtree
+ 
+@@ -74,6 +75,14 @@ class DaskGeoSeries(dd.Series):
+             self._partition_sindex = HilbertRtree(self.partition_bounds.values)
+         return self._partition_sindex
+ 
++    @property
++    def cx(self):
++        return _DaskCoordinateIndexer(self, self.partition_sindex)
++
++    @property
++    def cx_partitions(self):
++        return _DaskPartitionCoordinateIndexer(self, self.partition_sindex)
++
+     def build_sindex(self, **kwargs):
+         def build_sindex(series, **kwargs):
+             series.build_sindex(**kwargs)
+@@ -157,6 +166,14 @@ class DaskGeoDataFrame(dd.DataFrame):
+             self._partition_bounds[geometry_name] = geometry.partition_bounds
+         return self._partition_sindex[geometry_name]
+ 
++    @property
++    def cx(self):
++        return _DaskCoordinateIndexer(self, self.partition_sindex)
++
++    @property
++    def cx_partitions(self):
++        return _DaskPartitionCoordinateIndexer(self, self.partition_sindex)
++
+     def pack_partitions(self, npartitions=None, p=15, shuffle='tasks'):
+         """
+         Repartition and reorder dataframe spatially along a Hilbert space filling curve
+@@ -590,3 +607,48 @@ def get_parallel_type_dataframe(df):
+ def get_collection_type_dataframe(df):
+     return DaskGeoDataFrame
+ 
++
++class _DaskCoordinateIndexer(_BaseCoordinateIndexer):
++    def __init__(self, obj, sindex):
++        super().__init__(sindex)
++        self._obj = obj
++
++    def _perform_get_item(self, covers_inds, overlaps_inds, x0, x1, y0, y1):
++        covers_inds = set(covers_inds)
++        overlaps_inds = set(overlaps_inds)
++        all_partition_inds = sorted(covers_inds.union(overlaps_inds))
++        if len(all_partition_inds) == 0:
++            # No partitions intersect with query region, return empty result
++            return dd.from_pandas(self._obj._meta, npartitions=1)
++
++        @delayed
++        def cx_fn(df):
++            return df.cx[x0:x1, y0:y1]
++
++        ddf = self._obj.partitions[all_partition_inds]
++        delayed_dfs = []
++        for partition_ind, delayed_df in zip(all_partition_inds, ddf.to_delayed(), strict=True):
++            if partition_ind in overlaps_inds:
++                delayed_dfs.append(
++                    cx_fn(delayed_df)
++                )
++            else:
++                delayed_dfs.append(delayed_df)
++
++        return dd.from_delayed(delayed_dfs, meta=ddf._meta, divisions=ddf.divisions)
++
++
++class _DaskPartitionCoordinateIndexer(_BaseCoordinateIndexer):
++    def __init__(self, obj, sindex):
++        super().__init__(sindex)
++        self._obj = obj
++
++    def _perform_get_item(self, covers_inds, overlaps_inds, x0, x1, y0, y1):
++        covers_inds = set(covers_inds)
++        overlaps_inds = set(overlaps_inds)
++        all_partition_inds = sorted(covers_inds.union(overlaps_inds))
++        if len(all_partition_inds) == 0:
++            # No partitions intersect with query region, return empty result
++            return dd.from_pandas(self._obj._meta, npartitions=1)
++
++        return self._obj.partitions[all_partition_inds]
+diff --git a/spatialpandas/geodataframe.py b/spatialpandas/geodataframe.py
+index d495d8a..d42820a 100644
+--- a/spatialpandas/geodataframe.py
++++ b/spatialpandas/geodataframe.py
+@@ -127,6 +127,13 @@ class GeoDataFrame(pd.DataFrame):
+             gdf.set_geometry(self._geometry, inplace=True)
+         return gdf
+ 
++    @property
++    def cx(self):
++        from .geometry.base import _CoordinateIndexer
++        return _CoordinateIndexer(
++            self.geometry.array, parent=self
++        )
++
+     def build_sindex(self, **kwargs):
+         self.geometry.build_sindex(**kwargs)
+         return self
+diff --git a/spatialpandas/geometry/base.py b/spatialpandas/geometry/base.py
+index 128fbc1..37831c2 100644
+--- a/spatialpandas/geometry/base.py
++++ b/spatialpandas/geometry/base.py
+@@ -571,6 +571,19 @@ Cannot check equality of {type(self).__name__} of length {len(self)} with:
+             self._sindex = HilbertRtree(self.bounds, **kwargs)
+         return self
+ 
++    @property
++    def cx(self):
++        """
++        Geopandas-style spatial indexer to select a subset of the array by intersection
++        with a bounding box
++
++        Format of input should be ``.cx[xmin:xmax, ymin:ymax]``. Any of
++        ``xmin``, ``xmax``, ``ymin``, and ``ymax`` can be provided, but input
++        must include a comma separating x and y slices. That is, ``.cx[:, :]``
++        will return the full series/frame, but ``.cx[:]`` is not implemented.
++        """
++        return _CoordinateIndexer(self)
++
+     @property
+     def total_bounds(self):
+         raise NotImplementedError
+@@ -641,6 +654,81 @@ Cannot check equality of {type(self).__name__} of length {len(self)} with:
+         raise NotImplementedError()
+ 
+ 
++class _BaseCoordinateIndexer:
++    def __init__(self, sindex):
++        self._sindex = sindex
++
++    def _get_bounds(self, key):
++        xs, ys = key
++        # Handle xs and ys as scalar numeric values
++        if type(xs) is not slice:
++            xs = slice(xs, xs)
++        if type(ys) is not slice:
++            ys = slice(ys, ys)
++        if xs.step is not None or ys.step is not None:
++            raise ValueError(
++                "Slice step not supported. The cx indexer uses slices to represent "
++                "intervals in continuous coordinate space, and a slice step has no "
++                "clear interpretation in this context."
++            )
++        if self._sindex:
++            xmin, ymin, xmax, ymax = self._sindex.total_bounds
++        else:
++            xmin, ymin, xmax, ymax = self._obj.total_bounds
++        x0, y0, x1, y1 = (
++            xs.start if xs.start is not None else xmin,
++            ys.start if ys.start is not None else ymin,
++            xs.stop if xs.stop is not None else xmax,
++            ys.stop if ys.stop is not None else ymax,
++        )
++        # Handle inverted bounds
++        if x1 < x0:
++            x0, x1 = x1, x0
++        if y1 < y0:
++            y0, y1 = y1, y0
++        return x0, x1, y0, y1
++
++    def __getitem__(self, key):
++        x0, x1, y0, y1 = self._get_bounds(key)
++        if self._sindex:
++            covers_inds, overlaps_inds = self._sindex.covers_overlaps((x0, y0, x1, y1))
++        else:
++            covers_inds, overlaps_inds = None, None
++        return self._perform_get_item(covers_inds, overlaps_inds, x0, x1, y0, y1)
++
++    def _perform_get_item(self, covers_inds, overlaps_inds, x0, x1, y0, y1):
++        raise NotImplementedError()
++
++
++class _CoordinateIndexer(_BaseCoordinateIndexer):
++    def __init__(self, obj, parent=None):
++        super().__init__(obj._sindex)
++        self._obj = obj
++        self._parent = parent
++
++    def _perform_get_item(self, covers_inds, overlaps_inds, x0, x1, y0, y1):
++        overlaps_inds_mask = self._obj.intersects_bounds(
++            (x0, y0, x1, y1), overlaps_inds
++        )
++        if covers_inds is not None:
++            selected_inds = np.sort(
++                np.concatenate([covers_inds, overlaps_inds[overlaps_inds_mask]])
++            )
++            if self._parent is not None:
++                if len(self._parent) > 0:
++                    return self._parent.iloc[selected_inds]
++                else:
++                    return self._parent
++            return self._obj[selected_inds]
++        else:
++            if self._parent is not None:
++                if len(self._parent) > 0:
++                    return self._parent[overlaps_inds_mask]
++                else:
++                    return self._parent
++            return self._obj[overlaps_inds_mask]
++
++
+ @ngjit
+ def _perform_extract_isnull_bytemap(bitmap, bitmap_length, bitmap_offset, dst_offset, dst):
+     """
+diff --git a/spatialpandas/geoseries.py b/spatialpandas/geoseries.py
+index f462ef2..b230c79 100644
+--- a/spatialpandas/geoseries.py
++++ b/spatialpandas/geoseries.py
+@@ -93,6 +93,11 @@ class GeoSeries(pd.Series):
+     def sindex(self):
+         return self.array.sindex
+ 
++    @property
++    def cx(self):
++        from .geometry.base import _CoordinateIndexer
++        return _CoordinateIndexer(self.array, parent=self)
++
+     def build_sindex(self, **kwargs):
+         self.array.build_sindex(**kwargs)
+         return self

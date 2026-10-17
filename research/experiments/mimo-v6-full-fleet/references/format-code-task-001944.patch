@@ -1,0 +1,53 @@
+diff --git a/doc/whats_new.rst b/doc/whats_new.rst
+index 958044cf..325b40d8 100644
+--- a/doc/whats_new.rst
++++ b/doc/whats_new.rst
+@@ -33,6 +33,7 @@ Enhancements
+ ^^^^^^^^^^^^
+ 
+ - Some datasets out in the real world have a non-standard ``stim_type`` instead of a ``trial_type`` column in ``*_events.tsv``. :func:`mne_bids.read_raw_bids` now makes use of this column, and emits a warning, encouraging users to rename it, by `Richard Höchenberger`_ (:gh:`680`)
++- When reading data where the same event name or trial type refers to different event or trigger values, we will now create a hierarchical event name in the form of ``trial_type/value``, e.g. ``stimulus/110``  by `Richard Höchenberger`_ (:gh:`688`)
+ 
+ API changes
+ ^^^^^^^^^^^
+diff --git a/mne_bids/read.py b/mne_bids/read.py
+index a376fe6d..11c6ef4e 100644
+--- a/mne_bids/read.py
++++ b/mne_bids/read.py
+@@ -278,11 +278,33 @@ def _handle_events_reading(events_fname, raw):
+     if trial_type_col_name is not None:
+         # Drop events unrelated to a trial type
+         events_dict = _drop(events_dict, 'n/a', trial_type_col_name)
+-        descriptions = np.asarray(events_dict[trial_type_col_name], dtype=str)
+ 
+-    # If we don't have a proper description of the events, perhaps we have
+-    # at least an event value?
++        if 'value' in events_dict:
++            # Check whether the `trial_type` <> `value` mapping is unique.
++            trial_types = events_dict[trial_type_col_name]
++            values = np.asarray(events_dict['value'], dtype=str)
++            for trial_type in np.unique(trial_types):
++                idx = np.where(trial_type == np.atleast_1d(trial_types))[0]
++                matching_values = values[idx]
++
++                if len(np.unique(matching_values)) > 1:
++                    # Event type descriptors are ambiguous; create hierarchical
++                    # event descriptors.
++                    logger.info(
++                        f'The event "{trial_type}" refers to multiple event '
++                        f'values. Creating hierarchical event names.')
++                    for ii in idx:
++                        new_name = f'{trial_type}/{values[ii]}'
++                        logger.info(f'    Renaming event: {trial_type} -> '
++                                    f'{new_name}')
++                        trial_types[ii] = new_name
++            descriptions = np.asarray(trial_types, dtype=str)
++        else:
++            descriptions = np.asarray(events_dict[trial_type_col_name],
++                                      dtype=str)
+     elif 'value' in events_dict:
++        # If we don't have a proper description of the events, perhaps we have
++        # at least an event value?
+         # Drop events unrelated to value
+         events_dict = _drop(events_dict, 'n/a', 'value')
+         descriptions = np.asarray(events_dict['value'], dtype=str)

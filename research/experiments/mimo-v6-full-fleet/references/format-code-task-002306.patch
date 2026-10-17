@@ -1,0 +1,23 @@
+diff --git a/identify/extensions.py b/identify/extensions.py
+index fd47a2f..5ad041f 100644
+--- a/identify/extensions.py
++++ b/identify/extensions.py
+@@ -78,7 +78,8 @@ EXTENSIONS = {
+     'jade': {'text', 'jade'},
+     'jar': {'binary', 'zip', 'jar'},
+     'java': {'text', 'java'},
+-    'jenkinsfile': {'text', 'groovy'},
++    'jenkins': {'text', 'groovy', 'jenkins'},
++    'jenkinsfile': {'text', 'groovy', 'jenkins'},
+     'jinja': {'text', 'jinja'},
+     'jinja2': {'text', 'jinja'},
+     'jpeg': {'binary', 'image', 'jpeg'},
+@@ -271,7 +272,7 @@ NAMES = {
+     'Gemfile': EXTENSIONS['rb'],
+     'Gemfile.lock': {'text'},
+     'GNUmakefile': EXTENSIONS['mk'],
+-    'Jenkinsfile': {'text', 'groovy'},
++    'Jenkinsfile': EXTENSIONS['jenkins'],
+     'LICENSE': EXTENSIONS['txt'],
+     'MAINTAINERS': EXTENSIONS['txt'],
+     'Makefile': EXTENSIONS['mk'],

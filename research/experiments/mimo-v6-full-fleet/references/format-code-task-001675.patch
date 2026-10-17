@@ -1,0 +1,136 @@
+diff --git a/gh3.js b/gh3.js
+index 3e275cc..20e683e 100644
+--- a/gh3.js
++++ b/gh3.js
+@@ -351,6 +351,131 @@
+ 
+ 	},{});
+ 
++	/*Gists*/
++
++	Gh3.GistComment = Kind.extend({
++		constructor : function (gistCommentData) {
++			for(var prop in gistCommentData) {
++				this[prop] = gistCommentData[prop];
++			}
++		}
++	},{});
++
++	Gh3.Gist = Kind.extend({
++		constructor : function (gistData) {
++			for(var prop in gistData) {
++				this[prop] = gistData[prop];
++			}
++		},
++		fetchContents : function (callback) {
++			var that = this;
++			that.files = [];
++
++			Gh3.Helper.callHttpApi({
++				service : "gists/"+that.id,
++				success : function(res) {
++
++					for(var file in res.data.files) {
++						that.files.push(res.data.files[file]);
++					}
++
++					delete res.data.files;
++
++					for(var prop in res.data) {
++						that[prop] = res.data[prop];
++					}
++					if (callback) callback(null, that);
++				},
++				error : function (res) {
++					if (callback) callback(new Error(res.responseJSON.message),res);
++				}
++			});
++
++
++		},
++		fetchComments : function (callback) {
++			var that = this;
++			that.comments = [];
++
++
++			Gh3.Helper.callHttpApi({
++				service : "gists/"+that.id+"/comments",
++				success : function(res) {
++					_.each(res.data, function (comment) {
++						that.comments.push(new Gh3.GistComment(comment));
++					});
++					if (callback) callback(null, that);
++				},
++				error : function (res) {
++					if (callback) callback(new Error(res.responseJSON.message),res);
++				}
++			});
++
++		},
++		getFileByName : function (name) {
++			return _.find(this.files, function (file) {
++				return file.filename == name;
++			});
++		},
++		getFiles : function () {
++			return this.files;
++		},
++		eachFile : function (callback) {
++			_.each(this.files, function (file) {
++				callback(file);
++
++			});
++		},
++		getComments : function () { return this.comments; },
++		eachComment : function (callback) {
++			_.each(this.comments, function (comment) {
++				callback(comment);
++			});
++		},
++		filterComments : function (comparator) {
++			return _.filter(this.comments, comparator);
++		}
++
++	},{});
++
++	Gh3.Gists = Kind.extend({//http://developer.github.com/v3/gists/
++		constructor : function (ghUser) {
++			if (ghUser) this.user = ghUser;
++			this.gists = []
++		},
++		fetch : function (pagesInfo, paginationInfo, callback) {//http://developer.github.com/v3/#pagination
++			var that = this;
++
++			Gh3.Helper.callHttpApi({
++				service : "users/"+that.user.login+"/gists",
++				data : pagesInfo,
++				//beforeSend: function (xhr) { xhr.setRequestHeader ("rel", paginationInfo); }, --> why (pagination)
++				success : function(res) {
++					_.each(res.data, function (gist) {
++						that.gists.push(new Gh3.Gist(gist));
++					});
++					if (callback) callback(null, that);
++				},
++				error : function (res) {
++					if (callback) callback(new Error(res.responseJSON.message),res);
++				}
++			});
++
++		},
++
++		getGists : function () { return this.gists; },
++		eachGist : function (callback) {
++			_.each(this.gists, function (gist) {
++				callback(gist);
++			});
++		},
++		filter : function (comparator) {
++			return _.filter(this.gists, comparator);
++		}
++
++	},{});
++
++
+ 	Gh3.CommitComment = Kind.extend({
+ 		constructor : function (commitCommentData) {
+ 			for(var prop in commitCommentData) {

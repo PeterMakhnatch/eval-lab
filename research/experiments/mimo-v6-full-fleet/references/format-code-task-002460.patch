@@ -1,0 +1,192 @@
+diff --git a/cirq/__init__.py b/cirq/__init__.py
+index ced1b1c3c..a4f77daac 100644
+--- a/cirq/__init__.py
++++ b/cirq/__init__.py
+@@ -516,6 +516,7 @@ from cirq.protocols import (
+     trace_distance_from_angle_list,
+     unitary,
+     validate_mixture,
++    with_measurement_key_mapping,
+ )
+ 
+ from cirq.ion import (
+diff --git a/cirq/circuits/circuit.py b/cirq/circuits/circuit.py
+index 5b6b00973..507151578 100644
+--- a/cirq/circuits/circuit.py
++++ b/cirq/circuits/circuit.py
+@@ -815,6 +815,12 @@ class AbstractCircuit(abc.ABC):
+     def all_measurement_keys(self) -> AbstractSet[str]:
+         return protocols.measurement_keys(self)
+ 
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        return self._with_sliced_moments([
++            protocols.with_measurement_key_mapping(moment, key_map)
++            for moment in self.moments
++        ])
++
+     def _qid_shape_(self) -> Tuple[int, ...]:
+         return self.qid_shape()
+ 
+diff --git a/cirq/circuits/frozen_circuit.py b/cirq/circuits/frozen_circuit.py
+index d996e6a2d..51f8013d6 100644
+--- a/cirq/circuits/frozen_circuit.py
++++ b/cirq/circuits/frozen_circuit.py
+@@ -13,8 +13,8 @@
+ # limitations under the License.
+ """An immutable version of the Circuit data structure."""
+ 
+-from typing import (TYPE_CHECKING, AbstractSet, Callable, FrozenSet, Iterator,
+-                    Optional, Sequence, Tuple, Union)
++from typing import (TYPE_CHECKING, AbstractSet, Callable, Dict, FrozenSet,
++                    Iterator, Optional, Sequence, Tuple, Union)
+ 
+ import numpy as np
+ 
+diff --git a/cirq/ops/gate_operation.py b/cirq/ops/gate_operation.py
+index 744a9f49b..6b10cfec5 100644
+--- a/cirq/ops/gate_operation.py
++++ b/cirq/ops/gate_operation.py
+@@ -33,7 +33,10 @@ TSelf = TypeVar('TSelf', bound='GateOperation')
+ 
+ @value.value_equality(approximate=True)
+ class GateOperation(raw_types.Operation):
+-    """An application of a gate to a sequence of qubits."""
++    """An application of a gate to a sequence of qubits.
++
++    Objects of this type are immutable.
++    """
+ 
+     def __init__(self, gate: 'cirq.Gate', qubits: Sequence['cirq.Qid']) -> None:
+         """
+@@ -60,6 +63,16 @@ class GateOperation(raw_types.Operation):
+ 
+     def with_gate(self, new_gate: 'cirq.Gate') -> 'cirq.Operation':
+         if self.gate is new_gate:
++            # As GateOperation is immutable, this can return the original.
++            return self
++        return new_gate.on(*self.qubits)
++
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        new_gate = protocols.with_measurement_key_mapping(self.gate, key_map)
++        if new_gate is NotImplemented:
++            return NotImplemented
++        if new_gate is self.gate:
++            # As GateOperation is immutable, this can return the original.
+             return self
+         return new_gate.on(*self.qubits)
+ 
+diff --git a/cirq/ops/measurement_gate.py b/cirq/ops/measurement_gate.py
+index 32ba9f656..0efd8e6e8 100644
+--- a/cirq/ops/measurement_gate.py
++++ b/cirq/ops/measurement_gate.py
+@@ -79,6 +79,11 @@ class MeasurementGate(raw_types.Gate):
+                                invert_mask=self.invert_mask,
+                                qid_shape=self._qid_shape)
+ 
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        if self.key not in key_map:
++            return self
++        return self.with_key(key_map[self.key])
++
+     def with_bits_flipped(self, *bit_positions: int) -> 'MeasurementGate':
+         """Toggles whether or not the measurement inverts various outputs."""
+         old_mask = self.invert_mask or ()
+diff --git a/cirq/ops/moment.py b/cirq/ops/moment.py
+index 8fc5ef7ff..edd3688d7 100644
+--- a/cirq/ops/moment.py
++++ b/cirq/ops/moment.py
+@@ -195,6 +195,11 @@ class Moment:
+                 return op
+         raise KeyError("Moment doesn't act on given qubit")
+ 
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        return Moment(
++            protocols.with_measurement_key_mapping(op, key_map) if protocols.
++            is_measurement(op) else op for op in self.operations)
++
+     def __copy__(self):
+         return type(self)(self.operations)
+ 
+diff --git a/cirq/ops/raw_types.py b/cirq/ops/raw_types.py
+index 46c7baf8a..d679b15be 100644
+--- a/cirq/ops/raw_types.py
++++ b/cirq/ops/raw_types.py
+@@ -529,6 +529,13 @@ class TaggedOperation(Operation):
+         return TaggedOperation(self.sub_operation.with_qubits(*new_qubits),
+                                *self._tags)
+ 
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        sub_op = protocols.with_measurement_key_mapping(self.sub_operation,
++                                                        key_map)
++        if sub_op is NotImplemented:
++            return NotImplemented
++        return TaggedOperation(sub_op, *self.tags)
++
+     def controlled_by(self,
+                       *control_qubits: 'cirq.Qid',
+                       control_values: Optional[Sequence[
+diff --git a/cirq/protocols/__init__.py b/cirq/protocols/__init__.py
+index 21e185618..ae82083f4 100644
+--- a/cirq/protocols/__init__.py
++++ b/cirq/protocols/__init__.py
+@@ -85,6 +85,7 @@ from cirq.protocols.measurement_key_protocol import (
+     is_measurement,
+     measurement_key,
+     measurement_keys,
++    with_measurement_key_mapping,
+     SupportsMeasurementKey,
+ )
+ from cirq.protocols.mixture_protocol import (
+diff --git a/cirq/protocols/measurement_key_protocol.py b/cirq/protocols/measurement_key_protocol.py
+index 39930dbc2..435a8d526 100644
+--- a/cirq/protocols/measurement_key_protocol.py
++++ b/cirq/protocols/measurement_key_protocol.py
+@@ -13,7 +13,7 @@
+ # limitations under the License.
+ """Protocol for object that have measurement keys."""
+ 
+-from typing import AbstractSet, Any, Iterable
++from typing import AbstractSet, Any, Dict, Iterable
+ 
+ from typing_extensions import Protocol
+ 
+@@ -65,6 +65,13 @@ class SupportsMeasurementKey(Protocol):
+         will be stored.
+         """
+ 
++    @doc_private
++    def _with_measurement_key_mapping_(self, key_map: Dict[str, str]):
++        """Return a copy of this object with the measurement keys remapped.
++
++        This method allows measurement keys to be reassigned at runtime.
++        """
++
+ 
+ def measurement_key(val: Any, default: Any = RaiseTypeErrorIfNotProvided):
+     """Get the single measurement key for the given value.
+@@ -143,3 +150,13 @@ def is_measurement(val: Any) -> bool:
+     a non-empty result for them.
+     """
+     return bool(measurement_keys(val))
++
++
++def with_measurement_key_mapping(val: Any, key_map: Dict[str, str]):
++    """Remaps the target's measurement keys according to the provided key_map.
++
++    This method can be used to reassign measurement keys at runtime, or to
++    assign measurement keys from a higher-level object (such as a Circuit).
++    """
++    getter = getattr(val, '_with_measurement_key_mapping_', None)
++    return NotImplemented if getter is None else getter(key_map)
+diff --git a/rtd_docs/api.rst b/rtd_docs/api.rst
+index c99e7efb3..335148301 100644
+--- a/rtd_docs/api.rst
++++ b/rtd_docs/api.rst
+@@ -364,6 +364,7 @@ the magic methods that can be implemented.
+     cirq.trace_distance_bound
+     cirq.trace_distance_from_angle_list
+     cirq.unitary
++    cirq.with_measurement_key_mapping
+     cirq.ApplyChannelArgs
+     cirq.ApplyMixtureArgs
+     cirq.ApplyUnitaryArgs

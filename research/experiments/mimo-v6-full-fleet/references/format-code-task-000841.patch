@@ -1,0 +1,391 @@
+diff --git a/src/dstack/_internal/cli/utils/run.py b/src/dstack/_internal/cli/utils/run.py
+index a5d856e23..5227b2b37 100644
+--- a/src/dstack/_internal/cli/utils/run.py
++++ b/src/dstack/_internal/cli/utils/run.py
+@@ -3,7 +3,7 @@ from typing import List, Optional
+ from rich.table import Table
+ 
+ from dstack._internal.cli.utils.common import console
+-from dstack._internal.core.models.instances import InstanceAvailability
++from dstack._internal.core.models.instances import InstanceAvailability, InstanceType, Resources
+ from dstack._internal.core.models.runs import RunPlan
+ from dstack._internal.utils.common import pretty_date
+ from dstack.api import Run
+@@ -17,16 +17,7 @@ def print_run_plan(run_plan: RunPlan, candidates_limit: int = 3):
+     props.add_column()  # value
+ 
+     req = job_plan.job_spec.requirements
+-    if req.gpus:
+-        resources = pretty_format_resources(
+-            req.cpus,
+-            req.memory_mib / 1024,
+-            req.gpus.count,
+-            req.gpus.name,
+-            req.gpus.memory_mib / 1024 if req.gpus.memory_mib else None,
+-        )
+-    else:
+-        resources = pretty_format_resources(req.cpus, req.memory_mib / 1024)
++    pretty_req = req.pretty_format(resources_only=True)
+     max_price = f"${req.max_price:g}" if req.max_price else "-"
+     max_duration = (
+         f"{job_plan.job_spec.max_duration / 3600:g}h" if job_plan.job_spec.max_duration else "-"
+@@ -38,9 +29,9 @@ def print_run_plan(run_plan: RunPlan, candidates_limit: int = 3):
+         else "no"
+     )
+ 
+-    if job_plan.job_spec.requirements.spot is None:
++    if req.spot is None:
+         spot_policy = "auto"
+-    elif job_plan.job_spec.requirements.spot:
++    elif req.spot:
+         spot_policy = "spot"
+     else:
+         spot_policy = "on-demand"
+@@ -51,7 +42,7 @@ def print_run_plan(run_plan: RunPlan, candidates_limit: int = 3):
+     props.add_row(th("Configuration"), run_plan.run_spec.configuration_path)
+     props.add_row(th("Project"), run_plan.project_name)
+     props.add_row(th("User"), run_plan.user)
+-    props.add_row(th("Min resources"), resources)
++    props.add_row(th("Min resources"), pretty_req)
+     props.add_row(th("Max price"), max_price)
+     props.add_row(th("Max duration"), max_duration)
+     props.add_row(th("Spot policy"), spot_policy)
+@@ -71,16 +62,7 @@ def print_run_plan(run_plan: RunPlan, candidates_limit: int = 3):
+ 
+     for i, c in enumerate(job_plan.candidates, start=1):
+         r = c.instance.resources
+-        if r.gpus:
+-            resources = pretty_format_resources(
+-                r.cpus,
+-                r.memory_mib / 1024,
+-                len(r.gpus),
+-                r.gpus[0].name,
+-                r.gpus[0].memory_mib / 1024,
+-            )
+-        else:
+-            resources = pretty_format_resources(r.cpus, r.memory_mib / 1024)
++
+         availability = ""
+         if c.availability in {InstanceAvailability.NOT_AVAILABLE, InstanceAvailability.NO_QUOTA}:
+             availability = c.availability.value.replace("_", " ").title()
+@@ -89,7 +71,7 @@ def print_run_plan(run_plan: RunPlan, candidates_limit: int = 3):
+             c.backend,
+             c.region,
+             c.instance.name,
+-            resources,
++            r.pretty_format(),
+             "yes" if r.spot else "no",
+             f"${c.price:g}",
+             availability,
+@@ -114,7 +96,9 @@ def generate_runs_table(
+         table.add_column("CONFIGURATION", style="grey58")
+     table.add_column("USER", style="grey58", no_wrap=True, max_width=16)
+     table.add_column("BACKEND", style="grey58", no_wrap=True, max_width=16)
+-    table.add_column("INSTANCE", no_wrap=True)
++    if verbose:
++        table.add_column("INSTANCE", no_wrap=True)
++    table.add_column("RESOURCES")
+     table.add_column("SPOT", no_wrap=True)
+     table.add_column("PRICE", no_wrap=True)
+     table.add_column("STATUS", no_wrap=True)
+@@ -133,7 +117,9 @@ def generate_runs_table(
+         renderables += [
+             run.user,
+             provisioning.backend.value if provisioning else "",
+-            provisioning.instance_type.name if provisioning else "",
++            *_render_instance_and_resources(
++                provisioning.instance_type if provisioning else None, verbose
++            ),
+             ("yes" if provisioning.instance_type.resources.spot else "no") if provisioning else "",
+             f"{provisioning.price:.4}$" if provisioning else "",
+             run.status,
+@@ -145,16 +131,9 @@ def generate_runs_table(
+     return table
+ 
+ 
+-def pretty_format_resources(
+-    cpu: int,
+-    memory: float,
+-    gpu_count: Optional[int] = None,
+-    gpu_name: Optional[str] = None,
+-    gpu_memory: Optional[float] = None,
+-) -> str:
+-    s = f"{cpu}xCPUs, {memory:g}GB"
+-    if gpu_count:
+-        s += f", {gpu_count}x{gpu_name or 'GPU'}"
+-        if gpu_memory:
+-            s += f" ({gpu_memory:g}GB)"
+-    return s
++def _render_instance_and_resources(instance: Optional[InstanceType], verbose: bool) -> List[str]:
++    if not instance:
++        return [""] if not verbose else ["", ""]
++    rows = [] if not verbose else [instance.name]
++    rows.append(instance.resources.pretty_format())
++    return rows
+diff --git a/src/dstack/_internal/core/backends/base/offers.py b/src/dstack/_internal/core/backends/base/offers.py
+index 573dc6568..5cea1742a 100644
+--- a/src/dstack/_internal/core/backends/base/offers.py
++++ b/src/dstack/_internal/core/backends/base/offers.py
+@@ -28,6 +28,10 @@ def get_catalog_offers(
+                 filters["min_gpu_memory"] = requirements.gpus.memory_mib / 1024
+             if requirements.gpus.count is not None:
+                 filters["min_gpu_count"] = requirements.gpus.count
++            if requirements.gpus.total_memory_mib is not None:
++                filters["min_total_gpu_memory"] = requirements.gpus.total_memory_mib / 1024
++            if requirements.gpus.compute_capability is not None:
++                filters["min_compute_capability"] = requirements.gpus.compute_capability
+ 
+     offers = []
+     for item in gpuhunt.query(**filters):
+diff --git a/src/dstack/_internal/core/models/instances.py b/src/dstack/_internal/core/models/instances.py
+index fc7093c35..e57c7ca5b 100644
+--- a/src/dstack/_internal/core/models/instances.py
++++ b/src/dstack/_internal/core/models/instances.py
+@@ -4,6 +4,7 @@ from typing import List, Optional
+ from pydantic import BaseModel
+ 
+ from dstack._internal.core.models.backends.base import BackendType
++from dstack._internal.utils.common import pretty_resources
+ 
+ 
+ class InstanceState(str, Enum):
+@@ -26,6 +27,17 @@ class Resources(BaseModel):
+     gpus: List[Gpu]
+     spot: bool
+ 
++    def pretty_format(self) -> str:
++        if not self.gpus:
++            return pretty_resources(cpus=self.cpus, memory=self.memory_mib)
++        return pretty_resources(
++            cpus=self.cpus,
++            memory=self.memory_mib,
++            gpu_count=len(self.gpus),
++            gpu_name=self.gpus[0].name,
++            gpu_memory=self.gpus[0].memory_mib,
++        )
++
+ 
+ class InstanceType(BaseModel):
+     name: str
+diff --git a/src/dstack/_internal/core/models/profiles.py b/src/dstack/_internal/core/models/profiles.py
+index 846110de0..c611b2a71 100644
+--- a/src/dstack/_internal/core/models/profiles.py
++++ b/src/dstack/_internal/core/models/profiles.py
+@@ -1,6 +1,6 @@
+ import re
+ from enum import Enum
+-from typing import List, Optional, Union
++from typing import List, Optional, Tuple, Union
+ 
+ from pydantic import Field, confloat, root_validator, validator
+ from typing_extensions import Annotated, Literal
+@@ -8,8 +8,6 @@ from typing_extensions import Annotated, Literal
+ from dstack._internal.core.models.backends.base import BackendType
+ from dstack._internal.core.models.common import ForbidExtra
+ 
+-DEFAULT_CPU = 2
+-DEFAULT_MEM = "8GB"
+ DEFAULT_RETRY_LIMIT = 3600
+ 
+ 
+@@ -39,7 +37,7 @@ def parse_memory(v: Optional[Union[int, str]]) -> Optional[int]:
+     return int(v)
+ 
+ 
+-def parse_duration(v: Optional[Union[int, str]]) -> int:
++def parse_duration(v: Optional[Union[int, str]]) -> Optional[int]:
+     if v is None:
+         return None
+     if isinstance(v, int):
+@@ -76,9 +74,17 @@ class ProfileGPU(ForbidExtra):
+     ] = 1
+     memory: Annotated[
+         Optional[Union[int, str]],
+-        Field(description='The minimum size of GPU memory (e.g., "16GB")'),
++        Field(description='The minimum size of a single GPU memory (e.g., "16GB")'),
+     ]
+-    _validate_mem = validator("memory", pre=True, allow_reuse=True)(parse_memory)
++    total_memory: Annotated[
++        Optional[Union[int, str]],
++        Field(description='The minimum total size of all GPUs memory (e.g., "32GB")'),
++    ]
++    compute_capability: Annotated[
++        Optional[Union[float, str, Tuple[int, int]]],
++        Field(description="The minimum compute capability of the GPU (e.g., 7.5)"),
++    ]
++    _validate_mem = validator("memory", "total_memory", pre=True, allow_reuse=True)(parse_memory)
+ 
+     @validator("name")
+     def _validate_name(cls, name: Optional[str]) -> Optional[str]:
+@@ -86,12 +92,26 @@ class ProfileGPU(ForbidExtra):
+             return None
+         return name.upper()
+ 
++    @validator("compute_capability", pre=True)
++    def _validate_cc(
++        cls, v: Optional[Union[float, str, Tuple[int, int]]]
++    ) -> Optional[Tuple[int, int]]:
++        if isinstance(v, float):
++            v = str(v)
++        if isinstance(v, str):
++            m = re.fullmatch(r"(\d+)\.(\d+)", v)
++            if not m:
++                raise ValueError(f"Invalid compute capability: {v}")
++            v = (int(m.group(1)), int(m.group(2)))
++        return v
++
+ 
+ class ProfileResources(ForbidExtra):
+-    cpu: Annotated[int, Field(description="The minimum number of CPUs")] = DEFAULT_CPU
++    cpu: Annotated[Optional[int], Field(description="The minimum number of CPUs")]
+     memory: Annotated[
+-        Union[int, str], Field(description='The minimum size of RAM memory (e.g., "16GB")')
+-    ] = parse_memory(DEFAULT_MEM)
++        Optional[Union[int, str]],
++        Field(description='The minimum size of RAM memory (e.g., "16GB")'),
++    ]
+     gpu: Annotated[
+         Optional[Union[int, ProfileGPU]],
+         Field(description="The minimum number of GPUs or a GPU spec"),
+diff --git a/src/dstack/_internal/core/models/runs.py b/src/dstack/_internal/core/models/runs.py
+index 8b01b62f5..856a8c9c7 100644
+--- a/src/dstack/_internal/core/models/runs.py
++++ b/src/dstack/_internal/core/models/runs.py
+@@ -1,6 +1,6 @@
+ from datetime import datetime, timedelta
+ from enum import Enum
+-from typing import Dict, List, Optional
++from typing import Dict, List, Optional, Tuple
+ 
+ from pydantic import UUID4, BaseModel, Field
+ from typing_extensions import Annotated
+@@ -11,6 +11,7 @@ from dstack._internal.core.models.instances import InstanceCandidate, InstanceTy
+ from dstack._internal.core.models.profiles import Profile, SpotPolicy
+ from dstack._internal.core.models.repos import AnyRunRepoData
+ from dstack._internal.utils import common as common_utils
++from dstack._internal.utils.common import pretty_resources
+ 
+ 
+ class AppSpec(BaseModel):
+@@ -63,6 +64,8 @@ class GpusRequirements(BaseModel):
+     count: Optional[int]
+     memory_mib: Optional[int]
+     name: Optional[str]
++    total_memory_mib: Optional[int]
++    compute_capability: Optional[Tuple[int, int]]
+ 
+ 
+ class Requirements(BaseModel):
+@@ -73,18 +76,22 @@ class Requirements(BaseModel):
+     max_price: Optional[float]
+     spot: Optional[bool]
+ 
+-    def pretty_format(self):
+-        res = ""
+-        res += f"{self.cpus}xCPUs"
+-        res += f", {self.memory_mib}MB"
++    def pretty_format(self, resources_only: bool = False):
++        resources = dict(cpus=self.cpus, memory=self.memory_mib)
+         if self.gpus:
+-            res += f", {self.gpus.count}x{self.gpus.name or 'GPU'}"
+-            if self.gpus.memory_mib:
+-                res += f" {self.gpus.memory_mib / 1024:g}GB"
+-        if self.spot is not None:
+-            res += f", {'spot' if self.spot else 'on-demand'}"
+-        if self.max_price is not None:
+-            res += f" under ${self.max_price:g} per hour"
++            resources.update(
++                gpu_name=self.gpus.name,
++                gpu_count=self.gpus.count,
++                gpu_memory=self.gpus.memory_mib,
++                total_gpu_memory=self.gpus.total_memory_mib,
++                compute_capability=self.gpus.compute_capability,
++            )
++        res = pretty_resources(**resources)
++        if not resources_only:
++            if self.spot is not None:
++                res += f", {'spot' if self.spot else 'on-demand'}"
++            if self.max_price is not None:
++                res += f" under ${self.max_price:g} per hour"
+         return res
+ 
+ 
+diff --git a/src/dstack/_internal/server/services/jobs/configurators/base.py b/src/dstack/_internal/server/services/jobs/configurators/base.py
+index 6dc85e261..8b1bb32e6 100644
+--- a/src/dstack/_internal/server/services/jobs/configurators/base.py
++++ b/src/dstack/_internal/server/services/jobs/configurators/base.py
+@@ -142,6 +142,8 @@ class JobConfigurator(ABC):
+                 count=self.run_spec.profile.resources.gpu.count,
+                 memory_mib=self.run_spec.profile.resources.gpu.memory,
+                 name=self.run_spec.profile.resources.gpu.name,
++                total_memory_mib=self.run_spec.profile.resources.gpu.total_memory,
++                compute_capability=self.run_spec.profile.resources.gpu.compute_capability,
+             )
+         return r
+ 
+diff --git a/src/dstack/_internal/utils/common.py b/src/dstack/_internal/utils/common.py
+index e8093dd75..113fdc557 100644
+--- a/src/dstack/_internal/utils/common.py
++++ b/src/dstack/_internal/utils/common.py
+@@ -2,7 +2,7 @@ import re
+ import time
+ from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+-from typing import Any, Union
++from typing import Optional, Tuple, Union
+ 
+ 
+ def get_dstack_dir() -> Path:
+@@ -57,6 +57,52 @@ def pretty_date(time: Union[datetime, int] = False) -> str:
+     return str(years) + " years ago"
+ 
+ 
++def pretty_resources(
++    cpus: Optional[int] = None,
++    memory: Optional[int] = None,
++    gpu_count: Optional[int] = None,
++    gpu_name: Optional[str] = None,
++    gpu_memory: Optional[int] = None,
++    total_gpu_memory: Optional[float] = None,
++    compute_capability: Optional[Tuple[int, int]] = None,
++) -> str:
++    """
++    >>> pretty_resources(4, 16*1024)
++    '4xCPU, 16GB'
++    >>> pretty_resources(4, 16*1024, 1)
++    '4xCPU, 16GB, 1xGPU'
++    >>> pretty_resources(4, 16*1024, 1, 'A100')
++    '4xCPU, 16GB, 1xA100'
++    >>> pretty_resources(4, 16*1024, 1, 'A100', 40*1024)
++    '4xCPU, 16GB, 1xA100 (40GB)'
++    >>> pretty_resources(4, 16*1024, 1, total_gpu_memory=80*1024)
++    '4xCPU, 16GB, 1xGPU (total 80GB)'
++    >>> pretty_resources(4, 16*1024, 2, 'A100', 40*1024, 80*1024)
++    '4xCPU, 16GB, 2xA100 (40GB, total 80GB)'
++    >>> pretty_resources(gpu_count=1, compute_capability=(8, 0))
++    '1xGPU (8.0)'
++    """
++    parts = []
++    if cpus is not None:
++        parts.append(f"{cpus}xCPU")
++    if memory is not None:
++        parts.append(f"{memory / 1024:g}GB")
++    if gpu_count:
++        gpu_parts = []
++        if gpu_memory:
++            gpu_parts.append(f"{gpu_memory / 1024:g}GB")
++        if total_gpu_memory:
++            gpu_parts.append(f"total {total_gpu_memory / 1024:g}GB")
++        if compute_capability:
++            gpu_parts.append(f"%d.%d" % compute_capability)
++
++        gpu = f"{gpu_count}x{gpu_name or 'GPU'}"
++        if gpu_parts:
++            gpu += f" ({', '.join(gpu_parts)})"
++        parts.append(gpu)
++    return ", ".join(parts)
++
++
+ def since(timestamp: str) -> datetime:
+     try:
+         seconds = parse_pretty_duration(timestamp)

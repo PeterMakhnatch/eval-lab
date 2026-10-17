@@ -1,0 +1,262 @@
+diff --git a/changes/7148.added b/changes/7148.added
+new file mode 100644
+index 0000000000..4507c2046a
+--- /dev/null
++++ b/changes/7148.added
+@@ -0,0 +1 @@
++Added Bulk Edit functionality for the RackGroup model.
+\ No newline at end of file
+diff --git a/changes/7148.housekeeping b/changes/7148.housekeeping
+new file mode 100644
+index 0000000000..1fc227c94f
+--- /dev/null
++++ b/changes/7148.housekeeping
+@@ -0,0 +1 @@
++Refactored RackGroup model related UI views to use `NautobotUIViewSet` and `UI component framework`.
+\ No newline at end of file
+diff --git a/nautobot/dcim/forms.py b/nautobot/dcim/forms.py
+index 76a99e373e..5a714749a1 100644
+--- a/nautobot/dcim/forms.py
++++ b/nautobot/dcim/forms.py
+@@ -473,6 +473,13 @@ class LocationMigrateDataToContactForm(NautobotModelForm):
+ #
+ # Rack groups
+ #
++class RackGroupBulkEditForm(LocatableModelBulkEditFormMixin, NautobotBulkEditForm):
++    pk = forms.ModelMultipleChoiceField(queryset=RackGroup.objects.all(), widget=forms.MultipleHiddenInput())
++    description = forms.CharField(max_length=CHARFIELD_MAX_LENGTH, required=False)
++
++    class Meta:
++        model = RackGroup
++        nullable_fields = ["description"]
+ 
+ 
+ class RackGroupForm(LocatableModelFormMixin, NautobotModelForm):
+diff --git a/nautobot/dcim/templates/dcim/rackgroup.html b/nautobot/dcim/templates/dcim/rackgroup.html
+index ac8a4ea9ee..0204c3abbf 100644
+--- a/nautobot/dcim/templates/dcim/rackgroup.html
++++ b/nautobot/dcim/templates/dcim/rackgroup.html
+@@ -1,49 +1,2 @@
+ {% extends 'generic/object_retrieve.html' %}
+-{% load buttons %}
+-{% load helpers %}
+-
+-{% block content_left_page %}
+-        <div class="panel panel-default">
+-            <div class="panel-heading">
+-                <strong>Rack Group</strong>
+-            </div>
+-            <table class="table table-hover panel-body attr-table">
+-                <tr>
+-                    <td>Description</td>
+-                    <td>{{ object.description|placeholder }}</td>
+-                </tr>
+-                <tr>
+-                    <td>Parent</td>
+-                    <td>{{ object.parent|hyperlinked_object }}</td>
+-                </tr>
+-                <tr>
+-                    <td>Location</td>
+-                    <td>{% include 'dcim/inc/location_hierarchy.html' with location=object.location %}</td>
+-                </tr>
+-                <tr>
+-                    <td>Racks</td>
+-                    <td>
+-                        <a href="{% url 'dcim:rack_list' %}?rack_group={{ object.pk }}">{{ rack_table.rows|length }}</a>
+-                    </td>
+-                </tr>
+-            </table>
+-        </div>
+-{% endblock content_left_page %}
+-
+-{% block content_full_width_page %}
+-        <div class="panel panel-default">
+-            <div class="panel-heading">
+-                <strong>Racks</strong>
+-            </div>
+-            {% include 'inc/table.html' with table=rack_table %}
+-            {% if perms.dcim.add_rack %}
+-                <div class="panel-footer text-right noprint">
+-                    <a href="{% url 'dcim:rack_add' %}?rack_group={{ object.pk }}" class="btn btn-xs btn-primary">
+-                        <span class="mdi mdi-plus-thick" aria-hidden="true"></span> Add rack
+-                    </a>
+-                </div>
+-            {% endif %}
+-        </div>
+-    {% include 'inc/paginator.html' with paginator=rack_table.paginator page=rack_table.page %}
+-    <div class="row"></div>
+-{% endblock content_full_width_page %}
++{% comment %}3.0 TODO: remove this template, which only exists for backward compatibility with 2.4 and earlier{% endcomment %}
+\ No newline at end of file
+diff --git a/nautobot/dcim/urls.py b/nautobot/dcim/urls.py
+index 4b5e81a3ee..0daf8ddbe5 100644
+--- a/nautobot/dcim/urls.py
++++ b/nautobot/dcim/urls.py
+@@ -22,7 +22,6 @@ from .models import (
+     PowerPanel,
+     PowerPort,
+     Rack,
+-    RackGroup,
+     RackReservation,
+     RearPort,
+     VirtualChassis,
+@@ -45,6 +44,7 @@ router.register("modules", views.ModuleUIViewSet)
+ router.register("module-types", views.ModuleTypeUIViewSet)
+ router.register("platforms", views.PlatformUIViewSet)
+ router.register("power-feeds", views.PowerFeedUIViewSet)
++router.register("rack-groups", views.RackGroupUIViewSet)
+ router.register("software-image-files", views.SoftwareImageFileUIViewSet)
+ router.register("software-versions", views.SoftwareVersionUIViewSet)
+ router.register("virtual-device-contexts", views.VirtualDeviceContextUIViewSet)
+@@ -82,42 +82,6 @@ urlpatterns = [
+         name="location_add_image",
+         kwargs={"model": Location},
+     ),
+-    # Rack groups
+-    path("rack-groups/", views.RackGroupListView.as_view(), name="rackgroup_list"),
+-    path("rack-groups/add/", views.RackGroupEditView.as_view(), name="rackgroup_add"),
+-    path(
+-        "rack-groups/import/",
+-        views.RackGroupBulkImportView.as_view(),  # 3.0 TODO: remove
+-        name="rackgroup_import",
+-    ),
+-    path(
+-        "rack-groups/delete/",
+-        views.RackGroupBulkDeleteView.as_view(),
+-        name="rackgroup_bulk_delete",
+-    ),
+-    path("rack-groups/<uuid:pk>/", views.RackGroupView.as_view(), name="rackgroup"),
+-    path(
+-        "rack-groups/<uuid:pk>/edit/",
+-        views.RackGroupEditView.as_view(),
+-        name="rackgroup_edit",
+-    ),
+-    path(
+-        "rack-groups/<uuid:pk>/delete/",
+-        views.RackGroupDeleteView.as_view(),
+-        name="rackgroup_delete",
+-    ),
+-    path(
+-        "rack-groups/<uuid:pk>/changelog/",
+-        ObjectChangeLogView.as_view(),
+-        name="rackgroup_changelog",
+-        kwargs={"model": RackGroup},
+-    ),
+-    path(
+-        "rack-groups/<uuid:pk>/notes/",
+-        ObjectNotesView.as_view(),
+-        name="rackgroup_notes",
+-        kwargs={"model": RackGroup},
+-    ),
+     # Rack reservations
+     path(
+         "rack-reservations/",
+diff --git a/nautobot/dcim/views.py b/nautobot/dcim/views.py
+index 6678b5461c..896050f1a3 100644
+--- a/nautobot/dcim/views.py
++++ b/nautobot/dcim/views.py
+@@ -33,6 +33,7 @@ from nautobot.core.choices import ButtonColorChoices
+ from nautobot.core.exceptions import AbortTransaction
+ from nautobot.core.forms import BulkRenameForm, ConfirmationForm, ImportForm, restrict_form_fields
+ from nautobot.core.models.querysets import count_related
++from nautobot.core.templatetags import helpers
+ from nautobot.core.templatetags.helpers import has_perms
+ from nautobot.core.ui import object_detail
+ from nautobot.core.ui.choices import SectionChoices
+@@ -488,54 +489,57 @@ class MigrateLocationDataToContactView(generic.ObjectEditView):
+ #
+ 
+ 
+-class RackGroupListView(generic.ObjectListView):
++class RackGroupUIViewSet(NautobotUIViewSet):
++    bulk_update_form_class = forms.RackGroupBulkEditForm
++    filterset_class = filters.RackGroupFilterSet
++    filterset_form_class = forms.RackGroupFilterForm
++    form_class = forms.RackGroupForm
++    serializer_class = serializers.RackGroupSerializer
++    table_class = tables.RackGroupTable
+     queryset = RackGroup.objects.all()
+-    filterset = filters.RackGroupFilterSet
+-    filterset_form = forms.RackGroupFilterForm
+-    table = tables.RackGroupTable
+ 
+-
+-class RackGroupView(generic.ObjectView):
+-    queryset = RackGroup.objects.all()
++    object_detail_content = object_detail.ObjectDetailContent(
++        panels=[
++            object_detail.ObjectFieldsPanel(
++                label="Rack Group",
++                section=SectionChoices.LEFT_HALF,
++                weight=100,
++                fields=["description", "parent", "location"],
++                value_transforms={
++                    "location": [helpers.render_ancestor_hierarchy],
++                },
++            ),
++            object_detail.ObjectsTablePanel(
++                section=SectionChoices.FULL_WIDTH,
++                weight=200,
++                related_field_name="rack_group",
++                context_table_key="rack_table",
++            ),
++        ]
++    )
+ 
+     def get_extra_context(self, request, instance):
+-        # Racks
+-        racks = (
+-            Rack.objects.restrict(request.user, "view")
+-            .filter(rack_group__in=instance.descendants(include_self=True))
+-            .select_related("role", "location", "tenant")
+-        )
+-
+-        rack_table = tables.RackTable(racks)
+-        rack_table.columns.hide("rack_group")
+-
+-        paginate = {
+-            "paginator_class": EnhancedPaginator,
+-            "per_page": get_paginate_count(request),
+-        }
+-        RequestConfig(request, paginate).configure(rack_table)
+-
+-        return {"rack_table": rack_table, **super().get_extra_context(request, instance)}
+-
+-
+-class RackGroupEditView(generic.ObjectEditView):
+-    queryset = RackGroup.objects.all()
+-    model_form = forms.RackGroupForm
+-
++        context = super().get_extra_context(request, instance)
+ 
+-class RackGroupDeleteView(generic.ObjectDeleteView):
+-    queryset = RackGroup.objects.all()
++        if self.action == "retrieve" and instance:
++            racks = (
++                Rack.objects.restrict(request.user, "view")
++                .filter(rack_group__in=instance.descendants(include_self=True))
++                .select_related("role", "location", "tenant")
++            )
+ 
++            rack_table = tables.RackTable(racks)
++            rack_table.columns.hide("rack_group")
+ 
+-class RackGroupBulkImportView(generic.BulkImportView):  # 3.0 TODO: remove, unused
+-    queryset = RackGroup.objects.all()
+-    table = tables.RackGroupTable
++            paginate = {
++                "paginator_class": EnhancedPaginator,
++                "per_page": get_paginate_count(request),
++            }
++            RequestConfig(request, paginate).configure(rack_table)
+ 
++            context["rack_table"] = rack_table
+ 
+-class RackGroupBulkDeleteView(generic.BulkDeleteView):
+-    queryset = RackGroup.objects.all()
+-    filterset = filters.RackGroupFilterSet
+-    table = tables.RackGroupTable
++        return context
+ 
+ 
+ #

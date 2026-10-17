@@ -1,0 +1,144 @@
+diff --git a/.github/workflows/publish-pypi.yaml b/.github/workflows/publish-pypi.yaml
+new file mode 100644
+index 0000000..322059d
+--- /dev/null
++++ b/.github/workflows/publish-pypi.yaml
+@@ -0,0 +1,66 @@
++# This workflow uses actions that are not certified by GitHub.
++# They are provided by a third-party and are governed by
++# separate terms of service, privacy policy, and support
++# documentation.
++
++# GitHub recommends pinning actions to a commit SHA.
++# To get a newer version, you will need to update the SHA.
++# You can also reference a tag or branch, but the action may change without warning.
++
++name: Upload Python Package
++
++on:
++  release:
++    types: [published]
++
++permissions:
++  contents: read
++
++jobs:
++  release-build:
++    runs-on: ubuntu-latest
++
++    steps:
++      - uses: actions/checkout@v4
++
++      - uses: actions/setup-python@v5
++        with:
++          python-version: "3.x"
++
++      - name: Build release distributions
++        run: |
++          # NOTE: put your own distribution build steps here.
++          python -m pip install build
++          python -m build
++
++      - name: Upload distributions
++        uses: actions/upload-artifact@v4
++        with:
++          name: release-dists
++          path: dist/
++
++  pypi-publish:
++    runs-on: ubuntu-latest
++
++    needs:
++      - release-build
++
++    permissions:
++      # IMPORTANT: this permission is mandatory for trusted publishing
++      id-token: write
++
++    # Dedicated environments with protections for publishing are strongly recommended.
++    environment:
++      name: pypi
++      # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
++      # url: https://pypi.org/p/YOURPROJECT
++
++    steps:
++      - name: Retrieve release distributions
++        uses: actions/download-artifact@v4
++        with:
++          name: release-dists
++          path: dist/
++
++      - name: Publish release distributions to PyPI
++        uses: pypa/gh-action-pypi-publish@release/v1
+diff --git a/src/f5_tts/train/finetune_cli.py b/src/f5_tts/train/finetune_cli.py
+index 5010f8f..cdf42a9 100644
+--- a/src/f5_tts/train/finetune_cli.py
++++ b/src/f5_tts/train/finetune_cli.py
+@@ -1,6 +1,10 @@
+ import argparse
++import os
++import shutil
+ from importlib.resources import files
+ 
++from cached_path import cached_path
++
+ from f5_tts.model import CFM, DiT, Trainer, UNetT
+ from f5_tts.model.dataset import load_dataset
+ from f5_tts.model.utils import get_tokenizer
+@@ -45,6 +49,8 @@ def parse_args():
+         help="-1 to keep all, 0 to not save intermediate, > 0 to keep last N checkpoints",
+     )
+     parser.add_argument("--last_per_updates", type=int, default=5000, help="Save last checkpoint every N updates")
++    parser.add_argument("--finetune", action="store_true", help="Use Finetune")
++    parser.add_argument("--pretrain", type=str, default=None, help="the path to the checkpoint")
+     parser.add_argument(
+         "--tokenizer", type=str, default="pinyin", choices=["pinyin", "char", "custom"], help="Tokenizer type"
+     )
+@@ -90,6 +96,11 @@ def main():
+             text_dim=512,
+             conv_layers=4,
+         )
++        if args.finetune:
++            if args.pretrain is None:
++                ckpt_path = str(cached_path("hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors"))
++            else:
++                ckpt_path = args.pretrain
+ 
+     elif args.exp_name == "F5TTS_Base":
+         wandb_resume_id = None
+@@ -104,6 +115,11 @@ def main():
+             conv_layers=4,
+             pe_attn_head=1,
+         )
++        if args.finetune:
++            if args.pretrain is None:
++                ckpt_path = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base/model_1200000.pt"))
++            else:
++                ckpt_path = args.pretrain
+ 
+     elif args.exp_name == "E2TTS_Base":
+         wandb_resume_id = None
+@@ -116,6 +132,23 @@ def main():
+             text_mask_padding=False,
+             pe_attn_head=1,
+         )
++        if args.finetune:
++            if args.pretrain is None:
++                ckpt_path = str(cached_path("hf://SWivid/E2-TTS/E2TTS_Base/model_1200000.pt"))
++            else:
++                ckpt_path = args.pretrain
++
++    if args.finetune:
++        if not os.path.isdir(checkpoint_path):
++            os.makedirs(checkpoint_path, exist_ok=True)
++
++        file_checkpoint = os.path.basename(ckpt_path)
++        if not file_checkpoint.startswith("pretrained_"):  # Change: Add 'pretrained_' prefix to copied model
++            file_checkpoint = "pretrained_" + file_checkpoint
++        file_checkpoint = os.path.join(checkpoint_path, file_checkpoint)
++        if not os.path.isfile(file_checkpoint):
++            shutil.copy2(ckpt_path, file_checkpoint)
++            print("copy checkpoint for finetune")
+ 
+     # Use the tokenizer and tokenizer_path provided in the command line arguments
+ 

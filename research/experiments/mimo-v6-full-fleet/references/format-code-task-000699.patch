@@ -1,0 +1,197 @@
+diff --git a/README.md b/README.md
+index f3a1d671..584af36f 100644
+--- a/README.md
++++ b/README.md
+@@ -859,6 +859,7 @@ z.string().datetime(); // ISO 8601; by default only `Z` timezone allowed
+ z.string().date(); // ISO date format (YYYY-MM-DD)
+ z.string().time(); // ISO time format (HH:mm:ss[.SSSSSS])
+ z.string().ip(); // defaults to allow both IPv4 and IPv6
++z.string().base64();
+ 
+ // transformations
+ z.string().trim(); // trim whitespace
+diff --git a/deno/lib/README.md b/deno/lib/README.md
+index f3a1d671..584af36f 100644
+--- a/deno/lib/README.md
++++ b/deno/lib/README.md
+@@ -859,6 +859,7 @@ z.string().datetime(); // ISO 8601; by default only `Z` timezone allowed
+ z.string().date(); // ISO date format (YYYY-MM-DD)
+ z.string().time(); // ISO time format (HH:mm:ss[.SSSSSS])
+ z.string().ip(); // defaults to allow both IPv4 and IPv6
++z.string().base64();
+ 
+ // transformations
+ z.string().trim(); // trim whitespace
+diff --git a/deno/lib/ZodError.ts b/deno/lib/ZodError.ts
+index 7710d2ed..3863c3e5 100644
+--- a/deno/lib/ZodError.ts
++++ b/deno/lib/ZodError.ts
+@@ -102,6 +102,7 @@ export type StringValidation =
+   | "date"
+   | "time"
+   | "ip"
++  | "base64"
+   | { includes: string; position?: number }
+   | { startsWith: string }
+   | { endsWith: string };
+diff --git a/deno/lib/types.ts b/deno/lib/types.ts
+index 97d0a61a..1a77d82f 100644
+--- a/deno/lib/types.ts
++++ b/deno/lib/types.ts
+@@ -563,7 +563,8 @@ export type ZodStringCheck =
+       precision: number | null;
+       message?: string;
+     }
+-  | { kind: "ip"; version?: IpVersion; message?: string };
++  | { kind: "ip"; version?: IpVersion; message?: string }
++  | { kind: "base64"; message?: string };
+ 
+ export interface ZodStringDef extends ZodTypeDef {
+   checks: ZodStringCheck[];
+@@ -572,7 +573,7 @@ export interface ZodStringDef extends ZodTypeDef {
+ }
+ 
+ const cuidRegex = /^c[^\s-]{8,}$/i;
+-const cuid2Regex = /^[a-z][a-z0-9]*$/;
++const cuid2Regex = /^[0-9a-z]+$/;
+ const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+ // const uuidRegex =
+ //   /^([a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[a-f0-9]{4}-[a-f0-9]{12}|00000000-0000-0000-0000-000000000000)$/i;
+@@ -606,6 +607,10 @@ const ipv4Regex =
+ const ipv6Regex =
+   /^(([a-f0-9]{1,4}:){7}|::([a-f0-9]{1,4}:){0,6}|([a-f0-9]{1,4}:){1}:([a-f0-9]{1,4}:){0,5}|([a-f0-9]{1,4}:){2}:([a-f0-9]{1,4}:){0,4}|([a-f0-9]{1,4}:){3}:([a-f0-9]{1,4}:){0,3}|([a-f0-9]{1,4}:){4}:([a-f0-9]{1,4}:){0,2}|([a-f0-9]{1,4}:){5}:([a-f0-9]{1,4}:){0,1})([a-f0-9]{1,4}|(((25[0-5])|(2[0-4][0-9])|(1[0-9]{2})|([0-9]{1,2}))\.){3}((25[0-5])|(2[0-4][0-9])|(1[0-9]{2})|([0-9]{1,2})))$/;
+ 
++// https://stackoverflow.com/questions/7860392/determine-if-string-is-in-base64-using-javascript
++const base64Regex =
++  /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
++
+ // const dateRegexSource = `\\d{4}-\\d{2}-\\d{2}`;
+ const dateRegexSource = `\\d{4}-((0[13578]|10|12)-31|(0[13-9]|1[0-2])-30|(0[1-9]|1[0-2])-(0[1-9]|1\\d|2\\d))`;
+ const dateRegex = new RegExp(`^${dateRegexSource}$`);
+@@ -613,6 +618,7 @@ const dateRegex = new RegExp(`^${dateRegexSource}$`);
+ function timeRegexSource(args: { precision?: number | null }) {
+   // let regex = `\\d{2}:\\d{2}:\\d{2}`;
+   let regex = `([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d`;
++
+   if (args.precision) {
+     regex = `${regex}\\.\\d{${args.precision}}`;
+   } else if (args.precision == null) {
+@@ -906,6 +912,16 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+           });
+           status.dirty();
+         }
++      } else if (check.kind === "base64") {
++        if (!base64Regex.test(input.data)) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            validation: "base64",
++            code: ZodIssueCode.invalid_string,
++            message: check.message,
++          });
++          status.dirty();
++        }
+       } else {
+         util.assertNever(check);
+       }
+@@ -961,6 +977,9 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+   ulid(message?: errorUtil.ErrMessage) {
+     return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
+   }
++  base64(message?: errorUtil.ErrMessage) {
++    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
++  }
+ 
+   ip(options?: string | { version?: "v4" | "v6"; message?: string }) {
+     return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
+@@ -1152,6 +1171,9 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+   get isIP() {
+     return !!this._def.checks.find((ch) => ch.kind === "ip");
+   }
++  get isBase64() {
++    return !!this._def.checks.find((ch) => ch.kind === "base64");
++  }
+ 
+   get minLength() {
+     let min: number | null = null;
+diff --git a/src/ZodError.ts b/src/ZodError.ts
+index 202f8480..61e79316 100644
+--- a/src/ZodError.ts
++++ b/src/ZodError.ts
+@@ -102,6 +102,7 @@ export type StringValidation =
+   | "date"
+   | "time"
+   | "ip"
++  | "base64"
+   | { includes: string; position?: number }
+   | { startsWith: string }
+   | { endsWith: string };
+diff --git a/src/types.ts b/src/types.ts
+index d0c5bb20..d82a7df1 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -563,7 +563,8 @@ export type ZodStringCheck =
+       precision: number | null;
+       message?: string;
+     }
+-  | { kind: "ip"; version?: IpVersion; message?: string };
++  | { kind: "ip"; version?: IpVersion; message?: string }
++  | { kind: "base64"; message?: string };
+ 
+ export interface ZodStringDef extends ZodTypeDef {
+   checks: ZodStringCheck[];
+@@ -606,6 +607,10 @@ const ipv4Regex =
+ const ipv6Regex =
+   /^(([a-f0-9]{1,4}:){7}|::([a-f0-9]{1,4}:){0,6}|([a-f0-9]{1,4}:){1}:([a-f0-9]{1,4}:){0,5}|([a-f0-9]{1,4}:){2}:([a-f0-9]{1,4}:){0,4}|([a-f0-9]{1,4}:){3}:([a-f0-9]{1,4}:){0,3}|([a-f0-9]{1,4}:){4}:([a-f0-9]{1,4}:){0,2}|([a-f0-9]{1,4}:){5}:([a-f0-9]{1,4}:){0,1})([a-f0-9]{1,4}|(((25[0-5])|(2[0-4][0-9])|(1[0-9]{2})|([0-9]{1,2}))\.){3}((25[0-5])|(2[0-4][0-9])|(1[0-9]{2})|([0-9]{1,2})))$/;
+ 
++// https://stackoverflow.com/questions/7860392/determine-if-string-is-in-base64-using-javascript
++const base64Regex =
++  /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
++
+ // const dateRegexSource = `\\d{4}-\\d{2}-\\d{2}`;
+ const dateRegexSource = `\\d{4}-((0[13578]|10|12)-31|(0[13-9]|1[0-2])-30|(0[1-9]|1[0-2])-(0[1-9]|1\\d|2\\d))`;
+ const dateRegex = new RegExp(`^${dateRegexSource}$`);
+@@ -613,6 +618,7 @@ const dateRegex = new RegExp(`^${dateRegexSource}$`);
+ function timeRegexSource(args: { precision?: number | null }) {
+   // let regex = `\\d{2}:\\d{2}:\\d{2}`;
+   let regex = `([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d`;
++
+   if (args.precision) {
+     regex = `${regex}\\.\\d{${args.precision}}`;
+   } else if (args.precision == null) {
+@@ -906,6 +912,16 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+           });
+           status.dirty();
+         }
++      } else if (check.kind === "base64") {
++        if (!base64Regex.test(input.data)) {
++          ctx = this._getOrReturnCtx(input, ctx);
++          addIssueToContext(ctx, {
++            validation: "base64",
++            code: ZodIssueCode.invalid_string,
++            message: check.message,
++          });
++          status.dirty();
++        }
+       } else {
+         util.assertNever(check);
+       }
+@@ -961,6 +977,9 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+   ulid(message?: errorUtil.ErrMessage) {
+     return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
+   }
++  base64(message?: errorUtil.ErrMessage) {
++    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
++  }
+ 
+   ip(options?: string | { version?: "v4" | "v6"; message?: string }) {
+     return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
+@@ -1152,6 +1171,9 @@ export class ZodString extends ZodType<string, ZodStringDef> {
+   get isIP() {
+     return !!this._def.checks.find((ch) => ch.kind === "ip");
+   }
++  get isBase64() {
++    return !!this._def.checks.find((ch) => ch.kind === "base64");
++  }
+ 
+   get minLength() {
+     let min: number | null = null;

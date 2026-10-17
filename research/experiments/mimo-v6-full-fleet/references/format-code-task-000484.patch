@@ -1,0 +1,76 @@
+diff --git a/robo/acquisition/EI.py b/robo/acquisition/EI.py
+index 7d690bb..4a55558 100644
+--- a/robo/acquisition/EI.py
++++ b/robo/acquisition/EI.py
+@@ -22,6 +22,7 @@ class EI(AcquisitionFunction):
+         :type X_lower: np.ndarray (1,D)
+         :param X_upper: Upper bounds for the search, its shape should be 1xD (D = dimension of input space)
+         :type X_upper: np.ndarray (1,D)
++        :param compute_incumbent: A python function that takes as input a model and returns a np.array as incumbent
+         :param par: Controls the balance between exploration and exploitation of the acquisition
+                     function. Normally set to 0.01
+     """
+diff --git a/robo/acquisition/LogEI.py b/robo/acquisition/LogEI.py
+index 73e2051..61325f3 100644
+--- a/robo/acquisition/LogEI.py
++++ b/robo/acquisition/LogEI.py
+@@ -53,22 +53,25 @@ class LogEI(AcquisitionFunction):
+             return np.array([[- np.finfo(np.float).max]])
+         m, v = self.model.predict(X)
+ 
+-        eta = self.model.predict(self.compute_incumbent(self.model))
++        eta = self.model.predict(np.array([self.compute_incumbent(self.model)]))
+         s = np.sqrt(v)
+         z = (eta - m) / s - self.par
+         log_ei = np.zeros((m.size, 1))
+         for i in range(0, m.size):
+             mu, sigma = m[i], s[i]
++
+             par_s = self.par * sigma
++
+             # Degenerate case 1: first term vanishes
+-            if abs(eta - mu - par_s) == 0:
++
++            if np.any(abs(eta - mu - par_s)) == 0:
+                 if sigma > 0:
+                     log_ei[i] = np.log(sigma) + norm.logpdf(z[i])
+                 else:
+                     log_ei[i] = -float('Inf')
+             # Degenerate case 2: second term vanishes and first term has a special form.
+             elif sigma == 0:
+-                if mu < eta - par_s:
++                if mu < np.any(eta - par_s):
+                     log_ei[i] = np.log(eta - mu - par_s)
+                 else:
+                     log_ei[i] = -float('Inf')
+@@ -76,7 +79,7 @@ class LogEI(AcquisitionFunction):
+             else:
+                 b = np.log(sigma) + norm.logpdf(z[i])
+                 # log(y+z) is tricky, we distinguish two cases:
+-                if eta - par_s > mu:
++                if np.any(eta - par_s) > mu:
+                     # When y>0, z>0, we define a=ln(y), b=ln(z).
+                     # Then y+z = exp[ max(a,b) + ln(1 + exp(-|b-a|)) ],
+                     # and thus log(y+z) = max(a,b) + ln(1 + exp(-|b-a|))
+diff --git a/robo/acquisition/PI.py b/robo/acquisition/PI.py
+index 437de2c..f6d0877 100644
+--- a/robo/acquisition/PI.py
++++ b/robo/acquisition/PI.py
+@@ -57,7 +57,7 @@ class PI(AcquisitionFunction):
+ 
+         dim = X.shape[1]
+         m, v = self.model.predict(X)
+-        eta = self.model.predict(incumbent)
++        eta = self.model.predict(np.array([incumbent]))
+         s = np.sqrt(v)
+         z = (eta - m - self.par) / s
+         f = norm.cdf(z)
+@@ -70,6 +70,8 @@ class PI(AcquisitionFunction):
+ 
+         if len(f.shape) == 1:
+             return_f = np.array([f])
++        else:
++            return_f = f
+         if derivative:
+             if len(df.shape) == 3:
+                 return_df = df

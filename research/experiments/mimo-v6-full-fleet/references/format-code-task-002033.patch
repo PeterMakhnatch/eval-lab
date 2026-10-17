@@ -1,0 +1,78 @@
+diff --git a/djangocms_blog/cms_apps.py b/djangocms_blog/cms_apps.py
+index 29b9b78..3c452ed 100644
+--- a/djangocms_blog/cms_apps.py
++++ b/djangocms_blog/cms_apps.py
+@@ -14,7 +14,7 @@ from .settings import get_setting
+ @apphook_pool.register
+ class BlogApp(AutoCMSAppMixin, CMSConfigApp):
+     name = _('Blog')
+-    _urls = ['djangocms_blog.urls']
++    _urls = [get_setting('URLCONF')]
+     app_name = 'djangocms_blog'
+     app_config = BlogConfig
+     _menus = [BlogCategoryMenu]
+@@ -30,9 +30,12 @@ class BlogApp(AutoCMSAppMixin, CMSConfigApp):
+         },
+     }
+ 
++    def get_urls(self, page=None, language=None, **kwargs):
++        return [get_setting('URLCONF')]
++
+     @property
+     def urls(self):
+-        return self._urls
++        return self.get_urls()
+ 
+     @property
+     def menus(self):
+diff --git a/djangocms_blog/settings.py b/djangocms_blog/settings.py
+index 7c8b34d..5588eac 100644
+--- a/djangocms_blog/settings.py
++++ b/djangocms_blog/settings.py
+@@ -53,6 +53,7 @@ def get_setting(name):
+             'upscale': False
+         }),
+ 
++        'BLOG_URLCONF': getattr(settings, 'BLOG_URLCONF', 'djangocms_blog.urls'),
+         'BLOG_PAGINATION': getattr(settings, 'BLOG_PAGINATION', 10),
+         'BLOG_LATEST_POSTS': getattr(settings, 'BLOG_LATEST_POSTS', 5),
+         'BLOG_POSTS_LIST_TRUNCWORDS_COUNT': getattr(
+diff --git a/docs/features.rst b/docs/features.rst
+index 553c524..92be15c 100644
+--- a/docs/features.rst
++++ b/docs/features.rst
+@@ -31,6 +31,22 @@ Notice that the last permalink type is no longer present.
+ Then, pick any of the three remaining permalink types in the layout section of the apphooks config
+ linked ot the home page (see http://yoursite.com/admin/djangocms_blog/blogconfig/).'
+ 
++.. _blog-custom-urlconf:
++
++************************
++Provide a custom URLConf
++************************
++
++It's possible to completely customize the urlconf by setting ``BLOG_URLCONF`` to the dotted path of
++the new urlconf.
++
++Example::
++
++    BLOG_URLCONF = 'my_project.blog_urls.py'
++
++The custom urlconf can be created by copying the existing urlconf in `djangocms_blog/urls.py`,
++saving it to a new file `my_project.blog_urls.py` and editing it according to the custom needs.
++
+ 
+ .. _multisite:
+ 
+diff --git a/docs/settings.rst b/docs/settings.rst
+index 13ddcaf..ed42f8e 100644
+--- a/docs/settings.rst
++++ b/docs/settings.rst
+@@ -68,6 +68,7 @@ Global Settings
+ * BLOG_AVAILABLE_PERMALINK_STYLES: Choices of permalinks styles;
+ * BLOG_PERMALINK_URLS: URLConf corresponding to
+   BLOG_AVAILABLE_PERMALINK_STYLES;
++* BLOG_URLCONF: Apphoo URLConf; (default: ``'djangocms_blog.urls'``);
+ * BLOG_DEFAULT_OBJECT_NAME: Default name for Blog item (used in django CMS Wizard);
+ * BLOG_AUTO_SETUP: Enable the blog **Auto setup** feature; (default: ``True``)
+ * BLOG_AUTO_HOME_TITLE: Title of the home page created by **Auto setup**;

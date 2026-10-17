@@ -1,0 +1,114 @@
+diff --git a/pylingual/decompiler.py b/pylingual/decompiler.py
+index 1c7fdff..34d045b 100644
+--- a/pylingual/decompiler.py
++++ b/pylingual/decompiler.py
+@@ -97,9 +97,10 @@ class Decompiler:
+     :param translator: The loaded translation model
+     :param version: The python version
+     :param top_k: Value of k to use for top k segmentation
++    :param trust_lnotab: Decides whether or not to use line number information
+     """
+ 
+-    def __init__(self, pyc: PYCFile, segmenter: transformers.Pipeline, translator: CacheTranslator, version: PythonVersion, top_k=10, timeout=None):
++    def __init__(self, pyc: PYCFile, segmenter: transformers.Pipeline, translator: CacheTranslator, version: PythonVersion, top_k=10, trust_lnotab=False, timeout=None):
+         self.pyc = pyc
+         self.pyc.copy()
+         self.name = pyc.pyc_path.name if pyc.pyc_path is not None else repr(pyc)
+@@ -109,6 +110,7 @@ class Decompiler:
+         self.top_k = top_k
+         self.highest_k_used = 0
+         self.tmpn = 0
++        self.trust_lnotab = trust_lnotab
+         self.timeout = timeout
+         self.start_time = time.time()
+ 
+@@ -228,6 +230,8 @@ class Decompiler:
+             raise
+ 
+     def run_segmentation(self):
++        if self.trust_lnotab:
++            return self.update_segmentation_from_lnotab()
+         logger.info(f"Segmenting bytecode for {self.name}...")
+         try:
+             MAX_WINDOW_LENGTH = 512
+@@ -269,6 +273,30 @@ class Decompiler:
+             e.add_note("From segmentation")
+             raise
+ 
++    def update_segmentation_from_lnotab(self):
++        self.segmentation_results = []
++        seen_lines = set()
++        # create rows for each bytecode
++        for bc in self.pyc.iter_bytecodes():
++            # attempt to filter lines
++            lno_insts = bc.get_lno_insts(previously_seen_lines=seen_lines)
++            seen_lines.update(lno_insts.keys())
++
++            # create bytecode segmentation
++            boundaries = []
++            for bc_line in lno_insts.values():
++                if len(bc_line) == 1:
++                    bounds = "B"
++                elif len(bc_line) >= 2:
++                    bounds = "B" + "I" * (len(bc_line) - 2) + "E"
++                else:
++                    raise ValueError("Unexpected amount of bytecodes segmented into a line")
++                boundaries.extend(list(bounds))
++
++            self.segmentation_results.append([{"entity": entity, "score": 1} for entity in boundaries])
++
++        self.update_starts_line()
++
+     def run_translation(self):
+         logger.info(f"Translating statements for {self.name}...")
+         try:
+@@ -412,7 +440,7 @@ class Decompiler:
+                     inst.starts_line = None
+ 
+ 
+-def decompile(pyc: PYCFile | Path, save_to: Path | None = None, config_file: Path | None = None, version: str | None = None, top_k: int = 10, timeout: int | None = None) -> DecompilerResult:
++def decompile(pyc: PYCFile | Path, save_to: Path | None = None, config_file: Path | None = None, version: str | None = None, top_k: int = 10, trust_lnotab: bool = False, timeout: int | None = None) -> DecompilerResult:
+     """
+     Decompile a PYC file.
+ 
+@@ -421,6 +449,7 @@ def decompile(pyc: PYCFile | Path, save_to: Path | None = None, config_file: Pat
+     :param config_file: Path to decompiler_config.yaml to load. Use None to load the default PyLingual config (recommended).
+     :param version: Loads the models corresponding to this python version. if None, automatically detects version based on input PYC file.
+     :param top_k: Max number of pyc segmentations to consider.
++    :param trust_lnotab: Trust the lnotab in the input PYC for segmentation (False recommended).
+     :param timeout: Maximum time in seconds to allow decompilation to run.
+     :return: DecompilerResult class including important information about decompilation
+     """
+@@ -456,7 +485,7 @@ def decompile(pyc: PYCFile | Path, save_to: Path | None = None, config_file: Pat
+         logger.info(f"Decompiling pyc {pyc.pyc_path.resolve() if pyc.pyc_path else repr(pyc)} to {save_to.resolve()}")
+     else:
+         logger.info(f"Decompiling pyc {pyc.pyc_path.resolve() if pyc.pyc_path else repr(pyc)}")
+-    decompiler = Decompiler(pyc, segmenter, translator, pversion, top_k, timeout)
++    decompiler = Decompiler(pyc, segmenter, translator, pversion, top_k, trust_lnotab, timeout)
+     result = decompiler()
+ 
+     logger.info("Decompilation complete")
+diff --git a/pylingual/main.py b/pylingual/main.py
+index 0d581f9..3c8f258 100644
+--- a/pylingual/main.py
++++ b/pylingual/main.py
+@@ -95,9 +95,10 @@ def collect_files(paths: list[Path], out_dir: Path, flatten: bool) -> list[tuple
+ @click.option("-q", "--quiet", is_flag=True, default=False, help="Suppress console output.")
+ @click.option("--flatten", is_flag=True, default=False, help="Flatten the output directory. (Only used if files list contains directories)")
+ @click.option("--force", is_flag=True, default=False, help="Overwrite existing output files.")
++@click.option("--trust-lnotab", is_flag=True, default=False, help="Use the lnotab for segmentation instead of the segmentation model.")
+ @click.option("--init-pyenv", is_flag=True, default=False, help="Install pyenv before decompiling.")
+ @click.option("--timeout", default=None, type=int, help="Maximum time in seconds to allow decompilation to run per file.", metavar="SECONDS")
+-def main(files: list[Path], out_dir: Path | None, config_file: Path | None, version: PythonVersion | None, top_k: int, flatten: bool, force: bool, init_pyenv: bool, quiet: bool, timeout: int | None):
++def main(files: list[Path], out_dir: Path | None, config_file: Path | None, version: PythonVersion | None, top_k: int, flatten: bool, force: bool, trust_lnotab: bool, init_pyenv: bool, quiet: bool, timeout: int | None):
+     rich.reconfigure(markup=False, emoji=False, quiet=quiet, theme=Theme({"logging.keyword": "yellow not bold"}))
+     console = rich.get_console()
+     log_handler = RichHandler(console=console, rich_tracebacks=True)
+@@ -172,6 +173,7 @@ def main(files: list[Path], out_dir: Path | None, config_file: Path | None, vers
+                     config_file=Path(config_file) if config_file else None,
+                     version=version,
+                     top_k=top_k,
++                    trust_lnotab=trust_lnotab,
+                     timeout=timeout,
+                 )
+                 pyc = result.original_pyc

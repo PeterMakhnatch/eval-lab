@@ -128,6 +128,12 @@ The app `evallab-mimo-v26-9b-lora` uses production's SGLang image and launch com
 
 Only the adapter names in `execution_contracts.MIMO_SELFHOSTED_ADAPTERS` are admitted. A new adapter name is a code change: add it there, and to the proxy's `mimo_selfhosted` profile.
 
+The repaired-data studies admit `rds1-a`, `rds1-b`, `rds1-c`, and the scaled-study
+names `rds2-b`, `rds2-c`, `rds2-d` through that same bounded contract and proxy.
+Admission does not create or deploy an adapter: require its completed training
+receipt, exact serving-path binding, and native returned-model identity before
+evaluating it. A base-model echo cannot satisfy an adapter request.
+
 ## 4. Check parity before the eval
 
 ```bash

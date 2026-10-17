@@ -1,0 +1,26 @@
+diff --git a/docs/changelog/2654.bugfix.rst b/docs/changelog/2654.bugfix.rst
+new file mode 100644
+index 00000000..2ec0e4d4
+--- /dev/null
++++ b/docs/changelog/2654.bugfix.rst
+@@ -0,0 +1 @@
++Override toxworkdir with --workdir.
+diff --git a/src/tox/config/sets.py b/src/tox/config/sets.py
+index e07f4bd4..98a31251 100644
+--- a/src/tox/config/sets.py
++++ b/src/tox/config/sets.py
+@@ -191,10 +191,14 @@ class CoreConfigSet(ConfigSet):
+         def work_dir_builder(conf: Config, env_name: str | None) -> Path:  # noqa: U100
+             return (conf.work_dir if conf.work_dir is not None else cast(Path, self["tox_root"])) / ".tox"
+ 
++        def work_dir_post_process(value: Path) -> Path:
++            return self._conf.work_dir if self._conf.options.work_dir else value
++
+         self.add_config(
+             keys=["work_dir", "toxworkdir"],
+             of_type=Path,
+             default=work_dir_builder,
++            post_process=work_dir_post_process,
+             desc="working directory",
+         )
+         self.add_config(

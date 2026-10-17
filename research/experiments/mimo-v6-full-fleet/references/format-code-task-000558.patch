@@ -1,0 +1,25 @@
+diff --git a/CHANGELOG.rst b/CHANGELOG.rst
+index 7ea20a8..1dab8f1 100644
+--- a/CHANGELOG.rst
++++ b/CHANGELOG.rst
+@@ -6,6 +6,7 @@ Next
+ ====
+ 
+ - Fix unneeded error when an operators is not supported by adapter (#378)
++- Fix comparison to empty strings in GSheets (#379)
+ 
+ Version 1.2.6 - 2023-07-20
+ ==========================
+diff --git a/src/shillelagh/adapters/api/gsheets/fields.py b/src/shillelagh/adapters/api/gsheets/fields.py
+index 7db343d..1f24b96 100644
+--- a/src/shillelagh/adapters/api/gsheets/fields.py
++++ b/src/shillelagh/adapters/api/gsheets/fields.py
+@@ -328,7 +328,7 @@ class GSheetsString(GSheetsField[str, str]):
+         return "" if value is None else value
+ 
+     def quote(self, value: Optional[str]) -> str:
+-        if value == "" or value is None:
++        if value is None:
+             return "null"
+ 
+         return f"'{value}'"

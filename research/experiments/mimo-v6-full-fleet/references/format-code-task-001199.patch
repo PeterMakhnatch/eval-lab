@@ -1,0 +1,36 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7430de510..1fd36a988 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@ Below are the noteworthy changes from each release.
+ A more detailed list of changes is available in the corresponding milestones for each release in the Github issue tracker (https://github.com/googlefonts/fontbakery/milestones?state=closed).
+ 
+ ##  Upcoming release: 0.13.0a2 (2024-Oct-??)
++### Changes to existing checks
++#### On the Google Fonts profile
++  - **[googlefonts/article/images]:** Missing image files are now reported at **FATAL** level. (issue #4848)
++
+ ### Deprecated checks
+ #### Removed from the Universal profile
+   - **DEPRECATED - [whitespace_glyphnames]:** This check lacked a solid enough rationale. We may want to substitute it in the future by a full AGL-compliance check, if needed. (issue #4851)
+diff --git a/Lib/fontbakery/checks/vendorspecific/googlefonts/article.py b/Lib/fontbakery/checks/vendorspecific/googlefonts/article.py
+index 5fc3f0aec..997a9060a 100644
+--- a/Lib/fontbakery/checks/vendorspecific/googlefonts/article.py
++++ b/Lib/fontbakery/checks/vendorspecific/googlefonts/article.py
+@@ -1,6 +1,6 @@
+ import os
+ 
+-from fontbakery.prelude import check, Message, FAIL, WARN, PASS
++from fontbakery.prelude import check, Message, FATAL, FAIL, WARN, PASS
+ 
+ 
+ @check(
+@@ -78,7 +78,7 @@ def check_article_images(config, family_directory):
+         yield WARN, Message("missing-visual-asset", "Article page lacks visual assets.")
+ 
+     if missing_files:
+-        yield WARN, Message(
++        yield FATAL, Message(
+             "missing-visual-file",
+             f"Visual asset files are missing:\n{bullet_list(config, missing_files)}",
+         )

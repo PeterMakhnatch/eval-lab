@@ -1,0 +1,55 @@
+diff --git a/doc/release_notes/v3.0.0.rst b/doc/release_notes/v3.0.0.rst
+index d9d4731b7..d9f6c8413 100644
+--- a/doc/release_notes/v3.0.0.rst
++++ b/doc/release_notes/v3.0.0.rst
+@@ -64,6 +64,8 @@ Changes
+   generated using :func:`~secrets.randbelow` when `entropy_srcs` isn't used, and
+   the maximum allowed length of the `prefix` has been changed to 54 characters
+   (:issue:`1773`)
++* :attr:`~pydicom.dataelem.DataElement.VM` always returns ``1`` for **SQ**
++  elements (:issue:`1481`)
+ 
+ 
+ Enhancements
+diff --git a/src/pydicom/dataelem.py b/src/pydicom/dataelem.py
+index 105348b6a..02487df26 100644
+--- a/src/pydicom/dataelem.py
++++ b/src/pydicom/dataelem.py
+@@ -452,15 +452,26 @@ class DataElement:
+ 
+     @property
+     def VM(self) -> int:
+-        """Return the value multiplicity of the element as :class:`int`."""
++        """Return the value multiplicity of the element as :class:`int`.
++
++        .. versionchanged:: 3.0
++
++            **SQ** elements now always return a VM of ``1``.
++        """
++        if self.VR == VR_.SQ:
++            return 1
++
+         if self.value is None:
+             return 0
++
+         if isinstance(self.value, str | bytes | PersonName):
+             return 1 if self.value else 0
++
+         try:
+             iter(self.value)
+         except TypeError:
+             return 1
++
+         return len(self.value)
+ 
+     @property
+@@ -469,6 +480,9 @@ class DataElement:
+ 
+         .. versionadded:: 1.4
+         """
++        if self.VR == VR_.SQ:
++            return not bool(self.value)
++
+         return self.VM == 0
+ 
+     @property

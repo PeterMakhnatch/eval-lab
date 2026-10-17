@@ -7,6 +7,8 @@ diffs/reports). No Docker, no Harbor runs.
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -16,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from evallab.purge_installed_copies import SETUP_PYTHON_PATH, shell_block_v2
 from evallab.separate_verifier import (
     JUNIT_MISSING_REASON,
     PYTEST_START_MARKERS,
@@ -4140,3 +4143,110 @@ def test_v10_build_changes_shape(parent_dir_v2: Path) -> None:
         build_changes_v10(parent_dir_v2, marker="  ")
     with pytest.raises(VariantInvalid):
         render_wrapper_test_sh_v10("relative/path")
+
+
+def test_v10_pins_only_bundled_python_setup_and_keeps_project_interpreter(
+    parent_dir_v2: Path,
+    tmp_path: Path,
+) -> None:
+    unpinned_changes, unpinned_inputs = build_changes_v10(parent_dir_v2, marker=MARKER)
+    # A nonPython setup retains the pre-existing wrapper bytes.
+    assert unpinned_changes["tests/test.sh"] == render_wrapper_test_sh_v10("/testbed").encode()
+    assert unpinned_inputs["setup_python_path"] == ""
+    assert unpinned_inputs["wrapper_sha256"] == hashlib.sha256(
+        unpinned_changes["tests/test.sh"]
+    ).hexdigest()
+
+    # Historical purge@2 bundles have no PATH export. Reuse their actual
+    # purge block so this regression exercises the wrapper's child env,
+    # independently of the new agent-setup export.
+    setup = (
+        "#!/bin/bash\n"
+        'fail() { echo "$*" >&2; exit 1; }\n'
+        'CWD="$HOME/repo"\n'
+        'python3 - "$CWD" prelude <<\'PY\' || fail "prelude failed"\n'
+        "from __future__ import annotations\n"
+        "PY\n"
+        + shell_block_v2()
+    )
+    (parent_dir_v2 / "environment" / "setup" / "setup.sh").write_text(setup, encoding="utf-8")
+    project_command = b"python3 --project-test\n"
+    (parent_dir_v2 / "tests" / "test_command.sh").write_bytes(project_command)
+    changes, inputs = build_changes_v10(parent_dir_v2, marker=MARKER)
+    assert inputs["setup_python_path"] == SETUP_PYTHON_PATH
+    assert inputs["wrapper_sha256"] == hashlib.sha256(changes["tests/test.sh"]).hexdigest()
+    assert inputs["wrapper_sha256"] != unpinned_inputs["wrapper_sha256"]
+    assert changes[f"{V2_SETUP_SUBDIR}/setup.sh"] == setup.encode()
+    assert "tests/test_command.sh" not in changes
+
+    runtime = tmp_path / "runtime"
+    shutil.copytree(parent_dir_v2 / "tests", runtime / "tests")
+    for name, content in changes.items():
+        if name.startswith(V2_SETUP_SUBDIR + "/"):
+            target = runtime / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+    modern = runtime / "usr" / "bin"
+    legacy = runtime / "usr" / "local" / "bin"
+    home = tmp_path / "home"
+    for path in (modern, legacy, home):
+        path.mkdir(parents=True)
+    (modern / "python3").write_text(
+        "#!/bin/sh\n"
+        '[ "$1" = "-" ] || exit 87\n'
+        'printf "%s\\n" "$3" >> "$HELPER_LOG"\n'
+        "while IFS= read -r line; do :; done\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    (legacy / "python3").write_text(
+        "#!/bin/sh\n"
+        '[ "$1" = "--project-test" ] || exit 86\n'
+        'printf "legacy\\n%s\\n" "$PATH" > "$RUNNER_LOG"\n',
+        encoding="utf-8",
+    )
+    for path in (modern / "python3", legacy / "python3"):
+        path.chmod(0o700)
+
+    # Replay the generated setup prelude, then the unchanged project command.
+    # Relocating absolute image paths makes the harness hermetic without
+    # replacing any PATH assignment or changing production runtime seams.
+    script = changes["tests/test.sh"].decode()
+    script = script[: script.index('\nBASE=$(cat "$M/base"')]
+    for before, after in [
+        ("/var/lib/mimo-grade", str(runtime / "grade")),
+        ("/var/lib/mimo", str(runtime / "state")),
+        ("/logs/verifier", str(runtime / "verifier")),
+        ("/tests", str(runtime / "tests")),
+        ("/usr/", str(runtime / "usr") + "/"),
+    ]:
+        script = re.sub(r"(?<![\w$])" + re.escape(before), lambda _, after=after: after, script)
+    script += '\nsh "$PROJECT_TEST_SCRIPT"\n'
+    inherited_path = f"{legacy}:/usr/local/bin:/usr/bin:/bin"
+    helper_log = tmp_path / "helpers.log"
+    runner_log = tmp_path / "runner.log"
+    bash = shutil.which("bash")
+    assert bash is not None
+    run = subprocess.run(
+        [bash, "-c", script],
+        env={
+            **os.environ,
+            "HOME": str(home),
+            "PATH": inherited_path,
+            "PROJECT_TEST_SCRIPT": str(runtime / "tests" / "test_command.sh"),
+            "HELPER_LOG": str(helper_log),
+            "RUNNER_LOG": str(runner_log),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert helper_log.read_text(encoding="utf-8").splitlines() == [
+        "prelude",
+        "neutralize",
+        "verify2",
+    ]
+    assert runner_log.read_text(encoding="utf-8").splitlines() == ["legacy", inherited_path]
+    assert (runtime / "tests" / "test_command.sh").read_bytes() == project_command

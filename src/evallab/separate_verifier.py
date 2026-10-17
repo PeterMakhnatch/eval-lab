@@ -53,6 +53,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from evallab.purge_installed_copies import MARKER_V2 as PURGE_INSTALLED_COPIES_MARKER_V2
+from evallab.purge_installed_copies import SETUP_PYTHON_PATH
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
 
 #: Transform id recorded in lineage.
@@ -4957,8 +4959,13 @@ def derive_separate_verifier_v9(
         variants_root=variants_root,
     )
 
-def render_wrapper_test_sh_v10(workdir: str) -> str:
-    """Verifier entry point: @10 binary strip, integrity gate, junit unittest."""
+def render_wrapper_test_sh_v10(workdir: str, *, python_setup: bool = False) -> str:
+    """Verifier entry point: @10 binary strip, integrity gate, junit unittest.
+
+    Only a bundled Python purge setup needs system-Python helper lookup.
+    Keep that PATH local to the setup subprocess: project tests may need the
+    image's configured Python 3.6 interpreter.
+    """
     if not workdir.startswith("/"):
         raise VariantInvalid("workdir must be an absolute path")
     universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
@@ -4971,8 +4978,15 @@ def render_wrapper_test_sh_v10(workdir: str) -> str:
     archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
     integrity_b64 = base64.b64encode(V10_INTEGRITY_HOOK.encode("utf-8")).decode("ascii")
     shim_b64 = base64.b64encode(V10_UNITTEST_SHIM.encode("utf-8")).decode("ascii")
+    wrapper_a = _V10_WRAPPER_A
+    if python_setup:
+        wrapper_a = wrapper_a.replace(
+            'if ! bash "$M/setup.sh"',
+            f'if ! PATH="{SETUP_PYTHON_PATH}" bash "$M/setup.sh"',
+            1,
+        )
     return (
-        (_V10_WRAPPER_A + _V10_WRAPPER_B + _V10_WRAPPER_C)
+        (wrapper_a + _V10_WRAPPER_B + _V10_WRAPPER_C)
         .replace("@@WORKDIR@@", workdir)
         .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
         .replace("@@V3_UNIVERSAL@@", universal)
@@ -5021,6 +5035,11 @@ def build_changes_v10(
     probe_hook = render_probe_hook(info.workdir, marker)
     parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
     setup_files = collect_verifier_setup_files(parent)
+    python_setup = (
+        PURGE_INSTALLED_COPIES_MARKER_V2.encode("utf-8")
+        in setup_files[f"{V2_SETUP_SUBDIR}/setup.sh"]
+    )
+    wrapper = render_wrapper_test_sh_v10(info.workdir, python_setup=python_setup).encode("utf-8")
     try:
         patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
         command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
@@ -5031,7 +5050,7 @@ def build_changes_v10(
         "task.toml": render_task_toml(
             parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
         ).encode("utf-8"),
-        "tests/test.sh": render_wrapper_test_sh_v10(info.workdir).encode("utf-8"),
+        "tests/test.sh": wrapper,
         "tests/Dockerfile": render_tests_dockerfile_v10(info.docker_image).encode("utf-8"),
         **setup_files,
     }
@@ -5048,6 +5067,8 @@ def build_changes_v10(
         "trajectory_artifact": TRAJECTORY_ARTIFACT,
         "setup_files": sorted(setup_files),
         "setup_sha256": setup_digest.hexdigest(),
+        "setup_python_path": SETUP_PYTHON_PATH if python_setup else "",
+        "wrapper_sha256": hashlib.sha256(wrapper).hexdigest(),
         "runner": runner,
         "solution": (
             "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"

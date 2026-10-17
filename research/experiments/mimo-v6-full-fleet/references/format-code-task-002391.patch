@@ -1,0 +1,88 @@
+diff --git a/pip_audit/_audit.py b/pip_audit/_audit.py
+index 30d3932..8c74653 100644
+--- a/pip_audit/_audit.py
++++ b/pip_audit/_audit.py
+@@ -52,6 +52,11 @@ class Auditor:
+         """
+         Perform the auditing step, collecting dependencies from `source`.
+ 
++        Individual vulnerability results are uniqued based on their `aliases` sets:
++        any two results for the same dependency that share an alias are collapsed
++        into a single result with a union of all aliases.
++
++        `PYSEC`-identified results are given priority over other results.
+         """
+         specs = source.collect()
+ 
+@@ -60,4 +65,32 @@ class Auditor:
+             logger.info(f"Dry run: would have audited {len(list(specs))} packages")
+             yield from ()
+         else:
+-            yield from self._service.query_all(specs)
++            for dep, vulns in self._service.query_all(specs):
++                unique_vulns: list[VulnerabilityResult] = []
++                seen_aliases: set[str] = set()
++
++                # First pass, add all PYSEC vulnerabilities and track their
++                # alias sets.
++                for v in vulns:
++                    if not v.id.startswith("PYSEC"):
++                        continue
++
++                    seen_aliases.update(v.aliases | {v.id})
++                    unique_vulns.append(v)
++
++                # Second pass: add any non-PYSEC vulnerabilities.
++                for v in vulns:
++                    # If we've already seen this vulnerability by another name,
++                    # don't add it. Instead, find the previous result and update
++                    # its alias set.
++                    if seen_aliases.intersection(v.aliases | {v.id}):
++                        idx, previous = next(
++                            (i, p) for (i, p) in enumerate(unique_vulns) if p.alias_of(v)
++                        )
++                        unique_vulns[idx] = previous.merge_aliases(v)
++                        continue
++
++                    seen_aliases.update(v.aliases | {v.id})
++                    unique_vulns.append(v)
++
++                yield dep, unique_vulns
+diff --git a/pip_audit/_service/interface.py b/pip_audit/_service/interface.py
+index 2083d4f..3ff7a95 100644
+--- a/pip_audit/_service/interface.py
++++ b/pip_audit/_service/interface.py
+@@ -7,7 +7,7 @@ from __future__ import annotations
+ 
+ from abc import ABC, abstractmethod
+ from collections.abc import Iterator
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ from datetime import datetime
+ from typing import Any, NewType
+ 
+@@ -127,6 +127,24 @@ class VulnerabilityResult:
+         ids.sort(key=_id_comparison_key)
+         return cls(ids[0], description, fix_versions, set(ids[1:]), published)
+ 
++    def alias_of(self, other: VulnerabilityResult) -> bool:
++        """
++        Returns whether this result is an "alias" of another result.
++
++        Two results are said to be aliases if their respective sets of
++        `{id, *aliases}` intersect at all. A result is therefore its own alias.
++        """
++        return bool((self.aliases | {self.id}).intersection(other.aliases | {other.id}))
++
++    def merge_aliases(self, other: VulnerabilityResult) -> VulnerabilityResult:
++        """
++        Merge `other`'s aliases into this result, returning a new result.
++        """
++
++        # Our own ID should never occur in the alias set.
++        aliases = self.aliases | other.aliases - {self.id}
++        return replace(self, aliases=aliases)
++
+     def has_any_id(self, ids: set[str]) -> bool:
+         """
+         Returns whether ids intersects with {id} | aliases.

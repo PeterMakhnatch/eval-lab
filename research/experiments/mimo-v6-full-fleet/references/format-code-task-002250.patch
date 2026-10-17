@@ -1,0 +1,91 @@
+diff --git a/airtable/__init__.py b/airtable/__init__.py
+index a94fd6f..20a0ac9 100644
+--- a/airtable/__init__.py
++++ b/airtable/__init__.py
+@@ -1,2 +1,7 @@
+ from __future__ import absolute_import
+-from .airtable import Airtable, IsNotInteger, IsNotString
++from .airtable import (
++    Airtable as Airtable,
++    AirtableError as AirtableError,
++    IsNotInteger as IsNotInteger,
++    IsNotString as IsNotString,
++)
+diff --git a/airtable/__init__.pyi b/airtable/__init__.pyi
+index fc6c882..fd9edae 100644
+--- a/airtable/__init__.pyi
++++ b/airtable/__init__.pyi
+@@ -1,5 +1,6 @@
+ from .airtable import (
+     Airtable as Airtable,
++    AirtableError as AirtableError,
+     IsNotInteger as IsNotInteger,
+     IsNotString as IsNotString,
+ )
+diff --git a/airtable/airtable.py b/airtable/airtable.py
+index caab139..34f252d 100644
+--- a/airtable/airtable.py
++++ b/airtable/airtable.py
+@@ -38,6 +38,23 @@ def create_payload(data):
+     return {'fields': data}
+ 
+ 
++class AirtableError(Exception):
++
++    def __init__(self, error_type, message):
++        super(AirtableError, self).__init__()
++        # Examples of types are:
++        #  TABLE_NOT_FOUND
++        #  VIEW_NAME_NOT_FOUND
++        self.type = error_type
++        self.message = message
++
++    def __repr__(self):
++        return '%s(%r, %r)' % (self.__class__.__name__, self.type, self.message)
++
++    def __str__(self):
++        return self.message or self.__class__.__name__
++
++
+ class Airtable(object):
+     def __init__(self, base_id, api_key, dict_class=OrderedDict):
+         """Create a client to connect to an Airtable Base.
+@@ -66,14 +83,10 @@ class Airtable(object):
+         if r.status_code == requests.codes.ok:
+             return r.json(object_pairs_hook=self._dict_class)
+         else:
+-            try:
+-                message = None
+-                r.raise_for_status()
+-            except requests.exceptions.HTTPError as e:
+-                message = str(e)
+-            return {
+-                'error': dict(code=r.status_code, message=message)
+-            }
++            error_json = r.json().get('error', {})
++            raise AirtableError(
++                error_type=error_json.get('type', str(r.status_code)),
++                message=error_json.get('message', json.dumps(r.json())))
+ 
+     def get(
+             self, table_name, record_id=None, limit=0, offset=None,
+diff --git a/airtable/airtable.pyi b/airtable/airtable.pyi
+index 1a7fee5..3d25d14 100644
+--- a/airtable/airtable.pyi
++++ b/airtable/airtable.pyi
+@@ -31,6 +31,15 @@ class _DeletedRecord(TypedDict):
+     id: str
+ 
+ 
++class AirtableError(Exception):
++
++    type: str
++    message: str
++
++    def __init__(self, error_type: str, message: str) -> None:
++        ...
++
++
+ # TODO(cyrille): Add Generic[RecordType] for more information on what's in a record.
+ class Airtable(object):
+     airtable_url: str = ...

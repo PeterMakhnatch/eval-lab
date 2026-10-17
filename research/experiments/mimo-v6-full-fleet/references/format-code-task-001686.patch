@@ -1,0 +1,26 @@
+diff --git a/keras/src/backend/torch/numpy.py b/keras/src/backend/torch/numpy.py
+index 8ea1806de..a0340b30c 100644
+--- a/keras/src/backend/torch/numpy.py
++++ b/keras/src/backend/torch/numpy.py
+@@ -1359,6 +1359,8 @@ def round(x, decimals=0):
+ def tile(x, repeats):
+     if is_tensor(repeats):
+         repeats = tuple(repeats.int().numpy())
++    if isinstance(repeats, int):
++        repeats = (repeats,)
+     x = convert_to_tensor(x)
+     return torch.tile(x, dims=repeats)
+ 
+diff --git a/keras/src/ops/numpy.py b/keras/src/ops/numpy.py
+index 69dbe2307..bbff45e5c 100644
+--- a/keras/src/ops/numpy.py
++++ b/keras/src/ops/numpy.py
+@@ -5047,6 +5047,8 @@ class Tile(Operation):
+     def compute_output_spec(self, x):
+         x_shape = list(x.shape)
+         repeats = self.repeats
++        if isinstance(repeats, int):
++            repeats = [repeats]
+         if len(x_shape) > len(repeats):
+             repeats = [1] * (len(x_shape) - len(repeats)) + repeats
+         else:

@@ -1,0 +1,20 @@
+diff --git a/duckdb_engine/__init__.py b/duckdb_engine/__init__.py
+index 3874570..d3fa471 100644
+--- a/duckdb_engine/__init__.py
++++ b/duckdb_engine/__init__.py
+@@ -137,6 +137,7 @@ class ConnectionWrapper:
+             else:
+                 raise e
+ 
++from sqlalchemy.dialects.postgresql import UUID
+ 
+ class DuckDBEngineWarning(Warning):
+     pass
+@@ -160,6 +161,7 @@ class Dialect(PGDialect_psycopg2):
+             sqltypes.Numeric: sqltypes.Numeric,
+             sqltypes.Interval: sqltypes.Interval,
+             sqltypes.JSON: sqltypes.JSON,
++            UUID: UUID
+         },
+     )
+ 

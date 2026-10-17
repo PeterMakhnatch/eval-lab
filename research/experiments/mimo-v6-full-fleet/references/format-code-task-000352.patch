@@ -1,0 +1,41 @@
+diff --git a/src/ralph/data_center/models/physical.py b/src/ralph/data_center/models/physical.py
+index b10656577..727862672 100644
+--- a/src/ralph/data_center/models/physical.py
++++ b/src/ralph/data_center/models/physical.py
+@@ -264,12 +264,23 @@ class DataCenterAsset(Asset):
+         verbose_name = _('data center asset')
+         verbose_name_plural = _('data center assets')
+ 
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        # Saved current rack value to check if changed.
++        self._rack_id = self.rack_id
++
+     def __str__(self):
+         return '{}'.format(self.hostname)
+ 
+     def __repr__(self):
+         return '<DataCenterAsset: {}>'.format(self.id)
+ 
++    def save(self, *args, **kwargs):
++        super().save(*args, **kwargs)
++        # When changing rack we search and save all descendants
++        if self.pk and self._rack_id != self.rack_id:
++            DataCenterAsset.objects.filter(parent=self).update(rack=self.rack)
++
+     def get_orientation_desc(self):
+         return Orientation.name_from_id(self.orientation)
+ 
+diff --git a/src/ralph/data_importer/management/commands/importer.py b/src/ralph/data_importer/management/commands/importer.py
+index 5ba8dd6ed..2c04c914a 100644
+--- a/src/ralph/data_importer/management/commands/importer.py
++++ b/src/ralph/data_importer/management/commands/importer.py
+@@ -134,7 +134,7 @@ class Command(BaseCommand):
+                         break
+             after_import_count = model_resource._meta.model.objects.count()
+             if len(csv_body) != after_import_count - current_count:
+-                logger.error('Some of records was not imported')
++                logger.error('Some of records were not imported')
+             else:
+                 logger.info('{} rows were imported'.format(len(csv_body)))
+             logger.info('Done\n')

@@ -1,0 +1,113 @@
+diff --git a/mapproxy/image/merge.py b/mapproxy/image/merge.py
+index bea132e6..37f57dd9 100644
+--- a/mapproxy/image/merge.py
++++ b/mapproxy/image/merge.py
+@@ -16,7 +16,7 @@
+ """
+ Image and tile manipulation (transforming, merging, etc).
+ """
+-
++import json
+ from collections import namedtuple
+ from mapproxy.compat.image import Image, ImageColor, ImageChops, ImageMath
+ from mapproxy.compat.image import has_alpha_composite_support
+@@ -300,3 +300,17 @@ def concat_legends(legends, format='png', size=None, bgcolor='#ffffff', transpar
+         else:
+             img.paste(legend_img, (0, legend_position_y[i]))
+     return ImageSource(img, image_opts=ImageOptions(format=format))
++
++def concat_json_legends(legends):
++    """
++    Merge multiple json legends into one
++    :param legends: list of HttpResponse objects
++    :rtype json formatted string
++    """
++    legends_dict = {'Legend': []}
++    legends = legends[:]
++    for legend in legends:
++        legend_str = legend.read().decode('utf-8')
++        legend_dict = json.loads(legend_str)
++        legends_dict['Legend'].append(legend_dict['Legend'][0])
++    return json.dumps(legends_dict)
+diff --git a/mapproxy/service/wms.py b/mapproxy/service/wms.py
+index 31868f11..1e9a86ab 100644
+--- a/mapproxy/service/wms.py
++++ b/mapproxy/service/wms.py
+@@ -306,14 +306,15 @@ class WMSServer(Server):
+         legend = self.layers[layer].legend(request)
+ 
+         [legends.append(i) for i in legend if i is not None]
+-        result = concat_legends(legends)
+         if 'format' in request.params:
+             mimetype = request.params.format_mime_type
+         else:
+             mimetype = 'image/png'
+ 
+         if mimetype == 'application/json':
+-            return Response(legends[0].read(), mimetype='application/json')
++            return Response(legends[0].encode(), mimetype='application/json')
++
++        result = concat_legends(legends)
+ 
+         img_opts = self.image_formats[request.params.format_mime_type]
+         return Response(result.as_buffer(img_opts), mimetype=mimetype)
+diff --git a/mapproxy/source/wms.py b/mapproxy/source/wms.py
+index 149a64b1..91757eaa 100644
+--- a/mapproxy/source/wms.py
++++ b/mapproxy/source/wms.py
+@@ -19,7 +19,7 @@ import sys
+ from mapproxy.request.base import split_mime_type
+ from mapproxy.cache.legend import Legend, legend_identifier
+ from mapproxy.image import make_transparent, ImageSource, SubImageSource, bbox_position_in_image
+-from mapproxy.image.merge import concat_legends
++from mapproxy.image.merge import concat_legends, concat_json_legends
+ from mapproxy.image.transform import ImageTransformer
+ from mapproxy.layer import MapExtent, DefaultMapExtent, BlankImage, LegendQuery, MapQuery, MapLayer
+ from mapproxy.source import InfoSource, SourceError, LegendSource
+@@ -248,8 +248,6 @@ class WMSLegendSource(LegendSource):
+             error_occured = False
+             for client in self.clients:
+                 try:
+-                    if query.format == 'json':
+-                        return client.get_legend(query)
+                     legends.append(client.get_legend(query))
+                 except HTTPClientError as e:
+                     error_occured = True
+@@ -259,6 +257,10 @@ class WMSLegendSource(LegendSource):
+                     # TODO errors?
+                     log.error(e.args[0])
+             format = split_mime_type(query.format)[1]
++
++            if format == 'json':
++                return concat_json_legends(legends)
++
+             legend = Legend(source=concat_legends(legends, format=format),
+                             id=self.identifier, scale=query.scale)
+             if not error_occured:
+diff --git a/requirements-tests.txt b/requirements-tests.txt
+index de029058..946c8145 100644
+--- a/requirements-tests.txt
++++ b/requirements-tests.txt
+@@ -5,7 +5,7 @@ Pillow==6.2.2;python_version<"3.0"
+ Pillow==8.2.0;python_version in "3.6 3.7 3.8 3.9"
+ Pillow==8.4.0;python_version>="3.10"
+ PyYAML==5.4
+-Shapely==1.7.0
++Shapely==1.8.0
+ WebOb==1.8.6
+ WebTest==2.0.35
+ attrs==19.3.0;python_version<"3.10"
+@@ -23,7 +23,7 @@ cffi==1.14.2;python_version<"3.10"
+ cffi==1.15.0;python_version>="3.10"
+ cfn-lint==0.35.0
+ chardet==3.0.4
+-cryptography==3.3.2
++cryptography
+ decorator==4.4.2
+ docker==4.3.0
+ docutils==0.15.2
+@@ -86,3 +86,4 @@ wrapt==1.12.1
+ xmltodict==0.12.0
+ zipp==1.2.0;python_version<"3.6"
+ zipp==3.1.0;python_version>="3.6"
++gdal==3.5.1

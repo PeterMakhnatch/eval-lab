@@ -1,0 +1,92 @@
+diff --git a/services/appveyor/appveyor-ci.service.js b/services/appveyor/appveyor-ci.service.js
+index 4e279e1604..042ed81221 100644
+--- a/services/appveyor/appveyor-ci.service.js
++++ b/services/appveyor/appveyor-ci.service.js
+@@ -27,7 +27,11 @@ module.exports = class AppVeyorCi extends AppVeyorBase {
+   static render({ status }) {
+     if (status === 'success') {
+       return { message: 'passing', color: 'brightgreen' }
+-    } else if (status !== 'running' && status !== 'queued') {
++    } else if (
++      status !== 'running' &&
++      status !== 'queued' &&
++      status !== 'no builds found'
++    ) {
+       return { message: 'failing', color: 'red' }
+     } else {
+       return { message: status }
+@@ -35,9 +39,11 @@ module.exports = class AppVeyorCi extends AppVeyorBase {
+   }
+ 
+   async handle({ repo, branch }) {
+-    const {
+-      build: { status },
+-    } = await this.fetch({ repo, branch })
+-    return this.constructor.render({ status })
++    const data = await this.fetch({ repo, branch })
++    if (!data.hasOwnProperty('build')) {
++      // this project exists but no builds have been run on it yet
++      return this.constructor.render({ status: 'no builds found' })
++    }
++    return this.constructor.render({ status: data.build.status })
+   }
+ }
+diff --git a/services/appveyor/appveyor-ci.tester.js b/services/appveyor/appveyor-ci.tester.js
+index c17465bb60..a88c9dffab 100644
+--- a/services/appveyor/appveyor-ci.tester.js
++++ b/services/appveyor/appveyor-ci.tester.js
+@@ -19,3 +19,12 @@ t.create('CI status on branch')
+ t.create('CI status on nonexistent project')
+   .get('/somerandomproject/thatdoesntexist.json')
+   .expectJSON({ name: 'build', value: 'project not found or access denied' })
++
++t.create('CI status on project that does exist but has no builds yet')
++  .get('/gruntjs/grunt.json?style=_shields_test')
++  .intercept(nock =>
++    nock('https://ci.appveyor.com/api/projects/')
++      .get('/gruntjs/grunt')
++      .reply(200, {})
++  )
++  .expectJSON({ name: 'build', value: 'no builds found', colorB: '#9f9f9f' })
+diff --git a/services/appveyor/appveyor-tests.service.js b/services/appveyor/appveyor-tests.service.js
+index cf44228ff3..41f447dbe3 100644
+--- a/services/appveyor/appveyor-tests.service.js
++++ b/services/appveyor/appveyor-tests.service.js
+@@ -101,15 +101,16 @@ module.exports = class AppVeyorTests extends AppVeyorBase {
+     }
+   ) {
+     const isCompact = compactMessage !== undefined
++    const data = await this.fetch({ repo, branch })
+ 
+-    const {
+-      build: { jobs },
+-    } = await this.fetch({ repo, branch })
++    if (!data.hasOwnProperty('build')) {
++      return { message: 'no builds found' }
++    }
+ 
+     let total = 0,
+       passed = 0,
+       failed = 0
+-    jobs.forEach(job => {
++    data.build.jobs.forEach(job => {
+       total += job.testsCount
+       passed += job.passedTestsCount
+       failed += job.failedTestsCount
+diff --git a/services/appveyor/appveyor-tests.tester.js b/services/appveyor/appveyor-tests.tester.js
+index 6907a8a0d0..66307ec784 100644
+--- a/services/appveyor/appveyor-tests.tester.js
++++ b/services/appveyor/appveyor-tests.tester.js
+@@ -71,3 +71,12 @@ t.create('Test status with compact message and custom labels')
+ t.create('Test status on non-existent project')
+   .get('/somerandomproject/thatdoesntexist.json')
+   .expectJSON({ name: 'tests', value: 'project not found or access denied' })
++
++t.create('Test status on project that does exist but has no builds yet')
++  .get('/gruntjs/grunt.json?style=_shields_test')
++  .intercept(nock =>
++    nock('https://ci.appveyor.com/api/projects/')
++      .get('/gruntjs/grunt')
++      .reply(200, {})
++  )
++  .expectJSON({ name: 'tests', value: 'no builds found', colorB: '#9f9f9f' })

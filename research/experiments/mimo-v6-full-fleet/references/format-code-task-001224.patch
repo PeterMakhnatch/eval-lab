@@ -1,0 +1,92 @@
+diff --git a/docs/rules/valid-types.md b/docs/rules/valid-types.md
+index 8c88d81d..5b0f61cf 100644
+--- a/docs/rules/valid-types.md
++++ b/docs/rules/valid-types.md
+@@ -487,6 +487,21 @@ function quux (items) {
+ }
+ // Settings: {"jsdoc":{"mode":"typescript"}}
+ // Message: Syntax error in type: JsdocTypeNullable
++
++/**
++ * An inline {@link} tag without content.
++ */
++// Message: Inline tag "link" missing content
++
++/**
++ * An inline {@tutorial} tag without content.
++ */
++// Message: Inline tag "tutorial" missing content
++
++/**
++ * @param {SomeType} aName An inline {@link} tag without content.
++ */
++// Message: Inline tag "link" missing content
+ ````
+ 
+ 
+@@ -850,5 +865,17 @@ function quux() {
+ /**
+  * @returns {Promise<{publicKey, privateKey}>} - The public and private key
+  */
++
++/**
++ * Some other {@inline} tag.
++ */
++
++/**
++ * @param {SomeType} aName An inline {@link text} tag with content.
++ */
++
++/**
++ * An inline {@link text} tag with content.
++ */
+ ````
+ 
+diff --git a/src/jsdocUtils.js b/src/jsdocUtils.js
+index 10a9f6a9..89d186eb 100644
+--- a/src/jsdocUtils.js
++++ b/src/jsdocUtils.js
+@@ -483,7 +483,7 @@ const hasParams = (functionNode) => {
+ 
+ /**
+  * Gets all names of the target type, including those that refer to a path, e.g.
+- * "@param foo; @param foo.bar".
++ * `foo` or `foo.bar`.
+  * @param {import('comment-parser').Block} jsdoc
+  * @param {string} targetTagName
+  * @returns {{
+diff --git a/src/rules/validTypes.js b/src/rules/validTypes.js
+index 702cecce..c3df2edc 100644
+--- a/src/rules/validTypes.js
++++ b/src/rules/validTypes.js
+@@ -5,6 +5,11 @@ import {
+   tryParse,
+ } from '@es-joy/jsdoccomment';
+ 
++const inlineTags = new Set([
++  'link', 'linkcode', 'linkplain',
++  'tutorial',
++]);
++
+ const asExpression = /as\s+/u;
+ 
+ const suppressTypes = new Set([
+@@ -327,6 +332,18 @@ export default iterateJsdoc(({
+         validNamepathParsing(tag.name, tag.tag);
+       }
+     }
++
++    for (const inlineTag of tag.inlineTags) {
++      if (inlineTags.has(inlineTag.tag) && !inlineTag.text && !inlineTag.namepathOrURL) {
++        report(`Inline tag "${inlineTag.tag}" missing content`, null, tag);
++      }
++    }
++  }
++
++  for (const inlineTag of jsdoc.inlineTags) {
++    if (inlineTags.has(inlineTag.tag) && !inlineTag.text && !inlineTag.namepathOrURL) {
++      report(`Inline tag "${inlineTag.tag}" missing content`);
++    }
+   }
+ }, {
+   iterateAllJsdocs: true,

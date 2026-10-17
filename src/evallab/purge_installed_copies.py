@@ -52,6 +52,9 @@ if "def v2_neutralize_matches" not in PURGE_PY or "def v2_action_verify" not in 
     raise RuntimeError("purge container script is missing the @2 neutralize entry points")
 
 TRANSFORM_ID_V2 = "purge-installed-copies@2"
+#: Modern setup helpers use the image's system Python, not its Python 3.6
+#: project interpreter. This is exported only in the setup child process.
+SETUP_PYTHON_PATH = "/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/bin"
 #: First line of the @2 setup block. The bare id is NOT a marker: the
 #: embedded container script mentions it in @2 messages, so a carried @1
 #: block (same embedded script) would false-positive on a substring check.
@@ -206,7 +209,9 @@ def build_setup_sh_v2(parent_setup_sh: str) -> tuple[str, bool]:
 
     Refuses a second @2 insert and setups without the ``write_blocklist``
     anchor. A carried @1 block is excised (@2 supersedes it) instead of
-    stacking a second purge.
+    stacking a second purge. Pin helper lookup before any parent setup
+    commands; the healthcheck invokes this script in a child shell, so the
+    project's test-runner PATH and interpreter are unchanged.
     """
     if MARKER_V2 in parent_setup_sh:
         raise VariantInvalid("parent setup.sh already carries purge-installed-copies@2")
@@ -214,6 +219,15 @@ def build_setup_sh_v2(parent_setup_sh: str) -> tuple[str, bool]:
         raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge")
     superseded = V1_BLOCK_START in parent_setup_sh
     without_v1 = _excise_v1_block(parent_setup_sh)
+    setup_path = (
+        "# Setup helpers need system Python; do not change the project test runner.\n"
+        f"export PATH='{SETUP_PYTHON_PATH}'\n"
+    )
+    if without_v1.startswith("#!"):
+        shebang, _, body = without_v1.partition("\n")
+        without_v1 = shebang + "\n" + setup_path + body
+    else:
+        without_v1 = setup_path + without_v1
     return (
         without_v1.replace(ANCHOR, "\n" + shell_block_v2() + "write_blocklist\n", 1),
         superseded,
@@ -260,6 +274,7 @@ def derive_purge_installed_copies_v2(
         "repairs_digest": repairs_digest,
         "removed": ["neutralized-in-place"],
         "superseded_v1": superseded,
+        "setup_python_path": SETUP_PYTHON_PATH,
         "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
         "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
     }
@@ -286,6 +301,7 @@ __all__ = [
     "MARKER",
     "MARKER_V2",
     "PURGE_PY",
+    "SETUP_PYTHON_PATH",
     "SETUP_REL",
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",

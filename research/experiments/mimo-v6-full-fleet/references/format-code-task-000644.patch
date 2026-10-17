@@ -1,0 +1,195 @@
+diff --git a/argo/workflows/dsl/_arguments.py b/argo/workflows/dsl/_arguments.py
+index db8947b..4680b73 100644
+--- a/argo/workflows/dsl/_arguments.py
++++ b/argo/workflows/dsl/_arguments.py
+@@ -4,12 +4,39 @@ from typing import List
+ 
+ from argo.workflows.client.models import (
+     V1alpha1Arguments,
++    V1alpha1Artifact,
+     V1alpha1Parameter,
+ )
+ 
+ from ._base import Prop
+ 
+-__all__ = ["parameter", "V1alpha1Parameter"]
++__all__ = ["artifact", "parameter", "V1alpha1Artifact", "V1alpha1Parameter"]
++
++
++class artifact(Prop, extends=("arguments", V1alpha1Arguments)):
++
++    __model__ = V1alpha1Artifact
++
++    def __call__(self, f: Callable):
++        artifacts: List[V1alpha1Artifact] = [self]
++
++        prop: Any
++        prop_name: str
++        prop_name, prop = self.__extends__
++
++        if not hasattr(f, "__props__"):
++            f.__props__ = {prop_name: prop(artifacts=artifacts)}
++        else:
++            arguments: Type[prop] = f.__props__.get(prop_name, prop())
++
++            if not getattr(arguments, "artifacts"):
++                arguments.artifacts = artifacts
++            else:
++                arguments.artifacts.extend(artifacts)
++
++            f.__props__[prop_name] = arguments
++
++        return f
+ 
+ class parameter(Prop, extends=("arguments", V1alpha1Arguments)):
+ 
+diff --git a/argo/workflows/dsl/_inputs.py b/argo/workflows/dsl/_inputs.py
+index 6c2992c..a6c990f 100644
+--- a/argo/workflows/dsl/_inputs.py
++++ b/argo/workflows/dsl/_inputs.py
+@@ -3,18 +3,24 @@ from typing import List
+ 
+ from argo.workflows.client.models import (
+     V1alpha1Inputs,
++    V1alpha1Artifact,
+     V1alpha1Parameter,
+ )
+ 
+ from ._base import Prop
++from ._arguments import artifact as artifact
+ from ._arguments import parameter as parameter
+ 
+-__all__ = ["inputs", "V1alpha1Parameter"]
++__all__ = ["inputs", "V1alpha1Artifact", "V1alpha1Parameter"]
+ 
+ 
+ class inputs:
+     """Arguments namespace."""
+ 
++    class artifact(artifact, extends=("inputs", V1alpha1Inputs)):
++
++        __model__ = V1alpha1Artifact
++
+     class parameter(parameter, extends=("inputs", V1alpha1Inputs)):
+ 
+         __model__ = V1alpha1Parameter
+diff --git a/argo/workflows/dsl/_outputs.py b/argo/workflows/dsl/_outputs.py
+index be6865c..ec2e323 100644
+--- a/argo/workflows/dsl/_outputs.py
++++ b/argo/workflows/dsl/_outputs.py
+@@ -3,18 +3,24 @@ from typing import List
+ 
+ from argo.workflows.client.models import (
+     V1alpha1Outputs,
++    V1alpha1Artifact,
+     V1alpha1Parameter,
+ )
+ 
+ from ._base import Prop
++from ._arguments import artifact as artifact
+ from ._arguments import parameter as parameter
+ 
+-__all__ = ["outputs", "V1alpha1Parameter"]
++__all__ = ["outputs", "V1alpha1Artifact", "V1alpha1Parameter"]
+ 
+ 
+ class outputs:
+     """Outputs namespace."""
+ 
++    class artifact(artifact, extends=("outputs", V1alpha1Outputs)):
++
++        __model__ = V1alpha1Artifact
++
+     class parameter(parameter, extends=("outputs", V1alpha1Outputs)):
+ 
+         __model__ = V1alpha1Parameter
+diff --git a/argo/workflows/dsl/_workflow.py b/argo/workflows/dsl/_workflow.py
+index 62c490e..8cd83b9 100644
+--- a/argo/workflows/dsl/_workflow.py
++++ b/argo/workflows/dsl/_workflow.py
+@@ -29,6 +29,7 @@ from typing import Union
+ from argo.workflows import client
+ 
+ from argo.workflows.client.models import V1alpha1Arguments
++from argo.workflows.client.models import V1alpha1Artifact
+ from argo.workflows.client.models import V1alpha1DAGTask
+ from argo.workflows.client.models import V1alpha1DAGTemplate
+ from argo.workflows.client.models import V1alpha1Parameter
+@@ -351,6 +352,13 @@ class Workflow(metaclass=WorkflowMeta):
+ 
+                 arguments: V1alpha1Arguments = props.get("arguments")
+                 if arguments:
++                    for artifact in getattr(arguments, "artifacts", []) or []:
++                        if hasattr(artifact, "to_dict"):
++                            artifact = V1alpha1Artifact(**artifact.to_dict())
++                        else:
++                            artifact = V1alpha1Artifact(**artifact)
++                        args[underscore(artifact.name)] = artifact
++
+                     for param in getattr(arguments, "parameters", []) or []:
+                         if hasattr(param, "to_dict"):
+                             param = V1alpha1Parameter(**param.to_dict())
+diff --git a/argo/workflows/dsl/tasks.py b/argo/workflows/dsl/tasks.py
+index a177807..d59f1ff 100644
+--- a/argo/workflows/dsl/tasks.py
++++ b/argo/workflows/dsl/tasks.py
+@@ -13,6 +13,7 @@ from typing import Union
+ 
+ from argo.workflows.client.models import (
+     V1alpha1Arguments,
++    V1alpha1Artifact,
+     V1alpha1ContinueOn,
+     V1alpha1DAGTask,
+     V1alpha1Parameter,
+@@ -21,6 +22,7 @@ from argo.workflows.client.models import (
+     V1alpha1TemplateRef,
+ )
+ 
++from ._arguments import artifact
+ from ._arguments import parameter
+ from ._base import Prop
+ from ._base import Spec
+@@ -28,6 +30,7 @@ from ._base import Spec
+ 
+ __all__ = [
+     # decorators
++    "artifact",
+     "continue_on",
+     "dependencies",
+     "parameter",
+diff --git a/argo/workflows/dsl/templates.py b/argo/workflows/dsl/templates.py
+index dd7cd14..d91e7f9 100644
+--- a/argo/workflows/dsl/templates.py
++++ b/argo/workflows/dsl/templates.py
+@@ -16,6 +16,7 @@ from typing import Union
+ 
+ from argo.workflows.client.models import (
+     V1alpha1Arguments,
++    V1alpha1Artifact,
+     V1alpha1Inputs,
+     V1alpha1Outputs,
+     V1alpha1Parameter,
+@@ -34,6 +35,7 @@ from argo.workflows.client.models import (
+     V1VolumeMount,
+ )
+ 
++from ._arguments import artifact
+ from ._arguments import parameter
+ from ._base import Prop
+ from ._base import Spec
+@@ -43,6 +45,7 @@ from ._outputs import outputs
+ 
+ __all__ = [
+     # decorators
++    "artifact",
+     "closure",
+     "inputs",
+     "outputs",
+@@ -51,6 +54,7 @@ __all__ = [
+     "template",
+     # models
+     "V1alpha1Arguments",
++    "V1alpha1Artifact",
+     "V1alpha1Parameter",
+     "V1alpha1ResourceTemplate",
+     "V1alpha1ScriptTemplate",

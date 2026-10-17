@@ -1,0 +1,44 @@
+diff --git a/docs/news.rst b/docs/news.rst
+index 08127b8..39618a1 100644
+--- a/docs/news.rst
++++ b/docs/news.rst
+@@ -1,6 +1,11 @@
+ Release Notes
+ =============
+ 
++**UNRELEASED**
++
++- Fixed an exception when calling the ``convert`` command with an empty description
++  field
++
+ **0.45.1 (2024-11-23)**
+ 
+ - Fixed pure Python wheels converted from eggs and wininst files having the ABI tag in
+diff --git a/src/wheel/cli/convert.py b/src/wheel/cli/convert.py
+index 61d4775..63ee9dc 100644
+--- a/src/wheel/cli/convert.py
++++ b/src/wheel/cli/convert.py
+@@ -72,13 +72,17 @@ def convert_pkg_info(pkginfo: str, metadata: Message):
+ 
+         if key_lower == "description":
+             description_lines = value.splitlines()
+-            value = "\n".join(
+-                (
+-                    description_lines[0].lstrip(),
+-                    dedent("\n".join(description_lines[1:])),
+-                    "\n",
++            if description_lines:
++                value = "\n".join(
++                    (
++                        description_lines[0].lstrip(),
++                        dedent("\n".join(description_lines[1:])),
++                        "\n",
++                    )
+                 )
+-            )
++            else:
++                value = "\n"
++
+             metadata.set_payload(value)
+         elif key_lower == "home-page":
+             metadata.add_header("Project-URL", f"Homepage, {value}")

@@ -1,0 +1,67 @@
+diff --git a/lark/load_grammar.py b/lark/load_grammar.py
+index ff065f6..b98f166 100644
+--- a/lark/load_grammar.py
++++ b/lark/load_grammar.py
+@@ -101,6 +101,7 @@ TERMINALS = {
+     '_IGNORE': r'%ignore',
+     '_OVERRIDE': r'%override',
+     '_DECLARE': r'%declare',
++    '_EXTEND': r'%extend',
+     '_IMPORT': r'%import',
+     'NUMBER': r'[+-]?\d+',
+ }
+@@ -108,7 +109,7 @@ TERMINALS = {
+ RULES = {
+     'start': ['_list'],
+     '_list':  ['_item', '_list _item'],
+-    '_item':  ['rule', 'term', 'ignore', 'import', 'declare', 'override', '_NL'],
++    '_item':  ['rule', 'term', 'ignore', 'import', 'declare', 'override', 'extend', '_NL'],
+ 
+     'rule': ['rule_modifiers RULE template_params priority _COLON expansions _NL'],
+     'rule_modifiers': ['RULE_MODIFIERS',
+@@ -162,6 +163,8 @@ RULES = {
+              'TERMINAL _DOT NUMBER _COLON expansions _NL'],
+     'override': ['_OVERRIDE rule',
+                  '_OVERRIDE term'],
++    'extend': ['_EXTEND rule',
++               '_EXTEND term'],
+     'ignore': ['_IGNORE expansions _NL'],
+     'declare': ['_DECLARE _declare_args _NL'],
+     'import': ['_IMPORT _import_path _NL',
+@@ -1136,6 +1139,26 @@ class GrammarBuilder:
+ 
+         self._definitions[name] = Definition(is_term, exp, params, self._check_options(is_term, options))
+ 
++    def _extend(self, name, is_term, exp, params=(), options=None):
++        if name not in self._definitions:
++            self._grammar_error(is_term, "Can't extend {type} {name} as it wasn't defined before", name)
++
++        d = self._definitions[name]
++
++        if is_term != d.is_term:
++            self._grammar_error(is_term, "Cannot extend {type} {name} - one is a terminal, while the other is not.", name)
++        if tuple(params) != d.params:
++            self._grammar_error(is_term, "Cannot extend {type} with different parameters: {name}", name)
++
++        if d.tree is None:
++            self._grammar_error(is_term, "Can't extend {type} {name} - it is abstract.", name)
++
++        # TODO: think about what to do with 'options'
++        base = d.tree
++
++        assert isinstance(base, Tree) and base.data == 'expansions'
++        base.children.insert(0, exp)
++
+     def _ignore(self, exp_or_name):
+         if isinstance(exp_or_name, str):
+             self._ignore_names.append(exp_or_name)
+@@ -1240,6 +1263,9 @@ class GrammarBuilder:
+             elif stmt.data == 'override':
+                 r ,= stmt.children
+                 self._define(*self._unpack_definition(r, mangle), override=True)
++            elif stmt.data == 'extend':
++                r ,= stmt.children
++                self._extend(*self._unpack_definition(r, mangle))
+             elif stmt.data == 'ignore':
+                 # if mangle is not None, we shouldn't apply ignore, since we aren't in a toplevel grammar
+                 if mangle is None:

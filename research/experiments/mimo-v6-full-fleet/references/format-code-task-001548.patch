@@ -1,0 +1,97 @@
+diff --git a/src/Translator.js b/src/Translator.js
+index 3532cfe5..065d4850 100644
+--- a/src/Translator.js
++++ b/src/Translator.js
+@@ -461,7 +461,7 @@ class Translator extends EventEmitter {
+   resolve(keys, opt = {}) {
+     let found;
+     let usedKey; // plain key
+-    let exactUsedKey; // key with plural
++    let exactUsedKey; // key with context / plural
+     let usedLng;
+     let usedNS;
+ 
+@@ -482,6 +482,11 @@ class Translator extends EventEmitter {
+ 
+       const needsPluralHandling = opt.count !== undefined && !isString(opt.count);
+       const needsZeroSuffixLookup = needsPluralHandling && !opt.ordinal && opt.count === 0;
++      const needsContextHandling =
++        opt.context !== undefined &&
++        (isString(opt.context) || typeof opt.context === 'number') &&
++        opt.context !== '';
++
+       const codes = opt.lngs
+         ? opt.lngs
+         : this.languageUtils.toResolveHierarchy(opt.lng || this.language, opt.fallbackLng);
+@@ -530,6 +535,25 @@ class Translator extends EventEmitter {
+                 finalKeys.push(key + zeroSuffix);
+               }
+             }
++
++            // get key for context if needed
++            if (needsContextHandling) {
++              const contextKey = `${key}${this.options.contextSeparator || '_'}${opt.context}`;
++              finalKeys.push(contextKey);
++
++              // get key for context + plural if needed
++              if (needsPluralHandling) {
++                if (opt.ordinal && pluralSuffix.startsWith(ordinalPrefix)) {
++                  finalKeys.push(
++                    contextKey + pluralSuffix.replace(ordinalPrefix, this.options.pluralSeparator),
++                  );
++                }
++                finalKeys.push(contextKey + pluralSuffix);
++                if (needsZeroSuffixLookup) {
++                  finalKeys.push(contextKey + zeroSuffix);
++                }
++              }
++            }
+           }
+ 
+           // iterate over finalKeys starting with most specific pluralkey (-> contextkey only) -> singularkey only
+@@ -565,6 +589,7 @@ class Translator extends EventEmitter {
+     const optionsKeys = [
+       'defaultValue',
+       'ordinal',
++      'context',
+       'replace',
+       'lng',
+       'lngs',
+diff --git a/typescript/options.d.ts b/typescript/options.d.ts
+index 8343bca6..0552d751 100644
+--- a/typescript/options.d.ts
++++ b/typescript/options.d.ts
+@@ -131,6 +131,9 @@ export type TypeOptions = $MergeBy<
+       /** @see {InitOptions.pluralSeparator} */
+       pluralSeparator: '_';
+ 
++      /** @see {InitOptions.contextSeparator} */
++      contextSeparator: '_';
++
+       /** @see {InitOptions.defaultNS} */
+       defaultNS: 'translation';
+ 
+@@ -763,6 +766,12 @@ export interface InitOptions<T = object> extends PluginOptions<T> {
+    */
+   pluralSeparator?: string;
+ 
++  /**
++   * Char to split context from key
++   * @default '_'
++   */
++  contextSeparator?: string;
++
+   /**
+    * Prefixes the namespace to the returned key when using `cimode`
+    * @default false
+@@ -870,6 +879,10 @@ export interface TOptionsBase {
+    * Ordinal flag for ordinal plurals
+    */
+   ordinal?: boolean;
++  /**
++   * Used for contexts (eg. male\female)
++   */
++  context?: unknown;
+   /**
+    * Object with vars for interpolation - or put them directly in options
+    */

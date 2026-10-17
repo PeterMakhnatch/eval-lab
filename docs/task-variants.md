@@ -85,6 +85,27 @@ it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
 empty filename; `gzip.compress` stamps a different OS byte on macOS) and
 checks that the on-disk setup reproduces the embedded one before a change.
 
+### Setup-only Python lookup repairs
+
+`setup-python-path@1` repairs a frozen `purge-installed-copies@2` package
+whose setup helpers still resolve the image's legacy project Python. It
+adds the canonical system-Python PATH inside the setup child process and
+re-embeds that setup in `task.toml`; it does not rebuild or relabel the
+frozen v6 parent. Derive it through `derive_task`, `pack_setup`, and
+`render_task_toml`, retaining the exact parent record and before/after hashes.
+
+For held-out 001948, only `environment/setup/setup.sh` and `task.toml`
+change. Every `tests/**` byte, assertion, reference solution, instruction,
+and pinned image stays unchanged. Native Modal verification also requires
+the existing `TaskModalEnvironment` lifecycle: its scoped modern helper PATH
+runs the unchanged verifier setup before submitted artifacts are seeded;
+the project's grading interpreter and PATH are not globally replaced.
+
+This is an environment repair, not `verifier-repair@1`. Its new package and
+Harbor digests require fresh exact-digest controls; the parent's controls do
+not transfer. Structural replay or oracle/nop controls alone do not certify
+wrong-submission rejection or authorize scoring.
+
 ## Separate-verifier variants (MiMo code tasks)
 
 Two transforms move hidden tests into a Harbor 0.24 separate verifier

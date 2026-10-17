@@ -1358,7 +1358,8 @@ def correction_row(
         config = corrected.result.get("config") or {}
         metadata = (corrected.result.get("agent_result") or {}).get("metadata") or {}
         if (
-            (config.get("agent") or {}).get("name") != "mimoagent"
+            (config.get("agent") or {}).get("name")
+            != "evallab.harbor_mimoagent:NativeMimoAgent"
             or config.get("resume_trajectory") or config.get("load_trajectory")
             or (config.get("agent") or {}).get("resume_trajectory")
             or (config.get("agent") or {}).get("load_trajectory")

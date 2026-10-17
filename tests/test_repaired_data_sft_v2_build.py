@@ -1102,9 +1102,15 @@ def reset_correction(tmp_path: Path, monkeypatch, change: str | None = None, *, 
             "id": str(UUID(int=number)), "task_name": task, "trial_name": "native-a1__retained",
             "config": {
                 "job_id": str(UUID(int=100 + number)), "task": {"path": str(package)},
-                "agent": {"name": "mimoagent", "model_name": model + (
-                    "-substituted" if number == 2 and change == "model" else ""
-                )},
+                "agent": {
+                    "name": (
+                        "mimoagent" if number == 2 and change == "native_selector"
+                        else "evallab.harbor_mimoagent:NativeMimoAgent"
+                    ),
+                    "model_name": model + (
+                        "-substituted" if number == 2 and change == "model" else ""
+                    ),
+                },
             },
             "agent_info": {"name": "mimoagent", "model_info": {"name": model}},
             "agent_result": {"metadata": metadata},
@@ -1401,6 +1407,7 @@ def test_bounded_native_reset_context_admits_repaired_success_not_semantic_truth
     ("unsafe_feedback", "source-free outcome projection"),
     ("unsafe_prompt", "bounded reset feedback"),
     ("restored_history", "reset-context main agent"),
+    ("native_selector", "reset-context main agent"),
     ("reused_target", "genuinely new final"),
     ("reused_patch", "reuses the incomplete source patch"),
     ("teacher", "teacher"),

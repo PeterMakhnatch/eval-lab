@@ -990,6 +990,11 @@ def regrade_counterfactual(
     rows: list[dict[str, Any]] = [
         {
             "grader": row["grader"],
+            "grader_identity": row["grader_identity"],
+            "aliases": [
+                {key: alias[key] for key in ("label", "transform", "variant_digest")}
+                for alias in row["grader_source"]["aliases"]
+            ],
             "valid": row["valid_grader"],
             "controls": row["controls"],
             **{k: row.get(k) for k in ("outcome", "recorded", "regraded", "input_kind")},
@@ -1907,7 +1912,7 @@ def _regrade_jobs(
     rows: list[dict[str, Any]] = []
     graders: dict[str, list[cf.Grader]] = {}
     shells: dict[str, Path] = {}
-    jobs: list[tuple[dict[str, Any], Path, cf.Grader]] = []
+    sources: list[tuple[dict[str, Any], Path, str]] = []
     for subject in subjects:
         base = {k: v for k, v in subject.items() if k != "trial"}
         trial, task = subject["trial"], subject["task"]
@@ -1920,25 +1925,31 @@ def _regrade_jobs(
             shells[task] = trial
         if not graders[task]:
             rows.append({**base, "grader": None, "outcome": "no_newer_grader"})
-        jobs.extend((base, trial, grader) for grader in graders[task])
+        sources.append((base, trial, task))
+    selected = cf.canonical_graders([g for task_graders in graders.values() for g in task_graders])
+    graders = {task: [] for task in graders}
+    for grader in selected:
+        graders[grader.task_name].append(grader)
+    jobs = [(base, trial, grader) for base, trial, task in sources for grader in graders[task]]
     return repo, rows, graders, shells, jobs
 
 
 def _controls_dir(grader: Any) -> Path:
-    return counterfactual_root() / "controls" / grader.label.replace(":", "-")
+    return counterfactual_root() / "controls" / grader.cache_key
 
 
 def _replay_cache(base: dict[str, Any], grader: Any) -> tuple[Path, dict[str, Any]]:
     from evallab.qa import counterfactual as cf
 
-    slot = grader.label.replace(":", "-")
     identity = {
         "engine": cf.ENGINE_VERSION,
         "source_digest": base["source_digest"],
-        "grader": grader.label,
-        "grader_digest": grader.variant_digest,
+        "grader_identity": grader.identity_json,
     }
-    return counterfactual_root() / "replay-cache" / base["source_digest"] / f"{slot}.json", identity
+    return (
+        counterfactual_root() / "replay-cache" / base["source_digest"] / f"{grader.cache_key}.json",
+        identity,
+    )
 
 
 def _cached_replay(cache: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
@@ -1962,11 +1973,11 @@ def plan_regrade(
     from evallab.qa import counterfactual as cf
 
     repo, rows, graders, _, jobs = _regrade_jobs(subjects, repairs, grader_manifest)
-    every = {g.label: g for task_graders in graders.values() for g in task_graders}
+    every = {g.identity: g for task_graders in graders.values() for g in task_graders}
     controls = sum(
         cf.control_executions(g, _controls_dir(g), repo_root=repo) for g in every.values()
     )
-    unique = {(base["source_digest"], g.label): (base, g) for base, _, g in jobs}
+    unique = {(base["source_digest"], g.identity): (base, g) for base, _, g in jobs}
     replays = sum(_cached_replay(*_replay_cache(base, g)) is None for base, g in unique.values())
     return {
         "subjects": len(subjects),
@@ -1995,7 +2006,7 @@ def regrade_passes(
 
     Grader controls run first, once per grader, cached in the shared
     counterfactual store (they do not depend on the subjects); then the
-    replays, ``workers`` at a time, resuming from ``out/items/<blind id>/<grader>.json``.
+    replays, ``workers`` at a time, cached by source bytes and canonical grader identity.
     A cloud ``environment`` is refused up front without ``spend_gate``; every
     cloud execution is charged to it, and one over its cap is refused, not run.
     """
@@ -2014,16 +2025,19 @@ def regrade_passes(
             spend_gate=spend_gate,
         )
 
-    every = {g.label: g for task_graders in graders.values() for g in task_graders}
-    controls: dict[str, dict[str, Any]] = {}
+    every = {g.identity: g for task_graders in graders.values() for g in task_graders}
+    controls: dict[tuple[str, str], dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        for label, result in zip(every, pool.map(_control, every.values()), strict=True):
-            controls[label] = result
-            log(f"[regrade] controls {label}: nop={result['nop']} reference={result['reference']}")
+        for identity, result in zip(every, pool.map(_control, every.values()), strict=True):
+            controls[identity] = result
+            log(
+                f"[regrade] controls {every[identity].label}: "
+                f"nop={result['nop']} reference={result['reference']}"
+            )
 
     def _replay(job: tuple[dict[str, Any], Path, cf.Grader]) -> dict[str, Any]:
         base, trial, grader = job
-        blind, slot = base["source_digest"][:16], grader.label.replace(":", "-")
+        source, slot = base["source_digest"], grader.cache_key
         cache, identity = _replay_cache(base, grader)
         observed = _cached_replay(cache, identity)
         if observed is None:
@@ -2031,7 +2045,7 @@ def regrade_passes(
                 **cf.replay(
                     trial,
                     grader,
-                    out / "work" / blind / slot,
+                    out / "work" / source / slot,
                     repo_root=repo,
                     environment=environment,
                     spend_gate=spend_gate,
@@ -2042,21 +2056,24 @@ def regrade_passes(
         return observed
 
     unique = {
-        (base["source_digest"], grader.label): (base, trial, grader) for base, trial, grader in jobs
+        (base["source_digest"], grader.identity): (base, trial, grader)
+        for base, trial, grader in jobs
     }
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         executed = dict(zip(unique, pool.map(_replay, unique.values()), strict=True))
     for base, _, grader in jobs:
-        control = controls[grader.label]
+        control = controls[grader.identity]
         row = {
-            **executed[base["source_digest"], grader.label],
+            **executed[base["source_digest"], grader.identity],
             **base,
+            "grader": grader.label,
+            "grader_identity": grader.identity_json,
             "grader_source": grader.to_json(),
             "transform": grader.transform,
             "valid_grader": control["valid"],
             "controls": {"nop": control["nop"], "reference": control["reference"]},
         }
-        slot = grader.label.replace(":", "-")
+        slot = grader.cache_key
         _write_json(out / "items" / blind_id(base["item_id"]) / f"{slot}.json", row)
         log(f"[regrade] {row['item_id']} {row['grader']}: {row['outcome']}")
         rows.append(row)

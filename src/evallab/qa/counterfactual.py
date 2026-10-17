@@ -50,7 +50,7 @@ V10 = "separate-verifier@10"
 REPAIR_PREFIX = "verifier-repair@"
 MIMO_DATASET = "mimo-v2.6-rl"
 SNAPSHOT_ARCHIVE = "workspace.tgz"
-ENGINE_VERSION = "qa-trace-counterfactual/2"
+ENGINE_VERSION = "qa-trace-counterfactual/3"
 #: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
 #: Execution backends the replay engine can target. Cloud runs skip the local
@@ -92,14 +92,16 @@ def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractConte
 
 
 @dataclass(frozen=True)
-class Grader:
-    """A newer, lineage-recorded grader package for one task."""
+class GraderSelection:
+    """One resolved selection route, retaining a raw repair's original selection."""
 
-    task_name: str
     transform: str
     variant_digest: str
     package: Path
-    record: str
+    records: tuple[str, ...]
+    manifest: str | None = None
+    manifest_row: tuple[tuple[str, str], ...] = ()
+    source: GraderSelection | None = None
 
     @property
     def label(self) -> str:
@@ -108,11 +110,60 @@ class Grader:
     def to_json(self) -> dict[str, Any]:
         return {
             "label": self.label,
+            "transform": self.transform,
+            "variant_digest": self.variant_digest,
+            "package": str(self.package),
+            "records": list(self.records),
+            "manifest": self.manifest,
+            "manifest_row": dict(self.manifest_row),
+            "source": self.source.to_json() if self.source is not None else None,
+        }
+
+
+@dataclass(frozen=True)
+class Grader:
+    """One physical final grader, with every selection route retained as provenance."""
+
+    task_name: str
+    transform: str
+    variant_digest: str
+    package: Path
+    record: str
+    aliases: tuple[GraderSelection, ...] = ()
+
+    @property
+    def identity(self) -> tuple[str, str]:
+        return self.task_name, self.variant_digest
+
+    @property
+    def identity_json(self) -> dict[str, str]:
+        return {"task_name": self.task_name, "variant_digest": self.variant_digest}
+
+    @property
+    def cache_key(self) -> str:
+        task_digest = hashlib.sha256(self.task_name.encode()).hexdigest()
+        return f"{task_digest}--{self.variant_digest.removeprefix('sha256:')}"
+
+    @property
+    def selections(self) -> tuple[GraderSelection, ...]:
+        return self.aliases or (
+            GraderSelection(self.transform, self.variant_digest, self.package, (self.record,)),
+        )
+
+    @property
+    def label(self) -> str:
+        return f"{self.transform}:{self.variant_digest.removeprefix('sha256:')[:12]}"
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "identity": self.identity_json,
             "task_name": self.task_name,
             "transform": self.transform,
             "variant_digest": self.variant_digest,
             "package": str(self.package),
             "record": self.record,
+            "aliases": [alias.to_json() for alias in self.selections],
         }
 
 
@@ -126,6 +177,62 @@ def _digest(package: Path) -> str:
     return task_directory_digest(package)
 
 
+def _verify_package(package: Path, expected: str) -> None:
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
+        raise ValueError(f"invalid full grader package digest: {expected!r}")
+    if not (package / "task.toml").is_file():
+        raise ValueError(f"grader package missing: {package}")
+    actual = _digest(package)
+    if actual != expected:
+        raise ValueError(f"grader package digest mismatch: {package}: {actual} != {expected}")
+
+
+def canonical_graders(candidates: Sequence[Grader]) -> list[Grader]:
+    """Group only resolved full packages; verify every claimed path before execution.
+
+    Equivalent copies are allowed, but each must reproduce its claimed digest.
+    Repeated selections remain repeated provenance, never repeated measurements.
+    """
+    claims: dict[Path, tuple[str, str]] = {}
+    grouped: dict[tuple[str, str], list[Grader]] = {}
+    references: dict[str, tuple[str, str]] = {}
+    for grader in candidates:
+        grouped.setdefault(grader.identity, []).append(grader)
+        packages = [(grader.package, grader.variant_digest)]
+        for alias in grader.selections:
+            if alias.variant_digest != grader.variant_digest:
+                raise ValueError(f"conflicting final grader selection: {alias.label}")
+        selections = list(grader.selections)
+        while selections:
+            alias = selections.pop()
+            packages.append((alias.package, alias.variant_digest))
+            if alias.source is not None:
+                selections.append(alias.source)
+            for reference in alias.records:
+                identity = (grader.task_name, alias.variant_digest)
+                if reference in references and references[reference] != identity:
+                    raise ValueError(f"conflicting grader record claims: {reference}")
+                references[reference] = identity
+        for package, digest in packages:
+            path = package.resolve()
+            identity = (grader.task_name, digest)
+            if path in claims and claims[path] != identity:
+                raise ValueError(f"conflicting grader package claims: {path}")
+            claims[path] = identity
+    for package, (_, digest) in claims.items():
+        _verify_package(package, digest)
+
+    out = []
+    for _, graders in sorted(grouped.items()):
+        first = min(graders, key=lambda g: (g.transform, str(g.package.resolve()), g.record))
+        aliases = sorted(
+            (alias for grader in graders for alias in grader.selections),
+            key=lambda alias: json.dumps(alias.to_json(), sort_keys=True),
+        )
+        out.append(dataclasses.replace(first, aliases=tuple(aliases)))
+    return out
+
+
 def is_separate(package: Path) -> bool:
     """Whether the package grades in its own verifier container from a snapshot."""
     toml = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
@@ -135,13 +242,19 @@ def is_separate(package: Path) -> bool:
 def _v6_rows(manifest: Path) -> dict[str, dict[str, str]]:
     from evallab.mimo_clean import load_manifest
 
-    return {row["task_id"]: row for row in load_manifest(manifest)}
+    rows: dict[str, dict[str, str]] = {}
+    for row in load_manifest(manifest):
+        task_id = row["task_id"]
+        if task_id in rows and rows[task_id] != row:
+            raise ValueError(f"conflicting grader manifest rows: {manifest}#{task_id}")
+        rows[task_id] = row
+    return rows
 
 
 def v6_grader(task_name: str, repo_root: Path, *, manifest: Path | None = None) -> Grader | None:
     """The task's ``mimo-clean-v6`` package (built row of the v6 manifest).
 
-    Used only when it still hashes to the manifest's ``final_digest``.
+    A selected built package must exist and reproduce ``final_digest``.
     """
     from evallab.mimo_clean import MANIFEST_V6_REL
     from evallab.storage.paths import shared_checkout_root
@@ -156,14 +269,23 @@ def v6_grader(task_name: str, repo_root: Path, *, manifest: Path | None = None) 
     if row is None or row["status"] != "built":
         return None
     package = shared_checkout_root(repo_root) / row["package_path"]
-    if not (package / "task.toml").is_file() or _digest(package) != row["final_digest"]:
-        return None
+    _verify_package(package, row["final_digest"])
     return Grader(
         task_name=task_name,
         transform=V6,
         variant_digest=row["final_digest"],
         package=package,
         record=f"{manifest}#{base}",
+        aliases=(
+            GraderSelection(
+                V6,
+                row["final_digest"],
+                package,
+                (f"{manifest}#{base}",),
+                manifest=str(manifest),
+                manifest_row=tuple(sorted(row.items())),
+            ),
+        ),
     )
 
 
@@ -225,8 +347,7 @@ def separate_over(parent: Path, task_name: str, repo_root: Path, *, via: str) ->
         # Another worker may derive the same package first; the digest check decides.
         with contextlib.suppress(VariantExistsError):
             derive_separate_verifier_v10(parent, marker=marker, repo_root=repo_root)
-    if not (package / "task.toml").is_file() or _digest(package) != planned.variant_digest:
-        return None  # never grade with a package that is not the planned bytes
+    _verify_package(package, planned.variant_digest)
     return Grader(
         task_name=task_name,
         transform=f"{via}>{V10}",
@@ -252,21 +373,37 @@ def repaired_graders(
         if rec.transform.startswith(REPAIR_PREFIX)
     ]
     found += [(path, rec) for path, rec in extra if rec.task_name == task_name]
-    out: dict[str, Grader] = {}
+    out: list[Grader] = []
     for path, record in found:
         digest12 = record.variant_digest.removeprefix("sha256:")[:12]
         package = default_variants_root(repo_root) / _slug(task_name) / digest12
-        if not (package / "task.toml").is_file() or _digest(package) != record.variant_digest:
-            continue
+        _verify_package(package, record.variant_digest)
         if is_separate(package):
             grader = Grader(task_name, record.transform, record.variant_digest, package, str(path))
         else:
             grader = separate_over(package, task_name, repo_root, via=record.transform)
             if grader is not None:
-                grader = dataclasses.replace(grader, record=f"{path} > {grader.record}")
+                grader = dataclasses.replace(
+                    grader,
+                    record=f"{path} > {grader.record}",
+                    aliases=(
+                        GraderSelection(
+                            grader.transform,
+                            grader.variant_digest,
+                            grader.package,
+                            (grader.record,),
+                            source=GraderSelection(
+                                record.transform,
+                                record.variant_digest,
+                                package,
+                                (str(path),),
+                            ),
+                        ),
+                    ),
+                )
         if grader is not None:
-            out[grader.label] = grader
-    return list(out.values())
+            out.append(grader)
+    return out
 
 
 def newer_graders(
@@ -276,9 +413,9 @@ def newer_graders(
     *,
     manifest: Path | None = None,
 ) -> list[Grader]:
-    """The task's v6 grader plus every usable test-repaired grader."""
+    """The task's final graders, grouped after every selection and composition."""
     v6 = v6_grader(task_name, repo_root, manifest=manifest)
-    return ([v6] if v6 else []) + repaired_graders(task_name, repo_root, repairs)
+    return canonical_graders(([v6] if v6 else []) + repaired_graders(task_name, repo_root, repairs))
 
 
 def strip_binary_artifacts(diff: str) -> tuple[str, list[str]]:
@@ -460,11 +597,13 @@ def replay(
     )
     from evallab.separate_verifier import SNAP_DIR
 
+    canonical_graders([grader])
     check_backend(environment, spend_gate)
     observation = read_reward_observation(trial_dir)
     recorded = _score((observation.rewards or {}).get("reward")) if observation else None
     row: dict[str, Any] = {
         "grader": grader.label,
+        "grader_identity": grader.identity_json,
         "trial": str(trial_dir),
         "recorded": recorded,
     }
@@ -576,7 +715,7 @@ def control_executions(grader: Grader, work: Path, *, repo_root: Path) -> int:
 
 def _controls_identity(grader: Grader, patch: str | None) -> dict[str, Any]:
     return {
-        "grader": grader.label,
+        "grader_identity": grader.identity_json,
         "engine": ENGINE_VERSION,
         "reference_sha256": hashlib.sha256(patch.encode()).hexdigest()
         if patch is not None
@@ -599,6 +738,7 @@ def grader_controls(
     Missing references or failed executions remain unvalidated. Results are
     never treated as evidence of semantic correctness.
     """
+    canonical_graders([grader])
     cached = cached_controls(grader, work, repo_root=repo_root)
     if cached is not None:
         return cached

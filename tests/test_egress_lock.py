@@ -103,6 +103,7 @@ _install_harbor_stubs()
 from evallab.counts import classify_counts  # noqa: E402
 from evallab.database import AGENT_STOP_EXCEPTIONS  # noqa: E402
 from evallab.execution_contracts import (  # noqa: E402
+    LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     RunRequest,
@@ -581,6 +582,10 @@ def test_modal_mimoagent_lock_admitted_with_exact_upstream_allowlist(
     command = build_command(request)
     assert command[command.index("--allow-agent-host") + 1] == "trainer.example"
     assert "egress_lock=true" not in command
+    # The lock record comes from LockedModalEnvironment, which records the
+    # policy Modal actually applies into egress-lock.json.
+    assert command[command.index("--env") + 1] == LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH
+    assert "evallab_egress_lock=true" in command
 
 
 def test_modal_lock_refused_when_agent_baseline_is_public(tmp_path: Path) -> None:

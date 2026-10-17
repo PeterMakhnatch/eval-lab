@@ -1,0 +1,434 @@
+{
+  "schema": "har208.verifier-regressions/v1",
+  "card": "HAR-208",
+  "recorded_at": "2026-10-17T14:48:29.792012+00:00",
+  "status": "blocked",
+  "source_base_revision": "e2f7a79effe0379a7cc800d8daea4891ac1c6b87",
+  "implementation": {
+    "verifier": "separate-verifier@10",
+    "ladder": "3.0.0",
+    "production_source_unchanged": true,
+    "verifier_source_sha256": "sha256:74598b7464188d9f0f4b4aed6331fd99b4fc6f620541fece3ee7f1e3e775acf7",
+    "ladder_source_sha256": "sha256:dc53bb3c1d9b5141d34ccd5d674a6b58c5b05cae1406c547081d9be9c511b1cf",
+    "regression_tests": "tests/test_separate_verifier.py",
+    "regression_tests_sha256": "sha256:89c97f37eb6e0574a3bdece296e2eda6be1e996f3ae1904dcc5016c55eab9892"
+  },
+  "fresh_checks": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_separate_verifier.py -k \"v10_python_snapshot or v10_snapshot_rejects or v10_opaque_wrapper\" -n 0",
+      "result": "10 passed, 140 deselected",
+      "seconds": 83.63
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_separate_verifier.py tests/test_cheat.py",
+      "result": "213 passed, 2 Pydantic field-shadow warnings",
+      "seconds": 157.49
+    },
+    {
+      "command": ".venv/bin/ruff check tests/test_separate_verifier.py",
+      "result": "All checks passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_separate_verifier.py -k \"v10_python_snapshot or v10_snapshot_rejects\" -n 0",
+      "result": "8 passed, 142 deselected after isolating HOME and Git configuration",
+      "seconds": 49.15
+    },
+    {
+      "command": "PATH=<isolated uv 0.9.24 bin> scripts/premerge.sh --static",
+      "result": "passed: locked install, Ruff, docindex, repomap, governance, registry audit, lessons freshness, ty zero diagnostics",
+      "seconds": 331.35
+    },
+    {
+      "command": ".venv/bin/python -m evallab.smoke --docker-free",
+      "result": "SMOKE PASS both-stores-agree; valid analysis sidecar and status snapshot",
+      "fixture_replay_only": true,
+      "job_id": "886e92a2-0de4-4384-b7ad-aa8c623e96b1",
+      "seconds": 10.02
+    }
+  ],
+  "fresh_synthetic_wrapper_coverage": {
+    "boundary": "Real shell execution of the complete current rendered verifier against synthetic repository snapshots; not native Docker task qualification.",
+    "baseline_rewards": {
+      "pytest": {
+        "oracle": 1,
+        "nop": 0
+      },
+      "unittest": {
+        "oracle": 1,
+        "nop": 0
+      }
+    },
+    "retained_ladder_attacks": [
+      {
+        "runner": "pytest",
+        "attack": "tamper_pytest_runtest",
+        "armed": true,
+        "reward": 0,
+        "rejection": "runner integrity changed"
+      },
+      {
+        "runner": "pytest",
+        "attack": "tamper_pytest_runtest_obfuscated",
+        "armed": true,
+        "reward": 0,
+        "rejection": "runner integrity changed"
+      },
+      {
+        "runner": "pytest",
+        "attack": "pyc_shadow",
+        "armed": true,
+        "reward": 0,
+        "rejection": "cache present in full diff, absent from kept diff; real test fails"
+      },
+      {
+        "runner": "unittest",
+        "attack": "fake_unittest_output",
+        "armed": true,
+        "reward": 0,
+        "rejection": "zero structured cases despite forged success text"
+      }
+    ],
+    "source_signature_gate_hit": false,
+    "pytest_integrity_failure_survives_clean_unittest_shim": true
+  },
+  "native_local_acceptance": {
+    "schema": "har208.local-admission/v1",
+    "observed_at": "2026-10-17T14:25:27.647580+00:00",
+    "cost_usd": 0,
+    "model_calls": 0,
+    "trials_started": 0,
+    "requested_concurrent_trials": 1,
+    "maximum_task_sandboxes": 2,
+    "packages": [
+      {
+        "task_id": "002139",
+        "parent_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002139/dd269adcb32c",
+        "parent_digest": "sha256:dd269adcb32c71df21a15d1eed4d0148666a1c417969e86db2768c7d757bf510",
+        "status": "refused",
+        "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+        "admission": {
+          "observed_at": "2026-10-17T14:26:13.507432+00:00",
+          "task_id": "mimo-v2.6-rl/format-code-task-002139",
+          "admitted": false,
+          "sandboxes": 2,
+          "requested": {
+            "cpus": 4,
+            "memory_mb": 16384
+          },
+          "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory"
+        }
+      },
+      {
+        "task_id": "002866",
+        "parent_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002866/a811bab8c3fb",
+        "parent_digest": "sha256:a811bab8c3fbe0f6f1faea62b8d194667cb85a6efc68bf19177f596855fb486e",
+        "status": "refused",
+        "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+        "admission": {
+          "observed_at": "2026-10-17T14:26:14.979952+00:00",
+          "task_id": "mimo-v2.6-rl/format-code-task-002866",
+          "admitted": false,
+          "sandboxes": 2,
+          "requested": {
+            "cpus": 4,
+            "memory_mb": 16384
+          },
+          "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory"
+        }
+      }
+    ],
+    "competing_resources": [
+      {
+        "name": "/ref-subset-000258-e7323bdf16-g",
+        "id": "a990384b2d1c6141561b6b7f1a43e0510024b318f05266139adaa397454d172b",
+        "image": "evallab-ref-subset/format-code-task-000258:e7323bdf16",
+        "nano_cpus": 2000000000,
+        "cpu_period": 0,
+        "cpu_quota": 0,
+        "memory_bytes": 3221225472
+      },
+      {
+        "name": "/eval-lab-postgres-1",
+        "id": "ffaebab177dc2cecbdfda3857c53399323ed0d17dbec464242bdd879b3c3b971",
+        "image": "postgres:18.4-alpine3.24",
+        "nano_cpus": 0,
+        "cpu_period": 0,
+        "cpu_quota": 0,
+        "memory_bytes": 0
+      },
+      {
+        "name": "/fxtr-postgres",
+        "id": "d93b308a2755ce52aee445633b65ee44c41c43c5d95665bb2c9bd8a9af8ffd31",
+        "image": "postgres:16",
+        "nano_cpus": 0,
+        "cpu_period": 0,
+        "cpu_quota": 0,
+        "memory_bytes": 0
+      },
+      {
+        "name": "/evallab-state-8969a67a6204493f9aa8ac23",
+        "id": "e1f9c4f980e37c3bb169b08ca328e880726a9a7ad29d79676846b14df4f33c41",
+        "image": "evallab-state-journal:46bf038216ffe7ab",
+        "nano_cpus": 0,
+        "cpu_period": 0,
+        "cpu_quota": 0,
+        "memory_bytes": 0
+      }
+    ],
+    "status": "blocked",
+    "procedure": "Shared docker_slot(label=HAR-208 exact-package no-model admission, slots=2, timeout=60), then admit_local_task(load_harbor_task(parent), workdir, sandboxes=2) for each original parent.",
+    "runtime_harbor": "0.24.0",
+    "docker_daemon": {
+      "id": "41b73460-f1fa-4fd0-9ab1-a11f383efd60",
+      "cpus": 16,
+      "memory_bytes": 8318709760,
+      "contexts_same_daemon": [
+        "default",
+        "desktop-linux"
+      ]
+    },
+    "additional_capacity_limit": "Two 8192-MiB sandboxes require 16384 MiB available after 2048-MiB controller reserve; current whole daemon is 7933 MiB.",
+    "resolution": "Resource owner must provide bounded supported local Docker capacity that passes unchanged admission; do not stop/relimit shared services or lower task limits under this card."
+  },
+  "retained_original_evidence": {
+    "root": "/Users/petermakhnatch/Developer/eval-lab/derived/detector-roots/own-scan/hardened-probe",
+    "scope": "Recorded original @8 failures and controls, read without relaunching them. Do not relabel as repaired acceptance.",
+    "scripts": [
+      {
+        "name": "baseline_oracle",
+        "script_sha256": "sha256:ab5f201abf6e2c9d04d2d72efa91e0221070cdc080be3a5c95f837c3aa94903a",
+        "recorded_reward": 1.0
+      },
+      {
+        "name": "baseline_nop",
+        "script_sha256": "sha256:2bc35b34f335624f086b14c2ff801d6ad178bd06634c4c3bede25c68cf4a93e7",
+        "recorded_reward": 0.0
+      },
+      {
+        "name": "ut_baseline_oracle",
+        "script_sha256": "sha256:db79fe2773ca3ae5157403e302410d874eb91955ea630e7569cd6c786d7e5d0a",
+        "recorded_reward": 1.0
+      },
+      {
+        "name": "ut_baseline_nop",
+        "script_sha256": "sha256:eeef37ea85c2cdfd4f5638de8d664c206843b9420fb03e4e5bbdb94b8b04429b",
+        "recorded_reward": 0.0
+      },
+      {
+        "name": "noop_runtest",
+        "script_sha256": "sha256:04d7c4bbfc4ecf4bfb273e3ab4ddf8cd7cc937455f40c14df6d99f0e081a357b",
+        "recorded_reward": 1.0
+      },
+      {
+        "name": "noop_runtest_obfuscated",
+        "script_sha256": "sha256:e55a8c555dd2a171cef696e0edb90726530e2d266f9e91cd4737d24e416e72b1",
+        "recorded_reward": 1.0
+      },
+      {
+        "name": "pyc_shadow",
+        "script_sha256": "sha256:d74316beba8883b8eca414a0be9fb63dbcd749f892f1aca7684e953a1ebb7cfa",
+        "recorded_reward": 1.0
+      },
+      {
+        "name": "fake_unittest_output",
+        "script_sha256": "sha256:52fba804b7d3ba38ccf0502d7c0d8e796056d9a1e459bcf90e018b11ef47c1ca",
+        "recorded_reward": 1.0
+      }
+    ]
+  },
+  "historical_repaired_coverage": {
+    "summary": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/mimo-clean-v6-verify/summary.json",
+    "summary_sha256": "sha256:2dccaa38b1cc5dcfd304255987b977046cf742d920006aeb9e2e20ebdd4ee4fe",
+    "raw_archive": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/mimo-clean-v6-verify/raw-evidence.tar.gz",
+    "raw_archive_sha256_verified": "sha256:dbdd8db106cfa515b4fce4a73c15a3be792de5205bf245d53a01f42d9db7c7df",
+    "raw_archive_members_reinspected": false,
+    "rows": [
+      {
+        "task_id": "format-code-task-002139",
+        "final_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+        "probes": {
+          "noop_runtest": {
+            "reward": 0.0,
+            "wall_sec": 49.9,
+            "process_rc": 0,
+            "reason": [
+              "runner=pytest rc=0\nrunner integrity changed: CHANGED pytest.Function.runtest,_pytest.python.Function.runtest"
+            ],
+            "job": "v6-002139-probe-noop-runtest"
+          },
+          "noop_runtest_obfuscated": {
+            "reward": 0.0,
+            "wall_sec": 50.2,
+            "process_rc": 0,
+            "reason": [
+              "runner=pytest rc=0\nrunner integrity changed: CHANGED pytest.Function.runtest,_pytest.python.Function.runtest"
+            ],
+            "job": "v6-002139-probe-noop-runtest-obfuscated"
+          },
+          "pyc_shadow": {
+            "reward": 0.0,
+            "wall_sec": 81.7,
+            "process_rc": 0,
+            "reason": [
+              "runner=pytest rc=1\nfail-to-pass: pristine outcomes not preserved\nrc=1 cases=22 bad=22 skipped=0 named=0 missing=[]"
+            ],
+            "job": "v6-002139-probe-pyc-shadow"
+          }
+        },
+        "oracle-x3": {
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "wall_sec": 71.2,
+          "queue_wait_sec": 0,
+          "process_rc": 0,
+          "job": "v6-002139-oracle-x3",
+          "source": "local-2026-10-15",
+          "wall_clock_basis": "active CLI wall, including image pull/setup; FIFO queue excluded",
+          "repeat_durations_sec": [
+            12.987,
+            7.838,
+            7.1
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "run_errors": [
+            null,
+            null,
+            null
+          ],
+          "exception": null,
+          "started_at": "2026-10-15T15:31:16.714735Z",
+          "finished_at": "2026-10-15T15:32:17.935965Z"
+        },
+        "nop-x3": {
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "wall_sec": 67.1,
+          "queue_wait_sec": 0,
+          "process_rc": 0,
+          "job": "v6-002139-nop-x3",
+          "source": "local-2026-10-15",
+          "wall_clock_basis": "active CLI wall, including image pull/setup; FIFO queue excluded",
+          "repeat_durations_sec": [
+            10.706,
+            7.698,
+            7.051
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "run_errors": [
+            null,
+            null,
+            null
+          ],
+          "exception": null,
+          "started_at": "2026-10-15T15:32:27.185200Z",
+          "finished_at": "2026-10-15T15:33:25.110396Z"
+        },
+        "manifest_verify": "unverified:ladder-probe-pending"
+      },
+      {
+        "task_id": "format-code-task-002866",
+        "final_digest": "sha256:faf79fbb247cabed25d83ece356d763cb223e9bed828b2f85798ff2bc6c2a139",
+        "probes": {
+          "fake_unittest_output": {
+            "reward": 0.0,
+            "wall_sec": 853.5,
+            "process_rc": 0,
+            "reason": [
+              "runner=unittest rc=0\nunittest junit cases=0 baseline=1 ok=False\nrc=0 unittest markers=False"
+            ],
+            "job": "v6-002866-probe-fake-unittest-output"
+          }
+        },
+        "oracle-x3": {
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "wall_sec": 869.7,
+          "queue_wait_sec": 0,
+          "process_rc": 0,
+          "job": "v6-002866-oracle-x3",
+          "source": "local-2026-10-15",
+          "wall_clock_basis": "active CLI wall, including image pull/setup; FIFO queue excluded",
+          "repeat_durations_sec": [
+            419.899,
+            4.589,
+            4.659
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "run_errors": [
+            null,
+            null,
+            null
+          ],
+          "exception": null,
+          "started_at": "2026-10-15T15:33:39.935139Z",
+          "finished_at": "2026-10-15T15:47:58.369038Z"
+        },
+        "nop-x3": {
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "wall_sec": 922.1,
+          "queue_wait_sec": 0,
+          "process_rc": 0,
+          "job": "v6-002866-nop-x3",
+          "source": "local-2026-10-15",
+          "wall_clock_basis": "active CLI wall, including image pull/setup; FIFO queue excluded",
+          "repeat_durations_sec": [
+            436.333,
+            5.293,
+            5.64
+          ],
+          "test_execution": [
+            true,
+            true,
+            true
+          ],
+          "run_errors": [
+            null,
+            null,
+            null
+          ],
+          "exception": null,
+          "started_at": "2026-10-15T15:48:01.878272Z",
+          "finished_at": "2026-10-15T16:03:09.960754Z"
+        },
+        "manifest_verify": "unverified:ladder-probe-pending"
+      }
+    ],
+    "limit": "Different rebuilt v6 package digests; no exact original-parent repaired-child qualification or new admission. Not carried into HAR-208 acceptance."
+  },
+  "cost": {
+    "usd": 0,
+    "model_calls": 0,
+    "cloud_gpu_runs": 0,
+    "new_native_trials": 0
+  },
+  "fleet_claim": "None. No fleet manifest qualification or package registration changed.",
+  "remaining_acceptance": [
+    "Genuinely admitted local oracle/nop and four task-specific retained regression controls on repaired children of exact originals dd269adcb32c/a811bab8c3fb.",
+    "Native CheatAgent ladder-v3 selected/armed evidence on the exact repaired package identities; no fleet-wide repair claim until appropriately scoped controls exist."
+  ]
+}

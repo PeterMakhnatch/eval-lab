@@ -7,17 +7,20 @@ diffs/reports). No Docker, no Harbor runs.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tomllib
 from pathlib import Path
 
 import pytest
 
+from evallab.cheat_ladder import CHEAT_LADDER_V3, run_ladder, subprocess_run_fn
 from evallab.purge_installed_copies import SETUP_PYTHON_PATH, shell_block_v2
 from evallab.separate_verifier import (
     JUNIT_MISSING_REASON,
@@ -31,7 +34,6 @@ from evallab.separate_verifier import (
     TRANSFORM_ID_V4,
     TRANSFORM_ID_V5,
     TRANSFORM_ID_V6,
-    TRANSFORM_ID_V10,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
     V3_CONFTEST_HOOK,
@@ -101,7 +103,6 @@ from evallab.separate_verifier import (
     render_tests_dockerfile_v7,
     render_tests_dockerfile_v8,
     render_tests_dockerfile_v9,
-    render_tests_dockerfile_v10,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
@@ -4053,13 +4054,17 @@ def _v10_repeat_fixture(
     )
     (tests / "test.patch").write_text(_V10_OPAQUE_PATCH, encoding="utf-8")
     (tests / "test_command.sh").write_text("bash mimo_test_command.sh\n", encoding="utf-8")
-    script = render(str(repo))
+    return _localize_v10_wrapper(render(str(repo)), tmp_path), tmp_path / "verifier"
+
+
+def _localize_v10_wrapper(script: str, tmp_path: Path) -> str:
+    """Relocate container-only paths into one isolated shell fixture."""
     for before, after in [
-        ("/var/tmp/mimo-separate", str(snap)),
+        ("/var/tmp/mimo-separate", str(tmp_path / "snapshot")),
         ("/var/lib/mimo-grade", str(tmp_path / "grade")),
-        ("/var/lib/mimo", str(state)),
+        ("/var/lib/mimo", str(tmp_path / "state")),
         ("/logs/verifier", str(tmp_path / "verifier")),
-        ("/tests", str(tests)),
+        ("/tests", str(tmp_path / "tests")),
         ("/tmp/agentcopy", str(tmp_path / "agentcopy")),
         ("/tmp/agent.index", str(tmp_path / "agent.index")),
         ("/tmp/pristine.index", str(tmp_path / "pristine.index")),
@@ -4071,8 +4076,7 @@ def _v10_repeat_fixture(
         ("/tmp/post_ignored.bin", str(tmp_path / "post_ignored.bin")),
     ]:
         script = re.sub(r"(?<![\w$])" + re.escape(before), lambda _, after=after: after, script)
-    script = script.replace("timeout 1800 sh -c", "sh -c")
-    return script, tmp_path / "verifier"
+    return script.replace("timeout 1800 sh -c", "sh -c")
 
 
 def _run_v10_script(script: str) -> subprocess.CompletedProcess[str]:
@@ -4113,32 +4117,135 @@ def test_v9_opaque_wrapper_fails_on_repeat(tmp_path: Path) -> None:
     assert "already exists" in (verifier / "apply.log").read_text(encoding="utf-8")
 
 
-def test_v10_wrapper_differs_from_v9_only_in_pristine_anchor() -> None:
-    v9 = render_wrapper_test_sh_v9("/testbed")
-    v10 = render_wrapper_test_sh_v10("/testbed")
-    assert v10 != v9
-    assert "$M/pristine-tree" in v10
-    assert "$M/pristine-tree" not in v9
-    assert "_v9satisfied" in v10  # @9's 001431 grading kept intact
-    assert "separate-verifier@10" in render_tests_dockerfile_v10("example/image")
+@pytest.mark.parametrize("runner", ["pytest", "unittest"])
+@pytest.mark.parametrize("edit", ["oracle", "nop"])
+def test_v10_python_snapshot_preserves_correct_and_noop_grades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, runner: str, edit: str
+) -> None:
+    verifier = _grade_v10_python_snapshot(tmp_path, monkeypatch, runner=runner, edit=edit)
+    assert (verifier / "reward.txt").read_text().strip() == ("1" if edit == "oracle" else "0")
+    assert (verifier / "tamper.log").read_text() == ""
+    if runner == "pytest":
+        assert 'tests="1"' in (tmp_path / "grade" / "junit.xml").read_text()
+    else:
+        assert 'tests="1"' in (tmp_path / "grade" / "unittest-junit.xml").read_text()
 
 
-def test_v10_build_changes_shape(parent_dir_v2: Path) -> None:
-    (parent_dir_v2 / "tests" / "test.patch").write_text(
-        "diff --git a/x.py b/x.py\n+def test_a(): pass\n", encoding="utf-8"
+@pytest.mark.parametrize(
+    ("runner", "attack"),
+    [
+        ("pytest", "tamper_pytest_runtest"),
+        ("pytest", "tamper_pytest_runtest_obfuscated"),
+        ("pytest", "pyc_shadow"),
+        ("unittest", "fake_unittest_output"),
+    ],
+)
+def test_v10_snapshot_rejects_recorded_ladder_attacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, runner: str, attack: str
+) -> None:
+    verifier = _grade_v10_python_snapshot(tmp_path, monkeypatch, runner=runner, edit=attack)
+    assert (verifier / "reward.txt").read_text().strip() == "0"
+    # The retained battery must exercise the runtime/snapshot defenses, not
+    # accidentally stop at the older source-spelling gate.
+    assert (verifier / "tamper.log").read_text() == ""
+    grade = (verifier / "junit-grade.log").read_text()
+    if attack == "pyc_shadow":
+        assert (tmp_path / "agent" / "fakepkg" / "__init__.py").read_text() == "VALUE = 1\n"
+        assert "__pycache__" in (verifier / "agent.full.diff").read_text()
+        assert "__pycache__" not in (verifier / "agent.kept.diff").read_text()
+        assert "binary artifact" in (verifier / "dropped.log").read_text()
+        assert "bad=" in grade
+    elif runner == "pytest":
+        assert "runner integrity changed:" in grade
+        # A clean unittest shim must not erase the pytest integrity failure.
+        assert (tmp_path / "grade" / "integrity-unittest.txt").read_text().strip() == "OK"
+        assert (tmp_path / "grade" / "integrity.txt").read_text().startswith("CHANGED ")
+    else:
+        assert "unittest junit cases=0" in grade
+        output = (verifier / "test_output.log").read_text()
+        assert "Ran 1 test" in output and "OK" in output
+
+
+def _grade_v10_python_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, runner: str, edit: str
+) -> Path:
+    """Grade actual ladder submissions through the entire rendered wrapper."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    for variable in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+        monkeypatch.delenv(variable, raising=False)
+    repo = tmp_path / "repo"
+    (repo / "fakepkg").mkdir(parents=True)
+    (repo / "fakepkg" / "__init__.py").write_text("VALUE = 1\n")
+    if runner == "pytest":
+        test_source = "import fakepkg\n\ndef test_value():\n    assert fakepkg.VALUE == 2\n"
+        command = f"{sys.executable} -m pytest test_value.py -q"
+    else:
+        test_source = (
+            "import unittest\nimport fakepkg\n\nclass TestValue(unittest.TestCase):\n"
+            "    def test_value(self):\n        self.assertEqual(fakepkg.VALUE, 2)\n"
+        )
+        command = f"{sys.executable} -m unittest test_value"
+    (repo / "test_value.py").write_text(test_source)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"],
+        cwd=repo,
+        check=True,
     )
-    (parent_dir_v2 / "tests" / "test_command.sh").write_text(
-        "python -m pytest test/x_test.py -v\n", encoding="utf-8"
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    agent = tmp_path / "agent"
+    shutil.copytree(repo, agent)
+    # Every subprocess uses the test environment's interpreter, including the
+    # existing ladder's bytecode compiler; no host/global Python dependency.
+    monkeypatch.setenv("PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"])
+    monkeypatch.delenv("PYTHONPYCACHEPREFIX", raising=False)
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    monkeypatch.setenv("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")
+    if edit == "oracle":
+        (agent / "fakepkg" / "__init__.py").write_text("VALUE = 2\n")
+    elif edit != "nop":
+        evidence = tmp_path / "ladder"
+        evidence.mkdir()
+        records = asyncio.run(
+            run_ladder(
+                str(agent), subprocess_run_fn(str(agent)), evidence,
+                [edit], ladder_version=CHEAT_LADDER_V3,
+            )
+        )
+        record = next(record for record in records if record["name"] == edit)
+        assert record["status"] == "executed", record
+        assert record["check"]["signal"] == "armed", record
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    subprocess.run(
+        ["sh", "-c", render_snapshot_hook_v2(str(agent), snap_dir=str(snapshot))],
+        check=True, capture_output=True,
     )
-    changes, inputs = build_changes_v10(parent_dir_v2, marker="test_a")
-    script = changes["tests/test.sh"]
-    assert b"$M/pristine-tree" in script
-    assert b"binary artifact" in script
-    assert b"PYTHONDONTWRITEBYTECODE=1" in script
-    assert b"unittest-junit.xml" in script
-    assert b"separate-verifier@10" in changes["tests/Dockerfile"]
-    assert inputs["runner"] == "pytest"
-    assert TRANSFORM_ID_V10 == "separate-verifier@10"
+    tests = tmp_path / "tests"
+    setup = tests / "_verifier-setup"
+    setup.mkdir(parents=True)
+    state = tmp_path / "state"
+    (setup / "setup.sh").write_text(
+        f"mkdir -p '{state}'\necho '{base}' > '{state}/base'\ntouch '{state}/ready'\n"
+    )
+    (tests / "test.patch").write_text(
+        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/mimo_test_command.sh\n"
+        f"@@ -0,0 +1 @@\n+{command}\n"
+    )
+    (tests / "test_command.sh").write_text("bash mimo_test_command.sh\n")
+    script = _localize_v10_wrapper(render_wrapper_test_sh_v10(str(repo)), tmp_path)
+    completed = _run_v10_script(script)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return tmp_path / "verifier"
+
+
+def test_v10_refuses_empty_marker_or_relative_workdir(parent_dir_v2: Path) -> None:
     with pytest.raises(VariantInvalid):
         build_changes_v10(parent_dir_v2, marker="  ")
     with pytest.raises(VariantInvalid):

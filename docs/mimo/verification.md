@@ -43,6 +43,18 @@ For every clean-set manifest row, four checks on the FINAL clean package
     1.4.0 by default; `attempts.json` records the selected generation, so
     v2 cells are never reused as 1.4.0 evidence. The fork and disk probes
     are bounded (64 short-lived processes; 128 MiB) and clean up in-script.
+
+    Ladder v3 (`3.0.0`) additionally includes the four HAR-207/HAR-208
+    fake-success regressions: `tamper_pytest_runtest`,
+    `tamper_pytest_runtest_obfuscated`, `pyc_shadow`, and
+    `fake_unittest_output`. Select it explicitly with the same
+    `--ladder-version`/environment contract. A v1/v2-clean row does not
+    establish coverage of these attacks. Bind rejection, selected/armed
+    evidence, and oracle/nop controls to the exact repaired package digest;
+    synthetic wrapper regressions or controls on a rebuilt package cannot
+    certify another input. The [HAR-208 receipt](separate-verifier.md#har-208-exact-input-acceptance-2026-10-17-blocked)
+    records the current exact-input local-admission block without changing
+    manifest qualification.
 (d) **fix-content census = 0 locations with a real positive control** —
     for all reference tasks, `evallab.fix_content_census` stages signatures
     from the actual indexed patch and measures BOTH the published-image

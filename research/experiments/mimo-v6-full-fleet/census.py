@@ -11,13 +11,23 @@ import argparse
 import csv
 import hashlib
 import json
+import math
+import os
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from evallab.mimo_census import job_has_trial_errors, trial_tests_executed
+from evallab.mimo_census import (
+    _runner_output_executed,
+    job_has_trial_errors,
+    trial_grade_logs,
+    trial_output_logs,
+    trial_runner,
+)
 from evallab.mimo_clean import build_solution_sh
 from evallab.registry import harbor_task_digest, task_directory_digest
+from evallab.task_health_filter import trial_task_identity
 
 FLEET_LABEL = "oracle:pass+nop:fail"
 FLEET_SIZE = 567
@@ -48,6 +58,94 @@ def resolve_path(root: Path, value: str) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def positive_case_execution(trial: Path) -> bool:
+    """Require case evidence, not the older verifier's markers=True shortcut."""
+    if any(grade["cases"] > 0 for grade in trial_grade_logs(trial)):
+        return True
+    if any(
+        re.search(r"\b(?:mvn|gradle)\s+surefire=\d+\s+cases=[1-9]\d*\b", text)
+        for text in trial_output_logs(trial, "junit-grade.log")
+    ):
+        return True
+    runner = trial_runner(trial)
+    for text in trial_output_logs(trial, "test_output.log"):
+        # These shared recognizers also accept bare status words or file
+        # counts. This consumer requires a positive case count instead.
+        if runner == "karma":
+            ran = re.search(r"\bExecuted\s+[1-9]\d*\s+of\b", text) is not None
+        elif runner == "phpunit":
+            ran = re.search(
+                r"\bTests:\s*[1-9]\d*\b|(?m:^OK\s*\(\s*[1-9]\d*\s+tests?\b)", text,
+            ) is not None
+        elif runner == "vitest":
+            ran = any(
+                _runner_output_executed(runner, "Tests " + summary)
+                for summary in re.findall(r"(?m)^\s*Tests\s+([^\n]+)", text)
+            )
+        else:
+            ran = _runner_output_executed(runner, text)
+        if ran:
+            return True
+    return False
+
+
+def native_task_binding(
+    job: Path, trial: Path, native: dict[str, Any], staging: dict[str, Any], *, legacy: bool,
+) -> dict[str, Any]:
+    """Bind recorded native identities without opening the old staged task tree."""
+    identity = trial_task_identity(job, trial)
+    config_path = trial / "config.json"
+    config = json.loads(config_path.read_bytes()) if config_path.is_file() else {}
+    configured_path = (config.get("task") or {}).get("path")
+    result_paths = (
+        (native.get("config", {}).get("task") or {}).get("path"),
+        (native.get("task_id") or {}).get("path"),
+    )
+    staged_name = staging.get("staged_task_name")
+    path_ok = (
+        isinstance(configured_path, str) and bool(configured_path)
+        and isinstance(staged_name, str) and bool(staged_name)
+        and Path(configured_path).name == staged_name
+        and all(
+            isinstance(path, str) and os.path.normpath(path) == os.path.normpath(configured_path)
+            for path in result_paths
+        )
+    )
+    lock_path = job / "lock.json" if identity["via"] == "job-lock" else trial / "lock.json"
+    lock = json.loads(lock_path.read_bytes()) if lock_path.is_file() else {}
+    locked_tasks = (
+        [entry.get("task") for entry in lock.get("trials", []) if isinstance(entry, dict)]
+        if identity["via"] == "job-lock" else [lock.get("task")]
+    )
+    matching_tasks = [
+        task for task in locked_tasks
+        if isinstance(task, dict) and isinstance(task.get("path"), str)
+        and isinstance(configured_path, str)
+        and os.path.normpath(task["path"]) == os.path.normpath(configured_path)
+    ]
+    name = native.get("task_name")
+    declared = staging.get("declared_task_name")
+    name_ok = (
+        isinstance(name, str) and isinstance(declared, str)
+        and name.removeprefix("mimo-v2.6-rl/") == declared.removeprefix("mimo-v2.6-rl/")
+    )
+    bound = (
+        identity["task_digest"] is not None
+        and identity["task_digest"] == staging.get("staged_harbor_digest")
+        and staging.get("staged_harbor_digest") == staging.get("source_harbor_digest")
+        and (legacy or identity["source_package_digest"] == staging.get("source_package_digest"))
+        and path_ok and name_ok and bool(matching_tasks)
+        and all(task.get("name") == staged_name and task.get("type") == "local" for task in matching_tasks)
+    )
+    return {
+        **identity, "verified": bound,
+        "config_path": str(config_path),
+        "config_sha256": file_sha256(config_path) if config_path.is_file() else None,
+        "lock_path": str(lock_path),
+        "lock_sha256": file_sha256(lock_path) if lock_path.is_file() else None,
+    }
+
+
 def native_observations(metadata_paths: set[Path]) -> list[dict[str, Any]]:
     """Read native identity, rewards, errors and case execution, not receipt labels."""
     observations: dict[str, dict[str, Any]] = {}
@@ -72,6 +170,8 @@ def native_observations(metadata_paths: set[Path]) -> list[dict[str, Any]]:
                     "declared_task_name": source_slug.removeprefix("mimo-v2.6-rl__"),
                     "source_package_digest": entry.get("task_version_digest"),
                     "source_harbor_digest": entry.get("harbor_digest"),
+                    "staged_harbor_digest": entry.get("harbor_digest"),
+                    "staged_task_name": entry.get("task_name"),
                 }
             else:
                 staging = metadata.get("task_staging") or {}
@@ -84,44 +184,58 @@ def native_observations(metadata_paths: set[Path]) -> list[dict[str, Any]]:
             if agent not in ("oracle", "nop") or not native.get("id"):
                 continue
             trial = result_path.parent
+            binding = native_task_binding(job, trial, native, staging, legacy=legacy)
             stability_path = trial / "verifier/stability.json"
             if stability_path.is_file():
                 runs = json.loads(stability_path.read_bytes()).get("runs", [])
                 rewards = [run.get("reward") for run in runs]
                 errors = [run.get("error") for run in runs]
                 executed = [
-                    trial_tests_executed(trial / "verifier/repeat" / str(index))
+                    positive_case_execution(trial / "verifier/repeat" / str(index))
                     for index in range(len(runs))
                 ]
             else:
                 reward_map = (native.get("verifier_result") or {}).get("rewards") or {}
                 rewards = [reward_map.get("reward")]
                 errors = [None]
-                executed = [trial_tests_executed(trial)]
+                executed = [positive_case_execution(trial)]
+            repeat_scored = [
+                type(reward) in (int, float) and math.isfinite(reward)
+                and ran and error is None and binding["verified"]
+                and (stability_path.is_file() or native.get("exception_info") is None)
+                for reward, ran, error in zip(rewards, executed, errors, strict=True)
+            ]
             scored = (
-                bool(rewards)
-                and all(type(reward) in (int, float) and reward in (0, 1) for reward in rewards)
-                and all(executed)
-                and all(error is None for error in errors)
-                and native.get("exception_info") is None
-                and process_ok
-                and bool(staging.get("source_harbor_digest"))
-                and (legacy or staging.get("staged_harbor_digest") == staging["source_harbor_digest"])
+                bool(rewards) and all(repeat_scored)
+                and native.get("exception_info") is None and process_ok
             )
-            observation = {
-                "execution_id": native["id"], "task_id": task, "agent": agent,
+            # Only these normalized facts affect qualification. Receipt paths and
+            # byte hashes may change when a published copy records a relocation.
+            qualification = {
+                "task_id": task, "agent": agent,
                 "source_package_digest": digest,
                 "source_harbor_digest": staging.get("source_harbor_digest"),
                 "staged_harbor_digest": staging.get("staged_harbor_digest"),
+                "executed_harbor_digest": binding["task_digest"],
+                "native_identity_verified": binding["verified"],
+                "rewards": rewards, "test_execution": executed,
+                "run_error_present": [error is not None for error in errors],
+                "exception_present": native.get("exception_info") is not None,
+                "process_ok": process_ok,
+                "process_failed": metadata.get("exit_code") not in (0, None),
+                "timed_out": metadata.get("timed_out") is True,
+                "repeat_scored": repeat_scored, "scored": scored,
+            }
+            observation = {
+                "execution_id": native["id"], **qualification,
                 "native_task_checksum": native.get("task_checksum"),
-                "rewards": rewards, "test_execution": executed, "run_errors": errors,
+                "task_binding": binding, "run_errors": errors,
                 "exception_type": (native.get("exception_info") or {}).get("exception_type"),
                 "exception_info_sha256": (
                     hashlib.sha256(compact(native["exception_info"]).encode()).hexdigest()
                     if native.get("exception_info") is not None else None
                 ),
-                "returncode": metadata.get("exit_code"), "scored": scored,
-                "timed_out": metadata.get("timed_out"),
+                "returncode": metadata.get("exit_code"),
                 "identity_kind": "stability_manifest" if legacy else "native_executor_staging",
                 "job_result_sha256": file_sha256(job_result_path) if legacy and job_result_path.is_file() else None,
                 "metadata_path": str(metadata_path), "metadata_sha256": file_sha256(metadata_path),
@@ -129,8 +243,7 @@ def native_observations(metadata_paths: set[Path]) -> list[dict[str, Any]]:
             }
             previous = observations.get(native["id"])
             if previous is not None:
-                identity = ("task_id", "agent", "source_package_digest", "rewards", "scored")
-                if any(previous[key] != observation[key] for key in identity):
+                if any(previous[key] != value for key, value in qualification.items()):
                     raise ValueError(f"conflicting copies of native execution {native['id']}")
                 continue
             observations[native["id"]] = observation
@@ -169,7 +282,7 @@ def census_row(
         for agent, expected in (("oracle", 1), ("nop", 0))
     }
     wrong = any(
-        item["scored"] and any(reward != expected for reward in item["rewards"])
+        any(scored and reward != expected for reward, scored in zip(item["rewards"], item["repeat_scored"], strict=True))
         for agent, expected in (("oracle", 1), ("nop", 0)) for item in controls[agent]
     )
     if not reference_ok:
@@ -188,12 +301,9 @@ def census_row(
     ):
         bucket, reason = "broken_ref_or_env", "accepted_reported_reference_failure_not_superseded_by_exact_controls"
     elif any(
-        item["exception_info_sha256"] is not None
-        or item["returncode"] not in (0, None)
-        or item["timed_out"] is True
-        or not item["rewards"]
-        or any(reward is None for reward in item["rewards"])
-        or any(error is not None for error in item["run_errors"])
+        item["exception_present"] or item["process_failed"] or item["timed_out"]
+        or not item["rewards"] or any(reward is None for reward in item["rewards"])
+        or any(item["run_error_present"])
         for item in exact
     ):
         bucket, reason = "broken_ref_or_env", "exact_input_control_setup_or_execution_failed"

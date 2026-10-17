@@ -495,7 +495,7 @@ inputs:
   - path: src/evallab/purge_build_caches.py
     digest: sha256:336573ee395b3db127979852f4fa658376caa039de683af1fff85cd855ede0e2
   - path: src/evallab/purge_container.py
-    digest: sha256:957791faead4a0d67270d046d0391ecbd5e960e43516bfc13f449d5141805bf7
+    digest: sha256:acef54c9a88f8eae8543d064b6ec653942280a3240d19b670eb5976c5b51777a
   - path: src/evallab/purge_installed_copies.py
     digest: sha256:0d6adb1dffc513269c3dfeed9ed9c17e98a5ebad3107e0b180024d72353206a6
   - path: src/evallab/purge_planted_test_infra.py

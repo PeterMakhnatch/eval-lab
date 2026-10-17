@@ -8,13 +8,16 @@ code tasks**, using the `mimo-clean-v6` transform chain. Membership is exactly
 
 ## Measured build, not fleet certification
 
-Both actual consumer runs built the complete fleet and produced the same
-manifest SHA256, `e204b8bf6e07d0dfb080ca4183a5d1ac977e8e03a0595f80b36cdd9c9175cbf7`:
+The reviewed-helper consumer build produced the final manifest SHA256,
+`f42bd0c91bd7e5b79c37e469575d86d2927143dafe5be19898f5ac3107df6bdb`.
+The first two runs below preceded those edge fixes and shared the earlier
+`e204b8bf…` manifest; their native observations do not transfer to the final bytes.
 
 | Actual run | Built tasks | Wall seconds |
 |---|---:|---:|
 | Initial full build | 567 | 340.53 |
 | Cached full rebuild | 567 | 305.29 |
+| Reviewed-helper full build | 567 | 528.72 |
 
 The emitted sidecar binds **3,263 canonical edges** and **3,438 distinct actual
 records**, including 175 retained repair ancestors. Historical validation states
@@ -80,6 +83,10 @@ equivalence.
   or bytecode. Exact BASE files restore; fix-added files inside proven owned
   packages and adjacent bytecode are removed. Third-party namespace siblings,
   installation metadata and vendored nested copies are not purge targets.
+  Source-less legacy and tagged/optimized bytecode is removed only through
+  exact owned BASE source counterparts; verification rejects reintroduced
+  bytecode. Unresolved namespace metadata refuses before mutation rather than
+  broadening ownership. Ambiguous dotted-stem dependency caches are preserved.
 - The standalone namespace smoke exercised the retained base helper and repaired
   helper against real isolated filesystem/import processes: both restored the
   owned project and removed its fix-added source/bytecode; only the repaired
@@ -122,15 +129,19 @@ uv run python research/experiments/mimo-v6-full-fleet/census.py \
   --manifest research/experiments/mimo-v6-full-fleet/manifest.csv \
   --native-controls research/experiments/mimo-training-20261016/native-controls.json \
   --jobs-root /path/to/retained/native/jobs \
+  --jobs-root /path/to/native/jobs \
   --output research/experiments/mimo-v6-full-fleet/mimo-v6-fleet-census.csv
 ```
+
+Each `--jobs-root` is an explicit job-parent directory, not a recursive scan.
+Include the current native `--jobs-dir` as well as retained evidence roots.
 
 Qualification is fail-closed and scoped to reference/nop controls:
 
 - `v6_verified`: actual indexed patch and embedded solution match; package bytes
   match the manifest; native oracle **1.0** and nop **0.0** both bind the same
-  full package and Harbor digests, with staged/source Harbor agreement, actual
-  recognized test execution, successful native exits and no repeat exceptions.
+  full package and Harbor digests, with executed native lock/config/staging
+  agreement, positive test-case evidence, successful exits and no repeat exceptions.
 - `v6_unverified`: reference/package exists but that exact-input pair is not
   proved. Reward-only custom-runner observations with unrecognized case
   execution remain unverified, not automatically broken.
@@ -138,12 +149,14 @@ Qualification is fail-closed and scoped to reference/nop controls:
   accepted unresolved same-reference failure, or an exact-input failed control.
 - `missing_ref`: indexed patch bytes are absent or fail their SHA256 binding.
 
-Native execution UUIDs deduplicate copied evidence; conflicting copies refuse.
+Native execution UUIDs deduplicate copied evidence only when every normalized
+qualification fact agrees; conflicting copies refuse.
 Native task checksums are retained diagnostically, not confused with the full
 source-package digest. Old controls do not transfer across changed package
 bytes, and repackaging does not erase an accepted same-reference failure. A
-later exact-input passing pair can supersede an earlier unscored setup attempt;
-contradictory actually scored outcomes remain failures. Historical issue reports
+later exact-input passing pair can supersede an earlier unscored setup attempt.
+An actually executed, error-free wrong repeat remains a failure even when another
+repeat or the enclosing attempt failed. Historical issue reports
 remain in each row even when a recovered source patch has a different digest.
 
 Neither this census nor an oracle/nop pair is semantic-validity adjudication or
@@ -173,6 +186,9 @@ Real execution additionally requires `--execute` and a recorded current
 the first-party `CloudSpendGate`; the cumulative `native-admissions.json`
 reservation is atomically persisted before provider execution. Paid failures
 are not refunded or silently retried. The mission ceiling is fixed at **$4**.
+Proven preflight refusals with `provider_started=false` keep all historical
+reservation units but have no provider exposure. Legacy bookkeeping migrates
+explicitly; all paid and uncertain admissions retain their full chargeable units.
 The lane uses the existing census billing namespace and `limit` resource policy,
 does not exceed the tasks' declared 2-CPU/8-GiB caps, rejects GPUs, and bounds
 native sandbox lifetimes at 900 seconds.

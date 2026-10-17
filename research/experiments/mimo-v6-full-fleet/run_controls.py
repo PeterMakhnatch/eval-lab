@@ -3,8 +3,9 @@
 Default is a provider-free plan. Execution requires --execute and recorded approval.
 One durable lane ledger reserves image preparation plus both native creation
 attempts for every agent/verifier environment before any provider execution. These
-are conservative reservations, not measured Modal billing. Failed admissions are
-never refunded or silently retried; the 2026-10-17 mission's $4 cap is immutable.
+are conservative reservations, not measured Modal billing. Provider-started or
+uncertain admissions are never refunded. Proven zero-provider preflight refusals
+remain in history but have no financial exposure; the mission's $4 cap is fixed.
 """
 from __future__ import annotations
 
@@ -42,6 +43,23 @@ def save(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def unstarted_preflight(item: dict[str, Any]) -> bool:
+    return item.get("state") == "preflight_refused" and item.get("provider_started") is False
+
+
+def reservation_accounting(admissions: list[dict[str, Any]]) -> dict[str, int]:
+    """Retain all reservation history without charging a proven unstarted call."""
+    total = sum(item["reservation_units"] for item in admissions)
+    unstarted = sum(
+        item["reservation_units"] for item in admissions if unstarted_preflight(item)
+    )
+    return {
+        "total_reservation_units": total,
+        "unstarted_preflight_units": unstarted,
+        "units_reserved": total - unstarted,
+    }
+
+
 def pending_controls(
     args: argparse.Namespace, admissions: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], int]:
@@ -50,7 +68,7 @@ def pending_controls(
     task_ids = list(dict.fromkeys(args.task_id)) if args.task_id else sorted(manifest)
     prior = {
         (item["task_id"], item["final_digest"], item["agent"]) for item in admissions
-        if item["state"] != "preflight_refused"
+        if not unstarted_preflight(item)
     }
     pending = []
     for task_id in task_ids:
@@ -116,19 +134,29 @@ def main() -> int:
                 raise ValueError("existing lane cap and reservation unit cannot be changed")
         else:
             ledger = {
-                "schema": "mimo-v6-native-admissions/1", "cap_usd": args.max_usd,
-                "usd_per_unit": args.usd_per_unit, "units_reserved": 0, "admissions": [],
-                "basis": "reservations, not measured Modal billing; no failure refunds",
+                "schema": "mimo-v6-native-admissions/2", "cap_usd": args.max_usd,
+                "usd_per_unit": args.usd_per_unit, "units_reserved": 0,
+                "total_reservation_units": 0, "unstarted_preflight_units": 0,
+                "admissions": [],
             }
+        accounting = reservation_accounting(ledger["admissions"])
+        legacy = ledger["schema"] == "mimo-v6-native-admissions/1"
+        if not legacy and ledger["schema"] != "mimo-v6-native-admissions/2":
+            raise ValueError("unrecognized native admission ledger schema")
+        expected_units = accounting["total_reservation_units"] if legacy else accounting["units_reserved"]
+        if ledger["units_reserved"] != expected_units:
+            raise ValueError("reservation ledger disagrees with its admission history")
         pending, task_count = pending_controls(args, ledger["admissions"])
         units = sum(item["reservation_units"] for item in pending)
-        total_usd = round((ledger["units_reserved"] + units) * args.usd_per_unit, 6)
+        total_usd = round((accounting["units_reserved"] + units) * args.usd_per_unit, 6)
         manifest_sha = hashlib.sha256(args.manifest.read_bytes()).hexdigest()
         plan = {
             "manifest_sha256": manifest_sha,
             "selected_tasks": task_count,
             "pending_executions": len(pending), "pending_reservation_units": units,
-            "already_reserved_usd": round(ledger["units_reserved"] * args.usd_per_unit, 6),
+            "already_reserved_usd": round(accounting["units_reserved"] * args.usd_per_unit, 6),
+            "historical_reserved_usd": round(accounting["total_reservation_units"] * args.usd_per_unit, 6),
+            "unstarted_preflight_units": accounting["unstarted_preflight_units"],
             "proposed_total_reserved_usd": total_usd, "cap_usd": args.max_usd,
             "fits_cap": total_usd <= args.max_usd + 1e-9,
             "sandbox_ttl_seconds": SANDBOX_TTL_SECONDS,
@@ -147,7 +175,7 @@ def main() -> int:
             raise ValueError(problem)
         gate = CloudSpendGate(
             approval=args.approve, cap_usd=args.max_usd,
-            usd_per_execution=args.usd_per_unit, executions=ledger["units_reserved"],
+            usd_per_execution=args.usd_per_unit, executions=accounting["units_reserved"],
         )
         requests: dict[str, RunRequest] = {}
         for item in pending:
@@ -165,11 +193,26 @@ def main() -> int:
             )
             validate_request(request, repo_root=args.repo_root)
             requests[item["job"]] = request
+        if legacy:
+            ledger["accounting_migration"] = {
+                "from_schema": ledger["schema"],
+                "previous_units_reserved": ledger["units_reserved"],
+                "proven_unstarted_preflight_units": accounting["unstarted_preflight_units"],
+                "recorded_at": datetime.now(UTC).isoformat(),
+                "reason": "retain history; no provider ran for these preflight refusals",
+            }
+        ledger["schema"] = "mimo-v6-native-admissions/2"
+        ledger["basis"] = (
+            "conservative reservations, not billing; provider-started/uncertain calls stay "
+            "charged; proven unstarted preflight refusals remain in total_reservation_units"
+        )
         for item in pending:
             for _ in range(item["reservation_units"]):
                 gate.charge()
             ledger["admissions"].append(item)
-        ledger["units_reserved"] = gate.executions
+        ledger.update(reservation_accounting(ledger["admissions"]))
+        if ledger["units_reserved"] != gate.executions:
+            raise ValueError("charged units disagree with persisted reservation accounting")
         save(ledger_path, ledger)  # durable before any provider starts, including preparation
         args.jobs_dir.mkdir(parents=True, exist_ok=True)
 

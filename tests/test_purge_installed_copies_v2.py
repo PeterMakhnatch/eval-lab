@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import py_compile
 import shutil
 import subprocess
 import sys
@@ -162,6 +163,7 @@ def test_neutralize_overwrites_and_drops_pyc_but_keeps_metadata(tmp_path: Path) 
     assert {path.as_posix() for path, _, _ in matches} == {
         (package / "__init__.py").as_posix(),
         (package / "core.py").as_posix(),
+        (cache / "__init__.cpython-312.pyc").as_posix(),
     }
     log, changed = v2_neutralize_matches(cwd, matches, base)
     assert changed == 2
@@ -413,6 +415,239 @@ def test_namespace_action_roundtrip_preserves_sibling_distributions(
     (site / owned / "fix_added.py").write_bytes(b"FIX = True\n")
     with pytest.raises(SystemExit, match="untracked copy remains"):
         v2_action_verify(cwd, tracked=_tracked(files), roots=_roots(site), state_dir=state)
+
+
+@pytest.mark.parametrize(
+    "bytecode_rel",
+    [
+        "helpers.pyc",
+        "helpers.pyo",
+        "__pycache__/helpers.{tag}.pyc",
+        "__pycache__/helpers.{tag}.opt-1.pyc",
+        "__pycache__/helpers.{tag}.opt-2.pyc",
+        "__pycache__/helpers.cpython-34.pyo",
+    ],
+    ids=["legacy-pyc", "legacy-pyo", "tagged", "opt-1", "opt-2", "tagged-pyo"],
+)
+def test_sourceless_namespace_bytecode_is_removed_and_verified(
+    tmp_path: Path, bytecode_rel: str
+) -> None:
+    files = {
+        "google/__init__.py": (
+            "from pkgutil import extend_path\n__path__ = extend_path(__path__, __name__)\n"
+        ),
+        "google/helpers.py": "BASE = True\n",
+    }
+    cwd = _repo(tmp_path, files)
+    site = tmp_path / "site-packages"
+    package = site / "google"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(files["google/__init__.py"], encoding="utf-8")
+    bytecode = package / bytecode_rel.format(tag=sys.implementation.cache_tag)
+    bytecode.parent.mkdir(parents=True, exist_ok=True)
+    fix_source = tmp_path / "fixed_helpers.py"
+    fix_source.write_text("FIX = True\n", encoding="utf-8")
+    py_compile.compile(
+        str(fix_source),
+        cfile=str(bytecode),
+        dfile="google/helpers.py",
+        doraise=True,
+        optimize=1,
+    )
+    fix_bytes = bytecode.read_bytes()
+    preserved = {
+        "google/helpers_sibling.py": b"DEPENDENCY = True\n",
+        "google/helpers_sibling.pyc": b"unchanged legacy dependency cache",
+        "google/helpers_sibling.pyo": b"unchanged optimized dependency cache",
+        f"google/__pycache__/helpers_sibling.{sys.implementation.cache_tag}.pyc": (
+            b"unchanged tagged dependency cache"
+        ),
+        "google/core/client.py": b"DEPENDENCY = True\n",
+        "google/core/__pycache__/client.cpython-312.pyc": b"unchanged sibling cache",
+        "google_core-1.0.dist-info/METADATA": b"Name: google-core\n",
+    }
+    for rel, body in preserved.items():
+        path = site / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+
+    def real_import(script: str) -> tuple[int, str, str]:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                "-c",
+                f"import sys; sys.path.insert(0, {str(site)!r})\n" + script,
+            ],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+
+    # All layouts carry executable FIX, including historical .pyo and tagged
+    # caches that modern Python does not discover without a source file.
+    code = (
+        "from importlib.machinery import SourcelessFileLoader\n"
+        "from importlib.util import module_from_spec, spec_from_loader\n"
+        f"loader = SourcelessFileLoader('google.helpers', {str(bytecode)!r})\n"
+        "module = module_from_spec(spec_from_loader(loader.name, loader))\n"
+        "loader.exec_module(module)\n"
+        "assert module.FIX is True\n"
+    )
+    rc, _, stderr = real_import(code)
+    assert rc == 0, stderr
+    if bytecode_rel == "helpers.pyc":
+        rc, _, stderr = real_import("import google.helpers\nassert google.helpers.FIX is True\n")
+        assert rc == 0, stderr
+    assert not (package / "helpers.py").exists()
+    state = tmp_path / "state"
+    state.mkdir()
+    with pytest.raises(SystemExit, match="untracked copy remains"):
+        v2_action_verify(cwd, tracked=_tracked(files), roots=_roots(site), state_dir=state)
+    v2_action_neutralize(
+        cwd,
+        tracked=_tracked(files),
+        roots=_roots(site),
+        probe_run=real_import,
+        state_dir=state,
+    )
+    assert not bytecode.exists()
+    assert {rel: (site / rel).read_bytes() for rel in preserved} == preserved
+    v2_action_verify(
+        cwd,
+        tracked=_tracked(files),
+        roots=_roots(site),
+        import_run=real_import,
+        state_dir=state,
+    )
+    rc, _, stderr = real_import(
+        "try:\n"
+        "    import google.helpers\n"
+        "except ModuleNotFoundError as exc:\n"
+        "    assert exc.name == 'google.helpers'\n"
+        "else:\n"
+        "    raise AssertionError('source-less FIX still imports')\n"
+        "import google.helpers_sibling\n"
+        "assert google.helpers_sibling.DEPENDENCY is True\n"
+    )
+    assert rc == 0, stderr
+    assert {rel: (site / rel).read_bytes() for rel in preserved} == preserved
+    bytecode.write_bytes(fix_bytes)
+    with pytest.raises(SystemExit, match="untracked copy remains"):
+        v2_action_verify(cwd, tracked=_tracked(files), roots=_roots(site), state_dir=state)
+
+
+def test_namespace_neutralization_preserves_dotted_sibling_cache(tmp_path: Path) -> None:
+    files = {
+        "google/__init__.py": (
+            "from pkgutil import extend_path\n__path__ = extend_path(__path__, __name__)\n"
+        ),
+        "google/helpers.py": "BASE = True\n",
+    }
+    cwd = _repo(tmp_path, files)
+    site = tmp_path / "site-packages"
+    package = site / "google"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(files["google/__init__.py"], encoding="utf-8")
+    (package / "helpers.py").write_bytes(b"FIX = True\n")
+    dependency = package / "helpers.peer.py"
+    dependency.write_bytes(b"DEPENDENCY = True\n")
+    dependency_cache = Path(py_compile.compile(str(dependency), doraise=True))
+    cache_bytes = dependency_cache.read_bytes()
+    packages, modules = v2_project_tops(cwd, tracked=_tracked(files))
+    base = v2_base_map(cwd, packages, modules, tracked=_tracked(files))
+    matches = v2_collect_matches(cwd, packages, modules, *_roots(site))
+    v2_neutralize_matches(cwd, matches, base)
+    assert (package / "helpers.py").read_bytes() == b"BASE = True\n"
+    assert dependency.read_bytes() == b"DEPENDENCY = True\n"
+    assert dependency_cache.read_bytes() == cache_bytes
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "options = {}\noptions['namespace_packages'] = ['google.cloud']\nsetup(**options)\n",
+        "options = {}\noptions.setdefault('namespace_packages', ['google.cloud'])\nsetup(**options)\n",
+        "options.namespace_packages = ['google.cloud']\nsetup(**options)\n",
+        "namespace_packages = ['google.cloud']\nsetup(**locals())\n",
+        (
+            "setup(namespace_packages=['google'])\n"
+            "options = {}\noptions['namespace_packages'] = ['google.cloud']\nsetup(**options)\n"
+        ),
+    ],
+    ids=["subscript", "setdefault", "attribute", "indirect-name", "mixed-declarations"],
+)
+def test_unsupported_nested_namespace_metadata_refuses_before_mutation(
+    tmp_path: Path, declaration: str
+) -> None:
+    files = {
+        "google/cloud/__init__.py": "",
+        "google/cloud/logging/__init__.py": "BASE = True\n",
+        "setup.py": 'raise RuntimeError("setup code must not execute")\n' + declaration,
+    }
+    cwd = _repo(tmp_path, files)
+    site = tmp_path / "site-packages"
+    installed = {
+        "google/cloud/__init__.py": b"",
+        "google/cloud/logging/__init__.py": b"FIX = True\n",
+        "google/cloud/core/client.py": b"DEPENDENCY = True\n",
+        "google/cloud/core/client.pyc": b"unchanged dependency bytecode",
+        "google/cloud/__pycache__/other.cpython-312.pyc": b"unchanged shared cache",
+    }
+    for rel, body in installed.items():
+        path = site / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+    state = tmp_path / "state"
+    state.mkdir()
+    with pytest.raises(SystemExit, match="cannot determine namespace ownership"):
+        v2_action_neutralize(
+            cwd, tracked=_tracked(files), roots=_roots(site), state_dir=state
+        )
+    assert {rel: (site / rel).read_bytes() for rel in installed} == installed
+    assert list(state.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "setup(namespace_packages=['google.cloud'])\n",
+        "namespace_packages = ('google.cloud',)\nsetup(namespace_packages=namespace_packages)\n",
+        "options = {'namespace_packages': ['google.cloud']}\nsetup(**options)\n",
+        "options = dict(namespace_packages=['google.cloud'])\nsetup(**options)\n",
+    ],
+    ids=["keyword", "literal-name", "literal-dict", "dict-keyword"],
+)
+def test_supported_nested_namespace_metadata_preserves_siblings(
+    tmp_path: Path, declaration: str
+) -> None:
+    files = {
+        "google/cloud/__init__.py": "",
+        "google/cloud/logging/__init__.py": "BASE = True\n",
+        "setup.py": 'raise RuntimeError("setup code must not execute")\n' + declaration,
+    }
+    cwd = _repo(tmp_path, files)
+    site = tmp_path / "site-packages"
+    ours = site / "google/cloud/logging/__init__.py"
+    ours.parent.mkdir(parents=True)
+    ours.write_bytes(b"FIX = True\n")
+    dependency = site / "google/cloud/core/client.py"
+    dependency.parent.mkdir()
+    dependency.write_bytes(b"DEPENDENCY = True\n")
+    dependency_cache = dependency.with_suffix(".pyc")
+    dependency_cache.write_bytes(b"unchanged dependency bytecode")
+    packages, modules = v2_project_tops(cwd, tracked=_tracked(files))
+    base = v2_base_map(cwd, packages, modules, tracked=_tracked(files))
+    matches = v2_collect_matches(cwd, packages, modules, *_roots(site))
+    v2_neutralize_matches(cwd, matches, base)
+    assert ours.read_bytes() == b"BASE = True\n"
+    assert dependency.read_bytes() == b"DEPENDENCY = True\n"
+    assert dependency_cache.read_bytes() == b"unchanged dependency bytecode"
 
 
 def test_nested_namespace_blocks_an_ordinary_package_ancestor(tmp_path: Path) -> None:

@@ -459,8 +459,9 @@ def _v2_namespace_packages(cwd: Path, tracked: list[str]) -> set[str]:
         tree = ast.parse(text)
     except SyntaxError as exc:
         raise SystemExit(V2_ID + ": cannot parse namespace ownership from setup.py") from exc
+    recognized: set[ast.AST] = set()
     assignments = {
-        target.id: node.value
+        target.id: (target, node.value)
         for node in tree.body
         if isinstance(node, ast.Assign)
         for target in node.targets
@@ -468,21 +469,39 @@ def _v2_namespace_packages(cwd: Path, tracked: list[str]) -> set[str]:
     }
 
     def literal(node: ast.AST, seen: frozenset[str] = frozenset()) -> object:
+        recognized.add(node)
         if isinstance(node, ast.Name) and node.id in assignments and node.id not in seen:
-            return literal(assignments[node.id], seen | {node.id})
+            target, value = assignments[node.id]
+            recognized.add(target)
+            return literal(value, seen | {node.id})
         try:
-            return ast.literal_eval(node)
+            value = ast.literal_eval(node)
         except (ValueError, TypeError, SyntaxError) as exc:
             raise SystemExit(V2_ID + ": cannot determine namespace ownership from setup.py") from exc
+        recognized.update(ast.walk(node))
+        return value
 
     for node in ast.walk(tree):
         if isinstance(node, ast.keyword) and node.arg == "namespace_packages":
+            recognized.add(node)
             add(literal(node.value))
         elif isinstance(node, ast.Dict):
             for index, key in enumerate(node.keys):
                 value = node.values[index]
                 if isinstance(key, ast.Constant) and key.value == "namespace_packages":
+                    recognized.add(key)
                     add(literal(value))
+    for node in ast.walk(tree):
+        if node in recognized:
+            continue
+        # A namespace marker in a subscript, attribute, indirect call or other
+        # unsupported form is not evidence that the declaration is absent.
+        if (
+            (isinstance(node, ast.Constant) and node.value == "namespace_packages")
+            or (isinstance(node, ast.Name) and node.id == "namespace_packages")
+            or (isinstance(node, ast.Attribute) and node.attr == "namespace_packages")
+        ):
+            raise SystemExit(V2_ID + ": cannot determine namespace ownership from setup.py")
     return names
 
 
@@ -817,6 +836,19 @@ def v2_find_roots(
     return site, build, stray_pkgs, stray_mods
 
 
+def _v2_bytecode_source(rel: str) -> str | None:
+    """Return the exact source counterpart of legacy or PEP 3147/488 bytecode."""
+    if not rel.endswith((".pyc", ".pyo")):
+        return None
+    if "__pycache__" in rel.split("/"):
+        try:
+            # Older tagged caches use .pyo; their source layout is identical.
+            return importlib.util.source_from_cache(rel[:-1] + "c")
+        except (ValueError, NotImplementedError):
+            return None
+    return rel[:-1]
+
+
 def v2_match_rel(rel: str, packages: V2PackageOwnership, modules: set[str]) -> str | None:
     """Map only exact BASE files or files inside proven owned package trees.
 
@@ -827,6 +859,15 @@ def v2_match_rel(rel: str, packages: V2PackageOwnership, modules: set[str]) -> s
     comps = rel.split("/")
     comps[0] = comps[0].replace("-", "_")
     normalized = "/".join(comps)
+    source = _v2_bytecode_source(normalized)
+    if source is not None and (
+        source in packages.files or ("/" not in source and source[:-3] in modules)
+    ):
+        return normalized
+    if "__pycache__" in comps:
+        # An owned tree alone does not identify a cache's source. Keep sibling
+        # and unrecognized caches unless an exact BASE module proves ownership.
+        return None
     if len(comps) >= 2 and (
         normalized in packages.files or packages.owns_directory("/".join(comps[:-1]))
     ):
@@ -857,9 +898,13 @@ def _v2_walk_root(
         keep: list[str] = []
         for name in dirnames:
             full = Path(current) / name
-            if name == "__pycache__" or name.endswith(_V2_METADATA_SUFFIXES):
+            if Path(current).name == "__pycache__" or name.endswith(_V2_METADATA_SUFFIXES):
                 continue
             if only_top is not None and Path(current) == root and name != only_top:
+                continue
+            if name == "__pycache__":
+                if not full.is_symlink():
+                    keep.append(name)
                 continue
             if full.is_symlink():
                 if _v2_under_worktree(full, cwd_resolved):
@@ -944,12 +989,14 @@ def _v2_drop(path: Path) -> None:
 
 
 def _v2_drop_adjacent_pyc(path: Path, log: list[str]) -> None:
-    """Delete ``__pycache__`` entries compiled from a neutralized module."""
+    """Delete only adjacent bytecode with this exact module as its source."""
     if path.suffix != ".py":
         return
     cache = path.parent / "__pycache__"
     if cache.is_dir() and not cache.is_symlink():
-        for child in sorted(cache.glob(path.stem + ".*.pyc")):
+        for child in sorted(cache.iterdir()):
+            if _v2_bytecode_source(child.as_posix()) != path.as_posix():
+                continue
             try:
                 child.unlink()
             except OSError:
@@ -1001,6 +1048,9 @@ def v2_neutralize_matches(
         if tracked in base and content is None:
             raise SystemExit(V2_ID + ": cannot read BASE bytes for " + tracked)
         if tracked not in base:
+            # A preceding source match may already have removed this cache.
+            if not path.exists() and not path.is_symlink():
+                continue
             if path.suffix in _V2_COMPILED_EXTS and path.is_file():
                 log.append(V2_ID + " kept compiled artifact " + path.as_posix())
                 continue

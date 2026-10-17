@@ -1,0 +1,91 @@
+{
+  "schema": "evallab.interop.source-citation-errata/v1",
+  "card": "HAR-204",
+  "kind": "pinned-source-citation-correction-not-live-destination-parity",
+  "observed_at": "2026-10-17T16:13:54.780903+00:00",
+  "audited_revision": "9c3eb5055a0784a4a0e33bec315c00624d976d58",
+  "original_evidence": "research/evidence/har204-conversion-limits-20261017.json",
+  "original_evidence_sha256": "385555b569682b33469385f6139bc223fa8e77ce0862a5ccf4ebebfec5f064a4",
+  "original_evidence_modified": false,
+  "native_sources": {
+    "harbor/models/task/config.py": {
+      "distribution": "harbor",
+      "version": "0.24.0",
+      "sha256": "f9cd1d01960de82f1ec025c285a7367cec5eb8e3a2bb0b8e6313e7bce3283e5e"
+    },
+    "harbor/environments/definition.py": {
+      "distribution": "harbor",
+      "version": "0.24.0",
+      "sha256": "6bb4a9bb5747fd3c8dcc92dfa57f4637749fef1dbf3adf932e7400dbe6b0e3ff"
+    }
+  },
+  "adapter_sources": {
+    "src/evallab/interop_karotte.py": {
+      "sha256": "bbcf69eab20294cdea131ff427791534e1d33187ac392c420ce70320d6ab2ea7"
+    }
+  },
+  "corrections": [
+    {
+      "exclusion_id": "compose-mcp",
+      "previous_citations": ["harbor/models/task/config.py:451"],
+      "problem": "Line 451 declares environment.env, not MCP or Compose support.",
+      "corrected_citations": [
+        "harbor/models/task/config.py:450,617-636",
+        "harbor/environments/definition.py:7-23"
+      ],
+      "observed_source": [
+        "EnvironmentConfig.mcp_servers is a list of MCPServerConfig values; MCPServerConfig declares and validates server transport, URL, command and arguments.",
+        "COMPOSE_FILE_NAME is docker-compose.yaml and has_agent_environment_definition recognizes that file or extra Compose paths."
+      ],
+      "disposition": "The existing unsupported Compose/MCP conversion boundary is retained. The corrected citations establish the native declarations, not destination runtime compatibility."
+    },
+    {
+      "exclusion_id": "separate-verifier-and-custody",
+      "previous_citations": [
+        "harbor/models/task/config.py:640-757",
+        "karotte/run_helpers.py:322-410"
+      ],
+      "problem": "The old ranges describe artifacts/collect declarations and container launch, not all separate-verifier and collected-copy custody semantics.",
+      "corrected_citations": [
+        "harbor/models/task/config.py:562-598,640-757",
+        "src/evallab/interop_karotte.py:512-529"
+      ],
+      "observed_source": [
+        "VerifierConfig.environment_mode distinguishes a shared agent environment from a dedicated separate container; environment describes the dedicated image or a fresh copy of the top-level environment.",
+        "The adapter's generated collect_submission kills student processes, saves root-only submission copies, deletes student files and returns the saved copies for grading."
+      ],
+      "disposition": "The adapter's collected-copy custody remains explicitly different from Harbor shared or separate verification. Correcting the source citations does not change that behavior or establish parity."
+    }
+  ],
+  "verification": {
+    "method": "Fresh installed-distribution SHA-256 checks and direct line reads of the pinned native sources, current adapter and actual generated task files.",
+    "full_audit": "runs/interop/har204-fifth-resume/compatibility/audit.json",
+    "native_hashes_matching": 14,
+    "current_adapter_hashes_matching": 3,
+    "exclusions_reconciled": 16,
+    "actual_event_summary_export_exits": {"inspect": 0, "karotte": 0},
+    "scope": "Hash, source and export proof only. No destination solver, judge, image build or task sandbox was executed."
+  },
+  "admission": {
+    "observed_at": "2026-10-17T16:05:59.654140+00:00",
+    "admitted": false,
+    "task": "library/tasks/event-summary",
+    "sandboxes": 2,
+    "requested": {"cpus": 2, "memory_mb": 1024},
+    "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+    "raw": "runs/interop/har204-fifth-resume/admission/admission.json"
+  },
+  "acceptance": "blocked",
+  "remaining_dependency": "An authorized runtime owner must restore finite shared-service CPU/RAM bounds and sufficient headroom. Then fresh normal admission and all six Harbor/Inspect/Karotte oracle/nop controls are required; closed dependency cards, exports, historical controls and successful skips are not live parity.",
+  "execution_limits": {
+    "spend_usd": 0,
+    "model_calls": 0,
+    "cloud_runs": 0,
+    "price_probes": 0,
+    "rl_training_started": false,
+    "shared_services_modified": false,
+    "task_containers_started": 0,
+    "admission_bypassed": false,
+    "task_execution_retried_after_refusal": false
+  }
+}

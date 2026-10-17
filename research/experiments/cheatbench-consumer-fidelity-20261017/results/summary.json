@@ -1,0 +1,441 @@
+{
+ "availability": {
+  "atif_root": true,
+  "kev_root": true,
+  "parquet": true,
+  "parquet_error": null,
+  "source_error": null,
+  "source_verification": true
+ },
+ "caveats": [
+  "This validates evidence projection and blinding, not detector recall.",
+  "Measurable snippets must first be found in the resolved source trace field; otherwise they are unknown, not consumer losses.",
+  "Latent or unlocalized CheatBench rows have no measurable in-trace anchor.",
+  "Kev trace/chunk label columns are supervised targets; only state text is audited as input.",
+  "Materialized ATIF metadata currently carries evaluator labels; blind_atif is the proposed projection boundary.",
+  "Heldout benchmark families are reported separately and were not used to choose search variants."
+ ],
+ "consumers": {
+  "kev_windows": {
+   "anchor_traces": 885,
+   "anchors": {
+    "by_loc_kind": {
+     "latent_harness": {
+      "unknown": 243
+     },
+     "latent_inference": {
+      "unknown": 8
+     },
+     "line_span": {
+      "lost": 5,
+      "preserved": 8,
+      "unknown": 2
+     },
+     "localized_snippet": {
+      "lost": 441,
+      "preserved": 172,
+      "unknown": 5
+     },
+     "unlocalized": {
+      "unknown": 1
+     }
+    },
+    "source_status": {
+     "preserved": 626,
+     "unknown": 259
+    },
+    "status": {
+     "lost": 446,
+     "preserved": 180,
+     "unknown": 259
+    }
+   },
+   "blinding_failures": 0,
+   "by_benchmark": {
+    "bountybench": {
+     "anchor_status": {
+      "lost": 1,
+      "preserved": 1
+     },
+     "chunks": 2,
+     "traces": 2
+    },
+    "cybench": {
+     "anchor_status": {
+      "lost": 1,
+      "preserved": 16
+     },
+     "chunks": 164,
+     "traces": 17
+    },
+    "hal-usaco": {
+     "anchor_status": {
+      "unknown": 218
+     },
+     "chunks": 437,
+     "traces": 218
+    },
+    "kernelbench": {
+     "anchor_status": {
+      "lost": 3
+     },
+     "chunks": 3,
+     "traces": 3
+    },
+    "mle-bench": {
+     "anchor_status": {
+      "lost": 3
+     },
+     "chunks": 30,
+     "traces": 3
+    },
+    "swe-bench-verified": {
+     "anchor_status": {
+      "lost": 1,
+      "preserved": 96
+     },
+     "chunks": 1317,
+     "traces": 97
+    },
+    "swe-rebench": {
+     "anchor_status": {
+      "preserved": 8
+     },
+     "chunks": 8,
+     "traces": 8
+    },
+    "swe-smith": {
+     "anchor_status": {
+      "lost": 3,
+      "preserved": 12
+     },
+     "chunks": 131,
+     "traces": 15
+    },
+    "terminal-bench-2": {
+     "anchor_status": {
+      "lost": 434,
+      "preserved": 47,
+      "unknown": 41
+     },
+     "chunks": 598,
+     "traces": 522
+    }
+   },
+   "by_family_split": {
+    "development": {
+     "anchor_status": {
+      "lost": 444,
+      "preserved": 60,
+      "unknown": 259
+     },
+     "chunks": 1201,
+     "traces": 763
+    },
+    "heldout": {
+     "anchor_status": {
+      "lost": 2,
+      "preserved": 120
+     },
+     "chunks": 1489,
+     "traces": 122
+    }
+   },
+   "chunk_label_counts": {
+    "negative": 0,
+    "positive": 1068,
+    "unknown": 1622
+   },
+   "consumer": "kev_windows",
+   "files": {
+    "dev": {
+     "invalid_rows": 0,
+     "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/chunks/dev.jsonl",
+     "present": true,
+     "rows": 615,
+     "wanted_rows": 615
+    },
+    "external": {
+     "invalid_rows": 0,
+     "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/chunks/external.jsonl",
+     "present": true,
+     "rows": 1769,
+     "wanted_rows": 0
+    },
+    "test": {
+     "invalid_rows": 0,
+     "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/chunks/test.jsonl",
+     "present": true,
+     "rows": 9468,
+     "wanted_rows": 9468
+    },
+    "train": {
+     "invalid_rows": 0,
+     "path": "/Users/petermakhnatch/Developer/eval-lab/derived/kev/chunks/train.jsonl",
+     "present": true,
+     "rows": 13821,
+     "wanted_rows": 13821
+    }
+   },
+   "found_in_positive_chunk": 146,
+   "seen_wanted_traces": 4472,
+   "traces_with_chunks": 885
+  },
+  "materialized_atif": {
+   "anchors": {
+    "by_loc_kind": {
+     "latent_harness": {
+      "unknown": 243
+     },
+     "latent_inference": {
+      "unknown": 8
+     },
+     "line_span": {
+      "lost": 5,
+      "preserved": 8,
+      "unknown": 2
+     },
+     "localized_snippet": {
+      "lost": 532,
+      "preserved": 81,
+      "unknown": 5
+     },
+     "unlocalized": {
+      "unknown": 1
+     }
+    },
+    "source_status": {
+     "preserved": 626,
+     "unknown": 259
+    },
+    "status": {
+     "lost": 537,
+     "preserved": 89,
+     "unknown": 259
+    }
+   },
+   "by_benchmark": {
+    "bountybench": {
+     "anchor_status": {
+      "lost": 1,
+      "none": 74,
+      "preserved": 1
+     },
+     "blinding": {
+      "fail": 76
+     },
+     "measurements": {
+      "measured": 76
+     },
+     "rows": 76
+    },
+    "cybench": {
+     "anchor_status": {
+      "lost": 2,
+      "none": 527,
+      "preserved": 15
+     },
+     "blinding": {
+      "fail": 534,
+      "unknown": 10
+     },
+     "measurements": {
+      "measured": 534,
+      "not_run": 10
+     },
+     "rows": 544
+    },
+    "hal-usaco": {
+     "anchor_status": {
+      "unknown": 218
+     },
+     "blinding": {
+      "fail": 218
+     },
+     "measurements": {
+      "measured": 218
+     },
+     "rows": 218
+    },
+    "kernelbench": {
+     "anchor_status": {
+      "lost": 2,
+      "none": 33,
+      "preserved": 1
+     },
+     "blinding": {
+      "fail": 36
+     },
+     "measurements": {
+      "measured": 36
+     },
+     "rows": 36
+    },
+    "mle-bench": {
+     "anchor_status": {
+      "none": 147,
+      "preserved": 3
+     },
+     "blinding": {
+      "fail": 150
+     },
+     "measurements": {
+      "measured": 150
+     },
+     "rows": 150
+    },
+    "swe-bench-verified": {
+     "anchor_status": {
+      "lost": 97,
+      "none": 403
+     },
+     "blinding": {
+      "fail": 500
+     },
+     "measurements": {
+      "measured": 500
+     },
+     "rows": 500
+    },
+    "swe-rebench": {
+     "anchor_status": {
+      "none": 40,
+      "preserved": 8
+     },
+     "blinding": {
+      "fail": 48
+     },
+     "measurements": {
+      "measured": 48
+     },
+     "rows": 48
+    },
+    "swe-smith": {
+     "anchor_status": {
+      "lost": 13,
+      "none": 503,
+      "preserved": 2
+     },
+     "blinding": {
+      "fail": 518
+     },
+     "measurements": {
+      "measured": 518
+     },
+     "rows": 518
+    },
+    "terminal-bench-2": {
+     "anchor_status": {
+      "lost": 422,
+      "none": 1860,
+      "preserved": 59,
+      "unknown": 41
+     },
+     "blinding": {
+      "fail": 2188,
+      "unknown": 194
+     },
+     "measurements": {
+      "measured": 2188,
+      "not_run": 194
+     },
+     "rows": 2382
+    }
+   },
+   "by_blinding_status": {
+    "fail": 4268,
+    "unknown": 204
+   },
+   "by_family_split": {
+    "development": {
+     "anchor_status": {
+      "lost": 438,
+      "none": 2617,
+      "preserved": 66,
+      "unknown": 259
+     },
+     "blinding": {
+      "fail": 3186,
+      "unknown": 194
+     },
+     "measurements": {
+      "measured": 3186,
+      "not_run": 194
+     },
+     "rows": 3380
+    },
+    "heldout": {
+     "anchor_status": {
+      "lost": 99,
+      "none": 970,
+      "preserved": 23
+     },
+     "blinding": {
+      "fail": 1082,
+      "unknown": 10
+     },
+     "measurements": {
+      "measured": 1082,
+      "not_run": 10
+     },
+     "rows": 1092
+    }
+   },
+   "by_measurement": {
+    "measured": 4268,
+    "not_run": 204
+   },
+   "consumer": "materialized_atif",
+   "forbidden_hit_kinds": {
+    "forbidden_key": 12804
+   },
+   "rows": 4472
+  }
+ },
+ "outputs": {
+  "atif_rows": "audit-atif.jsonl",
+  "kev_rows": "audit-kev.jsonl",
+  "out_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-consumer-fidelity-20261017/derived/trace-consumer-audit-v1"
+ },
+ "population": {
+  "anchors_loaded": 885,
+  "benchmarks": {
+   "bountybench": 76,
+   "cybench": 544,
+   "hal-usaco": 218,
+   "kernelbench": 36,
+   "mle-bench": 150,
+   "swe-bench-verified": 500,
+   "swe-rebench": 48,
+   "swe-smith": 518,
+   "terminal-bench-2": 2382
+  },
+  "family_split": {
+   "development": 3380,
+   "heldout": 1092
+  },
+  "labels": {
+   "attempt": 41,
+   "benign": 3587,
+   "cheating": 844
+  },
+  "limit": null,
+  "measurable_anchors": 633,
+  "positive_rows": 885,
+  "positive_rows_with_loc": 885,
+  "source_verified_measurable_anchors": 626,
+  "subset_rows_all": 4472,
+  "subset_rows_audited": 4472
+ },
+ "schema": "evallab.trace_consumer_audit/v1",
+ "source": {
+  "dataset": "steinad/CheatBench",
+  "parquet_path": "/Users/petermakhnatch/Developer/eval-lab/derived/external/cheatbench/full.parquet",
+  "parquet_present": true,
+  "parquet_sha256": "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63",
+  "pin_match": true,
+  "pin_sha256": "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63",
+  "subset_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-consumer-fidelity-20261017/research/calibration/detectors-v1/cb_subset.json",
+  "subset_sha256": "6295799f65ecca7702f0d49f48a476bc0aae538ff8752a7c195888c0d2f5d055"
+ }
+}

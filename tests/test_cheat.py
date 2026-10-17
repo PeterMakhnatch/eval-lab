@@ -458,6 +458,11 @@ class BashRun:
         completed = subprocess.run(
             ["bash", "-c", script],
             cwd=self.cwd,
+            # Fixture scripts and their verifier must use the same Python ABI.
+            env={
+                **os.environ,
+                "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ.get('PATH', '')}",
+            },
             capture_output=True,
             text=True,
             timeout=timeout_sec + 30,

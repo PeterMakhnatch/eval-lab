@@ -1,14 +1,9 @@
-"""Karotte generic runner: plans, specs, transcript verdicts, no docker ($0).
-
-Live-Docker execution is covered by manual smoke cells (see the worker's
-final report), never by these tests: every external probe or subprocess is
-injected or stubbed here per the deterministic-test rule. Agent scripts come
-from ``evallab.interop.scripted_agent_plan`` (identical on every platform).
-"""
+"""Deterministic Karotte grading and runtime boundaries; no Docker or models."""
 
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -241,19 +236,103 @@ def test_fake_model_from_canonical_plan_executes():
     assert cheat[0]["tool_calls"][0]["arguments"]["timeout_s"] == ik.CHEAT_TIMEOUT_S
 
 
-def test_render_scoring_embeds_canonical_parser():
-    from evallab.interop import parse_reward_bytes
+@pytest.fixture
+def rendered_scoring(tmp_path, monkeypatch):
+    namespace: dict = {"__name__": "scoring_under_test"}
+    exec(compile(ik._render_scoring(), "scoring_script.py", "exec"), namespace)  # noqa: S102
+    work = tmp_path / "work"
+    tests = tmp_path / "verifier"
+    logs = tmp_path / "logs"
+    for path in (work, tests, logs):
+        path.mkdir()
+    (tests / "test.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    output = tmp_path / "score.json"
+    namespace.update(TESTS_SRC=tests, TESTS_DST=tmp_path / "tests", LOG_DIR=logs)
+    monkeypatch.setattr(sys, "argv", ["scoring", "60", str(work), str(output)])
+    return namespace, work, logs, output
 
-    source = ik._render_scoring()
-    assert "def parse_reward_bytes(" in source
-    assert "@@PARSE_REWARD_BYTES@@" not in source
-    compile(source, "scoring_script.py", "exec")
-    namespace: dict = {}
-    exec(compile(source, "scoring_script.py", "exec"), namespace)  # noqa: S102
-    embedded = namespace["parse_reward_bytes"]
-    assert embedded(b"1", None) == parse_reward_bytes(b"1", None) == 1.0
-    with pytest.raises(FileNotFoundError):
-        embedded(None, None)
+
+@pytest.mark.parametrize(
+    ("reward_bytes", "verifier_exit", "timed_out", "reward"),
+    [
+        (b"1", 0, False, 1.0),
+        (b"0", 1, False, 0.0),
+        (None, 0, False, None),
+        (b"not-a-reward", 0, False, None),
+        (b"1", 0, True, None),
+    ],
+)
+def test_rendered_scoring_distinguishes_rewards_from_errors(
+    rendered_scoring, reward_bytes, verifier_exit, timed_out, reward
+):
+    namespace, _work, logs, output = rendered_scoring
+    (logs / "reward.txt").write_bytes(b"1")  # Must not survive a verifier with no reward.
+
+    def verify(command, **kwargs):
+        if reward_bytes is not None:
+            (logs / "reward.txt").write_bytes(reward_bytes)
+        if timed_out:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return subprocess.CompletedProcess(command, verifier_exit, stdout="", stderr="")
+
+    namespace["subprocess"] = types.SimpleNamespace(
+        run=verify, TimeoutExpired=subprocess.TimeoutExpired
+    )
+    assert namespace["main"]() == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    # ExecutableJudge serializes every metadata value with str().
+    metadata = {key: str(value) for key, value in payload["metadata"].items()}
+    summary = ik.parse_transcript(
+        {
+            "events": [
+                scoring_event(payload["score"], **metadata),
+                {"type": "task_completed", "status": "failed" if payload["score"] < 1 else "passed"},
+            ]
+        }
+    )
+    assert summary["reward"] == reward
+    if reward is None:
+        assert metadata["error"]
+        assert "verdict" not in metadata
+        assert summary["errors"]
+    else:
+        assert summary["errors"] == []
+        assert metadata["verdict"] == ("pass" if reward >= 1 else "fail")
+        assert int(metadata["exit"]) == verifier_exit
+
+
+def test_rendered_scoring_rejects_partial_submission_restore(rendered_scoring, monkeypatch):
+    namespace, work, logs, output = rendered_scoring
+    blocker = work / "not-a-directory"
+    blocker.write_text("cannot restore beneath this file", encoding="utf-8")
+    saved = work / "saved.txt"
+    saved.write_text("submission", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["scoring", "60", str(work), str(blocker / "answer.txt"), str(saved), str(output)],
+    )
+
+    def verify(command, **kwargs):
+        (logs / "reward.txt").write_bytes(b"1")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    namespace["subprocess"] = types.SimpleNamespace(
+        run=verify, TimeoutExpired=subprocess.TimeoutExpired
+    )
+    assert namespace["main"]() == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["metadata"]["unrestored_submissions"]
+    assert payload["metadata"]["error"]
+    assert "verdict" not in payload["metadata"]
+    assert ik.parse_transcript(
+        {
+            "events": [
+                scoring_event(payload["score"], **payload["metadata"]),
+                {"type": "task_completed", "status": "failed"},
+            ]
+        }
+    )["reward"] is None
 
 
 def scoring_event(score, **meta):
@@ -273,7 +352,7 @@ def test_parse_transcript_pass_fail():
                 "events": [
                     scoring_event(0.0),
                     scoring_event(score),
-                    {"type": "task_completed", "status": "passed"},
+                    {"type": "task_completed", "status": "failed" if score < 1 else "passed"},
                 ],
             }
         )
@@ -296,12 +375,75 @@ def test_parse_transcript_error_and_misbehavior():
     assert summary["reward"] is None
     assert summary["errors"] == ["kablam"]
     summary = ik.parse_transcript(
-        {"run_id": "r", "events": [scoring_event(0.0, misbehavior="symlink")]},
+        {
+            "run_id": "r",
+            "events": [
+                scoring_event(0.0, misbehavior="symlink"),
+                {"type": "task_completed", "status": "failed"},
+            ],
+        },
     )
     assert summary["reward"] == 0.0
     assert summary["misbehavior"] == "symlink"
     for bad in (None, [], {"no": "events"}, {"events": "x"}):
         assert ik.parse_transcript(bad)["reward"] is None
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"error": "neither reward.txt nor reward.json exists"},
+        {"error": "test.sh timed out after 60s"},
+        {"tempdir_error": "No space left on device"},
+        {"CalledProcessError": "scoring process exited 1"},
+        {"FileNotFoundError": "scoring executable missing"},
+        {"json_read_error": "score output missing"},
+    ],
+)
+def test_parse_transcript_rejects_judge_placeholder_zeroes(metadata):
+    summary = ik.parse_transcript(
+        {
+            "events": [
+                scoring_event(0.0, **metadata),
+                {"type": "task_completed", "status": "failed"},
+            ]
+        }
+    )
+    assert summary["reward"] is None
+    assert summary["errors"]
+    assert summary["scoring"]["metadata"] == metadata
+
+
+@pytest.mark.parametrize("score", [True, None, "1", float("nan"), float("inf")])
+def test_parse_transcript_rejects_invalid_scores(score):
+    summary = ik.parse_transcript(
+        {"events": [scoring_event(score), {"type": "task_completed", "status": "passed"}]}
+    )
+    assert summary["reward"] is None
+    assert summary["errors"]
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        [scoring_event(1.0)],
+        [scoring_event(1.0), {"type": "task_completed", "status": "error"}],
+        [
+            {"type": "error", "message": "post-scoring hook failed"},
+            scoring_event(1.0),
+            {"type": "task_completed", "status": "passed"},
+        ],
+        [
+            scoring_event(0.0, error="verifier failed to launch"),
+            scoring_event(1.0),
+            {"type": "task_completed", "status": "passed"},
+        ],
+    ],
+)
+def test_parse_transcript_rejects_incomplete_or_fatal_runs(events):
+    summary = ik.parse_transcript({"events": events})
+    assert summary["reward"] is None
+    assert summary["errors"]
 
 
 def test_ladder_records_extraction():
@@ -351,6 +493,19 @@ def test_karotte_env_drops_ci(monkeypatch):
     assert ik._karotte_env({"A": "b"})["A"] == "b"
 
 
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "gone"),
+    [(0, "", True), (0, "karotte_run_owned\n", False), (1, "", False)],
+)
+def test_container_cleanup_requires_a_successful_observation(monkeypatch, returncode, stdout, gone):
+    monkeypatch.setattr(
+        ik.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], returncode, stdout=stdout),
+    )
+    assert ik._container_gone("karotte_run_owned") is gone
+
+
 def test_run_cell_rejects_bad_agent(tmp_path):
     with pytest.raises(ValueError, match="unknown karotte agent"):
         ik.run_cell(TXN_TASK, "oracle-ish", (), workdir=tmp_path)
@@ -376,54 +531,45 @@ def test_run_cell_oracle_without_solution_skips_without_docker(tmp_path):
     assert cell["verdict"] == "error"
 
 
-def test_run_cell_skipped_without_daemon(tmp_path, monkeypatch):
-    monkeypatch.setattr(ik, "docker_daemon_ok", lambda timeout=30: (False, "down"))
-    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=tmp_path)
-    assert cell["verdict"] == "skipped"
-    assert cell["reward"] is None and cell["evidence"] is None
-
-
-class _Done:
-    returncode = 0
-    stdout = ""
-    stderr = ""
-
-
-def _stub_run_factory(score: float):
-    def _stub_run(cmd, **kwargs):
-        assert "--dev" in cmd  # per-cell fake_model rides the dev bind-mount
-        config_path = cmd[cmd.index("--config") + 1]
+def _stub_run_factory(score: float, *, metadata=None, events=None, returncode=0):
+    def run(command, **kwargs):
+        config_path = command[command.index("--config") + 1]
         config = json.loads(Path(config_path).read_text(encoding="utf-8"))
-        assert config["use_fake_model"] is True
         out = Path(config["transcript_file"])
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(
             json.dumps(
                 {
                     "run_id": config["run_id"],
-                    "events": [
-                        scoring_event(score),
-                        {"type": "task_completed", "status": "passed"},
+                    "events": events
+                    if events is not None
+                    else [
+                        scoring_event(score, **(metadata or {})),
+                        {"type": "task_completed", "status": "failed" if score < 1 else "passed"},
                     ],
                 }
             ),
             encoding="utf-8",
         )
-        return _Done()
+        return subprocess.CompletedProcess(command, returncode, stdout="", stderr="")
 
-    return _stub_run
+    return run
 
 
-def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
-    def _assemble(task, spec, env_dir, *, base_tag):
+@pytest.fixture
+def karotte_runtime(monkeypatch):
+    def assemble(task, spec, env_dir, *, base_tag):
         (Path(env_dir) / "src" / "environment").mkdir(parents=True, exist_ok=True)
         return {"env_dir": str(env_dir)}
 
-    monkeypatch.setattr(ik, "docker_daemon_ok", lambda timeout=30: (True, "mock"))
     monkeypatch.setattr(
-        ik, "ensure_harbor_base", lambda task, spec, build_timeout: {"tag": "base", "kind": "mock"}
+        "evallab.campaign_execution.docker_available_resources", lambda: (8.0, 16384)
     )
-    monkeypatch.setattr(ik, "assemble_env", _assemble)
+    monkeypatch.setattr(ik, "docker_daemon_ok", lambda timeout=30: (True, "injected daemon"))
+    monkeypatch.setattr(
+        ik, "ensure_harbor_base", lambda task, spec, build_timeout: {"tag": "base", "kind": "injected"}
+    )
+    monkeypatch.setattr(ik, "assemble_env", assemble)
     monkeypatch.setattr(ik, "resolved_karotte_version", lambda env_dir: "3.0.59")
     monkeypatch.setattr(
         ik, "ensure_image", lambda env_dir, build_timeout=1800: {"tag": "t", "rebuilt": False}
@@ -431,22 +577,136 @@ def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ik,
         "_watch_bounds",
-        lambda name, stop, record, cpus="2", memory="2g": record.update(bounded=True),
+        lambda name, stop, record, **kwargs: record.update(bounded=True),
     )
     monkeypatch.setattr(ik, "_remove_own_container", lambda name: True)
-    import evallab.cheat_ladder as ladder
-
-    assert ladder.ATTACKS  # ladder module present for cheat staging
     monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(1.0))
+
+
+@pytest.mark.parametrize("refusal", ["unbounded container", "insufficient capacity"])
+def test_run_cell_admission_refusal_prevents_runtime(tmp_path, monkeypatch, refusal):
+    def available():
+        if refusal == "unbounded container":
+            raise ValueError("an existing Docker container has unbounded CPU or memory")
+        return 0.0, 0
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("image preparation or runtime reached after admission refusal")
+
+    monkeypatch.setattr("evallab.campaign_execution.docker_available_resources", available)
+    for name in ("docker_daemon_ok", "ensure_harbor_base", "assemble_env", "ensure_image"):
+        monkeypatch.setattr(ik, name, unexpected)
+    monkeypatch.setattr(ik.subprocess, "run", unexpected)
     work = tmp_path / "work"
-    cell = ik.run_cell(TXN_TASK, "oracle", (), workdir=work)
-    assert cell["verdict"] == "pass" and cell["reward"] == 1.0
+    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=work)
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    assert cell["evidence"] == str(work)
+    admission = json.loads((work / "admission.json").read_text(encoding="utf-8"))
+    assert admission["admitted"] is False
+    assert admission["reason"] == cell["reason"]
+
+
+def test_run_cell_unreachable_daemon_is_error_with_evidence(
+    tmp_path, monkeypatch, karotte_runtime
+):
+    monkeypatch.setattr(ik, "docker_daemon_ok", lambda timeout=30: (False, "connection refused"))
+    work = tmp_path / "work"
+    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=work)
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    assert cell["evidence"] == str(work)
+    assert json.loads((work / "admission.json").read_text(encoding="utf-8"))["admitted"] is True
+    daemon = json.loads((work / "daemon.json").read_text(encoding="utf-8"))
+    assert daemon == {"available": False, "detail": "connection refused"}
+
+
+@pytest.mark.parametrize(
+    ("agent", "score", "verdict"),
+    [("oracle", 1.0, "pass"), ("nop", 0.0, "fail"), ("cheat", 1.0, "pass")],
+)
+def test_run_cell_returns_only_valid_bounded_scores(
+    tmp_path, monkeypatch, karotte_runtime, agent, score, verdict
+):
+    monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(score))
+    work = tmp_path / "work"
+    cell = ik.run_cell(TXN_TASK, agent, (), workdir=work)
+    assert cell["verdict"] == verdict and cell["reward"] == score
     assert cell["platform_version"] == "3.0.59"
     evidence = json.loads(Path(cell["evidence"]).read_text(encoding="utf-8"))
     assert evidence["container_bounded"] is True
     assert evidence["container_removed"] is True
     assert evidence["spec"]["workdir"] == "/app"
-    assert evidence["plan"]["command"] == "bash /solution/solve.sh"
-    monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(0.0))
-    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=work)
-    assert cell["verdict"] == "fail" and cell["reward"] == 0.0
+    assert json.loads(Path(evidence["admission"]).read_text(encoding="utf-8"))["admitted"] is True
+    config = json.loads(next(work.glob("*.config.json")).read_text(encoding="utf-8"))
+    assert config["use_fake_model"] is True and config["model"] == "fake/fake"
+
+
+@pytest.mark.parametrize(
+    ("score", "metadata", "returncode", "bounded"),
+    [
+        (1.0, {}, 0, False),
+        (0.0, {"error": "neither reward.txt nor reward.json exists"}, 0, True),
+        (0.0, {"CalledProcessError": "scoring process failed"}, 0, True),
+        (1.0, {}, 125, True),
+    ],
+)
+def test_run_cell_invalid_runtime_cannot_pass_or_fail(
+    tmp_path, monkeypatch, karotte_runtime, score, metadata, returncode, bounded
+):
+    monkeypatch.setattr(
+        ik.subprocess, "run", _stub_run_factory(score, metadata=metadata, returncode=returncode)
+    )
+    monkeypatch.setattr(
+        ik, "_watch_bounds", lambda name, stop, record, **kwargs: record.update(bounded=bounded)
+    )
+    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=tmp_path / "work")
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    evidence = json.loads(Path(cell["evidence"]).read_text(encoding="utf-8"))
+    assert evidence["error"] == cell["reason"]
+    assert evidence["container_bounded"] is bounded
+    assert evidence["run_exit"] == returncode
+    assert evidence["scoring"]["score"] == score
+
+
+@pytest.mark.parametrize(
+    ("stage", "exception"),
+    [
+        ("setup", RuntimeError("image setup failed")),
+        ("setup", subprocess.TimeoutExpired(["karotte", "build"], 3)),
+        ("run", OSError("runtime executable unavailable")),
+        ("run", subprocess.TimeoutExpired(["karotte", "run"], 3)),
+        ("run", None),
+    ],
+)
+def test_run_cell_runtime_failures_preserve_evidence(
+    tmp_path, monkeypatch, karotte_runtime, stage, exception
+):
+    def fail(*args, **kwargs):
+        if exception is not None:
+            raise exception
+        return subprocess.CompletedProcess(args[0], 1, stdout="", stderr="no transcript")
+
+    if stage == "setup":
+        monkeypatch.setattr(ik, "ensure_image", fail)
+    else:
+        monkeypatch.setattr(ik.subprocess, "run", fail)
+    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=tmp_path / "work", timeout_seconds=3)
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    evidence = json.loads(Path(cell["evidence"]).read_text(encoding="utf-8"))
+    assert evidence["error"] == cell["reason"]
+    assert evidence["task_id"] == cell["task_id"]
+
+
+def test_run_cell_fatal_transcript_error_cannot_hide_behind_a_score(
+    tmp_path, monkeypatch, karotte_runtime
+):
+    events = [
+        scoring_event(1.0),
+        {"type": "error", "message": "post-scoring infrastructure failure"},
+        {"type": "task_completed", "status": "error"},
+    ]
+    monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(1.0, events=events))
+    cell = ik.run_cell(TXN_TASK, "nop", (), workdir=tmp_path / "work")
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    evidence = json.loads(Path(cell["evidence"]).read_text(encoding="utf-8"))
+    assert "post-scoring infrastructure failure" in evidence["errors"]
+    assert evidence["error"] == cell["reason"]

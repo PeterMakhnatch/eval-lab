@@ -1,0 +1,367 @@
+{
+  "acceptance": "blocked",
+  "verification": {
+    "focused_prepush": {
+      "command": "scripts/premerge.sh --focused tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py::test_fixture_pyc_shadow_passes_without_source_edit -n 4 -rs",
+      "exit": 0,
+      "uv": "0.9.24",
+      "python": "3.12",
+      "ty": "0.0.71",
+      "type_diagnostics": 0,
+      "static_gates": ["locked install", "ruff", "docindex", "repomap", "governance", "registry audit", "lessons", "ty"],
+      "passed": 171,
+      "skipped": 8,
+      "limits": "One opt-in Docker skip; seven verifiers optional-dependency skips after the required base-profile sync. The separate integrated run above installed and exercised those dependencies."
+    },
+    "earlier_combined_prepush": {
+      "result": "timed out at 600 seconds after static gates passed; pytest interrupted",
+      "scope": "Not a passing checkpoint; not substituted for the recorded successful bounded focused checkpoint or full exact-head CI."
+    },
+    "integrated_optional_dependencies": {
+      "command": ".venv/bin/python -m pytest -n 4 tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py tests/test_cheat_docker.py",
+      "exit": 0,
+      "passed": 240,
+      "skipped": 3,
+      "scope": "Integrated local regressions with actual optional framework dependencies installed; opt-in Docker checks skipped, not live execution proof."
+    },
+    "docker_free_application_smoke": {
+      "command": ".venv/bin/python -m evallab.smoke --docker-free",
+      "exit": 0,
+      "observed": ["doctor", "submit->tick", "catalog", "parquet", "digest", "analysis validation", "status snapshot", "both-stores-agree"],
+      "job": "smoke-oracle-q2vxwzw86kje",
+      "job_id": "886e92a2-0de4-4384-b7ad-aa8c623e96b1",
+      "scope": "Docker-free application smoke; not a real task oracle, destination runtime or model-capability result."
+    }
+  },
+  "actual_framework_construction": {
+    "inspect": {
+      "compose_config_exit": 0,
+      "nop_type": "inspect_ai._eval.task.task.Task",
+      "oracle_type": "inspect_ai._eval.task.task.Task",
+      "task_id": "local-lab/event-summary",
+      "version": "0.3.276"
+    },
+    "karotte": {
+      "containers_started": 0,
+      "grade_timeout_seconds": 300.0,
+      "kind": "actual-karotte-api-task-construction-not-control-execution",
+      "limits": "Task construction only: no pre-scoring hook, judge, solution or task verifier was executed.",
+      "model_calls": 0,
+      "source_verifier_timeout_seconds": 60.0,
+      "step_type": "environment.tasks.local_lab_event_summary.LocalLabEventSummaryStep",
+      "submission_paths": [
+        "/app/input/events.jsonl",
+        "/app/output/summary.json"
+      ],
+      "task_type": "environment.tasks.local_lab_event_summary.LocalLabEventSummaryTask",
+      "use_fake_model": true,
+      "version": "3.0.59",
+      "workdir": "/app"
+    },
+    "scope": "Actual installed framework APIs and real task; no solver, judge, sandbox or task verifier execution."
+  },
+  "agentenv_historical_evidence": {
+    "all_controls_zero_model_calls": true,
+    "base_controls": [
+      {
+        "agentenv_score": 1.0,
+        "bench_verdict": "PASS",
+        "control": "oracle",
+        "model_calls": 0,
+        "model_client_modules_loaded": [],
+        "reachable_data_planes": [
+          "trajectory",
+          "anaplan_workforce_compensation",
+          "bluesky_approval_workflow",
+          "depaul_compensation_audit_register",
+          "workday_hcm"
+        ],
+        "upstream_verdict": "PASS",
+        "variant": "base"
+      },
+      {
+        "agentenv_score": 0.0,
+        "bench_verdict": "FAIL",
+        "control": "nop",
+        "model_calls": 0,
+        "model_client_modules_loaded": [],
+        "reachable_data_planes": [
+          "trajectory",
+          "anaplan_workforce_compensation",
+          "bluesky_approval_workflow",
+          "depaul_compensation_audit_register",
+          "workday_hcm"
+        ],
+        "upstream_verdict": "FAIL",
+        "variant": "base"
+      }
+    ],
+    "control_count": 11,
+    "limits": [
+      "No Harbor converter is implemented.",
+      "Solver-role tool RBAC did not prevent reaching trajectory or full database data planes.",
+      "The report-facts check was a deterministic proxy, not the upstream paid LLM judge.",
+      "This is historical HAR-190 evidence, not a new run."
+    ],
+    "sha256": "d7895097027f96d36c202ba3d77441c1078137f32bbbff1d633116e1a511dc90",
+    "source": "/Users/petermakhnatch/Developer/eval-lab/runs/agentenv-bench/aenv-final/receipt.json",
+    "started_utc": "2026-10-07T02:53:31.700883+00:00"
+  },
+  "card": "HAR-204",
+  "containers_started": 0,
+  "existing_slice_cli_smokes": [
+    {
+      "args": [
+        "grid",
+        "compare",
+        "research/evidence/runs/event-summary-oracle-evidence",
+        "research/evidence/runs/event-summary-nop-evidence"
+      ],
+      "exit": 0,
+      "raw_stdout": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131242339441Z-a7b70d9ddd3b4dac9b0add37d08f6ac6/runs/interop/har204-inspect-source-proof/grid-cli.stdout.txt"
+    },
+    {
+      "args": [
+        "hack-queue",
+        "research/evidence/runs/event-summary-oracle-evidence",
+        "--json"
+      ],
+      "exit": 0,
+      "raw_stdout": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131242339441Z-a7b70d9ddd3b4dac9b0add37d08f6ac6/runs/interop/har204-inspect-source-proof/hack-queue-cli.stdout.txt"
+    },
+    {
+      "args": [
+        "cheat",
+        "run",
+        "--help"
+      ],
+      "exit": 0,
+      "raw_stdout": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131242339441Z-a7b70d9ddd3b4dac9b0add37d08f6ac6/runs/interop/har204-inspect-source-proof/cheat-cli.stdout.txt"
+    }
+  ],
+  "historical_native_controls": {
+    "command": [
+      "grid",
+      "compare",
+      "research/evidence/runs/event-summary-oracle-evidence",
+      "research/evidence/runs/event-summary-nop-evidence"
+    ],
+    "harbor_version": "0.21.0",
+    "observed_nop_pass_rate": 0.0,
+    "observed_oracle_pass_rate": 1.0,
+    "scope": "Read-only comparison of committed historical evidence, not new controls or current-version parity."
+  },
+  "inspect_export_regression": {
+    "baseline": {
+      "build_context": "baseline",
+      "copy_events_source_exists": false,
+      "cpus": null,
+      "lossy_notes": [
+        "network_mode='public': the Harbor agent/verifier network policy has no Inspect-AI-sandbox equivalent; the exported compose service uses the default docker network.",
+        "verifier.environment_mode=separate: Harbor runs this verifier in a separate image (see tests/Dockerfile); the export scores in the same sandbox image, so verifier-only system deps must be folded in manually."
+      ],
+      "memory": null,
+      "solution_in_build_context": true,
+      "tests_in_build_context": true,
+      "workdir": null
+    },
+    "revised": {
+      "build_context": "revised/environment",
+      "copy_events_source_exists": true,
+      "cpus": 1,
+      "lossy_notes": [
+        "network_mode='public': the export uses the default Docker network, not Harbor's network policy or Eval Lab host-isolation backend.",
+        "verifier.environment_mode=separate: the export grades in the agent sandbox, not a fresh verifier image with declared-artifact transfer.",
+        "GPU/storage limits are not enforced; only CPU and memory map to Compose.",
+        "agent.timeout_sec: the exported solver uses Inspect's execution timeout."
+      ],
+      "memory": "512m",
+      "solution_in_build_context": false,
+      "tests_in_build_context": false,
+      "workdir": "/app"
+    }
+  },
+  "local_admission": {
+    "cells": {
+      "harbor:nop": "error",
+      "harbor:oracle": "error",
+      "inspect:nop": "error",
+      "inspect:oracle": "error",
+      "karotte:nop": "error",
+      "karotte:oracle": "error",
+      "verifiers:nop": "error",
+      "verifiers:oracle": "error"
+    },
+    "command": "evallab interop matrix library/tasks/event-summary --targets harbor inspect karotte verifiers --agents oracle nop --json",
+    "exit": 2,
+    "grading": "incomplete",
+    "limitations": [
+      "Capacity is a fresh observation, not a host-global reservation.",
+      "No live destination control scored, so no parity result exists."
+    ],
+    "policy": "Reuse campaign_execution.docker_available_resources; do not bypass shared-daemon refusal or mutate another owner's services.",
+    "raw_matrix": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131242339441Z-a7b70d9ddd3b4dac9b0add37d08f6ac6/runs/interop/matrix-soqhcm_z/matrix.json",
+    "reasons": {
+      "harbor:nop": "harbor execution failed: ValueError: local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "harbor:oracle": "harbor execution failed: ValueError: local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "inspect:nop": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "inspect:oracle": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "karotte:nop": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "karotte:oracle": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+      "verifiers:nop": "verifiers cell failed: ValueError: local-lab/event-summary: unsupported verifiers 0.3.1 task contract: [environment].storage_mb (Docker disk limits are not enforced); tests/Dockerfile (separate verifier image is not built)",
+      "verifiers:oracle": "verifiers cell failed: ValueError: local-lab/event-summary: unsupported verifiers 0.3.1 task contract: [environment].storage_mb (Docker disk limits are not enforced); tests/Dockerfile (separate verifier image is not built)"
+    }
+  },
+  "model_calls": 0,
+  "no_cloud_price_probe_or_rl_training": true,
+  "observed_at": "2026-10-17T13:35:09.918034+00:00",
+  "outstanding": "Run the emitted Inspect task and converted Karotte task with oracle/nop under successful normal local admission, and compare to same-version Harbor controls. Constructor/parser checks and historical narrative are not substitutes.",
+  "raw_probe_receipts": {
+    "karotte-construction.json": "413f5b505ea3a3d877ff05b72e67e865dae063ca1d9dc8725b3a8d67122a608a",
+    "matrix.stdout.json": "5783c3472cce598376c5da3f62feced21df7bd919da4b721e036b411a8ec139f",
+    "receipt.json": "45f3ce9a04df28ae4915e83993b85768513b60bf0b725a81c76b4bedb7cc64dd",
+    "verifiers-compatibility.json": "3ad16043c6ff96e435a84dbe62666457dcbf456a625f5e03d6b177fe783ddbf5"
+  },
+  "schema": "evallab.interop.acceptance-evidence/v1",
+  "source_baseline": "cc68bb8a2da499dd6f87345491da14f2142165b9",
+  "source_sha256": {
+    "src/evallab/interop.py": "353a30fae6e9715bcb40dab34b3c6d52338ff254a618c47e31f94e08cf07ac1c",
+    "src/evallab/interop_karotte.py": "ae2381f80aa8a63777d077afd4d36374e3e868dde0f994bd16ee5ae0225bfe32",
+    "src/evallab/interop_verifiers.py": "02843a37c8ec4e8fbb2c948ece46f83bf5d173d3fcc705f3988ae09f14b087cb"
+  },
+  "spend_usd": 0,
+  "verifiers_compatibility": {
+    "containers_started": 0,
+    "installed_source_verified_against_wheel": [
+      {
+        "sha256": "89d478628d542472f005d025a00674d0123e49a271afafada35c312af420aaf4",
+        "wheel_member": "verifiers/v1/tasksets/harbor/taskset.py"
+      },
+      {
+        "sha256": "2bac5b2404f5177f8fb603f91ae9b6509290f117b5633f7404ff1473b36979ce",
+        "wheel_member": "verifiers/v1/runtimes/docker/__init__.py"
+      },
+      {
+        "sha256": "2015f7171889d9125a897d9a2a0850d79725147bc9a4f517cbc19640ea4d8583",
+        "wheel_member": "verifiers/v1/configs/runtime.py"
+      }
+    ],
+    "kind": "real-task-parsers-and-source-integrity-not-control-execution",
+    "model_calls": 0,
+    "tasks": [
+      {
+        "adapter_contract": {
+          "reason": "local-lab/event-summary: unsupported verifiers 0.3.1 task contract: [environment].storage_mb (Docker disk limits are not enforced); tests/Dockerfile (separate verifier image is not built)",
+          "status": "error"
+        },
+        "karotte_mapping_flags": [
+          {
+            "code": "submission-custody",
+            "detail": "Karotte kills student processes, wipes the workdir and grades collected submission copies, rather than grading Harbor's live agent filesystem."
+          },
+          {
+            "code": "post-start-resource-limits",
+            "detail": "CPU/RAM limits are applied after container startup by docker update; they are not creation-time limits. A run with unapplied bounds is an error."
+          },
+          {
+            "code": "network-policy",
+            "detail": "task.toml network_mode='public' has no karotte equivalent: karotte cannot enforce Harbor network policies, it only confines the student (or degrades to open). Re-check any verifier that depends on egress control."
+          },
+          {
+            "code": "separate-verifier-image",
+            "detail": "verifier.environment_mode=separate: Harbor scores in a dedicated verifier image (tests/Dockerfile). The generic runner grades in the same container with the task toolchain; fold verifier-only system deps into the grade or accept the drift."
+          },
+          {
+            "code": "agent-timeout",
+            "detail": "The runner's timeout bounds the whole Karotte run, not Harbor's agent phase."
+          },
+          {
+            "code": "storage-gpu-limits",
+            "detail": "Only CPU/RAM limits are applied; task storage/GPU requests are not mapped."
+          },
+          {
+            "code": "verifier-timeout",
+            "detail": "Declared verifier timeout 60s is clamped to the runner's 300\u20132100s range."
+          }
+        ],
+        "native_verifier": {
+          "bundled_tests": true,
+          "directory": "tests"
+        },
+        "task_id": "local-lab/event-summary",
+        "task_path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131242339441Z-a7b70d9ddd3b4dac9b0add37d08f6ac6/library/tasks/event-summary",
+        "task_toml_sha256": "9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8",
+        "upstream_parse": {
+          "image": null,
+          "resources": {
+            "cpu": 1.0,
+            "disk": 2.0,
+            "gpu": null,
+            "memory": 0.5
+          },
+          "status": "parsed-without-runtime",
+          "verifier": {
+            "env": {},
+            "fresh_copy": true,
+            "healthcheck": null,
+            "image": null,
+            "network_allow": [
+              "*"
+            ],
+            "resources": {
+              "cpu": null,
+              "disk": null,
+              "gpu": null,
+              "memory": null
+            },
+            "workdir": null
+          }
+        }
+      },
+      {
+        "adapter_contract": {
+          "reason": "mimo-v2.6-rl/format-code-task-002552: unsupported verifiers 0.3.1 task contract: [verifier].user",
+          "status": "error"
+        },
+        "karotte_mapping_flags": [
+          {
+            "code": "submission-custody",
+            "detail": "Karotte kills student processes, wipes the workdir and grades collected submission copies, rather than grading Harbor's live agent filesystem."
+          },
+          {
+            "code": "post-start-resource-limits",
+            "detail": "CPU/RAM limits are applied after container startup by docker update; they are not creation-time limits. A run with unapplied bounds is an error."
+          },
+          {
+            "code": "network-policy",
+            "detail": "task.toml network_mode='public' has no karotte equivalent: karotte cannot enforce Harbor network policies, it only confines the student (or degrades to open). Re-check any verifier that depends on egress control."
+          },
+          {
+            "code": "verifier-user",
+            "detail": "The generic judge grades as root."
+          },
+          {
+            "code": "agent-timeout",
+            "detail": "The runner's timeout bounds the whole Karotte run, not Harbor's agent phase."
+          }
+        ],
+        "native_verifier": {
+          "mode": "shared"
+        },
+        "task_id": "mimo-v2.6-rl/format-code-task-002552",
+        "task_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002552",
+        "task_toml_sha256": "f2155fa37a629e559d39ea3414c84bf59e1502fe7bf5225e2ed66403ae908645",
+        "upstream_parse": {
+          "reason": "format-code-task-002552: [verifier].user is not supported",
+          "status": "error",
+          "type": "ValueError"
+        }
+      }
+    ],
+    "versions": {
+      "harbor": "0.24.0",
+      "verifiers": "0.3.1"
+    },
+    "wheel_sha256": "105cd114184625895b3d1a07ddc418f08a0ddadcd9cb20dad5acb763ccb01725"
+  }
+}

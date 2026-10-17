@@ -24,13 +24,23 @@ import base64
 import importlib.metadata
 import importlib.util
 import json
+import math
 import re
 import subprocess
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from evallab.interop import load_harbor_task, scripted_agent_plan, task_workdir, verdict_for_reward
+from evallab.interop import (
+    HarborTask as LocalHarborTask,
+)
+from evallab.interop import (
+    admit_local_task,
+    load_harbor_task,
+    scripted_agent_plan,
+    task_workdir,
+    verdict_for_reward,
+)
 
 VERIFIERS_PIN = "0.3.1"
 VERIFIERS_HARNESS_ID = "evallab_vf_scripted_harness"
@@ -58,7 +68,7 @@ def _ensure_harness_alias() -> None:
         sys.modules[VERIFIERS_HARNESS_ID] = module
 
 
-AGENT_CPU = 1.0
+AGENT_CPU = 2.0
 AGENT_MEMORY_GB = 2.0
 
 SETUP_TIMEOUT_SECONDS = 600.0
@@ -77,7 +87,11 @@ def verifiers_version() -> str | None:
 
 def verifiers_available() -> bool:
     """Whether the verifiers runtime group is importable ($0 probe)."""
-    return importlib.util.find_spec("verifiers.v1.tasksets.harbor") is not None
+    try:
+        return importlib.util.find_spec("verifiers.v1.tasksets.harbor") is not None
+    except (ImportError, ValueError):
+        # A missing parent package makes a nested find_spec raise, not return None.
+        return False
 
 
 def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
@@ -159,20 +173,135 @@ def agent_runtime(image: str | None, resources: Any) -> dict[str, Any]:
     return runtime
 
 
-def _docker_reachable() -> tuple[bool, str]:
-    try:
-        probed = subprocess.run(
-            ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True,
-            text=True,
-            timeout=30,
+def _network_policy(
+    phase: dict[str, Any], environment: dict[str, Any]
+) -> tuple[str, tuple[str, ...]]:
+    """The Harbor 0.24 phase override, baseline, and legacy-default precedence."""
+    mode = phase.get("network_mode")
+    source = phase
+    if mode is None:
+        source = environment
+        mode = environment.get("network_mode")
+        if mode is None:
+            mode = "no-network" if environment.get("allow_internet") is False else "public"
+    hosts = source.get("allowed_hosts") or []
+    if not isinstance(hosts, list) or not all(isinstance(host, str) for host in hosts):
+        raise ValueError("network allowed_hosts must be a list of hostnames")
+    return mode, tuple(sorted({host.strip().lower().rstrip(".") for host in hosts}))
+
+
+def _validate_task_contract(task: LocalHarborTask, isolation: str) -> str:
+    """Refuse known lossy mappings before parsing or building any task image.
+
+    verifiers 0.3.1's harbor.taskset.parse_verifier_extras rejects user/service
+    overrides. parse_task also omits Compose, agent users, multi-step execution,
+    and shared-verifier phase networks; DockerConfig.disk is advisory only.
+    The upstream parser remains authoritative for the rest of the schema.
+    """
+    environment = task.config.get("environment", {})
+    agent = task.config.get("agent", {})
+    verifier = task.config.get("verifier", {})
+    if not all(isinstance(section, dict) for section in (environment, agent, verifier)):
+        raise ValueError("environment, agent, and verifier must be task.toml tables")
+    declared = verifier.get("environment")
+    if declared is not None and not isinstance(declared, dict):
+        raise ValueError("[verifier.environment] must be a task.toml table")
+    mode = verifier.get("environment_mode") or ("separate" if declared is not None else "shared")
+    if mode not in ("shared", "separate"):
+        raise ValueError(f"unsupported [verifier].environment_mode: {mode!r}")
+    if mode == "shared" and declared is not None:
+        raise ValueError("[verifier.environment] is incompatible with environment_mode='shared'")
+    effective = "shared" if isolation == "shared" else mode
+    unsupported: list[str] = []
+    if task.config.get("steps"):
+        unsupported.append("multi-step tasks")
+    for name, section in (("agent", agent), ("verifier", verifier)):
+        if section.get("user") is not None:
+            unsupported.append(f"[{name}].user")
+    for hook in verifier.get("collect", []):
+        if isinstance(hook, dict):
+            if hook.get("user") is not None:
+                unsupported.append("[[verifier.collect]].user")
+            if hook.get("service", "main") != "main":
+                unsupported.append("[[verifier.collect]] additional service")
+    for artifact in task.config.get("artifacts", []):
+        if isinstance(artifact, dict) and artifact.get("service") not in (None, "main"):
+            unsupported.append("artifact additional service")
+    environments = [("environment", environment)]
+    if effective == "separate" and declared is not None:
+        environments.append(("verifier.environment", declared))
+        if not declared.get("docker_image"):
+            unsupported.append(
+                "[verifier.environment] without docker_image "
+                "(tests/Dockerfile is not built; substituting the agent image is refused)"
+            )
+    for name, config in environments:
+        if str(config.get("os", "linux")).lower() != "linux":
+            unsupported.append(f"[{name}].os (Linux containers only)")
+        for field in ("mcp_servers", "skills_dir", "gpu_types", "tpu"):
+            if config.get(field):
+                unsupported.append(f"[{name}].{field}")
+        if config.get("storage_mb") is not None or config.get("storage") is not None:
+            unsupported.append(f"[{name}].storage_mb (Docker disk limits are not enforced)")
+        for field in ("cpus", "memory_mb"):
+            value = config.get(field)
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"[{name}].{field} must be finite and positive")
+    for directory in (["environment", "tests"] if effective == "separate" else ["environment"]):
+        if any(
+            (task.task_dir / directory / name).is_file()
+            for name in ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
+        ):
+            unsupported.append(f"{directory}/Compose (single-image Docker runtime only)")
+    if (
+        effective == "separate"
+        and not (declared or {}).get("docker_image")
+        and (task.task_dir / "tests" / "Dockerfile").is_file()
+    ):
+        unsupported.append("tests/Dockerfile (separate verifier image is not built)")
+    agent_network = _network_policy(agent, environment)
+    verifier_network = _network_policy(verifier, declared if declared is not None else environment)
+    if effective == "shared" and agent_network != verifier_network:
+        unsupported.append(
+            "shared verifier phase network differs from the agent policy "
+            "(verifiers cannot switch the shared box's policy between phases)"
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return False, f"docker unreachable: {exc}"
-    if probed.returncode != 0:
-        detail = (probed.stderr or probed.stdout).strip()[-500:]
-        return False, f"docker unreachable: {detail}"
-    return True, f"docker {probed.stdout.strip()}"
+    for name, (network_mode, hosts) in (
+        ("agent", agent_network),
+        ("verifier", verifier_network),
+    ):
+        # network_rule_matches uses URL host globs, not Harbor IP/CIDR rules.
+        if network_mode == "allowlist" and any("/" in host or ":" in host for host in hosts):
+            unsupported.append(f"[{name}].allowed_hosts IP CIDR/IPv6 rules")
+    if unsupported:
+        raise ValueError(
+            f"{task.task_id}: unsupported verifiers {VERIFIERS_PIN} task contract: "
+            + "; ".join(unsupported)
+        )
+    return effective
+
+
+def _admission_task(task: LocalHarborTask, data: Any) -> LocalHarborTask:
+    """Conservatively reserve both boxes at the larger resolved CPU/RAM limit."""
+    resources = [data.resources]
+    if data.verifier is not None and not data.verifier.fresh_copy:
+        resources.append(data.verifier.resources)
+    environment = dict(task.config.get("environment", {}))
+    environment.update(
+        cpus=max(item.cpu if item.cpu is not None else AGENT_CPU for item in resources),
+        memory_mb=max(
+            round((item.memory if item.memory is not None else AGENT_MEMORY_GB) * 1024)
+            for item in resources
+        ),
+    )
+    if any(item.gpu for item in resources):
+        environment["gpus"] = 1  # Admission refuses all GPU requests, regardless of count.
+    return replace(task, config={**task.config, "environment": environment})
 
 
 def cell_from_trace(
@@ -216,7 +345,7 @@ def cell_from_trace(
 
 
 async def _arun_cell(
-    task_dir: Path,
+    task: LocalHarborTask,
     agent: str,
     attacks: tuple[str, ...],
     *,
@@ -235,14 +364,11 @@ async def _arun_cell(
     )
     from verifiers.v1.tasksets.harbor.taskset import parse_task  # ty: ignore[unresolved-import]
 
-    _ensure_harness_alias()
     version = verifiers_version() or "unknown"
     platform_version = f"verifiers {version}"
-    task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
     plan = scripted_agent_plan(task, agent, tuple(attacks), ladder_version=ladder_version)
     plan = replace(plan, files=materialize_files(task, agent, plan))
     container_cwd = task_workdir(task)
-    image, how = await asyncio.to_thread(resolve_task_image, task)
 
     force_shared = isolation == "shared"
     harbor_config = HarborConfig(
@@ -251,16 +377,56 @@ async def _arun_cell(
         ignore_separate_verifier=force_shared,
     )
     data = parse_task(task.task_dir, 0, harbor_config)
+    _ensure_harness_alias()
+    effective_isolation = "separate" if data.verifier is not None else "shared"
+    preflight = {
+        "task_id": task.task_id,
+        "platform_version": platform_version,
+        "isolation": effective_isolation,
+        "isolation_requested": isolation,
+        "isolation_override": (
+            "separate verifier environment discarded; grading in the agent box"
+            if force_shared
+            and (
+                task.environment_mode == "separate"
+                or task.config.get("verifier", {}).get("environment") is not None
+            )
+            else None
+        ),
+        "agent_resources": data.resources.model_dump(mode="json"),
+        "verifier_resources": (
+            (
+                data.resources if data.verifier.fresh_copy else data.verifier.resources
+            ).model_dump(mode="json")
+            if data.verifier is not None
+            else None
+        ),
+        "admission_strategy": "max(agent, verifier) CPU/RAM per sandbox",
+    }
+    (workdir / "preflight.json").write_text(json.dumps(preflight, indent=2) + "\n")
+    await asyncio.to_thread(
+        admit_local_task,
+        _admission_task(task, data),
+        workdir,
+        sandboxes=2 if data.verifier is not None else 1,
+    )
+    image, how = await asyncio.to_thread(resolve_task_image, task)
     if image is not None:
         data = data.model_copy(update={"image": image})
-    effective_isolation = "separate" if data.verifier is not None else "shared"
     harbor_task = HarborTask(data, harbor_config.task)
 
     # Task-declared resources are bounded by authorship; the runner's defaults
     # only bound tasks that declare nothing.
     runtime = agent_runtime(image, data.resources)
+    verifier_runtime = None
+    if data.verifier is not None:
+        verifier_runtime = agent_runtime(
+            data.verifier.image or image,
+            data.resources if data.verifier.fresh_copy else data.verifier.resources,
+        )
     env = HarborEnv(
         HarborEnvConfig(
+            verifier_runtime=verifier_runtime,
             taskset={
                 "id": "harbor",
                 "dataset": "harbor/hello-world",
@@ -342,8 +508,9 @@ def run_cell(
     """Run one (task, agent) cell under verifiers (contract #3).
 
     Local docker runtime only, no model calls, $0. Reward >= 1.0 is pass;
-    infrastructure failures are error (never fail); an unreachable daemon is
-    skipped instead of failing. ``isolation`` is ``"default"`` (the task's own
+    infrastructure failures, missing dependencies, unsupported contracts, and
+    admission refusal are errors with persisted evidence, never skips.
+    ``isolation`` is ``"default"`` (the task's own
     shared/separate declaration) or ``"shared"`` (force grading in the agent's
     box via ignore_separate_verifier); forcing a separate box for a shared
     task is not supported by HarborEnv, so it is refused. The cell records
@@ -354,58 +521,45 @@ def run_cell(
     if isolation not in ("default", "shared"):
         raise ValueError(f"unknown isolation {isolation!r} (default/shared only, $0)")
     attacks = tuple(attacks)
-    if not verifiers_available():
-        return {
-            "target": "verifiers",
-            "agent": agent,
-            "attacks": list(attacks),
-            "verdict": "error",
-            "reward": None,
-            "reason": (
-                f"verifiers {VERIFIERS_PIN} is not installed "
-                "(opt-in group: uv sync --group xplat-verifiers --extra laminar)"
-            ),
-            "platform_version": f"verifiers {VERIFIERS_PIN} (absent)",
-            "evidence": None,
-            "task_id": Path(task_dir).name,
-            "isolation": "unknown",
-        }
-    ok, detail = _docker_reachable()
-    if not ok:
-        return {
-            "target": "verifiers",
-            "agent": agent,
-            "attacks": list(attacks),
-            "verdict": "skipped",
-            "reward": None,
-            "reason": detail,
-            "platform_version": f"verifiers {verifiers_version() or 'unknown'}",
-            "evidence": None,
-            "task_id": Path(task_dir).name,
-            "isolation": "unknown",
-        }
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    task_id = Path(task_dir).name
+    effective_isolation = "unknown"
+    platform_version = f"verifiers {verifiers_version() or 'unknown'}"
     try:
+        if not verifiers_available():
+            platform_version = f"verifiers {VERIFIERS_PIN} (absent)"
+            raise ModuleNotFoundError(
+                f"verifiers {VERIFIERS_PIN} is not installed or its runtime is unavailable "
+                "(opt-in group: uv sync --group xplat-verifiers --extra laminar)"
+            )
+        task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
+        task_id = task.task_id
+        effective_isolation = _validate_task_contract(task, isolation)
         return asyncio.run(
             _arun_cell(
-                Path(task_dir),
+                task,
                 agent,
                 attacks,
-                workdir=Path(workdir),
+                workdir=workdir,
                 timeout_seconds=timeout_seconds,
                 isolation=isolation,
                 ladder_version=ladder_version,
             )
         )
     except Exception as exc:
-        return {
-            "target": "verifiers",
-            "agent": agent,
-            "attacks": list(attacks),
-            "verdict": "error",
-            "reward": None,
-            "reason": f"verifiers cell failed: {type(exc).__name__}: {str(exc)[:500]}",
-            "platform_version": f"verifiers {verifiers_version() or 'unknown'}",
-            "evidence": None,
-            "task_id": Path(task_dir).name,
-            "isolation": "unknown",
-        }
+        cell = cell_from_trace(
+            task_id=task_id,
+            agent=agent,
+            attacks=attacks,
+            reward=None,
+            scored=False,
+            isolation=effective_isolation,
+            platform_version=platform_version,
+            evidence=str(workdir),
+            error=f"verifiers cell failed: {type(exc).__name__}: {exc}",
+        )
+        (workdir / "error.json").write_text(
+            json.dumps({**cell, "isolation_requested": isolation}, indent=2) + "\n"
+        )
+        return cell

@@ -76,6 +76,54 @@ def run_local_control(
     return Executor.from_repo(repo_root, create_queue=False).execute_direct(request, ingest=False)
 
 
+def run_history_oracle(
+    task: AuditTask,
+    *,
+    repo_root: Path,
+    output_dir: Path,
+    git_paths: tuple[str, ...] = (),
+    timeout_seconds: int | None = None,
+    linear_card: str | None = None,
+) -> AuditObservation:
+    """Grade a source-only history reference, retaining both package identities."""
+    from evallab.dataset_audit_oracle import prepare_history_oracle
+
+    subject, extraction = prepare_history_oracle(
+        task, repo_root=repo_root, output_dir=output_dir, git_paths=git_paths,
+    )
+    if subject is None:
+        return extraction
+    try:
+        job = run_local_control(
+            subject, repo_root=repo_root, agent="oracle", name=audit_job_name("oracle", subject),
+            timeout_seconds=timeout_seconds, linear_card=linear_card,
+        )
+        grade = control_observation(subject, "oracle", job, reference="history-oracle")
+        verify_selected_package(task)
+    except (OSError, ValueError, RuntimeError) as exc:
+        return AuditObservation(
+            stage="oracle", status="failed", sources=extraction.sources,
+            facts={
+                "reference": "history-oracle", "history_oracle": extraction.facts,
+                "package_digest": task.package_digest, "harbor_digest": task.harbor_digest,
+            },
+            reason=f"native history control failed: {type(exc).__name__}: {exc}",
+        )
+    # The native lock binds the solution-only variant, not its selected parent.
+    # Preserve that proof before projecting the grade onto the audited package.
+    return grade.model_copy(update={
+        "facts": {
+            **grade.facts,
+            "native_control_package_digest": subject.package_digest,
+            "native_control_harbor_digest": grade.facts.get("harbor_digest"),
+            "package_digest": task.package_digest,
+            "harbor_digest": task.harbor_digest,
+            "history_oracle": extraction.facts,
+        },
+        "sources": (*extraction.sources, *grade.sources),
+    })
+
+
 def control_observation(
     task: AuditTask,
     stage: Literal["oracle", "nop"],

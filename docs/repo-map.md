@@ -311,9 +311,9 @@ inputs:
   - path: src/evallab/integrity_reward_files/vendor/run_integrity.py
     digest: sha256:c66fb3fa1d3f25152bb5958810bb70e263976ec4add582e7dcd1342714acecfd
   - path: src/evallab/interop.py
-    digest: sha256:b3b6efd031abf536a45bcfa19c4adc8aef9f096e4b756a5352733fc1aa4ad776
+    digest: sha256:3a6eebec1180cc1cdfad83fe75399691f8b87442d95829a32a625a3d28b19f9e
   - path: src/evallab/interop_karotte.py
-    digest: sha256:b0596917c01199cc5474c2e4b6bc533a220a5d9ede5171a541f03fe99995aa86
+    digest: sha256:89988d10dcdf5c8cb472038bcae8b22afd61b6ea1edbf9f8544a49e06122cad9
   - path: src/evallab/interop_verifiers.py
     digest: sha256:b419fd445cd39ef58833780b4cfc0624040e39d91eb2b7d6732b0cc7ec71163d
   - path: src/evallab/interpretation/__init__.py

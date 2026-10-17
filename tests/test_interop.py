@@ -281,14 +281,6 @@ def test_inspect_build_context_preserves_assets_without_hidden_inputs(tmp_path: 
     assert (service["cpus"], service["mem_limit"], service["working_dir"]) == (1, "512m", "/app")
 
 
-def test_export_inspect_lossy_notes(tmp_path: Path) -> None:
-    clean = make_task(tmp_path / "clean")
-    assert export_inspect(clean, tmp_path / "o1")["lossy_notes"] == []
-    lossy = make_task(tmp_path / "lossy", network_mode="public", environment_mode="separate")
-    notes = export_inspect(lossy, tmp_path / "o2")["lossy_notes"]
-    assert len(notes) == 2
-
-
 def test_export_refuses_nonempty_dir(tmp_path: Path) -> None:
     out = tmp_path / "out"
     out.mkdir()

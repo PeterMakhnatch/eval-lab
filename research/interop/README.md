@@ -3,8 +3,9 @@
 Model-free, $0-only bridges. No RL training infrastructure. Every runnable cell
 uses the existing local Docker capacity probe before image preparation; unknown
 capacity, unbounded competing containers and insufficient CPU/RAM refuse it.
-Infrastructure failures are `error`, never task scores. Deterministic tests
-prove contracts, **not** end-to-end destination-tool execution.
+Admission, sandbox setup and detected runner failures are `error`, not task
+scores. This is not a guarantee about upstream reward fallbacks (see below).
+Deterministic tests prove contracts, **not** end-to-end destination execution.
 
 ## Current acceptance — 2026-10-17
 
@@ -16,6 +17,19 @@ because an existing shared-daemon container has unbounded CPU or memory.
 Verifiers rejected the real task's unenforced disk limit and unbuilt separate
 verifier image before Docker mutation. No shared service was altered, no
 container/model/cloud/price probe was started, and no resources were downsized.
+
+The **10:38 AM ET resume on 2026-10-17** did not clear that dependency:
+the normal two-sandbox admission probe again refused the daemon, before any
+image preparation. The [resume inventory](../evidence/har204-admission-resume-20261017.json)
+identifies three existing shared services without CPU/RAM bounds
+(`eval-lab-postgres-1`, `fxtr-postgres`, and the state-journal service). The
+selected daemon actually reports **7.75 GiB RAM**, not the historical 24-GiB
+inventory, and two other owners' bounded task containers already reserve 7 GiB
+before the 2-GiB controller reserve. An authorized shared-runtime owner must
+restore normal admission and sufficient headroom; merely bounding the services
+would not make that observed occupancy fit. This run changed no shared services
+and did not retry task execution after refusal. The card remains **blocked**,
+not complete because its dependency cards were closed.
 
 The [dated evidence receipt](../evidence/har204-interop-20261017.json) separates:
 
@@ -76,8 +90,8 @@ cells provision the pinned stack in a subprocess (`uv run --no-project
 | tests/test.sh | scorer clears stale rewards, runs test.sh in the task workdir |
 | reward.txt / reward.json | `parse_reward_bytes`; **missing file = error, never fail** |
 | task.toml [task] + [metadata] | metadata.json + Sample/Task metadata |
-| environment/ or docker_image | complete unchanged build context, or declared image |
-| CPU / RAM / workdir | bounded Compose service; working_dir |
+| environment/ or docker_image | unchanged Dockerfile context; prebuilt-image overlays are not replayed |
+| CPU / RAM / workdir | bounded Compose service; prebuilt-image WORKDIR can be lost |
 | verifier.timeout_sec | scorer `timeout=` |
 | network / user / environment overrides / MCP | explicitly reported when not replayed |
 | separate verifier / GPU / storage / agent timeout | explicitly reported, not equivalent |
@@ -167,7 +181,8 @@ uses) and runs it with the attack subset. Targets are wired through the
   that never touches foreign containers. Expected on sound tasks: oracle
   pass, nop fail; cheat is cracked iff reward >= 1.0.
 - `verifiers:oracle/nop/cheat`: Prime `verifiers` 0.3.1 (opt-in
-  `xplat-verifiers` group: `uv sync --group xplat-verifiers`) `HarborEnv`
+  `xplat-verifiers` group plus the Harbor runtime:
+  `uv sync --group xplat-verifiers --extra laminar`) `HarborEnv`
   on the local `docker` runtime with a model-free scripted harness
   (`src/evallab/vf_scripted_harness.py`: stages the plan files, runs the
   plan command, makes zero model calls). Dockerfile-only tasks are built
@@ -189,9 +204,51 @@ is advisory), and `configs/runtime.py` (`network_rule_matches` uses host globs).
 The dated receipt preserves actual parser results and source hashes. No paid
 probe or fallback environment establishes compatibility.
 
-All targets run the plan command in the same container workdir
-(`interop.task_workdir`: task.toml `[environment].workdir`, else final-stage
-Dockerfile `WORKDIR`, else `/` per Harbor 0.24).
+The scripted verifiers oracle does not apply `solution.env`. More importantly,
+verifiers 0.3.1 `_graded` falls back to **0.0** if both reward formats are missing
+or malformed (`tasksets/harbor/taskset.py:300-338`); the adapter cannot currently
+distinguish that fallback from a genuine task failure. Do not treat that
+upstream zero as proof that grading infrastructure succeeded. The opt-in
+verifiers group alone also does not install Harbor: real-parser admission
+checks failed without the extra above and passed after installing Harbor 0.24.0.
+
+All scripted destinations resolve the workdir from task.toml
+`[environment].workdir`, else the local final-stage Dockerfile `WORKDIR`, else
+`/`. This is **not** full Harbor equivalence: for a prebuilt image with no local
+workdir declaration Harbor preserves the image's WORKDIR; the helper does not
+inspect it.
+
+## Source-qualified conversion exclusions
+
+Both generated `MAPPING.md` files now carry the complete known compatibility
+boundary, separately from detected per-field notes. An empty field-specific
+list is not a lossless-conversion claim. The
+[pinned-source audit](../evidence/har204-conversion-limits-20261017.json)
+records source hashes and the native/adapter evidence for:
+
+- Text-first scalar reward parsing versus Harbor's JSON-first keyed rewards,
+  including pure Inspect's missing finiteness guard. Inspect-Harbor matrix
+  scoring is a separate implementation, not proof of pure-export semantics.
+- User overrides (including UID 0), verifier env/network phases, legacy policy
+  declarations, healthchecks/readiness, and omitted prebuilt-image overlays.
+- Build/phase budgets, post-start Karotte bounds, unmapped GPU/TPU/storage,
+  legacy resource fields, OS, skills, and the Debian/apt-based harness changes.
+- Collect hooks and artifact source/service/exclude/destination details;
+  multi-step lifecycle/reward aggregation; normalized Karotte IDs and loss of
+  task version/authors/metadata.
+- File modes/symlinks/empty directories, forced Bash verifier execution, and
+  the pure Inspect export's missing keepalive override. Depending on image CMD,
+  the latter may prevent a live service from remaining up **[INFERENCE]**;
+  no sandbox run was admitted to resolve it.
+
+These are explicit support exclusions, not newly implemented compatibility.
+Actual source is evidence of a missing mapping; it is not evidence that the
+remaining mapping executed successfully. The historical AgentEnv receipt was
+freshly hashed again and matches the published digest, but remains an eleven-
+control historical run with a lexical report proxy and reachable extra data
+planes, not a Harbor conversion. The former worktree paths named by the earlier
+interop receipt are no longer available; its raw-probe hashes are retained
+historical references, not newly inspected artifact bytes.
 
 ## AgentEnv assessment
 

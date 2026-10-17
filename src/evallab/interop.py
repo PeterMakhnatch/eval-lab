@@ -149,13 +149,12 @@ def load_harbor_task(task_dir: str | Path, *, require_solution: bool = True) -> 
 
 
 def task_workdir(task: HarborTask) -> str:
-    """Effective container workdir for a task (Harbor 0.24 definition.py rule).
+    """Resolve a scripted destination workdir from declared/local task files.
 
     task.toml ``[environment].workdir`` wins; else the final-stage Dockerfile
     ``WORKDIR`` (each ``FROM`` resets; relative values resolve against the
-    stage workdir); else ``/`` -- Harbor's ``task_env_config.workdir``
-    defaults to None, docker exec passes ``-w`` only when set, and the image
-    WORKDIR falls back to Docker's ``/``. Always absolute.
+    stage workdir); else ``/``. A prebuilt image's own WORKDIR is not inspected:
+    this fallback can differ from Harbor, which preserves that image default.
     """
     env = task.config.get("environment")
     if isinstance(env, dict):
@@ -656,6 +655,49 @@ def admit_local_task(
     return record
 
 
+_CONVERSION_LIMITS = """
+## Source-qualified compatibility boundary
+
+These exports are single-step scripted controls, not full Harbor equivalence.
+The pinned-source evidence is retained in Eval Lab at
+`research/evidence/har204-conversion-limits-20261017.json`.
+Field-specific notes below do not exhaust this boundary:
+
+- **Rewards:** pure Inspect/Karotte prefer text, then scalar JSON `score`/`reward`;
+  Harbor prefers JSON and retains keyed rewards. Pure Inspect's parser also
+  accepts nonfinite values; Karotte rejects nonfinite final scores later.
+  The Inspect-Harbor matrix scorer is a different implementation.
+- **Users, env and networks:** agent/verifier users (including numeric UID 0),
+  `verifier.env`, verifier-phase networking and legacy `allow_internet` policies
+  are not faithfully replayed. Neither export supplies Eval Lab host isolation.
+- **Lifecycle and images:** healthchecks/readiness and prebuilt-image
+  `environment/` uploads are not replayed. Without a declared/local workdir the
+  scripted destination uses `/`, not a prebuilt image's default WORKDIR.
+  Pure Inspect supplies no keepalive override; image CMD may stop its service.
+  Karotte bakes discovered setup at build time and adds a Debian/apt-based
+  harness, Python, PATH, packages and a fixed student identity.
+- **Budgets/resources:** build/agent phase budgets are not preserved; Karotte
+  caps oracle tool calls at 300s, cheat calls at 1500s and verifier at 300-2100s,
+  with CPU/RAM applied after startup. Storage/GPU/TPU, `gpu_types`, OS,
+  `skills_dir` and legacy `memory`/`storage` fields have no faithful mapping.
+- **Artifacts/hooks:** verifier collect hooks are not executed. Inspect does
+  not publish Harbor artifacts; Karotte grades collected copies, ignores
+  relative artifact sources, and drops service/exclude/host-destination details.
+- **Task structure:** multi-step hooks, environments and reward aggregation are
+  not mapped. Karotte normalizes task IDs and does not replay task version,
+  authors or metadata; its export defaults to nop, not an oracle run.
+- **Files/interpreters:** Inspect stages file bytes, not modes/links/empty dirs;
+  Karotte oracle staging skips symlinks and mounts read-only byte copies.
+  Both graders force `bash /tests/test.sh`, rather than honoring its shebang.
+- **Unsupported surfaces:** multi-service Compose is refused; MCP lifecycle,
+  environment/solution overrides, separate verifier image/transfer boundaries
+  and agent-specific execution semantics are not made equivalent by a grade.
+
+Source inspection establishes these exclusions, not successful execution.
+After normal admission, run both controls and inspect native destination logs.
+"""
+
+
 # ---------------------------------------------------------------------------
 # export-harbor --to inspect
 # ---------------------------------------------------------------------------
@@ -886,10 +928,11 @@ def export_inspect(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
         "| solution/solve.sh | oracle solver only; nop stages no solution |\n"
         "| tests/test.sh | scorer; missing file = error |\n"
         "| task.toml [task] + [metadata] | metadata.json + Sample/Task metadata |\n"
-        "| environment/ | unchanged build context, or declared docker_image |\n"
-        "| CPU / RAM / workdir | Compose service limits and working_dir |\n"
-        "\n## Lossy mappings\n\n"
-        + ("".join(f"- {note}\n" for note in notes) if notes else "No detected losses.\n")
+        "| environment/ | unchanged Dockerfile context; prebuilt-image overlays not replayed |\n"
+        "| CPU / RAM / workdir | Compose limits; workdir resolution is image-lossy |\n"
+        + _CONVERSION_LIMITS
+        + "\n## Additional detected field-specific losses\n\n"
+        + ("".join(f"- {note}\n" for note in notes) if notes else "None detected; the boundary above still applies.\n")
         + "\n## Model-free controls\n\n"
         "- `inspect eval task.py -T agent=oracle --model mockllm/model`\n"
         "- `inspect eval task.py -T agent=nop --model mockllm/model`\n"
@@ -1062,11 +1105,12 @@ def export_karotte(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
         f"{spec.workdir}, grades /logs/verifier via interop.parse_reward_bytes |\n"
         "| solution/solve.sh | mounted at `/solution` for oracle cells only |\n"
         "| environment/Dockerfile | harness Containerfile FROM the Harbor student image |\n"
-        "| task.toml [task] + [metadata] | Task.id + module docstring |\n"
+        "| task.toml [task] + [metadata] | normalized Task.id; version/authors/metadata not replayed |\n"
         "\n## Submission / custody split\n\n"
         f"- student-writable: {submission_doc} (collected root-only, workdir wiped, copies graded)\n"
         "- verifier-only, student never sees: root_data/tests, scoring module, fake model\n"
-        "\n## Lossy or impossible mappings (never silently dropped)\n\n"
+        + _CONVERSION_LIMITS
+        + "\n## Additional detected lossy or impossible mappings\n\n"
         + (
             "".join(f"- **{f['code']}**: {f['detail']}\n" for f in flags)
             if flags

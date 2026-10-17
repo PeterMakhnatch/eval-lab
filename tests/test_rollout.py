@@ -595,6 +595,55 @@ def test_unknown_cost_never_becomes_a_complete_total(tmp_path: Path, gap: str) -
     assert summary["cost_per_task_usd"] is None
 
 
+@pytest.mark.parametrize("gap", ["empty_pricing", "input_only", "output_only", "invalid_state"])
+@pytest.mark.parametrize("dispatcher_failed", [False, True])
+def test_accounting_refusal_persists_the_actual_trial_outcome(
+    tmp_path: Path, gap: str, dispatcher_failed: bool
+) -> None:
+    def execute(request):
+        job = _fake_execute(request)
+        metadata_path = job / "lab-metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        usage = metadata["provider_usage"]
+        if gap == "invalid_state":
+            usage["calls"][0]["state"] = {}
+        else:
+            retained_keys = {
+                "empty_pricing": (),
+                "input_only": ("input_cost_micros_per_million",),
+                "output_only": ("output_cost_micros_per_million",),
+            }[gap]
+            usage["pricing"] = {key: usage["pricing"][key] for key in retained_keys}
+        metadata_path.write_text(json.dumps(metadata))
+        if dispatcher_failed:
+            raise RuntimeError("dispatcher already refused")
+        return job
+
+    out = tmp_path / "out"
+    summary = run_rollout(
+        [_task(tmp_path, "task")],
+        model="tinker/Qwen/Qwen3.5-9B",
+        out_dir=out,
+        root=tmp_path,
+        execute=execute,
+    )
+    row = json.loads((out / "results.jsonl").read_text())
+    assert row["error"] == (
+        "RuntimeError: dispatcher already refused" if dispatcher_failed else None
+    )
+    assert row["reward"] == (None if dispatcher_failed else 1.0)
+    assert row["passed"] == (None if dispatcher_failed else True)
+    assert row["model_cost_usd"] is None
+    assert (row["input_tokens"], row["output_tokens"]) == (
+        (None, None) if gap == "invalid_state" else (1000, 500)
+    )
+    assert summary["completed"] == (0 if dispatcher_failed else 1)
+    assert summary["errors"] == (1 if dispatcher_failed else 0)
+    assert summary["total_cost_usd"] is None
+    assert summary["cost_per_task_usd"] is None
+    assert json.loads((out / "spend.jsonl").read_text())["cost_usd"] is None
+
+
 def test_failed_trial_cost_is_retained_in_batch_and_spend(tmp_path: Path) -> None:
     def execute(request):
         job = _fake_execute(request)

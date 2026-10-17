@@ -1,0 +1,103 @@
+diff --git a/examples/sandbox/src/App.js b/examples/sandbox/src/App.js
+index b8dff09..f180a1d 100755
+--- a/examples/sandbox/src/App.js
++++ b/examples/sandbox/src/App.js
+@@ -114,7 +114,7 @@ export default function App() {
+         apiConnector: connector
+       }}
+     >
+-      {_ => (
++      {({ wasSearched }) => (
+         <div className="App">
+           <ErrorBoundary>
+             <Layout
+@@ -136,7 +136,7 @@ export default function App() {
+               }
+               sideContent={
+                 <div>
+-                  <Sorting
++                  {wasSearched && <Sorting
+                     label={"Sort by"}
+                     sortOptions={[
+                       {
+@@ -150,7 +150,7 @@ export default function App() {
+                         direction: "asc"
+                       }
+                     ]}
+-                  />
++                  />}
+                   <Facet field="states" label="States" filterType="any" />
+                   <Facet
+                     field="world_heritage_site"
+@@ -173,7 +173,7 @@ export default function App() {
+               }
+               bodyHeader={
+                 <React.Fragment>
+-                  <PagingInfo />
++                  {wasSearched && <PagingInfo />}
+                   <ResultsPerPage />
+                 </React.Fragment>
+               }
+diff --git a/packages/react-search-ui/src/containers/PagingInfo.js b/packages/react-search-ui/src/containers/PagingInfo.js
+index 67ad78d..2980ed7 100644
+--- a/packages/react-search-ui/src/containers/PagingInfo.js
++++ b/packages/react-search-ui/src/containers/PagingInfo.js
+@@ -20,7 +20,6 @@ export class PagingInfoContainer extends Component {
+     const {
+       className,
+       current,
+-      results,
+       resultsPerPage,
+       resultSearchTerm,
+       totalResults,
+@@ -32,8 +31,6 @@ export class PagingInfoContainer extends Component {
+         ? totalResults
+         : start + resultsPerPage - 1;
+ 
+-    if (!resultSearchTerm && results.length === 0) return null;
+-
+     const View = view || PagingInfo;
+ 
+     return View({
+diff --git a/packages/react-search-ui/src/containers/ResultsPerPage.js b/packages/react-search-ui/src/containers/ResultsPerPage.js
+index ab88c7e..d944915 100644
+--- a/packages/react-search-ui/src/containers/ResultsPerPage.js
++++ b/packages/react-search-ui/src/containers/ResultsPerPage.js
+@@ -19,15 +19,11 @@ export class ResultsPerPageContainer extends Component {
+   render() {
+     const {
+       className,
+-      results,
+       resultsPerPage,
+-      searchTerm,
+       setResultsPerPage,
+       view
+     } = this.props;
+ 
+-    if (!searchTerm && results.length === 0) return null;
+-
+     const View = view || ResultsPerPage;
+ 
+     return View({
+diff --git a/packages/react-search-ui/src/containers/Sorting.js b/packages/react-search-ui/src/containers/Sorting.js
+index c18ff7c..92f1709 100644
+--- a/packages/react-search-ui/src/containers/Sorting.js
++++ b/packages/react-search-ui/src/containers/Sorting.js
+@@ -42,8 +42,6 @@ export class SortingContainer extends Component {
+     const {
+       className,
+       label,
+-      results,
+-      searchTerm,
+       setSort,
+       sortDirection,
+       sortField,
+@@ -51,8 +49,6 @@ export class SortingContainer extends Component {
+       view
+     } = this.props;
+ 
+-    if (!searchTerm && results.length === 0) return null;
+-
+     const View = view || Sorting;
+ 
+     return View({

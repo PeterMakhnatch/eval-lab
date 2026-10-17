@@ -1,0 +1,47 @@
+diff --git a/changelog/xxxx.feature.rst b/changelog/xxxx.feature.rst
+new file mode 100644
+index 000000000..af1c5ac29
+--- /dev/null
++++ b/changelog/xxxx.feature.rst
+@@ -0,0 +1,5 @@
++`sunpy.net.Scraper` now includes treats files as spanning a full interval equal to the smallest increment specified.
++For example, a pattern like ``"%Y.txt"`` that only contains a year interval will be considered to span that full year.
++
++This means searches that fall entirely within the interval will return that file where previously they did not.
++For example matching ``"%Y.txt"`` with ``TimeRange('2022-02-01', '2022-04-01')`` will now return ``["2022.txt"]`` where previously no files were returned.
+diff --git a/sunpy/net/scraper.py b/sunpy/net/scraper.py
+index 93ea99848..151d1517f 100644
+--- a/sunpy/net/scraper.py
++++ b/sunpy/net/scraper.py
+@@ -373,8 +373,8 @@ class Scraper:
+ 
+     def _check_timerange(self, url, timerange):
+         """
+-        Checks whether the time extracted from the URL
+-        is valid according to the given time range.
++        Checks whether the time range represented in *url* intersects
++        with the given time range.
+ 
+         Parameters
+         ----------
+@@ -386,15 +386,17 @@ class Scraper:
+         Returns
+         -------
+         `bool`
+-            `True` if URL's time overlaps the given timerange, else `False`.
++            `True` if URL's valid time range overlaps the given timerange, else `False`.
+         """
+         if hasattr(self, 'extractor'):
+             exdict = parse(self.extractor, url).named
+             tr = get_timerange_from_exdict(exdict)
+-            return (tr.end >= timerange.start and tr.start <= timerange.end)
++            return tr.intersects(timerange)
+         else:
+             datehref = self._extractDateURL(url).to_datetime()
+-            return (timerange.start.to_datetime() <= datehref <= timerange.end.to_datetime())
++            smaller_pattern = self._smallerPattern(self.pattern)
++            file_timerange = TimeRange(datehref, datehref + smaller_pattern)
++            return file_timerange.intersects(timerange)
+ 
+     def _smallerPattern(self, directoryPattern):
+         """

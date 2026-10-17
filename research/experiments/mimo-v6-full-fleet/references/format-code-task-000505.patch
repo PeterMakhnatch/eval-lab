@@ -1,0 +1,30 @@
+diff --git a/cli/src/pcluster/config/cluster_config.py b/cli/src/pcluster/config/cluster_config.py
+index 128815a22..fe4d1a682 100644
+--- a/cli/src/pcluster/config/cluster_config.py
++++ b/cli/src/pcluster/config/cluster_config.py
+@@ -2789,6 +2789,12 @@ class SlurmClusterConfig(CommonSchedulerClusterConfig):
+         super().__init__(cluster_name, **kwargs)
+         self.scheduling = scheduling
+         self.login_nodes = login_nodes
++        if self.login_nodes:
++            for pool in self.login_nodes.pools:
++                if pool.ssh and not pool.ssh.key_name:
++                    pool.ssh.key_name = self.head_node.ssh.key_name
++                elif not pool.ssh:
++                    pool.ssh = LoginNodesSsh(key_name=self.head_node.ssh.key_name)
+         self.__image_dict = None
+         # Cache capacity reservations information together to reduce number of boto3 calls.
+         # Since this cache is only used for validation, if AWSClientError happens
+diff --git a/cli/src/pcluster/schemas/cluster_schema.py b/cli/src/pcluster/schemas/cluster_schema.py
+index 85edcf966..9b02694b9 100644
+--- a/cli/src/pcluster/schemas/cluster_schema.py
++++ b/cli/src/pcluster/schemas/cluster_schema.py
+@@ -1340,7 +1340,7 @@ class LoginNodesPoolSchema(BaseSchema):
+         ),
+         metadata={"update_policy": UpdatePolicy.SUPPORTED},
+     )
+-    ssh = fields.Nested(LoginNodesSshSchema, required=True, metadata={"update_policy": UpdatePolicy.LOGIN_NODES_STOP})
++    ssh = fields.Nested(LoginNodesSshSchema, metadata={"update_policy": UpdatePolicy.LOGIN_NODES_STOP})
+     iam = fields.Nested(LoginNodesIamSchema, metadata={"update_policy": UpdatePolicy.LOGIN_NODES_STOP})
+     gracetime_period = fields.Int(
+         validate=validate.Range(

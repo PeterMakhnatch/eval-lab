@@ -1,0 +1,31 @@
+diff --git a/care/facility/api/viewsets/patient.py b/care/facility/api/viewsets/patient.py
+index 293165d8c..7835435d2 100644
+--- a/care/facility/api/viewsets/patient.py
++++ b/care/facility/api/viewsets/patient.py
+@@ -606,7 +606,11 @@ class FacilityDischargedPatientViewSet(GenericViewSet, mixins.ListModelMixin):
+     permission_classes = (IsAuthenticated, DRYPermissions)
+     lookup_field = "external_id"
+     serializer_class = PatientListSerializer
+-    filter_backends = (filters.DjangoFilterBackend,)
++    filter_backends = (
++        filters.DjangoFilterBackend,
++        rest_framework_filters.OrderingFilter,
++        PatientCustomOrderingFilter,
++    )
+     filterset_class = FacilityDischargedPatientFilterSet
+     queryset = PatientRegistration.objects.select_related(
+         "local_body",
+@@ -625,6 +629,13 @@ class FacilityDischargedPatientViewSet(GenericViewSet, mixins.ListModelMixin):
+         "created_by",
+     )
+ 
++    ordering_fields = [
++        "id",
++        "name",
++        "created_date",
++        "modified_date",
++    ]
++
+     def get_queryset(self) -> QuerySet:
+         qs = super().get_queryset()
+         return qs.filter(

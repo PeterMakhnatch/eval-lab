@@ -1,0 +1,146 @@
+diff --git a/CHANGES.md b/CHANGES.md
+index e0a3d97..3e06969 100644
+--- a/CHANGES.md
++++ b/CHANGES.md
+@@ -9,6 +9,24 @@ Note to self: Breaking changes must increment either
+ 
+ -->
+ 
++## 0.31.0 (2024-07-08)
++
++_**Breaking**_
++
++> No breaking changes were introduced in this version.
++
++_**Features**_
++
++- feat: add validators for `base16` and `base32` encodings by @msamsami in [#386](https://github.com/python-validators/validators/pull/386)
++
++_**Maintenance**_
++
++- maint: bump version by @msamsami in [#386](https://github.com/python-validators/validators/pull/386)
++
++**Full Changelog**: [`0.30.0...0.31.0`](https://github.com/python-validators/validators/compare/0.30.0...0.31.0)
++
++---
++
+ ## 0.30.0 (2024-07-04)
+ 
+ _**Breaking**_
+diff --git a/SECURITY.md b/SECURITY.md
+index 2231e16..dbf9c09 100644
+--- a/SECURITY.md
++++ b/SECURITY.md
+@@ -4,7 +4,7 @@
+ 
+ | Version    | Supported          |
+ | ---------- | ------------------ |
+-| `>=0.30.0` | :white_check_mark: |
++| `>=0.31.0` | :white_check_mark: |
+ 
+ ## Reporting a Vulnerability
+ 
+diff --git a/docs/api/encoding.md b/docs/api/encoding.md
+index 8f2794c..39c24ec 100644
+--- a/docs/api/encoding.md
++++ b/docs/api/encoding.md
+@@ -1,4 +1,6 @@
+ # encoding
+ 
++::: validators.encoding.base16
++::: validators.encoding.base32
+ ::: validators.encoding.base58
+ ::: validators.encoding.base64
+diff --git a/docs/api/encoding.rst b/docs/api/encoding.rst
+index 55d1799..2554c93 100644
+--- a/docs/api/encoding.rst
++++ b/docs/api/encoding.rst
+@@ -2,5 +2,7 @@ encoding
+ --------
+ 
+ .. module:: validators.encoding
++.. autofunction:: base16
++.. autofunction:: base32
+ .. autofunction:: base58
+ .. autofunction:: base64
+diff --git a/src/validators/__init__.py b/src/validators/__init__.py
+index a58a574..cf11e3a 100644
+--- a/src/validators/__init__.py
++++ b/src/validators/__init__.py
+@@ -8,7 +8,7 @@ from .cron import cron
+ from .crypto_addresses import btc_address, eth_address, trx_address
+ from .domain import domain
+ from .email import email
+-from .encoding import base58, base64
++from .encoding import base16, base32, base58, base64
+ from .finance import cusip, isin, sedol
+ from .hashes import md5, sha1, sha224, sha256, sha512
+ from .hostname import hostname
+@@ -60,6 +60,8 @@ __all__ = (
+     # ...
+     "email",
+     # encodings
++    "base16",
++    "base32",
+     "base58",
+     "base64",
+     # finance
+@@ -105,4 +107,4 @@ __all__ = (
+     "validator",
+ )
+ 
+-__version__ = "0.30.0"
++__version__ = "0.31.0"
+diff --git a/src/validators/encoding.py b/src/validators/encoding.py
+index f272074..71efc84 100644
+--- a/src/validators/encoding.py
++++ b/src/validators/encoding.py
+@@ -7,6 +7,48 @@ import re
+ from .utils import validator
+ 
+ 
++@validator
++def base16(value: str, /):
++    """Return whether or not given value is a valid base16 encoding.
++
++    Examples:
++        >>> base16('a3f4b2')
++        # Output: True
++        >>> base16('a3f4Z1')
++        # Output: ValidationError(func=base16, args={'value': 'a3f4Z1'})
++
++    Args:
++        value:
++            base16 string to validate.
++
++    Returns:
++        (Literal[True]): If `value` is a valid base16 encoding.
++        (ValidationError): If `value` is an invalid base16 encoding.
++    """
++    return re.match(r"^[0-9A-Fa-f]+$", value) if value else False
++
++
++@validator
++def base32(value: str, /):
++    """Return whether or not given value is a valid base32 encoding.
++
++    Examples:
++        >>> base32('MFZWIZLTOQ======')
++        # Output: True
++        >>> base32('MfZW3zLT9Q======')
++        # Output: ValidationError(func=base32, args={'value': 'MfZW3zLT9Q======'})
++
++    Args:
++        value:
++            base32 string to validate.
++
++    Returns:
++        (Literal[True]): If `value` is a valid base32 encoding.
++        (ValidationError): If `value` is an invalid base32 encoding.
++    """
++    return re.match(r"^[A-Z2-7]+=*$", value) if value else False
++
++
+ @validator
+ def base58(value: str, /):
+     """Return whether or not given value is a valid base58 encoding.

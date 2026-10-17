@@ -1,0 +1,107 @@
+diff --git a/haystack/document_stores/in_memory/document_store.py b/haystack/document_stores/in_memory/document_store.py
+index 62c3fd496..f35fe56a9 100644
+--- a/haystack/document_stores/in_memory/document_store.py
++++ b/haystack/document_stores/in_memory/document_store.py
+@@ -4,6 +4,7 @@
+ 
+ import math
+ import re
++import uuid
+ from collections import Counter
+ from dataclasses import dataclass
+ from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
+@@ -42,6 +43,11 @@ class BM25DocumentStats:
+     doc_len: int
+ 
+ 
++# Global storage for all InMemoryDocumentStore instances, indexed by the index name.
++_STORAGES: Dict[str, Dict[str, Document]] = {}
++_BM25_STATS_STORAGES: Dict[str, Dict[str, BM25DocumentStats]] = {}
++
++
+ class InMemoryDocumentStore:
+     """
+     Stores data in-memory. It's ephemeral and cannot be saved to disk.
+@@ -53,6 +59,7 @@ class InMemoryDocumentStore:
+         bm25_algorithm: Literal["BM25Okapi", "BM25L", "BM25Plus"] = "BM25L",
+         bm25_parameters: Optional[Dict] = None,
+         embedding_similarity_function: Literal["dot_product", "cosine"] = "dot_product",
++        index: Optional[str] = None,
+     ):
+         """
+         Initializes the DocumentStore.
+@@ -66,11 +73,19 @@ class InMemoryDocumentStore:
+         :param embedding_similarity_function: The similarity function used to compare Documents embeddings.
+                                               One of "dot_product" (default) or "cosine".
+                                               To choose the most appropriate function, look for information about your embedding model.
++        :param index: If specified uses a specific index to store the documents. If not specified, a random UUID is used.
++                      Using the same index allows you to store documents across multiple InMemoryDocumentStore instances.
+         """
+-        self.storage: Dict[str, Document] = {}
+         self.bm25_tokenization_regex = bm25_tokenization_regex
+         self.tokenizer = re.compile(bm25_tokenization_regex).findall
+ 
++        if index is None:
++            index = str(uuid.uuid4())
++
++        self.index = index
++        if self.index not in _STORAGES:
++            _STORAGES[self.index] = {}
++
+         self.bm25_algorithm = bm25_algorithm
+         self.bm25_algorithm_inst = self._dispatch_bm25()
+         self.bm25_parameters = bm25_parameters or {}
+@@ -81,7 +96,19 @@ class InMemoryDocumentStore:
+         self._freq_vocab_for_idf: Counter = Counter()
+ 
+         # Per-document statistics
+-        self._bm25_attr: Dict[str, BM25DocumentStats] = {}
++        if self.index not in _BM25_STATS_STORAGES:
++            _BM25_STATS_STORAGES[self.index] = {}
++
++    @property
++    def storage(self) -> Dict[str, Document]:
++        """
++        Utility property that returns the storage used by this instance of InMemoryDocumentStore.
++        """
++        return _STORAGES.get(self.index, {})
++
++    @property
++    def _bm25_attr(self) -> Dict[str, BM25DocumentStats]:
++        return _BM25_STATS_STORAGES.get(self.index, {})
+ 
+     def _dispatch_bm25(self):
+         """
+@@ -281,6 +308,7 @@ class InMemoryDocumentStore:
+             bm25_algorithm=self.bm25_algorithm,
+             bm25_parameters=self.bm25_parameters,
+             embedding_similarity_function=self.embedding_similarity_function,
++            index=self.index,
+         )
+ 
+     @classmethod
+diff --git a/releasenotes/notes/in-memory-docstore-memory-share-82b75d018b3545fc.yaml b/releasenotes/notes/in-memory-docstore-memory-share-82b75d018b3545fc.yaml
+new file mode 100644
+index 000000000..d60997a41
+--- /dev/null
++++ b/releasenotes/notes/in-memory-docstore-memory-share-82b75d018b3545fc.yaml
+@@ -0,0 +1,19 @@
++---
++features:
++  - |
++    Add memory sharing between different instances of InMemoryDocumentStore.
++    Setting the same `index` argument as another instance will make sure that the memory is shared.
++    e.g.
++    ```python
++    index = "my_personal_index"
++    document_store_1 = InMemoryDocumentStore(index=index)
++    document_store_2 = InMemoryDocumentStore(index=index)
++
++    assert document_store_1.count_documents() == 0
++    assert document_store_2.count_documents() == 0
++
++    document_store_1.write_documents([Document(content="Hello world")])
++
++    assert document_store_1.count_documents() == 1
++    assert document_store_2.count_documents() == 1
++    ```

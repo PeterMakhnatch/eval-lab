@@ -1,0 +1,83 @@
+diff --git a/sqlglot/expressions.py b/sqlglot/expressions.py
+index 54920fd7e..32af612e5 100644
+--- a/sqlglot/expressions.py
++++ b/sqlglot/expressions.py
+@@ -1917,7 +1917,7 @@ class Sort(Order):
+ 
+ 
+ class Ordered(Expression):
+-    arg_types = {"this": True, "desc": True, "nulls_first": True}
++    arg_types = {"this": True, "desc": False, "nulls_first": True}
+ 
+ 
+ class Property(Expression):
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index d0e7cc7b7..e7661ec1e 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -1665,7 +1665,7 @@ class Generator:
+         nulls_are_small = self.NULL_ORDERING == "nulls_are_small"
+         nulls_are_last = self.NULL_ORDERING == "nulls_are_last"
+ 
+-        sort_order = " DESC" if desc else ""
++        sort_order = " DESC" if desc else (" ASC" if desc is False else "")
+         nulls_sort_change = ""
+         if nulls_first and (
+             (asc and nulls_are_large) or (desc and nulls_are_small) or nulls_are_last
+diff --git a/sqlglot/optimizer/canonicalize.py b/sqlglot/optimizer/canonicalize.py
+index 015b06a3d..f5fc3be46 100644
+--- a/sqlglot/optimizer/canonicalize.py
++++ b/sqlglot/optimizer/canonicalize.py
+@@ -20,6 +20,7 @@ def canonicalize(expression: exp.Expression) -> exp.Expression:
+     expression = coerce_type(expression)
+     expression = remove_redundant_casts(expression)
+     expression = ensure_bool_predicates(expression)
++    expression = remove_ascending_order(expression)
+ 
+     return expression
+ 
+@@ -63,6 +64,14 @@ def ensure_bool_predicates(expression: exp.Expression) -> exp.Expression:
+     return expression
+ 
+ 
++def remove_ascending_order(expression: exp.Expression) -> exp.Expression:
++    if isinstance(expression, exp.Ordered) and expression.args.get("desc") is False:
++        # Convert ORDER BY a ASC to ORDER BY a
++        expression.set("desc", None)
++
++    return expression
++
++
+ def _coerce_date(a: exp.Expression, b: exp.Expression) -> None:
+     for a, b in itertools.permutations([a, b]):
+         if (
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index ca8f6efe7..c7028dded 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -2944,20 +2944,20 @@ class Parser(metaclass=_Parser):
+ 
+     def _parse_ordered(self) -> exp.Ordered:
+         this = self._parse_conjunction()
+-        self._match(TokenType.ASC)
+ 
+-        is_desc = self._match(TokenType.DESC)
++        asc = self._match(TokenType.ASC)
++        desc = self._match(TokenType.DESC) or (asc and False)
++
+         is_nulls_first = self._match_text_seq("NULLS", "FIRST")
+         is_nulls_last = self._match_text_seq("NULLS", "LAST")
+-        desc = is_desc or False
+-        asc = not desc
++
+         nulls_first = is_nulls_first or False
+         explicitly_null_ordered = is_nulls_first or is_nulls_last
+ 
+         if (
+             not explicitly_null_ordered
+             and (
+-                (asc and self.NULL_ORDERING == "nulls_are_small")
++                (not desc and self.NULL_ORDERING == "nulls_are_small")
+                 or (desc and self.NULL_ORDERING != "nulls_are_small")
+             )
+             and self.NULL_ORDERING != "nulls_are_last"

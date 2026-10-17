@@ -1,0 +1,127 @@
+diff --git a/starlette/datastructures.py b/starlette/datastructures.py
+index 930c581..4080624 100644
+--- a/starlette/datastructures.py
++++ b/starlette/datastructures.py
+@@ -21,7 +21,7 @@ class URL:
+             scheme = scope.get("scheme", "http")
+             server = scope.get("server", None)
+             path = scope.get("root_path", "") + scope["path"]
+-            query_string = scope["query_string"]
++            query_string = scope.get("query_string", b"")
+ 
+             host_header = None
+             for key, value in scope["headers"]:
+@@ -185,7 +185,8 @@ class URLPath(str):
+         else:
+             netloc = base_url.netloc
+ 
+-        return str(URL(scheme=scheme, netloc=netloc, path=str(self)))
++        path = base_url.path.rstrip("/") + str(self)
++        return str(URL(scheme=scheme, netloc=netloc, path=path))
+ 
+ 
+ class Secret:
+diff --git a/starlette/requests.py b/starlette/requests.py
+index a9955cf..c2f9f2b 100644
+--- a/starlette/requests.py
++++ b/starlette/requests.py
+@@ -56,6 +56,18 @@ class HTTPConnection(Mapping):
+             self._url = URL(scope=self.scope)
+         return self._url
+ 
++    @property
++    def base_url(self) -> URL:
++        if not hasattr(self, "_base_url"):
++            base_url_scope = dict(self.scope)
++            base_url_scope["path"] = "/"
++            base_url_scope["query_string"] = b""
++            base_url_scope["root_path"] = base_url_scope.get(
++                "app_root_path", base_url_scope.get("root_path", "")
++            )
++            self._base_url = URL(scope=base_url_scope)
++        return self._base_url
++
+     @property
+     def headers(self) -> Headers:
+         if not hasattr(self, "_headers"):
+@@ -123,7 +135,7 @@ class HTTPConnection(Mapping):
+     def url_for(self, name: str, **path_params: typing.Any) -> str:
+         router = self.scope["router"]
+         url_path = router.url_path_for(name, **path_params)
+-        return url_path.make_absolute_url(base_url=self.url)
++        return url_path.make_absolute_url(base_url=self.base_url)
+ 
+ 
+ async def empty_receive() -> Message:
+diff --git a/starlette/routing.py b/starlette/routing.py
+index 48ed8ee..7a0d7ef 100644
+--- a/starlette/routing.py
++++ b/starlette/routing.py
+@@ -309,9 +309,11 @@ class Mount(BaseRoute):
+                 matched_path = path[: -len(remaining_path)]
+                 path_params = dict(scope.get("path_params", {}))
+                 path_params.update(matched_params)
++                root_path = scope.get("root_path", "")
+                 child_scope = {
+                     "path_params": path_params,
+-                    "root_path": scope.get("root_path", "") + matched_path,
++                    "app_root_path": scope.get("app_root_path", root_path),
++                    "root_path": root_path + matched_path,
+                     "path": remaining_path,
+                     "endpoint": self.app,
+                 }
+diff --git a/starlette/testclient.py b/starlette/testclient.py
+index eb0e8be..471e623 100644
+--- a/starlette/testclient.py
++++ b/starlette/testclient.py
+@@ -88,9 +88,12 @@ class _WrapASGI2:
+ 
+ 
+ class _ASGIAdapter(requests.adapters.HTTPAdapter):
+-    def __init__(self, app: ASGI3App, raise_server_exceptions: bool = True) -> None:
++    def __init__(
++        self, app: ASGI3App, raise_server_exceptions: bool = True, root_path: str = ""
++    ) -> None:
+         self.app = app
+         self.raise_server_exceptions = raise_server_exceptions
++        self.root_path = root_path
+ 
+     def send(  # type: ignore
+         self, request: requests.PreparedRequest, *args: typing.Any, **kwargs: typing.Any
+@@ -131,7 +134,7 @@ class _ASGIAdapter(requests.adapters.HTTPAdapter):
+             scope = {
+                 "type": "websocket",
+                 "path": unquote(path),
+-                "root_path": "",
++                "root_path": self.root_path,
+                 "scheme": scheme,
+                 "query_string": query.encode(),
+                 "headers": headers,
+@@ -147,7 +150,7 @@ class _ASGIAdapter(requests.adapters.HTTPAdapter):
+             "http_version": "1.1",
+             "method": request.method,
+             "path": unquote(path),
+-            "root_path": "",
++            "root_path": self.root_path,
+             "scheme": scheme,
+             "query_string": query.encode(),
+             "headers": headers,
+@@ -365,6 +368,7 @@ class TestClient(requests.Session):
+         app: typing.Union[ASGI2App, ASGI3App],
+         base_url: str = "http://testserver",
+         raise_server_exceptions: bool = True,
++        root_path: str = "",
+     ) -> None:
+         super(TestClient, self).__init__()
+         if _is_asgi3(app):
+@@ -374,7 +378,9 @@ class TestClient(requests.Session):
+             app = typing.cast(ASGI2App, app)
+             asgi_app = _WrapASGI2(app)  #  type: ignore
+         adapter = _ASGIAdapter(
+-            asgi_app, raise_server_exceptions=raise_server_exceptions
++            asgi_app,
++            raise_server_exceptions=raise_server_exceptions,
++            root_path=root_path,
+         )
+         self.mount("http://", adapter)
+         self.mount("https://", adapter)

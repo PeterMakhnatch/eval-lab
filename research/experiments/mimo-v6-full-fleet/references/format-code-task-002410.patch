@@ -1,0 +1,13 @@
+diff --git a/pylsp/plugins/flake8_lint.py b/pylsp/plugins/flake8_lint.py
+index 6be83b9..66aaaf3 100644
+--- a/pylsp/plugins/flake8_lint.py
++++ b/pylsp/plugins/flake8_lint.py
+@@ -174,7 +174,7 @@ def parse_stdout(document, stdout):
+         # show also the code in message
+         msg = code + ' ' + msg
+         severity = lsp.DiagnosticSeverity.Warning
+-        if code[0] == "E":
++        if code == "E999" or code[0] == "F":
+             severity = lsp.DiagnosticSeverity.Error
+         diagnostics.append(
+             {

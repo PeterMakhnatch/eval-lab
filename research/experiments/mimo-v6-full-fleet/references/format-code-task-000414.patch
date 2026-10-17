@@ -1,0 +1,74 @@
+diff --git a/airflow/api_connexion/endpoints/event_log_endpoint.py b/airflow/api_connexion/endpoints/event_log_endpoint.py
+index 75c951d8f1..9489d7a7bb 100644
+--- a/airflow/api_connexion/endpoints/event_log_endpoint.py
++++ b/airflow/api_connexion/endpoints/event_log_endpoint.py
+@@ -58,6 +58,8 @@ def get_event_logs(
+     task_id: str | None = None,
+     owner: str | None = None,
+     event: str | None = None,
++    excluded_events: str | None = None,
++    included_events: str | None = None,
+     before: str | None = None,
+     after: str | None = None,
+     limit: int,
+@@ -88,6 +90,12 @@ def get_event_logs(
+         query = query.where(Log.owner == owner)
+     if event:
+         query = query.where(Log.event == event)
++    if included_events:
++        included_events_list = included_events.split(",")
++        query = query.where(Log.event.in_(included_events_list))
++    if excluded_events:
++        excluded_events_list = excluded_events.split(",")
++        query = query.where(Log.event.notin_(excluded_events_list))
+     if before:
+         query = query.where(Log.dttm < timezone.parse(before))
+     if after:
+diff --git a/airflow/api_connexion/openapi/v1.yaml b/airflow/api_connexion/openapi/v1.yaml
+index 8637612df8..4e8a3ac618 100644
+--- a/airflow/api_connexion/openapi/v1.yaml
++++ b/airflow/api_connexion/openapi/v1.yaml
+@@ -1160,6 +1160,22 @@ paths:
+         - $ref: "#/components/parameters/Owner"
+         - $ref: "#/components/parameters/Before"
+         - $ref: "#/components/parameters/After"
++        - name: included_events
++          in: query
++          schema:
++            type: string
++          required: false
++          description: |
++            One or more event names separated by commas. If set, only return event logs with events matching this pattern.
++            *New in version 2.9.0*
++        - name: excluded_events
++          in: query
++          schema:
++            type: string
++          required: false
++          description: |
++            One or more event names separated by commas. If set, only return event logs with events that do not match this pattern.
++            *New in version 2.9.0*
+       responses:
+         "200":
+           description: Success.
+diff --git a/airflow/www/static/js/types/api-generated.ts b/airflow/www/static/js/types/api-generated.ts
+index 1184dd5323..3d6688d7b3 100644
+--- a/airflow/www/static/js/types/api-generated.ts
++++ b/airflow/www/static/js/types/api-generated.ts
+@@ -3510,6 +3510,16 @@ export interface operations {
+         before?: components["parameters"]["Before"];
+         /** Timestamp to select event logs occurring after. */
+         after?: components["parameters"]["After"];
++        /**
++         * One or more event names separated by commas. If set, only return event logs with events matching this pattern.
++         * *New in version 2.9.0*
++         */
++        included_events?: string;
++        /**
++         * One or more event names separated by commas. If set, only return event logs with events that do not match this pattern.
++         * *New in version 2.9.0*
++         */
++        excluded_events?: string;
+       };
+     };
+     responses: {

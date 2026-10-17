@@ -1,0 +1,75 @@
+diff --git a/doc/source/whatsnew/v0.25.0.rst b/doc/source/whatsnew/v0.25.0.rst
+index a3fb1c575e..cbefae07b0 100644
+--- a/doc/source/whatsnew/v0.25.0.rst
++++ b/doc/source/whatsnew/v0.25.0.rst
+@@ -181,6 +181,7 @@ Groupby/Resample/Rolling
+ Reshaping
+ ^^^^^^^^^
+ 
++- Bug in :func:`pandas.merge` adds a string of ``None`` if ``None`` is assigned in suffixes instead of remain the column name as-is (:issue:`24782`).
+ - Bug in :func:`merge` when merging by index name would sometimes result in an incorrectly numbered index (:issue:`24212`)
+ - :func:`to_records` now accepts dtypes to its `column_dtypes` parameter (:issue:`24895`)
+ -
+diff --git a/pandas/core/internals/managers.py b/pandas/core/internals/managers.py
+index 050c3d3e87..5cae6e1a89 100644
+--- a/pandas/core/internals/managers.py
++++ b/pandas/core/internals/managers.py
+@@ -1971,16 +1971,28 @@ def items_overlap_with_suffix(left, lsuffix, right, rsuffix):
+             raise ValueError('columns overlap but no suffix specified: '
+                              '{rename}'.format(rename=to_rename))
+ 
+-        def lrenamer(x):
+-            if x in to_rename:
+-                return '{x}{lsuffix}'.format(x=x, lsuffix=lsuffix)
+-            return x
++        def renamer(x, suffix):
++            """Rename the left and right indices.
++
++            If there is overlap, and suffix is not None, add
++            suffix, otherwise, leave it as-is.
++
++            Parameters
++            ----------
++            x : original column name
++            suffix : str or None
+ 
+-        def rrenamer(x):
+-            if x in to_rename:
+-                return '{x}{rsuffix}'.format(x=x, rsuffix=rsuffix)
++            Returns
++            -------
++            x : renamed column name
++            """
++            if x in to_rename and suffix is not None:
++                return '{x}{suffix}'.format(x=x, suffix=suffix)
+             return x
+ 
++        lrenamer = partial(renamer, suffix=lsuffix)
++        rrenamer = partial(renamer, suffix=rsuffix)
++
+         return (_transform_index(left, lrenamer),
+                 _transform_index(right, rrenamer))
+ 
+diff --git a/pandas/core/reshape/merge.py b/pandas/core/reshape/merge.py
+index 1dd19a7c15..ad3327e694 100644
+--- a/pandas/core/reshape/merge.py
++++ b/pandas/core/reshape/merge.py
+@@ -159,9 +159,15 @@ def merge_ordered(left, right, on=None,
+         left DataFrame
+     fill_method : {'ffill', None}, default None
+         Interpolation method for data
+-    suffixes : 2-length sequence (tuple, list, ...)
+-        Suffix to apply to overlapping column names in the left and right
+-        side, respectively
++    suffixes : Sequence, default is ("_x", "_y")
++        A length-2 sequence where each element is optionally a string
++        indicating the suffix to add to overlapping column names in
++        `left` and `right` respectively. Pass a value of `None` instead
++        of a string to indicate that the column name from `left` or
++        `right` should be left as-is, with no suffix. At least one of the
++        values must not be None.
++
++        .. versionchanged:: 0.25.0
+     how : {'left', 'right', 'outer', 'inner'}, default 'outer'
+         * left: use only keys from left frame (SQL: left outer join)
+         * right: use only keys from right frame (SQL: right outer join)

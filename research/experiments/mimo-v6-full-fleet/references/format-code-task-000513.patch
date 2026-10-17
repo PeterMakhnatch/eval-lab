@@ -1,0 +1,203 @@
+diff --git a/src/gluonts/model/forecast.py b/src/gluonts/model/forecast.py
+index 06c2f045..317893fc 100644
+--- a/src/gluonts/model/forecast.py
++++ b/src/gluonts/model/forecast.py
+@@ -14,7 +14,7 @@
+ import re
+ import logging
+ from dataclasses import field
+-from typing import Callable, Dict, List, Optional, Union
++from typing import Callable, Dict, List, Optional, Union, Tuple
+ 
+ import numpy as np
+ import pandas as pd
+@@ -33,6 +33,149 @@ MEAN_NOT_STORED_MSG = (
+ )
+ 
+ 
++def _linear_interpolation(
++    xs: List[float], ys: List[np.ndarray], x: float
++) -> np.ndarray:
++    assert sorted(xs) == xs
++    assert len(xs) == len(ys)
++    assert len(xs) >= 2
++
++    if x < xs[0]:
++        idx = 1
++    elif x > xs[-1]:
++        idx = len(xs) - 1
++    else:
++        idx = next(i for i, x_ in enumerate(xs) if x <= x_)
++
++    x_low, x_high = xs[idx - 1 : idx + 1]
++    y_low, y_high = ys[idx - 1 : idx + 1]
++
++    dx = x_high - x_low
++    dy = y_high - y_low
++
++    return y_low + (x - x_low) / dx * dy
++
++
++class ExponentialTailApproximation:
++    """
++    Approximate function on tails based on knots and make a inference on query
++    point. Can be used for either interpolation or extrapolation on tails.
++
++    Parameters
++    ----------
++    x_coord
++        x-coordinates of the data points must be in increasing order.
++    y_coord
++        y-coordinates of the data points - may be a higher numpy array.
++    tol
++        tolerance when performing the division and computing the log in the
++        exponential extrapolation.
++    """
++
++    def __init__(
++        self,
++        x_coord: List[float],
++        y_coord: List[np.ndarray],
++        tol: float = 1e-8,
++    ) -> None:
++        self.x_coord = x_coord
++        assert sorted(self.x_coord) == self.x_coord
++        self.y_coord = y_coord
++        self.num_points = len(self.x_coord)
++        assert (
++            self.num_points >= 2
++        ), "Need at least two points for exponential approximation."
++        self.tol = tol
++        (
++            self.beta_inv_left,
++            self.beta_inv_right,
++        ) = self.init_exponential_tail_weights()
++
++    def init_exponential_tail_weights(self) -> Tuple[float, float]:
++        """
++        Initialize the weight of exponentially decaying tail functions based on
++        two extreme points on the left and right, respectively.
++
++        Returns
++        -------
++        Tuple
++            beta coefficient for left and right tails.
++        """
++        q_log_diff = np.log(
++            (self.x_coord[1] + self.tol) / (self.x_coord[0] + self.tol)
++            + self.tol
++        )
++        y_diff_left = self.y_coord[1] - self.y_coord[0]
++        beta_inv_left = y_diff_left / q_log_diff
++
++        z_log_diff = np.log(
++            (1 - self.x_coord[-2] + self.tol)
++            / (1 - self.x_coord[-1] + self.tol)
++            + self.tol
++        )  # z = 1/(1-q)
++        y_diff_right = self.y_coord[-1] - self.y_coord[-2]
++        beta_inv_right = y_diff_right / z_log_diff
++
++        return beta_inv_left, beta_inv_right
++
++    def left(self, x: float) -> np.ndarray:
++        """
++        Return the inference made on exponentially decaying tail functions.
++
++        For left tail, x = exp(beta * (q - alpha))
++        For right tail, x = 1 - exp(-beta * (q - alpha))
++
++        E.g. for x = self.x_coord[0] or self.x_coord[1], return value is
++        exactly self.y_coord[0] or self.y_coord[1], respectively.
++
++        Parameters
++        ----------
++        x
++            x-coordinate to evaluate the right tail.
++        """
++        return (
++            self.beta_inv_left
++            * np.log((x + self.tol) / (self.x_coord[1] + self.tol) + self.tol)
++        ) + self.y_coord[1]
++
++    def right(self, x: float) -> np.ndarray:
++        """
++        Return the inference made on exponentially decaying tail functions.
++
++        For left tail, x = exp(beta * (q - alpha))
++        For right tail, x = 1 - exp(-beta * (q - alpha))
++
++        E.g. for x = self.x_coord[-1] or self.x_coord[-2] ,
++        return value is exactly self.y_coord[-1]
++        or self.y_coord[-2] respectively.
++        Parameters
++        ----------
++        x
++            x-coordinate to evaluate the right tail.
++        """
++        return (
++            self.beta_inv_right
++            * np.log(
++                (1 - self.x_coord[-2] + self.tol) / (1 - x + self.tol)
++                + self.tol
++            )
++        ) + self.y_coord[-2]
++
++    def tail_range(self, default_left_tail=0.1, default_right_tail=0.9):
++        """
++        Return an effective range of left and right tails.
++        """
++        left_tail = max(
++            self.x_coord[0],
++            min(self.x_coord[1], default_left_tail),
++        )
++        right_tail = min(
++            self.x_coord[-1],
++            max(self.x_coord[-2], default_right_tail),
++        )
++        return left_tail, right_tail
++
++
+ @dataclass
+ class Quantile:
+     value: float = field(metadata={"ge": 0.0, "le": 1.0})
+@@ -474,6 +617,39 @@ class QuantileForecast(Forecast):
+         }
+         self._nan_out = np.array([np.nan] * self.prediction_length)
+ 
++    def quantile(self, inference_quantile: Union[float, str]) -> np.ndarray:
++        sorted_forecast_dict = dict(sorted(self._forecast_dict.items()))
++        sorted_forecast_dict.pop("mean", None)
++        quantiles = [float(q) for q in sorted_forecast_dict.keys()]
++        quantile_predictions = list(sorted_forecast_dict.values())
++
++        inference_quantile = Quantile.parse(inference_quantile).value
++
++        if len(quantiles) < 2 or inference_quantile in quantiles:
++            q_str = Quantile.parse(inference_quantile).name
++            return self._forecast_dict.get(q_str, self._nan_out)
++
++        exp_tail_approximation = ExponentialTailApproximation(
++            quantiles, quantile_predictions
++        )
++        # The effective range of left, right tails varies over tail
++        # approximation class
++        (
++            left_tail_quantile,
++            right_tail_quantile,
++        ) = exp_tail_approximation.tail_range()
++
++        if inference_quantile <= left_tail_quantile:
++            return exp_tail_approximation.left(inference_quantile)
++        elif inference_quantile >= right_tail_quantile:
++            return exp_tail_approximation.right(inference_quantile)
++        else:
++            return _linear_interpolation(
++                quantiles,
++                quantile_predictions,
++                inference_quantile,
++            )
++
+     def copy_aggregate(self, agg_fun: Callable) -> "QuantileForecast":
+         if len(self.forecast_array.shape) == 2:
+             forecast_array = self.forecast_array

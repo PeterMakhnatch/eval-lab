@@ -1,0 +1,22 @@
+diff --git a/src/polymorphic.repository.ts b/src/polymorphic.repository.ts
+index 89b2555..55783e6 100644
+--- a/src/polymorphic.repository.ts
++++ b/src/polymorphic.repository.ts
+@@ -169,7 +169,7 @@ export abstract class AbstractPolymorphicRepository<
+               resultEntities: PolymorphicChildInterface[],
+               entities: PolymorphicChildInterface[],
+             ) => entities.concat(...resultEntities),
+-            results as PolymorphicChildInterface[],
++            [] as PolymorphicChildInterface[],
+           )
+         : results) as PolymorphicChildInterface | PolymorphicChildInterface[],
+     };
+@@ -193,7 +193,7 @@ export abstract class AbstractPolymorphicRepository<
+         : {
+             where: {
+               [entityIdColumn(options)]: parent[PrimaryColumn(options)],
+-              [entityTypeColumn(options)]: entityType,
++              [entityTypeColumn(options)]: parent.constructor.name,
+             },
+           },
+     );

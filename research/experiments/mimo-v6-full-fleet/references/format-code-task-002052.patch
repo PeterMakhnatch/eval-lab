@@ -1,0 +1,42 @@
+diff --git a/doc/changes/latest.rst b/doc/changes/latest.rst
+index 07a95b324..2dc3671a6 100644
+--- a/doc/changes/latest.rst
++++ b/doc/changes/latest.rst
+@@ -17,6 +17,7 @@ Fixes
+ 
+ - Convert references in ``nilearn/mass_univariate/permuted_least_squares.py`` to use bibtex format (:gh:`3222` by `Yasmin Mzayek`_).
+ - :func:`~plotting.plot_roi` failed before when used with the "contours" view type and passing a list of cut coordinates in display mode "x", "y" or "z"; this has been corrected (:gh:`3241` by `Jerome Dockes`_).
++- Fix title display for :func:`~plotting.plot_surf_stat_map`. The ``title`` argument does not set the figure title anymore but the axis title. (:gh:`3220` by `Raphael Meudec`).
+ - :func:`~surface.load_surf_mesh` loaded FreeSurfer specific surface files (e.g. `.pial`) with a shift in the coordinates. This is fixed by adding the c_ras coordinates to the mesh coordinates (:gh:`3235` by `Yasmin Mzayek`_).
+ 
+ Enhancements
+diff --git a/nilearn/plotting/surf_plotting.py b/nilearn/plotting/surf_plotting.py
+index b7d889450..5c56625da 100644
+--- a/nilearn/plotting/surf_plotting.py
++++ b/nilearn/plotting/surf_plotting.py
+@@ -519,7 +519,7 @@ def _plot_surf_matplotlib(coords, faces, surf_map=None, bg_map=None,
+         p3dcollec.set_facecolors(face_colors)
+ 
+     if title is not None:
+-        figure.suptitle(title, x=.5, y=.95, fontsize=title_font_size)
++        axes.set_title(title)
+     # save figure if output file is given
+     if output_file is not None:
+         figure.savefig(output_file)
+@@ -866,15 +866,13 @@ def plot_surf_contours(surf_mesh, roi_map, axes=None, figure=None, levels=None,
+         if label and legend:
+             patch_list.append(Patch(color=color, label=label))
+     # plot legend only if indicated and labels provided
+-    pos_title_x = .5
+     if legend and np.any([lbl is not None for lbl in labels]):
+         figure.legend(handles=patch_list)
+         # if legends, then move title to the left
+-        pos_title_x = .3
+     if title is None and hasattr(figure._suptitle, "_text"):
+         title = figure._suptitle._text
+     if title:
+-        figure.suptitle(title, x=pos_title_x, y=.95)
++        axes.set_title(title)
+     # save figure if output file is given
+     if output_file is not None:
+         figure.savefig(output_file)

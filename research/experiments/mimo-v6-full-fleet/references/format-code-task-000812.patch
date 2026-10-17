@@ -1,0 +1,123 @@
+diff --git a/AUTHORS b/AUTHORS
+index ad93ff7..92f65ed 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -65,6 +65,5 @@ pySilver
+ Łukasz Skarżyński
+ Shaheed Haque
+ Peter Karman
+-Andrea Greco
+ Vinay Karanam
+ Eduardo Oliveira
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b087a48..95dd2d6 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ 
+ ### Fixed
+ * #1012 Return status for introspecting a nonexistent token from 401 to the correct value of 200 per [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662#section-2.2).
++* #1068 Revert #967 which incorrectly changed an API. See #1066.
+ 
+ ## [1.6.1] 2021-12-23
+ 
+diff --git a/docs/oidc.rst b/docs/oidc.rst
+index eae9a67..ba69e98 100644
+--- a/docs/oidc.rst
++++ b/docs/oidc.rst
+@@ -245,17 +245,16 @@ required claims, eg ``iss``, ``aud``, ``exp``, ``iat``, ``auth_time`` etc),
+ and the ``sub`` claim will use the primary key of the user as the value.
+ You'll probably want to customize this and add additional claims or change
+ what is sent for the ``sub`` claim. To do so, you will need to add a method to
+-our custom validator.
+-Standard claim ``sub`` is included by default, for remove it override ``get_claim_list``::
++our custom validator::
++
+     class CustomOAuth2Validator(OAuth2Validator):
+-        def get_additional_claims(self):
+-            def get_user_email(request):
+-                return request.user.get_full_name()
+-
+-            # Element name, callback to obtain data
+-            claims_list = [ ("email", get_sub_cod),
+-                        ("username", get_user_email) ]
+-            return claims_list
++
++        def get_additional_claims(self, request):
++            return {
++                "sub": request.user.email,
++                "first_name": request.user.first_name,
++                "last_name": request.user.last_name,
++            }
+ 
+ .. note::
+     This ``request`` object is not a ``django.http.Request`` object, but an
+diff --git a/oauth2_provider/oauth2_validators.py b/oauth2_provider/oauth2_validators.py
+index c4f3ec8..06ef64f 100644
+--- a/oauth2_provider/oauth2_validators.py
++++ b/oauth2_provider/oauth2_validators.py
+@@ -740,24 +740,15 @@ class OAuth2Validator(RequestValidator):
+     def get_jwt_bearer_token(self, token, token_handler, request):
+         return self.get_id_token(token, token_handler, request)
+ 
+-    def get_claim_list(self):
+-        def get_sub_code(request):
+-            return str(request.user.id)
+-
+-        list = [("sub", get_sub_code)]
++    def get_oidc_claims(self, token, token_handler, request):
++        # Required OIDC claims
++        claims = {
++            "sub": str(request.user.id),
++        }
+ 
+         # https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
+-        add = self.get_additional_claims()
+-        list.extend(add)
+-
+-        return list
++        claims.update(**self.get_additional_claims(request))
+ 
+-    def get_oidc_claims(self, token, token_handler, request):
+-        data = self.get_claim_list()
+-        claims = {}
+-
+-        for k, call in data:
+-            claims[k] = call(request)
+         return claims
+ 
+     def get_id_token_dictionary(self, token, token_handler, request):
+@@ -910,5 +901,5 @@ class OAuth2Validator(RequestValidator):
+         """
+         return self.get_oidc_claims(None, None, request)
+ 
+-    def get_additional_claims(self):
+-        return []
++    def get_additional_claims(self, request):
++        return {}
+diff --git a/oauth2_provider/views/oidc.py b/oauth2_provider/views/oidc.py
+index 0cd24fc..b4bb886 100644
+--- a/oauth2_provider/views/oidc.py
++++ b/oauth2_provider/views/oidc.py
+@@ -45,13 +45,6 @@ class ConnectDiscoveryInfoView(OIDCOnlyMixin, View):
+         signing_algorithms = [Application.HS256_ALGORITHM]
+         if oauth2_settings.OIDC_RSA_PRIVATE_KEY:
+             signing_algorithms = [Application.RS256_ALGORITHM, Application.HS256_ALGORITHM]
+-
+-        validator_class = oauth2_settings.OAUTH2_VALIDATOR_CLASS
+-        validator = validator_class()
+-        oidc_claims = []
+-        for el, _ in validator.get_claim_list():
+-            oidc_claims.append(el)
+-
+         data = {
+             "issuer": issuer_url,
+             "authorization_endpoint": authorization_endpoint,
+@@ -64,7 +57,6 @@ class ConnectDiscoveryInfoView(OIDCOnlyMixin, View):
+             "token_endpoint_auth_methods_supported": (
+                 oauth2_settings.OIDC_TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED
+             ),
+-            "claims_supported": oidc_claims,
+         }
+         response = JsonResponse(data)
+         response["Access-Control-Allow-Origin"] = "*"

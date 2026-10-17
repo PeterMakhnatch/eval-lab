@@ -1,0 +1,3970 @@
+diff --git a/.github/workflows/main-aarch64.yml b/.github/workflows/main-aarch64.yml
+new file mode 100644
+index 00000000..bdc19b96
+--- /dev/null
++++ b/.github/workflows/main-aarch64.yml
+@@ -0,0 +1,53 @@
++name: 'Icestudio for ARM 64'
++
++# On-demand Linux aarch64 build.
++#
++# Triggered manually from the Actions tab (workflow_dispatch): pick the branch
++# in the "Use workflow from" selector and it builds THAT branch, uploading the
++# aarch64 .zip as a workflow artifact (no release/tag is created).
++on:
++  workflow_dispatch:
++
++jobs:
++  build:
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v5
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Build Aarch64
++        run: |
++          export DISPLAY=:0.0
++          npm run buildAarch64
++
++      - name: Install jq package
++        run: sudo apt install -y jq
++
++      # Read the icestudio version from package.json (version property)
++      - id: icestudio_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++
++      # Timestamp for the build
++      - id: build_date
++        run: |
++          timestamp=$(jq -r '.ts' app/buildinfo.json)
++          echo "icestudio_timestamp=${timestamp}" >> $GITHUB_OUTPUT
++
++      - name: 'Upload ZIP/Aarch64'
++        env:
++          ICESTUDIO_VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          TIMESTAMP: '${{steps.build_date.outputs.icestudio_timestamp}}'
++        uses: 'actions/upload-artifact@v5'
++        with:
++          name: 'Aarch64_ZIP_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-aarch64.zip'
++          if-no-files-found: error
+diff --git a/.github/workflows/main-osx-arm64.yml b/.github/workflows/main-osx-arm64.yml
+new file mode 100644
+index 00000000..ef5bbec4
+--- /dev/null
++++ b/.github/workflows/main-osx-arm64.yml
+@@ -0,0 +1,63 @@
++name: 'Icestudio OSX ARM64'
++
++# On-demand macOS arm64 build.
++#
++# Triggered manually from the Actions tab (workflow_dispatch): pick the branch
++# in the "Use workflow from" selector and it builds THAT branch, uploading the
++# .dmg as a workflow artifact (no release/tag is created).
++#
++# Ad-hoc code signing (CODESIGN_ID=-, no Apple Developer certificate / secrets):
++# the build's repair scripts ad-hoc sign the .app and the .dmg and set the .dmg
++# Finder icon. Downloaded builds need
++# `xattr -dr com.apple.quarantine /Applications/icestudio.app` on first launch.
++on:
++  workflow_dispatch:
++
++jobs:
++  build:
++    runs-on: macos-15
++    steps:
++      - uses: actions/checkout@v5
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: |
++          # Merge macOS-only deps (grunt-appdmg, fs-xattr) into "dependencies"
++          # so npm installs them. A plain rename would create a duplicate
++          # "dependencies" key (package.json already has an empty one) and npm
++          # keeps the last, empty one -> grunt-appdmg was never installed.
++          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.dependencies=Object.assign({},p.dependencies,p.darwinDependencies);delete p.darwinDependencies;fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
++          npm install --legacy-peer-deps
++
++      - name: Build OSX ARM64 packages (ad-hoc signed)
++        env:
++          CODESIGN_ID: '-'
++        run: |
++          npm run buildOSXARM64
++          ls dist/
++
++      # Loading vars from icestudio package.json
++      - id: icestudio_json
++        run: |
++          content=`tr '\n' ' ' < package.json`
++          echo "packageJson=${content}" >> $GITHUB_OUTPUT
++
++      # Timestamp for the build
++      - id: build_date
++        run: |
++          content=`tr '\n' ' ' < app/buildinfo.json`
++          echo "buildJson=${content}" >> $GITHUB_OUTPUT
++
++      - name: 'Upload DMG/OSX64'
++        env:
++          ICESTUDIO_VERSION: '${{fromJson(steps.icestudio_json.outputs.packageJson).version}}'
++          TIMESTAMP: '${{fromJson(steps.build_date.outputs.buildJson).ts}}'
++        uses: actions/upload-artifact@v5
++        with:
++          name: 'osxarm64_DMG_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-osxarm64.dmg'
++          if-no-files-found: error
+diff --git a/.github/workflows/main-windows.yml b/.github/workflows/main-windows.yml
+new file mode 100644
+index 00000000..a1ae2302
+--- /dev/null
++++ b/.github/workflows/main-windows.yml
+@@ -0,0 +1,70 @@
++name: 'Icestudio Windows'
++
++# On-demand Windows x64 build.
++#
++# Triggered manually from the Actions tab (workflow_dispatch): pick the branch
++# in the "Use workflow from" selector and it builds THAT branch, uploading the
++# installer (.exe) + zip as workflow artifacts (no release/tag is created).
++#
++# wine/wine-mono are not needed: nw-builder sets the .exe icon/version info via
++# resedit (pure JS) and makensis runs natively on Linux.
++on:
++  workflow_dispatch:
++
++jobs:
++  build:
++    runs-on: ubuntu-22.04
++    steps:
++      - uses: actions/checkout@v5
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Install NSIS
++        run: |
++          sudo add-apt-repository -y universe
++          sudo apt-get update
++          sudo apt-get install -y nsis
++
++      - name: Build Microsoft Windows package
++        run: npm run buildWindows
++
++      - name: Install jq package
++        run: sudo apt install -y jq
++
++      # Read the icestudio version from package.json (version property)
++      - id: icestudio_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++
++      # Timestamp for the build
++      - id: build_date
++        run: |
++          timestamp=$(jq -r '.ts' app/buildinfo.json)
++          echo "icestudio_timestamp=${timestamp}" >> $GITHUB_OUTPUT
++
++      - name: 'Upload installer/win64'
++        env:
++          ICESTUDIO_VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          TIMESTAMP: '${{steps.build_date.outputs.icestudio_timestamp}}'
++        uses: 'actions/upload-artifact@v5'
++        with:
++          name: 'win64_installer_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-win64.exe'
++          if-no-files-found: error
++
++      - name: 'Upload ZIP/win64'
++        env:
++          ICESTUDIO_VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          TIMESTAMP: '${{steps.build_date.outputs.icestudio_timestamp}}'
++        uses: 'actions/upload-artifact@v5'
++        with:
++          name: 'win64_ZIP_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-win64.zip'
++          if-no-files-found: error
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+new file mode 100644
+index 00000000..97db9cc3
+--- /dev/null
++++ b/.github/workflows/main.yml
+@@ -0,0 +1,67 @@
++name: 'Icestudio for Linux'
++
++# On-demand Linux x64 build.
++#
++# Triggered manually from the Actions tab (workflow_dispatch): pick the branch
++# in the "Use workflow from" selector and it builds THAT branch, uploading the
++# AppImage + zip as workflow artifacts (no release/tag is created).
++#
++# PRs are validated by "Code standardizer hook for PRs" (prettier/jshint) but
++# do NOT build binaries. Nightly releases of develop are built by nightly.yml.
++on:
++  workflow_dispatch:
++
++jobs:
++  build:
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v5
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Build Linux
++        run: |
++          sudo apt install -y libfuse2
++          export DISPLAY=:0.0
++          npm run buildLinux64
++
++      - name: Install jq package
++        run: sudo apt install -y jq
++
++      # Read the icestudio version from package.json (version property)
++      - id: icestudio_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++
++      # Timestamp for the build
++      - id: build_date
++        run: |
++          timestamp=$(jq -r '.ts' app/buildinfo.json)
++          echo "icestudio_timestamp=${timestamp}" >> $GITHUB_OUTPUT
++
++      - name: 'Upload AppImage/linux64'
++        env:
++          ICESTUDIO_VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          TIMESTAMP: '${{steps.build_date.outputs.icestudio_timestamp}}'
++        uses: 'actions/upload-artifact@v5'
++        with:
++          name: 'linux64_AppImage_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-linux64.AppImage'
++          if-no-files-found: error
++
++      - name: 'Upload ZIP/linux64'
++        env:
++          ICESTUDIO_VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          TIMESTAMP: '${{steps.build_date.outputs.icestudio_timestamp}}'
++        uses: 'actions/upload-artifact@v5'
++        with:
++          name: 'linux64_ZIP_${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}'
++          path: 'dist/icestudio-${{env.ICESTUDIO_VERSION}}${{env.TIMESTAMP}}-linux64.zip'
++          if-no-files-found: error
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+new file mode 100644
+index 00000000..8d96df2b
+--- /dev/null
++++ b/.github/workflows/nightly.yml
+@@ -0,0 +1,273 @@
++# Nightly build of the `develop` branch.
++#
++# Every night it builds all platforms and publishes a single GitHub
++# pre-release with a date+version tag and a changelog from the commits.
++#
++#   - Runs on a schedule (~03:00 Spain: 01:00 UTC = 03:00 CEST / 02:00 CET).
++#   - Only builds if there are new commits in the last 24h (manual runs always
++#     build). Skipped days produce no release.
++#   - macOS is ad-hoc signed (no Apple certificate). Downloaded builds need
++#     `xattr -dr com.apple.quarantine` on first launch.
++#   - Nightly releases older than 15 days are deleted automatically.
++#
++# This does NOT change the per-PR behaviour: the "Code standardizer hook for
++# PRs" (prettier/jshint) still validates PRs and never builds binaries. The
++# per-platform build workflows (main*.yml) are manual (workflow_dispatch) for
++# on-demand builds of any branch.
++
++name: Nightly Build (develop)
++
++on:
++  schedule:
++    - cron: '0 1 * * *' # 01:00 UTC ≈ 03:00 Spain (summer) / 02:00 (winter)
++  workflow_dispatch: # manual trigger (always builds)
++
++permissions:
++  contents: write # create/delete releases and tags
++
++jobs:
++  # ---------------------------------------------------------------------------
++  # Decide whether to build and compute the release metadata
++  # ---------------------------------------------------------------------------
++  check:
++    runs-on: ubuntu-latest
++    outputs:
++      should_build: ${{ steps.gate.outputs.should_build }}
++      version: ${{ steps.meta.outputs.version }}
++      date: ${{ steps.meta.outputs.date }}
++      tag: ${{ steps.meta.outputs.tag }}
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          ref: develop
++          fetch-depth: 0
++
++      - name: Decide whether to build (skip if no new commits)
++        id: gate
++        run: |
++          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
++            echo "Manual run — building."
++            echo "should_build=true" >> "$GITHUB_OUTPUT"
++          elif [ -n "$(git log --since='24 hours ago' --oneline)" ]; then
++            echo "New commits in the last 24h — building."
++            echo "should_build=true" >> "$GITHUB_OUTPUT"
++          else
++            echo "No commits in the last 24h — skipping nightly."
++            echo "should_build=false" >> "$GITHUB_OUTPUT"
++          fi
++
++      - name: Compute version / date / tag
++        id: meta
++        run: |
++          version=$(jq -r '.version' package.json)
++          date=$(date -u +%Y%m%d)
++          echo "version=${version}" >> "$GITHUB_OUTPUT"
++          echo "date=${date}" >> "$GITHUB_OUTPUT"
++          echo "tag=v${version}-${date}" >> "$GITHUB_OUTPUT"
++
++  # ---------------------------------------------------------------------------
++  # Linux x64 + Windows x64 — also creates the release (with the changelog)
++  # ---------------------------------------------------------------------------
++  build-linwin:
++    needs: check
++    if: needs.check.outputs.should_build == 'true'
++    runs-on: ubuntu-22.04
++    env:
++      VERSION: ${{ needs.check.outputs.version }}
++      DATE: ${{ needs.check.outputs.date }}
++      TAG: ${{ needs.check.outputs.tag }}
++      NW_FLAVOR: sdk
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          ref: develop
++          fetch-depth: 0
++
++      - uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Install NSIS + libfuse2
++        run: |
++          sudo add-apt-repository -y universe
++          sudo apt-get update
++          sudo apt-get install -y nsis libfuse2
++
++      - name: Build Windows
++        run: |
++          export DISPLAY=:0.0
++          npm run buildWindows
++
++      - name: Stage Windows artifacts
++        run: |
++          # `grunt dist` runs clean:dist on every build, wiping the WHOLE dist/
++          # folder. Move the Windows artifacts out (to nightly/) before building
++          # Linux, otherwise the Linux build deletes them.
++          mkdir -p nightly
++          mv dist/icestudio-*-win64.exe "nightly/icestudio-${VERSION}-${DATE}-win64.exe"
++          mv dist/icestudio-*-win64.zip "nightly/icestudio-${VERSION}-${DATE}-win64.zip"
++
++      - name: Build Linux
++        run: |
++          export DISPLAY=:0.0
++          # appimagetool appends $VERSION to the AppImage filename when it is set
++          # (-> Icestudio-$VERSION-x86_64.AppImage), which breaks
++          # scripts/appImageBuild.sh (it renames the expected, unversioned
++          # Icestudio-x86_64.AppImage). Unset it so the build produces the
++          # correct icestudio-<build-id>-linux64.AppImage.
++          unset VERSION
++          npm run buildLinux64
++
++      - name: Stage Linux artifacts
++        run: |
++          mv dist/icestudio-*-linux64.AppImage "nightly/icestudio-${VERSION}-${DATE}-linux64.AppImage"
++          mv dist/icestudio-*-linux64.zip "nightly/icestudio-${VERSION}-${DATE}-linux64.zip"
++
++      - name: Generate changelog
++        run: |
++          prev=$(git tag -l --sort=-creatordate 'v*-????????' | head -1)
++          if [ -n "$prev" ]; then range="$prev..HEAD"; else range="HEAD~30..HEAD"; fi
++          {
++            echo "Automated nightly build of \`develop\` (${DATE})."
++            echo ""
++            echo "macOS build is ad-hoc signed (not notarized): after downloading,"
++            echo "run \`xattr -dr com.apple.quarantine /Applications/icestudio.app\`."
++            echo ""
++            echo "### Changes${prev:+ since $prev}"
++            echo ""
++            git log $range --no-merges --pretty='- %s (%h)' 2>/dev/null || echo "- (no changelog available)"
++          } > changelog.md
++          cat changelog.md
++
++      - name: Create nightly release + upload Linux/Windows
++        uses: softprops/action-gh-release@v3
++        with:
++          tag_name: ${{ env.TAG }}
++          name: Nightly ${{ env.VERSION }} — ${{ env.DATE }}
++          prerelease: false
++          make_latest: false
++          target_commitish: develop
++          body_path: changelog.md
++          files: |
++            nightly/icestudio-${{ env.VERSION }}-${{ env.DATE }}-win64.exe
++            nightly/icestudio-${{ env.VERSION }}-${{ env.DATE }}-win64.zip
++            nightly/icestudio-${{ env.VERSION }}-${{ env.DATE }}-linux64.AppImage
++            nightly/icestudio-${{ env.VERSION }}-${{ env.DATE }}-linux64.zip
++
++  # ---------------------------------------------------------------------------
++  # macOS arm64 (ad-hoc signed)
++  # ---------------------------------------------------------------------------
++  build-macos:
++    needs: [check, build-linwin]
++    if: needs.check.outputs.should_build == 'true'
++    runs-on: macos-15
++    env:
++      VERSION: ${{ needs.check.outputs.version }}
++      DATE: ${{ needs.check.outputs.date }}
++      TAG: ${{ needs.check.outputs.tag }}
++      NW_FLAVOR: sdk
++      CODESIGN_ID: '-'
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          ref: develop
++
++      - uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: |
++          # Merge macOS-only deps (grunt-appdmg, fs-xattr) into "dependencies"
++          # so npm installs them. A plain rename would create a duplicate
++          # "dependencies" key (package.json already has an empty one) and npm
++          # keeps the last, empty one -> grunt-appdmg was never installed.
++          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.dependencies=Object.assign({},p.dependencies,p.darwinDependencies);delete p.darwinDependencies;fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
++          npm install --legacy-peer-deps
++
++      - name: Build macOS arm64 (ad-hoc signed)
++        run: |
++          npm run buildOSXARM64
++          ls dist/
++
++      - name: Rename artifact to nightly name
++        run: mv dist/icestudio-*-osxarm64.dmg "dist/icestudio-${VERSION}-${DATE}-osxarm64.dmg"
++
++      - name: Upload macOS to release
++        uses: softprops/action-gh-release@v3
++        with:
++          tag_name: ${{ env.TAG }}
++          prerelease: false
++          make_latest: false
++          target_commitish: develop
++          files: dist/icestudio-${{ env.VERSION }}-${{ env.DATE }}-osxarm64.dmg
++
++  # ---------------------------------------------------------------------------
++  # Linux ARM (aarch64)
++  # ---------------------------------------------------------------------------
++  build-arm:
++    needs: [check, build-linwin]
++    if: needs.check.outputs.should_build == 'true'
++    runs-on: ubuntu-24.04
++    env:
++      VERSION: ${{ needs.check.outputs.version }}
++      DATE: ${{ needs.check.outputs.date }}
++      TAG: ${{ needs.check.outputs.tag }}
++      NW_FLAVOR: sdk
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          ref: develop
++
++      - uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Build Aarch64
++        run: |
++          export DISPLAY=:0.0
++          npm run buildAarch64
++
++      - name: Rename artifact to nightly name
++        run: mv dist/icestudio-*-aarch64.zip "dist/icestudio-${VERSION}-${DATE}-aarch64.zip"
++
++      - name: Upload Aarch64 to release
++        uses: softprops/action-gh-release@v3
++        with:
++          tag_name: ${{ env.TAG }}
++          prerelease: false
++          make_latest: false
++          target_commitish: develop
++          files: dist/icestudio-${{ env.VERSION }}-${{ env.DATE }}-aarch64.zip
++
++  # ---------------------------------------------------------------------------
++  # Delete nightly releases (and their tags) older than 15 days
++  # ---------------------------------------------------------------------------
++  cleanup:
++    needs: [check, build-linwin, build-macos, build-arm]
++    if: always() && needs.check.outputs.should_build == 'true'
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          ref: develop
++      - name: Delete nightlies older than 15 days
++        env:
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: |
++          cutoff=$(date -u -d '15 days ago' +%Y%m%d)
++          echo "Deleting nightlies with date < ${cutoff}"
++          gh release list --limit 200 --json tagName --jq '.[].tagName' \
++            | grep -E '^v.*-[0-9]{8}$' | while read -r tag; do
++              d=$(echo "$tag" | grep -oE '[0-9]{8}$')
++              if [ "$d" -lt "$cutoff" ]; then
++                echo "Deleting old nightly: $tag"
++                gh release delete "$tag" --yes --cleanup-tag || true
++              fi
++            done
+diff --git a/.github/workflows/release-stable.yml b/.github/workflows/release-stable.yml
+new file mode 100644
+index 00000000..c909551f
+--- /dev/null
++++ b/.github/workflows/release-stable.yml
+@@ -0,0 +1,251 @@
++# Release a stable version of icestudio
++# 1. The binaries are generated for all the platforms
++# 2. A new release is created
++# 3. The binaries are uploaded to the Release page
++
++name: Stable Release
++
++# Manual activation
++on: [workflow_dispatch]
++
++jobs:
++  #-- Build for Linux and windows
++  build-LinWin:
++    runs-on: ubuntu-22.04
++    outputs:
++      #-- URL to upload the binaries for
++      #-- the jobs executed after build-LinWin
++      upload_url: ${{ steps.create_release.outputs.upload_url }}
++    steps:
++      # Debug: It is for testing if the `certificate has expired`
++      # Error is solved
++      - name: 'Debug: No SSL verification'
++        run: |
++          git config --global http.sslVerify false
++
++      # Checkout the master repo branch
++      - name: Checkout!
++        uses: actions/checkout@v5
++        with:
++          ref: master
++
++      # jq is bash command for reading properties from a json file
++      - name: Install jq package
++        run: sudo apt install jq
++
++      # Read the icestudio version from package.json (version property)
++      - name: Read the package.json file
++        id: icestudio_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++          echo $version
++
++      # -- Debug: Print the icestudio version
++      - name: Get the Icestudio version
++        env:
++          VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++        run: |
++          echo "VERSION: ${{ env.VERSION }}"
++
++      # Install Node
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '22.7.0'
++
++      - name: Install npm dependencies
++        run: |
++          npm install --legacy-peer-deps
++
++      # NSIS (makensis) builds the Windows installer. wine/wine-mono are no
++      # longer needed: nw-builder sets the .exe icon via resedit (pure JS) and
++      # makensis runs natively on Linux.
++      - name: Install NSIS
++        run: |
++          sudo add-apt-repository -y universe
++          sudo apt-get update
++          sudo apt-get install -y nsis
++
++      # -- Build For windows!!
++      - name: Build Microsoft Windows package
++        run: |
++          export DISPLAY=:0.0 
++          npm run buildWindows
++          echo "====> DEBUG: Contents of the dist folder..."
++          ls -l dist
++
++      #-- Create the Release (draft) and Upload Window binaries
++      - name: Create the Stable Release
++        id: create_release
++        uses: softprops/action-gh-release@v3
++        env:
++          VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        with:
++          draft: true
++          prerelease: false
++          tag_name: v${{ env.VERSION }}
++          files: |
++            dist/icestudio-${{env.VERSION}}-win64.exe
++            dist/icestudio-${{env.VERSION}}-win64.zip
++          body: A new release (Draft)
++
++      #-- Build for linux
++      - name: Build Linux
++        run: |
++          sudo apt install -y libfuse2
++          export DISPLAY=:0.0 
++          npm run buildLinux64
++          echo "====> DEBUG: Contents of the dist folder..."
++          ls -l dist
++
++      # ---------------------------------------
++      # -- Upload the Linux binaries to the release
++      # ---------------------------------------
++      - name: Upload Linux64 binaries
++        uses: softprops/action-gh-release@v3
++        env:
++          VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        with:
++          draft: true
++          prerelease: false
++          tag_name: v${{ env.VERSION }}
++          files: |
++            dist/icestudio-${{env.VERSION}}-linux64.AppImage
++            dist/icestudio-${{env.VERSION}}-linux64.zip
++
++  # Build for macos
++  build-macos:
++    # -- It is only run if the build for linux/win is ok, and
++    # -- the release was already created
++    needs: build-LinWin
++
++    runs-on: macos-15
++
++    steps:
++      - name: Checkout the master repo branch
++        uses: actions/checkout@v5
++        with:
++          ref: master
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '21.1.0'
++
++      - name: Install npm dependencies
++        run: |
++          # Merge macOS-only deps (grunt-appdmg, fs-xattr) into "dependencies"
++          # so npm installs them. A plain rename would create a duplicate
++          # "dependencies" key (package.json already has an empty one) and npm
++          # keeps the last, empty one -> grunt-appdmg was never installed.
++          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.dependencies=Object.assign({},p.dependencies,p.darwinDependencies);delete p.darwinDependencies;fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
++          npm install --legacy-peer-deps
++
++      # Ad-hoc code signing (no Apple Developer certificate / secrets).
++      - name: Build OSX ARM64 packages (ad-hoc signed)
++        env:
++          CODESIGN_ID: '-'
++        run: |
++          npm run buildOSXARM64
++          ls dist/
++
++        # Loading vars from icestudio package.json
++      - id: icestudio_json
++        run: |
++          content=`tr '\n' ' ' < package.json`
++          echo "packageJson=${content}" >> $GITHUB_OUTPUT
++
++      # Read the icestudio version from package.json (version property)
++      - id: icestudio_version_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++
++      # NOTE: no separate "Sign DMG" step — the build already ad-hoc signs the
++      # .dmg (repairOSXarm64dmg.sh, CODESIGN_ID=-) and sets its Finder icon.
++
++      # ---------------------------------------
++      # -- Upload Mac binaries to the release
++      # ---------------------------------------
++      - name: 'Upload DMG/OSX64'
++        uses: softprops/action-gh-release@v3
++        env:
++          # VERSION: "${{fromJson(steps.icestudio_json.outputs.packageJson).version}}"
++          VERSION: '${{steps.icestudio_version_json.outputs.icestudio_version}}'
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        with:
++          draft: true
++          prerelease: false
++          tag_name: v${{ env.VERSION }}
++          files: |
++            dist/icestudio-${{env.VERSION}}-osxarm64.dmg
++
++  # Build for ARM 64
++  build-arm:
++    # -- It is only run if the build for linux/win is ok, and
++    # -- the release already created
++    needs: build-LinWin
++
++    # The type of runner that the job will run on
++    runs-on: ubuntu-24.04
++
++    # Steps represent a sequence of tasks that will be executed as part of the job
++    steps:
++      # Checkout the develop branch
++      - uses: actions/checkout@v5
++        with:
++          ref: master
++
++      - name: Setup Nodejs version
++        uses: actions/setup-node@v5
++        with:
++          node-version: '23.3.0'
++
++      - name: Install npm dependencies
++        run: npm install --legacy-peer-deps
++
++      - name: Build ARM
++        env:
++          NW_FLAVOR: normal
++        run: |
++          sudo apt install -y libfuse2
++          export DISPLAY=:0.0
++          npm run buildAarch64
++          echo "====> DEBUG: Contents of the dist folder..."
++          ls -l dist
++
++      # jq is bash command for reading properties from a json file
++      - name: Install jq package
++        run: sudo apt install jq
++
++      # Read the icestudio version from package.json (version property)
++      - id: icestudio_json
++        run: |
++          version=$(jq -r '.version' package.json)
++          echo "icestudio_version=${version}" >> $GITHUB_OUTPUT
++
++      # -- Debug: Print the icestudio version
++      # -- It is read from the package.json
++      - name: Get the Icestudio version
++        env:
++          VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++        run: |
++          echo "VERSION: ${{ env.VERSION }}"
++
++      # ---------------------------------------
++      # -- Upload ARM binaries to the release
++      # ---------------------------------------
++      - name: 'Upload ZIP/Aarch64'
++        uses: softprops/action-gh-release@v3
++        env:
++          VERSION: '${{steps.icestudio_json.outputs.icestudio_version}}'
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        with:
++          draft: true
++          prerelease: false
++          tag_name: v${{ env.VERSION }}
++          files: |
++            dist/icestudio-${{env.VERSION}}-aarch64.zip
+diff --git a/Gruntfile.js b/Gruntfile.js
+index 8acb4c07..ef9e3cea 100644
+--- a/Gruntfile.js
++++ b/Gruntfile.js
+@@ -775,11 +775,6 @@ module.exports = function (grunt) {
+             //-- Src files
+             APP_HTML + '/*.html',
+             APP_SCRIPTS + '/**/*.js',
+-            // This file contains an interpolated HTML template with an inline
+-            // script. angular-gettext-tools tries to parse each interpolation
+-            // fragment as standalone JavaScript even though it contains no
+-            // translatable strings.
+-            '!' + APP_SCRIPTS + '/graphics/joint.shapes/code.js',
+             //-- Plugins whose UI strings use gettextCatalog.getString()
+             APP_RESOURCES + '/plugins/setupWizard/js/*.js',
+             APP_RESOURCES + '/plugins/iceHub/js/*.js',
+diff --git a/app/resources/locale/template.pot b/app/resources/locale/template.pot
+new file mode 100644
+index 00000000..540da637
+--- /dev/null
++++ b/app/resources/locale/template.pot
+@@ -0,0 +1,2764 @@
++msgid ""
++msgstr ""
++"Content-Type: text/plain; charset=UTF-8\n"
++"Content-Transfer-Encoding: 8bit\n"
++"Project-Id-Version: \n"
++
++#: app/scripts/services/forms.js:1858
++msgid "\"Inout\" Left ports"
++msgstr ""
++
++#: app/scripts/services/forms.js:1868
++msgid "\"Inout\" Right ports"
++msgstr ""
++
++#: app/scripts/services/forms.js:1252
++#: app/scripts/services/forms.js:1389
++msgid "\"Inout\" pin"
++msgstr ""
++
++#: app/scripts/services/utils.js:1068
++msgid "\"{{name}}\" already exists. Do you want to replace it?"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:429
++msgid "(mode \"apio\"). Mix freely (e.g. apio build + custom upload = combo). Per-OS columns override per operating system; if the three are equal it is stored as a single all-OS command. Use"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:507
++msgid "({{index}}/{{total}}) {{phase}}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:352
++#: app/resources/plugins/boardEditor/js/boardEditor.js:353
++msgid "+ Add"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:324
++msgid "+ Add pin"
++msgstr ""
++
++#: app/views/design.html:16
++msgid ""
++"<b>Read only</b><br>\n"
++"        Unlock to edit the block!"
++msgstr ""
++
++#: app/views/design.html:35
++msgid ""
++"<b>WARNING!</b><br>\n"
++"        The changes made here will also be applied to all the [\n"
++"        <b>{{ information.name }}</b>\n"
++"        ] blocks in the current design. If you DO NOT want them\n"
++"        to propagate, create a cloned block instead using<br>\n"
++"        <b>Edit → Clone</b>."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:455
++msgid "<br><br><b>This collection is a git working copy</b>: its local repository (.git) and any local changes will be lost."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:859
++msgid "A USB device was detected, but it does not look like your board. Continue only if you are sure it is connected."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1015
++msgid "A board with id \"{id}\" already exists"
++msgstr ""
++
++#: app/scripts/services/graph.js:2304
++msgid "A different version of this block already existed in the design; your copy was kept as a separate clone."
++msgstr ""
++
++#: app/views/menu.html:841
++msgid "About Icestudio"
++msgstr ""
++
++#: app/views/design.html:667
++msgid "Accept"
++msgstr ""
++
++#: app/views/version.html:36
++msgid "Acknowledgment"
++msgstr ""
++
++#: app/scripts/services/project.js:209
++msgid "Activate"
++msgstr ""
++
++#: app/scripts/services/project.js:218
++msgid "Activate it for this design only? Your configured {{name}} board will not change."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1325
++msgid "Add"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1930
++msgid "Add a block to start"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1329
++msgid "Add a collection from a file or URL"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1008
++msgid "Add a collection from a local file <b>or</b> a URL (use one of the two):"
++msgstr ""
++
++#: app/views/menu.html:139
++msgid "Add as block"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1043
++msgid "Add collection"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:967
++msgid "Add failed: {{error}}"
++msgstr ""
++
++#: app/scripts/services/forms.js:2201
++msgid "Address format"
++msgstr ""
++
++#: app/views/menu.html:389
++msgid "Advanced features"
++msgstr ""
++
++#: app/views/design.html:630
++msgid "All"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:534
++msgid "All catalog collections are already installed."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:634
++msgid "All collections are up to date."
++msgstr ""
++
++#: app/scripts/services/tools.js:2775
++msgid "All collections removed"
++msgstr ""
++
++#: app/scripts/controllers/design.js:262
++msgid "All in the design"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1148
++msgid "All set!"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1970
++msgid "All stored collections will be lost. Do you want to continue?"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:277
++msgid "Allow editing distribution boards (developer)"
++msgstr ""
++
++#: app/views/advanced.html:27
++msgid "Allow tri-state connections"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:295
++msgid "Apio board id"
++msgstr ""
++
++#: app/scripts/services/tools.js:1694
++msgid "Apio channel"
++msgstr ""
++
++#: app/scripts/services/tools.js:1706
++msgid "Apio channel set to {{ch}}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:296
++msgid "Arch"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:353
++msgid "Are you sure you want to clear the recent projects list?"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:973
++#: app/scripts/services/utils.js:728
++msgid "Author"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:915
++#: app/resources/plugins/setupWizard/js/wizard.js:1210
++#: app/resources/plugins/setupWizard/js/wizard.js:1218
++#: app/resources/plugins/setupWizard/js/wizard.js:422
++msgid "Back"
++msgstr ""
++
++#: app/views/menu.html:708
++msgid "Basic"
++msgstr ""
++
++#: app/views/design.html:304
++msgid "Basic Toolbox"
++msgstr ""
++
++#: app/views/languages.html:122
++msgid "Basque"
++msgstr ""
++
++#: app/scripts/services/forms.js:2187
++msgid "Binary"
++msgstr ""
++
++#: app/scripts/services/blockforms.js:1096
++#: app/scripts/services/blockforms.js:1213
++#: app/scripts/services/blockforms.js:1257
++#: app/scripts/services/blockforms.js:1304
++#: app/scripts/services/blockforms.js:1353
++#: app/scripts/services/blockforms.js:1515
++msgid "Block updated"
++msgstr ""
++
++#: app/scripts/services/project.js:690
++msgid "Block {{name}} imported"
++msgstr ""
++
++#: app/views/menu.html:116
++msgid "Blocks"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1075
++msgid "Board \"{id}\" deleted"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1046
++msgid "Board \"{id}\" saved"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1045
++msgid "Board \"{id}\" saved (distribution)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:289
++msgid "Board id (folder name)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:985
++msgid "Board id is required"
++msgstr ""
++
++#: app/views/advanced.html:15
++#: app/views/menu.html:471
++msgid "Board rules"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1279
++msgid "Board rules disabled"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1277
++msgid "Board rules enabled"
++msgstr ""
++
++#: app/scripts/services/tools.js:1069
++msgid "Board {{name}} disconnected"
++msgstr ""
++
++#: app/scripts/services/tools.js:1027
++#: app/scripts/services/tools.js:1054
++msgid "Board {{name}} not available"
++msgstr ""
++
++#: app/scripts/services/tools.js:1005
++msgid "Board {{name}} not connected"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1776
++msgid "Board {{name}} selected"
++msgstr ""
++
++#: app/scripts/services/tools.js:1016
++#: app/scripts/services/tools.js:1047
++msgid "Bootloader not active"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1021
++#: app/scripts/services/forms.js:2748
++msgid "Browse…"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1819
++#: app/scripts/controllers/menu.js:763
++#: app/views/design.html:557
++#: app/views/menu.html:547
++msgid "Build"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1831
++msgid "Build done"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:293
++msgid "Build mode (default per action)"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:960
++msgid "Building the bitstream"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:517
++msgid "CI (nightly)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:404
++#: app/resources/plugins/setupWizard/js/wizard.js:1209
++#: app/resources/plugins/setupWizard/js/wizard.js:419
++#: app/scripts/app.js:56
++#: app/scripts/controllers/design.js:266
++#: app/scripts/controllers/menu.js:672
++#: app/scripts/controllers/menu.js:718
++#: app/scripts/services/project.js:181
++#: app/scripts/services/project.js:199
++#: app/scripts/services/project.js:310
++#: app/scripts/services/utils.js:1647
++#: app/views/design.html:660
++msgid "Cancel"
++msgstr ""
++
++#: app/scripts/services/utils.js:1432
++msgid "Cannot paste from a different project format ({{version}})"
++msgstr ""
++
++#: app/views/design.html:56
++msgid "Case sensitive"
++msgstr ""
++
++#: app/views/languages.html:131
++msgid "Catalonian"
++msgstr ""
++
++#: app/views/design.html:292
++msgid "Change Color"
++msgstr ""
++
++#: app/scripts/services/utils.js:1625
++msgid "Changed Preferences: Allow tri-state connections"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:622
++msgid "Change…"
++msgstr ""
++
++#: app/scripts/services/tools.js:1682
++#: app/views/menu.html:632
++msgid "Channel"
++msgstr ""
++
++#: app/scripts/services/tools.js:2238
++msgid "Check Internet connection..."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1311
++msgid "Check for new versions"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:641
++msgid "Checking ({{index}}/{{total}}) {{name}}…"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:611
++msgid "Checking for updates…"
++msgstr ""
++
++#: app/views/languages.html:140
++msgid "Chinese"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:500
++msgid "Choose a channel:"
++msgstr ""
++
++#: app/scripts/services/forms.js:1481
++msgid "Choose a color:"
++msgstr ""
++
++#: app/scripts/services/tools.js:1667
++msgid "Choose the Apio toolchain channel to install/update from:"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:613
++msgid "Choose where the block <b>collections</b> you install from iceHub will be stored. The default is fine for most users."
++msgstr ""
++
++#: app/views/design.html:579
++#: app/views/menu.html:565
++msgid "Clean project"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1898
++msgid "Cleaned:"
++msgstr ""
++
++#: app/views/console.html:21
++msgid "Clear"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:352
++msgid "Clear recent projects"
++msgstr ""
++
++#: app/views/menu.html:107
++msgid "Clear recently opened"
++msgstr ""
++
++#: app/scripts/services/utils.js:1619
++msgid "Click \"Yes\" to allow tri-state and update Preferences:<br />&nbsp;&nbsp;&nbsp;<b>Advanced features → Allow tri-state connections</b><br /><br />Click \"This time\" to view tri-state for this design only."
++msgstr ""
++
++#: app/scripts/services/project.js:342
++msgid "Click here to <b>download a newer version</b> of Icestudio"
++msgstr ""
++
++#: app/scripts/services/tools.js:2448
++msgid "Click here to <b>setup the drivers</b>"
++msgstr ""
++
++#: app/scripts/services/tools.js:2806
++#: app/scripts/services/tools.js:2816
++#: app/scripts/services/tools.js:508
++msgid "Click here to install it"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1221
++msgid "Click here to view"
++msgstr ""
++
++#: app/scripts/services/utils.js:1039
++msgid "Click to select folder..."
++msgstr ""
++
++#: app/scripts/services/forms.js:1299
++msgid "Clock not allowed for data buses"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:251
++#: app/views/menu.html:283
++msgid "Clone"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:252
++msgid "Clone the selected board"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:965
++msgid "Cloned — set a new board id and Save"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:920
++#: app/views/console.html:28
++#: app/views/version.html:93
++msgid "Close"
++msgstr ""
++
++#: app/views/design.html:375
++#: app/views/menu.html:746
++msgid "Code"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:947
++msgid "Collection <b>{{name}}</b> already exists. Overwrite it with the added one?"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:946
++msgid "Collection exists"
++msgstr ""
++
++#: app/views/menu.html:479
++msgid "Collection info"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:717
++msgid "Collection is not installed."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1691
++msgid "Collection {{collection}} info not defined"
++msgstr ""
++
++#: app/scripts/services/tools.js:2628
++msgid "Collection {{name}} added"
++msgstr ""
++
++#: app/scripts/services/tools.js:2615
++msgid "Collection {{name}} not replaced"
++msgstr ""
++
++#: app/scripts/services/tools.js:2766
++msgid "Collection {{name}} removed"
++msgstr ""
++
++#: app/scripts/services/tools.js:2603
++msgid "Collection {{name}} replaced"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1723
++msgid "Collection {{name}} selected"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1301
++msgid "Collections"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:610
++msgid "Collections folder"
++msgstr ""
++
++#: app/scripts/services/tools.js:244
++msgid "Command failed"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:286
++msgid "Commands"
++msgstr ""
++
++#: app/views/menu.html:831
++msgid "Community forum"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:893
++msgid "Community · FPGA-Wars: exploring the free side"
++msgstr ""
++
++#: app/scripts/services/tools.js:1091
++msgid "Configuration not completed"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:791
++msgid "Connect your board"
++msgstr ""
++
++#: app/views/design.html:358
++#: app/views/menu.html:738
++msgid "Constant"
++msgstr ""
++
++#: app/scripts/services/forms.js:2379
++msgid "Constant names"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:291
++#: app/resources/plugins/setupWizard/js/wizard.js:534
++msgid "Continue"
++msgstr ""
++
++#: app/scripts/services/project.js:180
++#: app/scripts/services/project.js:210
++#: app/scripts/services/project.js:234
++msgid "Convert"
++msgstr ""
++
++#: app/scripts/services/project.js:189
++msgid "Convert it to use the {{name}} board?"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1659
++msgid "Copied to clipboard"
++msgstr ""
++
++#: app/views/design.html:520
++#: app/views/menu.html:263
++msgid "Copy"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:881
++msgid "Copy examples"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:996
++msgid "Copy failed: {{error}}"
++msgstr ""
++
++#: app/scripts/services/forms.js:458
++#: app/views/design.html:141
++msgid "Coral"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1085
++msgid "Could not download the test example."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1057
++msgid "Could not list the available examples."
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:698
++msgid "Could not load the video catalog."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1096
++msgid "Could not open a new window: {{error}}"
++msgstr ""
++
++#: app/scripts/services/tools.js:2017
++msgid "Could not prepare the drivers command"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:491
++msgid "Could not process: {{names}}"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1123
++msgid "Could not program the board. Make sure it is connected and powered (and the drivers are installed), then try again."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1302
++msgid "Could not read apio board definitions: {error}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:250
++msgid "Create a new board"
++msgstr ""
++
++#: app/views/menu.html:253
++msgid "Cut"
++msgstr ""
++
++#: app/views/languages.html:86
++msgid "Czech"
++msgstr ""
++
++#: app/views/uithemes.html:16
++msgid "Dark (default)"
++msgstr ""
++
++#: app/scripts/services/forms.js:482
++#: app/views/design.html:218
++msgid "Dark Green"
++msgstr ""
++
++#: app/scripts/services/forms.js:464
++#: app/views/design.html:159
++msgid "Dark Orange"
++msgstr ""
++
++#: app/views/menu.html:464
++msgid "Datasheet"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:302
++msgid "Datasheet URL"
++msgstr ""
++
++#: app/scripts/services/forms.js:2191
++msgid "Decimal"
++msgstr ""
++
++#: app/scripts/services/forms.js:452
++#: app/views/design.html:127
++msgid "Deep Pink"
++msgstr ""
++
++#: app/scripts/services/forms.js:497
++#: app/views/design.html:263
++msgid "Deep Sky Blue"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:190
++msgid "Default"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:255
++#: app/views/menu.html:303
++msgid "Delete"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:258
++msgid "Delete board (project boards only)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1068
++msgid "Delete failed: {error}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1059
++msgid "Delete project board \"{id}\"? This removes its folder."
++msgstr ""
++
++#: app/scripts/services/utils.js:727
++msgid "Description"
++msgstr ""
++
++#: app/scripts/services/forms.js:1922
++msgid "Design contains tri-state I/O. You need to update your Preferences:<br />&nbsp;&nbsp;&nbsp;<b>Advanced features → Allow tri-state connections</b>,<br />and reimport the block."
++msgstr ""
++
++#: app/scripts/services/utils.js:1025
++msgid "Design name"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:273
++msgid "Developer mode"
++msgstr ""
++
++#: app/views/menu.html:657
++msgid "Disable"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:635
++msgid "Distribution board (read-only unless developer mode)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:812
++msgid "Do you want to close the application?"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1953
++msgid "Do you want to remove the {{name}} collection?"
++msgstr ""
++
++#: app/scripts/services/tools.js:2596
++msgid "Do you want to replace it?"
++msgstr ""
++
++#: app/views/menu.html:806
++msgid "Documentation"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:668
++msgid "Don’t Save"
++msgstr ""
++
++#: app/views/version.html:83
++msgid "Don’t display"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1141
++msgid "Don’t show this again"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:279
++msgid "Downloaded"
++msgstr ""
++
++#: app/scripts/services/tools.js:2317
++msgid "Downloading Apio bundle..."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:958
++msgid "Downloading the example"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:356
++msgid "Downloading {{name}}…"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:875
++#: app/resources/plugins/iceTutorial/js/main.js:224
++msgid "Downloading…"
++msgstr ""
++
++#: app/scripts/services/tools.js:1961
++msgid "Driver operation failed"
++msgstr ""
++
++#: app/views/menu.html:645
++msgid "Drivers"
++msgstr ""
++
++#: app/views/menu.html:293
++msgid "Duplicate"
++msgstr ""
++
++#: app/scripts/services/tools.js:1109
++msgid "Duplicate FPGA I/O ports"
++msgstr ""
++
++#: app/scripts/services/forms.js:2105
++msgid "Duplicate port name: {{name}}"
++msgstr ""
++
++#: app/views/languages.html:59
++msgid "Dutch"
++msgstr ""
++
++#: app/views/menu.html:224
++msgid "Edit"
++msgstr ""
++
++#: app/scripts/controllers/design.js:652
++msgid "Edit only this block, or all blocks of this type in the design?"
++msgstr ""
++
++#: app/scripts/services/tools.js:2574
++msgid "Edit the collection name"
++msgstr ""
++
++#: app/views/menu.html:650
++msgid "Enable"
++msgstr ""
++
++#: app/views/languages.html:14
++msgid "English"
++msgstr ""
++
++#: app/scripts/services/forms.js:2638
++msgid "Enter the external plugins path"
++msgstr ""
++
++#: app/scripts/services/forms.js:2596
++msgid "Enter the log filename"
++msgstr ""
++
++#: app/scripts/services/forms.js:2687
++msgid "Enter the pip path"
++msgstr ""
++
++#: app/scripts/services/forms.js:2680
++msgid "Enter the python path"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1266
++msgid "Enter the remote hostname user@host"
++msgstr ""
++
++#: app/scripts/services/tools.js:991
++msgid "Error"
++msgstr ""
++
++#: app/scripts/services/tools.js:1801
++msgid "Error checking for updates"
++msgstr ""
++
++#: app/scripts/services/forms.js:1936
++msgid "Error reading the file: {{error}}"
++msgstr ""
++
++#: app/scripts/services/utils.js:944
++msgid "Error: {{error}}"
++msgstr ""
++
++#: app/scripts/services/tools.js:1223
++msgid "Errors detected in the design"
++msgstr ""
++
++#: app/views/design.html:62
++msgid "Exact match"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1184
++msgid "Example saved to {{dest}} and opened in a new window."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1305
++#: app/views/menu.html:125
++msgid "Examples"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:992
++msgid "Examples copied to {{dest}}"
++msgstr ""
++
++#: app/scripts/services/tools.js:546
++msgid "Execute remote {{label}} ..."
++msgstr ""
++
++#: app/views/menu.html:169
++msgid "Export"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:465
++#: app/scripts/controllers/menu.js:478
++msgid "Export submodule"
++msgstr ""
++
++#: app/views/menu.html:404
++msgid "External collections"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1203
++msgid "External collections updated"
++msgstr ""
++
++#: app/views/advanced.html:39
++msgid "External plugins"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1025
++msgid "External plugins updated"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:364
++msgid "Extracting {{name}}…"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:871
++#: app/resources/plugins/iceHub/js/install.js:878
++msgid "Extracting…"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:297
++msgid "FPGA (id/part)"
++msgstr ""
++
++#: app/scripts/services/tools.js:1102
++msgid "FPGA I/O ports not defined"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:320
++msgid "FPGA Resources"
++msgstr ""
++
++#: app/scripts/services/forms.js:1086
++msgid "FPGA pin"
++msgstr ""
++
++#: app/views/design.html:603
++#: app/views/menu.html:503
++msgid "FPGA resources"
++msgstr ""
++
++#: app/views/version.html:61
++msgid "FPGAwars GitHub project"
++msgstr ""
++
++#: app/views/version.html:48
++msgid "FPGAwars community."
++msgstr ""
++
++#: app/views/menu.html:62
++msgid "File"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1015
++msgid "File (.tgz / .zip)"
++msgstr ""
++
++#: app/scripts/services/utils.js:1067
++msgid "File already exists"
++msgstr ""
++
++#: app/scripts/services/project.js:714
++msgid "File {{file}} already exists in the project path. Do you want to replace it?"
++msgstr ""
++
++#: app/scripts/services/tools.js:408
++msgid "File {{file}} does not exist"
++msgstr ""
++
++#: app/scripts/services/project.js:753
++msgid "File {{file}} imported"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:280
++#: app/resources/plugins/boardEditor/js/boardEditor.js:403
++#: app/views/design.html:627
++msgid "Filter boards..."
++msgstr ""
++
++#: app/views/design.html:69
++msgid "Find"
++msgstr ""
++
++#: app/scripts/services/tools.js:2276
++msgid "Finding latest Apio release..."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1019
++#: app/resources/plugins/setupWizard/js/wizard.js:1041
++#: app/resources/plugins/setupWizard/js/wizard.js:1156
++#: app/resources/plugins/setupWizard/js/wizard.js:1184
++#: app/resources/plugins/setupWizard/js/wizard.js:983
++msgid "Finish"
++msgstr ""
++
++#: app/views/menu.html:324
++msgid "Fit content"
++msgstr ""
++
++#: app/scripts/controllers/design.js:616
++msgid "Fork the containing block first to be able to edit this one."
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:916
++msgid "Forward"
++msgstr ""
++
++#: app/views/languages.html:32
++msgid "French"
++msgstr ""
++
++#: app/scripts/services/forms.js:443
++#: app/views/design.html:101
++#: app/views/design.html:182
++msgid "Fuchsia"
++msgstr ""
++
++#: app/views/languages.html:113
++msgid "Galician"
++msgstr ""
++
++#: app/views/languages.html:50
++msgid "German"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:624
++msgid "GitHub rate limit reached. Try again later."
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:991
++msgid "Go"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:918
++#: app/resources/plugins/iceTutorial/js/main.js:919
++msgid "Go back"
++msgstr ""
++
++#: app/scripts/services/forms.js:467
++#: app/views/design.html:164
++msgid "Gold"
++msgstr ""
++
++#: app/views/languages.html:68
++msgid "Greek"
++msgstr ""
++
++#: app/scripts/services/forms.js:476
++#: app/views/design.html:200
++msgid "Green Yellow"
++msgstr ""
++
++#: app/views/menu.html:765
++msgid "Help"
++msgstr ""
++
++#: app/scripts/services/forms.js:2195
++msgid "Hexadecimal"
++msgstr ""
++
++#: app/views/version.html:56
++msgid "Icestudio is part of"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:453
++msgid "Icestudio lets you design digital circuits for FPGAs <b>visually</b> — drag blocks, wire them up, and program real hardware, no command line required."
++msgstr ""
++
++#: app/scripts/services/graph.js:2164
++msgid "If you see blank IN/OUT pins, it is because equivalent pins do not exist on this board"
++msgstr ""
++
++#: app/scripts/services/utils.js:745
++msgid "Image"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:405
++msgid "Import"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:260
++msgid "Import PCF/LPF"
++msgstr ""
++
++#: app/scripts/services/forms.js:1880
++msgid "Import Verilog code from file"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:263
++msgid "Import a PCF/LPF constraint file into the pinout"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:402
++msgid "Import board from apio"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:268
++msgid "Import board metadata from apio"
++msgstr ""
++
++#: app/scripts/services/forms.js:1890
++msgid "Import code"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1147
++msgid "Import failed: {error}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:265
++msgid "Import from apio"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1415
++msgid "Imported \"{id}\" from apio (no example pinout found) — add the pinout and Save"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1404
++msgid "Imported \"{id}\" with {n} pins from apio example ({file}) — may be partial, review and Save"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1133
++msgid "Imported {n} pins from {file}"
++msgstr ""
++
++#: app/scripts/services/forms.js:446
++#: app/views/design.html:113
++msgid "Indian Red"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:283
++msgid "Info"
++msgstr ""
++
++#: app/views/design.html:384
++#: app/views/menu.html:750
++msgid "Information"
++msgstr ""
++
++#: app/views/design.html:313
++#: app/views/menu.html:716
++msgid "Input"
++msgstr ""
++
++#: app/views/design.html:331
++#: app/views/menu.html:724
++msgid "Input label"
++msgstr ""
++
++#: app/scripts/services/forms.js:1692
++msgid "Input labels"
++msgstr ""
++
++#: app/scripts/services/forms.js:1839
++msgid "Input parameters"
++msgstr ""
++
++#: app/scripts/services/forms.js:1227
++msgid "Input port names"
++msgstr ""
++
++#: app/scripts/services/forms.js:1825
++msgid "Input ports"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:346
++msgid "Input rules"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:901
++#: app/resources/plugins/setupWizard/js/wizard.js:527
++#: app/resources/plugins/setupWizard/js/wizard.js:535
++#: app/views/menu.html:596
++msgid "Install"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1319
++msgid "Install all"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1323
++msgid "Install all available collections"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:431
++msgid "Install failed: {{error}}"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:492
++msgid "Install the toolchain"
++msgstr ""
++
++#: app/scripts/services/tools.js:1853
++msgid "Install the toolchain ({{ch}}: {{version}}). Continue?"
++msgstr ""
++
++#: app/scripts/services/tools.js:2423
++msgid "Installation completed"
++msgstr ""
++
++#: app/scripts/services/tools.js:2384
++msgid "Installation failed"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:538
++msgid "Installing collections…"
++msgstr ""
++
++#: app/scripts/services/tools.js:2355
++msgid "Installing drivers..."
++msgstr ""
++
++#: app/scripts/services/tools.js:2345
++msgid "Installing packages..."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:923
++msgid "Installing {{name}}…"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:565
++msgid "Installing…"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:298
++msgid "Interface"
++msgstr ""
++
++#: app/scripts/services/tools.js:2254
++msgid "Internet connection required"
++msgstr ""
++
++#: app/scripts/services/graph.js:321
++msgid "Invalid <i>Pull-up</i> connection:<br>Block already connected"
++msgstr ""
++
++#: app/scripts/services/graph.js:345
++msgid "Invalid <i>Pull-up</i> connection:<br>Only <i>Input</i> blocks allowed"
++msgstr ""
++
++#: app/scripts/services/graph.js:333
++msgid "Invalid block connection:<br><i>Pull-up</i> already connected"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:990
++msgid "Invalid board id (use letters, numbers, . _ -)"
++msgstr ""
++
++#: app/scripts/services/tools.js:2641
++msgid "Invalid collection {{name}}"
++msgstr ""
++
++#: app/scripts/services/graph.js:278
++#: app/scripts/services/graph.js:285
++#: app/scripts/services/graph.js:292
++msgid "Invalid connection"
++msgstr ""
++
++#: app/scripts/services/graph.js:397
++msgid "Invalid connection: {{a}} → {{b}}"
++msgstr ""
++
++#: app/scripts/services/graph.js:311
++msgid "Invalid multiple input connections"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:2495
++msgid "Invalid new name!"
++msgstr ""
++
++#: app/scripts/services/project.js:700
++#: app/scripts/services/project.js:96
++msgid "Invalid project format"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:2382
++msgid "Invalid search name!"
++msgstr ""
++
++#: app/views/languages.html:41
++msgid "Italian"
++msgstr ""
++
++#: app/views/languages.html:167
++msgid "Japanese"
++msgstr ""
++
++#: app/views/languages.html:158
++msgid "Korean"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:290
++msgid "Label"
++msgstr ""
++
++#: app/views/menu.html:332
++msgid "Label finder"
++msgstr ""
++
++#: app/scripts/services/blockforms.js:1011
++msgid "Label updated"
++msgstr ""
++
++#: app/views/menu.html:359
++msgid "Language"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:420
++msgid "Leave an action empty to use apio"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:465
++msgid "Let's start"
++msgstr ""
++
++#: app/views/uithemes.html:27
++msgid "Light"
++msgstr ""
++
++#: app/scripts/services/forms.js:506
++#: app/views/design.html:286
++msgid "Light Gray"
++msgstr ""
++
++#: app/scripts/services/forms.js:488
++#: app/views/design.html:236
++msgid "Light Sea Green"
++msgstr ""
++
++#: app/scripts/services/project.js:233
++msgid "Load"
++msgstr ""
++
++#: app/scripts/services/forms.js:2209
++#: app/scripts/services/forms.js:2387
++msgid "Local parameter"
++msgstr ""
++
++#: app/scripts/services/utils.js:1033
++msgid "Location"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:892
++msgid "Lock"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:671
++#: app/resources/plugins/iceHub/js/iceHub.js:824
++msgid "Locked"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:856
++msgid "Locked — unlock to remove"
++msgstr ""
++
++#: app/views/menu.html:411
++msgid "Logging enabled"
++msgstr ""
++
++#: app/views/menu.html:422
++msgid "Logging file"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:972
++msgid "Logging file updated"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1164
++msgid "Look at your FPGA!"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:956
++msgid "Looking for a test example"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js:78
++#: app/views/console.html:14
++msgid "Maximize"
++msgstr ""
++
++#: app/scripts/services/utils.js:1150
++msgid "Maximum bus size: 96 bits"
++msgstr ""
++
++#: app/scripts/services/forms.js:455
++#: app/views/design.html:136
++msgid "Medium Violet Red"
++msgstr ""
++
++#: app/views/design.html:367
++#: app/views/menu.html:742
++msgid "Memory"
++msgstr ""
++
++#: app/scripts/services/forms.js:2176
++msgid "Memory block names"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:305
++msgid "Menu group (project boards)"
++msgstr ""
++
++#: app/scripts/services/forms.js:1844
++msgid "Module Ports"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:333
++#: app/scripts/services/utils.js:725
++msgid "Name"
++msgstr ""
++
++#: app/scripts/services/forms.js:1746
++msgid "Names of the paired labels"
++msgstr ""
++
++#: app/scripts/services/forms.js:503
++#: app/views/design.html:277
++msgid "Navy"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:249
++#: app/views/menu.html:73
++msgid "New"
++msgstr ""
++
++#: app/views/design.html:90
++msgid "New Color:"
++msgstr ""
++
++#: app/views/design.html:83
++msgid "New Name:"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:938
++msgid "New board (will be saved into the project boards folder)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:931
++msgid "New board — developer mode: will be saved as a DISTRIBUTION board and added to the boards menu"
++msgstr ""
++
++#: app/views/design.html:75
++msgid "Next"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1309
++msgid "No apio boards found"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:866
++msgid "No board detected yet."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1047
++msgid "No board selected."
++msgstr ""
++
++#: app/views/design.html:653
++msgid "No boards found"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:713
++msgid "No boards match."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:607
++msgid "No catalog collections to check for updates."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1980
++msgid "No collections stored"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:751
++msgid "No configuration options"
++msgstr ""
++
++#: app/scripts/services/forms.js:2800
++msgid "No directory selected"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:201
++msgid "No downloadable zip in the latest release"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:330
++#: app/resources/plugins/iceHub/js/install.js:913
++msgid "No external collections folder is configured."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1018
++msgid "No file selected"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:729
++msgid "No items"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:374
++msgid "No languages match."
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:932
++msgid "No resources match your search."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:166
++msgid "No source defined"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1644
++msgid "No synthesis data to copy"
++msgstr ""
++
++#: app/scripts/services/tools.js:2052
++msgid "No terminal emulator found. Open a terminal and run:"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:677
++msgid "No updates available. Run Refresh first."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:372
++#: app/resources/plugins/iceHub/js/install.js:887
++msgid "No valid collection found in the archive"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:913
++msgid "No videos match your search."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1901
++msgid "Nothing to clean"
++msgstr ""
++
++#: app/scripts/app.js:55
++#: app/scripts/services/project.js:198
++#: app/scripts/services/project.js:309
++#: app/scripts/services/utils.js:1646
++msgid "OK"
++msgstr ""
++
++#: app/scripts/services/forms.js:485
++#: app/views/design.html:227
++msgid "Olive Drab"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:415
++msgid "One shell command per line."
++msgstr ""
++
++#: app/scripts/controllers/design.js:258
++msgid "Only this block"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:927
++#: app/views/menu.html:83
++msgid "Open"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js:37
++msgid "Open Preferences"
++msgstr ""
++
++#: app/scripts/services/utils.js:790
++msgid "Open SVG"
++msgstr ""
++
++#: app/scripts/services/tools.js:2074
++msgid "Open a terminal and run:"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1145
++#: app/scripts/controllers/menu.js:382
++msgid "Open example"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1191
++msgid "Open example failed: {{error}}"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:280
++msgid "Open folder"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:897
++msgid "Open in browser"
++msgstr ""
++
++#: app/views/menu.html:90
++msgid "Open recent"
++msgstr ""
++
++#: app/scripts/services/forms.js:461
++#: app/views/design.html:150
++msgid "Orange Red"
++msgstr ""
++
++#: app/scripts/services/project.js:760
++msgid "Original file {{file}} does not exist"
++msgstr ""
++
++#: app/views/design.html:322
++#: app/views/menu.html:720
++msgid "Output"
++msgstr ""
++
++#: app/views/console.html:8
++#: app/views/design.html:591
++#: app/views/menu.html:486
++msgid "Output console"
++msgstr ""
++
++#: app/views/design.html:340
++#: app/views/menu.html:728
++msgid "Output label"
++msgstr ""
++
++#: app/scripts/services/forms.js:1619
++msgid "Output labels"
++msgstr ""
++
++#: app/scripts/services/forms.js:1375
++msgid "Output port names"
++msgstr ""
++
++#: app/scripts/services/forms.js:1832
++msgid "Output ports"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:350
++msgid "Output rules"
++msgstr ""
++
++#: app/views/design.html:349
++#: app/views/menu.html:733
++msgid "Paired labels"
++msgstr ""
++
++#: app/views/menu.html:273
++msgid "Paste"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1033
++#: app/scripts/controllers/menu.js:1099
++#: app/scripts/controllers/menu.js:979
++msgid "Path {{path}} does not exist"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1178
++msgid "Path {{path}} is not a valid directory"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:688
++msgid "Pick the FPGA board you will be using."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:284
++msgid "Pinout"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:380
++msgid "Placeholders:"
++msgstr ""
++
++#: app/scripts/services/utils.js:1054
++msgid "Please enter a name and select a folder"
++msgstr ""
++
++#: app/scripts/services/utils.js:1410
++msgid "Please run: {{cmd}}"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1151
++msgid "Please select a directory for the external collections"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:794
++msgid "Plug <b>{{board}}</b> into a USB port on your computer."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:869
++msgid "Plug the board in (and power it). You can continue anyway, but the test upload will fail without it."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:789
++#: app/views/menu.html:353
++#: app/views/menu.html:573
++msgid "Preferences"
++msgstr ""
++
++#: app/views/design.html:72
++msgid "Prev."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1168
++msgid "Programmed <b>{{device}}</b> — it should be blinking now. 🎉"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:638
++msgid "Project board"
++msgstr ""
++
++#: app/views/menu.html:431
++msgid "Project information"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1219
++#: app/scripts/controllers/menu.js:1244
++msgid "Project information updated"
++msgstr ""
++
++#: app/scripts/services/project.js:278
++msgid "Project {{name}} loaded"
++msgstr ""
++
++#: app/scripts/services/project.js:526
++msgid "Project {{name}} saved"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:840
++msgid "Provide a .tgz/.zip file, or a .tgz/.zip/GitHub URL."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1051
++msgid "Provide a file or a URL."
++msgstr ""
++
++#: app/views/advanced.html:45
++msgid "Python environment"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1091
++msgid "Python environment updated"
++msgstr ""
++
++#: app/views/menu.html:208
++msgid "Quit"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:567
++msgid "Read-only"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:359
++msgid "Recent projects cleared"
++msgstr ""
++
++#: app/scripts/services/forms.js:449
++#: app/views/design.html:118
++msgid "Red"
++msgstr ""
++
++#: app/views/menu.html:240
++msgid "Redo"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1307
++#: app/resources/plugins/iceTutorial/js/main.js:917
++msgid "Refresh"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:421
++#: app/resources/plugins/iceHub/js/install.js:496
++#: app/resources/plugins/iceHub/js/install.js:743
++#: app/resources/plugins/iceHub/js/install.js:934
++msgid "Reindexing…"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:774
++msgid "Relax the real-to-integer conversion check (-Wno-REALCVT)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:784
++msgid "Relax the FPGA I/O primitive checks (SB_IO: ASSIGNIN / COMBDLY)"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js:70
++msgid ""
++"This error comes from the FPGA I/O primitives. It disappears if you enable "
++"\"Relax the FPGA I/O primitive checks\" under Tools → Preferences → Verify."
++msgstr ""
++
++#: app/views/version.html:32
++msgid "Release History WIKI"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:279
++msgid "Reload board list"
++msgstr ""
++
++#: app/scripts/services/tools.js:1294
++msgid "Remote host {{name}} not connected"
++msgstr ""
++
++#: app/views/advanced.html:51
++msgid "Remote hostname"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:859
++#: app/resources/plugins/iceHub/js/iceHub.js:867
++#: app/views/menu.html:615
++msgid "Remove"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:722
++msgid "Remove <b>{{name}}</b> and all its files?"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:721
++msgid "Remove collection"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:752
++msgid "Remove failed: {{error}}"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1875
++msgid "Removing the synthesis artifacts, testbenches, etc. may lose information if you customized apio.ini or hand-made files. Do you want to continue?"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:728
++msgid "Removing {{name}}…"
++msgstr ""
++
++#: app/views/design.html:295
++msgid "Replace All"
++msgstr ""
++
++#: app/views/design.html:87
++msgid "Replace One"
++msgstr ""
++
++#: app/scripts/services/utils.js:800
++msgid "Reset SVG"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:352
++#: app/resources/plugins/iceHub/js/install.js:414
++msgid "Resolving {{name}}…"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:865
++msgid "Resolving…"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:923
++msgid "Resources"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js:77
++msgid "Restore"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1040
++#: app/resources/plugins/setupWizard/js/wizard.js:1216
++msgid "Retry"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:573
++msgid "Retry install"
++msgstr ""
++
++#: app/scripts/services/forms.js:500
++#: app/views/design.html:272
++msgid "Royal Blue"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:285
++msgid "Rules"
++msgstr ""
++
++#: app/scripts/services/tools.js:2070
++msgid "Running  in a terminal..."
++msgstr ""
++
++#: app/views/languages.html:104
++msgid "Russian"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:253
++#: app/scripts/controllers/menu.js:666
++#: app/scripts/controllers/menu.js:716
++#: app/views/menu.html:149
++msgid "Save"
++msgstr ""
++
++#: app/scripts/services/utils.js:1045
++msgid "Save As"
++msgstr ""
++
++#: app/scripts/services/utils.js:795
++msgid "Save SVG"
++msgstr ""
++
++#: app/views/menu.html:157
++msgid "Save as"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:254
++msgid "Save board"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1036
++msgid "Save failed: {error}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1005
++msgid "Save the project first to create project boards"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:807
++msgid "Scan again"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:801
++#: app/resources/plugins/setupWizard/js/wizard.js:830
++msgid "Scanning for devices…"
++msgstr ""
++
++#: app/scripts/services/tools.js:2983
++msgid "Screen recording error. Review your permissions."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:692
++msgid "Search boards…"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:353
++msgid "Search languages…"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:928
++msgid "Search resources by title or description…"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:902
++msgid "Search videos by title, description or tags…"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1297
++msgid "Search…"
++msgstr ""
++
++#: app/scripts/services/forms.js:2791
++msgid "Select a directory for your external collections. Icestudio will install collections in this folder and index any collection you place or create inside it, making its blocks and examples available in your designs. This folder is required and must exist."
++msgstr ""
++
++#: app/views/menu.html:313
++msgid "Select all"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1333
++#: app/resources/plugins/iceHub/js/iceHub.js:785
++msgid "Select an item"
++msgstr ""
++
++#: app/views/design.html:530
++#: app/views/design.html:619
++msgid "Select board"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:685
++#: app/scripts/services/forms.js:2554
++msgid "Select your board"
++msgstr ""
++
++#: app/views/menu.html:674
++msgid "Setup Wizard"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1179
++msgid "Setup is complete. Enjoy designing with Icestudio!"
++msgstr ""
++
++#: app/scripts/services/forms.js:1241
++msgid "Show clock"
++msgstr ""
++
++#: app/scripts/services/forms.js:473
++#: app/views/design.html:191
++msgid "Slate Blue"
++msgstr ""
++
++#: app/scripts/services/tools.js:2912
++msgid "Snapshot saved: {{name}}"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:907
++msgid "Some videos may be outdated or refer to old Icestudio versions, but the concepts still apply."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1027
++msgid "Something went wrong"
++msgstr ""
++
++#: app/views/menu.html:817
++msgid "Source code"
++msgstr ""
++
++#: app/views/languages.html:23
++msgid "Spanish"
++msgstr ""
++
++#: app/scripts/services/forms.js:479
++#: app/views/design.html:209
++msgid "Spring Green"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:507
++msgid "Stable"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1830
++msgid "Start build"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1859
++msgid "Start upload"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1805
++msgid "Start verification"
++msgstr ""
++
++#: app/scripts/services/tools.js:2104
++#: app/scripts/services/tools.js:2197
++msgid "Starting installation..."
++msgstr ""
++
++#: app/scripts/services/forms.js:494
++#: app/views/design.html:254
++msgid "Steel Blue"
++msgstr ""
++
++#: app/scripts/services/tools.js:523
++msgid "Synchronize remote files ..."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:299
++msgid "Sys Clk (MHz)"
++msgstr ""
++
++#: app/views/menu.html:493
++msgid "System info"
++msgstr ""
++
++#: app/views/languages.html:149
++msgid "Taiwanese"
++msgstr ""
++
++#: app/views/menu.html:682
++msgid "Take PNG"
++msgstr ""
++
++#: app/views/menu.html:690
++msgid "Take Video"
++msgstr ""
++
++#: app/views/menu.html:181
++msgid "Testbench"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:945
++msgid "Testing your board"
++msgstr ""
++
++#: app/views/version.html:50
++msgid "Thank you very much all!"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:495
++msgid "The <b>toolchain</b> (Apio) is the set of open-source tools that turn your design into a bitstream and upload it to the FPGA. Icestudio needs it to build and program boards."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:482
++msgid "The Apio toolchain is already installed{{version}}. You can manage or update it later from <b>Tools → Toolchain</b>."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1174
++msgid "The bitstream was uploaded — your board should be blinking now. 🎉"
++msgstr ""
++
++#: app/scripts/services/tools.js:2589
++msgid "The collection {{name}} already exists."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1752
++msgid "The current FPGA I/O configuration will be lost. Do you want to change to the {{name}} board?"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1093
++msgid "The downloaded example could not be found."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:705
++msgid "The example database is based on your installed collections."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1106
++msgid "The example failed to build."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:509
++msgid "The latest stable release. Recommended for most users."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:519
++msgid "The newest build with the latest features. May be less stable."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:995
++msgid "The pinout cannot be empty"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:1151
++msgid "The selected board has no built-in test example, so we will stop here. Icestudio is configured and ready to use."
++msgstr ""
++
++#: app/scripts/services/tools.js:1878
++msgid "The toolchain will be removed. Do you want to continue?"
++msgstr ""
++
++#: app/scripts/services/tools.js:2812
++msgid "There is a new nightly version available"
++msgstr ""
++
++#: app/scripts/services/tools.js:2802
++msgid "There is a new stable version available"
++msgstr ""
++
++#: app/scripts/controllers/design.js:646
++msgid "This block belongs to a collection. Editing it will create a local copy so the collection block is not modified."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:977
++msgid "This board is read-only. Enable developer mode or clone it."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:973
++msgid "This collection has no examples folder."
++msgstr ""
++
++#: app/scripts/services/project.js:213
++msgid "This design uses the {{name}} board, found in the project folder."
++msgstr ""
++
++#: app/scripts/services/project.js:184
++msgid "This design was made for the {{name}} board, which is not installed and is not in the project boards folder."
++msgstr ""
++
++#: app/scripts/services/project.js:669
++msgid "This import operation requires a project path. You need to save the current project. Do you want to continue?"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:383
++msgid "This is a system example. You need to select a destination folder where the design will be saved."
++msgstr ""
++
++#: app/scripts/services/project.js:237
++msgid "This project is designed for the {{name}} board."
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:458
++msgid "This quick assistant will get you ready: install the toolchain, choose where your collections live, pick your board and run a small test on it. It only takes a minute."
++msgstr ""
++
++#: app/views/version.html:40
++msgid ""
++"This release has been possible thanks to the great work done\n"
++"          by an active, growing, enthusiastic team, the"
++msgstr ""
++
++#: app/scripts/services/utils.js:1641
++msgid "This time"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js:34
++msgid "This warning disappears if you enable \"Relax the real-to-integer conversion check\" under Tools → Preferences → Verify."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1133
++msgid "To edit this example you must choose a folder where a copy will be saved. The copy opens in a new Icestudio window so the original example is never modified."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:75
++msgid "Too many redirects"
++msgstr ""
++
++#: app/views/menu.html:342
++msgid "Toolbox"
++msgstr ""
++
++#: app/views/menu.html:586
++msgid "Toolchain"
++msgstr ""
++
++#: app/scripts/services/tools.js:2433
++msgid "Toolchain installed"
++msgstr ""
++
++#: app/scripts/services/tools.js:1829
++msgid "Toolchain is up to date ({{ch}}: {{version}})"
++msgstr ""
++
++#: app/scripts/services/tools.js:278
++#: app/scripts/services/tools.js:453
++#: app/scripts/services/tools.js:490
++msgid "Toolchain not installed"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:479
++msgid "Toolchain ready"
++msgstr ""
++
++#: app/scripts/services/tools.js:1895
++msgid "Toolchain removed"
++msgstr ""
++
++#: app/scripts/services/forms.js:1877
++#: app/views/menu.html:529
++msgid "Tools"
++msgstr ""
++
++#: app/scripts/services/utils.js:1597
++msgid "Tri-state (aka high-Z, bidirectional, or inout) ports are not recommended in standard designs.<br /><br />You will be asked to update your Preferences (Advanced user setting) or you can just open this design on a preview basis.<br /><br />Continue?"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1295
++msgid "Tri-state connections (inout ports) disabled"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1288
++msgid "Tri-state connections (inout ports) enabled"
++msgstr ""
++
++#: app/views/languages.html:77
++msgid "Turkish"
++msgstr ""
++
++#: app/scripts/services/forms.js:491
++#: app/views/design.html:245
++msgid "Turquoise"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:339
++msgid "Type"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1334
++#: app/views/menu.html:374
++msgid "UI theme"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1029
++msgid "URL (.tgz / .zip / GitHub)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:301
++msgid "USB PID"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:300
++msgid "USB VID"
++msgstr ""
++
++#: app/views/languages.html:95
++msgid "Ukrainian"
++msgstr ""
++
++#: app/views/menu.html:232
++msgid "Undo"
++msgstr ""
++
++#: app/scripts/services/tools.js:1035
++msgid "Unknown board"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:207
++msgid "Unknown source type: {{type}}"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:891
++msgid "Unlock"
++msgstr ""
++
++#: app/scripts/services/project.js:336
++msgid "Unsupported project format {{version}}"
++msgstr ""
++
++#: app/scripts/app.js:197
++msgid "Untitled"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:847
++#: app/views/menu.html:603
++msgid "Update"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1313
++#: app/resources/plugins/iceHub/js/install.js:682
++msgid "Update all"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1317
++msgid "Update all updatable collections"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:464
++msgid "Update collection"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:683
++msgid "Update {{count}} collection(s)? Each folder will be replaced with the downloaded release (git working copies will lose their .git and local changes)."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:465
++msgid "Updating <b>{{name}}</b> will replace its folder with the downloaded release."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:692
++msgid "Updating collections…"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1847
++#: app/scripts/controllers/menu.js:766
++#: app/views/design.html:568
++#: app/views/menu.html:555
++msgid "Upload"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1860
++msgid "Upload done"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:962
++msgid "Uploading to the board"
++msgstr ""
++
++#: app/scripts/services/utils.js:461
++msgid "Using external Apio: {{name}}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:336
++msgid "Value (pin)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1806
++msgid "Verification done"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:760
++#: app/views/design.html:546
++#: app/views/menu.html:537
++msgid "Verify"
++msgstr ""
++
++#: app/scripts/services/utils.js:726
++#: app/views/menu.html:792
++msgid "Version"
++msgstr ""
++
++#: app/views/menu.html:785
++msgid "Version notes"
++msgstr ""
++
++#: app/scripts/services/tools.js:2965
++msgid "Video saved: {{name}}"
++msgstr ""
++
++#: app/resources/plugins/iceTutorial/js/main.js:890
++msgid "Videos"
++msgstr ""
++
++#: app/views/menu.html:446
++msgid "View"
++msgstr ""
++
++#: app/views/menu.html:778
++msgid "View license"
++msgstr ""
++
++#: app/scripts/services/utils.js:1634
++msgid "Viewing tri-state"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1335
++msgid "Wait for <b></b> seconds"
++msgstr ""
++
++#: app/scripts/services/tools.js:1229
++msgid "Warnings detected in the design"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:450
++msgid "Welcome to Icestudio"
++msgstr ""
++
++#: app/views/version.html:22
++msgid "Welcome to Icestudio!"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1335
++#: app/resources/plugins/iceHub/js/iceHub.js:143
++#: app/resources/plugins/iceHub/js/iceHub.js:837
++msgid "Working…"
++msgstr ""
++
++#: app/scripts/services/blockforms.js:501
++msgid "Wrong block format: {{type}}"
++msgstr ""
++
++#: app/scripts/services/forms.js:1141
++#: app/scripts/services/forms.js:1538
++#: app/scripts/services/forms.js:1987
++#: app/scripts/services/forms.js:2273
++#: app/scripts/services/forms.js:2446
++msgid "Wrong block name {{name}}"
++msgstr ""
++
++#: app/scripts/services/project.js:302
++msgid "Wrong project format: {{name}}"
++msgstr ""
++
++#: app/scripts/services/tools.js:1287
++msgid "Wrong remote hostname {{name}}"
++msgstr ""
++
++#: app/scripts/services/forms.js:470
++#: app/views/design.html:173
++msgid "Yellow"
++msgstr ""
++
++#: app/scripts/services/utils.js:1640
++msgid "Yes"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:479
++msgid "You are editing a submodule, so you will save just this submodule (\"Save as\" works like \"Export                 module\"). Do you want to continue?"
++msgstr ""
++
++#: app/scripts/services/utils.js:1593
++msgid "You are importing a block that uses \"tri-state\"."
++msgstr ""
++
++#: app/scripts/services/utils.js:1590
++msgid "You are loading a design that uses \"tri-state\"."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:466
++msgid "You are navigating into the design: If you want to save the entire design, you need to go back                      to the top-level. If you want to export this module as new file, unlock the module and use \"Save as\"."
++msgstr ""
++
++#: app/scripts/services/project.js:242
++msgid "You can load it as it is or convert it to use the {{name}} board."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1820
++msgid "You can only build at the top-level design. Inside submodules, you can <strong>Verify</strong>"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1848
++msgid "You can only upload at the top-level design. Inside submodules, you can <strong>Verify</strong>"
++msgstr ""
++
++#: app/views/version.html:25
++msgid "You can read the release notes on the"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:701
++msgid "You can search by topic, functionality, a collection name, your FPGA board name…"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:817
++msgid "Your changes will be lost if you don’t save them"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:309
++msgid "apio — actions without a command run via apio"
++msgstr ""
++
++#: app/views/design.html:23
++msgid "back"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:366
++msgid "bit"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:314
++msgid "custom — no apio fallback"
++msgstr ""
++
++#: app/scripts/services/tools.js:1949
++msgid "drivers..."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1033
++msgid "https://github.com/owner/repo   or   https://….tgz"
++msgstr ""
++
++#: app/views/menu.html:668
++msgid "iceHub"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:327
++msgid "name = signal label shown in the UI, value = FPGA pin, type = input/output/inout"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:359
++#: app/resources/plugins/boardEditor/js/boardEditor.js:363
++msgid "pin"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:356
++msgid "port"
++msgstr ""
++
++#: app/scripts/services/tools.js:1676
++msgid "the latest nightly build (newest features, may be unstable)."
++msgstr ""
++
++#: app/scripts/services/tools.js:1673
++msgid "the latest stable release (recommended)."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:438
++msgid "to run a toolchain tool through apio."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:675
++msgid "update"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:787
++msgid "your board"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:1361
++msgid "{shown} / {total} boards"
++msgstr ""
++
++#: app/scripts/services/utils.js:1384
++msgid "{{app}} is required."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1414
++msgid "{{board}} datasheet not defined"
++msgstr ""
++
++#: app/resources/plugins/setupWizard/js/wizard.js:851
++msgid "{{board}} detected. You are ready to continue."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1400
++msgid "{{board}} pinout not defined"
++msgstr ""
++
++#: app/scripts/controllers/menu.js:1437
++msgid "{{board}} rules not defined"
++msgstr ""
++
++#: app/scripts/services/tools.js:1844
++msgid "{{ch}} channel: {{from}} → {{to}}. Install it now?"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:631
++msgid "{{count}} update(s) available."
++msgstr ""
++
++#: app/scripts/controllers/menu.js:577
++#: app/scripts/controllers/menu.js:614
++msgid "{{name}} exported"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:318
++msgid "{{name}} is locked."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:900
++msgid "{{name}} is locked. Unlock it first to overwrite."
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/install.js:708
++msgid "{{name}} is locked. Unlock it first to remove."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:387
++msgid "— empty = apio build"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:398
++msgid "— empty = apio clean"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:395
++msgid "— empty = apio lint"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js:390
++msgid "— empty = apio upload"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:1025
++msgid "— or —"
++msgstr ""
++
++#: app/resources/plugins/iceHub/js/iceHub.js:811
++msgid "→ {{version}} available"
++msgstr ""
++
++#: app/scripts/services/tools.js
++msgid "Do you want to install it?"
++msgstr ""
++
++#: app/scripts/services/tools.js
++msgid "No"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Regenerate menu"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Regenerate menu.json from the boards folder (developer)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "menu.json regenerated ({n} boards)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Could not regenerate menu.json: {error}"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Board saved but not shown in the menu: set a supported Arch and FPGA family (Group)."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Reload the board list (regenerates menu.json in developer mode)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Import constraints"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Import a constraint file (PCF/LPF/CST/XDC) into the pinout"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "New board (will be saved into the user boards folder)"
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "Delete user board \"{id}\"? This removes its folder."
++msgstr ""
++
++#: app/resources/plugins/boardEditor/js/boardEditor.js
++msgid "User board"
++msgstr ""
++
++#: app/views/menu.html
++msgid "Custom boards"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Custom boards updated"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Please select a directory for the custom boards"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Configure now"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Later"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "New feature: custom boards"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid ""
++"This version adds a custom boards folder: any board you place or create "
++"inside it (same format as the distribution boards) is always available in "
++"every board list, without copying it into each project."
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "You can change the folder at any time in Edit > Preferences > Custom boards."
++msgstr ""
++
++#: app/scripts/services/forms.js
++msgid ""
++"Select a directory for your custom boards. Icestudio will always scan this "
++"folder and offer any board you place or create inside it (same format as "
++"the distribution boards) in every board list, without copying it into each "
++"project. This folder is required and must exist."
++msgstr ""
++
++#: app/scripts/services/project.js
++msgid "Module {{name}} exported"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Relax the FPGA I/O primitive checks (SB_IO / TRELLIS_IO)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Yosys options (synthesis)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Nextpnr options (place & route)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Extra flags for yosys, space- or line-separated (e.g. -abc9 -nowidelut)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Extra flags for nextpnr, space- or line-separated (e.g. --seed 2 --timing-allow-fail)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Cleaned: "
++msgstr ""
++
++#: app/scripts/services/tools.js
++msgid "Running {{cmd}} in a terminal..."
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Global"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Project"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Override globals"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Allow combinational loops (verify + place & route)"
++msgstr ""
++
++#: app/scripts/services/outputConsole.js
++msgid ""
++"This is a combinational (logic) loop. It disappears if you enable \"Allow "
++"combinational loops\" under Tools → Preferences → Verify."
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Verilator options (verify)"
++msgstr ""
++
++#: app/scripts/controllers/menu.js
++msgid "Extra flags for Verilator, space- or line-separated (e.g. -Wno-WIDTH -Wno-CASEINCOMPLETE)"
++msgstr ""
++
++#: app/resources/plugins/apioShell/js/apioShell.js
++msgid "Download"
++msgstr ""
++
++#: app/resources/plugins/apioShell/js/apioShell.js
++msgid "Design graph"
++msgstr ""
++
++#: app/resources/plugins/apioShell/js/apioShell.js
++msgid "Zoom in"
++msgstr ""
++
++#: app/resources/plugins/apioShell/js/apioShell.js
++msgid "Zoom out"
++msgstr ""
++
++#: app/resources/plugins/apioShell/js/apioShell.js
++msgid "Fit to window"
++msgstr ""
+diff --git a/app/scripts/services/boards.js b/app/scripts/services/boards.js
+new file mode 100644
+index 00000000..c8625aaa
+--- /dev/null
++++ b/app/scripts/services/boards.js
+@@ -0,0 +1,365 @@
++'use strict';
++
++//---------------------------------------------------------------------------
++
++//-- Boards
++//---------------------------------------------------------------------------
++//-- CONFIGURATION FILES
++//---------------------------------------------------------------------------
++//-- The Boards are described by three .json files, located in the folder
++//-- resources/boards/boardname
++//--    * pinout.json:  Pin numbers, names and type (input, output, inout)
++//--    * info.json: Board information: resources, board name, interface...
++//--    * rules.json: Automatic connection of unused pins
++//--
++//-- In addition there are two more OPTIONAL files:
++//--    * pinout.pcf (optional): Board constraints. This is just for
++//--      documentation purposes (the actual constraint file is automatically
++//--      generated on the fly when the circuit is being sinthesized)
++//--    * pinout.svg (optional): Drawing of all the pins
++//----------------------------------------------------------------------------
++//-- DATA STRUCTURES
++//----------------------------------------------------------------------------
++//-- ICESTUDIO converts the .json files into objects. You can access to all
++//-- the boars from the following GLOBAL OBJECT:
++//--
++//--  common.boards
++//--     * name:  Board name. Ex. alhmabra_ii
++//--     * info:  Resources
++//--     * pinout: Pin names, number and type
++//--     * rules:  If the pin is automatically connected if not used
++//--     * type:   FPGA familty and type
++//--     * mode:   "apio" (default) | "integrated" | "project"
++//--     * apioBoard: Identifier passed to apio.ini (defaults to name)
++//--     * origin: "distribution" | "user" | "project"
++//--     * readOnly: true for distribution boards (editor cannot modify them)
++//--
++//-- In addition to the distribution boards (resources/boards, listed in
++//-- menu.json), boards can be auto-discovered (no menu.json) from two
++//-- more locations and merged into common.boards:
++//--    * USER boards: "<userBoardsDir>/<boardname>", where userBoardsDir is
++//--      the profile 'externalBoards' path or, when empty, the default
++//--      <Documents>/Icestudio/boards. ALWAYS scanned by loadBoards().
++//--    * PROJECT boards: "<projectDir>/boards/<boardname>" of the active
++//--      project. Included when calling loadBoards(projectDir).
++//-- Same-name boards override each other: distribution < user < project.
++
++//---------------------------------------------------------------
++//-- MENU menu.json
++//-- This file contains the names of all the available boards
++//-- Only the boards located in that file are READ and inserted
++//-- into the common.boards GLOBAL object
++//---------------------------------------------------------------
++
++angular
++  .module('icestudio')
++  .service('boards', function (utils, common, profile, nodeFs, nodePath) {
++    //-- Default board
++    const DEFAULT = 'alhambra-ii';
++
++    //-----------------------------------------------------------------
++    //-- Resolve the user boards folder: the profile 'externalBoards'
++    //-- path or, when empty, the default <Documents>/Icestudio/boards
++    //-----------------------------------------------------------------
++    this.getUserBoardsDir = function () {
++      return (
++        profile.get('externalBoards') || common.DEFAULT_EXTERNAL_BOARDS_DIR
++      );
++    };
++    var getUserBoardsDir = this.getUserBoardsDir;
++
++    //-----------------------------------------------------------------
++    //-- Read all the boards FILES and store all the information
++    //-- in the GLOBAL OBJECT: common.boards
++    //-----------------------------------------------------------------
++    //-- Only the boards located in the menu.json FILE are READ
++    //-----------------------------------------------------------------
++    this.loadBoards = function (projectDir) {
++      //-- Scan the boards distributed with Icestudio (resources/boards),
++      //-- driven by menu.json (unchanged discovery)
++      let dist = scanDistributionBoards();
++
++      //-- Scan the user boards (profile 'externalBoards' path, default
++      //-- <Documents>/Icestudio/boards). Always scanned, project-independent.
++      let user = scanUserBoards();
++
++      //-- Scan the boards defined inside the active project (<projectDir>/boards),
++      //-- auto-discovered (no menu.json needed). Optional.
++      let proj = projectDir ? scanProjectBoards(projectDir) : [];
++
++      //-- Merge: later sources override earlier ones with the same name
++      //-- (distribution < user < project)
++      common.boards = mergeBoards([dist, user, proj]);
++    };
++
++    //-----------------------------------------------------------------
++    //-- Read the three mandatory JSON files of a board directory and
++    //-- build the board record. Returns null if the directory is not a
++    //-- valid board (missing files).
++    //--
++    //--  boardPath: absolute/relative path to the board directory
++    //--  boardname: board identifier (directory name)
++    //--  type:      FPGA family group (for the board menu UI)
++    //--  origin:    'distribution' | 'user' | 'project'
++    //-----------------------------------------------------------------
++    function readBoardDir(boardPath, boardname, type, origin) {
++      //-- Every board should have at least their three MANDATORY files:
++      //-- info.json, pinout.json and rules.json
++      if (
++        !(
++          nodeFs.statSync(boardPath).isDirectory() &&
++          nodeFs.statSync(nodePath.join(boardPath, 'info.json')).isFile() &&
++          nodeFs.statSync(nodePath.join(boardPath, 'pinout.json')).isFile() &&
++          nodeFs.statSync(nodePath.join(boardPath, 'rules.json')).isFile()
++        )
++      ) {
++        return null;
++      }
++
++      //-- Board files ok. READ them!!
++      let info = readJSONFile(boardPath, 'info.json');
++      let pinout = readJSONFile(boardPath, 'pinout.json');
++      let rules = readJSONFile(boardPath, 'rules.json');
++
++      //-- Board build strategy (default for actions without explicit
++      //-- commands): "apio" (apio runs the action) or "custom" (no apio
++      //-- fallback; only the board's own commands run). Absent ⇒ "apio".
++      //-- Back-compat aliases: legacy "integrated" ⇒ custom, "project" ⇒ apio
++      //-- (project was a location, now tracked by 'origin').
++      let mode = info.mode || 'apio';
++      if (mode === 'integrated') {
++        mode = 'custom';
++      } else if (mode === 'project') {
++        mode = 'apio';
++      }
++
++      //-- Apio board identifier. Absent ⇒ the directory name (current behavior).
++      let apioBoard = (info.apio && info.apio.board) || boardname;
++
++      //-- Fill the boards structure with all the information
++      //-- obtained from the files
++      return {
++        name: boardname,
++        info: info, //-- Board resources
++        pinout: pinout, //-- Board pins
++        rules: rules, //-- Board rules
++        type: type, //-- FPGA family type
++        mode: mode, //-- apio | integrated | project
++        apioBoard: apioBoard, //-- identifier passed to apio.ini
++        origin: origin, //-- distribution | user | project
++        path: nodePath.resolve(boardPath), //-- board definition folder
++        readOnly: origin === 'distribution', //-- distribution boards are read-only
++      };
++    }
++
++    //-----------------------------------------------------------------
++    //-- Scan the boards distributed with Icestudio. Only the boards
++    //-- listed in menu.json are READ (unchanged behavior).
++    //-----------------------------------------------------------------
++    function scanDistributionBoards() {
++      let boards = [];
++
++      //-- Construct the Boards path: "resources/boards"
++      let path = nodePath.join('resources', 'boards');
++
++      //-- Read the board menu json file and convert into an object
++      let menu = nodeFs.readFileSync(nodePath.join(path, 'menu.json'));
++      menu = JSON.parse(menu);
++
++      //-- The menu is divided in big sections: The FPGA family:
++      //-- ICE40HX8k, ICE40HX4k, ICE40LPHX, UP5K, ECP5...
++      menu.forEach((FPGAfamily) => {
++        //-- Access to all the boards from the current family
++        FPGAfamily.boards.forEach(function (boardname) {
++          //-- The data from every board is located in the
++          //-- folder "resources/boards/<boardname>"
++          let boardPath = nodePath.join(path, boardname);
++
++          //------------------------------------------------------------------
++          //-- TODO: It can be improved: It is better to distinguis between
++          //--  different errors, instead only one. If anyone
++          //--  introduces a bad board, it is difficult to find where is
++          //--  the error....
++          //------------------------------------------------------------------
++          try {
++            let board = readBoardDir(
++              boardPath,
++              boardname,
++              FPGAfamily.type,
++              'distribution'
++            );
++            if (board) {
++              boards.push(board);
++            }
++
++            //-- There was an error reading the board files
++          } catch (error) {
++            console.error('Board not well configured', error.message);
++          }
++        });
++      });
++
++      return boards;
++    }
++
++    //-----------------------------------------------------------------
++    //-- Scan a folder of AUTO-DISCOVERED boards: there is no menu.json,
++    //-- every subfolder with the three mandatory files is loaded. The
++    //-- FPGA family group is taken from info.group/info.type, with the
++    //-- given default. Used for the user and project boards.
++    //-----------------------------------------------------------------
++    function scanAutoBoards(path, origin, defaultGroup) {
++      let boards = [];
++
++      //-- No boards folder: nothing to scan
++      try {
++        if (!nodeFs.statSync(path).isDirectory()) {
++          return boards;
++        }
++      } catch (error) {
++        return boards;
++      }
++
++      //-- Every subdirectory is a candidate board
++      let entries = [];
++      try {
++        entries = nodeFs.readdirSync(path);
++      } catch (error) {
++        return boards;
++      }
++
++      entries.forEach(function (boardname) {
++        let boardPath = nodePath.join(path, boardname);
++        try {
++          //-- Read the info first (if present) to find the menu group
++          let info = readJSONFile(boardPath, 'info.json');
++          let type = info.group || info.type || defaultGroup;
++
++          let board = readBoardDir(boardPath, boardname, type, origin);
++          if (board) {
++            //-- A user/project board is just a board whose definition lives
++            //-- outside the distribution; its build strategy is the normal
++            //-- mode (apio by default).
++            boards.push(board);
++          }
++        } catch (error) {
++          console.error(origin + ' board not well configured', error.message);
++        }
++      });
++
++      return boards;
++    }
++
++    //-----------------------------------------------------------------
++    //-- Boards defined inside the active project directory:
++    //-- <projectDir>/boards/<boardname>
++    //-----------------------------------------------------------------
++    function scanProjectBoards(projectDir) {
++      return scanAutoBoards(
++        nodePath.join(projectDir, 'boards'),
++        'project',
++        'PROJECT'
++      );
++    }
++
++    //-----------------------------------------------------------------
++    //-- User boards: custom boards living in the user boards folder
++    //-- (profile 'externalBoards', default <Documents>/Icestudio/boards).
++    //-- Scanned on EVERY loadBoards call, independently of the project.
++    //-----------------------------------------------------------------
++    function scanUserBoards() {
++      return scanAutoBoards(getUserBoardsDir(), 'user', 'USER');
++    }
++
++    //-----------------------------------------------------------------
++    //-- Merge the board sources. Later sources OVERRIDE earlier ones
++    //-- with the same name (keeps the bare-name contract used by
++    //-- project.design.board): distribution < user < project.
++    //-----------------------------------------------------------------
++    function mergeBoards(sources) {
++      let byName = {};
++      let order = [];
++
++      function add(board) {
++        if (!(board.name in byName)) {
++          order.push(board.name);
++        }
++        byName[board.name] = board;
++      }
++
++      sources.forEach(function (list) {
++        list.forEach(add);
++      });
++
++      return order.map(function (name) {
++        return byName[name];
++      });
++    }
++
++    //---- PENDING: DOCUMENTATION!!!!!!
++
++    function readJSONFile(filepath, filename) {
++      var ret = {};
++      try {
++        var data = nodeFs.readFileSync(nodePath.join(filepath, filename));
++        ret = JSON.parse(data);
++      } catch (err) {}
++      return ret;
++    }
++
++    this.selectBoard = function (name) {
++      name = name || DEFAULT;
++      var i;
++      var selectedBoard = null;
++      for (i in common.boards) {
++        if (common.boards[i].name === name) {
++          selectedBoard = common.boards[i];
++          break;
++        }
++      }
++      if (selectedBoard === null) {
++        // Board not found: select default board
++        for (i in common.boards) {
++          if (common.boards[i].name === DEFAULT) {
++            selectedBoard = common.boards[i];
++            break;
++          }
++        }
++      }
++      common.selectedBoard = selectedBoard;
++      common.pinoutInputHTML = generateHTMLOptions(
++        common.selectedBoard.pinout,
++        'input'
++      );
++      common.pinoutOutputHTML = generateHTMLOptions(
++        common.selectedBoard.pinout,
++        'output'
++      );
++      utils.rootScopeSafeApply();
++      return common.selectedBoard;
++    };
++
++    this.boardLabel = function (name) {
++      for (var i in common.boards) {
++        if (common.boards[i].name === name) {
++          return common.boards[i].info.label;
++        }
++      }
++      return name;
++    };
++
++    function generateHTMLOptions(pinout, type) {
++      var code = '<option></option>';
++      for (var i in pinout) {
++        if (pinout[i].type === type || pinout[i].type === 'inout') {
++          code +=
++            '<option value="' +
++            pinout[i].value +
++            '">' +
++            pinout[i].name +
++            '</option>';
++        }
++      }
++      return code;
++    }
++  });

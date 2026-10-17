@@ -1,0 +1,158 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 05d8c6d..d3e2c74 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -11,7 +11,6 @@ include_directories(
+   model/
+   state/
+   /opt/mshadow/
+-  /opt/mshadow/mshadow/
+   ../../LibN3L/
+ )
+ 
+@@ -53,3 +52,4 @@ target_link_libraries(STDSeg openblas)
+ 
+ 
+ 
++
+diff --git a/basic/InstanceReader.h b/basic/InstanceReader.h
+index 8521be0..07d1d58 100644
+--- a/basic/InstanceReader.h
++++ b/basic/InstanceReader.h
+@@ -20,21 +20,14 @@ public:
+   Instance *getNext() {
+     m_instance.clear();
+     string strLine;
+-    bool foundLine = false;
+     while (1) {
+       if (!my_getline(m_inf, strLine)) {
+         break;
+       }
+-      // The bundled dev/test corpora end with an unterminated partial line.
+-      if (m_inf.eof()) break;
+-      if (!strLine.empty()) {
+-        foundLine = true;
++      if (!strLine.empty())
+         break;
+-      }
+     }
+ 
+-    if (!foundLine) return 0;
+-
+     vector<string> wordInfo;
+     split_bychar(strLine, wordInfo, ' ');
+ 
+@@ -59,3 +52,4 @@ public:
+ };
+ 
+ #endif
++
+diff --git a/feature/DenseFeatureExtraction.h b/feature/DenseFeatureExtraction.h
+index 00bb2be..7952d1e 100644
+--- a/feature/DenseFeatureExtraction.h
++++ b/feature/DenseFeatureExtraction.h
+@@ -91,6 +91,104 @@ public:
+ 	}
+ 
+ 
++	void nn_extractFeature(const CStateItem<xpu> * curState, const CAction& nextAC, Feature& feat, int wordNgram = 0) {
++		feat.clear();
++		feat.setFeatureFormat(_bStringFeat);
++
++		string curWord = curState->_lastWordEnd == -1 ? nullkey : curState->_strlastWord;
++		const std::vector<std::string> * pCharacters = curState->_pCharacters;
++		string nextChar = "";
++		if (nextAC._code == CAction::FIN) { 
++			nextChar = nullkey;
++		} else {
++			nextChar = pCharacters->at(curState->_nextPosition);
++		}
++		string curWordLastChar = curState->_lastWordEnd == -1 ? nullkey : pCharacters->at(curState->_lastWordEnd);
++		string curWordFirstChar = curState->_lastWordEnd == -1 ? nullkey : pCharacters->at(curState->_lastWordStart);
++
++		if (curState->_nextPosition != curState->_lastWordEnd + 1) {
++			std::cout << "position error" << std::endl;
++		}
++
++		const CStateItem<xpu> * preStackState = curState->_prevStackState;
++
++		// int ngram = 0;
++		int length = curState->_lastWordEnd - curState->_lastWordStart + 1;
++		if (length > 5)
++			length = 5;
++		
++		feat._strKeyChars.push_back(curWordFirstChar);
++		feat._strKeyChars.push_back(curWordLastChar);
++		feat._strKeyChars.push_back(nextChar);
++		feat._nWordLengths.push_back(length);
++
++		// feat._strWordFeat.push_back(curWord);	
++		const CStateItem<xpu>* theState = curState->_prevStackState;
++		int wordNum = 0;
++		while (theState != NULL) {
++			if (theState->_lastWordEnd >= 0) {
++				feat._strWordFeat.push_back(theState->_strlastWord);
++				wordNum++;
++			} else {
++				feat._strWordFeat.push_back(nullkey);
++				wordNum++;
++			}
++			if (wordNum == wordNgram) {
++				break;
++			}
++			theState = theState->_prevStackState;
++		}
++		// add padding word if previous word less than wordgram
++		if (feat._strWordFeat.size() < wordNgram) {
++			int distance = wordNgram-feat._strWordFeat.size();
++			for (int idx = 0; idx < distance; ++idx) {
++				feat._strWordFeat.push_back(nullkey);
++			}
++		}
++	
++
++		// get id for word/keychar/length
++		static int featId, unknownID;
++		if (!_bStringFeat) {
++			int size = feat._strWordFeat.size();
++			feat._nWordFeat.resize(size);
++			unknownID = _wordAlphabet[unknownkey];
++			for (int idx = 0; idx < size; idx++) {
++				featId =  _wordAlphabet[normalize_to_lowerwithdigit(feat._strWordFeat[idx])] ;
++				if (featId < 0)
++					featId = unknownID;
++				feat._nWordFeat[idx] = featId;
++			}
++			
++			feat._nAllWordFeat.resize(size);
++			unknownID = _allwordAlphabet[unknownkey];
++			for (int idx = 0; idx < size; idx++) {
++				featId = _allwordAlphabet[feat._strWordFeat[idx]];
++				if (featId < 0)
++					featId = unknownID;
++				feat._nAllWordFeat[idx] = featId;
++				//cout << "word: " << feat._strWordFeat[idx] << " ID: " << feat._nAllWordFeat[idx] << endl;
++			}
++							
++			feat._strWordFeat.clear();
++
++			// size = 
++			// for(int idx = feat._nWordLengths.size(); idx < wordNgram; idx++){
++			// 	feat._nWordLengths.push_back(0);
++			// }
++			size = feat._strKeyChars.size();
++			feat._nKeyChars.resize(size);
++			for (int idx = 0; idx < size; idx++) {
++				featId = _charAlphabet[feat._strKeyChars[idx]];
++				if (featId < 0)
++					featId = unknownID;
++				feat._nKeyChars[idx] = featId;
++			}
++			feat._strKeyChars.clear();
++		}
++	}
++
++
+ 	void extractFeature(const CStateItem<xpu> * curState, const CAction& nextAC, Feature& feat, int wordNgram = 0, int actionNgram = 0) {
+ 		feat.clear();
+ 		feat.setFeatureFormat(_bStringFeat);

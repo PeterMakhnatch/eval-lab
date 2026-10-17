@@ -1,0 +1,149 @@
+diff --git a/aws_lambda_powertools/event_handler/exceptions.py b/aws_lambda_powertools/event_handler/exceptions.py
+index ca5dbbc98..e524d8a0e 100644
+--- a/aws_lambda_powertools/event_handler/exceptions.py
++++ b/aws_lambda_powertools/event_handler/exceptions.py
+@@ -2,7 +2,7 @@ from http import HTTPStatus
+ 
+ 
+ class ServiceError(Exception):
+-    """API Gateway and ALB HTTP Service Error"""
++    """Powertools class HTTP Service Error"""
+ 
+     def __init__(self, status_code: int, msg: str):
+         """
+@@ -18,28 +18,56 @@ class ServiceError(Exception):
+ 
+ 
+ class BadRequestError(ServiceError):
+-    """API Gateway and ALB Bad Request Error (400)"""
++    """Powertools class Bad Request Error (400)"""
+ 
+     def __init__(self, msg: str):
+         super().__init__(HTTPStatus.BAD_REQUEST, msg)
+ 
+ 
+ class UnauthorizedError(ServiceError):
+-    """API Gateway and ALB Unauthorized Error (401)"""
++    """Powertools class Unauthorized Error (401)"""
+ 
+     def __init__(self, msg: str):
+         super().__init__(HTTPStatus.UNAUTHORIZED, msg)
+ 
+ 
++class ForbiddenError(ServiceError):
++    """Powertools class Forbidden Error (403)"""
++
++    def __init__(self, msg: str):
++        super().__init__(HTTPStatus.FORBIDDEN, msg)
++
++
+ class NotFoundError(ServiceError):
+-    """API Gateway and ALB Not Found Error (404)"""
++    """Powertools class Not Found Error (404)"""
+ 
+     def __init__(self, msg: str = "Not found"):
+         super().__init__(HTTPStatus.NOT_FOUND, msg)
+ 
+ 
++class RequestTimeoutError(ServiceError):
++    """Powertools class Request Timeout Error (408)"""
++
++    def __init__(self, msg: str):
++        super().__init__(HTTPStatus.REQUEST_TIMEOUT, msg)
++
++
++class RequestEntityTooLargeError(ServiceError):
++    """Powertools class Request Entity Too Large Error (413)"""
++
++    def __init__(self, msg: str):
++        super().__init__(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, msg)
++
++
+ class InternalServerError(ServiceError):
+-    """API Gateway and ALB Internal Server Error (500)"""
++    """Powertools class Internal Server Error (500)"""
+ 
+     def __init__(self, message: str):
+         super().__init__(HTTPStatus.INTERNAL_SERVER_ERROR, message)
++
++
++class ServiceUnavailableError(ServiceError):
++    """Powertools class Service Unavailable Error (503)"""
++
++    def __init__(self, msg: str):
++        super().__init__(HTTPStatus.SERVICE_UNAVAILABLE, msg)
+diff --git a/docs/core/event_handler/api_gateway.md b/docs/core/event_handler/api_gateway.md
+index 12a2a77b4..d392bf7ac 100644
+--- a/docs/core/event_handler/api_gateway.md
++++ b/docs/core/event_handler/api_gateway.md
+@@ -595,9 +595,9 @@ You can easily raise any HTTP Error back to the client using `ServiceError` exce
+ ???+ info
+     If you need to send custom headers, use [Response](#fine-grained-responses) class instead.
+ 
+-We provide pre-defined errors for the most popular ones such as HTTP 400, 401, 404, 500.
++We provide pre-defined errors for the most popular ones based on [AWS Lambda API Reference Common Erros](https://docs.aws.amazon.com/lambda/latest/api/CommonErrors.html).
+ 
+-```python hl_lines="6-11 23 28 33 38 43" title="Raising common HTTP Status errors (4xx, 5xx)"
++```python hl_lines="7-15 27 32 37 42 47 52 57 62 67" title="Raising common HTTP Status errors (4xx, 5xx)"
+ --8<-- "examples/event_handler_rest/src/raising_http_errors.py"
+ ```
+ 
+diff --git a/examples/event_handler_rest/src/raising_http_errors.py b/examples/event_handler_rest/src/raising_http_errors.py
+index 97e7cc504..b62597eaf 100644
+--- a/examples/event_handler_rest/src/raising_http_errors.py
++++ b/examples/event_handler_rest/src/raising_http_errors.py
+@@ -5,9 +5,13 @@ from aws_lambda_powertools import Logger, Tracer
+ from aws_lambda_powertools.event_handler import APIGatewayRestResolver
+ from aws_lambda_powertools.event_handler.exceptions import (
+     BadRequestError,
++    ForbiddenError,
+     InternalServerError,
+     NotFoundError,
++    RequestEntityTooLargeError,
++    RequestTimeoutError,
+     ServiceError,
++    ServiceUnavailableError,
+     UnauthorizedError,
+ )
+ from aws_lambda_powertools.logging import correlation_paths
+@@ -28,21 +32,40 @@ def unauthorized_error():
+     raise UnauthorizedError("Unauthorized")  # HTTP 401
+ 
+ 
++@app.get(rule="/forbidden-error")
++def forbidden_error():
++    raise ForbiddenError("Access denied")  # HTTP 403
++
++
+ @app.get(rule="/not-found-error")
+ def not_found_error():
+     raise NotFoundError  # HTTP 404
+ 
+ 
++@app.get(rule="/request-timeout-error")
++def request_timeout_error():
++    raise RequestTimeoutError("Request timed out")  # HTTP 408
++
++
+ @app.get(rule="/internal-server-error")
+ def internal_server_error():
+     raise InternalServerError("Internal server error")  # HTTP 500
+ 
+ 
++@app.get(rule="/request-entity-too-large-error")
++def request_entity_too_large_error():
++    raise RequestEntityTooLargeError("Request payload too large")  # HTTP 413
++
++
+ @app.get(rule="/service-error", cors=True)
+ def service_error():
+     raise ServiceError(502, "Something went wrong!")
+ 
+ 
++@app.get(rule="/service-unavailable-error")
++def service_unavailable_error():
++    raise ServiceUnavailableError("Service is temporarily unavailable")  # HTTP 503
++
+ @app.get("/todos")
+ @tracer.capture_method
+ def get_todos():

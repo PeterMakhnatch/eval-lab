@@ -1,0 +1,172 @@
+diff --git a/lib/opcodes/calls.ts b/lib/opcodes/calls.ts
+new file mode 100644
+index 0000000..9e3b93d
+--- /dev/null
++++ b/lib/opcodes/calls.ts
+@@ -0,0 +1,153 @@
++import { VM } from "../VM";
++import { Opcode } from "./common";
++import { IMachineState, IEnvironment } from "../types";
++import { arrayCopy, sliceAndEnsureLength } from "../utils/arrays";
++import { BN } from "bn.js";
++
++export class CallOpcode extends Opcode {
++  static id = 0xf1;
++  static type = "CALL";
++
++  run(state: IMachineState, env: IEnvironment, vm: VM): void {
++    vm.blockchain.checkpoint();
++
++    //tslint:disable-next-line
++    const _gas = state.stack.pop();
++    const addr = state.stack.pop();
++    const value = state.stack.pop();
++    const inOffset = state.stack.pop().toNumber();
++    const inSize = state.stack.pop().toNumber();
++    const retOffset = state.stack.pop().toNumber();
++    const retSize = state.stack.pop().toNumber();
++
++    const account = vm.blockchain.getAddress(addr.toString(16));
++    const data = state.memory.slice(inOffset, inOffset + inSize);
++
++    const { state: callState } = vm.runCode({
++      account: account.address,
++      caller: env.account,
++      code: account.code,
++      value,
++      data,
++      depth: env.depth + 1,
++    });
++
++    const hasErrored = callState.reverted || !callState.stopped;
++    if (hasErrored) {
++      vm.blockchain.revert();
++
++      state.stack.push(new BN(0));
++      state.lastReturned = [];
++    } else {
++      vm.blockchain.commit();
++      state.stack.push(new BN(1));
++
++      const returnValue = sliceAndEnsureLength(callState.return || [], 0, retSize, 0);
++      const newMemory = arrayCopy(state.memory, returnValue, retOffset);
++
++      state.lastReturned = callState.return || [];
++      state.memory = newMemory;
++    }
++
++    state.pc += 1;
++  }
++}
++
++export class DelegateCallOpcode extends Opcode {
++  static id = 0xf4;
++  static type = "DELEGATECALL";
++
++  run(state: IMachineState, env: IEnvironment, vm: VM): void {
++    vm.blockchain.checkpoint();
++
++    //tslint:disable-next-line
++    const _gas = state.stack.pop();
++    const addr = state.stack.pop();
++    const inOffset = state.stack.pop().toNumber();
++    const inSize = state.stack.pop().toNumber();
++    const retOffset = state.stack.pop().toNumber();
++    const retSize = state.stack.pop().toNumber();
++
++    const account = vm.blockchain.getAddress(addr.toString(16));
++    const data = state.memory.slice(inOffset, inOffset + inSize);
++
++    const { state: callState } = vm.runCode({
++      account: env.account,
++      caller: env.caller,
++      code: account.code,
++      value: new BN(0),
++      data,
++      depth: env.depth + 1,
++    });
++
++    const hasErrored = callState.reverted || !callState.stopped;
++    if (hasErrored) {
++      vm.blockchain.revert();
++
++      state.stack.push(new BN(0));
++      state.lastReturned = [];
++    } else {
++      vm.blockchain.commit();
++
++      state.stack.push(new BN(1));
++
++      const returnValue = sliceAndEnsureLength(callState.return || [], 0, retSize, 0);
++      const newMemory = arrayCopy(state.memory, returnValue, retOffset);
++
++      state.lastReturned = callState.return || [];
++      state.memory = newMemory;
++    }
++
++    state.pc += 1;
++  }
++}
++
++export class CallCodeOpcode extends Opcode {
++  static id = 0xf2;
++  static type = "CALLCODE";
++
++  run(state: IMachineState, env: IEnvironment, vm: VM): void {
++    vm.blockchain.checkpoint();
++
++    //tslint:disable-next-line
++    const _gas = state.stack.pop();
++    const addr = state.stack.pop();
++    const value = state.stack.pop();
++    const inOffset = state.stack.pop().toNumber();
++    const inSize = state.stack.pop().toNumber();
++    const retOffset = state.stack.pop().toNumber();
++    const retSize = state.stack.pop().toNumber();
++
++    const account = vm.blockchain.getAddress(addr.toString(16));
++    const data = state.memory.slice(inOffset, inOffset + inSize);
++
++    const { state: callState } = vm.runCode({
++      account: env.account,
++      caller: env.account,
++      code: account.code,
++      value,
++      data,
++      depth: env.depth + 1,
++    });
++
++    const hasErrored = callState.reverted || !callState.stopped;
++    if (hasErrored) {
++      vm.blockchain.revert();
++
++      state.stack.push(new BN(0));
++      state.lastReturned = [];
++    } else {
++      vm.blockchain.commit();
++
++      state.stack.push(new BN(1));
++
++      const returnValue = sliceAndEnsureLength(callState.return || [], 0, retSize, 0);
++      const newMemory = arrayCopy(state.memory, returnValue, retOffset);
++
++      state.lastReturned = callState.return || [];
++      state.memory = newMemory;
++    }
++
++    state.pc += 1;
++  }
++}
+diff --git a/package.json b/package.json
+index 2fe4a56..9fc8aac 100644
+--- a/package.json
++++ b/package.json
+@@ -5,7 +5,7 @@
+   "license": "MIT",
+   "scripts": {
+     "prepare": "patch-package",
+-    "compile-solidity": "solcjs ./test/contracts/simple/*.sol --bin --abi -o ./test/contracts-compiled/simple --overwrite",
++    "compile-solidity": "solcjs ./test/contracts/simple/*.sol --bin --abi -o ./test/contracts-compiled/simple --overwrite && solcjs ./test/contracts/calls/*.sol --bin --abi -o ./test/contracts-compiled/calls --overwrite && solcjs ./test/contracts/various-calls/*.sol --bin --abi -o ./test/contracts-compiled/various-calls --overwrite",
+     "format": "prettier --list-different '**/*.{ts,json,md, gql}'",
+     "format:fix": "prettier --write '**/*.{ts,json,md,gql}'",
+     "tslint": "tslint -p ./tsconfig.json -e 'node_modules/**/*' -e '**/node_modules/**/*' '**/*.ts'",

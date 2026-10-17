@@ -1,0 +1,70 @@
+diff --git a/docs/rule/require-context-role.md b/docs/rule/require-context-role.md
+index 61196d8d..29610a8f 100644
+--- a/docs/rule/require-context-role.md
++++ b/docs/rule/require-context-role.md
+@@ -4,7 +4,7 @@
+ 
+ ## `<* role><* role /></*>`
+ 
+-The required context role defines the owning container where this role is allowed. If a role has a required context, authors MUST ensure that an element with the role is contained inside (or owned by) an element with the required context role. For example, an element with `role="listitem"` is only meaningful when contained inside (or owned by) an element with `role="list"`.
++The required context role defines the owning container where this role is allowed. If a role has a required context, authors MUST ensure that an element with the role is contained inside (or owned by) an element with the required context role. For example, an element with `role="listitem"` is only meaningful when contained inside (or owned by) an element with `role="list"`. You may place intermediate elements with `role="presentation"` or `role="none"` to remove their semantic meaning.
+ 
+ ## Roles to check
+ 
+@@ -34,6 +34,17 @@ This rule **allows** the following:
+ </div>
+ ```
+ 
++```hbs
++<div role="menu">
++  <div role="presentation">
++    <a role="menuitem">Item One</a>
++  </div>
++  <div role="presentation">
++    <a role="menuitem">Item Two</a>
++  </div>
++</div>
++```
++
+ This rule **forbids** the following:
+ 
+ ```hbs
+@@ -43,6 +54,17 @@ This rule **forbids** the following:
+ </div>
+ ```
+ 
++```hbs
++<div role="menu">
++  <div role="button">
++    <a role="menuitem">Item One</a>
++  </div>
++  <div>
++    <a role="menuitem">Item Two</a>
++  </div>
++</div>
++```
++
+ ### References
+ 
+ 1. <https://www.w3.org/TR/wai-aria-1.1/#scope>
+diff --git a/lib/rules/require-context-role.js b/lib/rules/require-context-role.js
+index b3d13a12..e2e96866 100644
+--- a/lib/rules/require-context-role.js
++++ b/lib/rules/require-context-role.js
+@@ -76,12 +76,15 @@ export default class RequireContextRole extends Rule {
+           parentPath = parentPath.parent;
+           let parentNode = parentPath.node;
+           if (parentNode && parentNode.type === 'ElementNode') {
+-            parentElementIndex++;
+             if (AstNodeInfo.hasAttribute(parentNode, 'aria-hidden')) {
+               return;
+             }
+             const parentRole = AstNodeInfo.findAttribute(parentNode, 'role');
+             const parentRoleValue = parentRole ? roleName(parentRole) : '';
++            if (parentRoleValue === 'presentation' || parentRoleValue === 'none') {
++              continue;
++            }
++            parentElementIndex++;
+             if (!VALID_PARENTS_FOR_CHILD[roleValue].includes(parentRoleValue)) {
+               this.log({
+                 message: errorMessage(roleValue),

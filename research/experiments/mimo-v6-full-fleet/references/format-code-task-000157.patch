@@ -1,0 +1,23 @@
+diff --git a/docs/releasenotes/unreleased/fixes.5.rst b/docs/releasenotes/unreleased/fixes.5.rst
+new file mode 100644
+index 00000000..579eb0ae
+--- /dev/null
++++ b/docs/releasenotes/unreleased/fixes.5.rst
+@@ -0,0 +1,5 @@
++argument-overwritten-before-usage reported on test variables (#927)
++--------------------------------------------------------------------
++
++``argument-overwritten-before-usage`` should now clear arguments after keyword definition and it will not be
++raised on next test case using the same variable names.
+diff --git a/robocop/checkers/misc.py b/robocop/checkers/misc.py
+index 85f68efd..f95c607e 100644
+--- a/robocop/checkers/misc.py
++++ b/robocop/checkers/misc.py
+@@ -1061,6 +1061,7 @@ class UnusedVariablesChecker(VisitorChecker):
+                 value, *_ = arg.token.value.split("=", maxsplit=1)
+                 self.report_arg_or_var_rule("unused-argument", arg.token, value)
+         self.check_unused_variables()
++        self.arguments = {}
+ 
+     def check_unused_variables(self):
+         for scope in self.variables:

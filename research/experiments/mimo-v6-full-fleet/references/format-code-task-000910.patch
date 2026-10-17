@@ -1,0 +1,250 @@
+diff --git a/docs/src/pages/docs/crocks/Reader.md b/docs/src/pages/docs/crocks/Reader.md
+index 4064a75b..cd699c87 100644
+--- a/docs/src/pages/docs/crocks/Reader.md
++++ b/docs/src/pages/docs/crocks/Reader.md
+@@ -115,7 +115,7 @@ const Reader = require('crocks/Reader')
+ const { ask } = Reader
+ 
+ const objOf = require('crocks/helpers/objOf')
+-const thrush = require('crocks/combinators/reverseApply')
++const thrush = require('crocks/combinators/applyTo')
+ 
+ // add :: Number -> Number -> Number
+ const add =
+diff --git a/docs/src/pages/docs/functions/combinators.md b/docs/src/pages/docs/functions/combinators.md
+index 93bdc02a..bc68087c 100644
+--- a/docs/src/pages/docs/functions/combinators.md
++++ b/docs/src/pages/docs/functions/combinators.md
+@@ -2,7 +2,7 @@
+ description: "Combinators API"
+ layout: "notopic"
+ title: "Combinators"
+-weight: 1
++weight: 10
+ ---
+ 
+ #### applyTo
+@@ -10,12 +10,14 @@ weight: 1
+ `crocks/combinators/applyTo`
+ 
+ ```haskell
+-applyTo :: (a -> b) -> a -> b
++applyTo :: a -> (a -> b) -> b
+ ```
+ 
+-Seems really silly, but is quite useful for a lot of things. It takes a function
+-and a value and then returns the result of that function with the argument
+-applied.
++Ever run into a situation where you have a value but do not have a function to
++apply it to? Well this little bird, named Thrush, is there to help out. Just
++give it a value and it will give you back a function ready to take a function.
++Once that function is provided, it will return the result of applying your value
++to that function.
+ 
+ #### composeB
+ 
+@@ -71,20 +73,6 @@ with this library. It quite simply is just a function that when you pass it
+ something, it returns that thing right back to you. So simple, I will leave it
+ as an exercise to reason about why this is so powerful and important.
+ 
+-#### reverseApply
+-
+-`crocks/combinators/reverseApply`
+-
+-```haskell
+-reverseApply :: a -> (a -> b) -> b
+-```
+-
+-Ever run into a situation where you have a value but do not have a function to
+-apply it to? Well this little bird, named Thrush, is there to help out. Just
+-give it a value and it will give you back a function ready to take a function.
+-Once that function is provided, it will return the result of applying your value
+-to that function.
+-
+ #### substitution
+ 
+ `crocks/combinators/substitution`
+diff --git a/docs/src/pages/docs/functions/helpers.md b/docs/src/pages/docs/functions/helpers.md
+index 3a81638f..5505bd28 100644
+--- a/docs/src/pages/docs/functions/helpers.md
++++ b/docs/src/pages/docs/functions/helpers.md
+@@ -2,7 +2,7 @@
+ title: "Helpers"
+ description: "Helper functions"
+ layout: "notopic"
+-weight: 2
++weight: 20
+ ---
+ 
+ #### assign
+diff --git a/docs/src/pages/docs/functions/index.md b/docs/src/pages/docs/functions/index.md
+index 856b3013..83855d9e 100644
+--- a/docs/src/pages/docs/functions/index.md
++++ b/docs/src/pages/docs/functions/index.md
+@@ -3,7 +3,7 @@ title: "Functions"
+ description: "functions"
+ layout: "notopic"
+ icon: "code-file"
+-weight: 4
++weight: 40
+ ---
+ 
+ There are (6) function classifications included in this library:
+@@ -43,12 +43,11 @@ need to account for for the rest of your flow.
+ 
+ | Function | Signature | Location |
+ |:---|:---|:---|
+-| [`applyTo`][applyto] | `(a -> b) -> a -> b` | `crocks/combinators/applyTo` |
++| [`applyto`][applyto] | `a -> (a -> b) -> b` | `crocks/combinators/applyTo` |
+ | [`composeB`][composeb] | `(b -> c) -> (a -> b) -> a -> c` | `crocks/combinators/composeB` |
+ | [`constant`][constant] | `a -> () -> a` | `crocks/combinators/constant` |
+ | [`flip`][flip] | `(a -> b -> c) -> b -> a -> c` | `crocks/combinators/flip` |
+ | [`identity`][identity] | `a -> a` | `crocks/combinators/identity` |
+-| [`reverseApply`][reverseapply] | `a -> (a -> b) -> b` | `crocks/combinators/reverseApply` |
+ | [`substitution`][substitution] | `(a -> b -> c) -> (a -> b) -> a -> c` | `crocks/combinators/substitution` |
+ 
+ ## Helpers
+@@ -116,18 +115,15 @@ type: `Pred a` and vice-versa
+ | [`unless`][unless] | `(a -> Boolean) -> (a -> a) -> a -> a` | `crocks/logic/unless` |
+ | [`when`][when] | `(a -> Boolean) -> (a -> a) -> a -> a` | `crocks/logic/when` |
+ 
+-
+ [monoids]: ../monoids/index.html
+ [crocks]: ../crocks/index.html
+ [pred]: ../crocks/Pred.html
+ 
+-
+ [applyto]: combinators.html#applyto
+ [composeb]: combinators.html#composeb
+ [constant]: combinators.html#constant
+ [flip]: combinators.html#flip
+ [identity]: combinators.html#identity
+-[reverseapply]: combinators.html#reverseapply
+ [substitution]: combinators.html#substitution
+ 
+ [assign]: helpers.html#assign
+diff --git a/docs/src/pages/docs/functions/logic-functions.md b/docs/src/pages/docs/functions/logic-functions.md
+index 1c0bab0b..14c52285 100644
+--- a/docs/src/pages/docs/functions/logic-functions.md
++++ b/docs/src/pages/docs/functions/logic-functions.md
+@@ -2,7 +2,7 @@
+ description: "Logic Functions API"
+ layout: "notopic"
+ title: "Logic Functions"
+-weight: 3
++weight: 30
+ ---
+ 
+ The functions in this section are used to represent logical branching in a
+diff --git a/docs/src/pages/docs/functions/pointfree-functions.md b/docs/src/pages/docs/functions/pointfree-functions.md
+index 9c5092e8..cc65b34e 100644
+--- a/docs/src/pages/docs/functions/pointfree-functions.md
++++ b/docs/src/pages/docs/functions/pointfree-functions.md
+@@ -2,7 +2,7 @@
+ title: "Point-free Functions"
+ description: "Point-free Functions API"
+ layout: "notopic"
+-weight: 5
++weight: 50
+ ---
+ 
+ While it can seem natural to work with all these containers in a fluent fashion,
+diff --git a/docs/src/pages/docs/functions/predicate-functions.md b/docs/src/pages/docs/functions/predicate-functions.md
+index b4336bca..f82168da 100644
+--- a/docs/src/pages/docs/functions/predicate-functions.md
++++ b/docs/src/pages/docs/functions/predicate-functions.md
+@@ -2,7 +2,7 @@
+ description: "Predicate Functions API"
+ layout: "notopic"
+ title: "Predicate Functions"
+-weight: 4
++weight: 40
+ ---
+ 
+ All functions in this group have a signature of `* -> Boolean` and are used with
+diff --git a/docs/src/pages/docs/functions/transformation-functions.md b/docs/src/pages/docs/functions/transformation-functions.md
+index 9716b5c5..37fdf4dd 100644
+--- a/docs/src/pages/docs/functions/transformation-functions.md
++++ b/docs/src/pages/docs/functions/transformation-functions.md
+@@ -2,7 +2,7 @@
+ title: "Transformation Functions"
+ description: "Transformation Functions API"
+ layout: "notopic"
+-weight: 6
++weight: 60
+ ---
+ 
+ Transformation functions are mostly used to reduce unwanted nesting of similar
+diff --git a/src/Reader/README.md b/src/Reader/README.md
+index 69fe65eb..8c58cd84 100644
+--- a/src/Reader/README.md
++++ b/src/Reader/README.md
+@@ -106,7 +106,7 @@ const Reader = require('crocks/Reader')
+ const { ask } = Reader
+ 
+ const objOf = require('crocks/helpers/objOf')
+-const thrush = require('crocks/combinators/reverseApply')
++const thrush = require('crocks/combinators/applyTo')
+ 
+ // add :: Number -> Number -> Number
+ const add =
+diff --git a/src/combinators/applyTo.js b/src/combinators/applyTo.js
+index 21415d83..ebf6fc81 100644
+--- a/src/combinators/applyTo.js
++++ b/src/combinators/applyTo.js
+@@ -4,14 +4,14 @@
+ const curry = require('../core/curry')
+ const isFunction = require('../core/isFunction')
+ 
+-// Applicator
+-// applyTo :: (a -> b) -> a -> b
+-function applyTo(fn, x) {
+-  if(!isFunction(fn)) {
+-    throw new TypeError('applyTo: Function required for first argument')
++// Application (Thrush)
++// applyTo :: a -> (a -> b) -> b
++function applyTo(x, f) {
++  if(!isFunction(f)) {
++    throw new TypeError('applyTo: Function required for second argument')
+   }
+ 
+-  return fn(x)
++  return f(x)
+ }
+ 
+ module.exports = curry(applyTo)
+diff --git a/src/combinators/reverseApply.js b/src/combinators/reverseApply.js
+deleted file mode 100644
+index 85557d70..00000000
+--- a/src/combinators/reverseApply.js
++++ /dev/null
+@@ -1,17 +0,0 @@
+-/** @license ISC License (c) copyright 2016 original and current authors */
+-/** @author Ian Hofmann-Hicks (evil) */
+-
+-const curry = require('../core/curry')
+-const isFunction = require('../core/isFunction')
+-
+-// Reverse Application (Thrush)
+-// reverseApply :: a -> (a -> b) -> b
+-function reverseApply(x, f) {
+-  if(!isFunction(f)) {
+-    throw new TypeError('reverseApply: Function required for second argument')
+-  }
+-
+-  return f(x)
+-}
+-
+-module.exports = curry(reverseApply)
+diff --git a/src/index.js b/src/index.js
+index 6b0015fd..ea6ef351 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -8,7 +8,6 @@ const combinators = {
+   constant: require('./combinators/constant'),
+   flip: require('./combinators/flip'),
+   identity: require('./combinators/identity'),
+-  reverseApply: require('./combinators/reverseApply'),
+   substitution: require('./combinators/substitution')
+ }
+ 

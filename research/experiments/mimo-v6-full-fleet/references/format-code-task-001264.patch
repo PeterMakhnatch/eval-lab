@@ -1,0 +1,31 @@
+diff --git a/docs/manual.txt b/docs/manual.txt
+index 7e2242c2a..d0f5e519e 100644
+--- a/docs/manual.txt
++++ b/docs/manual.txt
+@@ -211,7 +211,7 @@ Longer version:
+ 
+ #. run ``python setup.py install``
+ 
+-After that, run ``nikola init sitename`` and that will create a folder called
++After that, run ``nikola init --demo sitename`` and that will create a folder called
+ ``sitename`` containing a functional demo site.
+ 
+ Nikola is packaged for some Linux distributions, you may get that instead.
+diff --git a/nikola/plugins/command_init.py b/nikola/plugins/command_init.py
+index b9cec1967..e9bd00133 100644
+--- a/nikola/plugins/command_init.py
++++ b/nikola/plugins/command_init.py
+@@ -99,9 +99,10 @@ The destination folder must not exist.
+         """Create a new site."""
+         parser = OptionParser(usage=self.usage)
+         group = OptionGroup(parser, "Site Options")
+-        group.add_option("--empty", action="store_true", dest='empty',
+-                         help="Create an empty site with only a config.")
+-        group.add_option("--example", action="store_false", dest='empty',
++        group.add_option(
++            "--empty", action="store_true", dest='empty', default=True,
++            help="Create an empty site with only a config.")
++        group.add_option("--demo", action="store_false", dest='empty',
+                          help="Create a site filled with example data.")
+         parser.add_option_group(group)
+         (options, args) = parser.parse_args(list(args))

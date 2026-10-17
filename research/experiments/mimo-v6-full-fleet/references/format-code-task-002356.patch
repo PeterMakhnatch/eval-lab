@@ -1,0 +1,90 @@
+diff --git a/src/black/linegen.py b/src/black/linegen.py
+index dd288ce..c9db9d8 100644
+--- a/src/black/linegen.py
++++ b/src/black/linegen.py
+@@ -74,6 +74,7 @@ from black.nodes import (
+     syms,
+     wrap_in_parentheses,
+ )
++from black.numerics import normalize_numeric_literal
+ from black.strings import (
+     fix_multiline_docstring,
+     get_string_prefix,
+@@ -559,6 +560,10 @@ class LineGenerator(Visitor[Line]):
+             leaf.value = normalize_string_quotes(leaf.value)
+         yield from self.visit_default(leaf)
+ 
++    def visit_NUMBER(self, leaf: Leaf) -> Iterator[Line]:
++        normalize_numeric_literal(leaf)
++        yield from self.visit_default(leaf)
++
+     def visit_atom(self, node: Node) -> Iterator[Line]:
+         """Visit any atom"""
+         if len(node.children) == 3:
+diff --git a/src/black/numerics.py b/src/black/numerics.py
+new file mode 100644
+index 0000000..3040de0
+--- /dev/null
++++ b/src/black/numerics.py
+@@ -0,0 +1,61 @@
++"""
++Formatting numeric literals.
++"""
++
++from blib2to3.pytree import Leaf
++
++
++def format_hex(text: str) -> str:
++    """
++    Formats a hexadecimal string like "0x12B3"
++    """
++    before, after = text[:2], text[2:]
++    return f"{before}{after.upper()}"
++
++
++def format_scientific_notation(text: str) -> str:
++    """Formats a numeric string utilizing scientific notation"""
++    before, after = text.split("e")
++    sign = ""
++    if after.startswith("-"):
++        after = after[1:]
++        sign = "-"
++    elif after.startswith("+"):
++        after = after[1:]
++    before = format_float_or_int_string(before)
++    return f"{before}e{sign}{after}"
++
++
++def format_complex_number(text: str) -> str:
++    """Formats a complex string like `10j`"""
++    number = text[:-1]
++    suffix = text[-1]
++    return f"{format_float_or_int_string(number)}{suffix}"
++
++
++def format_float_or_int_string(text: str) -> str:
++    """Formats a float string like "1.0"."""
++    if "." not in text:
++        return text
++
++    before, after = text.split(".")
++    return f"{before or 0}.{after or 0}"
++
++
++def normalize_numeric_literal(leaf: Leaf) -> None:
++    """Normalizes numeric (float, int, and complex) literals.
++
++    All letters used in the representation are normalized to lowercase."""
++    text = leaf.value.lower()
++    if text.startswith(("0o", "0b")):
++        # Leave octal and binary literals alone.
++        pass
++    elif text.startswith("0x"):
++        text = format_hex(text)
++    elif "e" in text:
++        text = format_scientific_notation(text)
++    elif text.endswith("j"):
++        text = format_complex_number(text)
++    else:
++        text = format_float_or_int_string(text)
++    leaf.value = text

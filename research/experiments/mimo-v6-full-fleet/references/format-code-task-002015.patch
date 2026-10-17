@@ -1,0 +1,14 @@
+diff --git a/napari/layers/points/points.py b/napari/layers/points/points.py
+index b120bc35b..ceae2b139 100644
+--- a/napari/layers/points/points.py
++++ b/napari/layers/points/points.py
+@@ -1401,7 +1401,8 @@ class Points(Layer):
+                     self.properties[k], index, axis=0
+                 )
+             self.text.remove(index)
+-            self._value = None
++            if self._value in self.selected_data:
++                self._value = None
+             self.selected_data = set()
+             self.data = np.delete(self.data, index, axis=0)
+ 

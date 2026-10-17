@@ -1,0 +1,1043 @@
+diff --git a/mathics/builtin/attributes.py b/mathics/builtin/attributes.py
+index 05a72523a..5c161ecae 100644
+--- a/mathics/builtin/attributes.py
++++ b/mathics/builtin/attributes.py
+@@ -745,6 +745,13 @@ class SetAttributes(Builtin):
+                         evaluation.message("Attributes", "attnf", Symbol(value))
+         return SymbolNull
+ 
++    def eval_arg_error(self, args, evaluation):
++        "SetAttributes[args___]"
++        # We should only come here when we don't have 2 args, because
++        # eval() should be called otherwise.
++        nargs = len(args.elements) if isinstance(args, Expression) else 1
++        evaluation.message("SetAttributes", "argrx", "SetAttributes", nargs, 2)
++
+ 
+ class Unprotect(Builtin):
+     """
+diff --git a/mathics/builtin/files_io/filesystem.py b/mathics/builtin/files_io/filesystem.py
+index a11299cb5..9cf5da9de 100644
+--- a/mathics/builtin/files_io/filesystem.py
++++ b/mathics/builtin/files_io/filesystem.py
+@@ -64,7 +64,7 @@ SymbolAbsoluteTime = Symbol("AbsoluteTime")
+ class AbsoluteFileName(Builtin):
+     """
+     <dl>
+-    <dt>'AbsoluteFileName["$name$"]'
++      <dt>'AbsoluteFileName["$name$"]'
+       <dd>returns the absolute version of the given filename.
+     </dl>
+ 
+@@ -82,7 +82,7 @@ class AbsoluteFileName(Builtin):
+     }
+     summary_text = "absolute path"
+ 
+-    def apply(self, name, evaluation):
++    def eval(self, name, evaluation):
+         "AbsoluteFileName[name_]"
+ 
+         py_name = name.to_python()
+@@ -106,7 +106,7 @@ class AbsoluteFileName(Builtin):
+ class BaseDirectory(Predefined):
+     """
+     <dl>
+-    <dt>'$UserBaseDirectory'
++      <dt>'$UserBaseDirectory'
+       <dd>returns the folder where user configurations are stored.
+     </dl>
+ 
+@@ -125,13 +125,12 @@ class BaseDirectory(Predefined):
+ class CopyDirectory(Builtin):
+     """
+     <dl>
+-    <dt>'CopyDirectory["$dir1$", "$dir2$"]'
++      <dt>'CopyDirectory["$dir1$", "$dir2$"]'
+       <dd>copies directory $dir1$ to $dir2$.
+     </dl>
+     """
+ 
+     messages = {
+-        "argr": "called with `1` argument; 2 arguments are expected.",
+         "fstr": (
+             "File specification `1` is not a string of " "one or more characters."
+         ),
+@@ -140,12 +139,12 @@ class CopyDirectory(Builtin):
+     }
+     summary_text = "copy a directory into a new path"
+ 
+-    def apply(self, dirs, evaluation):
++    def eval(self, dirs, evaluation):
+         "CopyDirectory[dirs__]"
+ 
+         seq = dirs.get_sequence()
+         if len(seq) != 2:
+-            evaluation.message("CopyDirectory", "argr", len(seq))
++            evaluation.message("CopyDirectory", "argr", "CopyDirectory", 2)
+             return
+         (dir1, dir2) = (s.to_python() for s in seq)
+ 
+@@ -174,7 +173,7 @@ class CopyDirectory(Builtin):
+ class CopyFile(Builtin):
+     """
+     <dl>
+-    <dt>'CopyFile["$file1$", "$file2$"]'
++      <dt>'CopyFile["$file1$", "$file2$"]'
+       <dd>copies $file1$ to $file2$.
+     </dl>
+ 
+@@ -192,7 +191,7 @@ class CopyFile(Builtin):
+     }
+     summary_text = "copy a file into a new path"
+ 
+-    def apply(self, source, dest, evaluation):
++    def eval(self, source, dest, evaluation):
+         "CopyFile[source_, dest_]"
+ 
+         py_source = source.to_python()
+@@ -233,9 +232,10 @@ class CopyFile(Builtin):
+ class CreateDirectory(Builtin):
+     """
+     <dl>
+-    <dt>'CreateDirectory["$dir$"]'
++      <dt>'CreateDirectory["$dir$"]'
+       <dd>creates a directory called $dir$.
+-    <dt>'CreateDirectory[]'
++
++      <dt>'CreateDirectory[]'
+       <dd>creates a temporary directory.
+     </dl>
+ 
+@@ -261,7 +261,7 @@ class CreateDirectory(Builtin):
+     }
+     summary_text = "create a directory"
+ 
+-    def apply(self, dirname, evaluation, options):
++    def eval(self, dirname, evaluation, options):
+         "CreateDirectory[dirname_, OptionsPattern[CreateDirectory]]"
+ 
+         expr = to_expression("CreateDirectory", dirname)
+@@ -285,7 +285,7 @@ class CreateDirectory(Builtin):
+ 
+         return String(osp.abspath(py_dirname))
+ 
+-    def apply_empty(self, evaluation, options):
++    def eval_empty(self, evaluation, options):
+         "CreateDirectory[OptionsPattern[CreateDirectory]]"
+         dirname = tempfile.mkdtemp(prefix="m", dir=TMP_DIR)
+         return String(dirname)
+@@ -294,10 +294,11 @@ class CreateDirectory(Builtin):
+ class CreateFile(Builtin):
+     """
+     <dl>
+-    <dt>'CreateFile["filename"]'
+-        <dd>Creates a file named "filename" temporary file, but do not open it.
+-    <dt>'CreateFile[]'
+-        <dd>Creates a temporary file, but do not open it.
++      <dt>'CreateFile["filename"]'
++      <dd>Creates a file named "filename" temporary file, but do not open it.
++
++      <dt>'CreateFile[]'
++      <dd>Creates a temporary file, but do not open it.
+     </dl>
+     """
+ 
+@@ -311,7 +312,7 @@ class CreateFile(Builtin):
+     }
+     summary_text = "create a file"
+ 
+-    def apply(self, filename, evaluation, **options):
++    def eval(self, filename, evaluation, **options):
+         "CreateFile[filename_String, OptionsPattern[CreateFile]]"
+         try:
+             # TODO: Implement options
+@@ -329,14 +330,14 @@ class CreateFile(Builtin):
+ class CreateTemporary(Builtin):
+     """
+     <dl>
+-    <dt>'CreateTemporary[]'
+-        <dd>Creates a temporary file, but do not open it.
++      <dt>'CreateTemporary[]'
++      <dd>Creates a temporary file, but do not open it.
+     </dl>
+     """
+ 
+     summary_text = "create a temporary file"
+ 
+-    def apply_0(self, evaluation):
++    def eval_0(self, evaluation):
+         "CreateTemporary[]"
+         try:
+             res = create_temporary_file()
+@@ -348,7 +349,7 @@ class CreateTemporary(Builtin):
+ class DeleteDirectory(Builtin):
+     """
+     <dl>
+-    <dt>'DeleteDirectory["$dir$"]'
++      <dt>'DeleteDirectory["$dir$"]'
+       <dd>deletes a directory called $dir$.
+     </dl>
+ 
+@@ -375,7 +376,7 @@ class DeleteDirectory(Builtin):
+     }
+     summary_text = "delete a directory"
+ 
+-    def apply(self, dirname, evaluation, options):
++    def eval(self, dirname, evaluation, options):
+         "DeleteDirectory[dirname_, OptionsPattern[DeleteDirectory]]"
+ 
+         expr = to_expression("DeleteDirectory", dirname)
+@@ -410,9 +411,10 @@ class DeleteDirectory(Builtin):
+ class DeleteFile(Builtin):
+     """
+     <dl>
+-    <dt>'Delete["$file$"]'
++      <dt>'Delete["$file$"]'
+       <dd>deletes $file$.
+-    <dt>'Delete[{"$file1$", "$file2$", ...}]'
++
++      <dt>'Delete[{"$file1$", "$file2$", ...}]'
+       <dd>deletes a list of files.
+     </dl>
+ 
+@@ -433,7 +435,7 @@ class DeleteFile(Builtin):
+     }
+     summary_text = "delete a file"
+ 
+-    def apply(self, filename, evaluation):
++    def eval(self, filename, evaluation):
+         "DeleteFile[filename_]"
+ 
+         py_path = filename.to_python()
+@@ -474,7 +476,7 @@ class DeleteFile(Builtin):
+ class Directory(Builtin):
+     """
+     <dl>
+-    <dt>'Directory[]'
++      <dt>'Directory[]'
+       <dd>returns the current working directory.
+     </dl>
+ 
+@@ -484,7 +486,7 @@ class Directory(Builtin):
+ 
+     summary_text = "current working directory"
+ 
+-    def apply(self, evaluation):
++    def eval(self, evaluation):
+         "Directory[]"
+         result = os.getcwd()
+         return String(result)
+@@ -493,7 +495,7 @@ class Directory(Builtin):
+ class DirectoryName(Builtin):
+     """
+     <dl>
+-    <dt>'DirectoryName["$name$"]'
++      <dt>'DirectoryName["$name$"]'
+       <dd>extracts the directory name from a filename.
+     </dl>
+ 
+@@ -531,7 +533,7 @@ class DirectoryName(Builtin):
+     }
+     summary_text = "directory part of a filename"
+ 
+-    def apply_with_n(self, name, n, evaluation, options):
++    def eval_with_n(self, name, n, evaluation, options):
+         "DirectoryName[name_, n_, OptionsPattern[DirectoryName]]"
+ 
+         if n is None:
+@@ -557,15 +559,15 @@ class DirectoryName(Builtin):
+ 
+         return String(result)
+ 
+-    def apply(self, name, evaluation, options):
++    def eval(self, name, evaluation, options):
+         "DirectoryName[name_, OptionsPattern[DirectoryName]]"
+-        return self.apply_with_n(name, None, evaluation, options)
++        return self.eval_with_n(name, None, evaluation, options)
+ 
+ 
+ class DirectoryStack(Builtin):
+     """
+     <dl>
+-    <dt>'DirectoryStack[]'
++      <dt>'DirectoryStack[]'
+       <dd>returns the directory stack.
+     </dl>
+ 
+@@ -575,7 +577,7 @@ class DirectoryStack(Builtin):
+ 
+     summary_text = "list the sequence of current directories in use"
+ 
+-    def apply(self, evaluation):
++    def eval(self, evaluation):
+         "DirectoryStack[]"
+         global DIRECTORY_STACK
+         return from_python(DIRECTORY_STACK)
+@@ -584,7 +586,7 @@ class DirectoryStack(Builtin):
+ class DirectoryQ(Builtin):
+     """
+     <dl>
+-    <dt>'DirectoryQ["$name$"]'
++      <dt>'DirectoryQ["$name$"]'
+       <dd>returns 'True' if the directory called $name$ exists and 'False' otherwise.
+     </dl>
+ 
+@@ -607,7 +609,7 @@ class DirectoryQ(Builtin):
+     }
+     summary_text = "test whether a path exists and is a directory"
+ 
+-    def apply(self, pathname, evaluation):
++    def eval(self, pathname, evaluation):
+         "DirectoryQ[pathname_]"
+         path = pathname.to_python()
+ 
+@@ -626,7 +628,7 @@ class DirectoryQ(Builtin):
+ class ExpandFileName(Builtin):
+     """
+     <dl>
+-    <dt>'ExpandFileName["$name$"]'
++      <dt>'ExpandFileName["$name$"]'
+       <dd>expands $name$ to an absolute filename for your system.
+     </dl>
+ 
+@@ -639,7 +641,7 @@ class ExpandFileName(Builtin):
+     }
+     summary_text = "absolute path"
+ 
+-    def apply(self, name, evaluation):
++    def eval(self, name, evaluation):
+         "ExpandFileName[name_]"
+ 
+         py_name = name.to_python()
+@@ -657,7 +659,7 @@ class ExpandFileName(Builtin):
+ class File(Builtin):
+     """
+     <dl>
+-    <dt>'File["$file$"]'
++      <dt>'File["$file$"]'
+       <dd>is a symbolic representation of an element in the local file system.
+     </dl>
+     """
+@@ -668,7 +670,7 @@ class File(Builtin):
+ class FileBaseName(Builtin):
+     """
+     <dl>
+-    <dt>'FileBaseName["$file$"]'
++      <dt>'FileBaseName["$file$"]'
+       <dd>gives the base name for the specified file name.
+     </dl>
+ 
+@@ -690,7 +692,7 @@ class FileBaseName(Builtin):
+     }
+     summary_text = "base name of the file"
+ 
+-    def apply(self, filename, evaluation, options):
++    def eval(self, filename, evaluation, options):
+         "FileBaseName[filename_String, OptionsPattern[FileBaseName]]"
+         path = filename.to_python()[1:-1]
+ 
+@@ -701,7 +703,7 @@ class FileBaseName(Builtin):
+ class FileByteCount(Builtin):
+     """
+     <dl>
+-    <dt>'FileByteCount[$file$]'
++      <dt>'FileByteCount[$file$]'
+       <dd>returns the number of bytes in $file$.
+     </dl>
+ 
+@@ -714,7 +716,7 @@ class FileByteCount(Builtin):
+     }
+     summary_text = "length of the file"
+ 
+-    def apply(self, filename, evaluation):
++    def eval(self, filename, evaluation):
+         "FileByteCount[filename_]"
+         py_filename = filename.to_python()
+         if not (
+@@ -745,7 +747,7 @@ class FileByteCount(Builtin):
+ class FileDate(Builtin):
+     """
+     <dl>
+-    <dt>'FileDate[$file$, $types$]'
++      <dt>'FileDate[$file$, $types$]'
+       <dd>returns the time and date at which the file was last modified.
+     </dl>
+ 
+@@ -796,7 +798,7 @@ class FileDate(Builtin):
+     }
+     summary_text = "date and time of the last change in a file"
+ 
+-    def apply(self, path, timetype, evaluation):
++    def eval(self, path, timetype, evaluation):
+         "FileDate[path_, timetype_]"
+         py_path, is_temparary_file = path_search(path.to_python()[1:-1])
+ 
+@@ -839,15 +841,15 @@ class FileDate(Builtin):
+ 
+         return to_expression("DateList", Real(result))
+ 
+-    def apply_default(self, path, evaluation):
++    def eval_default(self, path, evaluation):
+         "FileDate[path_]"
+-        return self.apply(path, None, evaluation)
++        return self.eval(path, None, evaluation)
+ 
+ 
+ class FileExistsQ(Builtin):
+     """
+     <dl>
+-    <dt>'FileExistsQ["$file$"]'
++      <dt>'FileExistsQ["$file$"]'
+       <dd>returns 'True' if $file$ exists and 'False' otherwise.
+     </dl>
+ 
+@@ -864,7 +866,7 @@ class FileExistsQ(Builtin):
+     }
+     summary_text = "test whether a file exists"
+ 
+-    def apply(self, filename, evaluation):
++    def eval(self, filename, evaluation):
+         "FileExistsQ[filename_]"
+         path = filename.to_python()
+         if not (isinstance(path, str) and path[0] == path[-1] == '"'):
+@@ -882,7 +884,7 @@ class FileExistsQ(Builtin):
+ class FileExtension(Builtin):
+     """
+     <dl>
+-    <dt>'FileExtension["$file$"]'
++      <dt>'FileExtension["$file$"]'
+       <dd>gives the extension for the specified file name.
+     </dl>
+ 
+@@ -903,7 +905,7 @@ class FileExtension(Builtin):
+     }
+     summary_text = "file extension"
+ 
+-    def apply(self, filename, evaluation, options):
++    def eval(self, filename, evaluation, options):
+         "FileExtension[filename_String, OptionsPattern[FileExtension]]"
+         path = filename.to_python()[1:-1]
+         filename_base, filename_ext = osp.splitext(path)
+@@ -914,12 +916,14 @@ class FileExtension(Builtin):
+ class FileHash(Builtin):
+     """
+     <dl>
+-    <dt>'FileHash[$file$]'
++      <dt>'FileHash[$file$]'
+       <dd>returns an integer hash for the given $file$.
+-    <dt>'FileHash[$file$, $type$]'
++
++      <dt>'FileHash[$file$, $type$]'
+       <dd>returns an integer hash of the specified $type$ for the given $file$.
+       <dd>The types supported are "MD5", "Adler32", "CRC32", "SHA", "SHA224", "SHA256", "SHA384", and "SHA512".
+-    <dt>'FileHash[$file$, $type$, $format$]'
++
++      <dt>'FileHash[$file$, $type$, $format$]'
+       <dd>gives a hash code in the specified format.
+     </dl>
+ 
+@@ -961,7 +965,7 @@ class FileHash(Builtin):
+     }
+     summary_text = "compute a hash from the content of a file"
+ 
+-    def apply(self, filename, hashtype, format, evaluation):
++    def eval(self, filename, hashtype, format, evaluation):
+         "FileHash[filename_String, hashtype_String, format_String]"
+         py_filename = filename.get_string_value()
+ 
+@@ -985,7 +989,7 @@ class FileHash(Builtin):
+ class FileInformation(Builtin):
+     """
+     <dl>
+-    <dt>'FileInformation["$file$"]'
++      <dt>'FileInformation["$file$"]'
+       <dd>returns information about $file$.
+     </dl>
+ 
+@@ -1007,7 +1011,7 @@ class FileInformation(Builtin):
+ class FileNameDepth(Builtin):
+     """
+     <dl>
+-    <dt>'FileNameDepth["$name$"]'
++      <dt>'FileNameDepth["$name$"]'
+       <dd>gives the number of path parts in the given filename.
+     </dl>
+ 
+@@ -1065,7 +1069,7 @@ class FileNameJoin(Builtin):
+     }
+     summary_text = "join parts into a path"
+ 
+-    def apply(self, pathlist, evaluation, options):
++    def eval(self, pathlist, evaluation, options):
+         "FileNameJoin[pathlist_List, OptionsPattern[FileNameJoin]]"
+ 
+         py_pathlist = pathlist.to_python()
+@@ -1107,7 +1111,7 @@ class FileNameJoin(Builtin):
+ class FileType(Builtin):
+     """
+     <dl>
+-    <dt>'FileType["$file$"]'
++      <dt>'FileType["$file$"]'
+       <dd>gives the type of a file, a string. This is typically 'File', 'Directory' or 'None'.
+     </dl>
+ 
+@@ -1130,7 +1134,7 @@ class FileType(Builtin):
+     }
+     summary_text = "type of a file"
+ 
+-    def apply(self, filename, evaluation):
++    def eval(self, filename, evaluation):
+         "FileType[filename_]"
+         if not isinstance(filename, String):
+             evaluation.message("FileType", "fstr", filename)
+@@ -1151,7 +1155,7 @@ class FileType(Builtin):
+ class FindFile(Builtin):
+     """
+     <dl>
+-    <dt>'FindFile[$name$]'
++      <dt>'FindFile[$name$]'
+       <dd>searches '$Path' for the given filename.
+     </dl>
+ 
+@@ -1175,7 +1179,7 @@ class FindFile(Builtin):
+         "search the path of of a file in the current directory and its subdirectories"
+     )
+ 
+-    def apply(self, name, evaluation):
++    def eval(self, name, evaluation):
+         "FindFile[name_]"
+ 
+         py_name = name.to_python()
+@@ -1231,21 +1235,21 @@ class FileNames(Builtin):
+     }
+     summary_text = "list file names in the current directory"
+ 
+-    def apply_0(self, evaluation, **options):
++    def eval_0(self, evaluation, **options):
+         """FileNames[OptionsPattern[FileNames]]"""
+-        return self.apply_3(
++        return self.eval_3(
+             String("*"), String(os.getcwd()), None, evaluation, **options
+         )
+ 
+-    def apply_1(self, forms, evaluation, **options):
++    def eval_1(self, forms, evaluation, **options):
+         """FileNames[forms_, OptionsPattern[FileNames]]"""
+-        return self.apply_3(forms, String(os.getcwd()), None, evaluation, **options)
++        return self.eval_3(forms, String(os.getcwd()), None, evaluation, **options)
+ 
+-    def apply_2(self, forms, paths, evaluation, **options):
++    def eval_2(self, forms, paths, evaluation, **options):
+         """FileNames[forms_, paths_, OptionsPattern[FileNames]]"""
+-        return self.apply_3(forms, paths, None, evaluation, **options)
++        return self.eval_3(forms, paths, None, evaluation, **options)
+ 
+-    def apply_3(self, forms, paths, n, evaluation, **options):
++    def eval_3(self, forms, paths, n, evaluation, **options):
+         """FileNames[forms_, paths_, n_, OptionsPattern[FileNames]]"""
+         filenames = set()
+         # Building a list of forms
+@@ -1358,7 +1362,7 @@ class FileNameSplit(Builtin):
+ 
+     summary_text = "split the file name in a list of parts"
+ 
+-    def apply(self, filename, evaluation, options):
++    def eval(self, filename, evaluation, options):
+         "FileNameSplit[filename_String, OptionsPattern[FileNameSplit]]"
+ 
+         path = filename.to_python()[1:-1]
+@@ -1419,12 +1423,12 @@ class FileNameTake(Builtin):
+     }
+     summary_text = "take a part of the filename"
+ 
+-    def apply(self, filename, evaluation, options):
++    def eval(self, filename, evaluation, options):
+         "FileNameTake[filename_String, OptionsPattern[FileBaseName]]"
+         path = pathlib.Path(filename.to_python()[1:-1])
+         return String(path.name)
+ 
+-    def apply_n(self, filename, n, evaluation, options):
++    def eval_n(self, filename, n, evaluation, options):
+         "FileNameTake[filename_String, n_Integer, OptionsPattern[FileBaseName]]"
+         n_int = n.get_int_value()
+         parts = pathlib.Path(filename.to_python()[1:-1]).parts
+@@ -1479,11 +1483,11 @@ class FindList(Builtin):
+     # TODO: Extra options AnchoredSearch, IgnoreCase RecordSeparators,
+     # WordSearch, WordSeparators this is probably best done with a regex
+ 
+-    def apply_without_n(self, filename, text, evaluation, options):
++    def eval_without_n(self, filename, text, evaluation, options):
+         "FindList[filename_, text_, OptionsPattern[FindList]]"
+-        return self.apply(filename, text, None, evaluation, options)
++        return self.eval(filename, text, None, evaluation, options)
+ 
+-    def apply(self, filename, text, n, evaluation, options):
++    def eval(self, filename, text, n, evaluation, options):
+         "FindList[filename_, text_, n_, OptionsPattern[FindList]]"
+         py_text = text.to_python()
+         py_name = filename.to_python()
+@@ -1713,7 +1717,7 @@ class Needs(Builtin):
+     }
+     summary_text = "load a package if it is not already loaded"
+ 
+-    def apply(self, context, evaluation):
++    def eval(self, context, evaluation):
+         "Needs[context_String]"
+         contextstr = context.get_string_value()
+         if contextstr == "":
+@@ -1789,7 +1793,7 @@ class ParentDirectory(Builtin):
+     }
+     summary_text = "parent directory of the current working directory"
+ 
+-    def apply(self, path, evaluation):
++    def eval(self, path, evaluation):
+         "ParentDirectory[path_]"
+ 
+         if not isinstance(path, String):
+@@ -1848,7 +1852,6 @@ class RenameDirectory(Builtin):
+     """
+ 
+     messages = {
+-        "argr": "called with `1` argument; 2 arguments are expected.",
+         "fstr": (
+             "File specification `1` is not a string of " "one or more characters."
+         ),
+@@ -1857,12 +1860,12 @@ class RenameDirectory(Builtin):
+     }
+     summary_text = "change the name of a directory"
+ 
+-    def apply(self, dirs, evaluation):
++    def eval(self, dirs, evaluation):
+         "RenameDirectory[dirs__]"
+ 
+         seq = dirs.get_sequence()
+         if len(seq) != 2:
+-            evaluation.message("RenameDirectory", "argr", len(seq))
++            evaluation.message("RenameDirectory", "argr", "RenameDirectory", 2)
+             return
+         (dir1, dir2) = (s.to_python() for s in seq)
+ 
+@@ -1911,7 +1914,7 @@ class RenameFile(Builtin):
+     }
+     summary_text = "change the name of a file"
+ 
+-    def apply(self, source, dest, evaluation):
++    def eval(self, source, dest, evaluation):
+         "RenameFile[source_, dest_]"
+ 
+         py_source = source.to_python()
+@@ -1963,7 +1966,7 @@ class ResetDirectory(Builtin):
+     }
+     summary_text = "return to the directory before the last SetDirectory call"
+ 
+-    def apply(self, evaluation):
++    def eval(self, evaluation):
+         "ResetDirectory[]"
+         try:
+             tmp = DIRECTORY_STACK.pop()
+@@ -2020,7 +2023,7 @@ class SetDirectory(Builtin):
+     }
+     summary_text = "set the working directory"
+ 
+-    def apply(self, path, evaluation):
++    def eval(self, path, evaluation):
+         "SetDirectory[path_]"
+ 
+         if not isinstance(path, String):
+@@ -2097,7 +2100,7 @@ class SetFileDate(Builtin):
+     }
+     summary_text = "set the access/modification time of a file in the filesystem"
+ 
+-    def apply(self, filename, datelist, attribute, evaluation):
++    def eval(self, filename, datelist, attribute, evaluation):
+         "SetFileDate[filename_, datelist_, attribute_]"
+ 
+         py_filename = filename.to_python()
+@@ -2170,19 +2173,19 @@ class SetFileDate(Builtin):
+                 os.utime(py_filename, (osp.getatime(py_filename), stattime))
+             if py_attr == "All":
+                 os.utime(py_filename, (stattime, stattime))
+-        except OSError as e:
++        except OSError:  #  as e:
+             # evaluation.message(...)
+             return SymbolFailed
+ 
+         return SymbolNull
+ 
+-    def apply_1arg(self, filename, evaluation):
++    def eval_1arg(self, filename, evaluation):
+         "SetFileDate[filename_]"
+-        return self.apply(filename, None, None, evaluation)
++        return self.eval(filename, None, None, evaluation)
+ 
+-    def apply_2arg(self, filename, datelist, evaluation):
++    def eval_2arg(self, filename, datelist, evaluation):
+         "SetFileDate[filename_, datelist_]"
+-        return self.apply(filename, datelist, None, evaluation)
++        return self.eval(filename, datelist, None, evaluation)
+ 
+ 
+ class TemporaryDirectory(Predefined):
+@@ -2252,10 +2255,11 @@ class UserBaseDirectory(Predefined):
+ class URLSave(Builtin):
+     """
+     <dl>
+-    <dt>'URLSave["url"]'
+-        <dd>Save "url" in a temporary file.
+-    <dt>'URLSave["url", $filename$]'
+-        <dd>Save "url" in $filename$.
++      <dt>'URLSave["url"]'
++      <dd>Save "url" in a temporary file.
++
++      <dt>'URLSave["url", $filename$]'
++      <dd>Save "url" in $filename$.
+     </dl>
+     """
+ 
+@@ -2265,11 +2269,11 @@ class URLSave(Builtin):
+     }
+     summary_text = "save the content of an URL"
+ 
+-    def apply_1(self, url, evaluation, **options):
++    def eval_1(self, url, evaluation, **options):
+         "URLSave[url_String, OptionsPattern[URLSave]]"
+-        return self.apply_2(url, None, evaluation, **options)
++        return self.eval_2(url, None, evaluation, **options)
+ 
+-    def apply_2(self, url, filename, evaluation, **options):
++    def eval_2(self, url, filename, evaluation, **options):
+         "URLSave[url_String, filename_, OptionsPattern[URLSave]]"
+         url = url.value
+         if filename is None:
+diff --git a/mathics/builtin/lists.py b/mathics/builtin/lists.py
+index 004e90d6b..68785ff4b 100644
+--- a/mathics/builtin/lists.py
++++ b/mathics/builtin/lists.py
+@@ -172,7 +172,7 @@ class ContainsOnly(Builtin):
+                     return evaluation.message("ContainsOnly", "optx", Symbol(key), expr)
+         return None
+ 
+-    def apply(self, list1, list2, evaluation, options={}):
++    def eval(self, list1, list2, evaluation, options={}):
+         "ContainsOnly[list1_List, list2_List, OptionsPattern[ContainsOnly]]"
+ 
+         same_test = self.get_option(options, "SameTest", evaluation)
+@@ -188,7 +188,7 @@ class ContainsOnly(Builtin):
+                 return SymbolFalse
+         return SymbolTrue
+ 
+-    def apply_msg(self, e1, e2, evaluation, options={}):
++    def eval_msg(self, e1, e2, evaluation, options={}):
+         "ContainsOnly[e1_, e2_, OptionsPattern[ContainsOnly]]"
+ 
+         opts = (
+@@ -295,6 +295,8 @@ class Delete(Builtin):
+     """
+ 
+     messages = {
++        # FIXME: This message doesn't exist in more modern WMA, and
++        # Delete *can* take more than 2 arguments.
+         "argr": "Delete called with 1 argument; 2 arguments are expected.",
+         "argt": "Delete called with `1` arguments; 2 arguments are expected.",
+         "psl": "Position specification `1` in `2` is not a machine-sized integer or a list of machine-sized integers.",
+@@ -302,7 +304,7 @@ class Delete(Builtin):
+     }
+     summary_text = "delete elements from a list at given positions"
+ 
+-    def apply_one(self, expr, position: Integer, evaluation):
++    def eval_one(self, expr, position: Integer, evaluation):
+         "Delete[expr_, position_Integer]"
+         pos = position.value
+         try:
+@@ -310,7 +312,7 @@ class Delete(Builtin):
+         except PartRangeError:
+             evaluation.message("Part", "partw", ListExpression(position), expr)
+ 
+-    def apply(self, expr, positions, evaluation):
++    def eval(self, expr, positions, evaluation):
+         "Delete[expr_, positions___]"
+         positions = positions.get_sequence()
+         if len(positions) > 1:
+@@ -443,7 +445,7 @@ class Level(Builtin):
+     }
+     summary_text = "parts specified by a given number of indices"
+ 
+-    def apply(self, expr, ls, evaluation, options={}):
++    def eval(self, expr, ls, evaluation, options={}):
+         "Level[expr_, ls_, OptionsPattern[Level]]"
+ 
+         try:
+@@ -509,7 +511,7 @@ class List(Builtin):
+     attributes = A_LOCKED | A_PROTECTED
+     summary_text = "specify a list explicitly"
+ 
+-    def apply(self, elements, evaluation):
++    def eval(self, elements, evaluation):
+         """List[elements___]"""
+         # Pick out the elements part of the parameter elements;
+         # we we will call that `elements_part_of_elements__`.
+@@ -518,7 +520,7 @@ class List(Builtin):
+         elements_part_of_elements__ = elements.get_sequence()
+         return ListExpression(*elements_part_of_elements__)
+ 
+-    def apply_makeboxes(self, items, f, evaluation):
++    def eval_makeboxes(self, items, f, evaluation):
+         """MakeBoxes[{items___},
+         f:StandardForm|TraditionalForm|OutputForm|InputForm|FullForm]"""
+ 
+@@ -649,7 +651,7 @@ class Split(Builtin):
+     }
+     summary_text = "split into runs of identical elements"
+ 
+-    def apply(self, mlist, test, evaluation):
++    def eval(self, mlist, test, evaluation):
+         "Split[mlist_, test_]"
+ 
+         expr = Expression(SymbolSplit, mlist, test)
+@@ -702,7 +704,7 @@ class SplitBy(Builtin):
+ 
+     summary_text = "split based on values of a function applied to elements"
+ 
+-    def apply(self, mlist, func, evaluation):
++    def eval(self, mlist, func, evaluation):
+         "SplitBy[mlist_, func_?NotListQ]"
+ 
+         expr = Expression(SymbolSplit, mlist, func)
+@@ -727,7 +729,7 @@ class SplitBy(Builtin):
+         outer = structure(mlist.head, inner, evaluation)
+         return outer([inner(t) for t in result])
+ 
+-    def apply_multiple(self, mlist, funcs, evaluation):
++    def eval_multiple(self, mlist, funcs, evaluation):
+         "SplitBy[mlist_, funcs_List]"
+         expr = Expression(SymbolSplit, mlist, funcs)
+ 
+@@ -737,7 +739,7 @@ class SplitBy(Builtin):
+ 
+         result = mlist
+         for f in funcs.elements[::-1]:
+-            result = self.apply(result, f, evaluation)
++            result = self.eval(result, f, evaluation)
+ 
+         return result
+ 
+@@ -781,7 +783,7 @@ class LeafCount(Builtin):
+     }
+     summary_text = "the total number of atomic subexpressions"
+ 
+-    def apply(self, expr, evaluation):
++    def eval(self, expr, evaluation):
+         "LeafCount[expr___]"
+ 
+         from mathics.core.atoms import Rational, Complex
+@@ -820,7 +822,7 @@ class _IterationFunction(Builtin):
+     def get_result(self, items):
+         pass
+ 
+-    def apply_symbol(self, expr, iterator, evaluation):
++    def eval_symbol(self, expr, iterator, evaluation):
+         "%(name)s[expr_, iterator_Symbol]"
+         iterator = iterator.evaluate(evaluation)
+         if iterator.has_form(["List", "Range", "Sequence"], None):
+@@ -830,19 +832,19 @@ class _IterationFunction(Builtin):
+             elif len(elements) == 2:
+                 if elements[1].has_form(["List", "Sequence"], None):
+                     seq = Expression(SymbolSequence, *(elements[1].elements))
+-                    return self.apply_list(expr, elements[0], seq, evaluation)
++                    return self.eval_list(expr, elements[0], seq, evaluation)
+                 else:
+-                    return self.apply_range(expr, *elements, evaluation)
++                    return self.eval_range(expr, *elements, evaluation)
+             elif len(elements) == 3:
+-                return self.apply_iter_nostep(expr, *elements, evaluation)
++                return self.eval_iter_nostep(expr, *elements, evaluation)
+             elif len(elements) == 4:
+-                return self.apply_iter(expr, *elements, evaluation)
++                return self.eval_iter(expr, *elements, evaluation)
+ 
+         if self.throw_iterb:
+             evaluation.message(self.get_name(), "iterb")
+         return
+ 
+-    def apply_range(self, expr, i, imax, evaluation):
++    def eval_range(self, expr, i, imax, evaluation):
+         "%(name)s[expr_, {i_Symbol, imax_}]"
+         imax = imax.evaluate(evaluation)
+         if imax.has_form("Range", None):
+@@ -852,11 +854,11 @@ class _IterationFunction(Builtin):
+             return self.apply_list(expr, i, seq, evaluation)
+         elif imax.has_form("List", None):
+             seq = Expression(SymbolSequence, *(imax.elements))
+-            return self.apply_list(expr, i, seq, evaluation)
++            return self.eval_list(expr, i, seq, evaluation)
+         else:
+-            return self.apply_iter(expr, i, Integer1, imax, Integer1, evaluation)
++            return self.eval_iter(expr, i, Integer1, imax, Integer1, evaluation)
+ 
+-    def apply_max(self, expr, imax, evaluation):
++    def eval_max(self, expr, imax, evaluation):
+         "%(name)s[expr_, {imax_}]"
+ 
+         # Even though `imax` should be an integeral value, its type does not
+@@ -912,11 +914,11 @@ class _IterationFunction(Builtin):
+ 
+         return self.get_result(result)
+ 
+-    def apply_iter_nostep(self, expr, i, imin, imax, evaluation):
++    def eval_iter_nostep(self, expr, i, imin, imax, evaluation):
+         "%(name)s[expr_, {i_Symbol, imin_, imax_}]"
+-        return self.apply_iter(expr, i, imin, imax, Integer1, evaluation)
++        return self.eval_iter(expr, i, imin, imax, Integer1, evaluation)
+ 
+-    def apply_iter(self, expr, i, imin, imax, di, evaluation):
++    def eval_iter(self, expr, i, imin, imax, di, evaluation):
+         "%(name)s[expr_, {i_Symbol, imin_, imax_, di_}]"
+ 
+         if isinstance(self, SympyFunction) and di.get_int_value() == 1:
+@@ -977,7 +979,7 @@ class _IterationFunction(Builtin):
+             index = Expression(SymbolPlus, index, di).evaluate(evaluation)
+         return self.get_result(result)
+ 
+-    def apply_list(self, expr, i, items, evaluation):
++    def eval_list(self, expr, i, items, evaluation):
+         "%(name)s[expr_, {i_Symbol, {items___}}]"
+         items = items.evaluate(evaluation).get_sequence()
+         result = []
+@@ -1003,7 +1005,7 @@ class _IterationFunction(Builtin):
+                     raise
+         return self.get_result(result)
+ 
+-    def apply_multi(self, expr, first, sequ, evaluation):
++    def eval_multi(self, expr, first, sequ, evaluation):
+         "%(name)s[expr_, first_, sequ__]"
+ 
+         sequ = sequ.get_sequence()
+@@ -1027,7 +1029,7 @@ class Insert(Builtin):
+ 
+     summary_text = "insert an element at a given position"
+ 
+-    def apply(self, expr, elem, n: Integer, evaluation):
++    def eval(self, expr, elem, n: Integer, evaluation):
+         "Insert[expr_List, elem_, n_Integer]"
+ 
+         py_n = n.value
+@@ -1232,7 +1234,7 @@ class TakeLargestBy(_RankedTakeLargest):
+ 
+     summary_text = "sublist of n largest elements according to a given criteria"
+ 
+-    def apply(self, element, f, n, evaluation, options):
++    def eval(self, element, f, n, evaluation, options):
+         "TakeLargestBy[element_List, f_, n_, OptionsPattern[TakeLargestBy]]"
+         return self._compute(element, n, evaluation, options, f=f)
+ 
+@@ -1256,7 +1258,7 @@ class TakeSmallestBy(_RankedTakeSmallest):
+ 
+     summary_text = "sublist of n largest elements according to a criteria"
+ 
+-    def apply(self, element, f, n, evaluation, options):
++    def eval(self, element, f, n, evaluation, options):
+         "TakeSmallestBy[element_List, f_, n_, OptionsPattern[TakeSmallestBy]]"
+         return self._compute(element, n, evaluation, options, f=f)
+ 
+@@ -1416,7 +1418,7 @@ class _Pad(Builtin):
+             )
+             return None
+ 
+-    def apply_zero(self, element, n, evaluation):
++    def eval_zero(self, element, n, evaluation):
+         "%(name)s[element_, n_]"
+         return self._pad(
+             element,
+@@ -1427,7 +1429,7 @@ class _Pad(Builtin):
+             lambda: Expression(self.get_name(), element, n),
+         )
+ 
+-    def apply(self, element, n, x, evaluation):
++    def eval(self, element, n, x, evaluation):
+         "%(name)s[element_, n_, x_]"
+         return self._pad(
+             element,
+@@ -1438,7 +1440,7 @@ class _Pad(Builtin):
+             lambda: Expression(self.get_name(), element, n, x),
+         )
+ 
+-    def apply_margin(self, element, n, x, m, evaluation):
++    def eval_margin(self, element, n, x, m, evaluation):
+         "%(name)s[element_, n_, x_, m_]"
+         return self._pad(
+             element,
+@@ -1820,7 +1822,7 @@ class FindClusters(_Cluster):
+ 
+     summary_text = "divide data into lists of similar elements"
+ 
+-    def apply(self, p, evaluation, options):
++    def eval(self, p, evaluation, options):
+         "FindClusters[p_, OptionsPattern[%(name)s]]"
+         return self._cluster(
+             p,
+@@ -1831,7 +1833,7 @@ class FindClusters(_Cluster):
+             Expression(SymbolFindClusters, p, *options_to_rules(options)),
+         )
+ 
+-    def apply_manual_k(self, p, k: Integer, evaluation, options):
++    def eval_manual_k(self, p, k: Integer, evaluation, options):
+         "FindClusters[p_, k_Integer, OptionsPattern[%(name)s]]"
+         return self._cluster(
+             p,
+@@ -1867,7 +1869,7 @@ class ClusteringComponents(_Cluster):
+ 
+     summary_text = "label data with the index of the cluster it is in"
+ 
+-    def apply(self, p, evaluation, options):
++    def eval(self, p, evaluation, options):
+         "ClusteringComponents[p_, OptionsPattern[%(name)s]]"
+         return self._cluster(
+             p,
+@@ -1878,7 +1880,7 @@ class ClusteringComponents(_Cluster):
+             Expression(SymbolClusteringComponents, p, *options_to_rules(options)),
+         )
+ 
+-    def apply_manual_k(self, p, k: Integer, evaluation, options):
++    def eval_manual_k(self, p, k: Integer, evaluation, options):
+         "ClusteringComponents[p_, k_Integer, OptionsPattern[%(name)s]]"
+         return self._cluster(
+             p,
+@@ -1941,7 +1943,7 @@ class Nearest(Builtin):
+     }
+     summary_text = "the nearest element from a list"
+ 
+-    def apply(self, items, pivot, limit, expression, evaluation, options):
++    def eval(self, items, pivot, limit, expression, evaluation, options):
+         "Nearest[items_, pivot_, limit_, OptionsPattern[%(name)s]]"
+ 
+         method = self.get_option(options, "Method", evaluation)
+@@ -2078,6 +2080,8 @@ class SubsetQ(Builtin):
+     """
+ 
+     messages = {
++        # FIXME: This message doesn't exist in more modern WMA, and
++        # Subset *can* take more than 2 arguments.
+         "argr": "SubsetQ called with 1 argument; 2 arguments are expected.",
+         "argrx": "SubsetQ called with `1` arguments; 2 arguments are expected.",
+         "heads": "Heads `1` and `2` at positions 1 and 2 are expected to be the same.",
+@@ -2085,7 +2089,7 @@ class SubsetQ(Builtin):
+     }
+     summary_text = "test if a list is a subset of another list"
+ 
+-    def apply(self, expr, subset, evaluation):
++    def eval(self, expr, subset, evaluation):
+         "SubsetQ[expr_, subset___]"
+ 
+         if isinstance(expr, Atom):
+diff --git a/mathics/builtin/patterns.py b/mathics/builtin/patterns.py
+index 7faba7731..72fae8e61 100644
+--- a/mathics/builtin/patterns.py
++++ b/mathics/builtin/patterns.py
+@@ -975,7 +975,6 @@ class Pattern_(PatternObject):
+         "nodef": (
+             "No default setting found for `1` in " "position `2` when length is `3`."
+         ),
+-        "argr": "Pattern called with 1 argument; 2 arguments are expected.",
+     }
+ 
+     rules = {

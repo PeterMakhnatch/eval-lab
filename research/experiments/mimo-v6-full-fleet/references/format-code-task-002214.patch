@@ -1,0 +1,39 @@
+diff --git a/doc/source/whatsnew/v1.1.2.rst b/doc/source/whatsnew/v1.1.2.rst
+index c6cfcc6730..b8f6d0e52d 100644
+--- a/doc/source/whatsnew/v1.1.2.rst
++++ b/doc/source/whatsnew/v1.1.2.rst
+@@ -35,6 +35,7 @@ Bug fixes
+ - Bug in :meth:`DataFrame.apply` with ``result_type="reduce"`` returning with incorrect index (:issue:`35683`)
+ - Bug in :meth:`DateTimeIndex.format` and :meth:`PeriodIndex.format` with ``name=True`` setting the first item to ``"None"`` where it should be ``""`` (:issue:`35712`)
+ - Bug in :meth:`Float64Index.__contains__` incorrectly raising ``TypeError`` instead of returning ``False`` (:issue:`35788`)
++- Bug in :class:`Series` constructor incorrectly raising a ``TypeError`` when passed an ordered set (:issue:`36044`)
+ - Bug in :meth:`Series.dt.isocalendar` and :meth:`DatetimeIndex.isocalendar` that returned incorrect year for certain dates (:issue:`36032`)
+ - Bug in :class:`DataFrame` indexing returning an incorrect :class:`Series` in some cases when the series has been altered and a cache not invalidated (:issue:`33675`)
+ - Bug in :meth:`DataFrame.corr` causing subsequent indexing lookups to be incorrect (:issue:`35882`)
+diff --git a/pandas/core/construction.py b/pandas/core/construction.py
+index 9d6c2789af..3812c306b8 100644
+--- a/pandas/core/construction.py
++++ b/pandas/core/construction.py
+@@ -438,7 +438,12 @@ def sanitize_array(
+             subarr = subarr.copy()
+         return subarr
+ 
+-    elif isinstance(data, (list, tuple)) and len(data) > 0:
++    elif isinstance(data, (list, tuple, abc.Set, abc.ValuesView)) and len(data) > 0:
++        if isinstance(data, set):
++            # Raise only for unordered sets, e.g., not for dict_keys
++            raise TypeError("Set type is unordered")
++        data = list(data)
++
+         if dtype is not None:
+             subarr = _try_cast(data, dtype, copy, raise_cast_failure)
+         else:
+@@ -450,8 +455,6 @@ def sanitize_array(
+         # GH#16804
+         arr = np.arange(data.start, data.stop, data.step, dtype="int64")
+         subarr = _try_cast(arr, dtype, copy, raise_cast_failure)
+-    elif isinstance(data, abc.Set):
+-        raise TypeError("Set type is unordered")
+     elif lib.is_scalar(data) and index is not None and dtype is not None:
+         data = maybe_cast_to_datetime(data, dtype)
+         if not lib.is_scalar(data):

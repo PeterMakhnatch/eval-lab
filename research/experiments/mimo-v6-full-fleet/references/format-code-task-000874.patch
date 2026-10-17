@@ -1,0 +1,16 @@
+diff --git a/lib/models/blueprint.js b/lib/models/blueprint.js
+index a6b7d8957..78dbbcb36 100644
+--- a/lib/models/blueprint.js
++++ b/lib/models/blueprint.js
+@@ -957,6 +957,11 @@ let Blueprint = CoreObject.extend({
+       }
+     }
+ 
++    if (packageNames.length === 0) {
++      this._writeStatusToUI(chalk.yellow, 'remove', 'Skipping uninstall because no matching package is installed.');
++      return Promise.resolve();
++    }
++
+     this._writeStatusToUI(chalk.green, installText, packageNames.join(', '));
+ 
+     return task.run({

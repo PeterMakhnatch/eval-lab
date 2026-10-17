@@ -1,0 +1,98 @@
+diff --git a/doc/source/whatsnew/v1.3.0.rst b/doc/source/whatsnew/v1.3.0.rst
+index 1d76c9d296..8a1544801d 100644
+--- a/doc/source/whatsnew/v1.3.0.rst
++++ b/doc/source/whatsnew/v1.3.0.rst
+@@ -284,6 +284,7 @@ I/O
+ - Bug in :func:`json_normalize` resulting in the first element of a generator object not being included in the returned ``DataFrame`` (:issue:`35923`)
+ - Bug in :func:`read_excel` forward filling :class:`MultiIndex` names with multiple header and index columns specified (:issue:`34673`)
+ - :func:`pandas.read_excel` now respects :func:``pandas.set_option`` (:issue:`34252`)
++- Bug in :func:`read_csv` not switching ``true_values`` and ``false_values`` for nullable ``boolean`` dtype (:issue:`34655`)
+ - Bug in :func:``read_json`` when ``orient="split"`` does not maintan numeric string index (:issue:`28556`)
+ 
+ Period
+diff --git a/pandas/_libs/parsers.pyx b/pandas/_libs/parsers.pyx
+index 4995252d7a..a72a2ff8ea 100644
+--- a/pandas/_libs/parsers.pyx
++++ b/pandas/_libs/parsers.pyx
+@@ -1084,11 +1084,18 @@ cdef class TextReader:
+         elif is_extension_array_dtype(dtype):
+             result, na_count = self._string_convert(i, start, end, na_filter,
+                                                     na_hashset)
++
+             array_type = dtype.construct_array_type()
+             try:
+                 # use _from_sequence_of_strings if the class defines it
+-                result = array_type._from_sequence_of_strings(result,
+-                                                              dtype=dtype)
++                if is_bool_dtype(dtype):
++                    true_values = [x.decode() for x in self.true_values]
++                    false_values = [x.decode() for x in self.false_values]
++                    result = array_type._from_sequence_of_strings(
++                        result, dtype=dtype, true_values=true_values,
++                        false_values=false_values)
++                else:
++                    result = array_type._from_sequence_of_strings(result, dtype=dtype)
+             except NotImplementedError:
+                 raise NotImplementedError(
+                     f"Extension Array: {array_type} must implement "
+diff --git a/pandas/core/arrays/boolean.py b/pandas/core/arrays/boolean.py
+index bbbc0911b4..2bc908186f 100644
+--- a/pandas/core/arrays/boolean.py
++++ b/pandas/core/arrays/boolean.py
+@@ -257,6 +257,8 @@ class BooleanArray(BaseMaskedArray):
+ 
+     # The value used to fill '_data' to avoid upcasting
+     _internal_fill_value = False
++    _TRUE_VALUES = {"True", "TRUE", "true", "1", "1.0"}
++    _FALSE_VALUES = {"False", "FALSE", "false", "0", "0.0"}
+ 
+     def __init__(self, values: np.ndarray, mask: np.ndarray, copy: bool = False):
+         if not (isinstance(values, np.ndarray) and values.dtype == np.bool_):
+@@ -282,14 +284,23 @@ class BooleanArray(BaseMaskedArray):
+ 
+     @classmethod
+     def _from_sequence_of_strings(
+-        cls, strings: List[str], *, dtype: Optional[Dtype] = None, copy: bool = False
++        cls,
++        strings: List[str],
++        *,
++        dtype: Optional[Dtype] = None,
++        copy: bool = False,
++        true_values: Optional[List[str]] = None,
++        false_values: Optional[List[str]] = None,
+     ) -> "BooleanArray":
++        true_values_union = cls._TRUE_VALUES.union(true_values or [])
++        false_values_union = cls._FALSE_VALUES.union(false_values or [])
++
+         def map_string(s):
+             if isna(s):
+                 return s
+-            elif s in ["True", "TRUE", "true", "1", "1.0"]:
++            elif s in true_values_union:
+                 return True
+-            elif s in ["False", "FALSE", "false", "0", "0.0"]:
++            elif s in false_values_union:
+                 return False
+             else:
+                 raise ValueError(f"{s} cannot be cast to bool")
+diff --git a/pandas/io/parsers.py b/pandas/io/parsers.py
+index 6e9cc18358..ca817be5d2 100644
+--- a/pandas/io/parsers.py
++++ b/pandas/io/parsers.py
+@@ -1812,7 +1812,15 @@ class ParserBase:
+             cast_type = pandas_dtype(cast_type)
+             array_type = cast_type.construct_array_type()
+             try:
+-                return array_type._from_sequence_of_strings(values, dtype=cast_type)
++                if is_bool_dtype(cast_type):
++                    return array_type._from_sequence_of_strings(
++                        values,
++                        dtype=cast_type,
++                        true_values=self.true_values,
++                        false_values=self.false_values,
++                    )
++                else:
++                    return array_type._from_sequence_of_strings(values, dtype=cast_type)
+             except NotImplementedError as err:
+                 raise NotImplementedError(
+                     f"Extension Array: {array_type} must implement "

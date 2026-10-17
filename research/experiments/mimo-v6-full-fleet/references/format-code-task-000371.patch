@@ -1,0 +1,43 @@
+diff --git a/docs/source/release_notes.rst b/docs/source/release_notes.rst
+index 63013ed3..a2086b6c 100644
+--- a/docs/source/release_notes.rst
++++ b/docs/source/release_notes.rst
+@@ -11,6 +11,7 @@ Future Release
+         * Add optional automatic update checker (:pr:`959`, :pr:`970`)
+     * Fixes
+         * Fix issue related to serialization/deserialization of data with whitespace and newline characters (:pr:`957`)
++        * Update to allow initializing a ``ColumnSchema`` object with an ``Ordinal`` logical type without order values (:pr:`972`)
+     * Changes
+         * Change write_dataframe to only copy dataframe if it contains LatLong (:pr:`955`)
+     * Documentation Changes
+diff --git a/woodwork/logical_types.py b/woodwork/logical_types.py
+index d71f8d88..dccad7ea 100644
+--- a/woodwork/logical_types.py
++++ b/woodwork/logical_types.py
+@@ -365,18 +365,18 @@ class Ordinal(LogicalType):
+     standard_tags = {'category'}
+ 
+     def __init__(self, order=None):
+-        if order is None:
++        self.order = order
++
++    def _validate_data(self, series):
++        """Make sure order values are properly defined and confirm the supplied series
++        does not contain any values that are not in the specified order values"""
++        if self.order is None:
+             raise TypeError("Must use an Ordinal instance with order values defined")
+-        elif not isinstance(order, (list, tuple)):
++        elif not isinstance(self.order, (list, tuple)):
+             raise TypeError("Order values must be specified in a list or tuple")
+-        if len(order) != len(set(order)):
++        if len(self.order) != len(set(self.order)):
+             raise ValueError("Order values cannot contain duplicates")
+ 
+-        self.order = order
+-
+-    def _validate_data(self, series):
+-        """Confirm the supplied series does not contain any values that are not
+-        in the specified order values"""
+         if isinstance(series, pd.Series):
+             missing_order_vals = set(series.dropna().values).difference(self.order)
+             if missing_order_vals:

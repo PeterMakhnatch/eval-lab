@@ -1,0 +1,171 @@
+diff --git a/BIBLIOGRAPHY.bib b/BIBLIOGRAPHY.bib
+index 12b86647b..08bf2e9eb 100644
+--- a/BIBLIOGRAPHY.bib
++++ b/BIBLIOGRAPHY.bib
+@@ -1,3 +1,19 @@
++@article{Abasi2020,
++    author = {Abasi, Saeedeh and Amani Tehran, Mohammad and Fairchild, Mark D.},
++    title = {Distance metrics for very large color differences},
++    journal = {Color Research \& Application},
++    volume = {45},
++    number = {2},
++    pages = {208-223},
++    keywords = {color difference formula, distance metric, perceived color difference, very large color difference},
++    doi = {https://doi.org/10.1002/col.22451},
++    url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/col.22451},
++    eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/col.22451},
++    abstract = {Abstract Small, supra-threshold color differences are typically described with Euclidean distance metrics, or dimension-weighted Euclidean metrics, in color appearance spaces such as CIELAB. This research examines the perception and modeling of very large color differences in the order of 10 CIELAB units or larger, with an aim of describing the salience of color differences between distinct objects in real-world scenes and images. A psychophysical experiment was completed to compare directly large color-difference pairs designed to probe various Euclidean and non-Euclidean distance metrics. The results indicate that very large color differences are best described by HyAB, a combination of a Euclidean metric in hue and chroma with a city-block metric to incorporate lightness differences.},
++    year = {2020},
++    urldate = {2024-10-23},
++    howpublished = {http://markfairchild.org/PDFs/PAP40.pdf},
++}
+ @misc{ANSI2003a,
+   title        = {Specification of {{ROMM RGB}}},
+   author       = {{ANSI}},
+diff --git a/colour/difference/__init__.py b/colour/difference/__init__.py
+index 32922ec69..8abf5a00d 100644
+--- a/colour/difference/__init__.py
++++ b/colour/difference/__init__.py
+@@ -50,6 +50,7 @@ from .delta_e import (
+     delta_E_CIE2000,
+     delta_E_CMC,
+     delta_E_ITP,
++    delta_E_HyAB,
+ )
+ from .din99 import delta_E_DIN99
+ from .huang2015 import power_function_Huang2015
+@@ -72,6 +73,7 @@ __all__ += [
+     "delta_E_CIE2000",
+     "delta_E_CMC",
+     "delta_E_ITP",
++    "delta_E_HyAB",
+ ]
+ __all__ += [
+     "delta_E_DIN99",
+@@ -99,6 +101,7 @@ DELTA_E_METHODS: CanonicalMapping = CanonicalMapping(
+         "CAM16-SCD": delta_E_CAM16SCD,
+         "CAM16-UCS": delta_E_CAM16UCS,
+         "DIN99": delta_E_DIN99,
++        "HyAB": delta_E_HyAB,
+     }
+ )
+ DELTA_E_METHODS.__doc__ = """
+@@ -138,6 +141,7 @@ def delta_E(
+             "CAM16-SCD",
+             "CAM16-UCS",
+             "DIN99",
++            "HyAB",
+         ]
+         | str
+     ) = "CIE 2000",
+diff --git a/colour/difference/delta_e.py b/colour/difference/delta_e.py
+index caa5f7f13..0b6a05460 100644
+--- a/colour/difference/delta_e.py
++++ b/colour/difference/delta_e.py
+@@ -12,6 +12,7 @@ The following attributes and methods are available:
+ -   :func:`colour.difference.delta_E_CIE2000`
+ -   :func:`colour.difference.delta_E_CMC`
+ -   :func:`colour.difference.delta_E_ITP`
++-   :func:`colour.difference.delta_E_HyAB`
+ 
+ References
+ ----------
+@@ -37,6 +38,10 @@ Melgosa_CIEDE2000_Workshop-July4.pdf
+     30(1), 21-30. doi:10.1002/col.20070
+ -   :cite:`Mokrzycki2011` : Mokrzycki, W., & Tatol, M. (2011). Color difference
+     Delta E - A survey. Machine Graphics and Vision, 20, 383-411.
++-   :cite:`Abasi2020` :  Abasi S, Amani Tehran M, Fairchild MD.
++    Distance metrics for very large color differences.
++    Color Res Appl. 2020; 45: 208-223. https://doi.org/10.1002/col.22451
++    Retrieved October 23, 2024, from http://markfairchild.org/PDFs/PAP40.pdf
+ """
+ 
+ from __future__ import annotations
+@@ -65,6 +70,7 @@ __all__ = [
+     "delta_E_CIE2000",
+     "delta_E_CMC",
+     "delta_E_ITP",
++    "delta_E_HyAB",
+ ]
+ 
+ JND_CIE1976 = 2.3
+@@ -560,3 +566,56 @@ def delta_E_ITP(ICtCp_1: ArrayLike, ICtCp_2: ArrayLike) -> NDArrayFloat:
+     )
+ 
+     return as_float(d_E_ITP)
++
++
++def delta_E_HyAB(Lab_1: ArrayLike, Lab_2: ArrayLike) -> NDArrayFloat:
++    """
++    Return the difference between two *CIE L\\*a\\*b\\** colourspace arrays
++    This metric is intended for large color differences,
++    on the order of 10 CIELAB units or greater
++
++    Parameters
++    ----------
++    Lab_1
++        *CIE L\\*a\\*b\\** colourspace array 1.
++    Lab_2
++        *CIE L\\*a\\*b\\** colourspace array 2.
++
++    Returns
++    -------
++    :class:`numpy.ndarray`
++        Colour difference HyAB.
++
++    Notes
++    -----
++    +------------+-----------------------+-------------------+
++    | **Domain** | **Scale - Reference** | **Scale - 1**     |
++    +============+=======================+===================+
++    | ``Lab_1``  | ``L_1`` : [0, 100]    | ``L_1`` : [0, 1]  |
++    |            |                       |                   |
++    |            | ``a_1`` : [-100, 100] | ``a_1`` : [-1, 1] |
++    |            |                       |                   |
++    |            | ``b_1`` : [-100, 100] | ``b_1`` : [-1, 1] |
++    +------------+-----------------------+-------------------+
++    | ``Lab_2``  | ``L_2`` : [0, 100]    | ``L_2`` : [0, 1]  |
++    |            |                       |                   |
++    |            | ``a_2`` : [-100, 100] | ``a_2`` : [-1, 1] |
++    |            |                       |                   |
++    |            | ``b_2`` : [-100, 100] | ``b_2`` : [-1, 1] |
++    +------------+-----------------------+-------------------+
++
++    References
++    ----------
++    :cite:`Abasi2020`
++
++    Examples
++    --------
++    >>> Lab_1 = np.array([25.0, 8.0, -14.0])
++    >>> Lab_2 = np.array([75.0, -35.0, 16.0])
++    >>> delta_E_HyAB(Lab_1, Lab_2)  # doctest: +ELLIPSIS
++    102.4309069...
++    """
++    dLab = to_domain_100(Lab_1) - to_domain_100(Lab_2)
++    dL, da, db = tsplit(dLab)
++    HyAB = np.abs(dL) + np.sqrt(da**2 + db**2)
++    return as_float(HyAB)
+diff --git a/docs/colour.difference.rst b/docs/colour.difference.rst
+index bace5888a..e639aacc9 100644
+--- a/docs/colour.difference.rst
++++ b/docs/colour.difference.rst
+@@ -115,6 +115,18 @@ DIN99
+ 
+     delta_E_DIN99
+ 
++HyAB
++-----
++
++``colour.difference``
++
++.. currentmodule:: colour.difference
++
++.. autosummary::
++    :toctree: generated/
++
++    delta_E_HyAB
++
+ Standardized Residual Sum of Squares (STRESS) Index
+ ---------------------------------------------------
+ 

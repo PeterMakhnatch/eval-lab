@@ -1,0 +1,197 @@
+diff --git a/ChangeLog.md b/ChangeLog.md
+index 680a1e84..d7fd36f4 100644
+--- a/ChangeLog.md
++++ b/ChangeLog.md
+@@ -12,6 +12,7 @@ General:
+ Blob:
+ 
+ - Support Copy Blob From URL API when use different source and destination account (in same Azurite instance).
++- Support use of wildcard character to allow all subdomains of a given domain to make requests via CORS
+ 
+ Table:
+ 
+diff --git a/package-lock.json b/package-lock.json
+index a9cbc591..3e8f91c0 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -15,6 +15,7 @@
+         "etag": "^1.8.1",
+         "express": "^4.16.4",
+         "fs-extra": "^10.1.0",
++        "glob-to-regexp": "^0.4.1",
+         "jsonwebtoken": "^8.5.1",
+         "lokijs": "^1.5.6",
+         "morgan": "^1.9.1",
+@@ -49,6 +50,7 @@
+         "@types/etag": "^1.8.0",
+         "@types/express": "^4.16.0",
+         "@types/fs-extra": "^9.0.13",
++        "@types/glob-to-regexp": "^0.4.1",
+         "@types/jsonwebtoken": "^8.3.9",
+         "@types/lokijs": "^1.5.2",
+         "@types/mocha": "^9.0.0",
+@@ -899,6 +901,12 @@
+         "node": ">=4"
+       }
+     },
++    "node_modules/@mrmlnc/readdir-enhanced/node_modules/glob-to-regexp": {
++      "version": "0.3.0",
++      "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.3.0.tgz",
++      "integrity": "sha512-Iozmtbqv0noj0uDDqoL0zNq0VBEfK2YFoMAZoxJe4cwphvLR+JskfF30QhXHOR4m3KrE6NLRYw+U9MRXvifyig==",
++      "dev": true
++    },
+     "node_modules/@nodelib/fs.scandir": {
+       "version": "2.1.5",
+       "resolved": "https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz",
+@@ -1085,6 +1093,12 @@
+         "@types/node": "*"
+       }
+     },
++    "node_modules/@types/glob-to-regexp": {
++      "version": "0.4.1",
++      "resolved": "https://registry.npmjs.org/@types/glob-to-regexp/-/glob-to-regexp-0.4.1.tgz",
++      "integrity": "sha512-S0mIukll6fbF0tvrKic/jj+jI8SHoSvGU+Cs95b/jzZEnBYCbj+7aJtQ9yeABuK3xP1okwA3jEH9qIRayijnvQ==",
++      "dev": true
++    },
+     "node_modules/@types/jsonwebtoken": {
+       "version": "8.5.9",
+       "resolved": "https://registry.npmjs.org/@types/jsonwebtoken/-/jsonwebtoken-8.5.9.tgz",
+@@ -4895,10 +4909,9 @@
+       }
+     },
+     "node_modules/glob-to-regexp": {
+-      "version": "0.3.0",
+-      "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.3.0.tgz",
+-      "integrity": "sha1-jFoUlNIGbFcMw7/kSWF1rMTVAqs=",
+-      "dev": true
++      "version": "0.4.1",
++      "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.4.1.tgz",
++      "integrity": "sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw=="
+     },
+     "node_modules/globals": {
+       "version": "9.18.0",
+@@ -11679,6 +11692,14 @@
+       "requires": {
+         "call-me-maybe": "^1.0.1",
+         "glob-to-regexp": "^0.3.0"
++      },
++      "dependencies": {
++        "glob-to-regexp": {
++          "version": "0.3.0",
++          "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.3.0.tgz",
++          "integrity": "sha512-Iozmtbqv0noj0uDDqoL0zNq0VBEfK2YFoMAZoxJe4cwphvLR+JskfF30QhXHOR4m3KrE6NLRYw+U9MRXvifyig==",
++          "dev": true
++        }
+       }
+     },
+     "@nodelib/fs.scandir": {
+@@ -11851,6 +11872,12 @@
+         "@types/node": "*"
+       }
+     },
++    "@types/glob-to-regexp": {
++      "version": "0.4.1",
++      "resolved": "https://registry.npmjs.org/@types/glob-to-regexp/-/glob-to-regexp-0.4.1.tgz",
++      "integrity": "sha512-S0mIukll6fbF0tvrKic/jj+jI8SHoSvGU+Cs95b/jzZEnBYCbj+7aJtQ9yeABuK3xP1okwA3jEH9qIRayijnvQ==",
++      "dev": true
++    },
+     "@types/jsonwebtoken": {
+       "version": "8.5.9",
+       "resolved": "https://registry.npmjs.org/@types/jsonwebtoken/-/jsonwebtoken-8.5.9.tgz",
+@@ -15015,10 +15042,9 @@
+       }
+     },
+     "glob-to-regexp": {
+-      "version": "0.3.0",
+-      "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.3.0.tgz",
+-      "integrity": "sha1-jFoUlNIGbFcMw7/kSWF1rMTVAqs=",
+-      "dev": true
++      "version": "0.4.1",
++      "resolved": "https://registry.npmjs.org/glob-to-regexp/-/glob-to-regexp-0.4.1.tgz",
++      "integrity": "sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw=="
+     },
+     "globals": {
+       "version": "9.18.0",
+diff --git a/package.json b/package.json
+index 574dfb3c..4f3f74a1 100644
+--- a/package.json
++++ b/package.json
+@@ -26,6 +26,7 @@
+     "etag": "^1.8.1",
+     "express": "^4.16.4",
+     "fs-extra": "^10.1.0",
++    "glob-to-regexp": "^0.4.1",
+     "jsonwebtoken": "^8.5.1",
+     "lokijs": "^1.5.6",
+     "morgan": "^1.9.1",
+@@ -54,6 +55,7 @@
+     "@types/etag": "^1.8.0",
+     "@types/express": "^4.16.0",
+     "@types/fs-extra": "^9.0.13",
++    "@types/glob-to-regexp": "^0.4.1",
+     "@types/jsonwebtoken": "^8.3.9",
+     "@types/lokijs": "^1.5.2",
+     "@types/mocha": "^9.0.0",
+diff --git a/src/blob/middlewares/PreflightMiddlewareFactory.ts b/src/blob/middlewares/PreflightMiddlewareFactory.ts
+index c562a5ea..c6be4637 100644
+--- a/src/blob/middlewares/PreflightMiddlewareFactory.ts
++++ b/src/blob/middlewares/PreflightMiddlewareFactory.ts
+@@ -7,6 +7,7 @@ import {
+   Response
+ } from "express";
+ 
++import glob from "glob-to-regexp";
+ import ILogger from "../../common/ILogger";
+ import BlobStorageContext from "../context/BlobStorageContext";
+ import StorageErrorFactory from "../errors/StorageErrorFactory";
+@@ -20,6 +21,7 @@ import {
+   MethodConstants
+ } from "../utils/constants";
+ 
++
+ export default class PreflightMiddlewareFactory {
+   constructor(private readonly logger: ILogger) {}
+ 
+@@ -76,7 +78,7 @@ export default class PreflightMiddlewareFactory {
+ 
+         metadataStore
+           .getServiceProperties(context, account)
+-          .then(properties => {
++          .then((properties) => {
+             if (properties === undefined || properties.cors === undefined) {
+               return next(
+                 StorageErrorFactory.corsPreflightFailure(requestId, {
+@@ -168,7 +170,7 @@ export default class PreflightMiddlewareFactory {
+ 
+       metadataStore
+         .getServiceProperties(context, account)
+-        .then(properties => {
++        .then((properties) => {
+           if (properties === undefined || properties.cors === undefined) {
+             return next(err);
+           }
+@@ -241,6 +243,12 @@ export default class PreflightMiddlewareFactory {
+ 
+     const allowedOriginArray = allowedOrigin.split(",");
+     for (const corsOrigin of allowedOriginArray) {
++      if (corsOrigin.includes("*")) {
++        return glob(corsOrigin.trim().toLowerCase()).test(
++          origin.trim().toLowerCase()
++        );
++      }
++
+       if (origin.trim().toLowerCase() === corsOrigin.trim().toLowerCase()) {
+         return true;
+       }
+@@ -323,8 +331,9 @@ export default class PreflightMiddlewareFactory {
+             );
+ 
+             // Handle collection of headers starting with same prefix, such as x-ms-meta prefix
+-            const headerCollectionPrefix = (headerMapper as msRest.DictionaryMapper)
+-              .headerCollectionPrefix;
++            const headerCollectionPrefix = (
++              headerMapper as msRest.DictionaryMapper
++            ).headerCollectionPrefix;
+             if (
+               headerCollectionPrefix !== undefined &&
+               headerValueOriginal !== undefined

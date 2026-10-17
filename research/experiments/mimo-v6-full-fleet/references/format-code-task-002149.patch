@@ -1,0 +1,218 @@
+diff --git a/pipeline_dp/__init__.py b/pipeline_dp/__init__.py
+index ab81fd5..5f6a30b 100644
+--- a/pipeline_dp/__init__.py
++++ b/pipeline_dp/__init__.py
+@@ -23,6 +23,7 @@ from pipeline_dp.aggregate_params import SumParams
+ from pipeline_dp.aggregate_params import VarianceParams
+ from pipeline_dp.aggregate_params import CalculatePrivateContributionBoundsParams
+ from pipeline_dp.aggregate_params import PrivateContributionBounds
++from pipeline_dp.aggregate_params import AddDPNoiseParams
+ from pipeline_dp.budget_accounting import NaiveBudgetAccountant
+ from pipeline_dp.budget_accounting import PLDBudgetAccountant
+ from pipeline_dp.budget_accounting import BudgetAccountant
+@@ -34,7 +35,7 @@ from pipeline_dp.pipeline_backend import LocalBackend
+ from pipeline_dp.spark_rdd_backend import SparkRDDBackend
+ from pipeline_dp.beam_backend import BeamBackend
+ 
+-__version__ = '0.3.1'
++__version__ = '0.3.0'
+ 
+ __all__ = [
+     'AggregateParams',
+@@ -47,8 +48,10 @@ __all__ = [
+     'SelectPartitionsParams',
+     'SumParams',
+     'VarianceParams',
++    'QuantileParams',
+     'CalculatePrivateContributionBoundsParams',
+     'PrivateContributionBounds',
++    'AddDPNoiseParams',
+     'NaiveBudgetAccountant',
+     'PLDBudgetAccountant',
+     'BudgetAccountant',
+diff --git a/pipeline_dp/aggregate_params.py b/pipeline_dp/aggregate_params.py
+index 231d1a5..de6b87c 100644
+--- a/pipeline_dp/aggregate_params.py
++++ b/pipeline_dp/aggregate_params.py
+@@ -767,6 +767,71 @@ class PrivacyIdCountParams:
+     # TODO: add validation in __post_init__
+ 
+ 
++@dataclass
++class AddDPNoiseParams:
++    """Specifies parameters for function DPEngine.add_dp_noise()
++
++    Important: unlike the other methods, this method does not enforce the
++    sensitivity by contribution bounding and relies on the caller to ensure the
++    provided data satisfies the provided bound.
++
++    The noise in DP is scaled with sensitivity, where sensitivity for query q is
++     sensitivity = \max_{D, D' neighbouring} ||q(D)-q(D')||
++    Where ||.|| should be a proper norm, L1 for Laplace Mechanism, L2 for
++    Gaussian Mechanism.
++    See https://en.wikipedia.org/wiki/Norm_(mathematics)#p-norm on norm details.
++
++    In our case, q values are represented as collection of
++    (partition_key, value). Where partition_key is any identifier, value is
++    a scalar. q values can be represented as a vector indexed by partition_key.
++    One of the convenient ways to define l1/l2 sensitivity is through l0/linf
++    sensitivities.
++    Namely
++
++    l1_sensitivity = l0_sensitivity*linf_sensitivity
++    l2_sensitivity = sqrt(l0_sensitivity)*linf_sensitivity
++
++    For applying the Laplace mechanism either l1_sensitivity or
++    (l0_sensitivity, linf_sensitivity) must be specified.
++    
++    For applying the Gaussian mechanism either l2_sensitivity or
++    (l0_sensitivity, linf_sensitivity) must be specified.
++
++    Attributes:
++       noise_kind: The type of noise to use for the DP calculations.
++       l0_sensitivity: the maximum number of partition for which 1 privacy unit
++         can contribute.
++       linf_sensitivity: the maximum difference of values in one partition which
++         can achieved by adding or removing one privacy unit from the dataset.
++       l1_sensitivity: the sensitivity in L1 norm.
++       l2_sensitivity: the sensitivity in L2 norm.
++       budget_weight: Relative weight of the privacy budget allocated to this
++         aggregation.
++       output_noise_stddev: if True, the output will contain the applied noise
++         standard deviation, namely the output will be NamedTuple(noisified_value,
++         noise_stddev).
++   """
++    noise_kind: NoiseKind
++    l0_sensitivity: Optional[int] = None
++    linf_sensitivity: Optional[float] = None
++    l1_sensitivity: Optional[float] = None
++    l2_sensitivity: Optional[float] = None
++    budget_weight: float = 1
++    output_noise_stddev: bool = False
++
++    def __post_init__(self):
++
++        def check_is_positive(num: Any, name: str) -> bool:
++            if num is not None and num <= 0:
++                raise ValueError(f"{name} must be positive, but {num} given.")
++
++        check_is_positive(self.l0_sensitivity, "l0_sensitivity")
++        check_is_positive(self.linf_sensitivity, "linf_sensitivity")
++        check_is_positive(self.l1_sensitivity, "l1_sensitivity")
++        check_is_positive(self.l2_sensitivity, "l2_sensitivity")
++        check_is_positive(self.budget_weight, "budget_weight")
++
++
+ def _not_a_proper_number(num: Any) -> bool:
+     """Returns true if 'num' is inf or NaN, false otherwise."""
+     return math.isnan(num) or math.isinf(num)
+diff --git a/pipeline_dp/dp_engine.py b/pipeline_dp/dp_engine.py
+index 35444f2..2446e82 100644
+--- a/pipeline_dp/dp_engine.py
++++ b/pipeline_dp/dp_engine.py
+@@ -12,6 +12,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ """DP aggregations."""
++import collections
+ import functools
+ import numpy as np
+ from typing import Any, Callable, Optional, Sequence, Tuple, Union
+@@ -29,6 +30,10 @@ from pipeline_dp import sampling_utils
+ from pipeline_dp.dataset_histograms import computing_histograms
+ from pipeline_dp.private_contribution_bounds import PrivateL0Calculator
+ 
++DpNoiseAdditionResult = collections.namedtuple("DpNoiseAdditionResult",
++                                               ["noised_value", "noise_stddev"])
++
++
+ class DPEngine:
+     """Performs DP aggregations."""
+ 
+@@ -568,9 +573,85 @@ class DPEngine:
+                                     lambda row: row[1].privacy_id_count != None,
+                                     "Drop partitions under threshold")
+ 
++    def add_dp_noise(self,
++                     col,
++                     params: aggregate_params.AddDPNoiseParams,
++                     out_explain_computation_report: Optional[
++                         report_generator.ExplainComputationReport] = None):
++        """Adds DP noise to the aggregated data.
++
++        This method allows applying differential privacy to pre-aggregated data.
++        This relies on the assumption that the sensitivities of the
++        pre-aggregated values are known, and the partition keys are public or
++        generated with DPEngine.select_partitions.
++
++        Important: unlike the other methods, this method does not enforce the
++        sensitivity by contribution bounding and relies on the caller to ensure
++        the provided data satisfies the provided bound.
++
++        Args:
++          col: collection with elements (partition_key, value). Where value has
++            a number type or np.ndarray. It is assumed that all partition_key
++            are different.
++          params: specifies parameters for noise addition.
++          out_explain_computation_report: an output argument, if specified,
++            it will contain the Explain Computation report for this aggregation.
++            For more details see the docstring to report_generator.py.
++        Returns:
++            In case of params.output_noise_stddev it returns collection of
++            (partition_key, DpNoiseAdditionResult) else
++            collection of (partition_key, value + noise).
++            Output partition keys are the same as in the input collection.
++        """
++        with self._budget_accountant.scope(weight=params.budget_weight):
++            self._add_report_generator(params,
++                                       "add_dp_noise",
++                                       is_public_partition=True)
++            if out_explain_computation_report is not None:
++                out_explain_computation_report._set_report_generator(
++                    self._current_report_generator)
++            anonymized_col = self._add_dp_noise(col, params)
++            budgets = self._budget_accountant._compute_budgets_for_aggregation(
++                params.budget_weight)
++            return self._annotate(anonymized_col, params=params, budget=budgets)
++
++    def _add_dp_noise(self, col, params: aggregate_params.AddDPNoiseParams):
++        # Request budget and create Sensitivities object
++        mechanism_type = params.noise_kind.convert_to_mechanism_type()
++        mechanism_spec = self._budget_accountant.request_budget(
++            mechanism_type, name="AddDPNoise")
++        sensitivities = dp_computations.Sensitivities(
++            l0=params.l0_sensitivity,
++            linf=params.linf_sensitivity,
++            l1=params.l1_sensitivity,
++            l2=params.l2_sensitivity)
++
++        # Add noise to values.
++        def create_mechanism() -> dp_computations.AdditiveMechanism:
++            return dp_computations.create_additive_mechanism(
++                mechanism_spec, sensitivities)
++
++        self._add_report_stage(
++            lambda: f"Adding {create_mechanism().noise_kind} noise with "
++            f"parameter {create_mechanism().noise_parameter}")
++
++        if params.output_noise_stddev:
++
++            def add_noise(value: Union[int, float]) -> DpNoiseAdditionResult:
++                mechanism = create_mechanism()
++                return DpNoiseAdditionResult(mechanism.add_noise(value),
++                                             mechanism.std)
++        else:
++
++            def add_noise(value: Union[int, float]) -> float:
++                return create_mechanism().add_noise(value)
++
++        return self._backend.map_values(col, add_noise, "Add noise")
++
+     def _annotate(self, col,
+                   params: Union[aggregate_params.AggregateParams,
+-                                aggregate_params.SelectPartitionsParams],
++                                aggregate_params.SelectPartitionsParams,
++                                aggregate_params.AddDPNoiseParams],
+                   budget: budget_accounting.Budget):
+         return self._backend.annotate(col,
+                                       "annotation",

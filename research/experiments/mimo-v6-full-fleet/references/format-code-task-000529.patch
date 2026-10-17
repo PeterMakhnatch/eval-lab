@@ -1,0 +1,60 @@
+diff --git a/arch/univariate/base.py b/arch/univariate/base.py
+index a51304afb5..8ec9fb0595 100644
+--- a/arch/univariate/base.py
++++ b/arch/univariate/base.py
+@@ -297,7 +297,7 @@ class ARCHModel(object):
+         km, kv = self.num_params, self.volatility.num_params
+         return x[:km], x[km:km + kv], x[km + kv:]
+ 
+-    def fix(self, params):
++    def fix(self, params, first_obs=None, last_obs=None):
+         """
+         Allows an ARCHModelFixedResult to be constructed from fixed parameters.
+ 
+@@ -307,6 +307,10 @@ class ARCHModel(object):
+             User specified parameters to use when generating the result. Must
+             have the correct number of parameters for a given choice of mean
+             model, volatility model and distribution.
++        first_obs : {int, str, datetime, Timestamp}
++            First observation to use when fixing model
++        last_obs : {int, str, datetime, Timestamp}
++            Last observation to use when fixing model
+ 
+         Returns
+         -------
+@@ -319,6 +323,7 @@ class ARCHModel(object):
+         """
+         v = self.volatility
+ 
++        self._adjust_sample(first_obs, last_obs)
+         resids = self.resids(self.starting_values())
+         sigma2 = np.zeros_like(resids)
+         backcast = v.backcast(resids)
+diff --git a/doc/source/changes/4.0.txt b/doc/source/changes/4.0.txt
+index 13b8bc0f4a..b7e73ff034 100644
+--- a/doc/source/changes/4.0.txt
++++ b/doc/source/changes/4.0.txt
+@@ -4,3 +4,5 @@ Changes since 4.0
+   a mean model.  This has been added to allow so-called zig-zag estimation where a mean model is
+   estimated with a fixed variance, and then a variance model is estimated on the residuals using
+   a ``ZeroMean`` variance process.
++- Fixed a bug that prevented ```fix`` from being used with a new model (:issue:`156`)
++- Added ``first_obs`` and ``last_obs`` parameters to ``fix`` to mimic ``fit``
+diff --git a/doc/source/conf.py b/doc/source/conf.py
+index a4ad363d29..34aaf49bad 100644
+--- a/doc/source/conf.py
++++ b/doc/source/conf.py
+@@ -38,6 +38,7 @@ extensions = [
+     'sphinx.ext.todo',
+     'sphinx.ext.coverage',
+     'sphinx.ext.ifconfig',
++    'numpydoc',
+     'IPython.sphinxext.ipython_console_highlighting',
+     'IPython.sphinxext.ipython_directive'
+ ]
+@@ -295,3 +296,5 @@ intersphinx_mapping = {
+     'numpy': ('http://docs.scipy.org/doc/numpy', None),
+     'pandas': ('http://pandas.pydata.org/pandas-docs/stable/', None)
+ }
++
++extlinks = {'issue': ('https://github.com/bashtage/arch/%s', 'GH')}

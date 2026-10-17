@@ -1,0 +1,213 @@
+diff --git a/benchmark/scope/async_hooks.js b/benchmark/scope/async_hooks.js
+index ec43cfd2f..b87ada96a 100644
+--- a/benchmark/scope/async_hooks.js
++++ b/benchmark/scope/async_hooks.js
+@@ -25,15 +25,8 @@ const asyncHooks = {
+     this.destroy = hooks.destroy
+     this.promiseResolve = hooks.promiseResolve
+ 
+-    this.before = asyncId => {
+-      ids.push(asyncId)
+-      hooks.before(asyncId)
+-    }
+-
+-    this.after = asyncId => {
+-      ids.pop(asyncId)
+-      hooks.after(asyncId)
+-    }
++    this.before = asyncId => ids.push(asyncId)
++    this.after = asyncId => ids.pop(asyncId)
+ 
+     return hook
+   }
+diff --git a/packages/dd-trace/src/opentracing/span.js b/packages/dd-trace/src/opentracing/span.js
+index 09937d5b2..bd2562863 100644
+--- a/packages/dd-trace/src/opentracing/span.js
++++ b/packages/dd-trace/src/opentracing/span.js
+@@ -56,20 +56,13 @@ class DatadogSpan extends Span {
+     let spanContext
+ 
+     if (parent) {
+-      const trace = parent._trace
+-      const finished = trace.started.length === trace.finished.length
+-
+       spanContext = new SpanContext({
+         traceId: parent._traceId,
+         spanId: platform.id(),
+         parentId: parent._spanId,
+         sampling: parent._sampling,
+         baggageItems: parent._baggageItems,
+-        trace: {
+-          started: finished ? [] : trace.started,
+-          finished: finished ? [] : trace.finished,
+-          origin: trace.origin
+-        }
++        trace: parent._trace
+       })
+     } else {
+       const spanId = platform.id()
+diff --git a/packages/dd-trace/src/scope/async_hooks.js b/packages/dd-trace/src/scope/async_hooks.js
+index 75f1be496..1d952979f 100644
+--- a/packages/dd-trace/src/scope/async_hooks.js
++++ b/packages/dd-trace/src/scope/async_hooks.js
+@@ -1,6 +1,7 @@
+ 'use strict'
+ 
+ const asyncHooks = require('./async_hooks/index')
++const eid = asyncHooks.executionAsyncId
+ const Base = require('./base')
+ const platform = require('../platform')
+ const semver = require('semver')
+@@ -21,75 +22,35 @@ class Scope extends Base {
+     this._spans = Object.create(null)
+     this._types = Object.create(null)
+     this._weaks = new WeakMap()
+-    this._refs = new WeakMap()
+     this._hook = asyncHooks.createHook({
+       init: this._init.bind(this),
+-      before: this._before.bind(this),
+-      after: this._after.bind(this),
+       destroy: this._destroy.bind(this),
+-      promiseResolve: this._promiseResolve.bind(this)
++      promiseResolve: this._destroy.bind(this)
+     })
+ 
+     this._hook.enable()
+   }
+ 
+   _active () {
+-    return this._current
++    return this._spans[eid()]
+   }
+ 
+   _enter (span) {
+-    this._current = span
++    this._spans[eid()] = span
+   }
+ 
+   _exit (span) {
+-    this._current = span
+-  }
+-
+-  _wipe (span) {
+-    const ids = this._refs.get(span)
+-
+-    if (ids) {
+-      ids.forEach(asyncId => {
+-        delete this._spans[asyncId]
+-      })
+-
+-      this._refs.delete(span)
+-    }
+-  }
+-
+-  _ref (asyncId, span) {
+-    this._spans[asyncId] = span
+-
+-    if (span) {
+-      const ids = this._refs.get(span)
+-
+-      if (ids) {
+-        ids.add(asyncId)
+-      } else {
+-        this._refs.set(span, new Set([asyncId]))
+-      }
+-    }
+-  }
+-
+-  _unref (asyncId) {
+-    const span = this._spans[asyncId]
+-
+-    delete this._spans[asyncId]
++    const asyncId = eid()
+ 
+     if (span) {
+-      const ids = this._refs.get(span)
+-
+-      if (ids) {
+-        ids.delete(asyncId)
+-      }
++      this._spans[asyncId] = span
++    } else {
++      delete this._spans[asyncId]
+     }
+   }
+ 
+   _init (asyncId, type, triggerAsyncId, resource) {
+-    const span = this._active()
+-
+-    this._ref(asyncId, span)
+-
++    this._spans[asyncId] = this._active()
+     this._types[asyncId] = type
+ 
+     if (hasKeepAliveBug && (type === 'TCPWRAP' || type === 'HTTPPARSER')) {
+@@ -101,29 +62,16 @@ class Scope extends Base {
+     platform.metrics().increment('async.resources.by.type', `resource_type:${type}`)
+   }
+ 
+-  _before (asyncId) {
+-    this._current = this._spans[asyncId]
+-  }
+-
+-  _after () {
+-    delete this._current
+-  }
+-
+   _destroy (asyncId) {
+     const type = this._types[asyncId]
+ 
+-    this._unref(asyncId)
+-
+-    delete this._types[asyncId]
+-
+     if (type) {
+       platform.metrics().decrement('async.resources')
+       platform.metrics().decrement('async.resources.by.type', `resource_type:${type}`)
+     }
+-  }
+ 
+-  _promiseResolve (asyncId) {
+-    this._unref(asyncId)
++    delete this._spans[asyncId]
++    delete this._types[asyncId]
+   }
+ }
+ 
+diff --git a/packages/dd-trace/src/writer.js b/packages/dd-trace/src/writer.js
+index 3384a770c..6b9c84324 100644
+--- a/packages/dd-trace/src/writer.js
++++ b/packages/dd-trace/src/writer.js
+@@ -27,13 +27,10 @@ class Writer {
+     if (trace.started.length === trace.finished.length) {
+       this._prioritySampler.sample(spanContext)
+ 
+-      // Consumers are always finished before any child spans are started.
+-      if (trace.started.length > 1 || span.context()._tags['span.kind'] !== 'consumer') {
+-        trace.started.forEach(span => span.tracer().scope()._wipe(span))
+-      }
+-
+       const formattedTrace = trace.finished.map(format)
+ 
++      this._erase(trace)
++
+       if (spanContext._traceFlags.sampled === false) {
+         log.debug(() => `Dropping trace due to user configured filtering: ${JSON.stringify(formattedTrace)}`)
+         return
+@@ -101,6 +98,16 @@ class Writer {
+       }
+     })
+   }
++
++  _erase (trace) {
++    trace.finished.forEach(span => {
++      span.context()._tags = {}
++      span.context()._metrics = {}
++    })
++
++    trace.started = []
++    trace.finished = []
++  }
+ }
+ 
+ module.exports = Writer

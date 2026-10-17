@@ -222,3 +222,23 @@ cap refuses that admission. This deliberately conservative upper-bound plan is
 neither a minimum certification cost nor a Modal bill. In particular, actual
 zero-provider preflight refusals and native execution outcomes must not be
 reported as measured spend or passing controls.
+
+### October 17 reservation calibration
+
+Fresh planning scopes use the shared Modal **allocation/preparation-unit**
+estimate, `$0.0025`; three units per environment still reserve preparation and
+both possible native creation attempts. The
+[reference-subset calibration](../../../docs/task-quality.md) states the native
+sample, metered-usage cross-check and mean-based safety margin. This is not a
+900-second worst-case reservation: slow tasks, cold builds and larger resources
+need an explicitly higher `--usd-per-unit`. Plans preserve unrounded exposure
+and report the selected rate; sub-cent rounding never determines cap fit.
+
+The historical `native-admissions.json` remains bound to `$0.05` and its original
+`$4` cap. Calibration **does not reprice, refund, clear or migrate** that ledger
+to the lower rate. Resuming its provider-free plan requires
+`--usd-per-unit 0.05`; using the new default with it refuses the rate mismatch.
+A fresh-scope preview can use an empty `--repo-root` with an explicit frozen
+`--manifest` and `--package-root`, **without `--execute`**. That preview is not
+authorization for a new ledger or fleet run: the unchanged `$4` mission ceiling
+and a current approval still gate real execution.

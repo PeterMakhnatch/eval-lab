@@ -200,6 +200,15 @@ def modal_resource_blocker(package: Path) -> str | None:
     return None
 
 
+#: Estimate for short Modal CPU controls, not a provider price or billing hard kill.
+#: October 17, 2026: 338 native allocations at 2 CPUs/8 GiB averaged $0.003223
+#: in resource/lifecycle estimates cross-checked against the app's metered usage.
+#: Two snapshot-create reservations give $0.005: >50% above that observed mean;
+#: ordinary starts also reserve image preparation. Long tails/larger resources
+#: need an explicit higher estimate. Logical replays have a separate authority.
+MODAL_USD_PER_ALLOCATION_UNIT = 0.0025
+
+
 class SpendCapReached(RuntimeError):
     """A paid execution would take the run past its approved USD cap."""
 

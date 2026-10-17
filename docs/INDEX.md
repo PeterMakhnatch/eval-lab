@@ -71,7 +71,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:48d2c44f8db69066f92066485afa3d46eb258481b6fd0894f50b17ac3c91e70c
+    digest: sha256:c4f9565e949b3023bac928912df2d5171572d7ece4e0999e8da2a57604813a7b
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:1e8fdfa297f11c550ee9fa1d52cddcba569028589f72f3cef6f62339dfe1e807
+    digest: sha256:9e342e858ef409c658f5d251eccaaba7bc158d2383b2a19d06ce248f651fc161
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -139,7 +139,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:ffac171e21867037766c212129030c8bce6322a4aff606e06a8323f189d535c0
+    digest: sha256:7a34828fa7a2747b1686f12d68ae9b1f8b10d64df720854a84907ad909b5dc89
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

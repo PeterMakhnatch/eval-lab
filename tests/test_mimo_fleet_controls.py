@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import json
 import runpy
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -9,6 +11,7 @@ from typing import Any
 import pytest
 
 from evallab.registry import task_directory_digest
+from evallab.regrade import CloudSpendGate, SpendCapReached
 
 DRIVER = (
     Path(__file__).resolve().parents[1]
@@ -76,3 +79,87 @@ def test_uncertain_refusal_is_not_automatically_retried(
           "state": "preflight_refused", "reservation_units": 6}],
     )
     assert [(item["task_id"], item["agent"]) for item in pending] == [(task_id, "nop")]
+
+
+@pytest.mark.parametrize("custom_rate", [None, 0.003456789])
+@pytest.mark.parametrize("cap_delta", [0.0, -2e-8])
+def test_plan_cap_matches_native_reservations_without_rounding_or_provider_work(
+    controls: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    custom_rate: float | None,
+    cap_delta: float,
+) -> None:
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "task.toml").write_text(
+        "[environment]\ncpus = 2\nmemory_mb = 8192\n"
+        "[verifier]\nenvironment_mode = 'separate'\n"
+        "[verifier.environment]\ncpus = 2\nmemory_mb = 8192\n"
+    )
+    manifest = tmp_path / "manifest.csv"
+    with manifest.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["task_id", "status", "package_path", "final_digest"]
+        )
+        writer.writeheader()
+        writer.writerow({
+            "task_id": "format-code-task-000001",
+            "status": "built",
+            "package_path": "package",
+            "final_digest": task_directory_digest(package),
+        })
+    rate = controls["MODAL_USD_PER_ALLOCATION_UNIT"] if custom_rate is None else custom_rate
+    units = 12  # Two controls × two environments × preparation/two creation attempts.
+    cap = units * rate + cap_delta
+    arguments = [
+        str(DRIVER), "--repo-root", str(tmp_path), "--package-root", str(tmp_path),
+        "--manifest", str(manifest), "--jobs-dir", str(tmp_path / "jobs"),
+        "--max-usd", str(cap),
+    ]
+    if custom_rate is not None:
+        arguments += ["--usd-per-unit", str(custom_rate)]
+    monkeypatch.setattr(sys, "argv", arguments)
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("a provider-free plan created an execution gate")
+
+    main = controls["main"]
+    monkeypatch.setitem(main.__globals__, "CloudSpendGate", forbidden)
+    assert main() == 0
+    plan = json.loads(capsys.readouterr().out)["plan"]
+    assert plan["pending_executions"] == 2
+    assert plan["pending_reservation_units"] == units
+    assert plan["proposed_total_reserved_usd"] == units * rate
+    assert plan["fits_cap"] is (cap_delta == 0)
+    assert not (tmp_path / controls["RELEASE"] / "native-admissions.json").exists()
+    assert not (tmp_path / "jobs").exists()
+    gate = CloudSpendGate("inert exact-cap regression", cap, rate)
+    for _ in range(units if cap_delta == 0 else units - 1):
+        gate.charge()
+    with pytest.raises(SpendCapReached):
+        gate.charge()
+
+
+def test_calibration_cannot_reprice_a_bound_historical_ledger(
+    controls: dict[str, Any], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = tmp_path / controls["RELEASE"] / "native-admissions.json"
+    ledger.parent.mkdir(parents=True)
+    original = json.dumps({
+        "schema": "mimo-v6-native-admissions/2",
+        "cap_usd": 4.0,
+        "usd_per_unit": 0.05,
+        "units_reserved": 6,
+        "admissions": [{"state": "failed", "reservation_units": 6}],
+    }).encode()
+    ledger.write_bytes(original)
+    monkeypatch.setattr(sys, "argv", [
+        str(DRIVER), "--repo-root", str(tmp_path), "--package-root", str(tmp_path),
+        "--jobs-dir", str(tmp_path / "jobs"),
+    ])
+    with pytest.raises(ValueError, match="existing lane cap and reservation unit"):
+        controls["main"]()
+    assert ledger.read_bytes() == original
+    assert not (tmp_path / "jobs").exists()

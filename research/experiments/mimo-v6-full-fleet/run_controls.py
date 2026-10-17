@@ -28,13 +28,16 @@ from typing import Any
 from evallab.execution_contracts import RunRequest, validate_request
 from evallab.queue import Executor
 from evallab.registry import task_directory_digest
-from evallab.regrade import CloudSpendGate, lab_harbor_problem
+from evallab.regrade import (
+    MODAL_USD_PER_ALLOCATION_UNIT,
+    CloudSpendGate,
+    lab_harbor_problem,
+)
 
 RELEASE = Path("research/experiments/mimo-v6-full-fleet")
 MISSION_CAP_USD = 4.0
 UNITS_PER_ENVIRONMENT = 3  # image preparation plus two native sandbox-create attempts
 SANDBOX_TTL_SECONDS = 900
-MIN_USD_PER_UNIT = 0.05  # exceeds a full 900-s, 2-CPU/8-GiB sandbox reservation
 
 
 def save(path: Path, value: dict[str, Any]) -> None:
@@ -109,7 +112,7 @@ def main() -> int:
     parser.add_argument("--task-id", action="append", default=[])
     parser.add_argument("--jobs-dir", type=Path, required=True)
     parser.add_argument("--max-usd", type=float, default=MISSION_CAP_USD)
-    parser.add_argument("--usd-per-unit", type=float, default=0.05)
+    parser.add_argument("--usd-per-unit", type=float, default=MODAL_USD_PER_ALLOCATION_UNIT)
     parser.add_argument("--approve", default="")
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--execute", action="store_true")
@@ -119,8 +122,14 @@ def main() -> int:
     args.manifest = args.manifest or args.repo_root / RELEASE / "manifest.csv"
     if not math.isfinite(args.max_usd) or not 0 < args.max_usd <= MISSION_CAP_USD:
         raise ValueError("the current mission permits a positive cap no greater than $4")
-    if not math.isfinite(args.usd_per_unit) or args.usd_per_unit < MIN_USD_PER_UNIT:
-        raise ValueError("this mission reserves at least $0.05 per allocation/preparation unit")
+    if (
+        not math.isfinite(args.usd_per_unit)
+        or args.usd_per_unit < MODAL_USD_PER_ALLOCATION_UNIT
+    ):
+        raise ValueError(
+            f"this mission reserves at least ${MODAL_USD_PER_ALLOCATION_UNIT:g} "
+            "per allocation/preparation unit"
+        )
     if not 1 <= args.workers <= 16:
         raise ValueError("Modal concurrency must be in [1, 16]")
     ledger_path = args.repo_root / RELEASE / "native-admissions.json"
@@ -148,14 +157,15 @@ def main() -> int:
             raise ValueError("reservation ledger disagrees with its admission history")
         pending, task_count = pending_controls(args, ledger["admissions"])
         units = sum(item["reservation_units"] for item in pending)
-        total_usd = round((accounting["units_reserved"] + units) * args.usd_per_unit, 6)
+        total_usd = (accounting["units_reserved"] + units) * args.usd_per_unit
         manifest_sha = hashlib.sha256(args.manifest.read_bytes()).hexdigest()
         plan = {
             "manifest_sha256": manifest_sha,
             "selected_tasks": task_count,
             "pending_executions": len(pending), "pending_reservation_units": units,
-            "already_reserved_usd": round(accounting["units_reserved"] * args.usd_per_unit, 6),
-            "historical_reserved_usd": round(accounting["total_reservation_units"] * args.usd_per_unit, 6),
+            "usd_per_unit": args.usd_per_unit,
+            "already_reserved_usd": accounting["units_reserved"] * args.usd_per_unit,
+            "historical_reserved_usd": accounting["total_reservation_units"] * args.usd_per_unit,
             "unstarted_preflight_units": accounting["unstarted_preflight_units"],
             "proposed_total_reserved_usd": total_usd, "cap_usd": args.max_usd,
             "fits_cap": total_usd <= args.max_usd + 1e-9,

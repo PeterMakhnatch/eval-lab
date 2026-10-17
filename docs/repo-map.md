@@ -519,11 +519,11 @@ inputs:
   - path: src/evallab/qa/task_modal.py
     digest: sha256:3d5865174f749a07d8e45af24d174b1ba19d6bbe58adfb6afa6e2d0ccbdcf66b
   - path: src/evallab/qa/trace.py
-    digest: sha256:6d4c1369326fbd759d6c130ee33217cbd03f9bd432d0876a0513f44fef651743
+    digest: sha256:182022cc130cd29039187fd3d9f13b77e54f1c5a274a9a76808183af0fc5c4e6
   - path: src/evallab/qa/trace_agents.py
     digest: sha256:2c8591a41751bafbe7cf4a1641dc0283d3247c8b1b3cedac71cffcae187a1dc6
   - path: src/evallab/qa/trace_verify.py
-    digest: sha256:10f8c0b781ba46771617f99cae3e831da6d927101d3c493fb11b796804fcc3b2
+    digest: sha256:dd5fb35e5c478f24431b12b54bfafe4948dd8aa566193f079e643b7fb4e0fc41
   - path: src/evallab/qa/trace_workspace.py
     digest: sha256:bf6be3ab7e05a14f83059be33eb51f65a9eff9bb1d07579f1579759845ba7e95
   - path: src/evallab/quality_audit.py

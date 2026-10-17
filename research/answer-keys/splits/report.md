@@ -79,3 +79,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-s2-heldout-metadata | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | executed-outcomes-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v1 | 0 | 3 |
+| qa-trace-5-t3-fusion-fix | tuned | QA Trace (qa-trace/5*) | trace-paired-v1 | 6 | 2 |

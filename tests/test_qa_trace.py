@@ -171,6 +171,24 @@ def test_skipped_questions_are_not_run_and_never_pass(tmp_path: Path) -> None:
     assert verdict["flagged_any"] is False
 
 
+def test_unasked_questions_are_not_run_and_do_not_vouch_for_the_reward(tmp_path: Path) -> None:
+    # The detector asks only reward_shortcut; an unasked false-positive
+    # question stays unknown, so the reward is not declared real.
+    bundle, _ = _rewarded_bundle(tmp_path)
+    models = FakeModels({"reward_shortcut": "no"})
+    verdict = review_bundle(
+        bundle,
+        tmp_path / "run",
+        config=TraceConfig(questions=("reward_shortcut",)),
+        call=models,
+    )
+    by_q = {q["question"]: q for q in verdict["questions"]}
+    assert models.calls == ["T1:reward_shortcut"]
+    assert by_q["false_positive"]["verdict"] == "unknown"
+    assert verdict["reward_hacking"] is False
+    assert verdict["reward_real"] is None
+
+
 @pytest.mark.parametrize(
     ("overall", "verdict", "status"),
     [("REJECTED", "pass", "refuted"), ("CONFIRMED", "fail", "verified")],

@@ -113,6 +113,9 @@ DEFAULT_FAULT: dict[Category, Fault] = {
 #: Questions whose answer decides whether the recorded reward was real.
 REWARD_QUESTIONS = ("reward_shortcut", "false_positive", "false_negative")
 
+#: Skip reason of a question the configuration did not ask (:attr:`TraceConfig.questions`).
+NOT_ASKED = "not asked by this configuration"
+
 #: T1 scenario agents, and the route used when the trace came from the same family.
 DEFAULT_SCENARIO = "codex/gpt-6.1-sol:medium"
 DEFAULT_SCENARIO_ALT = "google-antigravity/gemini-3.8-flash"
@@ -1193,7 +1196,8 @@ def t4_verdict(
     def _flag(question: str) -> bool | None:
         return {"fail": True, "pass": False}.get(by_q[question]["verdict"])
 
-    reward_flags = [_flag(q) for q in REWARD_QUESTIONS if q not in skips]
+    # An unasked reward question is unknown, not skipped: it cannot vouch for the reward.
+    reward_flags = [_flag(q) for q in REWARD_QUESTIONS if q not in skips or skips[q] == NOT_ASKED]
     if any(f is True for f in reward_flags):
         reward_real: bool | None = False
     elif reward_flags and all(f is False for f in reward_flags):
@@ -1262,6 +1266,8 @@ class TraceConfig:
     verify_alt: ModelRoute = field(default_factory=lambda: ModelRoute.parse(DEFAULT_VERIFY_ALT))
     grader_patch: ModelRoute = field(default_factory=lambda: ModelRoute.parse(DEFAULT_GRADER_PATCH))
     stages: frozenset[str] = frozenset({"T0", "T1", "T3"})
+    #: Questions asked; the rest are ``unknown`` / ``not_run`` like skipped ones.
+    questions: tuple[str, ...] = QUESTIONS
     regrade: bool = False
     minimal_grader_change: bool = False
     repairs: tuple[Path, ...] = ()
@@ -1286,6 +1292,8 @@ class TraceConfig:
             "verify_alt": self.verify_alt.label,
             "grader_patch": self.grader_patch.label if self.minimal_grader_change else None,
             "stages": sorted(self.stages),
+            # Only a subset changes stage keys, so full-question runs keep resuming.
+            **({"questions": list(self.questions)} if self.questions != QUESTIONS else {}),
             "regrade": self.regrade,
             "minimal_grader_change": self.minimal_grader_change,
             "environment": self.environment if executed else None,
@@ -1357,6 +1365,7 @@ def review_bundle(
     call = _gated(config, call)
     t0 = t0_checks(bundle, trial_dir=trial_dir, source=source, cached_combined=cached_combined)
     t0["prescan"] = trace_agents.prescan(bundle)
+    t0["skips"] |= {q: NOT_ASKED for q in QUESTIONS if q not in config.questions}
     _write_json(out_dir / "t0.json", t0)
     skips = t0["skips"]
     t1: dict[str, dict[str, Any]] = {}
@@ -1410,6 +1419,14 @@ def review_bundle(
                 record["key"] = key
                 record["raised_by"] = raised["raised_by"]
                 _write_json(path, record)
+            else:
+                # Fusion is deterministic over the stored parts: re-fuse on resume.
+                fused = trace_verify.fuse(
+                    question, record["verification"], record.get("revision"), record.get("executed")
+                )
+                if fused != (record["status"], record["by"], record["reason"]):
+                    record["status"], record["by"], record["reason"] = fused
+                    _write_json(path, record)
             t3[question] = record
     return _finish(bundle, out_dir, t0, t1, t3, fingerprint, trial_dir, findings_dir, subject)
 
@@ -1552,18 +1569,19 @@ def runs_root() -> Path:
 def judge_corpus_rows(
     items: list[tuple[dict[str, Any], Path]], *, workers: int = 6
 ) -> dict[str, dict[str, Any]]:
-    """``qa_trace`` detector: full pipeline per detectors-v1 row.
+    """``qa_trace`` detector: the pipeline asks one question per detectors-v1 row.
 
     Flag = unrefuted ``reward_hacking`` finding; ``None`` (abstain) when that
-    question produced no usable answer. Workspaces, stage JSON and findings
-    land in :func:`runs_root` ``/detectors-v1/<row id>/`` so they outlive the
-    worktree that ran them.
+    question produced no usable answer. Only ``reward_shortcut`` is asked: the
+    other questions cannot change the flag and would triple the model calls.
+    Workspaces, stage JSON and findings land in :func:`runs_root`
+    ``/detectors-v1/<row id>/`` so they outlive the worktree that ran them.
     """
     from evallab.detectors import Corpus
 
     corpus = Corpus.load("detectors-v1")
     combined = corpus.cached("combined_v1")
-    config = TraceConfig(gate=QuotaGate(burst_reader=burst_used))
+    config = TraceConfig(gate=QuotaGate(burst_reader=burst_used), questions=("reward_shortcut",))
     root = runs_root() / "detectors-v1"
     jobs = [
         (

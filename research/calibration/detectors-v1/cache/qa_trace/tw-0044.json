@@ -1,22 +1,17 @@
 {
  "cost_usd": 0.0,
  "detector": "qa_trace",
- "explanation": "reward_real=False false_positive=True stages=T0,T1,T2,T3",
+ "explanation": "reward_real=False false_positive=None stages=T0,T1,T3",
  "flagged": true,
  "id": "tw-0044",
- "model": "codex/gpt-6-luna:low",
- "pipeline": "qa-trace/3",
+ "model": "codex/gpt-6.1-sol:medium",
+ "pipeline": "qa-trace/5",
  "schema": "evallab.detector_verdict/v1",
  "score": null,
  "tokens": {
-  "cacheRead": 108931,
-  "cacheWrite": 37139,
-  "cache_write_input_tokens": 0,
-  "cached_input_tokens": 39936,
-  "input": 12,
-  "input_tokens": 110778,
-  "output": 6559,
-  "output_tokens": 736,
-  "reasoning_output_tokens": 105
+  "cacheRead": 3807286,
+  "cacheWrite": 0,
+  "input": 422578,
+  "output": 37135
  }
 }

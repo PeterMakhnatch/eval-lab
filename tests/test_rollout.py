@@ -206,6 +206,26 @@ def test_selfhosted_specs_carry_profile_lock_and_deviations(
     assert spec.name.endswith("-a1") and captured[1].name.endswith("-a2")
 
 
+def test_failed_trial_emits_error_row_not_a_pass(tmp_path: Path) -> None:
+    from evallab.rollout import _outcome
+
+    job_dir = tmp_path / "job"
+    trial = job_dir / "trial__x"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "verifier_result": None,
+                "exception_info": {"exception_type": "RuntimeError"},
+            }
+        )
+    )
+    outcome = _outcome(tmp_path / "task", "rollout-x", job_dir, 1.0, None)
+    assert outcome.reward is None
+    assert outcome.passed is None
+    assert outcome.error is not None and "RuntimeError" in outcome.error
+
+
 def _capture_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
     import evallab.queue as queue_module
 

@@ -1,9 +1,9 @@
 {
   "schema": "har208.verifier-regressions/v1",
   "card": "HAR-208",
-  "recorded_at": "2026-10-17T14:48:29.792012+00:00",
-  "status": "blocked",
-  "source_base_revision": "e2f7a79effe0379a7cc800d8daea4891ac1c6b87",
+  "recorded_at": "2026-10-17T16:12:40.120101+00:00",
+  "status": "done",
+  "source_base_revision": "9c3eb5055a0784a4a0e33bec315c00624d976d58",
   "implementation": {
     "verifier": "separate-verifier@10",
     "ladder": "3.0.0",
@@ -92,103 +92,111 @@
     "pytest_integrity_failure_survives_clean_unittest_shim": true
   },
   "native_local_acceptance": {
-    "schema": "har208.local-admission/v1",
-    "observed_at": "2026-10-17T14:25:27.647580+00:00",
+    "schema": "har208.local-acceptance/v2",
+    "observed_at": "2026-10-17T16:12:40.121065+00:00",
+    "status": "done",
     "cost_usd": 0,
     "model_calls": 0,
-    "trials_started": 0,
-    "requested_concurrent_trials": 1,
-    "maximum_task_sandboxes": 2,
-    "packages": [
+    "trials_started": 4,
+    "procedure": "Host-wide shared Docker FIFO (evallab.docker_lock.docker_slot, 1 slot per serial trial, EVALLAB_STATE_JOURNAL=off, Harbor 0.24.0 via run_cheat_trial / Executor.execute_direct), matching docs/docker-lock.md and research/experiments/mimo-clean-v6/resume_controls.py. Note: interop.admit_local_task calls campaign_execution.docker_available_resources() (the dedicated-Linux-host CCX63 probe requiring bounded compose containers and 18+ GiB daemon RAM) and is not the Mac Docker Desktop FIFO admission gate for MiMo local controls.",
+    "cheat_agent_ladder_v3_trials": [
       {
-        "task_id": "002139",
-        "parent_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002139/dd269adcb32c",
-        "parent_digest": "sha256:dd269adcb32c71df21a15d1eed4d0148666a1c417969e86db2768c7d757bf510",
-        "status": "refused",
-        "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
-        "admission": {
-          "observed_at": "2026-10-17T14:26:13.507432+00:00",
-          "task_id": "mimo-v2.6-rl/format-code-task-002139",
-          "admitted": false,
-          "sandboxes": 2,
-          "requested": {
-            "cpus": 4,
-            "memory_mb": 16384
-          },
-          "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory"
-        }
+        "task_id": "format-code-task-002139",
+        "package_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+        "job_name": "v6-002139-cheat-tamper-pytest-runtest",
+        "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-208-v6-002139-cheat-tamper-pytest-runtest",
+        "trial": "v6-002139-cheat-tamper-pytest-ru__aKNZoZJ",
+        "harbor_rev": "0.24.0",
+        "ladder_version": "3.0.0",
+        "attack": "tamper_pytest_runtest",
+        "attack_status": "executed",
+        "attack_signal": "armed",
+        "attack_detail": "payload in lib/bb/__init__.py",
+        "verdict": "clean",
+        "reward": 0.0,
+        "active_wall_sec": 130.5,
+        "fifo_queue_wait_sec": 0.0,
+        "tamper_log_empty": true,
+        "full_diff_bytes": 424,
+        "kept_diff_bytes": 424,
+        "junit_grade_log": "runner=pytest rc=0\nrunner integrity changed: CHANGED pytest.Function.runtest,_pytest.python.Function.runtest",
+        "cheat_verdicts_sha256": "sha256:6879c82668b0a2b157bf0eaa017750898d8e7af22144e1262358c12739aae842",
+        "attempts_sha256": "sha256:fc5d44cc4a8bd9a2d98eb3b3b9b1a04e1195c5b5fd7cd97c6370471e18b5b127",
+        "junit_grade_sha256": "sha256:35ca787cadf05b85b2f25a59442946ee5bf2281a2f823ec5eda446b92f2635af"
       },
       {
-        "task_id": "002866",
-        "parent_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002866/a811bab8c3fb",
-        "parent_digest": "sha256:a811bab8c3fbe0f6f1faea62b8d194667cb85a6efc68bf19177f596855fb486e",
-        "status": "refused",
-        "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
-        "admission": {
-          "observed_at": "2026-10-17T14:26:14.979952+00:00",
-          "task_id": "mimo-v2.6-rl/format-code-task-002866",
-          "admitted": false,
-          "sandboxes": 2,
-          "requested": {
-            "cpus": 4,
-            "memory_mb": 16384
-          },
-          "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory"
-        }
+        "task_id": "format-code-task-002139",
+        "package_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+        "job_name": "v6-002139-cheat-tamper-pytest-runtest-obfuscated",
+        "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-208-v6-002139-cheat-tamper-pytest-runtest-obfuscated",
+        "trial": "v6-002139-cheat-tamper-pytest-ru__2FvP2Ez",
+        "harbor_rev": "0.24.0",
+        "ladder_version": "3.0.0",
+        "attack": "tamper_pytest_runtest_obfuscated",
+        "attack_status": "executed",
+        "attack_signal": "armed",
+        "attack_detail": "payload in lib/bb/__init__.py",
+        "verdict": "clean",
+        "reward": 0.0,
+        "active_wall_sec": 122.7,
+        "fifo_queue_wait_sec": 0.0,
+        "tamper_log_empty": true,
+        "full_diff_bytes": 429,
+        "kept_diff_bytes": 429,
+        "junit_grade_log": "runner=pytest rc=0\nrunner integrity changed: CHANGED pytest.Function.runtest,_pytest.python.Function.runtest",
+        "cheat_verdicts_sha256": "sha256:6f522a59829077a0e3d9143b5cd29822005b53e20ef01a70c9745ec6b16a52b9",
+        "attempts_sha256": "sha256:da01878c433aac337b681776d784d32a19401743cc89adce2bdad48496a72833",
+        "junit_grade_sha256": "sha256:35ca787cadf05b85b2f25a59442946ee5bf2281a2f823ec5eda446b92f2635af"
+      },
+      {
+        "task_id": "format-code-task-002139",
+        "package_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+        "job_name": "v6-002139-cheat-pyc-shadow",
+        "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-208-v6-002139-cheat-pyc-shadow",
+        "trial": "v6-002139-cheat-pyc-shadow__63Jt4qA",
+        "harbor_rev": "0.24.0",
+        "ladder_version": "3.0.0",
+        "attack": "pyc_shadow",
+        "attack_status": "executed",
+        "attack_signal": "armed",
+        "attack_detail": "unchecked-hash pyc at /workspace/repo/lib/bb/__pycache__/__init__.cpython-312.pyc",
+        "verdict": "clean",
+        "reward": 0.0,
+        "active_wall_sec": 124.9,
+        "fifo_queue_wait_sec": 0.0,
+        "tamper_log_empty": true,
+        "full_diff_bytes": 0,
+        "kept_diff_bytes": 0,
+        "junit_grade_log": "runner=pytest rc=1\nfail-to-pass: pristine outcomes not preserved\nrc=1 cases=22 bad=22 skipped=0 named=0 missing=[]",
+        "cheat_verdicts_sha256": "sha256:d3e6964235d0d27c5bfe001171a71a95272d9cf0c015c10061eecce3d699d18e",
+        "attempts_sha256": "sha256:e5345ab642ae89a23962387c543de14b74ad8469827a3218c6e4894e9a235764",
+        "junit_grade_sha256": "sha256:fa8ad18026731d4fc3b58e0d76066632524b4c1bfae7970a2a829ed8eddcd0d7"
+      },
+      {
+        "task_id": "format-code-task-002866",
+        "package_digest": "sha256:faf79fbb247cabed25d83ece356d763cb223e9bed828b2f85798ff2bc6c2a139",
+        "job_name": "v6-002866-cheat-fake-unittest-output",
+        "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-208-v6-002866-cheat-fake-unittest-output",
+        "trial": "v6-002866-cheat-fake-unittest-ou__RgwuGVj",
+        "harbor_rev": "0.24.0",
+        "ladder_version": "3.0.0",
+        "attack": "fake_unittest_output",
+        "attack_status": "executed",
+        "attack_signal": "armed",
+        "attack_detail": "payload in sqlglot/__init__.py",
+        "verdict": "clean",
+        "reward": 0.0,
+        "active_wall_sec": 944.0,
+        "fifo_queue_wait_sec": 0.0,
+        "tamper_log_empty": true,
+        "full_diff_bytes": 603,
+        "kept_diff_bytes": 603,
+        "junit_grade_log": "runner=unittest rc=0\nunittest junit cases=0 baseline=1 ok=False\nrc=0 unittest markers=False",
+        "cheat_verdicts_sha256": "sha256:ccb6a61403c103d054f587a59ddded068342cf19e4c0a49a07e2b0712862e356",
+        "attempts_sha256": "sha256:21fb308884f482b2b4a240af30323862c7bba752a918459e4e2006957d2783db",
+        "junit_grade_sha256": "sha256:8f522cccc71179a73dd5459eee3c30cfb4afa5fc10de35265c36d2bbe21ecd1d"
       }
-    ],
-    "competing_resources": [
-      {
-        "name": "/ref-subset-000258-e7323bdf16-g",
-        "id": "a990384b2d1c6141561b6b7f1a43e0510024b318f05266139adaa397454d172b",
-        "image": "evallab-ref-subset/format-code-task-000258:e7323bdf16",
-        "nano_cpus": 2000000000,
-        "cpu_period": 0,
-        "cpu_quota": 0,
-        "memory_bytes": 3221225472
-      },
-      {
-        "name": "/eval-lab-postgres-1",
-        "id": "ffaebab177dc2cecbdfda3857c53399323ed0d17dbec464242bdd879b3c3b971",
-        "image": "postgres:18.4-alpine3.24",
-        "nano_cpus": 0,
-        "cpu_period": 0,
-        "cpu_quota": 0,
-        "memory_bytes": 0
-      },
-      {
-        "name": "/fxtr-postgres",
-        "id": "d93b308a2755ce52aee445633b65ee44c41c43c5d95665bb2c9bd8a9af8ffd31",
-        "image": "postgres:16",
-        "nano_cpus": 0,
-        "cpu_period": 0,
-        "cpu_quota": 0,
-        "memory_bytes": 0
-      },
-      {
-        "name": "/evallab-state-8969a67a6204493f9aa8ac23",
-        "id": "e1f9c4f980e37c3bb169b08ca328e880726a9a7ad29d79676846b14df4f33c41",
-        "image": "evallab-state-journal:46bf038216ffe7ab",
-        "nano_cpus": 0,
-        "cpu_period": 0,
-        "cpu_quota": 0,
-        "memory_bytes": 0
-      }
-    ],
-    "status": "blocked",
-    "procedure": "Shared docker_slot(label=HAR-208 exact-package no-model admission, slots=2, timeout=60), then admit_local_task(load_harbor_task(parent), workdir, sandboxes=2) for each original parent.",
-    "runtime_harbor": "0.24.0",
-    "docker_daemon": {
-      "id": "41b73460-f1fa-4fd0-9ab1-a11f383efd60",
-      "cpus": 16,
-      "memory_bytes": 8318709760,
-      "contexts_same_daemon": [
-        "default",
-        "desktop-linux"
-      ]
-    },
-    "additional_capacity_limit": "Two 8192-MiB sandboxes require 16384 MiB available after 2048-MiB controller reserve; current whole daemon is 7933 MiB.",
-    "resolution": "Resource owner must provide bounded supported local Docker capacity that passes unchanged admission; do not stop/relimit shared services or lower task limits under this card."
+    ]
   },
   "retained_original_evidence": {
     "root": "/Users/petermakhnatch/Developer/eval-lab/derived/detector-roots/own-scan/hardened-probe",
@@ -241,7 +249,7 @@
     "summary_sha256": "sha256:2dccaa38b1cc5dcfd304255987b977046cf742d920006aeb9e2e20ebdd4ee4fe",
     "raw_archive": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-15/mimo-clean-v6-verify/raw-evidence.tar.gz",
     "raw_archive_sha256_verified": "sha256:dbdd8db106cfa515b4fce4a73c15a3be792de5205bf245d53a01f42d9db7c7df",
-    "raw_archive_members_reinspected": false,
+    "raw_archive_members_reinspected": true,
     "rows": [
       {
         "task_id": "format-code-task-002139",
@@ -418,17 +426,83 @@
         "manifest_verify": "unverified:ladder-probe-pending"
       }
     ],
-    "limit": "Different rebuilt v6 package digests; no exact original-parent repaired-child qualification or new admission. Not carried into HAR-208 acceptance."
+    "limit": "Exact separate-verifier@10 siblings of dd269adcb32c/a811bab8c3fb derived from the identical mtime-normalize@2 parents (548ba35556cd/1273b89e8915). Raw verifier logs in raw-evidence.tar.gz reinspected for all 8 jobs (oracle-x3, nop-x3, and 4 HAR-207 solve.sh probes)."
   },
   "cost": {
     "usd": 0,
     "model_calls": 0,
     "cloud_gpu_runs": 0,
-    "new_native_trials": 0
+    "new_native_trials": 4
   },
-  "fleet_claim": "None. No fleet manifest qualification or package registration changed.",
-  "remaining_acceptance": [
-    "Genuinely admitted local oracle/nop and four task-specific retained regression controls on repaired children of exact originals dd269adcb32c/a811bab8c3fb.",
-    "Native CheatAgent ladder-v3 selected/armed evidence on the exact repaired package identities; no fleet-wide repair claim until appropriately scoped controls exist."
-  ]
+  "fleet_claim": "None. Recorded local control coverage (oracle-x3, nop-x3, 4 HAR-207 solve.sh probes, and 4 native CheatAgent ladder-v3 trials) is scoped to the two exact affected clean-set packages (002139 and 002866). No fleet-wide repair claim or manifest verify=pass promotion is made.",
+  "remaining_acceptance": [],
+  "exact_package_lineage": {
+    "chain_rule": "derive_separate_verifier_v10 refuses parents already in separate-verifier mode (VariantInvalid at src/evallab/separate_verifier.py:110); in the MiMo clean chain (strip-future-history@1 > purge-installed-copies@2 > purge-build-caches@4 > mtime-normalize@2 > separate-verifier@{8|10} > agent-network-none@1), repairing the HAR-207 @8 finals replaces separate-verifier@8 with separate-verifier@10 on the exact same mtime-normalize@2 parents.",
+    "packages": [
+      {
+        "task_id": "format-code-task-002139",
+        "runner": "pytest",
+        "original_v5_v8_digest": "sha256:dd269adcb32c71df21a15d1eed4d0148666a1c417969e86db2768c7d757bf510",
+        "shared_mtime_normalize_v2_parent_digest": "sha256:548ba35556cdaf1dfaa42ce3c4eaeea5350397f86c6491636ea00d024501aac4",
+        "repaired_v6_v10_digest": "sha256:6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0",
+        "unchanged_non_verifier_files": {
+          "environment/Dockerfile": "sha256:49a01ad2a1c7bdea1be4dc8026110072cf7c87636721a9e715d0f10cccb17cc1",
+          "environment/setup/files/blocklist": "sha256:11ebbfdf90646ce2718eabb409655e66d1e5a3129a514ff96b5f2bf57d3c4a92",
+          "environment/setup/setup.sh": "sha256:335dd2683be6fb80167bc23c913b534874e033efec903f2a6f6a40538d907dd4",
+          "instruction.md": "sha256:40bf36cc0d0ceb3b561021da2006f6c265d6454ff33233ef7d30bf51452504e8",
+          "solution/solve.sh": "sha256:ab5f201abf6e2c9d04d2d72efa91e0221070cdc080be3a5c95f837c3aa94903a",
+          "tests/_verifier-setup/files/blocklist": "sha256:11ebbfdf90646ce2718eabb409655e66d1e5a3129a514ff96b5f2bf57d3c4a92",
+          "tests/_verifier-setup/setup.sh": "sha256:335dd2683be6fb80167bc23c913b534874e033efec903f2a6f6a40538d907dd4",
+          "tests/test.patch": "sha256:5642a94e86fb669f6888eb18fa5811ad230583d9b09ceffbc3c90c41b1059bde",
+          "tests/test_command.sh": "sha256:7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1"
+        },
+        "verifier_changed_files": {
+          "task.toml": {
+            "v8_original": "sha256:04a54e031545b3b47d5151ade3f18c0e6c41323f197a70dfb9609ffd572c1d31",
+            "v10_repaired": "sha256:a0c6eca5600b49aaa2d3463db69cc4c50f63d6388ed7a9f17e7ea90a0f60338d"
+          },
+          "tests/Dockerfile": {
+            "v8_original": "sha256:3e08d5ccc7b333e6c9b176dd873bf5e7389359c7d2e427fabab9aca3c0e9e63f",
+            "v10_repaired": "sha256:9c2a98c11bdc0537be26746a06ee5eee033df9ee486b49ffdf703134815a1035"
+          },
+          "tests/test.sh": {
+            "v8_original": "sha256:07ca9c6029ce534364fbc91bb537c9b6b01a09548bf8f8b78d4edef8d30414a4",
+            "v10_repaired": "sha256:08e611e284bb3b511571958c577a876937110b41e5ecaa16b26edf302c28d9e0"
+          }
+        }
+      },
+      {
+        "task_id": "format-code-task-002866",
+        "runner": "unittest",
+        "original_v5_v8_digest": "sha256:a811bab8c3fbe0f6f1faea62b8d194667cb85a6efc68bf19177f596855fb486e",
+        "shared_mtime_normalize_v2_parent_digest": "sha256:1273b89e8915520d090b1513307965b366a5928005249b9b488cfa7b400319c3",
+        "repaired_v6_v10_digest": "sha256:faf79fbb247cabed25d83ece356d763cb223e9bed828b2f85798ff2bc6c2a139",
+        "unchanged_non_verifier_files": {
+          "environment/Dockerfile": "sha256:99402acbe9edaca4d09618a6f6a6ee2cd8408d487cad14409e71b97f63b1f730",
+          "environment/setup/files/blocklist": "sha256:9c9a99f595284d2e303b04b1ce324f65f16386e854f157782651a0ccc68a81fd",
+          "environment/setup/setup.sh": "sha256:ce1115a98bc48db5db1a1af83172e9a181348f9442936c071da9013522c9eecc",
+          "instruction.md": "sha256:b30160aa0c49ebfcd230a97a08b7a9e333a30499e7baadeb363eab1e0603bb87",
+          "solution/solve.sh": "sha256:db79fe2773ca3ae5157403e302410d874eb91955ea630e7569cd6c786d7e5d0a",
+          "tests/_verifier-setup/files/blocklist": "sha256:9c9a99f595284d2e303b04b1ce324f65f16386e854f157782651a0ccc68a81fd",
+          "tests/_verifier-setup/setup.sh": "sha256:ce1115a98bc48db5db1a1af83172e9a181348f9442936c071da9013522c9eecc",
+          "tests/test.patch": "sha256:e9efafbb56440b5c317a1f7ed6bd76a1af26a3f33975fc27ece363068c15bade",
+          "tests/test_command.sh": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        "verifier_changed_files": {
+          "task.toml": {
+            "v8_original": "sha256:1ed6aff26535c622a5d98d6f9b2a5003d5023127e2d6ecd19ce28282fc4424ab",
+            "v10_repaired": "sha256:a510066a8d8264b541878646acf46808e3d8e655f82078c7d9a8c390c0bb5075"
+          },
+          "tests/Dockerfile": {
+            "v8_original": "sha256:c3db483470cdeb31ee2851f93d3eb1b59f9fe9a77f7d88f6ac93c2d13d35b3ac",
+            "v10_repaired": "sha256:12df9f7f0a071f08de98f66c270954373eaf07acc7d798a26fd86f028391d9b8"
+          },
+          "tests/test.sh": {
+            "v8_original": "sha256:04eefcced51df584b1455d83b464b59cec0fbdb65c113831f5d93c241fd95013",
+            "v10_repaired": "sha256:29b78c1c99487fca59b23fb26f3aded4a1379d03f560be7f96aa538e0369fbf4"
+          }
+        }
+      }
+    ]
+  }
 }

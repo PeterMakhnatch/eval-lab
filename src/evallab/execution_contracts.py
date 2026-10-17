@@ -231,6 +231,7 @@ TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
 TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_docker:LockedDockerEnvironment"
+LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_modal:LockedModalEnvironment"
 HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH = (
     "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment"
 )
@@ -2403,6 +2404,10 @@ def build_command(
         environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     elif environment == "docker" and resolve_egress_lock(request):
         environment = LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH
+    elif environment == "modal" and resolve_egress_lock(request):
+        # The wrapper records the policy Modal actually applies into
+        # egress-lock.json; stock Modal leaves no runtime lock record.
+        environment = LOCKED_MODAL_ENVIRONMENT_IMPORT_PATH
     elif environment == "docker":
         environment = HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH
     command = [
@@ -2476,6 +2481,9 @@ def build_command(
             host = _selfhosted_upstream_host(request)
             if host is not None:
                 command.extend(["--allow-agent-host", host])
+            # LockedModalEnvironment records the applied policy into
+            # egress-lock.json from the sandbox creation result.
+            command.extend(["--environment-kwarg", "evallab_egress_lock=true"])
         else:
             command.extend(["--environment-kwarg", "egress_lock=true"])
     if environment == HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH:

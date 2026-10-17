@@ -24,10 +24,9 @@ lines. No model judgment.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -156,15 +155,14 @@ def _trajectory_steps(trajectory: dict) -> Iterable[tuple[Any, dict]]:
         yield from walk(document)
 
 
-def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
-    """(step_id, commands, observation incl. spilled full output) per agent step."""
-    try:
-        trajectory = json.loads(
-            (trial_dir / "agent" / "trajectory.json").read_text(errors="replace")
-        )
-    except (OSError, json.JSONDecodeError):
-        return []
-    spill_dir = trial_dir / "agent" / "evallab-output"
+def agent_steps(
+    trajectory: dict, read_spill: Callable[[str], str | None]
+) -> list[tuple[Any, str, str]]:
+    """(step_id, commands, observation incl. spilled full output) per agent step.
+
+    ``read_spill`` returns the text of a spilled ``evallab-output/step-NNNN.txt``
+    file, or ``None`` when it was not retained.
+    """
     steps = []
     for step_id, step in _trajectory_steps(trajectory):
         if not isinstance(step, dict) or step.get("source") != "agent":
@@ -177,21 +175,19 @@ def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
         results = ((step.get("observation") or {}).get("results")) or []
         observation = "\n".join(str((result or {}).get("content", "")) for result in results)
         for name in dict.fromkeys(_SPILL.findall(observation)):
-            with contextlib.suppress(OSError):
-                observation += "\n" + (spill_dir / name).read_text(errors="replace")
+            spilled = read_spill(name)
+            if spilled is not None:
+                observation += "\n" + spilled
         steps.append((step_id, "\n".join(commands), observation))
     return steps
 
 
-def copy_check(trial_dir: Path) -> dict[str, Any] | None:
-    """A ``copied_code`` taint flag when the agent's added lines came from outside."""
-    try:
-        with (trial_dir / "verifier" / "agent.diff").open(errors="replace") as diff_file:
-            steps = _agent_steps(trial_dir)
-            if not any(_OUTSIDE.search(commands) for _, commands, _ in steps):
-                return None
-            diff_text = diff_file.read()
-    except OSError:
+def copied_code(steps: list[tuple[Any, str, str]], diff_text: str) -> dict[str, Any] | None:
+    """A ``copied_code`` taint flag when ``diff_text``'s added lines came from outside.
+
+    ``steps`` is :func:`agent_steps` output; ``diff_text`` the agent's unified diff.
+    """
+    if not any(_OUTSIDE.search(commands) for _, commands, _ in steps):
         return None
     added = added_lines(diff_text)
     if not added:
@@ -221,3 +217,23 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
         ],
         "examples": sorted(matched)[:3],
     }
+
+
+def copy_check(trial_dir: Path) -> dict[str, Any] | None:
+    """:func:`copied_code` for a finished Harbor trial directory."""
+    try:
+        diff_text = (trial_dir / "verifier" / "agent.diff").read_text(errors="replace")
+        trajectory = json.loads(
+            (trial_dir / "agent" / "trajectory.json").read_text(errors="replace")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    spill_dir = trial_dir / "agent" / "evallab-output"
+
+    def read_spill(name: str) -> str | None:
+        try:
+            return (spill_dir / name).read_text(errors="replace")
+        except OSError:
+            return None
+
+    return copied_code(agent_steps(trajectory, read_spill), diff_text)

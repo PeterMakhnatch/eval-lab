@@ -31,6 +31,15 @@ would not make that observed occupancy fit. This run changed no shared services
 and did not retry task execution after refusal. The card remains **blocked**,
 not complete because its dependency cards were closed.
 
+The **11:17 AM ET recheck** also refused normal admission, with the same three
+unbounded services still present. The [recheck receipt](../evidence/har204-admission-recheck-20261017.json)
+retains that refusal, fresh regression/CLI proof and source-integrity results.
+It also corrects two contradictory source disclosures: detected failures are
+errors but verifiers' upstream reward fallback can still become a task zero;
+Karotte's collected-copy grading is not Harbor shared-mode custody. Actual
+Inspect/Karotte exports exercised the corrected wording, without building or
+starting a sandbox. No live-parity acceptance is claimed.
+
 The [dated evidence receipt](../evidence/har204-interop-20261017.json) separates:
 
 - **Actual source regression:** the old Inspect export omitted `events.jsonl`

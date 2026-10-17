@@ -621,3 +621,39 @@ def test_foreign_native_probe_and_unclosed_scan_cannot_be_clean(tmp_path: Path):
     result = checks.leak_observation(foreign, closed)
     assert result.status == "failed"
     assert result.facts["has_future_history"] is None
+
+
+def test_free_audit_probe_is_independent_of_shared_variant_store(tmp_path: Path, monkeypatch):
+    from evallab import dataset_audit_execution
+    from evallab.dataset_audit import _execute_stage
+
+    package = _harbor_package(tmp_path / "source")
+    task = _task(package)
+    repo = tmp_path / "repo"
+    monkeypatch.setattr("evallab.task_variants.default_variants_root", lambda root: tmp_path / "shared-variants")
+    shared = checks.prepare_leak_probe(task, repo_root=repo)
+    shared_before = _snapshot_files(shared.path)
+    reports = tmp_path / "reports"
+    subjects = []
+
+    def local_control(subject, **kwargs):
+        subjects.append(subject)
+        job = _probe_job(
+            tmp_path / "job",
+            "LEAK_PROBE_V1 start\nLEAK_PROBE_V1 no_repository candidates_searched=1\n",
+        )
+        _write(job / "probe__abc123/lock.json", json.dumps({
+            "task": {"digest": subject.harbor_digest},
+        }))
+        return job
+
+    monkeypatch.setattr(dataset_audit_execution, "run_local_control", local_control)
+    observed = _execute_stage(
+        task, "leak", root=repo, reports=reports, allow_paid=False, environment="docker",
+        model=None, estimate=0, cost_limit=None, timeout=30, card=None, approved_spec_id=None,
+    )
+    assert observed.status == "executed"
+    assert observed.facts["has_future_history"] is None
+    assert subjects[0].path.is_relative_to(reports / "probe-variants")
+    assert subjects[0].path != shared.path
+    assert _snapshot_files(shared.path) == shared_before

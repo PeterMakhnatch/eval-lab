@@ -89,6 +89,29 @@ def test_remote_controls_are_paid_and_opt_in_does_not_hide_the_estimate():
     assert denied.estimated_cost_usd == 0.5
 
 
+@pytest.mark.parametrize("environment", ["docker", "modal"])
+def test_history_reference_planning_is_local_only_and_does_not_inspect_images(
+    tmp_path, monkeypatch, environment,
+):
+    package = _package(tmp_path / "task")
+    (package / "solution/solve.sh").unlink()
+    (package / "tests/test.patch").write_text("diff --git a/tests/test_state.py b/tests/test_state.py\n")
+    with (package / "task.toml").open("a") as config:
+        config.write('docker_image = "example/image@sha256:' + "a" * 64 + '"\nworkdir = "/workspace"\n')
+    task = resolve_harbor_dataset(str(package), repo_root=tmp_path).tasks[0]
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("planning tried image inspection or execution")
+
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    action = _action(
+        task, "oracle", None, dry_run=True, allow_paid=True,
+        environment=environment, model=None, estimated_cost_usd=0.5,
+    )
+    assert action.disposition == ("run" if environment == "docker" else "unavailable")
+    assert action.paid is (environment != "docker")
+
+
 def test_static_flags_cannot_override_bound_controls():
     task = _task()
     record = AuditRecord(task=task, stages={

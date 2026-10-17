@@ -636,19 +636,27 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
     lines.append(f"## Mission Brief & Execution Guide: `{mission_type}`")
     lines.append("")
     lines.append(
-        "Current lab state is `docs/NOW.md`. Do not crawl `docs/INDEX.md` or "
-        "`docs/repo-map.md`; those are generated inventories."
+        "Current lab state is `docs/NOW.md`. The assignment and applicable `AGENTS.md` "
+        "files govern scope; this pack does not replace them or authorize execution."
+    )
+    lines.append("")
+    lines.append(
+        "Use included excerpts first. Reopen cited paths/headings only for omitted "
+        "requirements or dependencies needed by the assignment; omission never waives "
+        "required rules or checks. Do not crawl `docs/INDEX.md` or `docs/repo-map.md` "
+        "as default reading; those are generated inventories."
     )
     lines.append("")
 
     if mission_type == "builder":
-        lines.append("### Objective: Authoring & Quality Certification")
+        lines.append("### Objective: Implementation & Task Quality")
         lines.append(
-            "You are operating as a **Builder** agent. "
-            "Your goal is to author, calibrate, or qualify Harbor evaluation tasks."
+            "You are operating as a **Builder** agent. Implement the assigned Eval Lab "
+            "change; apply the task-authoring workflow below only when creating or "
+            "changing Harbor evaluation tasks."
         )
         lines.append("")
-        lines.append("### Standard Workflow")
+        lines.append("### Task-Authoring Workflow (when applicable)")
         lines.append(
             "1. **Task Package Layout**: Maintain standard Harbor task layout "
             "(`task.toml`, `instruction.md`, `environment/`, `tests/`, `solution/`)."
@@ -667,8 +675,11 @@ def render_mission_brief_template(mission_type: str, task_ref: str | None = None
             "to verify isolation and safety."
         )
         lines.append(
-            "5. **Handoff Contract**: Update `agents/handoffs/<role>.md` "
-            "with `Status: review-wanted` when ready for human gate."
+            "5. **Delivery**: Follow `agents/CHECKS.md` and `agents/WORKFLOW.md` through "
+            "PR, required CI, protected merge, and merged-revision verification. "
+            "No routine separate reviewer or human handoff gate is required. Native "
+            "workers return scoped changes to their parent and skip checks unless "
+            "explicitly assigned verification."
         )
     elif mission_type == "analyst":
         lines.append("### Objective: Evidence & Trajectory Analysis")
@@ -1051,7 +1062,10 @@ def build_context_pack(
     if normalized_paths and doc_scores:
         drop_order = sorted(
             docs,
+            # Lookup inventories shed first; the current-state safety/router doc last.
             key=lambda d: (
+                d.path == "docs/NOW.md",
+                d.path not in ("docs/INDEX.md", "docs/repo-map.md"),
                 doc_scores.get(d.path, 0),
                 -doc_rendered_sizes.get(d.path, 0),
                 d.path,

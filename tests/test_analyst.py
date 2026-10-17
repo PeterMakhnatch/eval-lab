@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import duckdb
@@ -15,6 +16,7 @@ from evallab.analyst import (
     ModelAnalyzer,
     ModelProviderRefusedError,
     StubAnalyzer,
+    TrajectoryJudgeRunV1,
     TrialData,
     assemble_context,
     create_judge_deterministic_context,
@@ -25,7 +27,7 @@ from evallab.analyst import (
 )
 from evallab.cli import run_cli
 from evallab.evidence_store import archive_evidence
-from evallab.lance import build_trajectory_windows
+from evallab.lance import TrajectoryWindowV1, build_trajectory_windows
 from evallab.lineage import resolve_lineage
 from evallab.schemas import AnalysisRecord, ConfidenceClaim, EvidenceCitation
 
@@ -616,13 +618,15 @@ def test_run_analysis_persists_bindings_and_decision_ineligible(tmp_path: Path) 
         assert row[4] is False
 
 
-def _judge_windows():
+def _judge_windows(
+    *, snapshot_digest: str = "sha256:" + "1" * 64
+) -> tuple[TrajectoryWindowV1, ...]:
     return build_trajectory_windows(
         [
             {"step_id": 1, "message": "memory handle was omitted"},
             {"step_id": 2, "message": "clean replay completed successfully"},
         ],
-        snapshot_digest="sha256:" + "1" * 64,
+        snapshot_digest=snapshot_digest,
         source_digest="sha256:" + "2" * 64,
         redaction_policy_digest="sha256:" + "3" * 64,
         source_is_redacted=True,
@@ -636,13 +640,22 @@ def _judge_windows():
 class ScriptedTrajectoryAnalyzer:
     model = "scripted-trajectory-judge"
 
-    def __init__(self, *, missing_counterevidence: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        missing_counterevidence: bool = False,
+        support_path: str = "W1",
+        counter_path: str = "W2",
+    ) -> None:
         self.missing_counterevidence = missing_counterevidence
+        self.support_path = support_path
+        self.counter_path = counter_path
+        self.requests: list[tuple[str, str]] = []
 
     def analyze(self, prompt: str, context: str) -> AnalystResult:
-        windows = _judge_windows()
-        support = EvidenceCitation(path=f"[{windows[0].window_digest}]", step=1)
-        counter = EvidenceCitation(path=windows[1].window_digest, step=2)
+        self.requests.append((prompt, context))
+        support = EvidenceCitation(path=self.support_path, step=1)
+        counter = EvidenceCitation(path=self.counter_path, step=2)
         if "Stage: TRIAGE" in prompt:
             summary = "The omission window is high signal."
             contradictions: list[EvidenceCitation] = []
@@ -729,6 +742,13 @@ def test_trajectory_judge_runs_triage_inspect_final_repeats_and_disagreement() -
     assert all(
         run.deterministic_context_digest == deterministic_context.context_digest for run in runs
     )
+    assert all(
+        run.input_window_digests == tuple(window.window_digest for window in windows)
+        for run in runs
+    )
+    assert all(
+        TrajectoryJudgeRunV1.model_validate(run.model_dump(mode="json")) == run for run in runs
+    )
     assert disagreement.consensus_category == "memory_failure"
     assert disagreement.agreement_rate == 1.0
     assert disagreement.unresolved is False
@@ -745,10 +765,159 @@ def test_trajectory_judge_refuses_final_without_counterevidence() -> None:
         )
 
 
+def test_trajectory_judge_keeps_late_handle_bindings_across_stages_and_repeats() -> None:
+    input_windows = [
+        *_judge_windows(),
+        *build_trajectory_windows(
+            [{"step_id": step, "message": f"later evidence {step}"} for step in range(10, 26)],
+            snapshot_digest="sha256:" + "1" * 64,
+            source_digest="sha256:" + "7" * 64,
+            redaction_policy_digest="sha256:" + "3" * 64,
+            source_is_redacted=True,
+            job_id="judge-job",
+            trial_id="later-trial",
+            window_steps=2,
+            stride_steps=2,
+        ),
+    ]
+    frozen_windows = tuple(input_windows)
+
+    class PoolMutatingAnalyzer(ScriptedTrajectoryAnalyzer):
+        def analyze(self, prompt: str, context: str) -> AnalystResult:
+            if not self.requests:
+                input_windows.reverse()
+            return super().analyze(prompt, context)
+
+    analyzer = PoolMutatingAnalyzer(support_path="W9", counter_path="W1")
+    rubric = "Bind the selected evidence and counterevidence to their exact windows."
+    runs, _ = run_trajectory_judge(analyzer, input_windows, rubric=rubric, repeats=2)
+    expected_support = {
+        "schema_version": "judge-window-citation/v1",
+        "window_digest": frozen_windows[8].window_digest,
+        "trial_id": "later-trial",
+        "start_step": 22,
+        "end_step": 23,
+        "stance": "supports",
+    }
+    expected_counter = {
+        "schema_version": "judge-window-citation/v1",
+        "window_digest": frozen_windows[0].window_digest,
+        "trial_id": "judge-trial",
+        "start_step": 1,
+        "end_step": 1,
+        "stance": "contradicts",
+    }
+    assert len(analyzer.requests) == 6
+    for repeat_index, run in enumerate(runs):
+        assert run.input_window_digests == tuple(window.window_digest for window in frozen_windows)
+        for stage in run.stages:
+            assert [
+                citation.model_dump(mode="json") for citation in stage.supporting_citations
+            ] == [expected_support]
+        assert [
+            citation.model_dump(mode="json") for citation in run.stages[-1].contradicting_citations
+        ] == [expected_counter]
+        triage_context, inspect_context, final_context = (
+            analyzer.requests[repeat_index * 3 + offset][1] for offset in range(3)
+        )
+        assert all(window.text in triage_context for window in frozen_windows)
+        assert frozen_windows[8].text in inspect_context
+        assert frozen_windows[0].text not in inspect_context
+        assert all(window.text in final_context for window in frozen_windows)
+
+    # A different host handle assignment must not alter the same canonical judgment.
+    reordered_windows = (frozen_windows[8], *frozen_windows[:8], *frozen_windows[9:])
+    reordered_runs, _ = run_trajectory_judge(
+        ScriptedTrajectoryAnalyzer(support_path="W1", counter_path="W2"),
+        reordered_windows,
+        rubric=rubric,
+        repeats=1,
+    )
+    assert tuple(stage.stage_digest for stage in runs[0].stages) == tuple(
+        stage.stage_digest for stage in reordered_runs[0].stages
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["W99", "[W1]", " W1 ", _judge_windows()[0].window_digest],
+    ids=["unknown", "bracketed", "padded", "canonical-digest"],
+)
+@pytest.mark.parametrize("stance", ["supports", "contradicts"])
+def test_trajectory_judge_rejects_nonhandle_citations_with_bounded_repair(
+    path: str, stance: str
+) -> None:
+    analyzer = (
+        ScriptedTrajectoryAnalyzer(support_path=path)
+        if stance == "supports"
+        else ScriptedTrajectoryAnalyzer(counter_path=path)
+    )
+    with pytest.raises(ValueError, match="exact visible window handle"):
+        run_trajectory_judge(
+            analyzer,
+            _judge_windows(),
+            rubric="Require exact visible handles.",
+            repeats=1,
+        )
+    assert len(analyzer.requests) == (2 if stance == "supports" else 4)
+
+
+@pytest.mark.parametrize("stance", ["supports", "contradicts"])
+def test_trajectory_judge_rejects_out_of_stage_handles(stance: str) -> None:
+    class OutOfStageAnalyzer(ScriptedTrajectoryAnalyzer):
+        def analyze(self, prompt: str, context: str) -> AnalystResult:
+            result = super().analyze(prompt, context)
+            if "Stage: INSPECT" in prompt:
+                citation = EvidenceCitation(path="W1", step=1)
+                if stance == "supports":
+                    return replace(result, evidence=[citation])
+                return replace(result, contradicting_evidence=[citation])
+            return result
+
+    analyzer = OutOfStageAnalyzer(support_path="W2")
+    with pytest.raises(ValueError, match="exact visible window handle"):
+        run_trajectory_judge(
+            analyzer,
+            _judge_windows(),
+            rubric="Inspection cannot cite an unselected window.",
+            repeats=1,
+        )
+    assert len(analyzer.requests) == 3
+
+
+def test_trajectory_judge_rejects_mixed_snapshots_before_analysis() -> None:
+    analyzer = ScriptedTrajectoryAnalyzer()
+    windows = (
+        _judge_windows()[0],
+        _judge_windows(snapshot_digest="sha256:" + "8" * 64)[1],
+    )
+    with pytest.raises(ValueError, match="cannot mix snapshot vintages"):
+        run_trajectory_judge(analyzer, windows, rubric="Require one frozen snapshot.", repeats=1)
+    assert analyzer.requests == []
+
+
+def test_trajectory_judge_rejects_mismatched_deterministic_context_before_analysis() -> None:
+    analyzer = ScriptedTrajectoryAnalyzer()
+    deterministic_context = create_judge_deterministic_context(
+        snapshot_digest="sha256:" + "8" * 64,
+        source_digest="sha256:" + "6" * 64,
+        facts={"reward": 0.0},
+    )
+    with pytest.raises(ValueError, match="context snapshot does not match windows"):
+        run_trajectory_judge(
+            analyzer,
+            _judge_windows(),
+            rubric="Keep deterministic facts bound to the frozen snapshot.",
+            deterministic_context=deterministic_context,
+            repeats=1,
+        )
+    assert analyzer.requests == []
+
+
 def test_model_analyzer_extracts_fenced_json_before_trailing_prose() -> None:
     class CallResult:
         raw_output = """```json
-{"category":"memory_failure","summary":"Grounded diagnosis.","evidence":[{"path":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","step":1}],"contradicting_evidence":[{"path":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","step":2}],"alternative_explanations":["Capture may be incomplete."],"confidence":"high"}
+{"category":"memory_failure","summary":"Grounded diagnosis.","evidence":[{"path":"W1","step":1}],"contradicting_evidence":[{"path":"W2","step":2}],"alternative_explanations":["Capture may be incomplete."],"confidence":"high"}
 ```
 Trailing explanatory prose."""
         argv: list[str] = []
@@ -761,7 +930,7 @@ Trailing explanatory prose."""
     result = analyzer.analyze("rubric", "context")
     assert result.category == "memory_failure"
     assert result.summary == "Grounded diagnosis."
-    assert result.evidence[0].path.startswith("sha256:a")
-    assert result.contradicting_evidence[0].path.startswith("sha256:b")
+    assert result.evidence[0].path == "W1"
+    assert result.contradicting_evidence[0].path == "W2"
     assert result.alternative_explanations == ["Capture may be incomplete."]
     assert result.confidence.level == "high"

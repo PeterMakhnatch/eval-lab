@@ -324,6 +324,18 @@ and T3):
     claims, conflicting manifest rows, and missing or mutated selected packages
     raise before controls, spend reservations or provider execution. Historical
     receipts, including refusals, remain immutable.
+  - **Counterfactual `/3` consumer contract.** Bind observations and controls by
+    `grader_identity.task_name` plus the **full**
+    `grader_identity.variant_digest`, and cross-check the resolved package bytes
+    and `grader_source`. Controls carry that identity, engine, reference checksum,
+    scalar nop/reference scores and the underlying native `rows`; they are not
+    keyed by a selection label. The representative `grader`/`transform` is not the
+    only selected route: qualification must inspect `grader_source.aliases` and
+    validate each selected route's manifest/repair ancestry. There is no separate
+    top-level `grader_digest` in `/3`. Two aliases of one package are one physical
+    observation, not two independently pinned v6/repair graders. Do not relax
+    source custody, engine matching, or distinct-package scientific requirements
+    when migrating a label-based consumer.
   - `--environment docker` (default): each native execution holds the
     host-wide Docker FIFO lock (`docs/docker-lock.md`); executions are
     serialized, even with multiple queued workers. Harbor 0.24 (the `laminar`

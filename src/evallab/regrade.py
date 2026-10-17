@@ -88,6 +88,7 @@ __all__ = [
     "default_regrade_job_name",
     "expand_task_dirs",
     "lab_harbor_problem",
+    "modal_resource_blocker",
     "plan_regrade_job",
     "read_reward_observation",
     "regrade_job",
@@ -175,6 +176,28 @@ class RegradeRefusalCode(StrEnum):
     HELD_OUT_INPUT_CHANGED = "held_out_input_changed"
     #: A paid execution would take the run past its approved USD cap.
     SPEND_CAP_REACHED = "spend_cap_reached"
+
+
+def modal_resource_blocker(package: Path) -> str | None:
+    """Provider-free admission; an unpriced accelerator is never treated as a CPU."""
+    config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+    environments = [
+        config.get("environment") or {},
+        (config.get("verifier") or {}).get("environment") or {},
+    ]
+    if any(env.get("gpus") or env.get("gpu") or env.get("tpu") for env in environments):
+        return "Modal GPU/TPU resources have no approved price estimate"
+    if any(str(env.get("os", "linux")).lower() != "linux" for env in environments):
+        return "Modal script controls require Linux environments"
+    if config.get("steps"):
+        return "Modal script controls do not support declared task steps"
+    if any(
+        (package / directory / name).is_file()
+        for directory in ("environment", "tests")
+        for name in ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
+    ):
+        return "Modal does not support Compose services; no Docker fallback is permitted"
+    return None
 
 
 class SpendCapReached(RuntimeError):

@@ -22,11 +22,13 @@ from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from harbor.environments.modal import ModalEnvironment
-from harbor.models.task.config import NetworkPolicy, TaskConfig
-from harbor.models.task.paths import TaskPaths
-from harbor.models.task.verifier_mode import resolve_verifier_environment_definition
-from harbor.models.trial.paths import TrialPaths
+from harbor.environments.modal import ModalEnvironment  # ty: ignore[unresolved-import]
+from harbor.models.task.config import NetworkPolicy, TaskConfig  # ty: ignore[unresolved-import]
+from harbor.models.task.paths import TaskPaths  # ty: ignore[unresolved-import]
+from harbor.models.task.verifier_mode import (  # ty: ignore[unresolved-import]
+    resolve_verifier_environment_definition,
+)
+from harbor.models.trial.paths import TrialPaths  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import MODAL_PATH_PIN
 from evallab.harbor_modal import LockedModalEnvironment, RegradeModalEnvironment
@@ -200,7 +202,7 @@ class ModalSandbox:
             persistent_env={"PATH": MODAL_PATH_PIN, "PIP_NO_CACHE_DIR": "1"},
             sandbox_timeout_secs=min(_MAX_LIFETIME_SECONDS, math.ceil(timeout + 600)),
             sandbox_idle_timeout_secs=600,
-            enable_environment_dir_upload=False,
+            enable_environment_dir_upload=not verifier and snapshot is None,
             spend_gate=self.gate,
             events=self.events,
             operation=operation,
@@ -224,6 +226,24 @@ class ModalSandbox:
 
     async def _start(self, environment: Any) -> None:
         await asyncio.wait_for(environment.start(force_build=False), timeout=self.build_timeout)
+
+    async def _healthcheck(self, environment: Any) -> None:
+        healthcheck = environment.task_env_config.healthcheck
+        if healthcheck is None:
+            return
+        event: dict[str, Any] = {
+            "kind": "healthcheck",
+            "session_id": environment.session_id,
+            "command": healthcheck.command,
+            "timeout_s": self.build_timeout,
+        }
+        self.events.append(event)
+        try:
+            await asyncio.wait_for(environment.run_healthcheck(), timeout=self.build_timeout)
+            event["status"] = "ready"
+        except Exception as exc:
+            event.update(status="failed", error=str(exc)[-2_000:])
+            raise
 
     async def _exec(
         self,
@@ -316,10 +336,15 @@ class ModalSandbox:
             await self._exec(
                 environment, "mkdir -p /var/lib/mimo /tests /logs/verifier /logs/artifacts"
             )
-            await environment.upload_dir(
-                self.package.path / "environment" / "setup", "/var/lib/mimo"
-            )
-            await self._exec(environment, "bash /var/lib/mimo/setup.sh", timeout=self.build_timeout)
+            if self.config.environment.healthcheck is not None:
+                await self._healthcheck(environment)
+            else:
+                await environment.upload_dir(
+                    self.package.path / "environment" / "setup", "/var/lib/mimo"
+                )
+                await self._exec(
+                    environment, "bash /var/lib/mimo/setup.sh", timeout=self.build_timeout
+                )
         await environment.upload_dir(self.package.path / "tests", "/tests")
         await self._exec(
             environment,
@@ -403,6 +428,7 @@ class ModalSandbox:
         environment = self._environment("oracle", verifier=False)
         try:
             await self._start(environment)
+            await self._healthcheck(environment)
             roots = [path.lstrip("/") or "." for path in self.package.artifacts]
             before = await self._read(environment, roots, root="/", recursive=True)
             await self._exec(environment, "mkdir -p /solution")
@@ -413,7 +439,7 @@ class ModalSandbox:
             await self._stop(environment)
         paths = sorted(set(before) | set(after))
         self.unchanged = {
-            p: before[p] for p in paths if before.get(p) is not None and before[p] == after.get(p)
+            p: data for p, data in before.items() if data is not None and data == after.get(p)
         }
         return {p: before.get(p) for p in paths}, {p: after.get(p) for p in paths}
 

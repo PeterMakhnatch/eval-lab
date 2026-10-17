@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from harbor.agents.base import BaseAgent
-from harbor.models.trial.config import TrialConfig
-from harbor.trial.trial import Trial
-from harbor.utils.env import resolve_env_vars
+from harbor.agents.base import BaseAgent  # ty: ignore[unresolved-import]
+from harbor.models.trial.config import TrialConfig  # ty: ignore[unresolved-import]
+from harbor.trial.trial import Trial  # ty: ignore[unresolved-import]
+from harbor.utils.env import resolve_env_vars  # ty: ignore[unresolved-import]
 
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.harbor_modal import (
@@ -34,12 +34,11 @@ from evallab.qa.task import (
     _cap_excerpt,
     _TrialAbort,
     finite_reward,
-    modal_resource_blocker,
     utcnow,
     write_json,
 )
 from evallab.registry import task_directory_digest
-from evallab.regrade import CloudSpendGate, lab_harbor_problem
+from evallab.regrade import CloudSpendGate, lab_harbor_problem, modal_resource_blocker
 
 
 @dataclass

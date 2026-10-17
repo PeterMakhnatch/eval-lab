@@ -62,7 +62,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.execution_contracts import MODAL_PATH_PIN
-from evallab.regrade import CloudSpendGate, SpendCapReached, lab_harbor_problem
+from evallab.regrade import (
+    CloudSpendGate,
+    SpendCapReached,
+    lab_harbor_problem,
+    modal_resource_blocker,
+)
 from evallab.verifier_mutation import Mutant, generate_mutants, select_mutants
 
 SCHEMA_REPORT = "evallab.ref_subset.report/v1"
@@ -446,16 +451,6 @@ def modal_execution_bound(
     Reads share those sandboxes, and each grade clones the native snapshot.
     """
     return (6 if separate else 3) + 2 * (max(4, max_grades) + max(0, mutants))
-
-
-def _modal_resources_problem(path: Path) -> str | None:
-    config = tomllib.loads((path / "task.toml").read_text())
-    environment = config.get("environment") or {}
-    verifier_environment = (config.get("verifier") or {}).get("environment") or {}
-    for role, values in (("agent", environment), ("verifier", verifier_environment)):
-        if values.get("gpus") or values.get("tpu"):
-            return f"{role} GPU/TPU Modal resources have no approved price estimate"
-    return None
 
 
 def _check_environment(
@@ -1224,6 +1219,9 @@ def probe_task(
         )
     patch = patch_path.read_text() if patch_path is not None else ""
     sandbox: Any | None = None
+    modal_sandbox = None
+    separate_sandbox: SeparateSandbox | None = None
+    raw_sandbox: Sandbox | None = None
     if package.verifier_timeout:
         grade_timeout = min(grade_timeout, package.verifier_timeout)
     head: dict[str, Any] = {
@@ -1257,12 +1255,12 @@ def probe_task(
     try:
         if environment == "modal":
             assert spend_gate is not None
-            problem = _modal_resources_problem(package_dir)
+            problem = modal_resource_blocker(package_dir)
             if problem is not None:
                 raise RuntimeError(problem)
             from evallab.ref_subset_modal import ModalSandbox
 
-            sandbox = ModalSandbox(
+            modal_sandbox = ModalSandbox(
                 package,
                 spend_gate=spend_gate,
                 out_dir=out_dir / "native",
@@ -1271,26 +1269,35 @@ def probe_task(
                 grade_timeout=grade_timeout,
                 build_timeout=min(1_800, oracle_timeout),
             )
-        else:
-            sandbox = (
-                SeparateSandbox(package, memory=memory, oracle_timeout=oracle_timeout)
-                if package.separate
-                else Sandbox(package, memory=memory)
+            sandbox = modal_sandbox
+        elif package.separate:
+            separate_sandbox = SeparateSandbox(
+                package, memory=memory, oracle_timeout=oracle_timeout
             )
-            head["image"] = sandbox.image if package.separate else package.image
-            if package.gpus:
-                raise RuntimeError(f"the task needs {package.gpus} GPU(s); local Docker has none")
+            sandbox = separate_sandbox
+            head["image"] = separate_sandbox.image
+        else:
+            raw_sandbox = Sandbox(package, memory=memory)
+            sandbox = raw_sandbox
+        if environment == "docker" and package.gpus:
+            raise RuntimeError(f"the task needs {package.gpus} GPU(s); local Docker has none")
         try:
             sandbox.prepare()
             if package.separate:
-                base, fixed = sandbox.reference()
+                if modal_sandbox is not None:
+                    base, fixed = modal_sandbox.reference()
+                else:
+                    assert separate_sandbox is not None
+                    base, fixed = separate_sandbox.reference()
                 paths = list(base)
                 patch = unified_patch(base, fixed)
                 (out_dir / "reference.patch").write_text(patch)
                 head["reference"]["sha256"] = hashlib.sha256(patch.encode()).hexdigest()
             else:
                 paths = patch_paths(patch)
-                base = sandbox.read(paths)
+                reader = modal_sandbox if modal_sandbox is not None else raw_sandbox
+                assert reader is not None
+                base = reader.read(paths)
                 fixed = apply_reference(patch, base)
             changes = [
                 file_change(path, base[path], fixed[path], set(package.tests)) for path in paths
@@ -1359,7 +1366,9 @@ def probe_task(
     report["finished_at"] = _now()
     if environment == "modal":
         assert spend_gate is not None
-        report["execution"] = sandbox.evidence() if sandbox is not None else {"events": []}
+        report["execution"] = (
+            modal_sandbox.evidence() if modal_sandbox is not None else {"events": []}
+        )
         report["spend"] = spend_gate.to_json()
         report["reservation_bound"] = modal_execution_bound(
             max_grades=max_grades, mutants=mutants, separate=package.separate
@@ -1908,7 +1917,7 @@ def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool
             else:
                 item["reference"] = {"oracle": "solution/solve.sh"}
             if args.environment == "modal":
-                problem = _modal_resources_problem(job.package)
+                problem = modal_resource_blocker(job.package)
                 if problem is not None:
                     raise ValueError(problem)
             resumed = sweep_mode and (args.output_dir / job.task_id / "report.json").is_file()

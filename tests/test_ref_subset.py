@@ -882,3 +882,76 @@ def test_modal_reservation_bound_counts_preparation_and_both_native_attempts() -
     assert modal_execution_bound(separate=False) == 51
     assert modal_execution_bound(max_grades=4, mutants=3, separate=False) == 17
     assert modal_execution_bound(max_grades=1, mutants=0, separate=True) == 14
+
+
+@pytest.mark.parametrize(
+    "shape,reason",
+    [
+        ("steps", "declared task steps"),
+        ("agent-windows", "Linux"),
+        ("verifier-windows", "Linux"),
+        ("agent-compose", "Compose"),
+        ("verifier-compose", "Compose"),
+    ],
+)
+def test_modal_unsupported_shapes_refuse_plans_and_execution_before_provider_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    shape: str,
+    reason: str,
+) -> None:
+    from evallab.regrade import CloudSpendGate
+
+    package = _mimo_package(tmp_path / "package")
+    config = package / "task.toml"
+    if shape == "steps":
+        config.write_text('steps = [{name = "one", instruction = "finish"}]\n' + config.read_text())
+    elif shape.endswith("windows"):
+        with config.open("a") as handle:
+            handle.write(
+                '\nos = "windows"\n'
+                if shape == "agent-windows"
+                else '\n[verifier.environment]\nos = "windows"\n'
+            )
+    else:
+        directory = package / ("environment" if shape == "agent-compose" else "tests")
+        (directory / "compose.yaml").write_text("services: {}\n")
+    patch = tmp_path / "reference.patch"
+    patch.write_text(_PATCH)
+    _forbid_execution(monkeypatch)
+    args = _ref_args(
+        "run",
+        str(package),
+        "--patch",
+        str(patch),
+        "--output-dir",
+        str(tmp_path / "plan-must-not-write"),
+        "--environment",
+        "modal",
+        "--max-usd",
+        "100",
+        "--approve",
+        "inert admission",
+        "--plan",
+    )
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["execution_refused"] is True
+    assert plan["tasks"][0]["action"] == "refused"
+    assert reason in plan["tasks"][0]["reason"]
+    assert plan["reservation_units_upper_bound"] == 0
+    assert not (tmp_path / "plan-must-not-write").exists()
+    monkeypatch.setattr(ref_subset, "lab_harbor_problem", lambda: None)
+    gate = CloudSpendGate("inert execution", 100, 0.05)
+    report = probe_task(
+        package,
+        patch,
+        tmp_path / "refused",
+        environment="modal",
+        spend_gate=gate,
+        log=lambda _: None,
+    )
+    assert report["status"] == "unavailable" and report["verdict"] == "unknown"
+    assert reason in report["reason"]
+    assert gate.executions == 0 and report["execution"]["events"] == []

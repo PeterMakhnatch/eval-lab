@@ -7,6 +7,7 @@ import fnmatch
 import importlib
 import io
 import json
+import logging
 import posixpath
 import shlex
 import tarfile
@@ -88,6 +89,9 @@ class _Provider:
         self.return_code = 0
         self.fail_setup = False
         self.fail_oracle = False
+        self.require_healthcheck = False
+        self.fail_healthcheck = False
+        self.healthcheck_calls = 0
 
     def initial(self, environment: Any) -> dict[str, tuple[bytes, int]]:
         if environment.environment_dir.name == "tests":
@@ -119,8 +123,11 @@ class _Native(ref_subset_modal.ModalEnvironment):
         self._sandbox = None
         self._image = None
         self._app = None
-        self.separate = not bool(kwargs["task_env_config"].docker_image)
+        self.separate = (self.environment_dir.parent / "solution" / "solve.sh").is_file()
         self.default_workdir = kwargs["task_env_config"].workdir or "/"
+        self.task_env_config = kwargs["task_env_config"]
+        self._enable_environment_dir_upload = kwargs["enable_environment_dir_upload"]
+        self.logger = logging.getLogger(__name__)
 
     async def start(self, force_build: bool) -> None:
         assert not force_build
@@ -128,6 +135,7 @@ class _Native(ref_subset_modal.ModalEnvironment):
         self._image = SimpleNamespace(files=self.provider.initial(self), object_id="native-image")
         self._app = object()
         self._sandbox = await self._create_sandbox()
+        await self._upload_environment_dir_after_start()
 
     async def _create_sandbox(self, **kwargs: Any) -> Any:
         del kwargs
@@ -231,12 +239,20 @@ class _Native(ref_subset_modal.ModalEnvironment):
                         del files[name]
         elif parts[0] in {"mkdir", "chmod"}:
             pass
+        elif parts[0:1] == ["bash"] and parts[1].endswith("/setup/ready.sh"):
+            self.provider.healthcheck_calls += 1
+            if self.provider.fail_healthcheck or parts[1] not in files:
+                result.return_code, result.stderr = 1, "healthcheck setup failed"
+            else:
+                files["/tmp/healthcheck-ready"] = (b"ready", 0o600)
         elif parts == ["bash", "/var/lib/mimo/setup.sh"]:
             self.provider.setup_calls += 1
             if self.provider.fail_setup:
                 result.return_code, result.stderr = 1, "setup failed"
         elif parts == ["bash", "/solution/solve.sh"]:
             self.provider.oracle_calls += 1
+            if self.provider.require_healthcheck:
+                assert files.get("/tmp/healthcheck-ready") == (b"ready", 0o600)
             if self.provider.fail_oracle:
                 result.return_code, result.stderr = 1, "oracle failed"
             else:
@@ -482,3 +498,50 @@ def test_small_modal_probe_honors_cpu_memory_and_sixty_second_setup_grade_bounds
     assert all(event["lifetime_limit_s"] <= 660 for event in bounds)
     assert report["reservation_bound"] == 11 and gate.executions <= 11
     assert all(sandbox.terminated for sandbox in provider.allocations)
+
+
+@pytest.mark.parametrize("separate", [False, True], ids=["raw-mimo", "separate-verifier"])
+@pytest.mark.parametrize("healthy", [False, True], ids=["unready", "ready"])
+def test_native_healthcheck_prepares_reference_before_reading_or_snapshotting(
+    tmp_path: Path, provider: _Provider, separate: bool, healthy: bool
+) -> None:
+    package = _package(tmp_path / "package", separate=separate)
+    workdir = "/app" if separate else "/testbed"
+    config = package / "task.toml"
+    original = config.read_text()
+    original = original.replace("[environment]\n", f'[environment]\nworkdir = "{workdir}"\n')
+    if separate:
+        original = original.replace(
+            "[environment]\n", '[environment]\ndocker_image = "repo/img@sha256:00"\n'
+        )
+    config.write_text(
+        original
+        + "\n[environment.healthcheck]\n"
+        + f'command = "bash {workdir}/setup/ready.sh"\n'
+        + "retries = 1\ninterval_sec = 0.001\ntimeout_sec = 1\n"
+    )
+    (package / "environment" / "Dockerfile").unlink()
+    setup = package / "environment" / "setup" / "ready.sh"
+    setup.parent.mkdir(exist_ok=True)
+    setup.write_text("#!/bin/bash\n# initialize the reference repository\n")
+    provider.require_healthcheck = True
+    provider.fail_healthcheck = not healthy
+    report = _run(tmp_path, separate=separate)
+    assert provider.healthcheck_calls == 1
+    assert provider.setup_calls == 0  # A declared setup is not run twice.
+    if healthy:
+        assert report["status"] == "measured" and report["verdict"] == "fail"
+        assert provider.grades
+        assert provider.oracle_calls == int(separate)
+        if not separate:
+            assert all(
+                grade["files"]["/tmp/healthcheck-ready"] == (b"ready", 0o600)
+                for grade in provider.grades
+            )
+    else:
+        assert report["status"] == "unavailable" and report["verdict"] == "unknown"
+        assert not provider.grades and provider.oracle_calls == 0
+        assert "healthcheck" in report["reason"].lower()
+    checks = [event for event in report["execution"]["events"] if event["kind"] == "healthcheck"]
+    assert [event["status"] for event in checks] == ["ready" if healthy else "failed"]
+    assert provider.allocations and all(sandbox.terminated for sandbox in provider.allocations)

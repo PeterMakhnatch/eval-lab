@@ -45,7 +45,7 @@ from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.docker_lock import docker_slot
 from evallab.qa.models import expected_root_causes, root_cause_hit
 from evallab.qa.score import ScoreRow, append_scoreboard
-from evallab.regrade import CloudSpendGate
+from evallab.regrade import CloudSpendGate, modal_resource_blocker
 from evallab.schemas import ContractModel
 
 SPEND_TAG = "2026-10-15"
@@ -3070,28 +3070,6 @@ def key_packages(items: list[AnswerKeyItem], *, package_root: Path | None = None
 # Native Harbor prepares an image and retries sandbox creation at most twice.
 # Reserve the preparation and both possible attempts, including unused attempts.
 MODAL_RESERVATIONS_PER_ENVIRONMENT = 3
-
-
-def modal_resource_blocker(package: Path) -> str | None:
-    """Provider-free admission; an unpriced accelerator is never treated as a CPU."""
-    config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
-    environments = [
-        config.get("environment") or {},
-        (config.get("verifier") or {}).get("environment") or {},
-    ]
-    if any(env.get("gpus") or env.get("gpu") or env.get("tpu") for env in environments):
-        return "Modal QA accelerator pricing is not qualified; GPU/TPU execution is unsupported"
-    if any(str(env.get("os", "linux")).lower() != "linux" for env in environments):
-        return "Modal QA script controls require Linux environments"
-    if config.get("steps"):
-        return "Modal QA script controls do not support declared task steps"
-    if any(
-        (package / directory / name).is_file()
-        for directory in ("environment", "tests")
-        for name in ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
-    ):
-        return "Modal QA does not support Compose services; no Docker fallback is permitted"
-    return None
 
 
 def plan_task_run(

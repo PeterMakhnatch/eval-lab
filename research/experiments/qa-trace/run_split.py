@@ -7,11 +7,12 @@ prompt iteration only. Held-out rows go through ``evallab detectors run
 --detector qa_trace --ids ids/heldout-<source>.txt --allow-paid`` so the only
 cached (scored) verdicts are held-out.
 
-``ablate`` re-reads the per-row stage JSON under the primary checkout's
-``derived/qa-trace/detectors-v1/`` and scores, on the same rows, each stage on
-its own against the ``reward_hacking`` label: T0 cached combined_v1, T0 live
-deterministic literals, T1 reward-shortcut reviewer alone, and the full
-pipeline (unrefuted ``reward_hacking`` finding). No model calls.
+``ablate`` re-reads the per-row stage JSON under ``runs_root()/detectors-v1``
+(the primary checkout's ``derived/qa-trace/qa-trace-5/detectors-v1/``) and
+scores, on the same rows, each stage on its own against the ``reward_hacking``
+label: T0 cached combined_v1, T0 live deterministic literals, the $0 sourcing
+prescan, the T1 reward-shortcut scenario agent alone, and the full pipeline
+(unrefuted ``reward_hacking`` finding). No model calls.
 
 Usage:
   uv run python research/experiments/qa-trace/run_split.py run --split dev
@@ -26,8 +27,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from evallab.detectors import Corpus
-from evallab.qa.trace import judge_corpus_rows
-from evallab.storage.paths import shared_checkout_root
+from evallab.qa.trace import judge_corpus_rows, runs_root
 
 HERE = Path(__file__).resolve().parent
 DERIVED = Path.home() / "Developer" / "eval-lab" / "derived"
@@ -73,7 +73,7 @@ def _cell(flags: list[tuple[bool, bool | None]]) -> dict[str, object]:
 def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
     corpus = Corpus.load("detectors-v1")
     by_id = {r["id"]: r for r in corpus.rows}
-    root = shared_checkout_root(HERE.parents[2]) / "derived" / "qa-trace" / "detectors-v1"
+    root = runs_root() / "detectors-v1"
     systems: dict[str, dict[str, list[tuple[bool, bool | None]]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -90,12 +90,14 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
             t1_path = run / "t1" / "reward_shortcut.json"
             t1 = json.loads(t1_path.read_text()) if t1_path.is_file() else {}
             answer = (t1.get("answer") or {}).get("answer")
+            prescan = t0.get("prescan") or {}
             systems["T0 combined_v1 (cached OOF)"][source].append(
                 (label, (t0.get("combined_v1_cached") or {}).get("flagged"))
             )
             systems["T0 live deterministic literals"][source].append(
                 (label, bool(t0.get("fired")) if t0.get("measured") else None)
             )
+            systems["T0 sourcing prescan"][source].append((label, bool(prescan.get("fired"))))
             systems["T1 reward_shortcut alone"][source].append(
                 (label, {"yes": True, "no": False}.get(answer))
             )
@@ -106,12 +108,8 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
                 (label, None if verdict["reward_real"] is None else not verdict["reward_real"])
             )
             usage[source].append(float((verdict.get("usage") or {}).get("calls") or 0))
-            t3_path = run / "t3.json"
-            ruling = (
-                json.loads(t3_path.read_text())["rulings"].get("reward_shortcut")
-                if t3_path.is_file()
-                else None
-            )
+            t3_path = run / "t3" / "reward_shortcut.json"
+            ruling = json.loads(t3_path.read_text()) if t3_path.is_file() else {}
             records.append(
                 {
                     "id": row_id,
@@ -119,9 +117,12 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
                     "label": label,
                     "t0_cached": (t0.get("combined_v1_cached") or {}).get("flagged"),
                     "t0_live": bool(t0.get("fired")) if t0.get("measured") else None,
+                    "prescan": bool(prescan.get("fired")),
                     "t1_reward_shortcut": answer,
-                    "t2_ran": (run / "t2.json").is_file(),
-                    "t3_reward_shortcut": (ruling or {}).get("status"),
+                    "t1_inspection_complete": (t1.get("inspection") or {}).get("complete"),
+                    "t1_forced": bool(t1.get("forced")),
+                    "t3_reward_shortcut": ruling.get("status"),
+                    "t3_by": ruling.get("by"),
                     "reward_hacking": verdict["reward_hacking"],
                     "reward_real": verdict["reward_real"],
                     "pipeline": verdict["pipeline"],

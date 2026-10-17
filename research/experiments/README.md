@@ -13,6 +13,7 @@ and are not committed.
 | `preambles/` | Extra-instruction files for studies the runner cannot yet express |
 | `baselines/` | Free oracle/nop matrices (`evallab matrix` only) |
 | `local-controls.json` | Original event-summary oracle/nop matrix (kept; tests load it) |
+| `repaired-data-sft-v2/` | Evidence-bound clean/token-matched/correction data admission and named-arm task-paired analysis |
 
 Validate the current ledger and its known-bad regression fixtures with:
 
@@ -76,3 +77,42 @@ Each invocation's per-run outcome, including refusals, is appended separately to
 `.executor/<matrix_id>.matrix.invocations.jsonl`. Reuse still checks the actual
 job evidence and any executor failure state; a preserved receipt does not turn
 failed or incomplete execution into a pass.
+
+## Repaired-data SFT v2
+
+`repaired-data-sft-v2/build.py` consumes hash-bound native result/ATIF inventories,
+the frozen all33 held-out authority, hardened-v6 and its exact repaired-child
+lineage, and retained native replay/control evidence. Run from the locked root
+QA environment with the isolated SFT client's pinned tokenizer dependencies:
+
+```bash
+HF_HUB_OFFLINE=1 uv run --locked \
+  --with transformers==5.12.1 --with modal==1.5.5 \
+  --with huggingface-hub==1.9.2 --with jinja2==3.1.6 \
+  python research/experiments/repaired-data-sft-v2/build.py \
+  --inputs inputs.json --tokenizer-dir /absolute/pinned/local/snapshot \
+  --epochs 1 --require-d --out /absolute/new/output
+```
+
+Its module help documents `repaired-data-sft-v2.inputs/1`. B requires at least51
+distinct, nonzero-loss rows passing both exact controlled graders. C is a seeded
+randomized **feasible subset**, not a uniform sample; supervised assistant-token
+exposure matches exactly over common complete epochs, or admission refuses.
+D targets only genuine new corrected assistant turns after source-preserving
+failed-test feedback and a native repaired-grader 0→1 transition. All33 frozen
+parents and resolved descendants are excluded from every training population.
+`--plan` writes prospective accounting only; it never exports trainable arms.
+No truncation, row padding, B-as-C fallback, or fabricated D is permitted.
+
+`repaired-data-sft-v2/analyze.py --plan PLAN.json --out REPORT.json` validates each
+arm's complete authorized raw task/attempt map before applying the requested
+cohort and selected-attempt view. The `repaired-data-sft.analysis-plan/v2` contract
+is documented in its module help. Primary comparisons use measured common
+tasks, exact sign fractions and paired-**task** bootstrap difference CIs; full
+schedule rates and pin regrades remain separately labelled. Missing/error rows
+are unmeasured, never imputed failures. Existing report files are not overwritten.
+
+`m1-cohort.json` freezes the accepted v1 report's26-task attempt1 comparison
+cohort for new Base/A cells. This cohort is conditioned on prior C measurability;
+it is not a new unbiased all33-task population, nor permission to narrow the
+all33 training exclusion or the original B/C raw schedules.

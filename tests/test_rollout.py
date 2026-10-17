@@ -6,6 +6,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
+from types import SimpleNamespace
 
 import pytest
 
@@ -117,7 +118,11 @@ def test_production_spec_names_are_admitted() -> None:
         assert spec.name.endswith("-a1")
 
 
-def test_failed_trial_emits_error_row_not_a_pass(tmp_path: Path) -> None:
+@pytest.mark.parametrize("reward", [None, 0.0, 1.0])
+@pytest.mark.parametrize("exception_info", [{"exception_type": "RuntimeError"}, {}])
+def test_native_exception_precedes_any_verifier_reward(
+    tmp_path: Path, reward: float | None, exception_info: dict[str, str]
+) -> None:
     from evallab.rollout import _outcome
 
     job_dir = tmp_path / "job"
@@ -126,15 +131,19 @@ def test_failed_trial_emits_error_row_not_a_pass(tmp_path: Path) -> None:
     (trial / "result.json").write_text(
         json.dumps(
             {
-                "verifier_result": None,
-                "exception_info": {"exception_type": "RuntimeError"},
+                "verifier_result": {"rewards": {"reward": reward}},
+                "exception_info": exception_info,
             }
         )
     )
     outcome = _outcome(tmp_path / "task", "rollout-x", job_dir, 1.0, None)
     assert outcome.reward is None
     assert outcome.passed is None
-    assert outcome.error is not None and "RuntimeError" in outcome.error
+    assert outcome.error is not None
+    if exception_info:
+        assert "RuntimeError" in outcome.error
+    summary = summarize([outcome], 1.0)
+    assert summary["completed"] == 0 and summary["errors"] == 1
 
 
 def _capture_executor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> list:
@@ -289,6 +298,39 @@ def test_run_rollout_spec_refuses_when_declared_id_mismatches_record(
         validate_request(request, repo_root=root)
 
 
+def _provider_usage() -> dict:
+    return {
+        "schema_version": 2,
+        "calls": [
+            {
+                "call_id": 1,
+                "state": "reconciled",
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "cost_micros": 50_000,
+            }
+        ],
+        "totals": {
+            "requests": 1,
+            "input_tokens": 1000,
+            "output_tokens": 500,
+            "total_tokens": 1500,
+            "cost_micros": 50_000,
+        },
+        "attempted": {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_micros": 0,
+        },
+        "unresolved_requests": 0,
+        "pricing": {
+            "input_cost_micros_per_million": 25_000_000,
+            "output_cost_micros_per_million": 50_000_000,
+        },
+    }
+
+
 def _fake_execute(request):  # type: ignore[no-untyped-def]
     job_dir = request.jobs_dir / request.name
     trial = job_dir / f"{request.name}__trial"
@@ -301,11 +343,7 @@ def _fake_execute(request):  # type: ignore[no-untyped-def]
             {
                 "started_at": "2026-10-16T00:00:00+00:00",
                 "finished_at": "2026-10-16T00:01:00+00:00",
-                "provider_usage": {
-                    "input_tokens": 1000,
-                    "output_tokens": 500,
-                    "cost_usd": 0.05,
-                },
+                "provider_usage": _provider_usage(),
             }
         ),
         encoding="utf-8",
@@ -364,7 +402,8 @@ def test_one_failed_trial_does_not_kill_the_batch(tmp_path: Path) -> None:
     assert any("sandbox refused" in (row["error"] or "") for row in rows)
 
 
-def test_summarize_handles_no_completions() -> None:
+@pytest.mark.parametrize("error", ["boom", None])
+def test_summarize_handles_no_completions(error: str | None) -> None:
     outcome = TrialOutcome(
         task="t",
         name="rollout-000-t",
@@ -377,11 +416,13 @@ def test_summarize_handles_no_completions() -> None:
         model_cost_usd=None,
         sandbox_cost_usd=None,
         job_dir="",
-        error="boom",
+        error=error,
     )
     summary = summarize([outcome], batch_wall_seconds=10.0)
     assert summary["pass_rate"] is None and summary["cost_per_task_usd"] is None
     assert summary["tasks_per_hour"] == 0.0
+    assert summary["completed"] == 0 and summary["errors"] == 1
+    assert summary["total_cost_usd"] is None
 
 
 def test_fast_completion_is_persisted_while_first_trial_is_blocked(tmp_path: Path) -> None:
@@ -458,8 +499,6 @@ def test_failed_snapshot_replace_keeps_previous_results(
 
 @pytest.mark.parametrize("error", ["trial_wall_clock_timeout", "proxy_usage_unreconciled"])
 def test_dispatcher_failure_overrides_native_reward(tmp_path: Path, error: str) -> None:
-    from types import SimpleNamespace
-
     from evallab.rollout import _outcome
 
     task = _task(tmp_path, "task")
@@ -468,3 +507,135 @@ def test_dispatcher_failure_overrides_native_reward(tmp_path: Path, error: str) 
     assert outcome.error == error
     assert outcome.reward is None and outcome.passed is None
     assert outcome.task == str(task) and outcome.job_dir == str(job_dir)
+
+
+@pytest.mark.parametrize("schema_version", [1, 2])
+def test_native_ledger_usage_excludes_unsettled_reservations(
+    tmp_path: Path, schema_version: int
+) -> None:
+    from evallab.rollout import _outcome
+
+    task = _task(tmp_path, "task")
+    job = _fake_execute(SimpleNamespace(jobs_dir=tmp_path / "jobs", name="native"))
+    metadata_path = job / "lab-metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    usage = metadata["provider_usage"]
+    usage["schema_version"] = schema_version
+    usage["calls"].append(
+        {
+            "call_id": 2,
+            "state": "reserved",
+            "reserved_input_tokens": 100_000,
+            "reserved_output_tokens": 200_000,
+            "reserved_cost_micros": 9_000_000,
+        }
+    )
+    usage["attempted"] = {
+        "requests": 1,
+        "input_tokens": 100_000,
+        "output_tokens": 200_000,
+        "cost_micros": 9_000_000,
+    }
+    usage["unresolved_requests"] = 1
+    if schema_version == 1:
+        # Historical v1 totals mix consumed usage and unsent reservations.
+        usage["totals"] = {
+            "requests": 2,
+            "input_tokens": 101_000,
+            "output_tokens": 200_500,
+            "total_tokens": 301_500,
+            "cost_micros": 9_050_000,
+        }
+    metadata_path.write_text(json.dumps(metadata))
+
+    outcome = _outcome(task, "native", job, 60.0, None)
+    assert (outcome.input_tokens, outcome.output_tokens) == (1000, 500)
+    assert outcome.model_cost_usd == 0.05
+
+
+@pytest.mark.parametrize(
+    "gap", ["invalid_totals", "missing_pricing", "selfhosted", "missing_sandbox_time"]
+)
+def test_unknown_cost_never_becomes_a_complete_total(tmp_path: Path, gap: str) -> None:
+    from evallab.rollout import _outcome
+
+    task = _task(tmp_path, "task")
+    job = _fake_execute(SimpleNamespace(jobs_dir=tmp_path / "jobs", name="native"))
+    metadata_path = job / "lab-metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    usage = metadata["provider_usage"]
+    if gap == "invalid_totals":
+        usage["totals"]["cost_micros"] += 1
+    elif gap == "missing_pricing":
+        del usage["pricing"]
+    elif gap == "selfhosted":
+        usage["pricing"] = {
+            "input_cost_micros_per_million": 0,
+            "output_cost_micros_per_million": 0,
+        }
+        usage["totals"]["cost_micros"] = 0
+        usage["calls"][0]["cost_micros"] = 0
+    else:
+        del metadata["finished_at"]
+    metadata_path.write_text(json.dumps(metadata))
+
+    outcome = _outcome(task, "native", job, 60.0, None)
+    # Unavailable/unreconciled accounting cannot rewrite an observed trial grade.
+    assert outcome.reward == 1.0 and outcome.error is None
+    if gap == "missing_sandbox_time":
+        assert outcome.model_cost_usd == 0.05 and outcome.sandbox_cost_usd is None
+    else:
+        assert outcome.model_cost_usd is None
+    if gap == "invalid_totals":
+        assert outcome.input_tokens is None and outcome.output_tokens is None
+    summary = summarize([outcome], 60.0)
+    assert summary["total_cost_usd"] is None
+    assert summary["cost_per_task_usd"] is None
+
+
+def test_failed_trial_cost_is_retained_in_batch_and_spend(tmp_path: Path) -> None:
+    def execute(request):
+        job = _fake_execute(request)
+        if "task-b" in request.name:
+            raise RuntimeError("failed after consuming resources")
+        return job
+
+    out = tmp_path / "out"
+    summary = run_rollout(
+        [_task(tmp_path, "task-a"), _task(tmp_path, "task-b")],
+        model="tinker/Qwen/Qwen3.5-9B",
+        concurrency=2,
+        out_dir=out,
+        root=tmp_path,
+        execute=execute,
+    )
+    expected = round(2 * (0.05 + sandbox_cost_usd(60, cpus=2, memory_mb=8192)), 4)
+    assert summary["completed"] == 1 and summary["errors"] == 1
+    assert summary["total_cost_usd"] == expected
+    assert summary["cost_per_task_usd"] == expected
+    assert json.loads((out / "spend.jsonl").read_text())["cost_usd"] == expected
+
+
+def test_missing_grade_is_unmeasured_but_keeps_observed_cost(tmp_path: Path) -> None:
+    def execute(request):
+        job = _fake_execute(request)
+        trial = job / f"{request.name}__trial"
+        (trial / "result.json").write_text(json.dumps({"verifier_result": None}))
+        return job
+
+    out = tmp_path / "out"
+    summary = run_rollout(
+        [_task(tmp_path, "task")],
+        model="tinker/Qwen/Qwen3.5-9B",
+        out_dir=out,
+        root=tmp_path,
+        execute=execute,
+    )
+    row = json.loads((out / "results.jsonl").read_text())
+    assert row["reward"] is None and row["passed"] is None and row["error"] is not None
+    assert summary["completed"] == 0 and summary["errors"] == 1
+    assert summary["pass_rate"] is None and summary["tasks_per_hour"] == 0.0
+    assert summary["total_cost_usd"] == round(
+        0.05 + sandbox_cost_usd(60, cpus=2, memory_mb=8192), 4
+    )
+    assert summary["cost_per_task_usd"] is None

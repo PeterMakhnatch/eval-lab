@@ -58,12 +58,20 @@ keys run -- uv run --no-sync evallab rollout run \
   running. The file is replaced atomically; a terminated driver leaves a
   complete snapshot of measured terminal outcomes, not a truncated row.
   A non-done queue state always has an error and null reward/pass, even
-  when its job contains an earlier native reward.
-- `summary.json`: trials, completed, errors, pass rate, batch wall,
-  tasks/hour, total cost, cost per task. Refreshed with each completion;
-  while a batch is active its counts cover only persisted terminal rows.
+  when its job contains an earlier native reward. Otherwise any non-null
+  native exception takes precedence over a coincident verifier reward.
+  A missing verifier reward is also an explicit unmeasured error, not a
+  completed trial in the pass-rate denominator.
+- `summary.json`: trials, measured completions, errors, pass rate, batch
+  wall, tasks/hour, total cost, cost per completed task. Cost includes
+  **all persisted outcomes**, including failed/unmeasured trials; only
+  measured completions enter throughput and pass-rate denominators.
+  Cost per completed task uses that whole-batch numerator. Both cost
+  totals remain null if any outcome lacks model-cost or sandbox-duration
+  evidence. Refreshed with each completion; while a batch is active its
+  counts cover only persisted terminal rows.
 - `spend.jsonl`: one row tagged `2026-10-16` for the day ledger, refreshed
-  with the current summary.
+  with the current all-outcome cost, including null when incomplete.
 
 On normal exit the results include every submitted spec, including an
 explicit error row for work still nonterminal at the driver's deadline.
@@ -74,13 +82,24 @@ authoritative; an output-filesystem error cannot reclassify a done trial.
 
 ## Cost model
 
-Model tokens settle through the proxy ledger at the pinned Tinker
-prices recorded in `lab-metadata.json`. The Modal sandbox is an
-estimate: Harbor trial seconds at Modal list prices (CPU
-$0.0000131/core/s, memory $0.00000222/GiB/s) with the task's declared
-`[environment]` resources. Rows keep the two apart; the summary adds
-them. Modal's billed total also lands in the day ledger under the
-default Harbor app.
+Model tokens and dollars come from the shared strict proxy-ledger reader
+over `lab-metadata.json#provider_usage`, not an unvalidated flat usage
+summary. It reads the actual v1/v2 call lifecycle and cross-checks v2
+totals: settled input/output tokens exclude unresolved reservations;
+settled dollars require recorded pinned pricing. Malformed accounting
+stays unknown without retroactively failing an observed trial grade.
+
+The Modal sandbox cost is an estimate: recorded job seconds at Modal
+list prices (CPU $0.0000131/core/s, memory $0.00000222/GiB/s) with the
+task's declared `[environment]` resources. Missing durations are unknown,
+not zero. Rows preserve each component even when the batch total cannot
+be established.
+
+Zero token prices on a self-hosted route do **not** price its serving
+app: model cost and the batch total remain null. That separate time and
+billing evidence must be accounted independently. The rollout estimate is neither a
+provider invoice nor a financial-cap guard; serving, unresolved
+exposure and other unpriced resources require their own accounting.
 
 ## Throughput
 

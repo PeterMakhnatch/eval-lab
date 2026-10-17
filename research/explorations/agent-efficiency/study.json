@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "started_at_utc": "2026-10-17T06:12:43.108553+00:00",
+  "requested_work_period_hours": [6, 8],
+  "baseline_revision": "5171c20c7d1f5c00d020db6087eac3041f94bf13",
+  "goal": "More verified work per frontier-model token without trading away required behavior or evidence fidelity.",
+  "spending": {
+    "new_paid_api_or_compute_authorized": false,
+    "included_subscriptions_only": true,
+    "local_generative_inference_allowed": false,
+    "quota_stop_percent": 60
+  },
+  "experiments": [
+    {
+      "id": "contextpack-priority-and-assignment",
+      "baseline": "Pinned baseline compiler, same current documentation corpus as candidate",
+      "candidate": "Inventory-first shedding, current-state context last, assignment-appropriate builder brief",
+      "metrics": ["bytes", "estimated_tokens_not_provider_tokens", "retained_source_digests", "semantic_and_safety_coverage", "determinism", "runtime_seconds"],
+      "acceptance": ["Preserve governing instructions or explicitly disclose omission; omissions never waive requirements", "Preserve verbatim relevant source excerpts", "Do not prescribe task authoring for unrelated implementation assignments", "Do not invent a mandatory separate reviewer or human handoff gate"],
+      "quality_limit": "Retention and instruction correctness are not coding-success parity. Smaller output alone is not acceptance."
+    },
+    {
+      "id": "bounded-trajectory-navigation",
+      "baseline": "Full existing outline JSON and default raw-source trace-reading guidance",
+      "candidate": "Summary-first full-run metrics, followed by explicit inclusive logical step windows with original source coordinates",
+      "metrics": ["serialized_bytes", "exact_full_run_metrics", "source_digest_and_step_identity", "provider_input_output_cached_tokens", "task_answer_correctness", "tool_calls", "latency_seconds", "all_attempt_failures"],
+      "acceptance": ["All aggregate fields and file citations retain exact full-run values", "Selected steps retain original source path, digest and source step ID across continuations", "Missing and invalid ranges cannot appear as empty successful evidence", "Unknown cost and unavailable sources stay unknown or unavailable", "Unselected full JSON remains unchanged", "Use paired task identities and count unsuccessful or missing model attempts"],
+      "quality_limit": "Local navigation probes are exploratory and not hermetic Harbor coding evaluations or proof across unseen tasks/models."
+    },
+    {
+      "id": "devloop-local-computation-and-json",
+      "baseline": "Pinned baseline implementation, same synthetic and real checkout corpus",
+      "candidate": "Invocation-local test inventory and uncontaminated machine-readable output",
+      "metrics": ["test_file_reads", "AST_parses", "selected_modules", "reasons", "lane", "command", "runtime_seconds", "child_exit_status", "stdout_json_parseability"],
+      "acceptance": ["Preserve existing direct-reference impact semantics", "Preserve child failure status", "Emit a parseable single JSON document when JSON was requested"],
+      "quality_limit": "Less repeated local computation is not itself a measured reduction in model tokens. Direct-reference selection is not a complete dependency closure."
+    }
+  ],
+  "follow_up_experiments": [
+    {
+      "id": "fused-first-error-heldout-navigation",
+      "registered_at_utc": "2026-10-17T07:47:32Z",
+      "why_now": "The completed original navigation study preserved exact answers but bounded guidance increased command count. A deterministic six-source CLI check then established that first-error fusion preserves selected records and whole-run accounting while avoiding the summary-to-range round trip.",
+      "selection": "Use the same seed and frozen eligibility rules, but ranks 7 through 12 of the original hash-ranked distinct-native-head pool; do not consult reward, exception, verifier, or processed outcomes to select them.",
+      "baseline": "Full existing outline JSON, unchanged default readout",
+      "candidate": "One first-error readout, then the same raw-source access if needed; recommendations are not access restrictions",
+      "planned": {"sources": 6, "repeats_per_source": 2, "arms": 2, "maximum_codex_exec_invocations": 24},
+      "acceptance": ["Use the same six mechanical fact fields and frozen exact scorer as the first navigation study", "Retain all planned failed, missing, timed-out, or quota-blocked attempts", "Verify source hashes and code identity before admission", "Keep repeats nested by native source and disclose repeated underlying benchmark tasks"],
+      "quality_limit": "This compares full versus fused guidance on a new held-out source cohort. It does not causally estimate fused versus old summary-range guidance by subtracting results across different cohorts, and is not general coding-quality parity."
+    },
+    {
+      "id": "structured-policy-submission-protocol",
+      "registered_at_utc": "2026-10-17T07:47:32Z",
+      "why_now": "Original cross-family probes exposed fenced JSON and overlength source-copy failures. Quote and reference protocol code has offline controls; tagged gateway source additionally shows response_format is parsed but not forwarded in the installed release. A separately logged two-call capability probe tests that boundary, not policy quality.",
+      "candidate_factors": ["Exact quote versus frozen visible source-fragment references", "Plain text versus an explicitly requested terminal tool submission, with the unchanged strict answer and grounding scorer"],
+      "baseline": "Original quote/text prompts and hidden keys remain byte-identical; preserve completed original results rather than regrade or repair them",
+      "admission": "Technical pilots first, maximum four calls each; then at most sixteen complete-pair calls per admitted protocol cell if route, quota, source, and parsing controls pass",
+      "admission_details_registered_at_utc": "2026-10-17T08:19:37Z",
+      "protocol_cells_in_fixed_order": ["reference/text", "quote/tool-submit", "reference/tool-submit"],
+      "technical_pilot": {"task": "policy-v1-contextpack-builder", "models": 2, "compiler_arms": 2, "repeats": 1, "maximum_calls_per_cell": 4},
+      "main_per_admitted_cell": {"tasks": 4, "models": 2, "compiler_arms": 2, "repeats": 1, "maximum_calls": 16},
+      "technical_admission_rule": "Require valid source/runtime, quota, exact requested/self-reported route and wire request pins. Tool cells additionally require exact serialized single-call admission and SDK agreement. Do not condition admission on correct policy choices or grounding scores; those are measured quality outcomes and all remain in the denominator. Preserve failed technical pilots separately. No native-schema quality cell is admitted merely because an ignored request parameter was accepted.",
+      "baseline_repeat_policy": "Retain both completed original quote/text repeats and report their full denominators. New main cells have one repeat; comparisons are exploratory with repeats nested under four original contexts, not additional independent tasks.",
+      "acceptance": ["Unknown, duplicate, ambiguous, tampered, unseen, missing and refused references remain failures", "No fence stripping, quote truncation, fallback request, or validator widening", "Retain all failures and unknown usage", "Native JSON-schema request parameters are not evidence of provider enforcement"],
+      "quality_limit": "Small instruction/citation probes, not coding non-inferiority or independent-question sampling."
+    },
+    {
+      "id": "native-reasoning-effort-fixed-context",
+      "registered_at_utc": "2026-10-17T08:44:32.657228Z",
+      "why_now": "The completed two-repeat coding study retained all six passes per arm but reduced reported input/output only 0.439% and increased uncached input 8.27%; the pilot-sized cost gain did not replicate. Test an independent requested-effort factor.",
+      "planned": {"original_problems": 3, "nested_repeats": 2, "arms": 2, "maximum_native_exec_invocations": 12},
+      "baseline": "Candidate compiler context with requested high reasoning effort",
+      "candidate": "The exact same candidate compiler context with requested medium reasoning effort",
+      "acceptance": ["Identical prompt and pack hashes across arms for each task", "Fresh complete pinned baseline snapshots, opaque workspaces, unchanged source-only write scope and frozen external graders", "Alternate first arm by original task and nested repeat", "Same requested model and native binary; no runtime/model preference adoption", "Included subscription only, reported weekly usage below 60 percent before each attempt; no native five-hour window is currently reported", "Retain every planned failed, missing, timed-out or quota-blocked attempt and unknown usage; no attempted generation retries", "Report total, cached and uncached input separately, plus output and actual behavioral/source-scope grades"],
+      "quality_limit": "Three convenience problems with nested repeats, not independent new tasks or broad non-inferiority. Requested effort is not provider attestation; logical usage does not establish all physical upstream consumption or invoice cost."
+    },
+    {
+      "id": "native-explicit-verification-owner",
+      "registered_at_utc": "2026-10-17T08:55:59.901074Z",
+      "why_now": "All 18 completed native coding attempts performed checks: 70 check-bearing command items among 224 command items. The common assignment did not explicitly delegate verification and asked for checks performed, so this is observed work and ambiguous ownership, not established violations or waste.",
+      "planned": {"original_problems": 3, "nested_repeats": 1, "arms": 2, "maximum_native_exec_invocations": 6},
+      "baseline": "Explicit primary implementation owner with focused self-verification",
+      "candidate": "Explicit background implementation worker; parent alone owns external verification",
+      "controls": ["Same candidate compiler pack and requested high effort", "Same original public feature requests, complete baseline source, edit scopes, native model/binary and frozen external grader", "Same explicit snapshot capabilities and compact-diagnostic instruction in both arms", "Alternate first arm by original task", "Included subscription only, reported weekly quota below 60 percent, no generation retry or default/runtime preference adoption"],
+      "acceptance": ["Retain every planned failure, missing result, timeout and quota-blocked attempt", "Report external behavioral/source-scope grades separately from instruction-compliance observations", "Report total, cached and uncached input separately plus output and deduplicated command/check/patch operations", "Preserve the original preparation manifest and grading contract; derive new owner prompts into separately pinned files"],
+      "quality_limit": "Removing self-checks may remove useful correction. This three-task probe tests that tradeoff without assuming parity; equal observed grades are not broad non-inferiority and failed external grades remain failures."
+    },
+    {
+      "id": "native-parent-owned-effort-composition",
+      "registered_at_utc": "2026-10-17T11:17:52.283844+00:00",
+      "not_preregistered_with_initial_study": true,
+      "private_preregistration_sha256": "3641e18e9397632a546e6c1d0635b1ac0946824d44d9165e4059bfcb61fbb708",
+      "why_now": "The original medium failures were test-generated out-of-scope data writes, while explicit edit-only parent verification passed the three original tasks. Test the composition without assuming effects add or subtract across studies.",
+      "planned": {"original_problems": 3, "nested_repeats": 1, "arms": 2, "maximum_native_exec_invocations": 6},
+      "baseline": "Candidate compiler with explicit edit-only parent verification and requested high effort",
+      "candidate": "Identical complete parent-verified prompts and candidate compiler with requested medium effort",
+      "controls": ["Both complete prompt byte strings match within each pair", "Preserve the original source-only write scope and frozen external grader", "All six failing-baseline and positive-patch controls passed before model admission", "Fresh included-subscription quota admission and unchanged native runtime; no generation retries or default adoption"],
+      "acceptance": ["Retain every planned failed, missing, timed-out and quota-blocked attempt", "Keep instruction compliance separate from behavioral and source-scope acceptance", "Report cached, noncached, output and total usage separately; fewer commands need not imply fewer tokens", "Archive actual admitted runtime separately from subsequently safer preparation helpers"],
+      "quality_limit": "Same three convenience problems and one repeat, not independent held-out tasks, an actual fallback cascade, broad quality parity or provider attestation."
+    }
+  ],
+  "analysis_rules": [
+    "Pin source bytes with full SHA-256 digests, not generated structural repo-map digests",
+    "Counterbalance paired arm order deterministically and retain all raw attempts privately",
+    "Keep repeats nested under original task identity; do not fabricate independent bootstrap units",
+    "Normalize provider usage names explicitly; missing counters and monetary cost stay unknown",
+    "Report cache-read tokens separately and do not equate subscription usage or catalog prices with an invoice",
+    "Do not promote a context-size reduction into an unmeasured frontier-model quality claim",
+    "Archive raw private traces outside version control; commit only privacy-safe findings and reproducible code"
+  ]
+}

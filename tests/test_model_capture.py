@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import pyarrow.parquet as pq
 import pytest
 
 from evallab import model_capture
@@ -301,6 +302,108 @@ def test_sse_reassembly_unit() -> None:
         {"content": "b"},
     ]
     assert extract_from_sse("chat", raw).assistant_texts == ["ab"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "usage"),
+    [
+        (
+            "chat",
+            {
+                "prompt_tokens": 30,
+                "completion_tokens": 7,
+                "prompt_tokens_details": {"cached_tokens": 20},
+            },
+        ),
+        (
+            "responses",
+            {
+                "input_tokens": 30,
+                "output_tokens": 7,
+                "input_tokens_details": {"cached_tokens": 20},
+            },
+        ),
+    ],
+)
+def test_openai_usage_does_not_add_cached_subset(kind: str, usage: dict[str, Any]) -> None:
+    turns = extract_from_payload(kind, {"usage": usage})
+    assert turns.usage == {"prompt_tokens": 30, "completion_tokens": 7}
+
+
+def test_anthropic_explicit_zero_usage_is_known() -> None:
+    turns = extract_from_payload(
+        "anthropic_messages",
+        {
+            "usage": {
+                "input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+                "output_tokens": 0,
+            }
+        },
+    )
+    assert turns.usage == {"prompt_tokens": 0, "completion_tokens": 0}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"cache_read_input_tokens": None},
+        {"cache_read_input_tokens": True},
+        {"cache_creation_input_tokens": -1},
+        {"cache_creation_input_tokens": 2.5},
+        {"input_tokens": None},
+        {"output_tokens": "20"},
+    ],
+)
+def test_anthropic_unknown_or_invalid_usage_is_not_zero(changes: dict[str, Any]) -> None:
+    usage = {
+        "input_tokens": 1000,
+        "cache_read_input_tokens": 600,
+        "cache_creation_input_tokens": 200,
+        "output_tokens": 20,
+        **changes,
+    }
+    assert extract_from_payload("anthropic_messages", {"usage": usage}).usage is None
+
+
+def test_anthropic_absent_cache_counters_leave_usage_unknown() -> None:
+    payload = {"usage": {"input_tokens": 1000, "output_tokens": 20}}
+    assert extract_from_payload("anthropic_messages", payload).usage is None
+
+
+@pytest.mark.parametrize(
+    ("updates", "expected"),
+    [
+        ([], None),
+        ([{"output_tokens": 0}], {"prompt_tokens": 1800, "completion_tokens": 0}),
+        (
+            [{"output_tokens": 3}, {"output_tokens": 7}],
+            {"prompt_tokens": 1800, "completion_tokens": 7},
+        ),
+        ([{"output_tokens": 7, "cache_read_input_tokens": None}], None),
+    ],
+    ids=["interrupted", "explicit-zero", "cumulative-not-additive", "unknown-cache-update"],
+)
+def test_anthropic_sse_usage_requires_observed_output(
+    updates: list[dict[str, Any]], expected: dict[str, int] | None
+) -> None:
+    events = [
+        {
+            "type": "message_start",
+            "message": {
+                "usage": {
+                    "input_tokens": 1000,
+                    "cache_read_input_tokens": 600,
+                    "cache_creation_input_tokens": 200,
+                    "output_tokens": 2,
+                }
+            },
+        },
+        *({"type": "message_delta", "usage": update} for update in updates),
+    ]
+    raw = b"".join(b"data: " + json.dumps(event).encode() + b"\n\n" for event in events)
+    assert extract_from_sse("anthropic_messages", raw).usage == expected
 
 
 def test_header_selection_and_key_redaction() -> None:
@@ -603,7 +706,7 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
                 "started_at": "2026-01-01T00:10:00Z",
                 "ended_at": "2026-01-01T00:10:02Z",
                 "method": "POST",
-                "path": "/v1/chat/completions",
+                "path": "/v1/messages",
                 "route_token": "trial-a",
                 "session_id": None,
                 "request_body": {"messages": [{"role": "user", "content": "do the thing"}]},
@@ -611,7 +714,21 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
                 "response_sse": False,
                 "assistant_texts": ["all done"],
                 "tool_calls": [],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+                "usage": extract_from_payload(
+                    "anthropic_messages",
+                    {
+                        "usage": {
+                            "input_tokens": 2,
+                            "cache_read_input_tokens": 5,
+                            "cache_creation_input_tokens": 3,
+                            "cache_creation": {
+                                "ephemeral_5m_input_tokens": 1,
+                                "ephemeral_1h_input_tokens": 2,
+                            },
+                            "output_tokens": 2,
+                        }
+                    },
+                ).usage,
                 "model": "stub",
                 "upstream_latency_s": 0.01,
                 "error": None,
@@ -643,7 +760,10 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
     by_name = {t["trial_name"]: t for t in receipt["trials"]}
     assert by_name["trial-a"]["verdict"] == "complete"
     assert by_name["trial-b"]["verdict"] == "capture_missing"
-    assert (derived / "job_id=job-job1" / "model_calls.parquet").is_file()
+    call_table = pq.ParquetFile(derived / "job_id=job-job1" / "model_calls.parquet").read(
+        columns=["prompt_tokens", "completion_tokens"]
+    )
+    assert call_table.to_pylist() == [{"prompt_tokens": 10, "completion_tokens": 2}]
     assert (derived / "job_id=job-job1" / "trial_capture.parquet").is_file()
     assert (derived / "job_id=job-job1" / "capture_link.json").is_file()
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived / "parquet"))

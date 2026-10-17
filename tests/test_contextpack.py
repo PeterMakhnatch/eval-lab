@@ -34,7 +34,6 @@ from evallab.contextpack import (
     parse_doc,
     parse_front_matter,
     query_task_facets,
-    render_mission_brief_template,
     render_task_facets_section,
     repo_root,
     select_docs,
@@ -276,38 +275,6 @@ class TestTaskFacetsAndPatterns:
         assert "## Target Task: `nonexistent/task-ref-999`" in res.markdown
 
 
-class TestMissionBriefs:
-    """Test mission brief rendering for each role."""
-
-    def test_render_builder_brief(self) -> None:
-        brief = render_mission_brief_template("builder", task_ref="test/task")
-        assert "Mission Brief & Execution Guide: `builder`" in brief
-        assert "Objective: Authoring & Quality Certification" in brief
-        assert "Task Package Layout" in brief
-        assert "Local Free Controls" in brief
-        assert "Workbench Certification" in brief
-        assert "Target Task Reference: `test/task`" in brief
-
-    def test_render_analyst_brief(self) -> None:
-        brief = render_mission_brief_template("analyst")
-        assert "Mission Brief & Execution Guide: `analyst`" in brief
-        assert "Objective: Evidence & Trajectory Analysis" in brief
-        assert "ATIF Citation Grounding" in brief
-
-    def test_render_runner_brief(self) -> None:
-        brief = render_mission_brief_template("runner")
-        assert "Mission Brief & Execution Guide: `runner`" in brief
-        assert "Objective: Experiment Execution & Queue Management" in brief
-        assert "Preflight Check" in brief
-        assert "Required Purpose" in brief
-
-    def test_render_operator_brief(self) -> None:
-        brief = render_mission_brief_template("operator")
-        assert "Mission Brief & Execution Guide: `operator`" in brief
-        assert "Objective: Platform Operations & Fleet Health" in brief
-        assert "System Health Check" in brief
-
-
 class TestCLI:
     """Test command-line execution."""
 
@@ -443,12 +410,12 @@ Essential builder instructions.
             encoding="utf-8",
         )
 
-        # Build with budget that only fits the essential workbench + brief (budget=800)
+        # Budget fits the essential workbench, protected instructions, and audit notice.
         res = build_context_pack(
             "builder",
             docs_dir=docs_dir,
             root=tmp_path,
-            token_budget=800,
+            token_budget=1100,
         )
 
         assert res.truncated is True
@@ -465,7 +432,7 @@ Essential builder instructions.
         assert "docs/broad-platform.md" not in retained_paths
         # Mission brief is always intact
         assert "Mission Brief & Execution Guide: `builder`" in res.markdown
-        assert "Objective: Authoring & Quality Certification" in res.markdown
+        assert "Objective: Implementation & Task Quality" in res.markdown
 
     def test_truncation_notice_names_dropped_items_and_tokens_shed(self) -> None:
         res = build_context_pack("builder", token_budget=12_000)
@@ -498,7 +465,10 @@ Essential builder instructions.
         assert res.truncated is True
         assert len(res.docs) == 0
         assert "Mission Brief & Execution Guide: `builder`" in res.markdown
-        assert "Objective: Authoring & Quality Certification" in res.markdown
+        assert "Objective: Implementation & Task Quality" in res.markdown
+        assert "does not replace them or authorize execution" in res.markdown
+        assert "omission never waives required rules or checks" in res.markdown
+        assert res.estimated_tokens > 50
 
     def test_cli_budget_flags(self, capsys: pytest.CaptureFixture[str]) -> None:
         code_budget = main(["build", "builder", "--budget", "5000", "--json"])
@@ -837,7 +807,7 @@ State.
             "builder",
             docs_dir=docs_dir,
             root=tmp_path,
-            token_budget=1400,
+            token_budget=1800,
             paths=["src/evallab/runner.py"],
         )
 
@@ -1038,7 +1008,7 @@ State.
             "builder",
             docs_dir=docs_dir,
             root=tmp_path,
-            token_budget=1300,
+            token_budget=1600,
             paths=["src/evallab/runner.py"],
         )
 
@@ -1046,3 +1016,76 @@ State.
         assert "docs/specialized_doc.md" in res.dropped_items
         assert "docs/broad_doc.md" in [d.path for d in res.docs]
         assert "docs/broad_doc.md" not in res.dropped_items
+
+    @pytest.mark.parametrize("mission_type", ("builder", "analyst"))
+    def test_path_budget_sheds_inventories_before_semantics_and_now_last(
+        self, tmp_path: Path, mission_type: str
+    ) -> None:
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        bodies = {
+            "NOW.md": (
+                "# Current state\n\n"
+                "Preserve immutable evidence. Execution still needs applicable approval."
+            ),
+            "contract.md": (
+                "# Execution guide\n\n## Execution contract\n\n"
+                "`runner.py` must preserve immutable raw job directories."
+            ),
+            "incidental.md": (
+                "# Module inventory\n\n`runner.py`\n\n" + "Historical module row.\n" * 500
+            ),
+            "repo-map.md": ("# Generated inventory\n\n" + "`runner.py` inventory entry.\n" * 1000),
+        }
+        for name, body in bodies.items():
+            (docs_dir / name).write_text(
+                "---\nstatus: living\naudience: [builder, analyst]\n---\n\n" + body,
+                encoding="utf-8",
+            )
+
+        result = build_context_pack(
+            mission_type,
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+            token_budget=1600,
+        )
+        repeated = build_context_pack(
+            mission_type,
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+            token_budget=1600,
+        )
+
+        assert result.truncated
+        assert result.estimated_tokens <= 1600
+        assert result.dropped_items == ("docs/repo-map.md", "docs/incidental.md")
+        assert {doc.path for doc in result.docs} == {"docs/NOW.md", "docs/contract.md"}
+        assert result.doc_scores is not None
+        assert result.doc_scores["docs/NOW.md"] == 0
+        assert result.doc_scores["docs/repo-map.md"] > result.doc_scores["docs/contract.md"]
+        assert result.doc_sections is not None
+        assert result.doc_sections["docs/contract.md"] == ("Execution contract",)
+        assert bodies["NOW.md"] in result.markdown
+        assert bodies["contract.md"].split("\n\n", 1)[1] in result.markdown
+        assert "omission never waives required rules or checks" in result.markdown
+        assert result.markdown == repeated.markdown
+        assert result.to_dict() == repeated.to_dict()
+
+        # A budget smaller than the protected brief may still shed NOW, but only last.
+        extreme = build_context_pack(
+            mission_type,
+            docs_dir=docs_dir,
+            root=tmp_path,
+            paths=["src/evallab/runner.py"],
+            token_budget=50,
+        )
+        assert extreme.dropped_items == (
+            "docs/repo-map.md",
+            "docs/incidental.md",
+            "docs/contract.md",
+            "docs/NOW.md",
+        )
+        assert not extreme.docs
+        assert f"## Mission Brief & Execution Guide: `{mission_type}`" in extreme.markdown

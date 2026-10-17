@@ -649,9 +649,10 @@ argv: <grade_timeout> <workdir> [<orig> <saved>]... <output.json>
 (ExecutableJudge rewrites the last arg to a temp path.) Restores each
 collected submission copy at its original absolute path, stages the task's
 own tests/ tree at /tests, runs ``bash /tests/test.sh`` from the workdir
-(Harbor shared-mode grading), and converts /logs/verifier/reward.txt (or
+(collected-copy grading), and converts /logs/verifier/reward.txt (or
 reward.json) to karotte's {"score", "metadata"} with the embedded
-``evallab.interop.parse_reward_bytes`` (identical reward semantics).
+``evallab.interop.parse_reward_bytes``. This scalar, text-first conversion
+differs from Harbor's JSON-first keyed reward contract.
 Stale reward files are wiped first, so a planted reward can never be trusted.
 """
 from __future__ import annotations

@@ -1,0 +1,173 @@
+{
+  "acceptance": "blocked",
+  "final_delivery_checkpoint": {
+    "static_command": "scripts/premerge.sh --static",
+    "uv": "0.9.24",
+    "python": "3.12",
+    "ty": "0.0.71",
+    "type_diagnostics": 0,
+    "static_gates": ["locked install", "ruff", "docindex", "repomap", "governance", "registry audit", "lessons", "ty"],
+    "static_exit": 0,
+    "integrated_tests_command": ".venv/bin/python -m pytest -n 4 -rs tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py tests/test_cheat_docker.py",
+    "integrated_tests_exit": 0,
+    "passed": 239,
+    "skipped": 3,
+    "test_seconds": 113.52,
+    "count_change": "One incidental empty-list/loss-count assertion was removed rather than re-pinning documentation; the earlier baseline selection below had 240 passing tests.",
+    "docker_free_smoke_command": ".venv/bin/python -m evallab.smoke --docker-free",
+    "docker_free_smoke_exit": 0,
+    "docker_free_smoke_job": "smoke-oracle-srv607n5msn0",
+    "docker_free_smoke_observed": ["doctor", "submit->tick", "catalog", "parquet", "digest", "analysis validation", "status snapshot", "both-stores-agree"],
+    "scope": "All modified export reports were exercised with real task inputs separately; application smoke uses copied historical fixtures. Neither that smoke nor the three Docker skips is live destination parity."
+  },
+  "integrated_verification": {
+    "command": ".venv/bin/python -m pytest -n 4 -rs tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py tests/test_cheat_docker.py",
+    "dependency_profile": "uv sync --locked --python 3.12 --no-group observability --group inspect --group xplat-verifiers --group benchmarks --group lance --extra laminar",
+    "exit": 0,
+    "passed": 240,
+    "skipped": 3,
+    "seconds": 143.69,
+    "skip_reasons": {
+      "tests/test_grid.py": "One opt-in live Docker smoke was not enabled.",
+      "tests/test_cheat_docker.py": "Two live controls were refused by shared-daemon admission."
+    },
+    "initial_incomplete_profile": {
+      "passed": 233,
+      "failed": 7,
+      "skipped": 3,
+      "reason": "verifiers was installed without the optional Harbor runtime: ModuleNotFoundError: No module named 'harbor'",
+      "resolution": "Installed the locked laminar extra (Harbor 0.24.0) and reran the integrated selection successfully; no source failure was suppressed."
+    },
+    "scope": "Contract and fixture verification, not live destination parity. Skips do not count as executed controls."
+  },
+  "admission": {
+    "admitted": false,
+    "command": ".venv/bin/python -c 'from pathlib import Path; import json, evallab; from evallab.interop import load_harbor_task, admit_local_task; print(\"evallab_import=\" + str(evallab.__file__)); print(json.dumps(admit_local_task(load_harbor_task(\"library/tasks/event-summary\"), Path(\"runs/interop/har204-resume-20261017/admission\"), sandboxes=2), indent=2))'",
+    "exit": 1,
+    "implementation": "src/evallab/interop.py:585-656; src/evallab/campaign_execution.py:150-192",
+    "observed_at": "2026-10-17T14:38:41.337312+00:00",
+    "raw": "runs/interop/har204-resume-20261017/admission/admission.json",
+    "raw_sha256": "bbe120497027263f9b06ba172a1b9cc39f08da4b31d54f5242b04b3fbb7c6a12",
+    "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+    "requested": {
+      "cpus": 2,
+      "memory_mb": 1024
+    },
+    "sandboxes": 2,
+    "task": "library/tasks/event-summary",
+    "task_id": "local-lab/event-summary",
+    "task_version": "1.0.0"
+  },
+  "capacity_inventory": {
+    "daemon": {
+      "Architecture": "aarch64",
+      "MemTotal": 8318709760,
+      "NCPU": 16,
+      "OSType": "linux",
+      "ServerVersion": "29.8.0"
+    },
+    "mutations": [],
+    "observed_at": "2026-10-17T14:40:26.645750+00:00",
+    "running_containers": [
+      {
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "Memory": 3221225472,
+        "NanoCpus": 2000000000,
+        "id": "5a8fc9c20bfe",
+        "image": "evallab-ref-subset/format-code-task-000271:32e9bb74b3",
+        "name": "ref-subset-000271-32e9bb74b3-g"
+      },
+      {
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "Memory": 4294967296,
+        "NanoCpus": 2000000000,
+        "id": "6bead38dc93e",
+        "image": "evallab-ref-subset/format-code-task-000878:d03f9ed4b5",
+        "name": "ref-subset-000878-d03f9ed4b5-g"
+      },
+      {
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "Memory": 0,
+        "NanoCpus": 0,
+        "id": "ffaebab177dc",
+        "image": "postgres:18.4-alpine3.24",
+        "name": "eval-lab-postgres-1"
+      },
+      {
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "Memory": 0,
+        "NanoCpus": 0,
+        "id": "d93b308a2755",
+        "image": "postgres:16",
+        "name": "fxtr-postgres"
+      },
+      {
+        "CpuPeriod": 0,
+        "CpuQuota": 0,
+        "Memory": 0,
+        "NanoCpus": 0,
+        "id": "e1f9c4f980e3",
+        "image": "evallab-state-journal:46bf038216ffe7ab",
+        "name": "evallab-state-8969a67a6204493f9aa8ac23"
+      }
+    ]
+  },
+  "card": "HAR-204",
+  "cli_smokes": [
+    {
+      "command": ".venv/bin/evallab grid compare research/evidence/runs/event-summary-oracle-evidence research/evidence/runs/event-summary-nop-evidence",
+      "exit": 0,
+      "observed": {
+        "harbor_version": "0.21.0",
+        "nop_pass_rate": 0.0,
+        "oracle_pass_rate": 1.0
+      },
+      "scope": "Read-only historical evidence comparison, not current-runtime parity."
+    },
+    {
+      "command": ".venv/bin/evallab hack-queue research/evidence/runs/event-summary-oracle-evidence --json",
+      "exit": 0,
+      "observed": {
+        "reward": 1.0,
+        "schema": "evallab.hack_queue/v1",
+        "signals": "all unknown because the control has no agent trajectory/scan/watch/regrade evidence",
+        "trial_count": 1
+      },
+      "scope": "Actual analysis command; unknown signals are not a clean cheating assessment."
+    },
+    {
+      "command": ".venv/bin/evallab cheat run --help",
+      "exit": 0,
+      "scope": "CLI registration only; no ladder or sandbox executed."
+    }
+  ],
+  "execution": {
+    "admission_bypassed": false,
+    "cloud_runs": 0,
+    "model_calls": 0,
+    "price_probes": 0,
+    "rl_training_started": false,
+    "shared_services_modified": false,
+    "spend_usd": 0,
+    "task_containers_started": 0
+  },
+  "interpretation": {
+    "blocking_prerequisite": "An authorized shared-runtime owner must make the selected daemon normally admissible, including finite CPU and RAM bounds on all running containers and enough headroom after the controller reserve. This run must not mutate other owners' services or bypass admission.",
+    "capacity_limits": "The inventory is a point-in-time read, not a reservation. The selected daemon exposes 8318709760 bytes RAM (about 7.75 GiB), not the historical 24-GiB inventory. Two other owners' bounded task containers alone reserve 7 GiB; the existing controller reserve is another 2 GiB. Bounding shared services alone would not make this observed occupancy fit.",
+    "historical_evidence": "research/evidence/har204-interop-20261017.json remains immutable; constructor checks, old control runs and successful skips do not establish new parity.",
+    "live_parity": "not run; admission is refused before image preparation or sandbox creation",
+    "next_run": "Only after normal fresh admission succeeds: execute real converted Inspect and Karotte oracle/nop controls and same-version Harbor controls; retain native logs and compare actual grades."
+  },
+  "prior_source_delivery": {
+    "head": "2f37ae8e9cc1868e454cd20de1533227bd8f70b7",
+    "merge": "e2f7a79effe0379a7cc800d8daea4891ac1c6b87",
+    "merged_at": "2026-10-17T14:08:49Z",
+    "pr": "https://github.com/PeterMakhnatch/eval-lab/pull/1011"
+  },
+  "schema": "evallab.interop.admission-evidence/v1",
+  "source_revision": "2adb082aa7eb2ea19db51b85b154d6b778409f6e"
+}

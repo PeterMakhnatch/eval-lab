@@ -37,7 +37,7 @@ evallab audit hello-world --execute --stages oracle,nop,leak,static,history \
 | Stage | Evidence and limits |
 | --- | --- |
 | `leak` | HAR-177 future-ref/unreachable-commit semantics; a solution-only native probe inspects discovered image repositories. Missing Git, absent repositories, failed commands, or incomplete output are unknown, not clean. |
-| `oracle` | Recorded HAR-191 history-oracle findings or a native provided-solution control. Missing reference evidence stays unavailable; patch applicability is not a passing grade. |
+| `oracle` | Recorded HAR-191 findings, a provided-solution control, or fresh local history extraction followed by a native oracle grade. The merged extractor selects source-only patches from the selected image's original Git; selection/applicability is never a passing grade. |
 | `nop` | The existing no-agent/output checks, bound to the executed package. Infrastructure failures are not scored failures. |
 | `static` | Lexical flags, task lint, and the joined offline V1–V8 hack-scan ledger (schema, digests, recon, findings, limits), with input hashes and coverage. These describe files only and never predict quality or decide the verdict; absent scan findings are not a certificate. |
 | `history` | One read-only native trial census, including controls and probes; recorded model-history summaries retain their original scope. |
@@ -54,6 +54,22 @@ Paid preparation submits a pinned spec but does not approve it. After separate
 exact-spec approval, `--approved-spec ID` resumes only that bound task/stage;
 opt-in never authorizes a queue drain or a direct paid run.
 
+For a task without `solution/solve.sh`, local execution can recover a reference
+when `tests/test.patch`, an immutable `environment.docker_image`, and an absolute
+`environment.workdir` are present. A never-started, networkless container copies
+Git from that exact image **before setup**; a missing original repository is
+unavailable, not a setup-created baseline or proof that no fix exists.
+Dataset plugins supply any nonstandard Git locations (including MiMo's hidden
+Git directory). The core extractor and orchestration contain no corpus names.
+The original package remains unchanged: only a derived reference solution is
+added, then the existing guarded local oracle runs the selected environment and
+verifier. Audit evidence retains the selected and native-control variant digests,
+image identity, original base, extractor source hash, patch, and lineage record.
+Operational extraction failures remain failures; an unselected or inapplicable
+patch remains ungraded. Failed native grading retains the extraction evidence
+without claiming a completed or passing oracle. This path neither imports
+HAR-191's Modal runner nor inherits its historical paid-execution approval.
+
 Execution emits three rebuildable projections, not a new evidence store:
 
 - `audit.parquet` in the existing derived root, queryable as the `audit` relation
@@ -63,6 +79,9 @@ Execution emits three rebuildable projections, not a new evidence store:
   `verdict:keep`, `verdict:fix`, `verdict:discard`, or `verdict:unknown`. Pass the
   manifest to `evallab view --task-health ... --tag verdict:keep`; include the
   report's `records` and `probe-records` with `--task-variants` for lineage.
+  For recovered references, also include that extraction invocation's
+  `variant-records` directory (the `history_oracle.oracle_record` source identifies
+  it); native controls bind to this solution-only child, not directly to its parent.
 - `dossiers.json`, indexing one HAR-186 dossier per package. `evallab task <id>`
   and its read-only Python tool automatically consult the existing audit
   projection; use `--derived-root`, `--audit-path`, and `--dataset` to select
@@ -74,6 +93,23 @@ Generic keep requires digest-bound, completed oracle=1 and sound nop=0 controls;
 a no-agent pass or observed future history routes to fix. Missing evidence stays
 unknown. MiMo preserves its committed ledger routing, including discard
 precedence. None of these control/probe trials measures model capability.
+
+The historical MiMo acceptance is source-pinned, not a permanent verdict count.
+The ledger at `9ed0e33495daa75d7f0dff6d45f15a7da79fe468` has SHA-256
+`85d71a98cca748d49a41d75b77a520bb69f7d429dc36fa9cdee21e5f5d97223d`
+and routes 1,180 unique tasks as **1,146 keep / 2 fix / 32 discard**.
+The later committed ledger has SHA-256
+`47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020`
+and routes the same cohort as **1,147 keep / 1 fix / 32 discard**.
+A dry-run reports the selected source revision honestly; never edit verdicts to
+force the historical count.
+
+The $0 integration receipt is
+[`research/evidence/har195-audit-integration-20261017.json`](../research/evidence/har195-audit-integration-20261017.json):
+both full CLI replays, a fresh original-image/native-grade smoke, the real
+`hello-world@1.0` oracle/nop/leak/static/history audit, SQL and dossier reads, and
+the native viewer filtered by `verdict:keep`. Its local archive retains failures
+as well as the successful final controls.
 
 ## Reward-hacking audit (`evallab hack`)
 

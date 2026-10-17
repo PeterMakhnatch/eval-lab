@@ -264,13 +264,19 @@ and T3):
     one command per claim plus one counter-check aimed at falsifying the
     conclusion. A claim counts as VERIFIED/REFUTED only when its reported
     command really ran within the budget; otherwise it is UNVERIFIED.
-  - The analyst must address every REFUTED claim (retract, or rebut with a new
-    cited command); a retraction or `no` refutes the question.
+  - The analyst must address every REFUTED claim: retract it, or rebut it with
+    a newly run, cited command. Revising the answer to `no` refutes the
+    question; retracting claims while keeping `yes` withdraws them, so the
+    conclusion is no longer verified, but it still stands.
   - Executed counterfactuals (opt-in, `--regrade`): the newer-grader replay
     below and, for a low-reward eval-fault claim, `--minimal-grader-change`: a
     proposed test-only grader patch replayed under the same nop = 0 /
     reference = 1 controls. A decisive controlled execution outranks the
-    model verdicts.
+    model verdicts: a minimal-grader-change replay verifies or refutes the
+    claim it encodes, while a newer grader decides only when it flips the
+    reward in the claimed direction (one that agrees with the recorded reward
+    may share the claimed defect). Fusion is deterministic and re-runs over the
+    stored T3 parts on every resume.
 
   T3 and the batch command below use one replay
   engine (`src/evallab/qa/counterfactual.py`). Graders are the task's built

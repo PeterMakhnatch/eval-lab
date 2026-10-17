@@ -207,8 +207,10 @@ def test_claim_and_counter_check_require_separate_tool_calls(tmp_path: Path) -> 
         ("CONFIRMED", "VERIFIED", None, "", [], "yes", "verified"),
         ("REJECTED", "VERIFIED", None, "", [], "yes", "refuted"),
         ("CONFIRMED", "REFUTED", "retract", "I agree with the check.", [], "no", "refuted"),
-        ("CONFIRMED", "REFUTED", "rebut", "", [f"shell: {NEW_CHECK}"], "yes", "refuted"),
-        ("CONFIRMED", "REFUTED", "rebut", NEW_EVIDENCE, [], "yes", "refuted"),
+        # An unsupported rebuttal becomes a retraction: the claim is withdrawn,
+        # the conclusion is no longer verified, but it is not refuted.
+        ("CONFIRMED", "REFUTED", "rebut", "", [f"shell: {NEW_CHECK}"], "yes", "unverified"),
+        ("CONFIRMED", "REFUTED", "rebut", NEW_EVIDENCE, [], "yes", "unverified"),
         ("CONFIRMED", "REFUTED", "rebut", NEW_EVIDENCE, [f"shell: {NEW_CHECK}"], "yes", "verified"),
         (
             "CONFIRMED",
@@ -386,15 +388,17 @@ def test_regrade_wrapper_preserves_missing_results_and_backend_gate(
 @pytest.mark.parametrize(
     ("question", "score", "expected"),
     [
-        ("false_positive", 0.0, "verified"),
-        ("false_positive", 1.0, "refuted"),
-        ("false_negative", 0.0, "refuted"),
-        ("false_negative", 1.0, "verified"),
+        ("false_positive", 0.0, ("verified", "regrade")),
+        ("false_positive", 1.0, ("unverified", "verification")),
+        ("false_negative", 0.0, ("unverified", "verification")),
+        ("false_negative", 1.0, ("verified", "regrade")),
     ],
 )
-def test_valid_newer_grader_scores_decide_reward_claims(
-    question: str, score: float, expected: str
+def test_only_a_newer_grader_flip_in_the_claimed_direction_decides(
+    question: str, score: float, expected: tuple[str, str]
 ) -> None:
+    # A newer grader that agrees with the recorded reward may share the claimed
+    # defect, so it leaves the claim to the verifier instead of refuting it.
     executed = {
         "kind": "regrade",
         "ran": True,
@@ -407,8 +411,8 @@ def test_valid_newer_grader_scores_decide_reward_claims(
             }
         ],
     }
-    status, by, _ = tv._status(question, {"overall": "CONFIRMED"}, None, executed)
-    assert status == expected and by == "regrade"
+    status, by, _ = tv.fuse(question, {"overall": "INCONCLUSIVE"}, None, executed)
+    assert (status, by) == expected
 
 
 @pytest.mark.parametrize(

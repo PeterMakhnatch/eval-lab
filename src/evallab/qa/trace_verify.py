@@ -634,20 +634,27 @@ def _executed_decision(question: str, executed: dict[str, Any] | None) -> tuple[
         ]
         if scores:
             score = min(scores) if question == "false_positive" else max(scores)
-            present = score < 1.0 if question == "false_positive" else score == 1.0
-            return (
-                "verified" if present else "refuted",
-                f"valid newer-grader controls; replay reward {score:g}",
-            )
+            # Only a flip in the claimed direction decides: a newer grader that
+            # agrees with the recorded reward may share the defect claimed.
+            if (score < 1.0) if question == "false_positive" else (score == 1.0):
+                return "verified", f"valid newer-grader controls; replay reward {score:g}"
     return None
 
 
-def _status(
+def fuse(
     question: str,
     verification: dict[str, Any],
     revision: dict[str, Any] | None,
     executed: dict[str, Any] | None,
 ) -> tuple[str, str, str]:
+    """T3 status, by and reason from the stored verification, revision and execution.
+
+    Deterministic, so a resumed run re-fuses stored records. A controlled
+    execution decides first; otherwise the conclusion is refuted only when the
+    counter-check rejects it or the analyst abandons it (revised answer ``no``).
+    Retracting individual refuted claims while keeping ``yes`` withdraws those
+    claims, so the conclusion is no longer verified, but it is not refuted.
+    """
     if decision := _executed_decision(question, executed):
         return decision[0], str((executed or {})["kind"]), decision[1]
     if verification.get("overall") == "REJECTED":
@@ -656,18 +663,16 @@ def _status(
             "verification",
             "independent counter-check rejected the analyst conclusion",
         )
-    if revision and (
-        revision.get("answer") == "no"
-        or any(r.get("action") == "retract" for r in revision.get("responses") or [])
-    ):
-        return "refuted", "revision", "analyst retracted a refuted claim or the overall conclusion"
+    if revision and revision.get("answer") == "no":
+        return "refuted", "revision", "analyst abandoned the conclusion after refuted claims"
+    retracted = any(r.get("action") == "retract" for r in (revision or {}).get("responses") or [])
     if verification.get("overall") == "CONFIRMED" and (
-        revision is None or revision.get("answer") == "yes"
+        revision is None or (revision.get("answer") == "yes" and not retracted)
     ):
         return (
             "verified",
             "verification",
-            "independent checks confirmed the conclusion; any revision kept answer=yes",
+            "independent checks confirmed the conclusion; every refuted claim was rebutted",
         )
     return (
         "unverified",
@@ -750,7 +755,7 @@ def refute(
             environment=_option(config_like, "environment", "docker"),
             spend_gate=_option(config_like, "spend_gate"),
         )
-    status, by, reason = _status(question, verification, revision, executed)
+    status, by, reason = fuse(question, verification, revision, executed)
     return {
         "stage": "T3",
         "question": question,

@@ -1419,6 +1419,11 @@ def review_bundle(
                 record["key"] = key
                 record["raised_by"] = raised["raised_by"]
                 _write_json(path, record)
+            else:
+                # Fusion is deterministic over the stored parts: re-fuse on resume.
+                record["status"], record["by"], record["reason"] = trace_verify.fuse(
+                    question, record["verification"], record.get("revision"), record.get("executed")
+                )
             t3[question] = record
     return _finish(bundle, out_dir, t0, t1, t3, fingerprint, trial_dir, findings_dir, subject)
 

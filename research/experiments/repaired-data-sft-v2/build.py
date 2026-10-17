@@ -1,7 +1,9 @@
 """Offline repaired-data SFT v2; no execution, inference, downloads or catalog writes.
 
-Run with the pinned tools/modal-mimo-sft environment and HF_HUB_OFFLINE=1:
-  python research/experiments/repaired-data-sft-v2/build.py \
+Run in the locked root QA environment with the isolated SFT client's pinned overlay:
+  HF_HUB_OFFLINE=1 uv run --locked --with transformers==5.12.1 --with modal==1.5.5 \
+    --with huggingface-hub==1.9.2 --with jinja2==3.1.6 python \
+    research/experiments/repaired-data-sft-v2/build.py \
     --inputs inputs.json --tokenizer-dir <local pinned snapshot> --epochs 1 --out <new dir>
 
 inputs.json (repaired-data-sft-v2.inputs/1) binds every input as
@@ -50,6 +52,7 @@ D uses the existing loss=last contract for each genuinely new corrected assistan
 completion with its entire recorded prompt prefix. Original false-pass assistant
 turns remain context, never D targets; no future turns are included in a prompt.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -70,7 +73,13 @@ REPO = Path(__file__).resolve().parents[3]
 MINIMUM_B = 51
 SCHEMA = "repaired-data-sft-v2.inputs/1"
 FAULTS = {"native_faulty", "previously_reviewed_faulty", "static_fault_suspected", "unclear"}
-V6_CHAIN = {"strip-future-history@1", "purge-build-caches@4", "mtime-normalize@2", "separate-verifier@10", "agent-network-none@1"}
+V6_CHAIN = {
+    "strip-future-history@1",
+    "purge-build-caches@4",
+    "mtime-normalize@2",
+    "separate-verifier@10",
+    "agent-network-none@1",
+}
 # Observed bytes of the immutable model revision used by sft.py and v1. A local
 # directory with a familiar name is not proof of tokenizer/template identity.
 TOKENIZER_SHA256 = {
@@ -83,11 +92,39 @@ TOKENIZER_SHA256 = {
 FROZEN_HELDOUT = frozenset(
     "mimo-v2.6-rl/format-code-task-" + number
     for number in (
-        "001248", "000161", "000142", "000783", "001399", "001914", "002871",
-        "002335", "001590", "001480", "001371", "001246", "001948", "001425",
-        "002395", "002092", "000144", "002915", "000143", "000149", "002989",
-        "001199", "000878", "001220", "000905", "002371", "001891", "002451",
-        "002304", "000582", "000657", "000371", "001686",
+        "001248",
+        "000161",
+        "000142",
+        "000783",
+        "001399",
+        "001914",
+        "002871",
+        "002335",
+        "001590",
+        "001480",
+        "001371",
+        "001246",
+        "001948",
+        "001425",
+        "002395",
+        "002092",
+        "000144",
+        "002915",
+        "000143",
+        "000149",
+        "002989",
+        "001199",
+        "000878",
+        "001220",
+        "000905",
+        "002371",
+        "001891",
+        "002451",
+        "002304",
+        "000582",
+        "000657",
+        "000371",
+        "001686",
     )
 )
 
@@ -135,7 +172,9 @@ class Evidence:
 
     def bound(self, ref: dict[str, Any]) -> Path:
         if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
-            raise BuildError("evidence must be a path/full-sha256 reference, not a label or boolean")
+            raise BuildError(
+                "evidence must be a path/full-sha256 reference, not a label or boolean"
+            )
         expected = str(ref.get("sha256", "")).removeprefix("sha256:")
         if not re.fullmatch(r"[0-9a-f]{64}", expected):
             raise BuildError(f"missing full evidence hash: {ref.get('path')}")
@@ -176,7 +215,11 @@ def rows_from_document(evidence: Evidence, ref: dict[str, Any]) -> list[dict[str
 def load_heldout(evidence: Evidence, ref: dict[str, Any]) -> set[str]:
     doc = evidence.json(ref)
     parents = [canonical_task(t) for t in doc.get("heldout", [])]
-    if doc.get("schema") != "mimo.heldout/v1" or len(parents) != 33 or set(parents) != FROZEN_HELDOUT:
+    if (
+        doc.get("schema") != "mimo.heldout/v1"
+        or len(parents) != 33
+        or set(parents) != FROZEN_HELDOUT
+    ):
         raise BuildError("training exclusion requires the frozen ALL33 distinct heldout parents")
     return set(parents)
 
@@ -223,6 +266,7 @@ def ancestry(evidence: Evidence, refs: list[dict[str, Any]]) -> set[str]:
                 parents.add(canonical_task(parent_id))
         seen.remove(str(path))
         completed.add(str(path))
+
     for ref in refs:
         visit(ref)
     return parents
@@ -248,7 +292,10 @@ def native_source(evidence: Evidence, row: dict[str, Any]) -> Source:
     trial = result.get("id")
     if not all(isinstance(v, str) and v and "/" not in v and "\\" not in v for v in (job, trial)):
         raise BuildError(f"missing safe native (job_id, trial_id): {result_path}")
-    if any(row.get(k) is not None and row[k] != v for k, v in (("job_id", job), ("trial_id", trial), ("execution_id", trial))):
+    if any(
+        row.get(k) is not None and row[k] != v
+        for k, v in (("job_id", job), ("trial_id", trial), ("execution_id", trial))
+    ):
         raise BuildError(f"inventory/native identity mismatch: {result_path}")
     task = canonical_task(result.get("task_name"))
     parents = {task} | ancestry(evidence, row.get("ancestry", []))
@@ -265,14 +312,18 @@ def native_source(evidence: Evidence, row: dict[str, Any]) -> Source:
         raise BuildError(f"renamed task lacks native parent ancestry: {task}")
     if row.get("metadata"):
         evidence.bound(row["metadata"])
-    provenance = {k: row[k] for k in ("result", "trajectory", "metadata", "ancestry", "aliases") if k in row}
+    provenance = {
+        k: row[k] for k in ("result", "trajectory", "metadata", "ancestry", "aliases") if k in row
+    }
     code_parents = {p for p in parents if re.fullmatch(r"mimo-v2\.6-rl/format-code-task-\d{6}", p)}
     if len(code_parents) > 1:
         raise BuildError("native variant has ambiguous original task ancestry")
     if code_parents:
         provenance["native_task_name"] = task
         task = next(iter(code_parents))
-    return Source((job, trial), task, result, trajectory, result_path, trajectory_path, parents, provenance)
+    return Source(
+        (job, trial), task, result, trajectory, result_path, trajectory_path, parents, provenance
+    )
 
 
 def deduplicate(sources: list[Source]) -> list[Source]:
@@ -280,14 +331,26 @@ def deduplicate(sources: list[Source]) -> list[Source]:
     for source in sources:
         old = by_key.get(source.key)
         if old is not None:
-            if old.task != source.task or old.trajectory != source.trajectory or old.result != source.result or old.parents != source.parents:
+            if (
+                old.task != source.task
+                or old.trajectory != source.trajectory
+                or old.result != source.result
+                or old.parents != source.parents
+            ):
                 raise BuildError(f"conflicting native copies: {source.key}")
             continue
         by_key[source.key] = source
     return [by_key[k] for k in sorted(by_key)]
 
 
-def original_pass_eligible(source: Source, heldout: set[str], excluded: set[str], correction_keys: set[tuple[str, str]], *, v6_tasks: set[str] | None = None) -> None:
+def original_pass_eligible(
+    source: Source,
+    heldout: set[str],
+    excluded: set[str],
+    correction_keys: set[tuple[str, str]],
+    *,
+    v6_tasks: set[str] | None = None,
+) -> None:
     if source.parents & (heldout | excluded):
         raise BuildError("heldout/excluded task parent or descendant")
     if v6_tasks is not None and source.task not in v6_tasks:
@@ -316,7 +379,9 @@ def _module(name: str, path: Path) -> Any:
 def conversion_modules() -> tuple[Any, Any, Any]:
     sys.path.insert(0, str(REPO / "src"))
     v1 = _module("rds2_lossless", REPO / "research/experiments/repaired-data-sft-v1/to_export.py")
-    qa = _module("rds2_raw_messages", REPO / "research/experiments/qa-trace/training-arms/build_arms.py")
+    qa = _module(
+        "rds2_raw_messages", REPO / "research/experiments/qa-trace/training-arms/build_arms.py"
+    )
     return v1, qa, v1.sft
 
 
@@ -331,7 +396,10 @@ class Qualification:
         self.repairs: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
         for ref in inputs.get("repairs", []):
             rec = evidence.json(ref)
-            if rec.get("schema") != "evallab.task_variant/v1" or rec.get("transform") != "verifier-repair@1":
+            if (
+                rec.get("schema") != "evallab.task_variant/v1"
+                or rec.get("transform") != "verifier-repair@1"
+            ):
                 raise BuildError("repairs must be actual verifier-repair@1 VariantRecords")
             self.repairs.setdefault(canonical_task(rec["task_name"]), []).append((rec, ref))
         self.controls: dict[str, dict[str, Any]] = {}
@@ -360,7 +428,9 @@ class Qualification:
         self.faults: dict[str, set[str]] = {}
         for ref in inputs.get("audits", []):
             for row in evidence.json(ref).get("observations", []):
-                self.faults.setdefault(str(row.get("execution_id")), set()).add(row.get("evidence_stratum", "unclear"))
+                self.faults.setdefault(str(row.get("execution_id")), set()).add(
+                    row.get("evidence_stratum", "unclear")
+                )
         self._packages: dict[str, dict[str, Any]] = {}
         self._checked_controls: set[str] = set()
 
@@ -389,7 +459,11 @@ class Qualification:
         gs = row.get("grader_source") or {}
         task = canonical_task(gs.get("task_name", ""))
         transform, expected = gs.get("transform"), gs.get("variant_digest")
-        if task != source.task or row.get("grader_digest") != expected or row.get("transform") != transform:
+        if (
+            task != source.task
+            or row.get("grader_digest") != expected
+            or row.get("transform") != transform
+        ):
             raise BuildError("regrade task/transform/digest mismatch")
         if not isinstance(expected, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
             raise BuildError("regrade lacks full exact grader digest")
@@ -397,13 +471,21 @@ class Qualification:
         if row.get("grader") != label:
             raise BuildError("regrade label does not bind its exact digest")
         v6 = self.v6.get(task)
-        if not v6 or v6.get("status") != "built" or not V6_CHAIN <= set(v6.get("chain", "").split(">")):
+        if (
+            not v6
+            or v6.get("status") != "built"
+            or not set(v6.get("chain", "").split(">")) >= V6_CHAIN
+        ):
             raise BuildError("missing globally hardened v6 ancestry")
         if transform == "mimo-clean-v6":
             if v6.get("final_digest") != expected:
                 raise BuildError("v6 regrade is not the pinned v6 manifest package")
         elif transform == "verifier-repair@1":
-            matching = [(rec, ref) for rec, ref in self.repairs.get(task, []) if rec.get("variant_digest") == expected]
+            matching = [
+                (rec, ref)
+                for rec, ref in self.repairs.get(task, [])
+                if rec.get("variant_digest") == expected
+            ]
             if len(matching) != 1:
                 raise BuildError("missing or ambiguous repaired grader native ancestry")
             record, ref = matching[0]
@@ -411,7 +493,10 @@ class Qualification:
                 raise BuildError("repair is not a child of the exact v6 package")
             if set(record.get("components_changed", [])) - {"verifier"}:
                 raise BuildError("repair changes agent-visible task/environment/solution")
-            if not record.get("files") or any(f.get("path") not in {"tests/test.patch", "tests/test_command.sh"} for f in record["files"]):
+            if not record.get("files") or any(
+                f.get("path") not in {"tests/test.patch", "tests/test_command.sh"}
+                for f in record["files"]
+            ):
                 raise BuildError("repair is not a test-only native variant")
             # The v6 manifest is the terminal parent authority; no registration/derivation.
             self.evidence.bound(ref)
@@ -420,31 +505,91 @@ class Qualification:
         package = self.package(gs.get("package", ""), expected, task)
         return transform, label, package
 
-    def native_replay(self, row: dict[str, Any], expected: str, score: int, *, script: str | None = None) -> None:
+    def native_replay(
+        self, row: dict[str, Any], expected: str, score: int, *, script: str | None = None
+    ) -> None:
+        from evallab.registry import compute_task_digests
+        from evallab.results import load_job
+        from evallab.runner import matrix_run_outcome, staged_matrix_request
+        from evallab.schemas import ExperimentMatrix
+
         if row.get("refusals") or row.get("execution_error") or row.get("regraded") != score:
             raise BuildError("replay was refused, failed, unscored or has a different reward")
         if row.get("input_kind") != "native_patch_replay":
-            raise BuildError("missing native patch replay custody (snapshot-only summaries need native matrix evidence)")
+            raise BuildError(
+                "missing native patch replay custody (snapshot-only summaries need native matrix evidence)"
+            )
         receipt_path = self.evidence.path(row.get("matrix_receipt", ""))
         receipt = self.evidence.observed_json(receipt_path)
-        matrix, outcomes = receipt.get("matrix") or {}, receipt.get("results") or []
-        if matrix.get("task_package_digest") != expected or len(outcomes) != 1:
+        matrix_doc, outcomes = receipt.get("matrix") or {}, receipt.get("results") or []
+        if matrix_doc.get("task_package_digest") != expected or len(outcomes) != 1:
             raise BuildError("native matrix grader digest/result multiplicity mismatch")
         result = outcomes[0]
-        if result.get("status") not in {"ok", "mismatch"} or result.get("error") or result.get("rewards") != [score] or result.get("staged_task_digest") != expected:
+        if (
+            result.get("status") not in {"ok", "mismatch"}
+            or result.get("error")
+            or result.get("rewards") != [score]
+        ):
             raise BuildError("native matrix is not an observed scored replay on the exact grader")
-        runs = matrix.get("runs") or []
-        if len(runs) != 1 or runs[0].get("agent") != "oracle" or not runs[0].get("solution"):
-            raise BuildError("native replay matrix lacks its source script")
-        script_path = self.evidence.path(runs[0]["solution"], relative_to=receipt_path.parents[2])
+        try:
+            matrix = ExperimentMatrix.model_validate(matrix_doc)
+        except ValueError as exc:
+            raise BuildError(f"invalid native replay matrix: {exc}") from exc
+        if matrix.jobs_dir != "runs" or len(matrix.runs) != 1:
+            raise BuildError("unsupported native QA replay matrix layout")
+        run = matrix.runs[0]
+        if (
+            run.agent != "oracle"
+            or run.attempts != 1
+            or not run.solution
+            or result.get("name") != run.name
+        ):
+            raise BuildError("native replay matrix lacks its single oracle source script")
+        replay_root = receipt_path.parents[2]
+        original = compute_task_digests((replay_root / matrix.task).resolve())
+        if original.package != expected or original.verifier != matrix.verifier_digest:
+            raise BuildError("native replay original grader bytes do not match the matrix")
+        script_path = self.evidence.path(run.solution, relative_to=replay_root)
         script_ref = self.evidence.capture(script_path)
         script_hash = script_ref["sha256"][7:]
         if row.get("script_sha256") != script_hash or result.get("solution_sha256") != script_hash:
             raise BuildError("native replay script hash mismatch")
         if script is not None and script_path.read_text() != script:
             raise BuildError("native replay script is not the actual source/control patch")
+        # A solution override changes the full package digest. Reconstruct the
+        # canonical snapshot rather than equating it with the original grader.
+        with staged_matrix_request(matrix, run, repo_root=replay_root) as (_, provenance):
+            staged_digest = provenance["staged_task_digest"]
+        if result.get("staged_task_digest") != staged_digest:
+            raise BuildError("native replay solution-staged package digest mismatch")
+        job_path = self.evidence.path(row.get("job_dir", ""))
+        if job_path != (replay_root / matrix.jobs_dir / run.name).resolve():
+            raise BuildError("native replay job does not belong to its matrix run")
+        try:
+            job = load_job(job_path)
+        except (OSError, ValueError) as exc:
+            raise BuildError(f"missing/invalid native replay job: {exc}") from exc
+        # Retain the native bytes consumed by the canonical outcome qualifier,
+        # not just the counterfactual/matrix summary's scalar reward.
+        for file in job.files:
+            self.evidence.capture(job_path / file.relative_path)
+        native = matrix_run_outcome(job, run)
+        staging = job.metadata.get("task_staging") or {}
+        if (
+            native.get("status") not in {"ok", "mismatch"}
+            or native.get("error")
+            or native.get("rewards") != [score]
+            or job.metadata.get("exit_code") != 0
+            or job.metadata.get("timed_out")
+            or staging.get("source_package_digest") != staged_digest
+            or not staging.get("source_harbor_digest")
+            or staging.get("source_harbor_digest") != staging.get("staged_harbor_digest")
+        ):
+            raise BuildError("native replay outcome/staging disagrees with its matrix receipt")
 
-    def retained_envcheck_controls(self, label: str, expected: str, package: dict[str, Any]) -> None:
+    def retained_envcheck_controls(
+        self, label: str, expected: str, package: dict[str, Any]
+    ) -> None:
         """Consume actual EnvCheck Harbor results/stability, never manifest booleans alone."""
         variant, archive = self.envcheck_controls[label]
         if (
@@ -455,7 +600,9 @@ class Qualification:
             or variant.get("v6_oracle_x3") != [1, 1, 1]
             or variant.get("v6_nop_x3") != [0, 0, 0]
         ):
-            raise BuildError("retained EnvCheck repair is partial, has survivors or lacks valid controls")
+            raise BuildError(
+                "retained EnvCheck repair is partial, has survivors or lacks valid controls"
+            )
         short = package["task"].split("format-code-task-")[-1]
         for agent, score in (("oracle", 1), ("nop", 0)):
             job = archive / "v6-controls/jobs" / f"v6rep-{short}-{agent}"
@@ -463,16 +610,20 @@ class Qualification:
             summary = self.evidence.observed_json(job / "result.json")
             staging = metadata.get("task_staging") or {}
             if (
-                metadata.get("timed_out") or metadata.get("exit_code") != 0
+                metadata.get("timed_out")
+                or metadata.get("exit_code") != 0
                 or staging.get("source_package_digest") != expected
                 or staging.get("declared_task_name") != package["task"]
                 or not staging.get("source_harbor_digest")
                 or staging.get("source_harbor_digest") != staging.get("staged_harbor_digest")
             ):
-                raise BuildError("EnvCheck native control is not bound to the exact staged repaired grader")
+                raise BuildError(
+                    "EnvCheck native control is not bound to the exact staged repaired grader"
+                )
             evaluations = (summary.get("stats") or {}).get("evals") or {}
             names = [
-                name for evaluation in evaluations.values()
+                name
+                for evaluation in evaluations.values()
                 for group in ((evaluation.get("reward_stats") or {}).get("reward") or {}).values()
                 for name in group
             ]
@@ -488,16 +639,21 @@ class Qualification:
                 or reward(result) != score
                 or canonical_task(result.get("task_name", "")) != package["task"]
             ):
-                raise BuildError("EnvCheck native nop/reference control result disagrees with custody or reward")
+                raise BuildError(
+                    "EnvCheck native nop/reference control result disagrees with custody or reward"
+                )
             stability = self.evidence.observed_json(trial / "verifier/stability.json")
             runs = stability.get("runs") or []
             if (
                 stability.get("schema") != "evallab.verifier_stability/v1"
                 or stability.get("repeat_n_requested") != 3
-                or stability.get("n_runs") != 3 or len(runs) != 3
+                or stability.get("n_runs") != 3
+                or len(runs) != 3
                 or any(run.get("reward") != score or run.get("error") for run in runs)
             ):
-                raise BuildError("EnvCheck native control lacks three actual consistent scored verifications")
+                raise BuildError(
+                    "EnvCheck native control lacks three actual consistent scored verifications"
+                )
             reward_file = trial / "verifier/reward.txt"
             self.evidence.capture(reward_file)
             if float(reward_file.read_text().strip()) != score:
@@ -514,16 +670,32 @@ class Qualification:
         from evallab.qa import counterfactual as cf
 
         ctrl = self.controls.get(label)
-        if not ctrl or ctrl.get("engine") != cf.ENGINE_VERSION or ctrl.get("nop") != 0 or ctrl.get("reference") != 1 or ctrl.get("valid") is not True:
-            raise BuildError("missing valid native nop/reference controls; scalar regrade controls are not evidence")
+        if (
+            not ctrl
+            or ctrl.get("engine") != cf.ENGINE_VERSION
+            or ctrl.get("nop") != 0
+            or ctrl.get("reference") != 1
+            or ctrl.get("valid") is not True
+        ):
+            raise BuildError(
+                "missing valid native nop/reference controls; scalar regrade controls are not evidence"
+            )
         patch = cf.reference_patch(package["task"], REPO)
-        if patch is None or hashlib.sha256(patch.encode()).hexdigest() != ctrl.get("reference_sha256"):
-            raise BuildError("native reference control lacks the exact retained reference patch binding")
+        if patch is None or hashlib.sha256(patch.encode()).hexdigest() != ctrl.get(
+            "reference_sha256"
+        ):
+            raise BuildError(
+                "native reference control lacks the exact retained reference patch binding"
+            )
         workdir = package["config"]["environment"]["workdir"]
         control_rows = ctrl.get("rows") or {}
-        self.native_replay(control_rows.get("nop") or {}, expected, 0, script=cf._patch_script("", workdir))
+        self.native_replay(
+            control_rows.get("nop") or {}, expected, 0, script=cf._patch_script("", workdir)
+        )
         kept, _ = cf.strip_binary_artifacts(patch)
-        self.native_replay(control_rows.get("reference") or {}, expected, 1, script=cf._patch_script(kept, workdir))
+        self.native_replay(
+            control_rows.get("reference") or {}, expected, 1, script=cf._patch_script(kept, workdir)
+        )
         self._checked_controls.add(label)
 
     def regrade(self, row: dict[str, Any], source: Source, score: int) -> tuple[str, str]:
@@ -536,12 +708,21 @@ class Qualification:
         key = ((original.get("config") or {}).get("job_id"), original.get("id"))
         if key != source.key or reward(original) != 1 or row.get("recorded") != 1:
             raise BuildError("regrade source identity/original-pass binding mismatch")
-        if self.evidence.capture(trial / "agent/trajectory.json")["sha256"] != self.evidence.capture(source.trajectory_path)["sha256"]:
+        if (
+            self.evidence.capture(trial / "agent/trajectory.json")["sha256"]
+            != self.evidence.capture(source.trajectory_path)["sha256"]
+        ):
             raise BuildError("regrade and training targets use different source trajectory bytes")
         if cf.source_digest(trial) != row.get("source_digest"):
             raise BuildError("regrade source digest is stale or unbound")
         # source_digest reads these paths, so retain the same present-byte dependencies.
-        for relative in ("config.json", "verifier/agent.diff", "artifacts/manifest.json", "artifacts/var/tmp/mimo-separate/workspace.tgz", "artifacts/logs/agent/trajectory.json"):
+        for relative in (
+            "config.json",
+            "verifier/agent.diff",
+            "artifacts/manifest.json",
+            "artifacts/var/tmp/mimo-separate/workspace.tgz",
+            "artifacts/logs/agent/trajectory.json",
+        ):
             if (trial / relative).is_file():
                 self.evidence.capture(trial / relative)
         transform, label, package = self.target(row, source)
@@ -597,7 +778,9 @@ def require_minimum(rows: list[Prepared], minimum: int = MINIMUM_B) -> None:
         raise BuildError(f"B-v2 minimum cannot be smaller than {MINIMUM_B}")
     distinct = {row.source.key for row in rows if row.assistant_loss_tokens > 0}
     if len(distinct) != len(rows) or len(distinct) < minimum:
-        raise BuildError(f"B-v2 insufficient distinct nonzero-loss verified-clean rows: supplied={len(rows)}, distinct_nonzero={len(distinct)}, required={minimum}")
+        raise BuildError(
+            f"B-v2 insufficient distinct nonzero-loss verified-clean rows: supplied={len(rows)}, distinct_nonzero={len(distinct)}, required={minimum}"
+        )
 
 
 def matched_control(pool: list[Prepared], b: list[Prepared], seed: int) -> list[Prepared]:
@@ -622,11 +805,15 @@ def matched_control(pool: list[Prepared], b: list[Prepared], seed: int) -> list[
         without, with_other = history[-1]
         shift = row.assistant_loss_tokens
         if row.source.key in b_keys:
-            history.append(((without | (without << shift)) & cap, (with_other | (with_other << shift)) & cap))
+            history.append(
+                ((without | (without << shift)) & cap, (with_other | (with_other << shift)) & cap)
+            )
         else:
             history.append((without, (with_other | ((without | with_other) << shift)) & cap))
     if not ((history[-1][1] >> target) & 1):
-        raise BuildError(f"C-v2 infeasible exact subset sum: target_loss_tokens={target}, pool_rows={len(pool)}; B itself is not a control")
+        raise BuildError(
+            f"C-v2 infeasible exact subset sum: target_loss_tokens={target}, pool_rows={len(pool)}; B itself is not a control"
+        )
     remaining, other, selected = target, True, []
     for index in range(len(ordered) - 1, -1, -1):
         row = ordered[index]
@@ -639,7 +826,12 @@ def matched_control(pool: list[Prepared], b: list[Prepared], seed: int) -> list[
         remaining -= weight
         if row.source.key not in b_keys and other:
             other = not bool((without >> remaining) & 1)
-    if remaining or other or sum(r.assistant_loss_tokens for r in selected) != target or {r.source.key for r in selected} == b_keys:
+    if (
+        remaining
+        or other
+        or sum(r.assistant_loss_tokens for r in selected) != target
+        or {r.source.key for r in selected} == b_keys
+    ):
         raise BuildError("exact subset-sum reconstruction failed")
     return sorted(selected, key=lambda row: row.source.key)
 
@@ -661,15 +853,28 @@ def correction_environment(evidence: Evidence, corrected: Source, expected: str)
         raise BuildError("D correction was not executed on the exact separate repaired grader")
 
 
-def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple[str, str], Source], qualification: Qualification, heldout: set[str], qa: Any) -> Source:
+def correction_row(
+    evidence: Evidence,
+    link: dict[str, Any],
+    sources: dict[tuple[str, str], Source],
+    qualification: Qualification,
+    heldout: set[str],
+    qa: Any,
+) -> Source:
     try:
         original, corrected = sources[tuple(link["source"])], sources[tuple(link["corrected"])]
     except (KeyError, TypeError) as exc:
         raise BuildError("D missing genuine source/corrected native execution") from exc
-    if original.key == corrected.key or original.task != corrected.task or (original.parents | corrected.parents) & heldout:
+    if (
+        original.key == corrected.key
+        or original.task != corrected.task
+        or (original.parents | corrected.parents) & heldout
+    ):
         raise BuildError("D correction identity/task/heldout ancestry refusal")
     if reward(original.result) != 1 or reward(corrected.result) != 1:
-        raise BuildError("D requires an original native false pass and an observed corrected native pass")
+        raise BuildError(
+            "D requires an original native false pass and an observed corrected native pass"
+        )
     if original.result.get("verifier_environment_mode") != "separate":
         raise BuildError("D original context has no native hidden-test/source separation evidence")
     before_ref, after_ref = link["failed_regrade"], link["passed_regrade"]
@@ -682,7 +887,11 @@ def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple
         raise BuildError("D missing actual failed/passed repaired regrade rows") from exc
     kind_before, digest_before = qualification.regrade(before, original, 0)
     kind_after, digest_after = qualification.regrade(after, corrected, 1)
-    if kind_before != "verifier-repair@1" or kind_after != kind_before or digest_before != digest_after:
+    if (
+        kind_before != "verifier-repair@1"
+        or kind_after != kind_before
+        or digest_before != digest_after
+    ):
         raise BuildError("D requires false-pass -> true-pass on the same exact repaired grader")
     correction_environment(evidence, corrected, digest_before)
     feedback_path = evidence.bound(link["feedback"])
@@ -692,8 +901,14 @@ def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple
     # The feedback must be an actual retained native verifier output, not a hand-written
     # summary, a reference diff, hidden source, or another task's feedback.
     failed_job = evidence.path(before["job_dir"])
-    if failed_job not in feedback_path.parents or feedback_path.parent.name != "verifier" or feedback_path.name != "test_output.log":
-        raise BuildError("D feedback is not retained output of the actual failing native repaired-test run")
+    if (
+        failed_job not in feedback_path.parents
+        or feedback_path.parent.name != "verifier"
+        or feedback_path.name != "test_output.log"
+    ):
+        raise BuildError(
+            "D feedback is not retained output of the actual failing native repaired-test run"
+        )
     messages_before, _, fidelity_before = qa.to_messages(original.trajectory)
     messages_after, _, fidelity_after = qa.to_messages(corrected.trajectory)
     if fidelity_before != "raw_completion" or fidelity_after != "raw_completion":
@@ -702,9 +917,15 @@ def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple
     if messages_after[:prefix] != messages_before or len(messages_after) < prefix + 2:
         raise BuildError("D correction does not preserve the complete original conversation")
     if messages_after[prefix] != {"role": "user", "content": feedback}:
-        raise BuildError("D must expose only exact failing-test output, not hidden tests/reference/instructions")
-    suffix = messages_after[prefix + 1:]
-    if suffix[0].get("role") != "assistant" or not any(m.get("role") == "assistant" and (m.get("content") or m.get("reasoning_content") or m.get("tool_calls")) for m in suffix):
+        raise BuildError(
+            "D must expose only exact failing-test output, not hidden tests/reference/instructions"
+        )
+    suffix = messages_after[prefix + 1 :]
+    if suffix[0].get("role") != "assistant" or not any(
+        m.get("role") == "assistant"
+        and (m.get("content") or m.get("reasoning_content") or m.get("tool_calls"))
+        for m in suffix
+    ):
         raise BuildError("D has no corrected assistant targets")
     if qa.network_fetch(corrected.trajectory):
         raise BuildError("D correction contains observed network answer retrieval")
@@ -712,8 +933,10 @@ def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple
     if not any(m.get("role") == "assistant" and m not in previous_targets for m in suffix):
         raise BuildError("D repeats old assistant targets instead of a self-correction")
     corrected.provenance = {
-        **corrected.provenance, "self_correction": link,
-        "repaired_digest": digest_before, "correction_message_start": prefix + 1,
+        **corrected.provenance,
+        "self_correction": link,
+        "repaired_digest": digest_before,
+        "correction_message_start": prefix + 1,
     }
     return corrected
 
@@ -721,7 +944,9 @@ def correction_row(evidence: Evidence, link: dict[str, Any], sources: dict[tuple
 def tokenizer_identity(evidence: Evidence, directory: Path, sft: Any) -> tuple[Any, dict[str, Any]]:
     directory = directory.expanduser().resolve()
     if not directory.is_dir():
-        raise BuildError("--tokenizer-dir must be an existing LOCAL pinned tokenizer; downloads are forbidden")
+        raise BuildError(
+            "--tokenizer-dir must be an existing LOCAL pinned tokenizer; downloads are forbidden"
+        )
     if sft.MODEL_REVISION != "2367e865d009c13ac81713a2878291d33ab28177":
         raise BuildError("the v2 tokenizer byte pins no longer match the trainer's model revision")
     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -731,45 +956,85 @@ def tokenizer_identity(evidence: Evidence, directory: Path, sft: Any) -> tuple[A
         path = directory / name
         evidence.bound({"path": str(path), "sha256": sha})
         files.append(evidence.capture(path))
-    unexpected = {"special_tokens_map.json", "added_tokens.json"} & {p.name for p in directory.iterdir()}
+    unexpected = {"special_tokens_map.json", "added_tokens.json"} & {
+        p.name for p in directory.iterdir()
+    }
     if unexpected:
         raise BuildError(f"unpinned tokenizer overrides: {sorted(unexpected)}")
     tokenizer = sft.get_tokenizer(str(directory))
-    return tokenizer, {"model": sft.MODEL_ID, "model_revision": sft.MODEL_REVISION, "tokenizer_files": files, "chat_template_sha256": digest(tokenizer.chat_template.encode()), "mask_code": evidence.capture(REPO / "tools/modal-mimo-sft/sft.py"), "lossless_code": evidence.capture(REPO / "research/experiments/repaired-data-sft-v1/to_export.py"), "raw_conversion_code": evidence.capture(REPO / "research/experiments/qa-trace/training-arms/build_arms.py"), "builder_code": evidence.capture(Path(__file__))}
+    return tokenizer, {
+        "model": sft.MODEL_ID,
+        "model_revision": sft.MODEL_REVISION,
+        "tokenizer_files": files,
+        "chat_template_sha256": digest(tokenizer.chat_template.encode()),
+        "mask_code": evidence.capture(REPO / "tools/modal-mimo-sft/sft.py"),
+        "lossless_code": evidence.capture(
+            REPO / "research/experiments/repaired-data-sft-v1/to_export.py"
+        ),
+        "raw_conversion_code": evidence.capture(
+            REPO / "research/experiments/qa-trace/training-arms/build_arms.py"
+        ),
+        "builder_code": evidence.capture(Path(__file__)),
+    }
 
 
-def prepare(source: Source, tok: Any, v1: Any, qa: Any, sft: Any, max_length: int, *, target_turn: int | None = None) -> Prepared:
+def prepare(
+    source: Source,
+    tok: Any,
+    v1: Any,
+    qa: Any,
+    sft: Any,
+    max_length: int,
+    *,
+    target_turn: int | None = None,
+) -> Prepared:
     messages, tools, fidelity = qa.to_messages(source.trajectory)
     if fidelity != "raw_completion":
         raise BuildError(f"source fidelity={fidelity}; parsed actions are not assistant targets")
     loss = "all"
     if target_turn is not None:
         first_corrected = source.provenance.get("correction_message_start")
-        if first_corrected is None or target_turn < first_corrected or messages[target_turn].get("role") != "assistant":
+        if (
+            first_corrected is None
+            or target_turn < first_corrected
+            or messages[target_turn].get("role") != "assistant"
+        ):
             raise BuildError("D target is not a newly generated corrected assistant completion")
-        messages = messages[:target_turn + 1]
+        messages = messages[: target_turn + 1]
         loss = "last"
     row = {
-        "messages": messages, "tools": tools,
+        "messages": messages,
+        "tools": tools,
         "agent": (source.trajectory.get("agent") or {}).get("name"),
         "execution_id": source.key[1],
     }
     try:
         flat = v1.flatten(tok, row)
         rendered = sft.render_and_mask(
-            tok, flat, max_length=max_length, label=source.key[1], loss=loss,
+            tok,
+            flat,
+            max_length=max_length,
+            label=source.key[1],
+            loss=loss,
         )
     except (sft.SftError, ValueError) as exc:
         raise BuildError(str(exc)) from exc
     model = ((source.result.get("agent_info") or {}).get("model_info") or {}).get("name")
     provenance = {
-        **source.provenance, "native_pair": list(source.key),
-        "execution_id": source.key[1], "task": source.task,
-        "parent_ancestry": sorted(source.parents), "source_model": model,
-        "source_model_config_sha256": digest(json.dumps(
-            (source.result.get("config") or {}).get("agent"), sort_keys=True,
-        ).encode()),
-        "fidelity": fidelity, "loss": loss,
+        **source.provenance,
+        "native_pair": list(source.key),
+        "execution_id": source.key[1],
+        "task": source.task,
+        "parent_ancestry": sorted(source.parents),
+        "source_model": model,
+        "source_model_config_sha256": digest(
+            json.dumps(
+                (source.result.get("config") or {}).get("agent"),
+                sort_keys=True,
+            ).encode()
+        ),
+        "fidelity": fidelity,
+        "loss": loss,
         "recorded_messages_sha256": digest(json.dumps(messages, sort_keys=True).encode()),
         "recorded_tools_sha256": digest(json.dumps(tools, sort_keys=True).encode()),
         "sequence_tokens": len(rendered.input_ids),
@@ -788,29 +1053,39 @@ def write_arm(out: Path, rows: list[Prepared], fields: dict[str, Any], v1: Any, 
     else:
         out.mkdir()
         data = "".join(
-            json.dumps({"messages": row.messages, "loss": row.loss}) + "\n"
-            for row in rows
+            json.dumps({"messages": row.messages, "loss": row.loss}) + "\n" for row in rows
         )
         (out / sft.CONVERSATIONS_FILE).write_text(data)
         manifest = {
             "contract": sft.EXPORT_CONTRACT,
-            "conversations_sha256": digest(data.encode()), **fields,
+            "conversations_sha256": digest(data.encode()),
+            **fields,
         }
         (out / sft.MANIFEST_FILE).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    (out / "provenance.jsonl").write_text("".join(
-        json.dumps(row.provenance, sort_keys=True) + "\n" for row in rows
-    ))
+    (out / "provenance.jsonl").write_text(
+        "".join(json.dumps(row.provenance, sort_keys=True) + "\n" for row in rows)
+    )
 
 
 def totals(rows: list[Prepared], epochs: int) -> dict[str, Any]:
-    return {"rows": len(rows), "tasks": len({r.source.task for r in rows}), "sequence_tokens": sum(r.sequence_tokens for r in rows), "assistant_loss_tokens": sum(r.assistant_loss_tokens for r in rows), "sequence_token_presentations": epochs * sum(r.sequence_tokens for r in rows), "assistant_loss_token_presentations": epochs * sum(r.assistant_loss_tokens for r in rows), "native_pairs": [list(r.source.key) for r in rows]}
+    return {
+        "rows": len(rows),
+        "tasks": len({r.source.task for r in rows}),
+        "sequence_tokens": sum(r.sequence_tokens for r in rows),
+        "assistant_loss_tokens": sum(r.assistant_loss_tokens for r in rows),
+        "sequence_token_presentations": epochs * sum(r.sequence_tokens for r in rows),
+        "assistant_loss_token_presentations": epochs * sum(r.assistant_loss_tokens for r in rows),
+        "native_pairs": [list(r.source.key) for r in rows],
+    }
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     if type(args.epochs) is not int or args.epochs < 1:
         raise BuildError("--epochs must be a realized positive integer common full-epoch count")
     if type(args.max_length) is not int or not 1 <= args.max_length <= 65536:
-        raise BuildError("--max-length must be positive and no larger than the native 65536 context")
+        raise BuildError(
+            "--max-length must be positive and no larger than the native 65536 context"
+        )
     evidence = Evidence(args.inputs.resolve().parent)
     input_ref = evidence.capture(args.inputs.resolve())
     inputs = evidence.json(input_ref)
@@ -828,18 +1103,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         try:
             discovered.append(native_source(evidence, observation))
         except BuildError as exc:
-            source_refusals.append({
-                "native_pair": [observation.get("job_id"), observation.get("trial_id")],
-                "task": observation.get("task"), "refusal": str(exc),
-            })
+            source_refusals.append(
+                {
+                    "native_pair": [observation.get("job_id"), observation.get("trial_id")],
+                    "task": observation.get("task"),
+                    "refusal": str(exc),
+                }
+            )
     sources = deduplicate(discovered)
     source_map = {source.key: source for source in sources}
     excluded = {canonical_task(t) for t in inputs.get("exclusions", [])}
     correction_keys = {tuple(link["corrected"]) for link in inputs.get("corrections", [])}
     pool, b, refusals = [], [], source_refusals
     v6_frame = {
-        task for task, row in qualification.v6.items()
-        if row.get("status") == "built" and V6_CHAIN <= set(row.get("chain", "").split(">"))
+        task
+        for task, row in qualification.v6.items()
+        if row.get("status") == "built" and set(row.get("chain", "").split(">")) >= V6_CHAIN
     }
     for source in sources:
         entry: dict[str, Any] = {"native_pair": list(source.key), "task": source.task}
@@ -847,7 +1126,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             original_pass_eligible(source, heldout, excluded, correction_keys, v6_tasks=v6_frame)
             row = prepare(source, tokenizer, v1, qa, sft, args.max_length)
             pool.append(row)
-            entry.update(sequence_tokens=row.sequence_tokens, assistant_loss_tokens=row.assistant_loss_tokens)
+            entry.update(
+                sequence_tokens=row.sequence_tokens, assistant_loss_tokens=row.assistant_loss_tokens
+            )
             if qa.network_fetch(source.trajectory):
                 raise BuildError("observed network answer retrieval cannot qualify B")
             row.provenance["clean_regrades"] = qualification.clean(source)
@@ -855,17 +1136,47 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         except BuildError as exc:
             entry["refusal"] = str(exc)
             refusals.append(entry)
-    receipt: dict[str, Any] = {"schema": "repaired-data-sft-v2.build/1", "inputs": input_ref, "identity": identity, "heldout_parents": sorted(heldout), "additional_training_exclusions": sorted(excluded), "selection_seed": args.seed, "schedule": {"epochs": args.epochs, "loss": "all", "packing": False, "max_steps": None, "max_length": args.max_length, "length_policy": "refuse; never truncate", "requires_complete_epochs": True}, "counts": {"inventory_observations": len(inventory["rows"]), "distinct_native_pairs": len(sources), "eligible_original_pass": len(pool), "verified_clean_nonzero_loss": len(b), "required_b": MINIMUM_B}, "prospective_pool": totals(pool, args.epochs), "prospective_b_not_admitted": totals(b, args.epochs), "refusals": refusals}
+    receipt: dict[str, Any] = {
+        "schema": "repaired-data-sft-v2.build/1",
+        "inputs": input_ref,
+        "identity": identity,
+        "heldout_parents": sorted(heldout),
+        "additional_training_exclusions": sorted(excluded),
+        "selection_seed": args.seed,
+        "schedule": {
+            "epochs": args.epochs,
+            "loss": "all",
+            "packing": False,
+            "max_steps": None,
+            "max_length": args.max_length,
+            "length_policy": "refuse; never truncate",
+            "requires_complete_epochs": True,
+        },
+        "counts": {
+            "inventory_observations": len(inventory["rows"]),
+            "distinct_native_pairs": len(sources),
+            "eligible_original_pass": len(pool),
+            "verified_clean_nonzero_loss": len(b),
+            "required_b": MINIMUM_B,
+        },
+        "prospective_pool": totals(pool, args.epochs),
+        "prospective_b_not_admitted": totals(b, args.epochs),
+        "refusals": refusals,
+    }
     receipt["d"] = {
-        "status": "not_yet_admitted" if inputs.get("corrections") else "missing_genuine_verified_corrections",
+        "status": "not_yet_admitted"
+        if inputs.get("corrections")
+        else "missing_genuine_verified_corrections",
         "input_links": len(inputs.get("corrections", [])),
     }
     if args.out.exists():
         raise BuildError(f"refusing to overwrite existing output/data: {args.out}")
     args.out.mkdir(parents=True)
+
     def save() -> None:
         receipt["evidence"] = sorted(evidence.files.values(), key=lambda ref: ref["path"])
         (args.out / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+
     if args.plan:
         receipt["status"] = "prospective_only_not_training_admission"
         receipt["candidate_rows"] = [r.provenance for r in pool]
@@ -877,11 +1188,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         d, d_refusals = [], []
         for link in inputs.get("corrections", []):
             try:
-                corrected = correction_row(evidence, link, source_map, qualification, heldout | excluded, qa)
+                corrected = correction_row(
+                    evidence, link, source_map, qualification, heldout | excluded, qa
+                )
                 messages, _, _ = qa.to_messages(corrected.trajectory)
                 start = corrected.provenance["correction_message_start"]
                 targets = [
-                    index for index in range(start, len(messages))
+                    index
+                    for index in range(start, len(messages))
                     if messages[index].get("role") == "assistant"
                 ]
                 # One example per actual corrected completion, each with its full
@@ -891,13 +1205,25 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     for index in targets
                 )
             except BuildError as exc:
-                d_refusals.append({"source": link.get("source"), "corrected": link.get("corrected"), "refusal": str(exc)})
+                d_refusals.append(
+                    {
+                        "source": link.get("source"),
+                        "corrected": link.get("corrected"),
+                        "refusal": str(exc),
+                    }
+                )
         target_ids = [(r.source.key, r.provenance["target_turn_index"]) for r in d]
         if len(set(target_ids)) != len(target_ids):
             raise BuildError("duplicate corrected native assistant targets in D")
-        receipt["d"] = {"status": "ready" if d and not d_refusals else "missing_genuine_verified_corrections", "refusals": d_refusals, "input_links": len(inputs.get("corrections", []))}
+        receipt["d"] = {
+            "status": "ready" if d and not d_refusals else "missing_genuine_verified_corrections",
+            "refusals": d_refusals,
+            "input_links": len(inputs.get("corrections", [])),
+        }
         if d_refusals or (args.require_d and not d):
-            raise BuildError("D-v2 missing/refused genuine EnvCheck false-pass -> true-pass self-corrections")
+            raise BuildError(
+                "D-v2 missing/refused genuine EnvCheck false-pass -> true-pass self-corrections"
+            )
         arms = {"B": b, "C": c}
         if d:
             arms["D"] = d
@@ -905,12 +1231,33 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         exposure = receipt["arms"]["B"]["assistant_loss_token_presentations"]
         if exposure != receipt["arms"]["C"]["assistant_loss_token_presentations"]:
             raise BuildError("B/C realized schedule exposure mismatch")
-        receipt["exposure_match"] = {"exact": True, "assistant_loss_token_presentations": exposure, "sampler": "seeded_permutation_feasible_subset_not_uniform", "same_original_pass_pool": True, "c_is_not_b": True}
+        receipt["exposure_match"] = {
+            "exact": True,
+            "assistant_loss_token_presentations": exposure,
+            "sampler": "seeded_permutation_feasible_subset_not_uniform",
+            "same_original_pass_pool": True,
+            "c_is_not_b": True,
+        }
         for arm, rows in arms.items():
-            manifest = {"builder": str(Path(__file__).relative_to(REPO)), "arm": arm, "rows": len(rows), **totals(rows, args.epochs), "execution_ids": [r.source.key[1] for r in rows], "tasks": sorted({r.source.task for r in rows}), "identity": identity, "schedule": receipt["schedule"], "heldout_applied": True, "heldout_parents": sorted(heldout), "selection_seed": args.seed, "exposure_match": receipt["exposure_match"] if arm in {"B", "C"} else None}
+            manifest = {
+                "builder": str(Path(__file__).relative_to(REPO)),
+                "arm": arm,
+                "rows": len(rows),
+                **totals(rows, args.epochs),
+                "execution_ids": [r.source.key[1] for r in rows],
+                "tasks": sorted({r.source.task for r in rows}),
+                "identity": identity,
+                "schedule": receipt["schedule"],
+                "heldout_applied": True,
+                "heldout_parents": sorted(heldout),
+                "selection_seed": args.seed,
+                "exposure_match": receipt["exposure_match"] if arm in {"B", "C"} else None,
+            }
             if arm == "D":
                 manifest["schedule"] = {**receipt["schedule"], "loss": "last"}
-                manifest["target_policy"] = "corrected_assistant_completions_only_with_complete_prompt_prefix"
+                manifest["target_policy"] = (
+                    "corrected_assistant_completions_only_with_complete_prompt_prefix"
+                )
             write_arm(args.out / arm, rows, manifest, v1, sft)
         receipt["status"] = "ready"
     except BuildError as exc:
@@ -922,7 +1269,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--inputs", type=Path, required=True)
     parser.add_argument("--tokenizer-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
@@ -937,7 +1286,16 @@ def main() -> int:
     except (BuildError, OSError, KeyError, ValueError) as exc:
         print(f"repaired-data-sft-v2: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({"status": receipt["status"], "counts": receipt["counts"], "receipt": str(args.out / "receipt.json")}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "status": receipt["status"],
+                "counts": receipt["counts"],
+                "receipt": str(args.out / "receipt.json"),
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 

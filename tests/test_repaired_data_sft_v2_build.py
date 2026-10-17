@@ -1,4 +1,5 @@
 """Behavioral admission/accounting boundaries; no tokenizer download or execution."""
+
 from __future__ import annotations
 
 import copy
@@ -9,7 +10,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 
 _PATH = Path(__file__).resolve().parents[1] / "research/experiments/repaired-data-sft-v2/build.py"
 _SPEC = importlib.util.spec_from_file_location("repaired_data_sft_v2_build", _PATH)
@@ -25,16 +25,25 @@ def document(path: Path, value: object) -> dict:
     return {"path": str(path), "sha256": build.digest(path.read_bytes())}
 
 
-def native(tmp_path: Path, *, trial: str = "trial-1", job: str = "job-1", task: str = "format-code-task-000001", ancestry: list | None = None):
+def native(
+    tmp_path: Path,
+    *,
+    trial: str = "trial-1",
+    job: str = "job-1",
+    task: str = "format-code-task-000001",
+    ancestry: list | None = None,
+):
     root = tmp_path / job / trial
     result = {
-        "id": trial, "task_name": task,
+        "id": trial,
+        "task_name": task,
         "config": {"job_id": job, "task": {}},
         "verifier_result": {"rewards": {"reward": 1.0}},
     }
     trajectory = {"agent": {"name": "mimoagent"}, "steps": []}
     row = {
-        "job_id": job, "trial_id": trial,
+        "job_id": job,
+        "trial_id": trial,
         "result": document(root / "result.json", result),
         "trajectory": document(root / "agent/trajectory.json", trajectory),
         "ancestry": ancestry or [],
@@ -70,7 +79,11 @@ def test_all33_authoritative_heldout_parents_are_required(tmp_path):
     heldout = sorted(build.FROZEN_HELDOUT)
     ref = document(tmp_path / "heldout.json", {"schema": "mimo.heldout/v1", "heldout": heldout})
     assert build.load_heldout(build.Evidence(tmp_path), ref) == build.FROZEN_HELDOUT
-    for bad in (heldout[:26], heldout[:-1] + [heldout[0]], heldout[:-1] + ["format-code-task-999999"]):
+    for bad in (
+        heldout[:26],
+        heldout[:-1] + [heldout[0]],
+        heldout[:-1] + ["format-code-task-999999"],
+    ):
         ref = document(tmp_path / "bad-heldout.json", {"schema": "mimo.heldout/v1", "heldout": bad})
         with pytest.raises(build.BuildError, match="ALL33"):
             build.load_heldout(build.Evidence(tmp_path), ref)
@@ -81,11 +94,18 @@ def test_heldout_descendant_cannot_hide_behind_a_renamed_trial(tmp_path):
     package = tmp_path / "native-parent"
     package.mkdir()
     (package / "task.toml").write_text(f'[metadata]\nsource_id = "{parent.split("/")[-1]}"\n')
-    lineage = document(tmp_path / "lineage.json", {
-        "schema": "evallab.task_variant/v1", "task_name": "mimo-v2.6-rl/a-renamed-repair",
-        "variant_digest": "sha256:" + "a" * 64,
-        "parent": {"digest": "sha256:" + "b" * 64, "source": {"kind": "local", "path": str(package)}},
-    })
+    lineage = document(
+        tmp_path / "lineage.json",
+        {
+            "schema": "evallab.task_variant/v1",
+            "task_name": "mimo-v2.6-rl/a-renamed-repair",
+            "variant_digest": "sha256:" + "a" * 64,
+            "parent": {
+                "digest": "sha256:" + "b" * 64,
+                "source": {"kind": "local", "path": str(package)},
+            },
+        },
+    )
     source, _, _ = native(tmp_path, task="a-renamed-repair", ancestry=[lineage])
     assert source.task == parent
     with pytest.raises(build.BuildError, match="heldout/excluded"):
@@ -139,11 +159,17 @@ def test_randomized_feasible_control_matches_exact_loss_not_sequence_tokens(tmp_
     pool = b + extra
     before = copy.deepcopy([r.messages for r in pool])
     selected = build.matched_control(pool, b, seed=20261017)
-    assert [r.source.key for r in selected] == [r.source.key for r in build.matched_control(list(reversed(pool)), b, seed=20261017)]
+    assert [r.source.key for r in selected] == [
+        r.source.key for r in build.matched_control(list(reversed(pool)), b, seed=20261017)
+    ]
     assert {r.source.key for r in selected} != {r.source.key for r in b}
     assert sum(r.assistant_loss_tokens for r in selected) == 11
     assert sum(r.sequence_tokens for r in selected) == 700
-    assert build.totals(b, 3)["assistant_loss_token_presentations"] == build.totals(selected, 3)["assistant_loss_token_presentations"] == 33
+    assert (
+        build.totals(b, 3)["assistant_loss_token_presentations"]
+        == build.totals(selected, 3)["assistant_loss_token_presentations"]
+        == 33
+    )
     assert [r.messages for r in pool] == before  # no truncation, padding, or target rewrites
     assert all(any(r is candidate for candidate in pool) for r in selected)
 
@@ -166,19 +192,100 @@ def test_control_refuses_duplicate_or_zero_loss_candidates(tmp_path):
 
 
 def replay(tmp_path: Path, score: int = 1):
-    expected = "sha256:" + "d" * 64
+    from evallab.registry import compute_task_digests
+    from evallab.runner import staged_matrix_request
+    from evallab.schemas import ExperimentMatrix, MatrixRun
+
+    task = tmp_path / "variants/source"
+    (task / "solution").mkdir(parents=True)
+    (task / "tests").mkdir()
+    (task / "task.toml").write_text(
+        '[task]\nname = "mimo-v2.6-rl/format-code-task-000001"\n'
+        '[environment]\nworkdir = "/testbed"\n'
+    )
+    (task / "solution/solve.sh").write_text("#!/bin/bash\nexit 0\n")
+    (task / "tests/test.sh").write_text("#!/bin/bash\nexit 0\n")
+    digests = compute_task_digests(task)
+    expected = digests.package
     script = "#!/bin/bash\nset -e\ncd /testbed\nexit 0\n"
     script_path = tmp_path / "runs/scripts/source.sh"
     script_path.parent.mkdir(parents=True)
     script_path.write_text(script)
     sha = hashlib.sha256(script.encode()).hexdigest()
+    run = MatrixRun(name="qa-replay-native", agent="oracle", solution="runs/scripts/source.sh")
+    matrix = ExperimentMatrix(
+        matrix_id="0" * 26,
+        name=run.name,
+        hypothesis="A retained native patch replay qualifies a clean observation.",
+        benchmark_family="qa-trace-regrade",
+        task_id="format-code-task-000001",
+        task=str(task),
+        task_package_digest=expected,
+        verifier_digest=digests.verifier,
+        jobs_dir="runs",
+        runs=[run],
+    )
+    with staged_matrix_request(matrix, run, repo_root=tmp_path) as (_, provenance):
+        staged_digest = provenance["staged_task_digest"]
+    assert staged_digest != expected
     receipt = {
-        "matrix": {"task_package_digest": expected, "runs": [{"agent": "oracle", "solution": "runs/scripts/source.sh"}]},
-        "results": [{"status": "ok", "rewards": [score], "error": None, "staged_task_digest": expected, "solution_sha256": sha}],
+        "matrix": matrix.model_dump(mode="json"),
+        "results": [
+            {"name": run.name, **provenance, "status": "ok", "rewards": [score], "error": None}
+        ],
     }
     path = tmp_path / "runs/.executor/real.matrix.json"
     document(path, receipt)
-    row = {"input_kind": "native_patch_replay", "matrix_receipt": str(path), "script_sha256": sha, "regraded": score, "refusals": [], "execution_error": None}
+    job = tmp_path / "runs" / run.name
+    document(
+        job / "result.json",
+        {
+            "id": "native-job",
+            "n_total_trials": 1,
+            "stats": {},
+            "finished_at": "2026-10-17T06:00:02Z",
+            "exception_info": None,
+        },
+    )
+    document(
+        job / "lab-metadata.json",
+        {
+            "exit_code": 0,
+            "timed_out": False,
+            "task_staging": {
+                "source_package_digest": staged_digest,
+                "source_harbor_digest": "sha256:" + "c" * 64,
+                "staged_harbor_digest": "sha256:" + "c" * 64,
+            },
+        },
+    )
+    trial = job / "native-trial"
+    document(
+        trial / "result.json",
+        {
+            "id": "native-trial",
+            "trial_name": "native-trial",
+            "task_name": "mimo-v2.6-rl/format-code-task-000001",
+            "finished_at": "2026-10-17T06:00:02Z",
+            "exception_info": None,
+            "agent_execution": {
+                "started_at": "2026-10-17T06:00:00Z",
+                "finished_at": "2026-10-17T06:00:01Z",
+            },
+            "verifier_result": {"rewards": {"reward": score}},
+        },
+    )
+    (trial / "agent").mkdir()
+    (trial / "agent/oracle.txt").write_text("")
+    row = {
+        "input_kind": "native_patch_replay",
+        "matrix_receipt": str(path),
+        "job_dir": str(job),
+        "script_sha256": sha,
+        "regraded": score,
+        "refusals": [],
+        "execution_error": None,
+    }
     qualification = build.Qualification.__new__(build.Qualification)
     qualification.evidence = build.Evidence(tmp_path)
     return qualification, row, expected, script, receipt, path
@@ -206,7 +313,37 @@ def test_scalar_success_cannot_override_native_counterevidence(tmp_path, change)
     document(path, receipt)
     qualification = build.Qualification.__new__(build.Qualification)
     qualification.evidence = build.Evidence(tmp_path)
-    with pytest.raises(build.BuildError, match="native matrix|script hash"):
+    with pytest.raises(build.BuildError, match="native matrix|script hash|staged package"):
+        qualification.native_replay(row, expected, 1)
+
+
+@pytest.mark.parametrize(
+    "change", ["reward", "exception", "oracle_exit", "oracle_log", "staging", "timed_out"]
+)
+def test_matrix_success_cannot_override_actual_native_counterevidence(tmp_path, change):
+    qualification, row, expected, _, _, _ = replay(tmp_path)
+    job = Path(row["job_dir"])
+    result_path = job / "native-trial/result.json"
+    result = json.loads(result_path.read_text())
+    if change == "reward":
+        result["verifier_result"]["rewards"]["reward"] = 0
+        document(result_path, result)
+    elif change == "exception":
+        result["exception_info"] = {"exception_type": "VerifierTimeoutError"}
+        document(result_path, result)
+    elif change == "oracle_exit":
+        (job / "native-trial/agent/exit-code.txt").write_text("42")
+    elif change == "oracle_log":
+        (job / "native-trial/agent/oracle.txt").unlink()
+    else:
+        metadata_path = job / "lab-metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        if change == "staging":
+            metadata["task_staging"]["source_package_digest"] = expected
+        else:
+            metadata["timed_out"] = True
+        document(metadata_path, metadata)
+    with pytest.raises(build.BuildError, match="native replay outcome/staging"):
         qualification.native_replay(row, expected, 1)
 
 
@@ -225,7 +362,14 @@ def test_raw_reward_or_scalar_controls_do_not_qualify_as_clean(tmp_path):
 
 def test_missing_real_envcheck_correction_is_a_refusal_not_a_fabricated_row(tmp_path):
     with pytest.raises(build.BuildError, match="missing genuine source/corrected"):
-        build.correction_row(build.Evidence(tmp_path), {"source": ["a", "b"], "corrected": ["c", "d"]}, {}, None, set(), None)
+        build.correction_row(
+            build.Evidence(tmp_path),
+            {"source": ["a", "b"], "corrected": ["c", "d"]},
+            {},
+            None,
+            set(),
+            None,
+        )
 
 
 def envcheck_controls(tmp_path: Path, change: str | None = None):
@@ -233,28 +377,37 @@ def envcheck_controls(tmp_path: Path, change: str | None = None):
     task = "mimo-v2.6-rl/format-code-task-000169"
     label = "verifier-repair@1:" + "a" * 12
     variant = {
-        "variant_digest": expected, "task": task, "status": "repaired",
-        "declared_survivors": 0, "v6_oracle_x3": [1, 1, 1], "v6_nop_x3": [0, 0, 0],
+        "variant_digest": expected,
+        "task": task,
+        "status": "repaired",
+        "declared_survivors": 0,
+        "v6_oracle_x3": [1, 1, 1],
+        "v6_nop_x3": [0, 0, 0],
     }
     archive = tmp_path / "archive"
     for agent, score in (("oracle", 1), ("nop", 0)):
         job = archive / "v6-controls/jobs" / f"v6rep-000169-{agent}"
         name = f"v6rep-000169-{agent}__actual"
         metadata = {
-            "exit_code": 0, "timed_out": False,
+            "exit_code": 0,
+            "timed_out": False,
             "task_staging": {
-                "source_package_digest": expected, "declared_task_name": task,
+                "source_package_digest": expected,
+                "declared_task_name": task,
                 "source_harbor_digest": "sha256:" + "b" * 64,
                 "staged_harbor_digest": "sha256:" + "b" * 64,
             },
         }
         result = {
-            "id": "native-" + agent, "task_name": task, "exception_info": None,
+            "id": "native-" + agent,
+            "task_name": task,
+            "exception_info": None,
             "config": {"job_id": "job-" + agent, "agent": {"name": agent}},
             "verifier_result": {"rewards": {"reward": score}},
         }
         stability = {
-            "schema": "evallab.verifier_stability/v1", "n_runs": 3,
+            "schema": "evallab.verifier_stability/v1",
+            "n_runs": 3,
             "repeat_n_requested": 3,
             "runs": [{"index": i, "reward": score, "error": None} for i in range(3)],
         }
@@ -268,10 +421,15 @@ def envcheck_controls(tmp_path: Path, change: str | None = None):
             elif change == "partial":
                 variant["status"] = "partial"
         document(job / "lab-metadata.json", metadata)
-        document(job / "result.json", {
-            "id": "job-" + agent,
-            "stats": {"evals": {agent + "__adhoc": {"reward_stats": {"reward": {str(score): [name]}}}}},
-        })
+        document(
+            job / "result.json",
+            {
+                "id": "job-" + agent,
+                "stats": {
+                    "evals": {agent + "__adhoc": {"reward_stats": {"reward": {str(score): [name]}}}}
+                },
+            },
+        )
         document(job / name / "result.json", result)
         document(job / name / "verifier/stability.json", stability)
         (job / name / "verifier/reward.txt").write_text(str(score))
@@ -310,14 +468,19 @@ def test_correction_must_keep_hidden_sources_separate_on_exact_repaired_grader(t
     corrected, evidence, _ = native(tmp_path, trial="corrected")
     expected = "sha256:" + "a" * 64
     corrected.result["verifier_environment_mode"] = "shared" if bad == "shared" else "separate"
-    corrected.provenance["metadata"] = document(tmp_path / "correction-metadata.json", {
-        "task_staging": {
-            "source_package_digest": "sha256:" + "b" * 64 if bad == "different_digest" else expected,
-            "declared_task_name": corrected.task,
-            "source_harbor_digest": "sha256:" + "c" * 64,
-            "staged_harbor_digest": "sha256:" + "c" * 64,
+    corrected.provenance["metadata"] = document(
+        tmp_path / "correction-metadata.json",
+        {
+            "task_staging": {
+                "source_package_digest": "sha256:" + "b" * 64
+                if bad == "different_digest"
+                else expected,
+                "declared_task_name": corrected.task,
+                "source_harbor_digest": "sha256:" + "c" * 64,
+                "staged_harbor_digest": "sha256:" + "c" * 64,
+            },
         },
-    })
+    )
     if bad is None:
         build.correction_environment(evidence, corrected, expected)
     else:

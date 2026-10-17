@@ -45,7 +45,6 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any, NamedTuple
 
-
 V1_PATH = Path(__file__).resolve().parents[1] / "repaired-data-sft-v1/analyze.py"
 V1 = runpy.run_path(str(V1_PATH))
 PLAN_SCHEMA = "repaired-data-sft.analysis-plan/v2"
@@ -390,8 +389,10 @@ def _read_arm(
             error == "skipped_by_budget" or error.startswith("skipped_by_budget:")
         )
         reason = (
-            "skipped_by_budget" if budget_skip else "error" if error else "null_reward"
-        ) if value is None else None
+            ("skipped_by_budget" if budget_skip else "error" if error else "null_reward")
+            if value is None
+            else None
+        )
         trials[role].setdefault(task, []).append((name, value))
         staged[role].append((task, attempt, Cell(name, value, reason)))
         if role == "pin_diagnostic":
@@ -411,7 +412,9 @@ def _read_arm(
         "headline": headline,
         "diagnostic": diagnostic,
         "diagnostic_task_ids": diagnostic_tasks,
-        "diagnostic_package_digests": {task: sorted(digests) for task, digests in diagnostic_digests.items()},
+        "diagnostic_package_digests": {
+            task: sorted(digests) for task, digests in diagnostic_digests.items()
+        },
         "skipped_diagnostic_rows": skipped,
         "raw_rows": len(headline) + len(diagnostic),
     }
@@ -473,7 +476,9 @@ def _paired_pins(
         summary["attempts_counted"] = selected
         measured = summary["regrade_measured"]
         flips = summary["pin_incorrect_passes"]
-        summary["pin_incorrect_pass_fraction"] = str(Fraction(flips, measured)) if measured else None
+        summary["pin_incorrect_pass_fraction"] = (
+            str(Fraction(flips, measured)) if measured else None
+        )
         summary["unmeasured_pin_passes"] = summary["v6_pin_passes"] - measured
         summaries[arm] = summary
     return {
@@ -492,11 +497,24 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
     plan_path = plan_path.resolve()
     plan_data, plan_source = _source(plan_path)
     plan = _json(plan_data)
-    _fields(plan, {
-        "schema", "heldout_manifest", "heldout_sha256", "package_pairs", "cohort_task_ids",
-        "selected_attempts", "arms", "bootstrap_replicates", "seed", "pin_task_ids",
-        "paired_pin_regrades", "pin_manifest",
-    }, "plan")
+    _fields(
+        plan,
+        {
+            "schema",
+            "heldout_manifest",
+            "heldout_sha256",
+            "package_pairs",
+            "cohort_task_ids",
+            "selected_attempts",
+            "arms",
+            "bootstrap_replicates",
+            "seed",
+            "pin_task_ids",
+            "paired_pin_regrades",
+            "pin_manifest",
+        },
+        "plan",
+    )
     if plan.get("schema", PLAN_SCHEMA) != PLAN_SCHEMA:
         raise ValueError(f"plan schema must be {PLAN_SCHEMA}")
     base = plan_path.parent
@@ -524,7 +542,11 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
     seed = plan.get("seed", 42)
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
-    package_path = _path(base, plan["package_pairs"], "package_pairs") if "package_pairs" in plan else heldout_path.parent / "package-pairs.csv"
+    package_path = (
+        _path(base, plan["package_pairs"], "package_pairs")
+        if "package_pairs" in plan
+        else heldout_path.parent / "package-pairs.csv"
+    )
     _, package_source = _source(package_path)
     frozen = V1["v6_digests"](package_path)
     if set(heldout) - set(frozen):
@@ -536,9 +558,15 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
     for name, spec in arm_specs.items():
         if not name or "_vs_" in name:
             raise ValueError("arm names must be nonempty and cannot contain _vs_")
-        _fields(spec, {"results", "authorized_attempts", "authorized_task_ids", "model_metadata"}, f"arm {name}")
+        _fields(
+            spec,
+            {"results", "authorized_attempts", "authorized_task_ids", "model_metadata"},
+            f"arm {name}",
+        )
         attempts = _positive_int(spec.get("authorized_attempts"), f"arm {name} authorized_attempts")
-        tasks = _task_ids(spec.get("authorized_task_ids", heldout), f"arm {name} authorized_task_ids")
+        tasks = _task_ids(
+            spec.get("authorized_task_ids", heldout), f"arm {name} authorized_task_ids"
+        )
         _subset(tasks, heldout, f"arm {name} authorized_task_ids")
         _subset(cohort, tasks, f"arm {name} cohort_task_ids")
         if max(selected) > attempts:
@@ -551,11 +579,13 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
             state = _read_arm(results_path, tasks, attempts, frozen, pins)
         except ValueError as exc:
             raise ValueError(f"arm {name}: {exc}") from exc
-        state.update({
-            "authorized_task_ids": tasks,
-            "authorized_attempt_ids": list(range(1, attempts + 1)),
-            "model_metadata": metadata,
-        })
+        state.update(
+            {
+                "authorized_task_ids": tasks,
+                "authorized_attempt_ids": list(range(1, attempts + 1)),
+                "model_metadata": metadata,
+            }
+        )
         arms[name] = state
 
     # Every arm's original headline AND diagnostic rows have now been validated.
@@ -575,7 +605,8 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
         "selected_attempts": selected,
         "arm_order": list(arms),
         "bootstrap": {
-            key: value for key, value in paired_task_bootstrap([], replicates, seed).items()
+            key: value
+            for key, value in paired_task_bootstrap([], replicates, seed).items()
             if key not in {"ci95", "ci95_fraction", "independent_units"}
         },
         "estimand_notes": {
@@ -598,11 +629,13 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
         view = coverage(state["headline"], cohort, selected)
         view["role"] = "view_coverage_and_observed_subset_rate_not_pairwise_headline"
         diagnostic = coverage(state["diagnostic"], state["diagnostic_task_ids"], raw_attempts)
-        diagnostic.update({
-            "role": "diagnostic_only_never_headline",
-            "skipped_by_budget_rows": state["skipped_diagnostic_rows"],
-            "package_digests": state["diagnostic_package_digests"],
-        })
+        diagnostic.update(
+            {
+                "role": "diagnostic_only_never_headline",
+                "skipped_by_budget_rows": state["skipped_diagnostic_rows"],
+                "package_digests": state["diagnostic_package_digests"],
+            }
+        )
         report["arms"][name] = {
             "source": state["source"],
             "model_metadata": state["model_metadata"],
@@ -616,18 +649,35 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
     for left, right in combinations(arms, 2):
         key = f"{left}_vs_{right}"
         report["paired"][key] = paired_comparison(
-            arms[left]["headline"], arms[right]["headline"], cohort, (left, right),
-            (selected, selected), complete=True, replicates=replicates, seed=seed,
+            arms[left]["headline"],
+            arms[right]["headline"],
+            cohort,
+            (left, right),
+            (selected, selected),
+            complete=True,
+            replicates=replicates,
+            seed=seed,
         )
-        full_tasks = sorted(set(arms[left]["authorized_task_ids"]) & set(arms[right]["authorized_task_ids"]))
+        full_tasks = sorted(
+            set(arms[left]["authorized_task_ids"]) & set(arms[right]["authorized_task_ids"])
+        )
         report["secondary"]["paired_full_schedule"][key] = paired_comparison(
-            arms[left]["headline"], arms[right]["headline"], full_tasks, (left, right),
+            arms[left]["headline"],
+            arms[right]["headline"],
+            full_tasks,
+            (left, right),
             (arms[left]["authorized_attempt_ids"], arms[right]["authorized_attempt_ids"]),
-            complete=False, replicates=replicates, seed=seed,
+            complete=False,
+            replicates=replicates,
+            seed=seed,
         )
     shared = [
-        task for task in cohort
-        if all(_task_rate(state["headline"], task, selected, complete=True) is not None for state in arms.values())
+        task
+        for task in cohort
+        if all(
+            _task_rate(state["headline"], task, selected, complete=True) is not None
+            for state in arms.values()
+        )
     ]
     report["all_arms_common"] = {
         "role": "shared_selected_attempt_table",
@@ -639,7 +689,9 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
         "common_task_cohort": f"{len(shared)}/{len(cohort)}",
         "missing_or_unpaired_task_ids": sorted(set(cohort) - set(shared)),
         "matched_attempt_ids": selected,
-        "arms": {name: _arm_metrics(state["headline"], shared, selected) for name, state in arms.items()},
+        "arms": {
+            name: _arm_metrics(state["headline"], shared, selected) for name, state in arms.items()
+        },
         "table": [
             {
                 "task_id": task,
@@ -657,7 +709,10 @@ def analyze_plan(plan_path: Path) -> dict[str, Any]:
             raise ValueError("paired_pin_regrades requires pin_task_ids and pin_manifest")
         report["paired_pins"] = _paired_pins(
             _path(base, plan["paired_pin_regrades"], "paired_pin_regrades"),
-            _path(base, plan["pin_manifest"], "pin_manifest"), arms, pins, selected,
+            _path(base, plan["pin_manifest"], "pin_manifest"),
+            arms,
+            pins,
+            selected,
         )
     elif "pin_manifest" in plan:
         raise ValueError("pin_manifest requires paired_pin_regrades")

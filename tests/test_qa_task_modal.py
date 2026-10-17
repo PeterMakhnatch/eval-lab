@@ -8,6 +8,7 @@ separate verifiers, raw results, fresh isolation and cleanup.
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -28,9 +29,12 @@ modal_qa: Any = None
 @pytest.fixture(autouse=True)
 def _require_native_modal():
     global modal_qa
-    modal_qa = pytest.importorskip(
-        "evallab.qa.task_modal", reason="native Modal regressions require uv sync --extra laminar"
-    )
+    try:
+        importlib.metadata.version("harbor")
+        importlib.metadata.version("modal")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("native Modal regressions require uv sync --extra laminar")
+    modal_qa = importlib.import_module("evallab.qa.task_modal")
 
 
 def _package(root: Path, name: str = "modal-task", *, separate: bool = False) -> Path:

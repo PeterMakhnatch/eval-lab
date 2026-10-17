@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import fnmatch
 import importlib
+import importlib.metadata
 import io
 import json
 import logging
@@ -25,15 +26,14 @@ from evallab.registry import task_directory_digest
 from evallab.regrade import CloudSpendGate
 
 try:
-    ref_subset_modal = importlib.import_module("evallab.ref_subset_modal")
-except ModuleNotFoundError as error:
-    if not (
-        error.name in {"harbor", "modal"} or (error.name or "").startswith(("harbor.", "modal."))
-    ):
-        raise
-    # Keep every test collected in the base profile; only runtime execution
-    # requires the optional native dependency, as in test_harbor_docker.
+    # Other base-profile tests install Harbor stubs at collection time; those
+    # modules do not constitute an installed native runtime.
+    importlib.metadata.version("harbor")
+    importlib.metadata.version("modal")
+except importlib.metadata.PackageNotFoundError:
     ref_subset_modal = None
+else:
+    ref_subset_modal = importlib.import_module("evallab.ref_subset_modal")
 
 
 @pytest.fixture(autouse=True)

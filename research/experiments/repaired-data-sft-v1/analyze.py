@@ -54,9 +54,11 @@ wants these reported both ways:
   included.
 - **Diagnostic, unpaired** (`pins.arms.<arm>.unpaired`): Infra's fresh pin submissions on
   EnvCheck's v6-ported repaired variants. Per arm it gives the v6 and repaired pin solve
-  rates and their gap. These are separate trials of different submissions, so the gap
-  only estimates the pin incorrect-pass rate.
-- **Diagnostic, paired** (`pins.arms.<arm>.paired`): `--pin-regrade` rows
+  counts, intervals and rate gap. These are separate trials of different submissions;
+  the gap is diagnostic only, not paired pin evidence. Diagnostic coverage reports its
+  planned, missing and errored attempts. No rows means `unavailable`/`skipped_by_budget`;
+  partial measured rows mean `observed_subset`, and all-errored rows mean `unmeasured`.
+- **Primary pin evidence, paired** (`pins.arms.<arm>.paired`): `--pin-regrade` rows
   `{arm, trial, repaired_pass}`. QA Trace's `pin_pairs.py` writes the regrade list and
   `incorrect_pass.py collect --field repaired_pass` collects the results. Each v6-passing
   frozen-v6 pin trial is regraded from its own snapshot on EnvCheck's *v6-ported*
@@ -81,19 +83,22 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
 - every arm reports `solve_coverage` (`complete`, `observed_subset` or `unmeasured`),
   `measured_tasks` (n/33), `measured_attempts` (n/planned), `missing_task_attempts`, and
   the missing and unmeasured task ids. Planned attempts come from the required
-  `--attempts`, in QA Trace's canonical grammar: a uniform count (`--attempts 2`, the
-  authorized schedule) or one count per arm with each of base, A, B and C exactly once
-  (`--attempts base=1,A=1,B=2,C=2`). Anything else is refused. The schedule is printed as
+  `--attempts`, in QA Trace's canonical grammar: a uniform count (`--attempts 2`) or one
+  count per arm with each of base, A, B and C exactly once
+  (`--attempts base=1,A=1,B=2,C=1`). Anything else is refused. The schedule is printed as
   `planned_attempts`: an integer when uniform, a per-arm map otherwise. Coverage is
-  judged per arm against its own schedule, so with the mixed schedule base and A are
-  complete at 33 cells and B and C at 66. An observed subset is never presented as a
-  full 33-task result, and missing slots are never imputed.
+  judged per arm against its own schedule: B plans 66 cells in this mixed schedule,
+  the other arms 33. An observed subset is never presented as a full 33-task result,
+  and missing slots are never imputed. With a map, omitted arm inputs appear as
+  `unmeasured` with `measurement_reason: no_arm_input`; they are not failures.
 - every headline row must be a distinct cell of its arm's schedule: held-out task x
   attempt 1..N, read from the trial name's `-a<N>` suffix. A row on an unauthorized cell
   (such as a3 under a 2-attempt schedule) or a second row on the same cell makes the
   scorer refuse with exit 2. Rows are never filtered or clamped, so
   measured attempts can't exceed planned ones, and a missing a2 plus an extra a3 can't
   pass as complete.
+  Diagnostic rows are validated separately as distinct pin-task x own-arm attempt
+  cells; missing diagnostics never block headline scoring.
 - exact Clopper–Pearson 95% intervals over measured attempts. They ignore within-task
   correlation between attempts, are not cluster-adjusted, and are not intervals for any
   difference between arms.
@@ -102,6 +107,11 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
   whether attempts per task are equal, plus the equal-task mean difference and an exact
   two-sided sign test of task wins and losses (ties discarded). The sign test is not a
   test of the size of the mean difference.
+  - Only B vs C with unequal authorized counts is attempt-matched: both arms must
+    measure every attempt 1..min(counts) for a task to enter the common cohort.
+    B2/C1 therefore compares a1/a1 as primary, never substituting B a2 for a missing a1.
+    Full B two-attempt solve remains secondary; C is explicitly a one-attempt rate.
+    `comparison_coverage` describes the matched cohort, not the full per-arm coverage.
   - With no common measured task, the status is `unmeasured` and the difference and p
     are null.
   - Observed all-tied tasks give p = 1.
@@ -117,7 +127,7 @@ Coverage and uncertainty (`estimand_notes` in the output states them):
         --receipt C=receipts/rds1-c-v4e4.json \
         --replay-exclude format-code-task-001199=g1x --replay-exclude format-code-task-001246=g1x \
         --replay-exclude format-code-task-001590=g1x --replay-exclude format-code-task-002451=g1x \
-        --attempts 2 --out results.json
+        --attempts base=1,A=1,B=2,C=1 --out results.json
 """
 
 from __future__ import annotations
@@ -295,6 +305,8 @@ def paired_comparison(
     heldout: list[str],
     names: tuple[str, str],
     planned_attempts: int | tuple[int, int],
+    *,
+    matched_attempts: int | None = None,
 ) -> dict[str, Any]:
     """Task-level paired comparison on the common measured-task cohort.
 
@@ -302,17 +314,27 @@ def paired_comparison(
     task wins and losses, discarding ties. With no common measured task the comparison is
     `unmeasured` (difference and p null). All-tied observed tasks give p = 1. Both arms
     must hold only distinct cells of their own schedule (`validate_cells`); a single
-    count applies to both arms, a pair is (left, right).
+    count applies to both arms, a pair is (left, right). With `matched_attempts`, validate
+    both full inputs first, then compare only tasks with every attempt 1..matched_attempts
+    measured in both arms. A later attempt never replaces a missing or errored selected one.
     """
     left_n, right_n = (
         planned_attempts if isinstance(planned_attempts, tuple) else (planned_attempts,) * 2
     )
     validate_cells(left, heldout, left_n)
     validate_cells(right, heldout, right_n)
+    if matched_attempts is not None and not 1 <= matched_attempts <= min(left_n, right_n):
+        raise ValueError("matched_attempts must be within both arms' authorized schedules")
     ln, rn = names
 
     def rate(items: list[tuple[str, bool | None]]) -> tuple[float, int] | None:
-        values = [v for _, v in items if v is not None]
+        values = [
+            v
+            for name, v in items
+            if v is not None and (matched_attempts is None or attempt_of(name) <= matched_attempts)
+        ]
+        if matched_attempts is not None and len(values) != matched_attempts:
+            return None
         return (sum(values) / len(values), len(values)) if values else None
 
     per_task = {t: (rate(left.get(t, [])), rate(right.get(t, []))) for t in heldout}
@@ -342,6 +364,25 @@ def paired_comparison(
         "exact_sign_p": float(p) if p is not None else None,
         "exact_sign_fraction": str(p) if p is not None else None,
     }
+    if matched_attempts is not None:
+        out.update(
+            {
+                "comparison_coverage": (
+                    "complete"
+                    if common and len(common) == len(heldout)
+                    else "observed_subset"
+                    if common
+                    else "unmeasured"
+                ),
+                f"{ln}_solve_rate": round(sum(lr[0] for lr, _ in common.values()) / len(common), 4)
+                if common
+                else None,
+                f"{rn}_solve_rate": round(sum(rr[0] for _, rr in common.values()) / len(common), 4)
+                if common
+                else None,
+                "matched_attempt_ids": list(range(1, matched_attempts + 1)),
+            }
+        )
     if common and not equal:
         out["attempts_caveat"] = (
             f"unequal attempts per task ({ln} {l_attempts} vs {rn} {r_attempts} in the cohort): "
@@ -513,7 +554,7 @@ def main() -> int:
         "--attempts",
         type=str,
         required=True,
-        help="planned attempts per task: a uniform count (2, the authorized schedule) or "
+        help="planned attempts per task: a uniform count (e.g. 2) or "
         "base=N,A=N,B=N,C=N with each arm exactly once",
     )
     ap.add_argument(
@@ -630,6 +671,9 @@ def main() -> int:
     def attempts_for(arm: str) -> int:
         return schedule if isinstance(schedule, int) else schedule[arm]
 
+    bc_attempts = (attempts_for("B"), attempts_for("C"))
+    matched_bc_attempts = min(bc_attempts) if bc_attempts[0] != bc_attempts[1] else None
+
     for name, by_task in arms.items():
         if not isinstance(schedule, int) and name not in schedule:
             print(
@@ -640,6 +684,11 @@ def main() -> int:
             validate_cells(by_task, heldout_ids, attempts_for(name))
         except ValueError as exc:
             print(f"REFUSED: arm {name}: {exc}", file=sys.stderr)
+            return 2
+        try:
+            validate_cells(diagnostic[name], sorted(pins), attempts_for(name))
+        except ValueError as exc:
+            print(f"REFUSED: arm {name} diagnostic: {exc}", file=sys.stderr)
             return 2
     report: dict[str, Any] = {
         "heldout_tasks": len(heldout),
@@ -656,7 +705,9 @@ def main() -> int:
         report["authorized_attempts"] = {
             arm: list(range(1, schedule[arm] + 1)) for arm in sorted(schedule)
         }
-    for name, by_task in arms.items():
+    report_arm_names = arms.keys() if isinstance(schedule, int) else ARMS
+    for name in report_arm_names:
+        by_task = arms.get(name, {})
         trials = [(t, n, v) for t, items in by_task.items() for n, v in items]
         verdicts = [
             (t, attempt_of(n), v, original.get((name, n))) for t, n, v in trials if v is not None
@@ -673,6 +724,13 @@ def main() -> int:
             **arm_coverage(by_task, heldout_ids, attempts_for(name)),
             **incorrect_pass,
         }
+        if name not in arms:
+            report["arms"][name]["measurement_reason"] = "no_arm_input"
+        if matched_bc_attempts is not None and name in ("B", "C"):
+            report["arms"][name]["attempts_counted"] = attempts_for(name)
+            report["arms"][name]["solve_rate_role"] = (
+                "secondary" if attempts_for(name) > matched_bc_attempts else "attempt_matched"
+            )
     exposure: dict[str, dict[str, int]] = {}
     for spec in args.receipt:
         name, _, path = spec.partition("=")
@@ -698,14 +756,22 @@ def main() -> int:
         if left not in arms or right not in arms:
             continue
         pair = (attempts_for(left), attempts_for(right))
-        report["paired"][f"{left}_vs_{right}"] = paired_comparison(
-            arms[left], arms[right], heldout_ids, (left, right), pair
+        matched_attempts = matched_bc_attempts if (left, right) == ("B", "C") else None
+        comparison = paired_comparison(
+            arms[left],
+            arms[right],
+            heldout_ids,
+            (left, right),
+            pair,
+            matched_attempts=matched_attempts,
         )
+        if matched_attempts is not None:
+            comparison["role"] = "primary"
+            report["primary_comparison"] = "B_vs_C"
         if not isinstance(schedule, int):
-            report["paired"][f"{left}_vs_{right}"]["attempts_counted"] = {
-                left: pair[0],
-                right: pair[1],
-            }
+            counted = pair if matched_attempts is None else (matched_attempts, matched_attempts)
+            comparison["attempts_counted"] = {left: counted[0], right: counted[1]}
+        report["paired"][f"{left}_vs_{right}"] = comparison
     if "B_vs_C" in report["paired"]:
         b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))
         report["paired"]["B_vs_C"]["exposure_caveat"] = (
@@ -714,8 +780,8 @@ def main() -> int:
             "difference mixes data selection with the difference in supervised tokens."
         )
 
-    # Both pin paths use the same v6-ported repaired graders: unpaired fresh submissions
-    # and paired snapshot regrades of headline v6 passes.
+    # Paired snapshot regrades are primary pin evidence; fresh submissions are diagnostic.
+    # Both paths use the same v6-ported repaired graders, with separate populations.
     if pins:
         if args.pin_regrade and not args.pin_manifest:
             print("REFUSED: --pin-regrade needs --pin-manifest", file=sys.stderr)
@@ -738,6 +804,8 @@ def main() -> int:
         report["pins"] = {
             "tasks": sorted(pins),
             "grader_note": (
+                "Paired snapshot regrades are primary pin evidence; fresh unpaired submissions "
+                "are diagnostic only. "
                 "Paired and unpaired pin numbers use byte-identical v6-ported repaired graders: "
                 "paired regrades use retained snapshots of headline v6-passing submissions; "
                 "unpaired diagnostics use fresh submissions. Their populations and denominators "
@@ -750,14 +818,30 @@ def main() -> int:
             "unpaired_graders": unpaired,
             "arms": {},
         }
-        for name in arms:
-            v6_trials = [(n, v) for t in pins for n, v in arms[name].get(t, []) if v is not None]
+        for name in report_arm_names:
+            by_task = arms.get(name, {})
+            pin_rows = diagnostic.get(name, {})
+            v6_trials = [(n, v) for t in pins for n, v in by_task.get(t, []) if v is not None]
             v6_pin = [v for _, v in v6_trials]
-            rep_pin = [v for t in pins for _, v in diagnostic[name].get(t, []) if v is not None]
+            rep_trials = [v for t in pins for _, v in pin_rows.get(t, [])]
+            rep_pin = [v for v in rep_trials if v is not None]
+            planned_diagnostic = len(pins) * attempts_for(name)
+            if not rep_trials:
+                diagnostic_status = "unavailable"
+            elif not rep_pin:
+                diagnostic_status = "unmeasured"
+            elif len(rep_pin) == planned_diagnostic:
+                diagnostic_status = "complete"
+            else:
+                diagnostic_status = "observed_subset"
             v6_rate = sum(v6_pin) / len(v6_pin) if v6_pin else None
             rep_rate = sum(rep_pin) / len(rep_pin) if rep_pin else None
             report["pins"]["arms"][name] = {
                 "unpaired": {
+                    "status": diagnostic_status,
+                    "planned_diagnostic_attempts": planned_diagnostic,
+                    "missing_diagnostic_attempts": planned_diagnostic - len(rep_pin),
+                    "errored_diagnostic_attempts": len(rep_trials) - len(rep_pin),
                     "v6_measured": len(v6_pin),
                     "v6_solves": sum(v6_pin),
                     "v6_solve_ci95": clopper_pearson(sum(v6_pin), len(v6_pin)),
@@ -768,7 +852,7 @@ def main() -> int:
                     if v6_rate is not None and rep_rate is not None
                     else None,
                     "repaired_trials_by_task": {
-                        t: len(diagnostic[name].get(t, [])) for t in sorted(pins)
+                        t: len(pin_rows.get(t, [])) for t in sorted(pins)
                     },
                 },
                 "paired": paired_pin_summary(
@@ -779,6 +863,8 @@ def main() -> int:
                 if args.pin_regrade
                 else "pending: no --pin-regrade rows",
             }
+            if not rep_trials:
+                report["pins"]["arms"][name]["unpaired"]["reason"] = "skipped_by_budget"
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

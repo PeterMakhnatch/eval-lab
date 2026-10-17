@@ -77,17 +77,43 @@ are disclosed wherever A is reported. B and C contain neither.
 - **Server.** All arms and the base are served by one `serve_lora.py` server:
   `EVALLAB_MIMO_LORAS=rds1-a=…,rds1-b=…,rds1-c=…`, with selectors
   `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B[:rds1-a|:rds1-b|:rds1-c]`.
-- **Trials.** They run on Infra's Modal rollout runner with the same settings for every
-  arm.
-- **Pin diagnostics.** Paired snapshot regrades and unpaired fresh submissions use the
-  byte-identical v6-ported repaired graders in `heldout-pin-repaired-graders.csv`.
-  Their populations and denominators remain separate. A missing trajectory leaves a
-  paired regrade unmeasured, never inferred from the native reward.
-- **Reported per arm:**
-  - example count;
-  - held-out solve rate with an exact (Clopper–Pearson) 95% interval;
-  - incorrect-pass rate;
-  - a task-level paired exact sign test for B vs C on the common measured-task cohort.
+- **Trials and calibrated schedule.** Trials use Infra's Modal rollout runner with the
+  same settings for every arm. The exact reporting map is
+  `--attempts base=1,A=1,B=2,C=1`: B has two authorized attempts per task and C has one.
+  Base and A are **unmeasured tonight and must not fire**. Their omitted input files
+  produce explicit empty coverage (0/33 tasks and attempts), null solve rates and
+  `measurement_reason=no_arm_input`, not failures. This reporting map does not authorize
+  new trials.
+- **Primary held-out comparison.** B vs C uses attempt 1 against attempt 1 across the
+  authorized 33-task cohort (`role=primary`, `attempts_counted={B:1,C:1}`,
+  `matched_attempt_ids=[1]`). Report both matched solve rates and the task-level paired
+  exact sign test on their common measured-task cohort. A missing or errored attempt 1
+  excludes that task from the comparison; B's attempt 2 never substitutes for it.
+  Partial cohorts are labelled `observed_subset`, not complete, and an empty cohort is
+  unmeasured.
+- **Per-arm rates.** B's full two-attempt rate (up to 66 measured attempts) remains
+  `solve_rate_role=secondary`, with `attempts_counted=2`. C's single-attempt rate (up to
+  33 measured attempts) is explicitly `solve_rate_role=attempt_matched`, with
+  `attempts_counted=1`. These do not replace the primary matched-cohort rates. Each arm
+  also reports example count, coverage and incorrect-pass rate. Held-out solve rates
+  have exact Clopper–Pearson 95% intervals; these ignore within-task correlation, are
+  not cluster-adjusted and are not intervals for the B–C difference.
+- **Paired snapshot regrades — primary pin evidence.** Regrade each rewarded frozen-v6
+  pin submission from its own retained snapshot using the byte-identical v6-ported
+  repaired graders in `heldout-pin-repaired-graders.csv`. The paired denominator is the
+  v6-passing pin submissions with measured regrades, governed independently by the
+  replay plan's attempt mode, not by headline attempt matching. A missing rewarded
+  trajectory leaves its paired regrade unmeasured, never an inferred pass.
+- **Fresh pin submissions — diagnostic only.** Unpaired fresh submissions use those
+  same byte-identical graders, but their submission populations and denominators are
+  separate from paired snapshot regrades. Missing diagnostics never block headline
+  scoring. On three pins, B plans six diagnostic attempts and C plans three. Partial
+  measured diagnostics are an `observed_subset`: their observed rates and gaps remain
+  diagnostic, with missing attempts explicitly counted rather than claimed complete.
+  `missing_diagnostic_attempts` counts planned cells without a measured result,
+  including errored cells, which are also counted in `errored_diagnostic_attempts`.
+  No diagnostic rows means `status=unavailable`, `reason=skipped_by_budget`; present but
+  all-errored rows mean `status=unmeasured`, not skipped by budget.
 
 ## Runs
 

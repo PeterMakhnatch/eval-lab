@@ -601,6 +601,7 @@ class HarborBackend:
     def __init__(self, *, repo_root: Path) -> None:
         self.repo_root = repo_root.resolve()
         self._image_cache: dict[tuple[str, str], tuple[str, str | None]] = {}
+        self._compose_built: set[tuple[str, str]] = set()
         self._slot_depth = 0
         self._reference_patches: dict[Path, tuple[Path, str]] = {}
 
@@ -669,6 +670,32 @@ class HarborBackend:
         if (package / "solution" / "solve.sh").is_file() and not env.get("healthcheck"):
             return None
         return str(workdir)
+
+    @staticmethod
+    def compose_file(package: Path) -> Path | None:
+        for name in ("docker-compose.yaml", "docker-compose.yml"):
+            candidate = package / "environment" / name
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @staticmethod
+    def _needs_amd64(package: Path) -> bool:
+        for sub in ("environment/Dockerfile", "tests/Dockerfile"):
+            df = package / sub
+            if df.is_file():
+                text = df.read_text(encoding="utf-8", errors="ignore").lower()
+                if "linux/amd64" in text or "x86_64" in text:
+                    return True
+        wheels_dir = package / "tests" / "wheels"
+        if wheels_dir.is_dir():
+            for p in wheels_dir.glob("*.whl"):
+                if "x86_64" in p.name or "amd64" in p.name:
+                    return True
+        return False
+
+    def _platform_args(self, package: Path) -> list[str]:
+        return ["--platform", "linux/amd64"] if self._needs_amd64(package) else []
 
     def _stage_solution(self, package: Path, stage_dir: Path, facts: dict[str, Any]) -> Path:
         """The directory copied to ``/solution``: the package's own, or a patch oracle for it.
@@ -759,9 +786,10 @@ class HarborBackend:
         """Run ``script`` in a throwaway container; a declared healthcheck (setup) runs first."""
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         env_cfg = config.get("environment") or {}
+        plat = self._platform_args(package)
         if self._healthcheck_spec(env_cfg) is None:
             return subprocess.run(
-                ["docker", "run", "--rm", "--entrypoint", "bash", env_image, "-c", script],
+                ["docker", "run", "--rm", *plat, "--entrypoint", "bash", env_image, "-c", script],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -773,6 +801,7 @@ class HarborBackend:
                     "docker",
                     "run",
                     "-d",
+                    *plat,
                     "--name",
                     name,
                     *self._limits(env_cfg),
@@ -809,11 +838,6 @@ class HarborBackend:
         environment = config.get("environment", {})
         if environment.get("gpus", 0) or environment.get("gpu", 0):
             return "task requires GPUs; local Apple Silicon controls cannot measure it"
-        if any(
-            (package / "environment" / name).is_file()
-            for name in ("docker-compose.yaml", "docker-compose.yml")
-        ):
-            return "multi-service package needs a container-count admission check"
         return None
 
     def static(self, task: AuditTask) -> AuditObservation:
@@ -821,41 +845,93 @@ class HarborBackend:
 
         return static_observation(task)
 
+    @staticmethod
+    def _build_context_image(
+        context_dir: Path, tag: str, plat: list[str], *, timeout: int, label: str
+    ) -> None:
+        import os
+        import re
+
+        extra_df: list[str] = []
+        tmp_df: Path | None = None
+        try:
+            for attempt in range(2):
+                res = subprocess.run(
+                    ["docker", "build", "-q", *plat, *extra_df, "-t", tag, str(context_dir)],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                if res.returncode == 0:
+                    return
+                if attempt == 0 and tmp_df is None:
+                    err = (res.stdout or "") + "\n" + (res.stderr or "")
+                    m = re.search(
+                        r"Found existing installation:\s+(\S+)\s+\S+\s+error:\s+uninstall-distutils-installed-package",
+                        err,
+                    )
+                    df_path = context_dir / "Dockerfile"
+                    if m and df_path.is_file():
+                        pkg_name = m.group(1)
+                        df_text = df_path.read_text(encoding="utf-8", errors="ignore")
+                        patched = re.sub(
+                            r"(pip\s+install(?:\s+--no-cache-dir)?\s+)",
+                            rf"\1{pkg_name}==9.2.6 ",
+                            df_text,
+                            count=1,
+                        )
+                        if patched != df_text:
+                            fd, raw_tmp = tempfile.mkstemp(
+                                prefix=".qa-patched-df-", dir=str(context_dir)
+                            )
+                            os.close(fd)
+                            tmp_df = Path(raw_tmp)
+                            tmp_df.write_text(patched, encoding="utf-8")
+                            extra_df = ["-f", str(tmp_df)]
+                if attempt == 1:
+                    raise RuntimeError(f"{label} image build failed: {res.stderr[-600:]}")
+        finally:
+            if tmp_df is not None:
+                tmp_df.unlink(missing_ok=True)
+
     def _ensure_images(self, package: Path, digest: str) -> tuple[str, str | None]:
-        key = (str(package.resolve()), digest)
+        return self._ensure_images_impl(package, digest, build_env_image=True)
+
+    def _ensure_images_impl(
+        self, package: Path, digest: str, *, build_env_image: bool = True
+    ) -> tuple[str, str | None]:
+        key = (f"{package.resolve()}:{int(build_env_image)}", digest)
         if key in self._image_cache:
             return self._image_cache[key]
         short = digest.split(":", 1)[-1][:12]
         slug = package.name.lower().replace("_", "-")[:28]
-        env_tag = f"qa-task/{slug}-env:{short}"
-        for attempt in range(2):
-            build_env = subprocess.run(
-                ["docker", "build", "-q", "-t", env_tag, str(package / "environment")],
-                capture_output=True,
-                text=True,
-                timeout=900,
-            )
-            if build_env.returncode == 0:
-                break
-            if attempt == 1:
-                raise RuntimeError(f"environment image build failed: {build_env.stderr[-600:]}")
+        plat = self._platform_args(package)
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
-        mode = str((config.get("verifier") or {}).get("environment_mode") or "shared")
+        env_cfg = config.get("environment") or {}
+        ver_cfg = config.get("verifier") or {}
+        build_timeout = int(float(env_cfg.get("build_timeout_sec") or 900.0))
+        env_tag = f"qa-task/{slug}-env:{short}"
+        if build_env_image:
+            self._build_context_image(
+                package / "environment",
+                env_tag,
+                plat,
+                timeout=build_timeout,
+                label="environment",
+            )
+        mode = str(ver_cfg.get("environment_mode") or "shared")
         tests_df = package / "tests" / "Dockerfile"
         tests_tag: str | None = None
         if mode == "separate" and tests_df.is_file():
             tests_tag = f"qa-task/{slug}-tests:{short}"
-            for attempt in range(2):
-                build_tests = subprocess.run(
-                    ["docker", "build", "-q", "-t", tests_tag, str(package / "tests")],
-                    capture_output=True,
-                    text=True,
-                    timeout=900,
-                )
-                if build_tests.returncode == 0:
-                    break
-                if attempt == 1:
-                    raise RuntimeError(f"verifier image build failed: {build_tests.stderr[-600:]}")
+            v_build_timeout = int(float(ver_cfg.get("build_timeout_sec") or build_timeout))
+            self._build_context_image(
+                package / "tests",
+                tests_tag,
+                plat,
+                timeout=v_build_timeout,
+                label="verifier",
+            )
         self._image_cache[key] = (env_tag, tests_tag)
         return env_tag, tests_tag
 
@@ -915,6 +991,18 @@ class HarborBackend:
     ) -> AuditObservation:
         """Run one fresh-container trial (separate or shared verifier, 1 container at a time)."""
         package = package.resolve()
+        if self.compose_file(package) is not None:
+            return self._run_compose_trial(
+                package,
+                digest=digest,
+                mode=mode,
+                script=script,
+                trial_dir=trial_dir,
+                timeout_seconds=timeout_seconds,
+                solve_override=solve_override,
+                with_solution=with_solution,
+                capture_logs=capture_logs,
+            )
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "agent").mkdir(exist_ok=True)
         (trial_dir / "verifier").mkdir(exist_ok=True)
@@ -927,6 +1015,7 @@ class HarborBackend:
 
         try:
             env_image, tests_image = self._ensure_images(package, digest)
+            assert env_image is not None
         except Exception as exc:
             return AuditObservation(
                 stage="oracle" if mode == "oracle" else "nop",
@@ -934,7 +1023,6 @@ class HarborBackend:
                 facts={"reward": None, "exception": str(exc), "job_path": str(trial_dir)},
                 reason=str(exc),
             )
-
         stage_dir = Path(tempfile.mkdtemp(prefix="qa-task-stage-"))
         uid = uuid.uuid4().hex[:10]
         agent_name = f"qa-agent-{uid}"
@@ -946,6 +1034,9 @@ class HarborBackend:
         extra_facts: dict[str, Any] = {}
         workdir = self.patch_workdir(package)
         cwd = ["-w", workdir] if workdir else []
+        plat = self._platform_args(package)
+        oracle_failed_rc: int | None = None
+        has_own_solve = (package / "solution" / "solve.sh").is_file() and solve_override is None
 
         try:
             subprocess.run(
@@ -953,6 +1044,7 @@ class HarborBackend:
                     "docker",
                     "run",
                     "-d",
+                    *plat,
                     "--name",
                     agent_name,
                     *self._limits(env_cfg),
@@ -999,7 +1091,7 @@ class HarborBackend:
                 agent_stdout = (done.stdout or "") + (done.stderr or "")
                 (trial_dir / "agent" / "oracle.txt").write_text(agent_stdout, encoding="utf-8")
                 if done.returncode != 0:
-                    exception_msg = f"oracle solve.sh exited {done.returncode}"
+                    oracle_failed_rc = done.returncode
             elif mode == "shortcut" and script is not None:
                 if with_solution:
                     subprocess.run(
@@ -1055,45 +1147,57 @@ class HarborBackend:
                     timeout=120,
                 )
             if tests_image is None:
-                # Shared verifier mode: grade in the same container.
-                subprocess.run(
-                    ["docker", "cp", f"{package / 'tests'}/.", f"{agent_name}:/tests/"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=120,
-                )
-                v_done = subprocess.run(
-                    [
-                        "docker",
-                        "exec",
-                        agent_name,
-                        "bash",
-                        "-c",
-                        "mkdir -p /logs/verifier && bash /tests/test.sh",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=v_timeout + 60,
-                )
-                verifier_stdout = (v_done.stdout or "") + (v_done.stderr or "")
-                rew = subprocess.run(
-                    ["docker", "exec", agent_name, "cat", "/logs/verifier/reward.txt"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                if rew.returncode == 0 and rew.stdout.strip():
-                    try:
-                        reward = finite_reward(float(rew.stdout.strip()))
-                    except ValueError:
-                        reward = None
-                subprocess.run(
-                    ["docker", "cp", f"{agent_name}:/logs/verifier/.", str(trial_dir / "verifier")],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
+                if oracle_failed_rc is not None and not has_own_solve:
+                    exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
+                else:
+                    # Shared verifier mode: grade in the same container.
+                    subprocess.run(
+                        ["docker", "cp", f"{package / 'tests'}/.", f"{agent_name}:/tests/"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=120,
+                    )
+                    v_done = subprocess.run(
+                        [
+                            "docker",
+                            "exec",
+                            agent_name,
+                            "bash",
+                            "-c",
+                            "mkdir -p /logs/verifier && bash /tests/test.sh",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=v_timeout + 60,
+                    )
+                    verifier_stdout = (v_done.stdout or "") + (v_done.stderr or "")
+                    rew = subprocess.run(
+                        ["docker", "exec", agent_name, "cat", "/logs/verifier/reward.txt"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    if rew.returncode == 0 and rew.stdout.strip():
+                        try:
+                            reward = finite_reward(float(rew.stdout.strip()))
+                        except ValueError:
+                            reward = None
+                    subprocess.run(
+                        [
+                            "docker",
+                            "cp",
+                            f"{agent_name}:/logs/verifier/.",
+                            str(trial_dir / "verifier"),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                    )
+                    if oracle_failed_rc is not None and reward is None:
+                        exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
+                    elif oracle_failed_rc is not None:
+                        extra_facts["oracle_exit_code"] = oracle_failed_rc
             else:
                 # Separate verifier mode: copy artifacts out, stop agent, start fresh verifier.
                 copied: list[tuple[str, Path]] = []
@@ -1142,105 +1246,20 @@ class HarborBackend:
                     text=True,
                     timeout=60,
                 )
-
-                subprocess.run(
-                    [
-                        "docker",
-                        "run",
-                        "-d",
-                        "--name",
-                        verifier_name,
-                        *self._limits(env_cfg),
-                        "--entrypoint",
-                        "sleep",
-                        tests_image,
-                        "infinity",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=120,
+                verifier_stdout, reward = self._run_separate_verifier_container(
+                    package=package,
+                    verifier_name=verifier_name,
+                    tests_image=tests_image,
+                    env_cfg=env_cfg,
+                    ver_cfg=ver_cfg,
+                    copied=copied,
+                    v_timeout=v_timeout,
+                    trial_dir=trial_dir,
                 )
-                for raw_path, local in copied:
-                    dest = raw_path.rstrip("/")
-                    q = shlex.quote(dest)
-                    if local.is_dir():
-                        prep = (
-                            f"if [ -L {q} ] || {{ [ -e {q} ] && [ ! -d {q} ]; }}; then rm -rf {q}; fi "
-                            f"&& mkdir -p {q} && find {q} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} + "
-                            f"&& chmod 777 {q}"
-                        )
-                        src_cp = f"{local}/."
-                    else:
-                        parent = shlex.quote(str(Path(dest).parent))
-                        prep = f"mkdir -p {parent} && chmod 777 {parent}"
-                        src_cp = str(local)
-                    subprocess.run(
-                        ["docker", "exec", "-u", "root", verifier_name, "bash", "-c", prep],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                        timeout=60,
-                    )
-                    subprocess.run(
-                        ["docker", "cp", src_cp, f"{verifier_name}:{dest}"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                        timeout=120,
-                    )
-
-                v_done = subprocess.run(
-                    [
-                        "docker",
-                        "exec",
-                        verifier_name,
-                        "bash",
-                        "-c",
-                        "mkdir -p /logs/verifier && bash /tests/test.sh",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=v_timeout + 60,
-                )
-                verifier_stdout = (v_done.stdout or "") + (v_done.stderr or "")
-                rew = subprocess.run(
-                    ["docker", "exec", verifier_name, "cat", "/logs/verifier/reward.txt"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                if rew.returncode == 0 and rew.stdout.strip():
-                    (trial_dir / "verifier" / "reward.txt").write_text(
-                        rew.stdout.strip() + "\n", encoding="utf-8"
-                    )
-                    try:
-                        reward = finite_reward(float(rew.stdout.strip()))
-                    except ValueError:
-                        reward = None
-                else:
-                    rew_json = subprocess.run(
-                        ["docker", "exec", verifier_name, "cat", "/logs/verifier/reward.json"],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                    )
-                    if rew_json.returncode == 0 and rew_json.stdout.strip():
-                        try:
-                            reward = finite_reward(json.loads(rew_json.stdout).get("reward"))
-                        except (ValueError, AttributeError):
-                            reward = None
-                subprocess.run(
-                    [
-                        "docker",
-                        "cp",
-                        f"{verifier_name}:/logs/verifier/.",
-                        str(trial_dir / "verifier"),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
+                if oracle_failed_rc is not None and (reward is None or not has_own_solve):
+                    exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
+                elif oracle_failed_rc is not None:
+                    extra_facts["oracle_exit_code"] = oracle_failed_rc
         except _TrialAbort as exc:
             exception_msg = str(exc)
         except subprocess.TimeoutExpired as exc:
@@ -1249,6 +1268,553 @@ class HarborBackend:
             exception_msg = f"{type(exc).__name__}: {exc}"
         finally:
             subprocess.run(["docker", "rm", "-f", agent_name], capture_output=True, timeout=60)
+            subprocess.run(["docker", "rm", "-f", verifier_name], capture_output=True, timeout=60)
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+        (trial_dir / "verifier" / "test-stdout.txt").write_text(verifier_stdout, encoding="utf-8")
+        write_json(
+            trial_dir / "result.json",
+            {
+                "mode": mode,
+                "reward": reward,
+                "exception": exception_msg,
+                "at": utcnow(),
+            },
+        )
+        usable = reward is not None and exception_msg is None
+        return AuditObservation(
+            stage="oracle" if mode == "oracle" else "nop",
+            status="executed" if usable else "failed",
+            facts={
+                "reward": reward,
+                "exception": exception_msg,
+                "job_path": str(trial_dir),
+                "verifier_stdout": _cap_excerpt(verifier_stdout),
+                "agent_stdout": _cap_excerpt(agent_stdout),
+                **extra_facts,
+            },
+            reason=exception_msg,
+        )
+
+    def _run_separate_verifier_container(
+        self,
+        *,
+        package: Path,
+        verifier_name: str,
+        tests_image: str,
+        env_cfg: dict[str, Any],
+        ver_cfg: dict[str, Any],
+        copied: list[tuple[str, Path]],
+        v_timeout: float,
+        trial_dir: Path,
+    ) -> tuple[str, float | None]:
+        import os
+
+        plat = self._platform_args(package)
+        v_env_vars: list[str] = []
+        for k, v in ((ver_cfg.get("environment") or {}).get("env") or {}).items():
+            val = str(v)
+            if val.startswith("${") and val.endswith("}"):
+                inner = val[2:-1]
+                if ":-" in inner:
+                    env_name, default_val = inner.split(":-", 1)
+                    val = os.environ.get(env_name, default_val)
+                else:
+                    val = os.environ.get(inner, "")
+            v_env_vars += ["-e", f"{k}={val}"]
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                *plat,
+                *v_env_vars,
+                "--name",
+                verifier_name,
+                *self._limits(env_cfg),
+                "--entrypoint",
+                "sleep",
+                tests_image,
+                "infinity",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        )
+        for raw_path, local in copied:
+            dest = raw_path.rstrip("/")
+            q = shlex.quote(dest)
+            if local.is_dir():
+                prep = (
+                    f"if [ -L {q} ] || {{ [ -e {q} ] && [ ! -d {q} ]; }}; then rm -rf {q}; fi "
+                    f"&& mkdir -p {q} && find {q} -mindepth 1 -maxdepth 1 -exec rm -rf -- {{}} + "
+                    f"&& chmod 777 {q}"
+                )
+                src_cp = f"{local}/."
+            else:
+                parent = shlex.quote(str(Path(dest).parent))
+                prep = f"mkdir -p {parent} && chmod 777 {parent}"
+                src_cp = str(local)
+            subprocess.run(
+                ["docker", "exec", "-u", "root", verifier_name, "bash", "-c", prep],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
+            )
+            subprocess.run(
+                ["docker", "cp", src_cp, f"{verifier_name}:{dest}"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120,
+            )
+        v_done = subprocess.run(
+            [
+                "docker",
+                "exec",
+                *v_env_vars,
+                verifier_name,
+                "bash",
+                "-c",
+                "mkdir -p /logs/verifier && chmod 777 /logs/verifier && bash /tests/test.sh",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=v_timeout + 60,
+        )
+        verifier_stdout = (v_done.stdout or "") + (v_done.stderr or "")
+        reward: float | None = None
+        rew = subprocess.run(
+            ["docker", "exec", verifier_name, "cat", "/logs/verifier/reward.txt"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if rew.returncode == 0 and rew.stdout.strip():
+            (trial_dir / "verifier" / "reward.txt").write_text(
+                rew.stdout.strip() + "\n", encoding="utf-8"
+            )
+            try:
+                reward = finite_reward(float(rew.stdout.strip()))
+            except ValueError:
+                reward = None
+        else:
+            rew_json = subprocess.run(
+                ["docker", "exec", verifier_name, "cat", "/logs/verifier/reward.json"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if rew_json.returncode == 0 and rew_json.stdout.strip():
+                try:
+                    reward = finite_reward(json.loads(rew_json.stdout).get("reward"))
+                except (ValueError, AttributeError):
+                    reward = None
+        subprocess.run(
+            [
+                "docker",
+                "cp",
+                f"{verifier_name}:/logs/verifier/.",
+                str(trial_dir / "verifier"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return verifier_stdout, reward
+
+    def _run_compose_trial(
+        self,
+        package: Path,
+        *,
+        digest: str,
+        mode: Literal["oracle", "nop", "shortcut"],
+        script: str | None,
+        trial_dir: Path,
+        timeout_seconds: int,
+        solve_override: str | None,
+        with_solution: bool,
+        capture_logs: bool,
+    ) -> AuditObservation:
+        """Run a multi-service Docker Compose trial with Harbor's phased sidecar collection."""
+        trial_dir.mkdir(parents=True, exist_ok=True)
+        (trial_dir / "agent").mkdir(exist_ok=True)
+        (trial_dir / "verifier").mkdir(exist_ok=True)
+        config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        env_cfg = config.get("environment") or {}
+        ver_cfg = config.get("verifier") or {}
+        v_timeout = min(float(ver_cfg.get("timeout_sec") or 600.0), float(timeout_seconds))
+        build_timeout = int(float(env_cfg.get("build_timeout_sec") or 1200.0))
+        artifacts = config.get("artifacts") or []
+        collect_hooks = ver_cfg.get("collect") or []
+        task_compose = self.compose_file(package)
+        assert task_compose is not None
+
+        try:
+            _, tests_image = self._ensure_images_impl(package, digest, build_env_image=False)
+        except Exception as exc:
+            return AuditObservation(
+                stage="oracle" if mode == "oracle" else "nop",
+                status="failed",
+                facts={"reward": None, "exception": str(exc), "job_path": str(trial_dir)},
+                reason=str(exc),
+            )
+
+        stage_dir = Path(tempfile.mkdtemp(prefix="qa-task-compose-"))
+        uid = uuid.uuid4().hex[:10]
+        short = digest.split(":", 1)[-1][:12]
+        slug = package.name.lower().replace("_", "-")[:20]
+        project = f"qa-compose-{slug}-{short}"
+        verifier_name = f"qa-verifier-{uid}"
+        base_compose = stage_dir / "harbor-base-compose.yaml"
+        env_dir = package / "environment"
+        has_main_df = (env_dir / "Dockerfile").is_file()
+        main_base: dict[str, Any] = {
+            "command": ["sh", "-c", "sleep infinity"],
+            "init": True,
+        }
+        if has_main_df:
+            main_base["build"] = {"context": str(env_dir)}
+        elif env_cfg.get("docker_image"):
+            main_base["image"] = str(env_cfg["docker_image"])
+        base_compose.write_text(
+            json.dumps({"services": {"main": main_base}}, indent=2), encoding="utf-8"
+        )
+        compose_cmd = [
+            "docker",
+            "compose",
+            "-p",
+            project,
+            "--project-directory",
+            str(env_dir),
+            "-f",
+            str(base_compose),
+            "-f",
+            str(task_compose),
+        ]
+        agent_stdout = ""
+        verifier_stdout = ""
+        exception_msg: str | None = None
+        oracle_failed_rc: int | None = None
+        reward: float | None = None
+        extra_facts: dict[str, Any] = {"backend": "docker-compose"}
+        workdir = self.patch_workdir(package)
+        cwd = ["-w", workdir] if workdir else []
+
+        try:
+            compose_key = (str(package), digest)
+            if compose_key not in self._compose_built:
+                build_res = subprocess.run(
+                    [*compose_cmd, "build"],
+                    capture_output=True,
+                    text=True,
+                    timeout=build_timeout,
+                )
+                if build_res.returncode != 0:
+                    raise _TrialAbort(
+                        f"compose build failed: {((build_res.stdout or '') + (build_res.stderr or ''))[-600:]}"
+                    )
+                self._compose_built.add(compose_key)
+            up_res = subprocess.run(
+                [*compose_cmd, "up", "-d", "--wait"],
+                capture_output=True,
+                text=True,
+                timeout=min(build_timeout, 600),
+            )
+            if up_res.returncode != 0:
+                raise _TrialAbort(
+                    f"compose up failed: {((up_res.stdout or '') + (up_res.stderr or ''))[-600:]}"
+                )
+            subprocess.run(
+                [
+                    *compose_cmd,
+                    "exec",
+                    "-T",
+                    "main",
+                    "mkdir",
+                    "-p",
+                    "/logs/agent",
+                    "/logs/verifier",
+                    "/logs/artifacts",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if mode == "oracle":
+                subprocess.run(
+                    [
+                        *compose_cmd,
+                        "cp",
+                        str(self._stage_solution(package, stage_dir, extra_facts)),
+                        "main:/solution",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=120,
+                )
+                if solve_override is not None:
+                    override_file = trial_dir / "agent" / "solve-override.sh"
+                    override_file.write_text(solve_override, encoding="utf-8")
+                    subprocess.run(
+                        [*compose_cmd, "cp", str(override_file), "main:/solution/solve.sh"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=60,
+                    )
+                done = subprocess.run(
+                    [*compose_cmd, "exec", "-T", *cwd, "main", "bash", "/solution/solve.sh"],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                )
+                agent_stdout = (done.stdout or "") + (done.stderr or "")
+                (trial_dir / "agent" / "oracle.txt").write_text(agent_stdout, encoding="utf-8")
+                if done.returncode != 0:
+                    oracle_failed_rc = done.returncode
+            elif mode == "shortcut" and script is not None:
+                if with_solution:
+                    subprocess.run(
+                        [
+                            *compose_cmd,
+                            "cp",
+                            str(self._stage_solution(package, stage_dir, extra_facts)),
+                            "main:/solution",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=120,
+                    )
+                script_file = trial_dir / "agent" / "shortcut.sh"
+                script_file.write_text(script, encoding="utf-8")
+                subprocess.run(
+                    [*compose_cmd, "cp", str(script_file), "main:/tmp/qa-shortcut.sh"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=60,
+                )
+                done = subprocess.run(
+                    [*compose_cmd, "exec", "-T", *cwd, "main", "bash", "/tmp/qa-shortcut.sh"],
+                    capture_output=True,
+                    text=True,
+                    timeout=min(timeout_seconds, 600),
+                )
+                agent_stdout = (done.stdout or "") + (done.stderr or "")
+                if done.returncode != 0:
+                    agent_stdout += f"\n[shortcut script exited with code {done.returncode}]\n"
+                (trial_dir / "agent" / "oracle.txt").write_text(agent_stdout, encoding="utf-8")
+            else:
+                (trial_dir / "agent" / "oracle.txt").write_text("", encoding="utf-8")
+
+            if capture_logs:
+                logs_dest = trial_dir / "artifacts" / "logs" / "artifacts"
+                logs_dest.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    [*compose_cmd, "cp", "main:/logs/artifacts/.", str(logs_dest)],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+
+            # Phased collection (matches Harbor _collect_artifacts_phased):
+            # Pass 1: main service hooks and artifacts.
+            for hook in collect_hooks:
+                if isinstance(hook, dict) and hook.get("command"):
+                    svc = str(hook.get("service") or "main")
+                    if svc == "main":
+                        subprocess.run(
+                            [
+                                *compose_cmd,
+                                "exec",
+                                "-T",
+                                "main",
+                                "bash",
+                                "-c",
+                                str(hook["command"]),
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=int(hook.get("timeout_sec") or 120),
+                        )
+
+            if tests_image is None:
+                for hook in collect_hooks:
+                    if isinstance(hook, dict) and hook.get("command"):
+                        svc = str(hook.get("service") or "main")
+                        if svc != "main":
+                            subprocess.run(
+                                [
+                                    *compose_cmd,
+                                    "exec",
+                                    "-T",
+                                    svc,
+                                    "bash",
+                                    "-c",
+                                    str(hook["command"]),
+                                ],
+                                capture_output=True,
+                                text=True,
+                                timeout=int(hook.get("timeout_sec") or 120),
+                            )
+                subprocess.run(
+                    [*compose_cmd, "cp", f"{package / 'tests'}/.", "main:/tests/"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=120,
+                )
+                v_done = subprocess.run(
+                    [
+                        *compose_cmd,
+                        "exec",
+                        "-T",
+                        "main",
+                        "bash",
+                        "-c",
+                        "mkdir -p /logs/verifier && chmod 777 /logs/verifier && bash /tests/test.sh",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=v_timeout + 60,
+                )
+                verifier_stdout = (v_done.stdout or "") + (v_done.stderr or "")
+                rew = subprocess.run(
+                    [*compose_cmd, "exec", "-T", "main", "cat", "/logs/verifier/reward.txt"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if rew.returncode == 0 and rew.stdout.strip():
+                    try:
+                        reward = finite_reward(float(rew.stdout.strip()))
+                    except ValueError:
+                        reward = None
+                subprocess.run(
+                    [*compose_cmd, "cp", "main:/logs/verifier/.", str(trial_dir / "verifier")],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if oracle_failed_rc is not None and reward is None:
+                    exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
+                elif oracle_failed_rc is not None:
+                    extra_facts["oracle_exit_code"] = oracle_failed_rc
+            else:
+                main_artifacts = [
+                    item
+                    for item in artifacts
+                    if isinstance(item, str)
+                    or (isinstance(item, dict) and item.get("service") in (None, "main"))
+                ]
+                sidecar_artifacts = [
+                    item
+                    for item in artifacts
+                    if isinstance(item, dict) and item.get("service") not in (None, "main")
+                ]
+                sidecar_hooks = [
+                    h
+                    for h in collect_hooks
+                    if isinstance(h, dict)
+                    and h.get("command")
+                    and str(h.get("service") or "main") != "main"
+                ]
+                copied: list[tuple[str, Path]] = []
+
+                def _copy_compose_items(items_list: list[Any]) -> None:
+                    for item in items_list:
+                        if isinstance(item, str):
+                            svc, raw_path, dest_path, excludes = "main", item, item, []
+                        elif isinstance(item, dict) and isinstance(item.get("source"), str):
+                            svc = str(item.get("service") or "main")
+                            raw_path = str(item["source"])
+                            dest_path = str(item.get("destination") or raw_path)
+                            excludes = [str(x) for x in (item.get("exclude") or [])]
+                        else:
+                            continue
+                        target = stage_dir / "collected" / svc / dest_path.strip("/")
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        src = f"{svc}:{raw_path.rstrip('/')}" + (
+                            "/." if raw_path.endswith("/") else ""
+                        )
+                        if raw_path.endswith("/"):
+                            target.mkdir(parents=True, exist_ok=True)
+                        cp_res = subprocess.run(
+                            [*compose_cmd, "cp", src, str(target)],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                        if cp_res.returncode == 0:
+                            if excludes and target.is_dir():
+                                for sub in list(target.rglob("*")):
+                                    rel_sub = sub.relative_to(target).as_posix()
+                                    if any(
+                                        fnmatch.fnmatch(sub.name, pat.lstrip("./"))
+                                        or fnmatch.fnmatch(rel_sub, pat.lstrip("./"))
+                                        for pat in excludes
+                                    ):
+                                        if sub.is_dir() and not sub.is_symlink():
+                                            shutil.rmtree(sub, ignore_errors=True)
+                                        else:
+                                            sub.unlink(missing_ok=True)
+                            copied.append((dest_path, target))
+
+                _copy_compose_items(main_artifacts)
+                if sidecar_hooks or sidecar_artifacts:
+                    subprocess.run(
+                        [*compose_cmd, "stop", "main"],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                    )
+                    for hook in sidecar_hooks:
+                        svc = str(hook.get("service"))
+                        subprocess.run(
+                            [*compose_cmd, "exec", "-T", svc, "bash", "-c", str(hook["command"])],
+                            capture_output=True,
+                            text=True,
+                            timeout=int(hook.get("timeout_sec") or 120),
+                        )
+                    _copy_compose_items(sidecar_artifacts)
+
+                subprocess.run(
+                    [*compose_cmd, "down", "--volumes", "--remove-orphans"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                verifier_stdout, reward = self._run_separate_verifier_container(
+                    package=package,
+                    verifier_name=verifier_name,
+                    tests_image=tests_image,
+                    env_cfg=env_cfg,
+                    ver_cfg=ver_cfg,
+                    copied=copied,
+                    v_timeout=v_timeout,
+                    trial_dir=trial_dir,
+                )
+                if oracle_failed_rc is not None and reward is None:
+                    exception_msg = f"oracle solve.sh exited {oracle_failed_rc}"
+                elif oracle_failed_rc is not None:
+                    extra_facts["oracle_exit_code"] = oracle_failed_rc
+        except _TrialAbort as exc:
+            exception_msg = str(exc)
+        except subprocess.TimeoutExpired as exc:
+            exception_msg = f"TimeoutExpired: {exc}"
+        except (OSError, subprocess.SubprocessError) as exc:
+            exception_msg = f"{type(exc).__name__}: {exc}"
+        finally:
+            subprocess.run(
+                [*compose_cmd, "down", "--volumes", "--remove-orphans"],
+                capture_output=True,
+                timeout=120,
+            )
             subprocess.run(["docker", "rm", "-f", verifier_name], capture_output=True, timeout=60)
             shutil.rmtree(stage_dir, ignore_errors=True)
 
@@ -1502,6 +2068,91 @@ class HarborBackend:
             timeout_seconds=timeout_seconds,
         )
 
+    @staticmethod
+    def _extract_embedded_patch(package: Path, out_dir: Path) -> Path | None:
+        import re
+
+        solve = package / "solution" / "solve.sh"
+        if not solve.is_file():
+            return None
+        text = solve.read_text(encoding="utf-8", errors="ignore")
+        m = re.search(r"echo\s+([A-Za-z0-9+/=]{20,})\s*\|\s*base64\s+-d", text)
+        if not m:
+            return None
+        try:
+            raw = base64.b64decode(m.group(1))
+        except Exception:
+            return None
+        if b"diff --git " not in raw and b"--- " not in raw:
+            return None
+        out_dir.mkdir(parents=True, exist_ok=True)
+        extracted = out_dir / "extracted-reference.patch"
+        extracted.write_bytes(raw)
+        return extracted
+
+    @staticmethod
+    def _prepare_mimo_probe_package(package: Path) -> tuple[Path, Path | None]:
+        test_sh = package / "tests" / "test.sh"
+        if not test_sh.is_file():
+            return package, None
+        text = test_sh.read_text(encoding="utf-8", errors="ignore")
+        if "EOF_RESET_TEST_FILES" in text:
+            return package, None
+        raw_cfg = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        workdir = str((raw_cfg.get("environment") or {}).get("workdir") or "/testbed")
+        test_patch = (package / "tests" / "test.patch").read_text(encoding="utf-8")
+        test_cmd = (package / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        import re
+
+        reset_files: list[str] = []
+        for m in re.finditer(r"^diff --git a/(\S+) b/(\S+)", test_patch, flags=re.M):
+            for g in (m.group(1), m.group(2)):
+                if g not in reset_files:
+                    reset_files.append(g)
+        reset_block = "\n".join(reset_files)
+        direct_test_sh = (
+            "#!/usr/bin/env bash\n"
+            "set -uo pipefail\n"
+            "mkdir -p /logs/verifier\n"
+            'BASE=$(cat "/var/lib/mimo/base" 2>/dev/null || true)\n'
+            'if [ -z "$BASE" ]; then echo "setup never ran" >&2; exit 1; fi\n'
+            f"cd {shlex.quote(workdir)} || exit 1\n"
+            'if [ -d "/var/lib/mimo/git-hidden" ]; then rm -rf ".git"; mv "/var/lib/mimo/git-hidden" ".git"; fi\n'
+            "git add -A >/dev/null 2>&1 || true\n"
+            'git -c core.fileMode=false diff --cached "$BASE" > /tmp/agent.diff\n'
+            'git reset --hard "$BASE" >/dev/null 2>&1 || true\n'
+            "git clean -fd >/dev/null 2>&1 || true\n"
+            "if [ -s /tmp/agent.diff ]; then git apply --whitespace=nowarn /tmp/agent.diff >/dev/null 2>&1 || true; fi\n"
+            "while IFS= read -r tf; do\n"
+            '  [ -z "$tf" ] && continue\n'
+            '  if git cat-file -e "$BASE:$tf" 2>/dev/null; then\n'
+            '    git checkout "$BASE" -- "$tf" 2>/dev/null || true\n'
+            "  else\n"
+            '    git rm -f --cached "$tf" 2>/dev/null || true\n'
+            '    rm -rf -- "$tf"\n'
+            "  fi\n"
+            "done <<'EOF_RESET_TEST_FILES'\n"
+            f"{reset_block}\n"
+            "EOF_RESET_TEST_FILES\n"
+            "if [ -s /tests/test.patch ]; then\n"
+            "  if ! git apply --verbose /tests/test.patch >/logs/verifier/apply.log 2>&1; then\n"
+            "    echo 'test.patch failed to apply' >&2; exit 1\n"
+            "  fi\n"
+            "fi\n"
+            "cat <<'EOF_MIMO_TEST_COMMAND' >/tmp/mimo_test_command.sh\n"
+            f"{test_cmd}\n"
+            "EOF_MIMO_TEST_COMMAND\n"
+            "chmod +x /tmp/mimo_test_command.sh\n"
+            "bash /tmp/mimo_test_command.sh >/logs/verifier/test-output.log 2>&1\n"
+            "RC=$?\n"
+            "if [ $RC -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; else echo 0 > /logs/verifier/reward.txt; fi\n"
+        )
+        tmp_root = Path(tempfile.mkdtemp(prefix="qa-mimo-probe-pkg-"))
+        probe_pkg = tmp_root / package.name
+        shutil.copytree(package, probe_pkg)
+        (probe_pkg / "tests" / "test.sh").write_text(direct_test_sh, encoding="utf-8")
+        return probe_pkg, tmp_root
+
     def ref_subset(
         self,
         package: Path,
@@ -1521,35 +2172,78 @@ class HarborBackend:
         from evallab.ref_subset import Package, probe_task
 
         run_dir.mkdir(parents=True, exist_ok=True)
+        cached = run_dir / "report.json"
+        if cached.is_file():
+            cached_report = json.loads(cached.read_text(encoding="utf-8"))
+            if cached_report.get("status") in {"measured", "not_applicable"} and (
+                mutants == 0 or "mutants" in cached_report
+            ):
+                if cached_report.get("verdict") == "fail":
+                    cached_report["minimal_patch"] = str(run_dir / "minimal.patch")
+                    cached_report["actionable"] = cached_report.get("severity") in {
+                        "high",
+                        "medium",
+                    }
+                return cached_report
+        if self.compose_file(package) is not None:
+            return {
+                "status": "not_applicable",
+                "verdict": "unknown",
+                "reason": "multi-service Compose package uses S0 controls, S1 rubric, and S2a shortcut-agent",
+            }
         try:
             loaded = Package.load(package)
         except ValueError as exc:
             return {"status": "not_applicable", "verdict": "unknown", "reason": str(exc)[-400:]}
+        if loaded.separate and (
+            self._needs_amd64(package)
+            or (
+                (package / "tests" / "Dockerfile").is_file()
+                and "gnucleus-freecad-validator"
+                in (package / "tests" / "Dockerfile").read_text(encoding="utf-8", errors="ignore")
+            )
+        ):
+            return {
+                "status": "not_applicable",
+                "verdict": "unknown",
+                "reason": "package requires HarborBackend platform/dockerfile handling; covered by S2c mutation-hunt",
+            }
         patch: Path | None = None
+        probe_pkg = package
+        cleanup_dir: Path | None = None
         if not loaded.separate:
             default_patch = package / "solution" / "patch.diff"
             patch = ref_patch or (default_patch if default_patch.is_file() else None)
+            if patch is None:
+                patch = self._extract_embedded_patch(package, run_dir)
             if patch is None:
                 return {
                     "status": "not_applicable",
                     "verdict": "unknown",
                     "reason": "raw MiMo package without a reference patch",
                 }
-        with self.slot(f"qa-task/{package.name}/ref-subset"):
-            report = probe_task(
-                package,
-                patch,
-                run_dir,
-                grade_timeout=float(timeout_seconds),
-                oracle_timeout=float(timeout_seconds),
-                mutants=mutants,
-                log=lambda _: None,
-                **(
-                    {"environment": self.environment, "spend_gate": self.spend_gate}
-                    if self.environment == "modal"
-                    else {}
-                ),
-            )
+            probe_pkg, cleanup_dir = self._prepare_mimo_probe_package(package)
+        try:
+            with self.slot(f"qa-task/{package.name}/ref-subset"):
+                report = probe_task(
+                    probe_pkg,
+                    patch,
+                    run_dir,
+                    grade_timeout=float(timeout_seconds),
+                    oracle_timeout=float(timeout_seconds),
+                    mutants=mutants,
+                    log=lambda _: None,
+                    **(
+                        {"environment": self.environment, "spend_gate": self.spend_gate}
+                        if self.environment == "modal"
+                        else {}
+                    ),
+                )
+        finally:
+            if cleanup_dir is not None:
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
+        report["package"] = str(package)
+        report["package_digest"] = digest
         measured = report.get("status") == "measured"
         if report.get("verdict") == "pass" and not measured:
             # An exhausted grade budget did not prove every block necessary.
@@ -1611,22 +2305,46 @@ class HarborBackend:
         """Verifier mutation hunt (#867): mutate the reference output, grade every mutant."""
         from evallab.verifier_mutation import hypotheses, run_mutation_audit
 
-        try:
-            report, out_dir = run_mutation_audit(
-                package,
-                repo_root=self.repo_root,
-                execute=True,
-                max_mutants=max_mutants,
-                output_dir=run_dir / "mutation",
-                timeout_seconds=timeout_seconds,
-                runner=self.matrix_runner,
-            )
-        except ValueError as exc:
-            return {"status": "not_applicable", "verdict": "unknown", "reason": str(exc)[-400:]}
+        if (package / "environment" / "setup" / "setup.sh").is_file():
+            return {
+                "status": "not_applicable",
+                "verdict": "unknown",
+                "reason": "MiMo workdir-patch package uses ref-mutants in S2b instead of artifact output mutation",
+            }
+        if self.compose_file(package) is not None:
+            return {
+                "status": "not_applicable",
+                "verdict": "unknown",
+                "reason": "multi-service Compose package uses S0 controls, S1 rubric, and S2a shortcut-agent",
+            }
+        cached_mutation = run_dir / "mutation" / "mutation-report.json"
+        if cached_mutation.is_file():
+            from evallab.verifier_mutation import MutationReport
+
+            out_dir = run_dir / "mutation"
+            report = MutationReport.model_validate_json(cached_mutation.read_text(encoding="utf-8"))
+        else:
+            try:
+                report, out_dir = run_mutation_audit(
+                    package,
+                    repo_root=self.repo_root,
+                    execute=True,
+                    max_mutants=max_mutants,
+                    output_dir=run_dir / "mutation",
+                    timeout_seconds=timeout_seconds,
+                    runner=self.matrix_runner,
+                )
+            except ValueError as exc:
+                return {"status": "not_applicable", "verdict": "unknown", "reason": str(exc)[-400:]}
         survivors = []
         for record in hypotheses(report):
             mutation = record["mutation"]
             case = record["case"]
+            script_val = case.get("script")
+            if script_val:
+                local_script = out_dir / "scripts" / Path(str(script_val)).name
+                if local_script.is_file():
+                    script_val = str(local_script)
             survivors.append(
                 {
                     "id": case["input"],
@@ -1636,7 +2354,7 @@ class HarborBackend:
                     "original": mutation["original"],
                     "replacement": mutation["replacement"],
                     "reward": case["grader_verdict"]["reward"],
-                    "script": case["script"],
+                    "script": script_val,
                     "patch": str(out_dir / case["path"]),
                 }
             )
@@ -1732,6 +2450,8 @@ def stage_s0(
     for agent in ("oracle", "nop"):
         for repeat in range(3):
             name = f"{agent}-{repeat + 1}"
+            if name in report.checks and report.checks[name].status == "measured":
+                continue
             if blocker:
                 report.checks[name] = Check(stage="S0", status="not_run", reason=blocker)
                 continue
@@ -1765,6 +2485,8 @@ def stage_s0(
                         ),
                     )
                 )
+    if "leak" in report.checks and report.checks["leak"].status == "measured":
+        return findings
     if blocker:
         report.checks["leak"] = Check(stage="S0", status="not_run", reason=blocker)
         return findings
@@ -2229,7 +2951,9 @@ def stage_s2(
         return findings
 
     # (a) Verifier-aware shortcut agent (read-only tests view, up to 3 attempts with grader output)
-    if lane is None:
+    if "shortcut-agent" in report.checks and report.checks["shortcut-agent"].status == "measured":
+        pass
+    elif lane is None:
         report.checks["shortcut-agent"] = Check(
             stage="S2", status="not_run", reason="model lane disabled"
         )
@@ -2798,6 +3522,7 @@ def run_task(
     evidence: Path | None = None,
     triplet: Path | None = None,
     ref_patch: Path | None = None,
+    resume_from: Path | None = None,
 ) -> TaskReport:
     from evallab.registry import task_directory_digest
 
@@ -2816,6 +3541,49 @@ def run_task(
             subject.task_id = native
         elif package.name == subject.task_id:
             subject.task_id = f"terminal-bench/{subject.task_id}"
+    slug = task_slug(subject)
+    task_dir = run_dir / "tasks" / slug
+    prev_report: TaskReport | None = None
+    prev_task_dir: Path | None = None
+    if resume_from is not None:
+        cand_dir = resume_from.resolve() / "tasks" / slug
+        if (cand_dir / "report.json").is_file():
+            loaded_prev = TaskReport.model_validate_json(
+                (cand_dir / "report.json").read_text(encoding="utf-8")
+            )
+            if loaded_prev.subject == subject:
+                prev_report = loaded_prev
+                prev_task_dir = cand_dir
+                has_quota_stop = any(
+                    "quota" in (c.reason or "").lower() or "quota" in n.lower()
+                    for n, c in loaded_prev.checks.items()
+                )
+                if loaded_prev.quality_complete and not has_quota_stop:
+                    shutil.copytree(cand_dir, task_dir)
+                    prev_findings_dir = resume_from.resolve() / "findings"
+                    if prev_findings_dir.is_dir():
+                        for f_path in sorted(prev_findings_dir.glob("*.json")):
+                            if f_path.name.startswith("._"):
+                                continue
+                            f_obj = Finding.model_validate_json(f_path.read_text(encoding="utf-8"))
+                            if f_obj.subject == subject:
+                                write_json(
+                                    run_dir / "findings" / f_path.name,
+                                    f_obj.model_dump(mode="json", by_alias=True),
+                                )
+                    return loaded_prev
+                rs_prev = cand_dir / "ref_subset" / "report.json"
+                if rs_prev.is_file() and not (task_dir / "ref_subset").exists():
+                    rs_doc = json.loads(rs_prev.read_text(encoding="utf-8"))
+                    if rs_doc.get("status") == "measured":
+                        task_dir.mkdir(parents=True, exist_ok=True)
+                        shutil.copytree(cand_dir / "ref_subset", task_dir / "ref_subset")
+                mut_prev = cand_dir / "mutation" / "mutation-report.json"
+                if mut_prev.is_file() and not (task_dir / "mutation").exists():
+                    mut_doc = json.loads(mut_prev.read_text(encoding="utf-8"))
+                    if mut_doc.get("verdict") in {"no_survivors", "survivors_found", "no_mutants"}:
+                        task_dir.mkdir(parents=True, exist_ok=True)
+                        shutil.copytree(cand_dir / "mutation", task_dir / "mutation")
     report = TaskReport(
         subject=subject,
         package=str(package),
@@ -2824,14 +3592,51 @@ def run_task(
         environment=getattr(backend, "environment", "docker"),
     )
     findings: list[Finding] = []
-    task_dir = run_dir / "tasks" / task_slug(subject)
+
+    def _reuse_s0() -> bool:
+        if prev_report is None or prev_task_dir is None:
+            return False
+        s0_names = ("static", "oracle-1", "oracle-2", "oracle-3", "nop-1", "nop-2", "nop-3", "leak")
+        for n in s0_names:
+            chk = prev_report.checks.get(n)
+            if chk is not None and chk.status == "measured" and chk.verdict != "fail":
+                report.checks[n] = chk
+        if "leak" in report.checks:
+            if (prev_task_dir / "leak").is_dir() and not (task_dir / "leak").exists():
+                task_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(prev_task_dir / "leak", task_dir / "leak")
+            for sig in prev_report.signals:
+                if sig.id.endswith(".leak"):
+                    report.signals.append(sig)
+        sa_chk = prev_report.checks.get("shortcut-agent")
+        if sa_chk is not None and sa_chk.status == "measured" and sa_chk.verdict == "pass":
+            report.checks["shortcut-agent"] = sa_chk
+        return all(n in report.checks and report.checks[n].status == "measured" for n in s0_names)
+
+    def _reuse_s1() -> bool:
+        if prev_report is None:
+            return False
+        s1_names = ("rubric-sample-1", "rubric-sample-2", "rubric-sample-3")
+        if not all(
+            n in prev_report.checks and prev_report.checks[n].status == "measured" for n in s1_names
+        ):
+            return False
+        for k, chk in prev_report.checks.items():
+            if k in s1_names or k.startswith("rubric:"):
+                report.checks[k] = chk
+        for sig in prev_report.signals:
+            if ".rubric." in sig.id:
+                report.signals.append(sig)
+        return True
 
     def run_stage(stage: Stage) -> None:
         try:
             if stage == "S0":
-                findings.extend(stage_s0(report, backend, config, run_dir=task_dir))
+                if not _reuse_s0():
+                    findings.extend(stage_s0(report, backend, config, run_dir=task_dir))
             elif stage == "S1":
-                findings.extend(stage_s1(report, lane, config))
+                if not _reuse_s1():
+                    findings.extend(stage_s1(report, lane, config))
             elif stage == "S2":
                 findings.extend(
                     stage_s2(
@@ -3305,6 +4110,7 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 evidence=args.evidence,
                 triplet=args.triplet,
                 ref_patch=getattr(args, "ref_patch", None),
+                resume_from=getattr(args, "resume_from", None),
             )
 
         try:
@@ -3473,6 +4279,11 @@ def add_task_commands(sub: Any) -> None:
         "--mutants", type=int, default=8, help="S2 mutation hunt size (0 disables the hunt)"
     )
     task.add_argument("--ref-patch", type=Path, help="Optional reference patch for S2 ref-subset")
+    task.add_argument(
+        "--resume-from",
+        type=Path,
+        help="Prior run directory to reuse digest-bound measured checks/probes from",
+    )
     task.set_defaults(func=task_command)
     score = sub.add_parser(
         "task-score",

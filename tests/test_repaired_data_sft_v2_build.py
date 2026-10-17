@@ -46,6 +46,7 @@ def native(
         "config": {"job_id": job, "task": {}},
         "verifier_result": {"rewards": {"reward": 1.0}},
         "exception_info": exception,
+        "finished_at": "2026-10-17T06:00:02Z",
     }
     trajectory = {"agent": {"name": "mimoagent"}, "steps": []}
     row = {
@@ -1060,7 +1061,7 @@ def reset_correction(tmp_path: Path, monkeypatch, change: str | None = None, *, 
     )
     case = qualified_case(tmp_path, monkeypatch, task=task)
     packages = {"v6": case.v6_package, "repaired": case.repaired_package}
-    repaired_digest, v6_digest = case.repaired_digest, case.v6_digest
+    repaired_digest = case.repaired_digest
     grader = next(grader for grader in case.graders if grader.variant_digest == repaired_digest)
     task_prompt = (packages["v6"] / "instruction.md").read_text()
     snapshot = tmp_path / "runs/requests/packages" / repaired_digest[7:]

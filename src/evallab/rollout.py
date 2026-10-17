@@ -6,12 +6,13 @@ selector (a Tinker base model or a trained checkpoint), and reports the
 two numbers the training loop needs: tasks/hour and cost per task.
 
 Cost accounting: model tokens come from each job's ``lab-metadata.json``
-provider usage (settled by the proxy ledger at the pinned Tinker prices);
+provider usage (settled by the strict proxy ledger at recorded prices);
 the Modal sandbox is estimated from Harbor trial seconds at Modal list
 prices (CPU $0.0000131/core/s, memory $0.00000222/GiB/s) using the task's
 declared ``[environment]`` resources. Estimates are labelled as such and
 never mixed with settled token dollars in the per-trial rows; the batch
-also writes ``spend.jsonl`` rows tagged for the day ledger.
+also writes ``spend.jsonl`` rows tagged for the day ledger. Failed rows
+retain observed cost; any unknown component leaves the batch cost unknown.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+from evallab.ledger import build_cost_block, split_usage
 
 MODAL_APP_NAME = "eval-rollout"
 SPEND_TAG = "2026-10-16"
@@ -93,10 +96,15 @@ def _task_id(task: Path) -> str:
 
 
 def summarize(outcomes: list[TrialOutcome], batch_wall_seconds: float) -> dict[str, Any]:
-    """Batch summary: throughput and cost per task over completed trials."""
-    completed = [o for o in outcomes if o.error is None]
+    """Measured throughput and all-outcome cost; missing cost stays unknown."""
+    completed = [o for o in outcomes if o.error is None and o.passed is not None]
     passed = [o for o in completed if o.passed]
-    costs = [(o.model_cost_usd or 0.0) + (o.sandbox_cost_usd or 0.0) for o in completed]
+    total_cost: float | None = 0.0
+    for outcome in outcomes:
+        if outcome.model_cost_usd is None or outcome.sandbox_cost_usd is None:
+            total_cost = None
+            break
+        total_cost += outcome.model_cost_usd + outcome.sandbox_cost_usd
     hours = batch_wall_seconds / 3600.0
     return {
         "trials": len(outcomes),
@@ -106,8 +114,12 @@ def summarize(outcomes: list[TrialOutcome], batch_wall_seconds: float) -> dict[s
         "pass_rate": (len(passed) / len(completed)) if completed else None,
         "batch_wall_seconds": round(batch_wall_seconds, 1),
         "tasks_per_hour": (len(completed) / hours) if hours > 0 else None,
-        "total_cost_usd": round(sum(costs), 4),
-        "cost_per_task_usd": (round(sum(costs) / len(completed), 4) if completed else None),
+        "total_cost_usd": round(total_cost, 4) if total_cost is not None else None,
+        "cost_per_task_usd": (
+            round(total_cost / len(completed), 4)
+            if completed and total_cost is not None
+            else None
+        ),
     }
 
 
@@ -137,7 +149,7 @@ def _trial_error(job_dir: Path) -> str | None:
         except (OSError, json.JSONDecodeError):
             continue
         exc = data.get("exception_info") if isinstance(data, dict) else None
-        if exc:
+        if exc is not None:
             kind = exc.get("exception_type") or exc.get("type") if isinstance(exc, dict) else None
             return f"trial exception: {kind or 'unknown'}"
     return None
@@ -146,11 +158,11 @@ def _trial_error(job_dir: Path) -> str | None:
 def _outcome(
     task: Path, name: str, job_dir: Path, wall_seconds: float, error: str | None
 ) -> TrialOutcome:
+    if error is None:
+        error = _trial_error(job_dir)
     reward = _trial_reward(job_dir) if error is None else None
     if error is None and reward is None:
-        # A trial that died before grading has no reward; record its
-        # exception so the row is an explicit error, never a silent pass.
-        error = _trial_error(job_dir)
+        error = "missing verifier reward"
     sandbox_seconds: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
@@ -161,11 +173,16 @@ def _outcome(
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             metadata = {}
-        usage = metadata.get("provider_usage", {})
-        input_tokens = usage.get("input_tokens")
-        output_tokens = usage.get("output_tokens")
-        if isinstance(usage.get("cost_usd"), (int, float)):
-            model_cost = float(usage["cost_usd"])
+        usage = metadata.get("provider_usage")
+        if isinstance(usage, dict):
+            try:
+                settled = split_usage(usage)["used"]
+            except ValueError:
+                pass  # Unreadable accounting is unknown, not free or a trial failure.
+            else:
+                input_tokens = settled["input_tokens"]
+                output_tokens = settled["output_tokens"]
+                model_cost = build_cost_block(usage)["cost_usd"]
         started, finished = metadata.get("started_at"), metadata.get("finished_at")
         if isinstance(started, str) and isinstance(finished, str):
             from datetime import datetime

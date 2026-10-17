@@ -131,7 +131,9 @@ def _aggregate_event_calls(calls: list[dict[str, Any]]) -> dict[str, Any]:
             raise ValueError("call sequence is invalid")
         call_id = _integer(raw_call.get("call_id"), "call_id")
         state = raw_call.get("state")
-        if state not in USED_STATES and state not in ATTEMPTED_STATES:
+        if not isinstance(state, str) or (
+            state not in USED_STATES and state not in ATTEMPTED_STATES
+        ):
             raise ValueError(f"invalid call state: {state!r}")
         _integer(raw_call.get("input_tokens"), "input_tokens")
         _integer(raw_call.get("output_tokens"), "output_tokens")
@@ -204,6 +206,8 @@ def split_calls(calls: list[dict[str, Any]]) -> dict[str, Any]:
         if not isinstance(raw_call, dict) or _integer(raw_call.get("call_id"), "call_id") != index:
             raise ValueError("call sequence is invalid")
         state = raw_call.get("state")
+        if not isinstance(state, str):
+            raise ValueError(f"invalid call state: {state!r}")
         if state in USED_STATES:
             used["requests"] += 1
             used["input_tokens"] += _integer(raw_call.get("input_tokens"), "input_tokens")
@@ -344,6 +348,21 @@ def build_cost_block(
             "source": "proxy_ledger_x_pinned_price",
             "pricing": None,
             "reason": "ledger carries no pinned pricing: no rate may be invented",
+        }
+    try:
+        _integer(
+            pricing.get("input_cost_micros_per_million"), "pricing.input_cost_micros_per_million"
+        )
+        _integer(
+            pricing.get("output_cost_micros_per_million"), "pricing.output_cost_micros_per_million"
+        )
+    except ValueError as exc:
+        return {
+            "cost_usd": None,
+            "attempted_cost_usd": attempted_cost_usd,
+            "source": "proxy_ledger_x_pinned_price",
+            "pricing": pricing,
+            "reason": f"ledger carries incomplete or invalid pinned pricing: {exc}",
         }
     if _is_zero_priced(pricing):
         return {

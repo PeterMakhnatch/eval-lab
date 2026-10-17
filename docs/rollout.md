@@ -90,8 +90,13 @@ Model tokens and dollars come from the shared strict proxy-ledger reader
 over `lab-metadata.json#provider_usage`, not an unvalidated flat usage
 summary. It reads the actual v1/v2 call lifecycle and cross-checks v2
 totals: settled input/output tokens exclude unresolved reservations;
-settled dollars require recorded pinned pricing. Malformed accounting
-stays unknown without retroactively failing an observed trial grade.
+settled dollars require a complete recorded pinned input/output price table
+(nonnegative integer micros per million tokens). Missing, partial or invalid
+pricing leaves model cost unknown even when settled token totals are valid;
+a numeric cumulative cost alone is not pricing evidence. Malformed lifecycle
+states refuse accounting without preventing publication of the actual dispatcher
+error or clean verifier grade. Accounting gaps never retroactively fail an
+observed trial grade.
 
 The Modal sandbox cost is an estimate: recorded job seconds at Modal
 list prices (CPU $0.0000131/core/s, memory $0.00000222/GiB/s) with the

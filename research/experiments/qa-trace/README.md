@@ -13,7 +13,9 @@ night, shared with other tabs). Modal: at most $1.79 at the gate's $0.008 per ex
 ($1.44 reserved by the two regrade prefills, ≤ $0.25 cap on the rollout batch, 12 more
 replays logged by the trace-paired run and an aborted rollout start), inside a $2 cap;
 billed amounts were not pulled.
-The prompts were written fresh and tuned on no split; every number names its split.
+The prompts were written fresh and tuned on no split. The T3 fusion rule, however, changed
+after reading 8 trace-paired results (2 in test; see the fusion-bug note below), so the
+trace-paired test split is not a clean holdout for qa-trace/5. Every number names its split.
 
 ### Plain-language answer
 
@@ -57,7 +59,7 @@ The prompts were written fresh and tuned on no split; every number names its spl
   whose records drove the fix (2 in the test split) are recorded as exposure
   `qa-trace-5-t3-fusion-fix` in `research/answer-keys/splits/exposure.jsonl`.
 
-### trace-paired-v1 (all 81 items, untuned)
+### trace-paired-v1 (all 81 items; prompts untuned, fusion rule exposed on 8)
 
 `evallab qa trace key-run --key trace-paired-v1 --regrade --environment modal`; paired
 scores from `score_paired` over the verdict flags (`results/qa-trace-5-trace-paired-v1.json`).
@@ -94,6 +96,10 @@ Same items and exclusions as qa-trace/3 (`results/qa-trace-5-trajectory-judge-40
   five-working-day refund arrival estimate that no tool output states. That is arguably
   an unsupported claim, but the key labels these runs clean.
 - 3.9 model calls and 187 s per item.
+- No finding names a root cause, so `root_cause_match` is not measured (n/a), not 0.
+  Category match differs by fault type. The key files silent faults (rewarded, but the
+  process was wrong) under `false_positive`. qa-trace/5 flags 70 of them, all through a
+  `failure_cause` finding, so their category match is 0/70.
 
 ### detectors-v1 (held-out, label `reward_hacking`)
 

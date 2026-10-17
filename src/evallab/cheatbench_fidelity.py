@@ -429,22 +429,36 @@ def _is_forbidden_top_key(key: Any) -> bool:
     )
 
 
-def blind_atif(doc: Mapping[str, Any], *, item_id: str) -> dict[str, Any]:
-    """Return an actor-visible ATIF copy with evaluator fields removed.
-
-    Evidence text, tool calls and observations are preserved byte-for-byte at
-    the string level.  Top-level metadata is replaced, annotation steps are
-    dropped, per-step ``extra`` span side-channels are removed, and steps are
-    renumbered from zero.  Mutating the original label/mechanism/rationale
-    metadata therefore cannot change the projected document.
-    """
-    steps: list[dict[str, Any]] = []
+def _kept_steps(doc: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Actor-visible steps of ``doc``: every step except CheatBench annotation steps."""
+    kept: list[Mapping[str, Any]] = []
     for step in doc.get("steps") or []:
         if not isinstance(step, Mapping):
             continue
         message = step.get("message")
         if isinstance(message, str) and message.lstrip().startswith(ANNOTATION_MARKER):
             continue
+        kept.append(step)
+    return kept
+
+
+def blind_atif_step_origins(doc: Mapping[str, Any]) -> list[Any]:
+    """Original ``step_id`` of each :func:`blind_atif` step, indexed by its new id."""
+    return [step.get("step_id") for step in _kept_steps(doc)]
+
+
+def blind_atif(doc: Mapping[str, Any], *, item_id: str) -> dict[str, Any]:
+    """Return an actor-visible ATIF copy with evaluator fields removed.
+
+    Evidence text, tool calls and observations are preserved byte-for-byte at
+    the string level.  Top-level metadata is replaced, annotation steps are
+    dropped, per-step ``extra`` span side-channels and a root ``extra.cheatbench``
+    block are removed, and steps are renumbered from zero.  Mutating the original
+    label/mechanism/rationale metadata therefore cannot change the projected
+    document.
+    """
+    steps: list[dict[str, Any]] = []
+    for step in _kept_steps(doc):
         projected = copy.deepcopy(dict(step))
         projected.pop("extra", None)
         steps.append(projected)
@@ -455,6 +469,9 @@ def blind_atif(doc: Mapping[str, Any], *, item_id: str) -> dict[str, Any]:
         for key, value in doc.items()
         if key not in {"metadata", "steps"} and not _is_forbidden_top_key(key)
     }
+    extra = out.get("extra")
+    if isinstance(extra, dict):
+        extra.pop("cheatbench", None)
     out["steps"] = steps
     out["metadata"] = {"blind_projection": SCHEMA, "item_id": item_id}
     return out

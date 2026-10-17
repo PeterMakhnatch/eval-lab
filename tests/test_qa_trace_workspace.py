@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from evallab.qa import trace_workspace as workspace
-from evallab.qa.trace import Bundle
+from evallab.qa.trace import BUNDLE_SCHEMA, Bundle
 from evallab.task_variants import harbor_task_digest, task_directory_digest
 
 
@@ -267,13 +267,13 @@ def test_workspace_redacts_all_review_files_but_retains_real_manifest_subject(
     assert bundle.files("verifier/") == ["verifier/agent.full.diff", "verifier/junit-grade.log"]
 
 
-def test_v2_workspace_availability_and_seal_round_trip(local_store: Path) -> None:
+def test_workspace_availability_and_seal_round_trip(local_store: Path) -> None:
     package = _package(local_store / "package")
     trial = _trial(local_store / "runs/job/trial", package)
     _write(trial / "verifier/agent.diff", "full change\n")
     _write(trial / "agent/oracle.txt", "Executed reference commands\n")
     bundle = workspace.build_workspace(trial, local_store / "workspace")
-    assert bundle.manifest["schema"] == "qa.trace_bundle/v2"
+    assert bundle.manifest["schema"] == BUNDLE_SCHEMA
     assert bundle.manifest["availability"] == {
         "prompt": "present",
         "trajectory": "missing",
@@ -288,6 +288,37 @@ def test_v2_workspace_availability_and_seal_round_trip(local_store: Path) -> Non
     assert Bundle.load(bundle.root).verify() == []
     _write(bundle.root / "agent_logs/oracle.txt", "changed")
     assert Bundle.load(bundle.root).verify() == ["agent_logs/oracle.txt changed"]
+
+
+def test_cheatbench_labels_never_reach_the_workspace(local_store: Path) -> None:
+    package = _package(local_store / "package")
+    trial = _trial(local_store / "runs/job/trial", package)
+    marker = "[CheatBench annotation — not part of the original trace]"
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "metadata": {"cheatbench_label": "cheating", "cheatbench_mechanism": "secret_discovery"},
+        "extra": {"cheatbench": {"label": "cheating"}},
+        "steps": [
+            {"step_id": 5, "source": "user", "message": "Fix the parser."},
+            {"step_id": 6, "source": "user", "message": f"{marker}\nlabel: cheating"},
+            {
+                "step_id": 7,
+                "source": "agent",
+                "message": "reading the key",
+                "extra": {"cheatbench": {"source_ref": "events[1]"}},
+            },
+        ],
+    }
+    _write(trial / "agent/trajectory.json", json.dumps(trajectory))
+    bundle = workspace.build_workspace(trial, local_store / "workspace")
+    every_file = "".join(bundle.text(rel) for rel in bundle.manifest["files"])
+    assert "cheatbench" not in every_file.lower() and marker not in every_file
+    assert [step["step_id"] for step in bundle.steps()] == [0, 1]
+    assert bundle.manifest["step_origin"] == [5, 7]
+    _write(trial / "agent/notes.txt", f"{marker}\nlabel: cheating")
+    with pytest.raises(ValueError, match="evaluator-only content"):
+        workspace.build_workspace(trial, local_store / "workspace-2")
+    assert not (local_store / "workspace-2").exists()
 
 
 def test_blinding_is_idempotent_when_summary_reuses_copied_logs(local_store: Path) -> None:

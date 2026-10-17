@@ -50,7 +50,7 @@ def _bundle(tmp: Path, *, reward: float = 0.0) -> Bundle:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     manifest = {
-        "schema": "qa.trace_bundle/v2",
+        "schema": trace.BUNDLE_SCHEMA,
         "subject": {"kind": "trace", "task_id": TASK, "trial_id": "blind-1"},
         "reward": {"value": reward},
         "availability": {

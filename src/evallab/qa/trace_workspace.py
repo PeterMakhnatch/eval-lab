@@ -1,7 +1,14 @@
-"""Blind, digest-bound evidence workspaces for ``qa.trace_bundle/v2``.
+"""Blind, digest-bound evidence workspaces for ``qa.trace_bundle/v3``.
 
 The workspace is a review surface, not an execution environment. Source packages,
 retained trials, and prior QA results are only read; no task code is executed.
+
+Every ATIF crosses the boundary only through CheatBench's ``blind_atif``
+projection (evaluator metadata, annotation steps and step ``extra`` removed;
+steps renumbered from 0). The answer key's reference for each workspace step
+is sealed in the manifest's ``step_origin``, which reviewers never see. Sealing
+refuses any workspace whose trajectory still carries evaluator fields or whose
+files carry CheatBench annotation text.
 """
 
 from __future__ import annotations
@@ -22,6 +29,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from evallab.cheatbench_fidelity import (
+    ANNOTATION_MARKER,
+    blind_atif,
+    blind_atif_step_origins,
+    find_forbidden_json,
+)
 from evallab.qa.trace import (
     BUNDLE_SCHEMA,
     Bundle,
@@ -887,6 +900,19 @@ def _readme(
     )
 
 
+def _evaluator_leaks(files: dict[str, bytes]) -> list[str]:
+    """Paths of evaluator-only content (CheatBench labels/annotations) in ``files``."""
+    leaks: list[str] = []
+    trajectory = files.get("trajectory.json")
+    if trajectory is not None:
+        leaks += [
+            f"trajectory.json:{hit['path']}" for hit in find_forbidden_json(json.loads(trajectory))
+        ]
+    marker = ANNOTATION_MARKER.encode()
+    leaks += [rel for rel, data in sorted(files.items()) if marker in data]
+    return leaks
+
+
 def _seal(
     out_dir: Path,
     files: dict[str, bytes],
@@ -897,7 +923,16 @@ def _seal(
     resolution: Resolution,
     model: str | None,
     provenance: dict[str, Any],
+    step_origin: list[Any],
 ) -> Bundle:
+    """Write and seal the workspace; refuses evaluator-only content (fail closed).
+
+    ``step_origin[i]`` is the answer key's reference for workspace step ``i``:
+    the source ATIF ``step_id``, or the upstream index for trajectory-judge rows.
+    """
+    leaks = _evaluator_leaks(files)
+    if leaks:
+        raise ValueError(f"refusing to seal a workspace with evaluator-only content: {leaks[:5]}")
     out_dir.mkdir(parents=True, exist_ok=False)
     for rel, data in sorted(files.items()):
         path = out_dir / rel
@@ -915,8 +950,10 @@ def _seal(
             "answer-key labels",
             "run/job/trial directory identities",
             "result.json fields other than verifier reward",
+            "evaluator-only ATIF metadata, annotation steps and step extras (blind_atif)",
         ],
         "provenance": provenance,
+        "step_origin": step_origin,
         "files": hashes,
         "inputs_digest": _sha256_bytes(_canonical(hashes).encode()),
     }
@@ -935,16 +972,17 @@ def build_workspace(
     digests: Sequence[str] = (),
     blind: str | None = None,
 ) -> Bundle:
-    """Freeze all retained trace evidence into a blind, sealed v2 review workspace."""
+    """Freeze all retained trace evidence into a blind, sealed v3 review workspace."""
     from evallab.tripwires import extract_content_prompt
 
     trial_dir, out_dir = Path(trial_dir), Path(out_dir)
     result = _json(trial_dir / "result.json")
     trajectory_path = trial_dir / "agent/trajectory.json"
-    trajectory = _json(trajectory_path) or {"steps": []}
-    steps = trajectory.get("steps") or []
+    source_trajectory = _json(trajectory_path) or {"steps": []}
     trial_id = str(result.get("trial_name") or result.get("id") or trial_dir.name)
     blind = blind or blind_id(trial_id)
+    trajectory = blind_atif(source_trajectory, item_id=blind)
+    steps = trajectory["steps"]
     redact = _redactor(trial_dir, trial_id, blind)
     task_name = task_name or result.get("task_name")
     resolution = resolve_task_package(trial_dir, task_name=task_name, digests=digests)
@@ -1078,15 +1116,24 @@ def build_workspace(
             else None,
             "truncations": notes,
         },
+        step_origin=blind_atif_step_origins(source_trajectory),
     )
 
 
 def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
-    """A v2 trajectory-judge workspace: request and ATIF only, no invented grader."""
-    trajectory = tj_atif(row)
-    steps = trajectory["steps"]
+    """A v3 trajectory-judge workspace: request and ATIF only, no invented grader.
+
+    The ATIF goes through ``blind_atif`` like a trial's; each step's upstream
+    index is sealed as ``step_origin`` so localisation can be scored.
+    """
     identity = str(row["trajectory_id"])
     blind = blind_id(identity)
+    source = tj_atif(row)
+    upstream = {
+        step["step_id"]: (step.get("extra") or {}).get("source_index") for step in source["steps"]
+    }
+    trajectory = blind_atif(source, item_id=blind)
+    steps = trajectory["steps"]
 
     def redact(text: str) -> str:
         return text.replace(identity, blind)
@@ -1152,4 +1199,5 @@ def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
         resolution=resolution,
         model=None,
         provenance={"source": "trajectory-judge upstream trajectory"},
+        step_origin=[upstream[step_id] for step_id in blind_atif_step_origins(source)],
     )

@@ -193,6 +193,7 @@ def _cli(
     other_arms: dict[str, dict[str, list[tuple[str, bool | None]]]] | None = None,
     pins: list[str] | None = None,
     diagnostic_trials: dict[str, dict[str, list[tuple[str, bool | None]]]] | None = None,
+    diagnostic_error: str = "synthetic trial failure",
     pin_regrades: list[dict[str, str | bool]] | None = None,
     replay_mode: str | None = None,
 ) -> subprocess.CompletedProcess:
@@ -223,8 +224,7 @@ def _cli(
         command += ["--pin", task]
     if pins:
         (tmp_path / "pin-manifest.csv").write_text(
-            "task_id,final_digest\n"
-            + "".join(f"{t},sha256:{repaired_digest[t]}\n" for t in pins)
+            "task_id,final_digest\n" + "".join(f"{t},sha256:{repaired_digest[t]}\n" for t in pins)
         )
         command += ["--pin-manifest", str(tmp_path / "pin-manifest.csv")]
     if pin_regrades is not None:
@@ -252,7 +252,7 @@ def _cli(
                 "task": f"/store/fixture__{t}/{repaired_digest[t][:12]}",
                 "name": n,
                 "passed": v,
-                **({"error": "synthetic trial failure"} if v is None else {}),
+                **({"error": diagnostic_error} if v is None else {}),
             }
             for t, items in (diagnostic_trials or {}).get(arm, {}).items()
             for n, v in items
@@ -456,9 +456,7 @@ def _calibrated_b() -> dict[str, list[tuple[str, bool | None]]]:
 
 
 def test_cli_calibrated_primary_is_attempt_1_not_the_secondary_b_rate(tmp_path: Path) -> None:
-    run = _cli(
-        tmp_path, _calibrated_b(), attempts=CALIBRATED, other_arms={"C": _once("C", True)}
-    )
+    run = _cli(tmp_path, _calibrated_b(), attempts=CALIBRATED, other_arms={"C": _once("C", True)})
     assert run.returncode == 0, run.stderr
     report = json.loads((tmp_path / "out.json").read_text())
     assert report["planned_attempts"] == {"base": 1, "A": 1, "B": 2, "C": 1}
@@ -480,7 +478,6 @@ def test_cli_calibrated_primary_is_attempt_1_not_the_secondary_b_rate(tmp_path: 
     assert (c["solves"], c["measured_attempts"], c["solve_rate"]) == (33, "33/33", 1.0)
     assert (c["attempts_counted"], c["solve_rate_role"]) == (1, "attempt_matched")
     assert b["solve_coverage"] == c["solve_coverage"] == "complete"
-    assert set(report["paired"]) == {"B_vs_C"}
     pair = report["paired"]["B_vs_C"]
     assert pair["role"] == "primary"
     assert pair["attempts_counted"] == {"B": 1, "C": 1}
@@ -498,12 +495,36 @@ def test_cli_calibrated_primary_is_attempt_1_not_the_secondary_b_rate(tmp_path: 
     assert pair["exact_sign_p"] == float(Fraction(1, 2**32))
 
 
+@pytest.mark.parametrize("replay_mode", [None, "attempt-1", "all attempts"])
+def test_cli_verifier_case_matches_headline_independently_of_replay_mode(
+    tmp_path: Path, replay_mode: str | None
+) -> None:
+    run = _cli(
+        tmp_path,
+        _trials("B", {t: [True, False] for t in TASKS}),
+        attempts=CALIBRATED,
+        other_arms={"C": _once("C", False)},
+        replay_mode=replay_mode,
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    primary = report["paired"][report["primary_comparison"]]
+    assert primary["role"] == "primary"
+    assert primary["attempts_counted"] == {"B": 1, "C": 1}
+    assert primary["common_task_cohort"] == "33/33"
+    assert (primary["B_solve_rate"], primary["C_solve_rate"]) == (1.0, 0.0)
+    assert primary["mean_difference"] == 1.0
+    secondary = report["paired"]["B_vs_C_full_schedule"]
+    assert secondary["role"] == "secondary"
+    assert secondary["attempts_counted"] == {"B": 2, "C": 1}
+    assert secondary["mean_difference"] == 0.5
+    assert (secondary["B_attempts_in_cohort"], secondary["C_attempts_in_cohort"]) == (66, 33)
+
+
 def test_cli_calibrated_schedule_key_order_does_not_change_the_report(tmp_path: Path) -> None:
     reports = []
     for schedule in (CALIBRATED, "C=1,B=2,A=1,base=1"):
-        run = _cli(
-            tmp_path, _calibrated_b(), attempts=schedule, other_arms={"C": _once("C", True)}
-        )
+        run = _cli(tmp_path, _calibrated_b(), attempts=schedule, other_arms={"C": _once("C", True)})
         assert run.returncode == 0, run.stderr
         reports.append(json.loads((tmp_path / "out.json").read_text()))
     assert reports[0] == reports[1]
@@ -626,8 +647,39 @@ def test_cli_partial_and_absent_fresh_diagnostics_do_not_block_headline_scoring(
 
 
 @pytest.mark.parametrize(
-    ("diagnostic_pass", "status"), [(False, "complete"), (None, "unmeasured")]
+    "error", ["skipped_by_budget", "skipped_by_budget: diagnostic rejected before start"]
 )
+@pytest.mark.parametrize("measured", [False, True])
+def test_cli_explicit_budget_skip_markers_are_not_failed_diagnostic_executions(
+    tmp_path: Path, measured: bool, error: str
+) -> None:
+    values: Values = {t: [None, None] for t in PINS}
+    if measured:
+        values[PINS[0]][0] = False
+    run = _cli(
+        tmp_path,
+        _calibrated_b(),
+        attempts=CALIBRATED,
+        other_arms={"C": _once("C", True)},
+        pins=PINS,
+        diagnostic_trials={"B": _trials("B-repaired", values)},
+        diagnostic_error=error,
+    )
+    assert run.returncode == 0, run.stderr
+    report = json.loads((tmp_path / "out.json").read_text())
+    diagnostic = report["pins"]["arms"]["B"]["unpaired"]
+    assert diagnostic["status"] == ("observed_subset" if measured else "unavailable")
+    assert diagnostic["missing_diagnostic_attempts"] == 6 - int(measured)
+    assert diagnostic["skipped_diagnostic_attempts"] == 6 - int(measured)
+    assert diagnostic["errored_diagnostic_attempts"] == 0
+    assert diagnostic["repaired_measured"] == int(measured)
+    if not measured:
+        assert diagnostic["reason"] == "skipped_by_budget"
+        assert diagnostic["pass_gap"] is None
+        assert report["pins"]["unpaired_graders"] == {task: [] for task in PINS}
+
+
+@pytest.mark.parametrize(("diagnostic_pass", "status"), [(False, "complete"), (None, "unmeasured")])
 def test_cli_complete_and_all_errored_fresh_diagnostics_are_distinct_from_absent(
     tmp_path: Path, diagnostic_pass: bool | None, status: str
 ) -> None:
@@ -667,12 +719,16 @@ def test_cli_complete_and_all_errored_fresh_diagnostics_are_distinct_from_absent
 
 
 @pytest.mark.parametrize(
+    "diagnostic_error",
+    ["synthetic trial failure", "skipped_by_budget: diagnostic rejected before start"],
+)
+@pytest.mark.parametrize(
     ("arm", "attempt"),
     [("B", 3), ("C", 2), ("B", 1), ("C", 1)],
     ids=["B-a3", "C-a2", "B-duplicate-a1", "C-duplicate-a1"],
 )
 def test_cli_refuses_unauthorized_or_duplicate_diagnostic_cells_without_a_report(
-    tmp_path: Path, arm: str, attempt: int
+    tmp_path: Path, arm: str, attempt: int, diagnostic_error: str
 ) -> None:
     diagnostics = {
         "B": _trials("B-repaired", {PINS[0]: [False]}),
@@ -686,6 +742,7 @@ def test_cli_refuses_unauthorized_or_duplicate_diagnostic_cells_without_a_report
         other_arms={"C": _once("C", True)},
         pins=PINS,
         diagnostic_trials=diagnostics,
+        diagnostic_error=diagnostic_error,
     )
     assert run.returncode == 2
     assert "REFUSED" in run.stderr

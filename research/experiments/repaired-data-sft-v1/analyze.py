@@ -630,6 +630,7 @@ def main() -> int:
     # Headline: trials on the frozen v6 package. Diagnostic: pin trials on a repaired variant.
     arms: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
     diagnostic: dict[str, dict[str, list[tuple[str, bool | None]]]] = {}
+    diagnostic_budget_skips: dict[str, int] = {}
     unpaired_digests: dict[str, set[str]] = {}
     for spec in args.arm:
         name, _, path = spec.partition("=")
@@ -649,7 +650,14 @@ def main() -> int:
             target = by_task if role == "headline" else pin_rows
             target.setdefault(task, []).append((str(row.get("name") or task), passed(row)))
             if role == "pin_diagnostic":
-                unpaired_digests.setdefault(task, set()).add(task_of(row).rstrip("/")[-12:])
+                error = row.get("error")
+                budget_skipped = error == "skipped_by_budget" or (
+                    isinstance(error, str) and error.startswith("skipped_by_budget:")
+                )
+                if budget_skipped:
+                    diagnostic_budget_skips[name] = diagnostic_budget_skips.get(name, 0) + 1
+                else:
+                    unpaired_digests.setdefault(task, set()).add(task_of(row).rstrip("/")[-12:])
         arms[name] = by_task
         diagnostic[name] = pin_rows
 
@@ -772,6 +780,11 @@ def main() -> int:
             counted = pair if matched_attempts is None else (matched_attempts, matched_attempts)
             comparison["attempts_counted"] = {left: counted[0], right: counted[1]}
         report["paired"][f"{left}_vs_{right}"] = comparison
+        if matched_attempts is not None:
+            secondary = paired_comparison(arms[left], arms[right], heldout_ids, (left, right), pair)
+            secondary["role"] = "secondary"
+            secondary["attempts_counted"] = {left: pair[0], right: pair[1]}
+            report["paired"][f"{left}_vs_{right}_full_schedule"] = secondary
     if "B_vs_C" in report["paired"]:
         b, c = (exposure[n]["assistant_token_presentations"] for n in ("B", "C"))
         report["paired"]["B_vs_C"]["exposure_caveat"] = (
@@ -826,7 +839,8 @@ def main() -> int:
             rep_trials = [v for t in pins for _, v in pin_rows.get(t, [])]
             rep_pin = [v for v in rep_trials if v is not None]
             planned_diagnostic = len(pins) * attempts_for(name)
-            if not rep_trials:
+            budget_skips = diagnostic_budget_skips.get(name, 0)
+            if not rep_trials or budget_skips == len(rep_trials):
                 diagnostic_status = "unavailable"
             elif not rep_pin:
                 diagnostic_status = "unmeasured"
@@ -841,7 +855,7 @@ def main() -> int:
                     "status": diagnostic_status,
                     "planned_diagnostic_attempts": planned_diagnostic,
                     "missing_diagnostic_attempts": planned_diagnostic - len(rep_pin),
-                    "errored_diagnostic_attempts": len(rep_trials) - len(rep_pin),
+                    "errored_diagnostic_attempts": len(rep_trials) - len(rep_pin) - budget_skips,
                     "v6_measured": len(v6_pin),
                     "v6_solves": sum(v6_pin),
                     "v6_solve_ci95": clopper_pearson(sum(v6_pin), len(v6_pin)),
@@ -851,9 +865,7 @@ def main() -> int:
                     "pass_gap": round(v6_rate - rep_rate, 4)
                     if v6_rate is not None and rep_rate is not None
                     else None,
-                    "repaired_trials_by_task": {
-                        t: len(pin_rows.get(t, [])) for t in sorted(pins)
-                    },
+                    "repaired_trials_by_task": {t: len(pin_rows.get(t, [])) for t in sorted(pins)},
                 },
                 "paired": paired_pin_summary(
                     v6_trials,
@@ -863,7 +875,11 @@ def main() -> int:
                 if args.pin_regrade
                 else "pending: no --pin-regrade rows",
             }
-            if not rep_trials:
+            if budget_skips:
+                report["pins"]["arms"][name]["unpaired"]["skipped_diagnostic_attempts"] = (
+                    budget_skips
+                )
+            if diagnostic_status == "unavailable":
                 report["pins"]["arms"][name]["unpaired"]["reason"] = "skipped_by_budget"
     args.out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))

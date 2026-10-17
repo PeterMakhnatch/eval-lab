@@ -535,7 +535,7 @@ def test_mimo_v6_embedded_patch_extraction_and_probe_package_staging(
     pkg = _write_package(tmp_path, "format-code-task-000079", toml, solution=True)
     b64 = base64.b64encode(PATCH).decode("ascii")
     (pkg / "solution" / "solve.sh").write_text(
-        f"#!/bin/bash\nset -euo pipefail\necho {b64} | base64 -d | git apply -\n",
+        f'#!/bin/bash\nset -euo pipefail\necho "{b64}" | base64 -d | git apply -\n',
         encoding="utf-8",
     )
     (pkg / "tests" / "test.patch").write_text(
@@ -558,3 +558,27 @@ def test_mimo_v6_embedded_patch_extraction_and_probe_package_staging(
             import shutil
 
             shutil.rmtree(cleanup_dir, ignore_errors=True)
+
+
+def test_prebuilt_alexgshaw_image_uses_prebuilt_tag_instead_of_docker_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    fake = _install(monkeypatch, FakeDocker())
+    package = _write_package(
+        tmp_path,
+        "qemu-startup",
+        '[task]\nname = "qemu-startup"\n[environment]\ndocker_image = "alexgshaw/qemu-startup:20251031"\n',
+        solution=True,
+    )
+    obs = backend.run_container_trial(
+        package,
+        digest=DIGEST,
+        mode="oracle",
+        trial_dir=tmp_path / "trial",
+        timeout_seconds=30,
+    )
+    assert obs.status == "executed"
+    assert not any(c[:2] == ["docker", "build"] for c in fake.calls)
+    assert any(
+        c[:2] == ["docker", "run"] and "alexgshaw/qemu-startup:20251031" in c for c in fake.calls
+    )

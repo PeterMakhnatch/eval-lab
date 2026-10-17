@@ -602,6 +602,7 @@ class HarborBackend:
         self.repo_root = repo_root.resolve()
         self._image_cache: dict[tuple[str, str], tuple[str, str | None]] = {}
         self._compose_built: set[tuple[str, str]] = set()
+        self._control_cache: dict[tuple[str, str, str], AuditObservation] = {}
         self._slot_depth = 0
         self._reference_patches: dict[Path, tuple[Path, str]] = {}
 
@@ -681,6 +682,15 @@ class HarborBackend:
 
     @staticmethod
     def _needs_amd64(package: Path) -> bool:
+        toml_path = package / "task.toml"
+        if toml_path.is_file():
+            try:
+                cfg = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+                img = str((cfg.get("environment") or {}).get("docker_image") or "")
+                if img.startswith("alexgshaw/"):
+                    return True
+            except Exception:
+                pass
         for sub in ("environment/Dockerfile", "tests/Dockerfile"):
             df = package / sub
             if df.is_file():
@@ -911,14 +921,32 @@ class HarborBackend:
         ver_cfg = config.get("verifier") or {}
         build_timeout = int(float(env_cfg.get("build_timeout_sec") or 900.0))
         env_tag = f"qa-task/{slug}-env:{short}"
+        docker_img = str(env_cfg.get("docker_image") or "")
         if build_env_image:
-            self._build_context_image(
-                package / "environment",
-                env_tag,
-                plat,
-                timeout=build_timeout,
-                label="environment",
-            )
+            if docker_img.startswith("alexgshaw/"):
+                insp = subprocess.run(
+                    ["docker", "image", "inspect", docker_img],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if insp.returncode != 0:
+                    subprocess.run(
+                        ["docker", "pull", *plat, docker_img],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=build_timeout,
+                    )
+                env_tag = docker_img
+            else:
+                self._build_context_image(
+                    package / "environment",
+                    env_tag,
+                    plat,
+                    timeout=build_timeout,
+                    label="environment",
+                )
         mode = str(ver_cfg.get("environment_mode") or "shared")
         tests_df = package / "tests" / "Dockerfile"
         tests_tag: str | None = None
@@ -1263,7 +1291,11 @@ class HarborBackend:
         except _TrialAbort as exc:
             exception_msg = str(exc)
         except subprocess.TimeoutExpired as exc:
-            exception_msg = f"TimeoutExpired: {exc}"
+            if mode == "oracle" and has_own_solve and reward is None:
+                reward = 0.0
+                extra_facts["oracle_timeout"] = f"TimeoutExpired: {exc}"
+            else:
+                exception_msg = f"TimeoutExpired: {exc}"
         except (OSError, subprocess.SubprocessError) as exc:
             exception_msg = f"{type(exc).__name__}: {exc}"
         finally:
@@ -1854,18 +1886,30 @@ class HarborBackend:
         if task.path is None or task.package_digest is None:
             raise ValueError(f"{task.task_id}: task package path/digest is unset")
         package = Path(task.path).resolve()
+        cache_key = (str(package), task.package_digest, agent)
+        if cache_key in self._control_cache:
+            return self._control_cache[cache_key]
         trial_dir = (
             run_dir / f"control-{agent}-{uuid.uuid4().hex[:8]}"
             if run_dir is not None
             else self.repo_root / "runs" / ".qa-task-controls" / f"{agent}-{uuid.uuid4().hex[:8]}"
         )
-        return self.run_container_trial(
+        t0 = time.monotonic()
+        obs = self.run_container_trial(
             package,
             digest=task.package_digest,
             mode=agent,
             trial_dir=trial_dir,
             timeout_seconds=timeout_seconds,
         )
+        if (
+            time.monotonic() - t0 >= 2.0
+            and obs.status == "executed"
+            and obs.facts.get("reward") is not None
+            and not obs.facts.get("exception")
+        ):
+            self._control_cache[cache_key] = obs
+        return obs
 
     def leak(self, task: AuditTask, *, run_dir: Path, timeout_seconds: int) -> AuditObservation:
         with self.slot(f"qa-task/{task.task_name}/leak"):
@@ -2076,7 +2120,7 @@ class HarborBackend:
         if not solve.is_file():
             return None
         text = solve.read_text(encoding="utf-8", errors="ignore")
-        m = re.search(r"echo\s+([A-Za-z0-9+/=]{20,})\s*\|\s*base64\s+-d", text)
+        m = re.search(r"echo\s+['\"]?([A-Za-z0-9+/=]{20,})['\"]?\s*\|\s*base64\s+-d", text)
         if not m:
             return None
         try:
@@ -2951,8 +2995,25 @@ def stage_s2(
         return findings
 
     # (a) Verifier-aware shortcut agent (read-only tests view, up to 3 attempts with grader output)
+    s0_oracles = [report.checks.get(f"oracle-{i}") for i in (1, 2, 3)]
     if "shortcut-agent" in report.checks and report.checks["shortcut-agent"].status == "measured":
         pass
+    elif (Path(report.package) / "environment" / "setup" / "setup.sh").is_file():
+        report.checks["shortcut-agent"] = Check(
+            stage="S2",
+            status="not_run",
+            scored=False,
+            reason="MiMo workdir-patch package uses S2b ref-subset and ref-mutants",
+        )
+    elif isinstance(backend, HarborBackend) and all(
+        c is not None and c.status == "measured" and c.verdict == "fail" for c in s0_oracles
+    ):
+        report.checks["shortcut-agent"] = Check(
+            stage="S2",
+            status="not_run",
+            scored=False,
+            reason="S0 oracle controls failed; task is already verified broken",
+        )
     elif lane is None:
         report.checks["shortcut-agent"] = Check(
             stage="S2", status="not_run", reason="model lane disabled"
@@ -3621,8 +3682,11 @@ def run_task(
             n in prev_report.checks and prev_report.checks[n].status == "measured" for n in s1_names
         ):
             return False
+        advisory = any(s in config.stages for s in ("S2", "S3"))
         for k, chk in prev_report.checks.items():
             if k in s1_names or k.startswith("rubric:"):
+                if k.startswith("rubric:") and advisory:
+                    chk.scored = False
                 report.checks[k] = chk
         for sig in prev_report.signals:
             if ".rubric." in sig.id:
@@ -4178,6 +4242,7 @@ def scoreboard_row(result: dict[str, Any], *, level: str) -> ScoreRow:
             "rates are over the non-excluded items of the split, not only measured ones; "
             f"excluded (tuned/selected, left unmeasured)={len(result['excluded_items'])}; "
             f"positives by label: {slices}; "
+            f"category_match_recall={result['category_match_recall']}; "
             f"coverage={result['measured_fraction']}; observed={result['observed_fraction']}; "
             f"negative labels={result['negative_label_strengths']}; "
             "missing measurements are not passes; flags are not verified defects"

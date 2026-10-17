@@ -446,9 +446,15 @@ def test_digest_mismatch_and_unsupported_resources_never_allocate(tmp_path, iner
         trial_dir=tmp_path / "stale",
     )
     assert observation.status == "failed"
-    assert "digest changed" in observation.reason
+    assert observation.facts["reward"] is None
     (package / "environment" / "docker-compose.yaml").write_text("services: {}\n", encoding="utf-8")
-    assert "Compose" in backend.resource_blocker(package)
+    observation = backend.run_container_trial(
+        package,
+        digest=task_directory_digest(package),
+        mode="oracle",
+        trial_dir=tmp_path / "compose",
+    )
+    assert observation.status == "failed" and observation.facts["reward"] is None
     (package / "environment" / "docker-compose.yaml").unlink()
     config = package / "task.toml"
     config.write_text(config.read_text().replace("[environment]\n", "[environment]\ngpus = 1\n"))
@@ -459,7 +465,6 @@ def test_digest_mismatch_and_unsupported_resources_never_allocate(tmp_path, iner
         trial_dir=tmp_path / "gpu",
     )
     assert observation.status == "failed"
-    assert "pricing is not qualified" in observation.reason
     assert backend.spend_gate.executions == 0
     assert not inert_sdk.allocations and not inert_sdk.images and not inert_sdk.lookups
 

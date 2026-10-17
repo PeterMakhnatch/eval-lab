@@ -114,13 +114,19 @@ class _Provider:
                 "/logs/verifier/reward.txt": (b"1\n", 0o644),
             }
         root = "/app/out" if environment.separate else "/testbed"
-        return {
+        files = {
             f"{root}/a.go": (b"old\n", 0o755),
             f"{root}/b.go": (b"old\n", 0o640),
             f"{root}/unchanged.bin": (b"\x00\xff\x01", 0o600),
             f"{root}/deleted.go": (b"old\n", 0o644),
             "/logs/verifier/reward.txt": (b"1\n", 0o644),
         }
+        if environment.separate and self.require_healthcheck:
+            # The separate fixture's Dockerfile bakes this input into its image.
+            # Native Harbor uploads loose inputs only when no Dockerfile exists.
+            setup = environment.environment_dir / "setup" / "ready.sh"
+            files["/app/setup/ready.sh"] = (setup.read_bytes(), 0o755)
+        return files
 
 
 class _Native(ref_subset_modal.ModalEnvironment if ref_subset_modal is not None else object):
@@ -534,10 +540,13 @@ def test_native_healthcheck_prepares_reference_before_reading_or_snapshotting(
         + f'command = "bash {workdir}/setup/ready.sh"\n'
         + "retries = 1\ninterval_sec = 0.001\ntimeout_sec = 1\n"
     )
-    (package / "environment" / "Dockerfile").unlink()
+    if not separate:
+        (package / "environment" / "Dockerfile").unlink()
     setup = package / "environment" / "setup" / "ready.sh"
     setup.parent.mkdir(exist_ok=True)
     setup.write_text("#!/bin/bash\n# initialize the reference repository\n")
+    if separate:
+        (package / "environment" / "Dockerfile").write_text("FROM scratch\nCOPY setup /app/setup\n")
     provider.require_healthcheck = True
     provider.fail_healthcheck = not healthy
     report = _run(tmp_path, separate=separate)

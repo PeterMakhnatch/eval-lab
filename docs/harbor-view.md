@@ -296,7 +296,8 @@ and T3):
   - A lower reward under a validated grader supports the false-positive claim;
     a higher reward supports a false-negative claim. A reward change alone
     never verifies an intentional reward-shortcut mechanism. The refuter sees
-    only path-free grader labels, measured scores and refusal codes.
+    only path-free canonical grader identities and alias labels, measured scores,
+    and refusal codes; manifest, package, record and source-trial paths stay out.
 - **`regrade`** runs that same counterfactual over an answer key (`--key`) or a
   JSONL list (`--passes`: `item_id`, `task`, `trial_path`, any labels; `group`
   becomes the table row). Relative trial paths resolve beneath the immutable
@@ -307,6 +308,36 @@ and T3):
   have separate rows, and `expected` (`trace-paired-v1`'s `expected_regrade`) gets
   an expected-vs-observed table only for validated graders. The JSON summary is
   always written; exit 3 means incomplete/refused/unvalidated observations.
+  - **Physical graders, not selection labels.** After resolving the manifest,
+    repair records and any `separate-verifier@10` composition, execution identity
+    is `(task_name, full final package digest)`. A manifest selection and repair
+    selection of the same package share one nop/reference pair and one replay
+    per retained source. Different full packages stay independent even if their
+    transforms or verifier-only digests match. Each subject gets one observation
+    per physical grader, not one measurement per alias. `grader_identity` carries
+    that full identity; `grader_source.aliases` preserves every selection's
+    resolved transform/label/digest, package path, manifest row/source and record
+    references in deterministic order. A composed raw repair also retains its
+    original selection under the alias's `source`. Repeated record inputs remain
+    repeated provenance, not extra executions. Equivalent package copies are
+    allowed only after checking every copy's actual bytes. Conflicting path/record
+    claims, conflicting manifest rows, and missing or mutated selected packages
+    raise before controls, spend reservations or provider execution. Historical
+    receipts, including refusals, remain immutable.
+    Content-addressed replay scripts are published atomically, so independent
+    graders sharing the same script cannot truncate a sibling's executing input.
+  - **Counterfactual `/3` consumer contract.** Bind observations and controls by
+    `grader_identity.task_name` plus the **full**
+    `grader_identity.variant_digest`, and cross-check the resolved package bytes
+    and `grader_source`. Controls carry that identity, engine, reference checksum,
+    scalar nop/reference scores and the underlying native `rows`; they are not
+    keyed by a selection label. The representative `grader`/`transform` is not the
+    only selected route: qualification must inspect `grader_source.aliases` and
+    validate each selected route's manifest/repair ancestry. There is no separate
+    top-level `grader_digest` in `/3`. Two aliases of one package are one physical
+    observation, not two independently pinned v6/repair graders. Do not relax
+    source custody, engine matching, or distinct-package scientific requirements
+    when migrating a label-based consumer.
   - `--environment docker` (default): each native execution holds the
     host-wide Docker FIFO lock (`docs/docker-lock.md`); executions are
     serialized, even with multiple queued workers. Harbor 0.24 (the `laminar`
@@ -340,9 +371,14 @@ and T3):
     matrix receipts use `runs/.executor/`, and scripts use
     `runs/qa-trace-regrade/scripts/`. Reports go to `OUT/summary.json` and
     `OUT/items/`. Shared controls/cache use `derived/qa-trace/counterfactual/`.
-    Cache identity binds source bytes, full grader digest, replay-engine version,
-    and reference bytes for controls. Identical replay inputs execute once per
-    batch; observation labels are refreshed, never borrowed from an old cohort.
+    Controls, replay caches, work directories and plans use the same canonical
+    identity, including the full package digest (never a digest prefix or
+    verifier-only digest). Cache identity also binds source bytes and the replay
+    engine; reference bytes invalidate controls independently of replay results.
+    Identical source/grader inputs execute once per batch; current population
+    labels and selection provenance are refreshed rather than borrowed from a
+    cached cohort. The canonical-identity engine generation does not reuse older
+    label-keyed controls or replay caches; retained older evidence is not rewritten.
 - **T4**: one `qa.finding/v1` per question (shared contract, `docs/qa-contract.md`)
   plus `verdict.json` with each question's answer, taxonomy, who raised it, the
   verification outcome, the analyst revision and the executed counterfactual. A

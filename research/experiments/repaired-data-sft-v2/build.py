@@ -14,7 +14,7 @@ inputs.json (repaired-data-sft-v2.inputs/1) binds every input as
   v6_manifest: the existing mimo-clean-v6 CSV.
   repairs: [existing evallab.task_variant/v1 refs]; only verifier-repair@1 children
            of the exact v6 digest qualify, never a similarly named raw repair.
-  controls: [existing qa-trace-counterfactual/2 controls.json refs].
+  controls: [existing qa-trace-counterfactual/3 controls.json refs].
   envcheck_manifest: optional existing repaired-v6-variants-manifest.json ref;
                      reads its actual retained Harbor repeated-control jobs.
   regrades: [existing QA counterfactual summary JSON or JSONL refs].
@@ -44,6 +44,9 @@ assistant-token presentations are exactly equal. The manifest is the schedule
 contract; a later partial-epoch/early-stopped run cannot claim this match.
 B/C's common original-pass frame is the actual built globally hardened v6 manifest
 task domain, minus all frozen heldout parents/descendants and explicit exclusions.
+Grader controls and observations bind the full (task_name, variant_digest) physical
+identity. Selection aliases retain native manifest/record ancestry, not independent
+executions; only proven exact-v6 and test-only exact-v6-child routes qualify B.
 
 --plan writes token accounting/qualification refusals before applying the B minimum
 and does not export trainable arms. Normal build fails closed without >=51 B rows
@@ -144,6 +147,17 @@ def canonical_task(value: str) -> str:
     if not re.fullmatch(r"mimo-v2\.6-rl/[A-Za-z0-9][A-Za-z0-9_.-]*", task):
         raise BuildError(f"unsupported task identity: {value!r}")
     return task
+
+
+def grader_identity(value: Any) -> tuple[str, str]:
+    if not isinstance(value, dict):
+        raise BuildError("missing full physical grader identity")
+    task, expected = value.get("task_name"), value.get("variant_digest")
+    if canonical_task(task) != task:
+        raise BuildError("physical grader identity requires the full canonical task")
+    if not isinstance(expected, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
+        raise BuildError("physical grader identity lacks its full exact package digest")
+    return task, expected
 
 
 class Evidence:
@@ -389,6 +403,8 @@ class Qualification:
     """Read existing QA native replay/control contracts; do not execute them."""
 
     def __init__(self, evidence: Evidence, inputs: dict[str, Any]):
+        from evallab.task_variants import VariantRecord
+
         self.evidence = evidence
         self.v6_ref = inputs["v6_manifest"]
         with evidence.bound(self.v6_ref).open(newline="") as stream:
@@ -396,31 +412,39 @@ class Qualification:
         self.repairs: dict[str, list[tuple[dict[str, Any], dict[str, Any]]]] = {}
         for ref in inputs.get("repairs", []):
             rec = evidence.json(ref)
+            try:
+                VariantRecord.model_validate(rec)
+            except ValueError as exc:
+                raise BuildError(f"invalid native repair VariantRecord: {exc}") from exc
             if (
                 rec.get("schema") != "evallab.task_variant/v1"
                 or rec.get("transform") != "verifier-repair@1"
             ):
                 raise BuildError("repairs must be actual verifier-repair@1 VariantRecords")
             self.repairs.setdefault(canonical_task(rec["task_name"]), []).append((rec, ref))
-        self.controls: dict[str, dict[str, Any]] = {}
+        self.controls: dict[tuple[str, str], dict[str, Any]] = {}
         for ref in inputs.get("controls", []):
             ctrl = evidence.json(ref)
-            label = ctrl.get("grader")
-            if label in self.controls and self.controls[label] != ctrl:
-                raise BuildError(f"conflicting native controls for {label}")
-            self.controls[label] = ctrl
-        self.envcheck_controls: dict[str, tuple[dict[str, Any], Path]] = {}
+            identity = grader_identity(ctrl.get("grader_identity"))
+            if identity in self.controls and self.controls[identity] != ctrl:
+                raise BuildError(f"conflicting native controls for {identity}")
+            self.controls[identity] = ctrl
+        self.envcheck_controls: dict[tuple[str, str], tuple[dict[str, Any], Path]] = {}
         if inputs.get("envcheck_manifest"):
             path = evidence.bound(inputs["envcheck_manifest"])
             manifest = evidence.json(inputs["envcheck_manifest"])
             if not isinstance(manifest.get("variants"), list):
                 raise BuildError("EnvCheck input is not the existing repaired-v6 variant manifest")
             for variant in manifest["variants"]:
-                expected = variant.get("variant_digest", "")
-                label = f"verifier-repair@1:{expected.removeprefix('sha256:')[:12]}"
-                if label in self.envcheck_controls:
+                identity = grader_identity(
+                    {
+                        "task_name": canonical_task(variant.get("task", "")),
+                        "variant_digest": variant.get("variant_digest"),
+                    }
+                )
+                if identity in self.envcheck_controls:
                     raise BuildError("ambiguous retained EnvCheck repair/control identity")
-                self.envcheck_controls[label] = (variant, path.parent)
+                self.envcheck_controls[identity] = (variant, path.parent)
         self.regrades: dict[str, list[dict[str, Any]]] = {}
         for ref in inputs.get("regrades", []):
             for row in rows_from_document(evidence, ref):
@@ -431,14 +455,18 @@ class Qualification:
                 self.faults.setdefault(str(row.get("execution_id")), set()).add(
                     row.get("evidence_stratum", "unclear")
                 )
-        self._packages: dict[str, dict[str, Any]] = {}
-        self._checked_controls: set[str] = set()
+        self._packages: dict[tuple[Path, str, str], dict[str, Any]] = {}
+        self._checked_controls: set[tuple[str, str]] = set()
 
     def package(self, path: str, expected: str, task: str) -> dict[str, Any]:
         from evallab.task_variants import task_directory_digest
 
-        if expected not in self._packages:
-            package = self.evidence.path(path, relative_to=REPO)
+        grader_identity({"task_name": task, "variant_digest": expected})
+        if not isinstance(path, str) or not path:
+            raise BuildError("grader selection lacks its actual package path")
+        package = self.evidence.path(path, relative_to=REPO)
+        key = package, task, expected
+        if key not in self._packages:
             if task_directory_digest(package) != expected:
                 raise BuildError(f"grader package digest mismatch: {package}")
             # Bind all consumed package bytes, including hidden files, in the receipt.
@@ -449,27 +477,176 @@ class Qualification:
             parent = (config.get("metadata") or {}).get("source_id")
             if canonical_task(parent or (config.get("task") or {}).get("name")) != task:
                 raise BuildError(f"grader package parent mismatch: {package}")
-            self._packages[expected] = {"path": package, "config": config, "task": task}
-        package_info = self._packages[expected]
-        if package_info["task"] != task:
-            raise BuildError("same package digest bound to different task parents")
-        return package_info
+            self._packages[key] = {"path": package, "config": config, "task": task}
+        return self._packages[key]
 
-    def target(self, row: dict[str, Any], source: Source) -> tuple[str, str, dict[str, Any]]:
-        gs = row.get("grader_source") or {}
-        task = canonical_task(gs.get("task_name", ""))
-        transform, expected = gs.get("transform"), gs.get("variant_digest")
+    def selection(self, alias: Any, task: str, v6: dict[str, str]) -> tuple[set[str], set[str]]:
+        """Prove a selection route; provenance alone does not grant a qualification role."""
+        from evallab.task_variants import VariantRecord
+
+        fields = {
+            "label",
+            "transform",
+            "variant_digest",
+            "package",
+            "records",
+            "manifest",
+            "manifest_row",
+            "source",
+        }
+        if not isinstance(alias, dict) or not fields <= alias.keys():
+            raise BuildError("missing native grader selection alias provenance")
+        _, expected = grader_identity(
+            {"task_name": task, "variant_digest": alias["variant_digest"]}
+        )
+        transform, records = alias["transform"], alias["records"]
+        if (
+            not isinstance(transform, str)
+            or alias["label"] != f"{transform}:{expected[7:19]}"
+            or not isinstance(records, list)
+            or not records
+            or any(not isinstance(record, str) or not record for record in records)
+        ):
+            raise BuildError("grader selection label/record provenance mismatch")
+        self.package(alias["package"], expected, task)
+        roles: set[str] = set()
+        claims = set(records)
+        if transform == "mimo-clean-v6":
+            manifest = self.evidence.bound(self.v6_ref)
+            if (
+                alias["source"] is not None
+                or not isinstance(alias["manifest"], str)
+                or self.evidence.path(alias["manifest"], relative_to=REPO) != manifest
+                or alias["manifest_row"] != v6
+                or expected != v6["final_digest"]
+            ):
+                raise BuildError("v6 alias is not bound to the exact pinned manifest package")
+            for reference in records:
+                path, separator, task_id = reference.rpartition("#")
+                if (
+                    not separator
+                    or task_id != v6["task_id"]
+                    or self.evidence.path(path, relative_to=REPO) != manifest
+                ):
+                    raise BuildError("v6 alias record does not bind its native manifest row")
+            roles.add("mimo-clean-v6")
+        elif transform == "verifier-repair@1":
+            if (
+                alias["source"] is not None
+                or alias["manifest"] is not None
+                or alias["manifest_row"] != {}
+            ):
+                raise BuildError("repair alias has unsupported manifest/source provenance")
+            for reference in records:
+                path = self.evidence.path(reference, relative_to=REPO)
+                matching = [
+                    rec
+                    for rec, ref in self.repairs.get(task, [])
+                    if self.evidence.bound(ref) == path
+                ]
+                if not matching or any(
+                    grader_identity(rec) != (task, expected) for rec in matching
+                ):
+                    raise BuildError(
+                        "repair alias lacks its exact native task/digest/record binding"
+                    )
+                record = matching[0]
+                parent = (record.get("parent") or {}).get("digest")
+                if parent == expected:
+                    raise BuildError("repair alias has cyclic/no-op native ancestry")
+                if parent != v6["final_digest"]:
+                    # A real earlier repair can alias v6, but its original package
+                    # must still exist and reproduce its native parent claim.
+                    origin = record["parent"]["source"]
+                    if origin.get("kind") == "local":
+                        self.package(origin.get("path", ""), parent, task)
+                    elif origin.get("kind") == "variant":
+                        from evallab.task_variants import default_variants_root
+
+                        parent_path = self.evidence.path(origin["record"], relative_to=REPO)
+                        parent_record = self.evidence.observed_json(parent_path)
+                        try:
+                            VariantRecord.model_validate(parent_record)
+                        except ValueError as exc:
+                            raise BuildError(f"invalid repair parent VariantRecord: {exc}") from exc
+                        if grader_identity(parent_record) != (task, parent):
+                            raise BuildError("repair alias has a different native parent record")
+                        parent_package = (
+                            default_variants_root(REPO) / task.replace("/", "__") / parent[7:19]
+                        )
+                        self.package(str(parent_package), parent, task)
+                    else:
+                        raise BuildError(
+                            "repair alias lacks retained native original-package custody"
+                        )
+                if parent == v6["final_digest"]:
+                    if set(record.get("components_changed", [])) - {"verifier"}:
+                        raise BuildError("repair changes agent-visible task/environment/solution")
+                    if not record.get("files") or any(
+                        f.get("path") not in {"tests/test.patch", "tests/test_command.sh"}
+                        for f in record["files"]
+                    ):
+                        raise BuildError("repair is not a test-only native variant")
+                    roles.add("verifier-repair@1")
+        elif transform == "verifier-repair@1>separate-verifier@10":
+            source = alias["source"]
+            if (
+                alias["manifest"] is not None
+                or alias["manifest_row"] != {}
+                or not isinstance(source, dict)
+                or source.get("transform") != "verifier-repair@1"
+            ):
+                raise BuildError("composed repair alias lacks its original repair selection")
+            source_roles, source_claims = self.selection(source, task, v6)
+            for reference in records:
+                path = self.evidence.path(reference, relative_to=REPO)
+                record = self.evidence.observed_json(path)
+                try:
+                    VariantRecord.model_validate(record)
+                except ValueError as exc:
+                    raise BuildError(f"invalid composed native VariantRecord: {exc}") from exc
+                parent = record.get("parent") or {}
+                if (
+                    grader_identity(record) != (task, expected)
+                    or record.get("transform") != "separate-verifier@10"
+                    or parent.get("digest") != source["variant_digest"]
+                ):
+                    raise BuildError("composed repair task/digest/source ancestry mismatch")
+                origin = parent.get("source") or {}
+                if origin.get("kind") == "local":
+                    self.package(origin.get("path", ""), source["variant_digest"], task)
+                elif origin.get("kind") == "variant":
+                    parent_path = self.evidence.path(origin.get("record", ""), relative_to=REPO)
+                    if parent_path not in {
+                        self.evidence.path(claim, relative_to=REPO) for claim in source_claims
+                    }:
+                        raise BuildError("composed repair names a different native source record")
+                else:
+                    raise BuildError("composed repair lacks native original-package custody")
+            claims = {f"{parent} > {record}" for parent in source_claims for record in records}
+            roles.update(source_roles & {"verifier-repair@1"})
+        else:
+            raise BuildError(f"unsupported clean grader selection transform: {transform}")
+        return roles, claims
+
+    def target(
+        self, row: dict[str, Any], source: Source
+    ) -> tuple[set[str], tuple[str, str], dict[str, Any]]:
+        from evallab.storage.paths import shared_checkout_root
+
+        identity = grader_identity(row.get("grader_identity"))
+        task, expected = identity
+        gs = row.get("grader_source")
         if (
             task != source.task
-            or row.get("grader_digest") != expected
-            or row.get("transform") != transform
+            or not isinstance(gs, dict)
+            or grader_identity(gs.get("identity")) != identity
+            or grader_identity(gs) != identity
+            or row.get("transform") != gs.get("transform")
+            or row.get("grader") != gs.get("label")
+            or gs.get("label") != f"{gs.get('transform')}:{expected[7:19]}"
         ):
-            raise BuildError("regrade task/transform/digest mismatch")
-        if not isinstance(expected, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
-            raise BuildError("regrade lacks full exact grader digest")
-        label = f"{transform}:{expected[7:19]}"
-        if row.get("grader") != label:
-            raise BuildError("regrade label does not bind its exact digest")
+            raise BuildError("regrade physical task/transform/digest identity mismatch")
         v6 = self.v6.get(task)
         if (
             not v6
@@ -477,36 +654,40 @@ class Qualification:
             or not set(v6.get("chain", "").split(">")) >= V6_CHAIN
         ):
             raise BuildError("missing globally hardened v6 ancestry")
-        if transform == "mimo-clean-v6":
-            if v6.get("final_digest") != expected:
-                raise BuildError("v6 regrade is not the pinned v6 manifest package")
-        elif transform == "verifier-repair@1":
-            matching = [
-                (rec, ref)
-                for rec, ref in self.repairs.get(task, [])
-                if rec.get("variant_digest") == expected
-            ]
-            if len(matching) != 1:
-                raise BuildError("missing or ambiguous repaired grader native ancestry")
-            record, ref = matching[0]
-            if (record.get("parent") or {}).get("digest") != v6["final_digest"]:
-                raise BuildError("repair is not a child of the exact v6 package")
-            if set(record.get("components_changed", [])) - {"verifier"}:
-                raise BuildError("repair changes agent-visible task/environment/solution")
-            if not record.get("files") or any(
-                f.get("path") not in {"tests/test.patch", "tests/test_command.sh"}
-                for f in record["files"]
-            ):
-                raise BuildError("repair is not a test-only native variant")
-            # The v6 manifest is the terminal parent authority; no registration/derivation.
-            self.evidence.bound(ref)
-        else:
-            raise BuildError(f"unsupported clean grader transform: {transform}")
+        grader_identity({"task_name": task, "variant_digest": v6.get("final_digest")})
+        manifest_package = v6.get("package_path")
+        if not isinstance(manifest_package, str) or not manifest_package:
+            raise BuildError("v6 manifest lacks its actual native package path")
+        manifest_path = self.evidence.path(manifest_package, relative_to=shared_checkout_root(REPO))
+        self.package(str(manifest_path), v6["final_digest"], task)
         package = self.package(gs.get("package", ""), expected, task)
-        return transform, label, package
+        aliases = gs.get("aliases")
+        if not isinstance(aliases, list) or not aliases:
+            raise BuildError("missing native physical grader selection aliases")
+        roles: set[str] = set()
+        representative = False
+        for alias in aliases:
+            if not isinstance(alias, dict) or alias.get("variant_digest") != expected:
+                raise BuildError("final grader alias does not bind the full physical digest")
+            selected_roles, claims = self.selection(alias, task, v6)
+            roles.update(selected_roles)
+            if (
+                alias["transform"] == gs["transform"]
+                and self.evidence.path(alias["package"], relative_to=REPO) == package["path"]
+                and gs.get("record") in claims
+            ):
+                representative = True
+        if not representative or not roles:
+            raise BuildError("physical grader lacks a proven representative/qualification route")
+        return roles, identity, package
 
     def native_replay(
-        self, row: dict[str, Any], expected: str, score: int, *, script: str | None = None
+        self,
+        row: dict[str, Any],
+        identity: tuple[str, str],
+        score: int,
+        *,
+        script: str | None = None,
     ) -> None:
         from evallab.registry import compute_task_digests
         from evallab.results import load_job
@@ -519,6 +700,9 @@ class Qualification:
             raise BuildError(
                 "missing native patch replay custody (snapshot-only summaries need native matrix evidence)"
             )
+        if grader_identity(row.get("grader_identity")) != identity:
+            raise BuildError("native replay physical grader identity mismatch")
+        _, expected = identity
         receipt_path = self.evidence.path(row.get("matrix_receipt", ""))
         receipt = self.evidence.observed_json(receipt_path)
         matrix_doc, outcomes = receipt.get("matrix") or {}, receipt.get("results") or []
@@ -588,12 +772,14 @@ class Qualification:
             raise BuildError("native replay outcome/staging disagrees with its matrix receipt")
 
     def retained_envcheck_controls(
-        self, label: str, expected: str, package: dict[str, Any]
+        self, identity: tuple[str, str], package: dict[str, Any]
     ) -> None:
         """Consume actual EnvCheck Harbor results/stability, never manifest booleans alone."""
-        variant, archive = self.envcheck_controls[label]
+        task, expected = identity
+        variant, archive = self.envcheck_controls[identity]
         if (
-            variant.get("variant_digest") != expected
+            package["task"] != task
+            or variant.get("variant_digest") != expected
             or canonical_task(variant.get("task", "")) != package["task"]
             or variant.get("status") != "repaired"
             or variant.get("declared_survivors") != 0
@@ -659,19 +845,22 @@ class Qualification:
             if float(reward_file.read_text().strip()) != score:
                 raise BuildError("EnvCheck native reward file disagrees with its result")
 
-    def controls_ok(self, label: str, expected: str, package: dict[str, Any]) -> None:
-        if label in self._checked_controls:
+    def controls_ok(self, identity: tuple[str, str], package: dict[str, Any]) -> None:
+        if package["task"] != identity[0]:
+            raise BuildError("native controls have a different physical task identity")
+        if identity in self._checked_controls:
             return
-        if label in self.envcheck_controls:
-            self.retained_envcheck_controls(label, expected, package)
-            if label not in self.controls:
-                self._checked_controls.add(label)
+        if identity in self.envcheck_controls:
+            self.retained_envcheck_controls(identity, package)
+            if identity not in self.controls:
+                self._checked_controls.add(identity)
                 return
         from evallab.qa import counterfactual as cf
 
-        ctrl = self.controls.get(label)
+        ctrl = self.controls.get(identity)
         if (
             not ctrl
+            or grader_identity(ctrl.get("grader_identity")) != identity
             or ctrl.get("engine") != cf.ENGINE_VERSION
             or ctrl.get("nop") != 0
             or ctrl.get("reference") != 1
@@ -690,15 +879,17 @@ class Qualification:
         workdir = package["config"]["environment"]["workdir"]
         control_rows = ctrl.get("rows") or {}
         self.native_replay(
-            control_rows.get("nop") or {}, expected, 0, script=cf._patch_script("", workdir)
+            control_rows.get("nop") or {}, identity, 0, script=cf._patch_script("", workdir)
         )
         kept, _ = cf.strip_binary_artifacts(patch)
         self.native_replay(
-            control_rows.get("reference") or {}, expected, 1, script=cf._patch_script(kept, workdir)
+            control_rows.get("reference") or {}, identity, 1, script=cf._patch_script(kept, workdir)
         )
-        self._checked_controls.add(label)
+        self._checked_controls.add(identity)
 
-    def regrade(self, row: dict[str, Any], source: Source, score: int) -> tuple[str, str]:
+    def regrade(
+        self, row: dict[str, Any], source: Source, score: int
+    ) -> tuple[set[str], tuple[str, str]]:
         from evallab.qa import counterfactual as cf
 
         if row.get("engine") != cf.ENGINE_VERSION or row.get("execution_id") != source.key[1]:
@@ -725,17 +916,16 @@ class Qualification:
         ):
             if (trial / relative).is_file():
                 self.evidence.capture(trial / relative)
-        transform, label, package = self.target(row, source)
-        expected = row["grader_digest"]
-        self.controls_ok(label, expected, package)
+        roles, identity, package = self.target(row, source)
+        self.controls_ok(identity, package)
         diff_path = trial / "verifier/agent.diff"
         self.evidence.capture(diff_path)
         kept, _ = cf.strip_binary_artifacts(diff_path.read_text())
         script = cf._patch_script(kept, package["config"]["environment"]["workdir"])
-        self.native_replay(row, expected, score, script=script)
+        self.native_replay(row, identity, score, script=script)
         if row.get("outcome") != ("stays" if score == 1 else "flips"):
             raise BuildError("regrade outcome disagrees with native observed rewards")
-        return transform, expected
+        return roles, identity
 
     def clean(self, source: Source) -> list[dict[str, Any]]:
         if self.faults.get(source.key[1], set()) & FAULTS:
@@ -743,16 +933,18 @@ class Qualification:
         rows = self.regrades.get(source.key[1], [])
         if not rows:
             raise BuildError("no hash-bound clean regrade evidence")
-        accepted: list[dict[str, Any]] = []
+        accepted: dict[tuple[str, str], dict[str, Any]] = {}
         kinds: set[str] = set()
         errors = []
         for row in rows:
             try:
-                kind, _ = self.regrade(row, source, int(row.get("regraded") == 1))
+                roles, identity = self.regrade(row, source, int(row.get("regraded") == 1))
                 if row.get("regraded") != 1:
                     raise BuildError("source fails a qualified clean grader")
-                kinds.add(kind)
-                accepted.append(row)
+                kinds.update(roles)
+                if identity in accepted and accepted[identity] != row:
+                    raise BuildError("conflicting observations for the same physical grader")
+                accepted[identity] = row
             except BuildError as exc:
                 errors.append(str(exc))
         # Refused/malformed supplied evidence is not silently ignored in favor of a pass.
@@ -760,7 +952,7 @@ class Qualification:
             raise BuildError("; ".join(sorted(set(errors))))
         if kinds != {"mimo-clean-v6", "verifier-repair@1"}:
             raise BuildError("requires observed pass on BOTH mimo-clean-v6 and verifier-repair@1")
-        return accepted
+        return list(accepted.values())
 
 
 @dataclass
@@ -885,14 +1077,15 @@ def correction_row(
         after = rows_from_document(evidence, after_ref["document"])[after_ref["row"]]
     except (IndexError, TypeError, KeyError) as exc:
         raise BuildError("D missing actual failed/passed repaired regrade rows") from exc
-    kind_before, digest_before = qualification.regrade(before, original, 0)
-    kind_after, digest_after = qualification.regrade(after, corrected, 1)
+    roles_before, identity_before = qualification.regrade(before, original, 0)
+    roles_after, identity_after = qualification.regrade(after, corrected, 1)
     if (
-        kind_before != "verifier-repair@1"
-        or kind_after != kind_before
-        or digest_before != digest_after
+        "verifier-repair@1" not in roles_before
+        or "verifier-repair@1" not in roles_after
+        or identity_before != identity_after
     ):
         raise BuildError("D requires false-pass -> true-pass on the same exact repaired grader")
+    digest_before = identity_before[1]
     correction_environment(evidence, corrected, digest_before)
     feedback_path = evidence.bound(link["feedback"])
     feedback = feedback_path.read_text()

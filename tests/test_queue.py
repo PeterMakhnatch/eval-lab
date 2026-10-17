@@ -116,6 +116,7 @@ def executor(
     max_transient_retries: int = 2,
     parallel: int = 1,
     capacity: DispatchCapacity | None = None,
+    on_completion=None,
 ) -> Executor:
     return Executor(
         repo_root=root,
@@ -132,7 +133,39 @@ def executor(
         max_transient_retries=max_transient_retries,
         parallel=parallel,
         capacity=capacity,
+        on_completion=on_completion,
     )
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_completion_observer_sees_terminal_state(tmp_path: Path, fail: bool) -> None:
+    observed: list[tuple[str, str]] = []
+
+    def run(request: RunRequest) -> Path:
+        if fail:
+            raise TrialTimeoutFailure(30)
+        return request.jobs_dir / request.name
+
+    def observe(item: ExperimentSpec) -> None:
+        observed.append((item.name, service.queue.locate(str(item.spec_id)).parent.name))
+
+    service = executor(tmp_path, runner=run, on_completion=observe)
+    service.submit(spec("completion"))
+    service.tick()
+    assert observed == [("completion", "failed" if fail else "done")]
+
+
+def test_completion_persistence_failure_does_not_reclassify_graded_trial(tmp_path: Path) -> None:
+    def fail_persistence(item: ExperimentSpec) -> None:
+        raise OSError("results filesystem is unavailable")
+
+    service = executor(tmp_path, on_completion=fail_persistence)
+    path, _ = service.submit(spec("graded"))
+    spec_id = str(service.queue.load(path).spec_id)
+    with pytest.raises(OSError, match="results filesystem"):
+        service.tick()
+    assert service.queue.locate(spec_id).parent.name == "done"
+    assert not service.queue.list_specs("failed")
 
 
 @pytest.mark.parametrize(

@@ -71,7 +71,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:ea6dea69887f874882d0b152b00a43c82a28d76a7531b2329fca92e6d641a5b5
+    digest: sha256:d26f6e41f5e3b7f808c018bca26af312491aed1c0a2786dd3de341c5bc2923e8
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -125,7 +125,7 @@ inputs:
   - path: docs/research/trajectory-intelligence.md
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
   - path: docs/rollout.md
-    digest: sha256:3f1d7e1d419cce64add4750b28c8801a53f14c4dd2c9272dcfd1bd610bdc9dba
+    digest: sha256:61f9acd448d64bb4187a6d86f999f914769d381a3d137c253cbbdfe126adaaff
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md

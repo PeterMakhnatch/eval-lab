@@ -65,19 +65,26 @@ Explicit Docker task concurrency is restricted to 1–2 and retains that same
 host-wide admission:
 
 1. build (and cache per package digest) the environment image and, for
-   `environment_mode = "separate"`, the `tests/` image;
-2. start one agent container; run oracle `solution/solve.sh` (optionally
-   replaced by a mutation/capture script), a shortcut script, or nothing
-   (nop); run any `[[verifier.collect]]` hooks; optionally copy the agent's
-   `/logs/artifacts` out (mutation captures);
-3. copy every `task.toml` artifact out (directory artifacts keep their tree;
-   dict artifacts honour `exclude`);
-4. remove the agent container, start a fresh verifier container, upload the
-   artifacts to their declared paths, run `tests/test.sh`, read
+   `environment_mode = "separate"`, the `tests/` image (adding
+   `--platform linux/amd64` when `Dockerfile` or `tests/wheels/*.whl` requires
+   `x86_64` / `amd64`);
+2. start one agent container (or, for `environment/docker-compose.yaml`
+   packages, bring up the Compose stack under the same FIFO slot); run oracle
+   `solution/solve.sh` (optionally replaced by a mutation/capture script), a
+   shortcut script, or nothing (nop); run `[[verifier.collect]]` hooks for
+   `main`; optionally copy the agent's `/logs/artifacts` out (mutation
+   captures);
+3. copy `main` `task.toml` artifacts out (directory artifacts keep their tree;
+   dict artifacts honour `exclude`); for Compose packages with sidecar hooks or
+   sidecar `artifacts = [{source, service}]`, stop `main` first so sidecar
+   collection sees a quiescent state, then run sidecar `[[verifier.collect]]`
+   hooks and copy sidecar artifacts;
+4. remove the agent container (or tear down the Compose stack), start a fresh
+   verifier container, upload the artifacts to their declared paths, run
+   `tests/test.sh` with a world-writable `/logs/verifier`, read
    `/logs/verifier/reward.txt` (or `reward.json`), and copy `/logs/verifier/`
    out (coverage traces);
 5. shared-mode tasks are graded in the agent container instead.
-
 Every trial writes `agent/oracle.txt`, `verifier/test-stdout.txt` and
 `result.json` under its trial directory; those are the grader outputs fed back
 to the shortcut agent on the next attempt.
@@ -156,6 +163,12 @@ package, and no TB4 package declares a `workdir`.
   `docker exec -w <workdir>`, as Harbor does. A v6 MiMo `solve.sh` finds its repository
   with `git rev-parse --show-toplevel || pwd`; in the image's default directory (`/`)
   its patch had nothing to apply to and every control came back unmeasured.
+- **Embedded reference patch for v6 ref-subset.** A v6 separate-verifier MiMo
+  package embeds its base64 reference patch in `solution/solve.sh`
+  (`echo <b64> | base64 -d`). `HarborBackend.ref_subset` extracts it
+  automatically and stages a temporary direct-grading `tests/test.sh` for the
+  S2b block-drop and line-mutant pass, while S3 replays every candidate against
+  the v6 package's own separate verifier.
 - **Subject id.** The resolver strips the namespace from `[task].name`; `run_task`
   restores the package's own (`mimo-v2.6-rl/<id>`, `terminal-bench/<id>`) so a
   finding binds to its key. A package with no namespaced name keeps the TB2
@@ -240,10 +253,10 @@ Options: `--task`, `--key`, `--split {dev,heldout}`, `--item`,
 `codex/gpt-6-luna`), `--no-model`, `--mutants`, `--evidence`, `--triplet`,
 `--ref-patch` (the reference patch: ref-subset's reference and, for a package
 with no `solution/solve.sh`, the oracle; see "Workdir-bound packages"),
-`--environment {docker,modal}` (default Docker), `--plan`, `--max-usd`,
-`--approve`, `--usd-per-execution` (positive finite; default 0.05), and
-`--concurrency` (default 1; Modal 1–16, Docker 1–2).
-
+`--resume-from` (reuse digest-bound measured checks and probes from an earlier
+run directory), `--environment {docker,modal}` (default Docker), `--plan`,
+`--max-usd`, `--approve`, `--usd-per-execution` (positive finite; default 0.05),
+and `--concurrency` (default 1; Modal 1–16, Docker 1–2).
 Run directories are fresh and immutable (an existing `--run-dir` is an error)
 and must live inside the checkout. Layout: `run.json`, `summary.json`,
 `tasks/<slug>/report.json`, `tasks/<slug>/s2-shortcut-a<N>/`,

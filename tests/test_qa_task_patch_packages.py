@@ -412,3 +412,149 @@ def test_workdir_bound_rule_names_only_mimo_style_packages(
     package = _write_package(tmp_path, "pkg", toml, solution=solution)
 
     assert HarborBackend.patch_workdir(package) == expected
+
+
+def test_compose_package_is_unblocked_and_runs_phased_hooks_and_separate_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    toml = (
+        'schema_version = "1.0"\n'
+        'artifacts = ["/tmp/agent.patch", { source = "/warehouse", service = "warehouse", destination = "/tmp/warehouse", exclude = ["*.pyc"] }]\n'
+        '[task]\nname = "terminal-bench/compose-pkg"\n'
+        "[environment]\ncpus = 2\nmemory_mb = 4096\n"
+        '[verifier]\nenvironment_mode = "separate"\n'
+        '[verifier.environment.env]\nEXPECT_TAG = "ok"\n'
+        '[[verifier.collect]]\ncommand = "echo main-hook"\n'
+        '[[verifier.collect]]\nservice = "warehouse"\ncommand = "echo sidecar-hook"\n'
+    )
+    package = _write_package(tmp_path, "compose-pkg", toml, solution=True)
+    (package / "environment" / "docker-compose.yaml").write_text(
+        "services:\n  main:\n    depends_on: [warehouse]\n  warehouse:\n    image: alpine:3.19\n",
+        encoding="utf-8",
+    )
+    (package / "tests" / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    assert backend.resource_blocker(package) is None
+
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[Any], **_: Any) -> subprocess.CompletedProcess[str]:
+        argv = [str(a) for a in args]
+        calls.append(argv)
+        stdout = ""
+        if argv[:2] == ["docker", "compose"] and "cp" in argv:
+            target = Path(argv[-1])
+            if not str(target).startswith("main:"):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("artifact\n", encoding="utf-8")
+        elif argv[:2] == ["docker", "exec"] and argv[-2:] == ["cat", "/logs/verifier/reward.txt"]:
+            stdout = "1.0\n"
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr("evallab.qa.task.subprocess.run", fake_run)
+    obs = backend.run_container_trial(
+        package, digest=DIGEST, mode="oracle", trial_dir=tmp_path / "compose-trial"
+    )
+
+    assert obs.status == "executed"
+    assert obs.facts["reward"] == 1.0
+    assert obs.facts["backend"] == "docker-compose"
+    compose_subcmds = [c[10] for c in calls if c[:2] == ["docker", "compose"] and len(c) > 10]
+    assert "build" in compose_subcmds
+    assert "up" in compose_subcmds
+    assert compose_subcmds.index("stop") < compose_subcmds.index("down")
+    assert any("-e" in c and "EXPECT_TAG=ok" in c for c in calls if c[:2] == ["docker", "exec"])
+
+
+def test_separate_verifier_trial_scores_reward_even_when_solve_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    package = _write_package(
+        tmp_path,
+        "sep-pkg",
+        '[task]\nname = "bench/sep-pkg"\n[environment]\nworkdir = "/app"\n[verifier]\nenvironment_mode = "separate"\n',
+        solution=True,
+    )
+    (package / "tests" / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+
+    def fake_run(args: list[Any], **_: Any) -> subprocess.CompletedProcess[str]:
+        argv = [str(a) for a in args]
+        rc, stdout = 0, ""
+        if argv[:2] == ["docker", "exec"]:
+            _, cmd = split_exec(argv)
+            if cmd == ["bash", "/solution/solve.sh"]:
+                rc = 1
+            elif cmd == ["cat", "/logs/verifier/reward.txt"]:
+                stdout = "1.0\n"
+        return subprocess.CompletedProcess(argv, rc, stdout=stdout, stderr="")
+
+    monkeypatch.setattr("evallab.qa.task.subprocess.run", fake_run)
+    obs = backend.run_container_trial(
+        package, digest=DIGEST, mode="oracle", trial_dir=tmp_path / "sep-trial"
+    )
+    assert obs.status == "executed"
+    assert obs.facts["reward"] == 1.0
+    assert obs.facts["oracle_exit_code"] == 1
+
+
+def test_amd64_wheel_detection_adds_platform_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    package = _write_package(
+        tmp_path,
+        "amd64-pkg",
+        '[task]\nname = "bench/amd64-pkg"\n[environment]\n',
+        solution=True,
+    )
+    wheels = package / "tests" / "wheels"
+    wheels.mkdir(parents=True, exist_ok=True)
+    (wheels / "foo-1.0-cp312-cp312-manylinux_2_28_x86_64.whl").write_bytes(b"wheel")
+    fake = _install(monkeypatch, FakeDocker())
+    obs = backend.run_container_trial(
+        package, digest=DIGEST, mode="oracle", trial_dir=tmp_path / "amd64-trial"
+    )
+    assert obs.status == "executed"
+    build_calls = [c for c in fake.calls if c[:2] == ["docker", "build"]]
+    run_calls = [c for c in fake.calls if c[:2] == ["docker", "run"]]
+    assert all("--platform" in c and "linux/amd64" in c for c in build_calls)
+    assert all("--platform" in c and "linux/amd64" in c for c in run_calls)
+
+
+def test_mimo_v6_embedded_patch_extraction_and_probe_package_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    import base64
+
+    toml = (
+        'schema_version = "1.0"\n'
+        'artifacts = ["/var/tmp/mimo-separate/patch.diff"]\n'
+        '[task]\nname = "mimo-v2.6-rl/format-code-task-000079"\n'
+        '[environment]\ndocker_image = "img:1"\nworkdir = "/testbed"\n'
+        '[environment.healthcheck]\ncommand = "bash -c /setup/setup.sh"\n'
+        '[verifier]\nenvironment_mode = "separate"\n'
+    )
+    pkg = _write_package(tmp_path, "format-code-task-000079", toml, solution=True)
+    b64 = base64.b64encode(PATCH).decode("ascii")
+    (pkg / "solution" / "solve.sh").write_text(
+        f"#!/bin/bash\nset -euo pipefail\necho {b64} | base64 -d | git apply -\n",
+        encoding="utf-8",
+    )
+    (pkg / "tests" / "test.patch").write_text(
+        "diff --git a/tests/test_a.py b/tests/test_a.py\n--- a/tests/test_a.py\n+++ b/tests/test_a.py\n@@ -1 +1 @@\n-assert False\n+assert True\n",
+        encoding="utf-8",
+    )
+    (pkg / "tests" / "test_command.sh").write_text("pytest -q\n", encoding="utf-8")
+
+    extracted = backend._extract_embedded_patch(pkg, tmp_path / "out")
+    assert extracted is not None and extracted.read_bytes() == PATCH
+
+    probe_pkg, cleanup_dir = backend._prepare_mimo_probe_package(pkg)
+    try:
+        staged_sh = (probe_pkg / "tests" / "test.sh").read_text(encoding="utf-8")
+        assert "EOF_RESET_TEST_FILES" in staged_sh
+        assert "tests/test_a.py" in staged_sh
+        assert "pytest -q" in staged_sh
+    finally:
+        if cleanup_dir is not None:
+            import shutil
+
+            shutil.rmtree(cleanup_dir, ignore_errors=True)

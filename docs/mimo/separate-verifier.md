@@ -602,6 +602,39 @@ pytest hook's `CHANGED` verdict (both wrote `integrity.txt`); the live
 `integrity-unittest.txt` and the gate reads both files. Unit tests alone
 did not catch this, which is why the live probe is part of the evidence.
 
+### HAR-208 exact-input acceptance (2026-10-17: blocked)
+
+The source repair and ladder v3 already exist; HAR-208 adds full-wrapper
+regressions rather than changing immutable transform bytes. The tests execute
+the rendered `@10` shell grader on real synthetic repository snapshots:
+pytest and unittest oracle/nop score 1/0, and all four selected, armed v3
+attacks score 0. They also prove that the bytecode appears only in the full
+diff, not the kept diff, that a clean unittest shim cannot overwrite the
+pytest integrity failure, and that forged stdout with zero structured
+unittest cases earns no reward. The source-spelling gate stays clear in all
+four regressions. Focused verification: 213 tests passed across
+`tests/test_separate_verifier.py` and `tests/test_cheat.py`.
+
+This does **not** complete native exact-input acceptance. Both original
+packages were hashed again:
+`002139 = dd269adcb32c71df21a15d1eed4d0148666a1c417969e86db2768c7d757bf510`,
+`002866 = a811bab8c3fbe0f6f1faea62b8d194667cb85a6efc68bf19177f596855fb486e`.
+Shared FIFO acquisition succeeded, but unchanged local Docker admission
+refused both: three existing services have unbounded CPU/memory. The two
+available contexts also resolve to the same 7.75-GiB daemon, below the
+16-GiB sandbox requirement before the controller reserve. No new trials ran;
+shared services, VM settings, task limits and admission rules were untouched.
+
+The 2026-10-15 retained controls do report oracle `[1,1,1]`, nop `[0,0,0]`
+and the four task-specific probe rejections, but on rebuilt v6 packages
+`6d156eb8a8ce…` / `faf79fbb247c…`, not repaired children bound to the
+original two inputs above. Their manifest qualification remains
+`unverified:ladder-probe-pending`; these receipts are not carried across
+digests. The machine-readable evidence and precise remaining gate are in
+[`research/evidence/har208-verifier-controls-20261017.json`](../../research/evidence/har208-verifier-controls-20261017.json).
+Resource-owner admission is required before the unchanged local controls can
+finish HAR-208. No fleet-wide repair or clean-set certification is claimed.
+
 ### Repeat-idempotent pristine anchor (000245 + 000048 fold)
 
 `@10` also fixes the repeat-3 oracle failure measured on the

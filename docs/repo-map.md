@@ -517,7 +517,7 @@ inputs:
   - path: src/evallab/qa/score.py
     digest: sha256:758ab9e81599ec489aa9d04db0feeb3d52609b7bfba0159d0950728356962bd8
   - path: src/evallab/qa/task.py
-    digest: sha256:73b00b522f68038a54385cd1c592ac84badee92fe091637303315331ba9fccf4
+    digest: sha256:926da11056d3a80525f34f17bea7201a71d4d58f0d5d3b22f70bb005f869bddf
   - path: src/evallab/qa/task_modal.py
     digest: sha256:3d5865174f749a07d8e45af24d174b1ba19d6bbe58adfb6afa6e2d0ccbdcf66b
   - path: src/evallab/qa/trace.py
@@ -555,13 +555,13 @@ inputs:
   - path: src/evallab/ref_repair.py
     digest: sha256:ed93b23b8645ec69ed0dd93dbfa4006c7a21f022d36c90d5a007d2554f88df32
   - path: src/evallab/ref_subset.py
-    digest: sha256:ad0bb5cc53aef051bf55a9079bd56c6f7e6412170abda6c50361d0ddd37819e0
+    digest: sha256:d58b0bd8a7d626a2da0e084c8384f6d067f0e0a27b012e28ad40e216834212c5
   - path: src/evallab/ref_subset_modal.py
     digest: sha256:7328c9ad5736a69419f80fafda8814853fd33376fbfd99e8ab42f668dcb63dba
   - path: src/evallab/registry.py
     digest: sha256:7a7d980c894d4e1c97a518cdcf9e8fe8b1fbe37c9d1bf7fec33d8170f4e350ab
   - path: src/evallab/regrade.py
-    digest: sha256:cc83228977f6963a3c0168ba09333ff13246706306a4830dcaa42dce40b1758f
+    digest: sha256:b169318333347d255793cde6e046e8793a789eb2d0dd5e65cdf16788685eb1f4
   - path: src/evallab/repetition.py
     digest: sha256:bb868c3da5dea5637f5ae4a7e81f157e9590087dc832fcd546a3a7a095811899
   - path: src/evallab/repomap.py

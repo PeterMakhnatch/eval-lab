@@ -45,7 +45,11 @@ from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.docker_lock import docker_slot
 from evallab.qa.models import expected_root_causes, root_cause_hit
 from evallab.qa.score import ScoreRow, append_scoreboard
-from evallab.regrade import CloudSpendGate, modal_resource_blocker
+from evallab.regrade import (
+    MODAL_USD_PER_ALLOCATION_UNIT,
+    CloudSpendGate,
+    modal_resource_blocker,
+)
 from evallab.schemas import ContractModel
 
 SPEND_TAG = "2026-10-15"
@@ -4018,13 +4022,13 @@ def plan_task_run(
                 "unsupported_reason": blocker,
                 "stage_reservation_upper_bounds": stages,
                 "execution_upper_bound": upper_bound,
-                "estimated_usd": round(upper_bound * usd_per_execution, 6)
+                "estimated_usd": upper_bound * usd_per_execution
                 if environment == "modal"
                 else 0.0,
             }
         )
     upper_bound = sum(task["execution_upper_bound"] for task in tasks)
-    estimated_usd = sum(task["estimated_usd"] for task in tasks)
+    estimated_usd = upper_bound * usd_per_execution if environment == "modal" else 0.0
     refusals = [task["unsupported_reason"] for task in tasks if task["unsupported_reason"]]
     fits_cap = environment == "docker" or (max_usd is not None and estimated_usd <= max_usd + 1e-9)
     if environment == "modal":
@@ -4041,7 +4045,7 @@ def plan_task_run(
         "stages": list(config.stages),
         "tasks": tasks,
         "execution_upper_bound": upper_bound,
-        "estimated_usd": round(estimated_usd, 6),
+        "estimated_usd": estimated_usd,
         "reserved_usd": 0.0,
         "max_usd": max_usd,
         "usd_per_execution": usd_per_execution if environment == "modal" else 0.0,
@@ -4090,7 +4094,7 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         if not 1 <= concurrency <= ceiling:
             raise ValueError(f"{environment} concurrency must be in [1, {ceiling}]")
         max_usd = getattr(args, "max_usd", None)
-        usd_per_execution = getattr(args, "usd_per_execution", 0.05)
+        usd_per_execution = getattr(args, "usd_per_execution", MODAL_USD_PER_ALLOCATION_UNIT)
         approval = getattr(args, "approve", None)
         if not math.isfinite(usd_per_execution) or usd_per_execution <= 0:
             raise ValueError("--usd-per-execution must be positive and finite")
@@ -4327,8 +4331,9 @@ def add_task_commands(sub: Any) -> None:
     task.add_argument(
         "--usd-per-execution",
         type=float,
-        default=0.05,
-        help="Positive finite USD reservation estimate per cloud execution unit (default: 0.05)",
+        default=MODAL_USD_PER_ALLOCATION_UNIT,
+        help="Positive finite USD reservation estimate per image work/native creation attempt "
+        "(default: %(default)s)",
     )
     task.add_argument(
         "--concurrency",

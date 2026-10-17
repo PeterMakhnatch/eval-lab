@@ -63,6 +63,7 @@ from typing import Any, Literal
 
 from evallab.execution_contracts import MODAL_PATH_PIN
 from evallab.regrade import (
+    MODAL_USD_PER_ALLOCATION_UNIT,
     CloudSpendGate,
     SpendCapReached,
     lab_harbor_problem,
@@ -1864,8 +1865,9 @@ def _add_environment_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--usd-per-execution",
         type=_reservation_estimate,
-        default=0.05,
-        help="Positive finite reservation estimate per image work/native creation attempt (default: 0.05)",
+        default=MODAL_USD_PER_ALLOCATION_UNIT,
+        help="Positive finite reservation estimate per image work/native creation attempt "
+        "(default: %(default)s)",
     )
 
 
@@ -1937,7 +1939,7 @@ def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool
             refusals.append(f"{job.task_id}: {exc}")
         tasks.append(item)
     units = sum(item["reservation_units_upper_bound"] for item in tasks)
-    estimate = round(units * args.usd_per_execution, 4)
+    estimate = units * args.usd_per_execution
     fits = args.max_usd is None or estimate <= args.max_usd + 1e-9
     if args.environment == "modal":
         if args.max_usd is None:

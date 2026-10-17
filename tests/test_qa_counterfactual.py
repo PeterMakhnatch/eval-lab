@@ -427,6 +427,101 @@ def test_plan_counts_exactly_the_executions_a_run_would_still_start(
     assert trace.plan_regrade([subject])["executions"] == 0
 
 
+@pytest.mark.parametrize("environment", ["modal", "daytona"])
+@pytest.mark.parametrize(
+    ("cap_usd", "admitted"),
+    [
+        pytest.param(0.0037, False, id="rounded-down-over-cap"),
+        pytest.param(0.003703701, True, id="exact-fit"),
+        pytest.param(0.0037037005, True, id="within-gate-tolerance"),
+        pytest.param(0.003703699, False, id="above-gate-tolerance"),
+        pytest.param(None, False, id="plan-without-approval"),
+    ],
+)
+def test_regrade_cli_subcent_plan_obeys_unrounded_total_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    environment: str,
+    cap_usd: float | None,
+    admitted: bool,
+) -> None:
+    from evallab.cli import parser
+    from evallab.regrade import CloudSpendGate, SpendCapReached
+
+    trial, grader = _trial(tmp_path), _grader(tmp_path)
+    monkeypatch.setattr(cf, "newer_graders", lambda *_, **__: [grader])
+    monkeypatch.setattr(cf, "reference_patch", lambda *_: "reference")
+    monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cache")
+    entered: list[CloudSpendGate] = []
+
+    def forbidden(*_, **__):
+        raise AssertionError("planning must not execute controls or replays")
+
+    monkeypatch.setattr(cf, "grader_controls", forbidden)
+    monkeypatch.setattr(cf, "replay", forbidden)
+
+    def inert_regrade(*_, spend_gate, **__):
+        entered.append(spend_gate)
+        for _ in range(3):  # Two controls plus the recorded pass.
+            spend_gate.charge()
+        with pytest.raises(SpendCapReached):
+            spend_gate.charge()
+        return []
+
+    monkeypatch.setattr(trace, "regrade_passes", inert_regrade)
+    passes = tmp_path / "passes.jsonl"
+    passes.write_text(
+        json.dumps({"item_id": "example", "task": TASK, "trial_path": str(trial)}) + "\n"
+    )
+    out = tmp_path / "out"
+    rate, expected_usd = 0.001234567, 0.003703701
+    command = [
+        "qa",
+        "trace",
+        "regrade",
+        "--passes",
+        str(passes),
+        "--out",
+        str(out),
+        "--environment",
+        environment,
+        "--usd-per-execution",
+        str(rate),
+    ]
+    if cap_usd is None:
+        command += ["--plan"]
+    else:
+        command += ["--max-usd", str(cap_usd), "--approve", "inert fixture only"]
+    args = parser().parse_args(command)
+
+    if cap_usd is not None and not admitted:
+        with pytest.raises(SystemExit):
+            args.func(args, tmp_path)
+        assert entered == []
+        assert not out.exists()
+        return
+
+    assert args.func(args, tmp_path) == 0
+    if cap_usd is None:
+        assert entered == []
+        plan = json.loads((out / "plan.json").read_text())
+        printed = json.loads(capsys.readouterr().out)
+        assert printed == {key: plan[key] for key in printed}
+        assert not (out / "summary.json").exists()
+    else:
+        assert len(entered) == 1
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["spend_gate"]["executions"] == 3
+        assert summary["spend_gate"]["cap_usd"] == cap_usd
+        assert summary["spend_gate"]["usd_per_execution"] == rate
+        plan = summary["plan"]
+    assert (plan["control_executions"], plan["replay_executions"]) == (2, 1)
+    assert plan["executions"] == 3
+    assert plan["usd_per_execution"] == rate
+    assert plan["estimated_usd"] == pytest.approx(expected_usd, abs=1e-12)
+
+
 def test_selected_manifest_refreshes_and_mutated_package_is_not_accepted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

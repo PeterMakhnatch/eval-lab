@@ -35,6 +35,7 @@ from evallab.ref_subset import (
     trace_check,
     unified_patch,
 )
+from evallab.regrade import SpendCapReached
 
 _NUMBERED = [f"line{i}\n" for i in range(40)]
 
@@ -754,7 +755,7 @@ def test_cli_plan_is_zero_execution_and_keeps_package_bytes_immutable(
     assert plan["tasks"][0]["package_digest"]
     bound = modal_execution_bound(separate=separate) if environment == "modal" else 0
     assert plan["reservation_units_upper_bound"] == bound
-    assert plan["estimated_reservation_usd"] == round(bound * 0.05, 4)
+    assert plan["estimated_reservation_usd"] == bound * 0.05
     assert plan["fits_cap"] is (environment == "docker")
     assert plan["execution_refused"] is (environment == "modal")
     assert not output.exists()
@@ -813,6 +814,52 @@ def test_modal_sweep_plan_lists_all_selected_tasks_and_resume_skips(
     assert plan["fits_cap"] is True and plan["execution_refused"] is False
     assert report.read_text() == '{"status": "not_applicable"}\n'
     assert not (output / "two").exists() and not (output / "run-receipt.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("rate", "cap_delta"), [(0.0001255, 0.0), (0.000101, -2e-8)]
+)
+def test_modal_cli_subcent_plan_cap_matches_unrounded_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    rate: float,
+    cap_delta: float,
+) -> None:
+    package = _separate_package(tmp_path / "package")
+    units = modal_execution_bound(max_grades=4)
+    exposure = units * rate
+    cap = exposure + cap_delta
+    _forbid_execution(monkeypatch)
+    args = _ref_args(
+        "run",
+        str(package),
+        "--output-dir",
+        str(tmp_path / "out"),
+        "--environment",
+        "modal",
+        "--max-grades",
+        "4",
+        "--max-usd",
+        str(cap),
+        "--usd-per-execution",
+        str(rate),
+        "--approve",
+        "inert sub-cent boundary",
+        "--plan",
+    )
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    fits = cap_delta == 0
+    assert 0 < plan["estimated_reservation_usd"] < 0.01
+    assert plan["estimated_reservation_usd"] == exposure
+    assert plan["fits_cap"] is fits and plan["execution_refused"] is not fits
+    gate = ref_subset._command_spend_gate(args)
+    assert gate is not None
+    for _ in range(units if fits else units - 1):
+        gate.charge()
+    with pytest.raises(SpendCapReached):
+        gate.charge()
 
 
 @pytest.mark.parametrize("estimate", ["0", "-1", "nan", "inf", "-inf"])

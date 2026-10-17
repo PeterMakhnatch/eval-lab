@@ -304,8 +304,9 @@ separate `--stages exploit` probe is requested.
 
     A real Modal run drops `--plan` and requires both `--max-usd USD` and
     `--approve 'recorded approval text'`. `--usd-per-execution` must be positive
-    and finite (default `$0.05`); it is the operator's **reservation estimate**,
-    not provider pricing. One thread-safe `CloudSpendGate` is shared across the
+    and finite (default `$0.0025` per allocation/preparation unit); it is the
+    operator's **reservation estimate**, not provider pricing. One thread-safe
+    `CloudSpendGate` is shared across the
     entire sweep. `--lanes` permits **1–16 on Modal**, **1–2 on Docker**;
     Modal never instantiates the local image cache or pulls host Docker images.
   - **Cloud reservation and isolation.** Native Harbor
@@ -332,6 +333,18 @@ separate `--stages exploit` probe is requested.
     differ. `report.json` includes native commands, sandbox/snapshot identities,
     command stdout/stderr paths, actual lock records when present and the spend
     receipt; a requested policy alone is never claimed as applied-lock evidence.
+    The October 17, 2026 calibration uses native identity/resource/lifecycle
+    evidence, cross-checked against the shared app's actual metered CPU/memory
+    cost, not old reservations divided by job count. The 338 short 2-CPU/8-GiB
+    control allocations (169 proven agent/verifier pairs) averaged an estimated
+    `$0.003223` per physical allocation. Two clone units reserve `$0.005`
+    (**55.1% above that mean**); an ordinary three-unit start reserves `$0.0075`
+    (**132.7% above the mean**). This is a mean-based safety margin, not a
+    worst-case bound: long tails, cold image work, larger resources, GPU/serving
+    workloads, storage and other providers need their own explicit estimate.
+    Lifecycle × resource price is not a per-sandbox invoice; shared-app billing
+    cannot isolate each lane's charge. Cap comparisons use unrounded exposure
+    with the gate's `1e-9` tolerance, including sub-cent estimates.
     The final `run-receipt.json` records the shared gate's totals and approval.
   - **Minimisation.** A greedy pass first checks the baselines (full reference 1,
     base 0). It then drops the docs and comment blocks, then each file, then

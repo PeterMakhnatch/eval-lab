@@ -2420,7 +2420,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             plan |= {
                 "environment": args.environment,
                 "usd_per_execution": rate,
-                "estimated_usd": round(plan["executions"] * rate, 2),
+                "estimated_usd": plan["executions"] * rate,
             }
         if args.plan:
             _write_json(args.out / "plan.json", {**source, **plan})
@@ -2435,10 +2435,10 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
                     "regrade: cloud backends are paid; give --max-usd and --approve "
                     "(--plan prints the estimate)"
                 )
-            if plan["estimated_usd"] > args.max_usd:
+            if plan["estimated_usd"] > args.max_usd + 1e-9:
                 raise SystemExit(
                     f"regrade: {plan['executions']} executions estimate "
-                    f"${plan['estimated_usd']:.2f}, over --max-usd ${args.max_usd:.2f}"
+                    f"${plan['estimated_usd']:.9f}, over --max-usd ${args.max_usd:.9f}"
                 )
             gate = CloudSpendGate(
                 approval=args.approve,
@@ -2570,7 +2570,7 @@ def add_trace_commands(sub: Any) -> None:
             "--usd-per-execution",
             type=float,
             default=CLOUD_USD_PER_EXECUTION,
-            help="reservation per cloud execution",
+            help="logical cloud replay reservation estimate (default: %(default)s)",
         )
         _graders(p)
         p.add_argument(
@@ -2669,7 +2669,7 @@ def add_trace_commands(sub: Any) -> None:
         "--usd-per-execution",
         type=float,
         default=CLOUD_USD_PER_EXECUTION,
-        help="reservation per cloud execution (default: measured Modal cost, rounded up)",
+        help="logical cloud replay reservation estimate (default: %(default)s)",
     )
     p.set_defaults(func=_cmd)
     p = commands.add_parser(

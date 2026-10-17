@@ -18,7 +18,10 @@
   "pass".
 - `category` = `all` covers every item in the split. A per-category row covers that
   category's pairs: their children and parents.
-- Rows say which split they are on. Nothing here was tuned on `test`.
+- Rows say which split they are on. If a row's system was tuned or developed on items in
+  the split it reports, `research/answer-keys/splits/exposure.jsonl` discloses it
+  (`acknowledged_rows`), and `tests/test_answer_key_splits.py` fails on undisclosed
+  ones. Examples: `combined_v1` on `trace-paired-v1`, and the qa-trace/5 fusion fix.
 
 Writers so far:
 - `combined_v1_baseline.py` writes the $0 combined_v1 baseline on `trace-paired-v1`

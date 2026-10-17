@@ -502,7 +502,19 @@ def _replay_patch(
     scripts = root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
     script_path = scripts / f"{script_digest}.sh"
-    script_path.write_text(script, encoding="utf-8")
+    # Different graders can replay the same content-addressed script at once.
+    # Never truncate the path a sibling native execution is already reading.
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=scripts, prefix=f".{script_digest}.", delete=False
+        ) as staged:
+            temporary = Path(staged.name)
+            staged.write(script)
+        temporary.replace(script_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     ident = new_ulid()
     name = f"qa-replay-{ident.lower()}"
     digests = compute_task_digests(grader.package)

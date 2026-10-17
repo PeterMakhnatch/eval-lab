@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
@@ -934,3 +935,70 @@ def test_conflicting_manifest_rows_cannot_silently_choose_the_last_package(
             consume()
     assert case.calls == []
     assert case.gate.executions == 0
+
+
+def test_concurrent_replay_publication_never_truncates_an_executing_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / "x.py"
+    target.write_text("old\n")
+    package = _package(tmp_path / "grader")
+    config = package / "task.toml"
+    config.write_text(config.read_text().replace('"/testbed"', json.dumps(str(workspace))))
+    grader = cf.Grader(TASK, cf.V6, cf._digest(package), package, "manifest.csv")
+
+    def execute(matrix, *, root):
+        script = root / matrix.runs[0].solution
+        applied = subprocess.run(["bash", str(script)], capture_output=True, text=True)
+        return SimpleNamespace(
+            results=[
+                {
+                    "status": "ok" if applied.returncode == 0 else "infra",
+                    "rewards": [float(target.read_text() == "new\n")],
+                    "error": applied.stderr or None,
+                }
+            ],
+            receipt_path=root / "receipt.json",
+        )
+
+    def replay():
+        return cf._replay_patch(PATCH, grader, repo_root=tmp_path, matrix_runner=execute)
+
+    first = replay()
+    assert first["regraded"] == 1.0
+    script = tmp_path / "runs/qa-trace-regrade/scripts" / f"{first['script_sha256']}.sh"
+    target.write_text("old\n")
+    writer_opened, release_writer = threading.Event(), threading.Event()
+    original_open, original_temporary = Path.open, cf.tempfile.NamedTemporaryFile
+
+    def hold_writer() -> None:
+        writer_opened.set()
+        assert release_writer.wait(timeout=10), "script publication never released"
+
+    def open_path(path, mode="r", *args, **kwargs):
+        stream = original_open(path, mode, *args, **kwargs)
+        if path == script and "w" in mode:
+            hold_writer()
+        return stream
+
+    def open_temporary(*args, **kwargs):
+        stream = original_temporary(*args, **kwargs)
+        if Path(kwargs.get("dir", "")) == script.parent:
+            hold_writer()
+        return stream
+
+    monkeypatch.setattr(Path, "open", open_path)
+    monkeypatch.setattr(cf.tempfile, "NamedTemporaryFile", open_temporary)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        replacing = pool.submit(replay)
+        try:
+            assert writer_opened.wait(timeout=10), "concurrent publisher did not start"
+            running = subprocess.run(["bash", str(script)], capture_output=True, text=True)
+            assert running.returncode == 0, running.stderr
+            assert target.read_text() == "new\n"
+            target.write_text("old\n")
+        finally:
+            release_writer.set()
+        assert replacing.result(timeout=10)["regraded"] == 1.0

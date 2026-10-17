@@ -324,6 +324,8 @@ and T3):
     claims, conflicting manifest rows, and missing or mutated selected packages
     raise before controls, spend reservations or provider execution. Historical
     receipts, including refusals, remain immutable.
+    Content-addressed replay scripts are published atomically, so independent
+    graders sharing the same script cannot truncate a sibling's executing input.
   - **Counterfactual `/3` consumer contract.** Bind observations and controls by
     `grader_identity.task_name` plus the **full**
     `grader_identity.variant_digest`, and cross-check the resolved package bytes

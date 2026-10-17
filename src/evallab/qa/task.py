@@ -32,6 +32,7 @@ import tomllib
 import uuid
 from collections import Counter
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -44,6 +45,7 @@ from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.docker_lock import docker_slot
 from evallab.qa.models import expected_root_causes, root_cause_hit
 from evallab.qa.score import ScoreRow, append_scoreboard
+from evallab.regrade import CloudSpendGate
 from evallab.schemas import ContractModel
 
 SPEND_TAG = "2026-10-15"
@@ -178,6 +180,8 @@ class TaskReport(ContractModel):
     model_calls: int = 0
     model_tokens: int = 0
     cost_usd: float = 0.0
+    environment: Literal["docker", "modal"] = "docker"
+    cloud_spend: dict[str, Any] | None = None
     error: str | None = None
 
 
@@ -591,6 +595,9 @@ def workdir_patch_script(patch: bytes, workdir: str) -> str:
 class HarborBackend:
     """Sequential fresh-container Docker execution; at most 1 container active at a time."""
 
+    environment = "docker"
+    spend_gate: CloudSpendGate | None = None
+
     def __init__(self, *, repo_root: Path) -> None:
         self.repo_root = repo_root.resolve()
         self._image_cache: dict[tuple[str, str], tuple[str, str | None]] = {}
@@ -677,6 +684,10 @@ class HarborBackend:
         if workdir is not None and reference is not None:
             patch, digest = reference
             data = patch.read_bytes()
+            if hashlib.sha256(data).hexdigest() != digest:
+                raise _TrialAbort(
+                    "reference patch digest changed after binding; oracle is unmeasured"
+                )
             staged = stage_dir / "solution"
             staged.mkdir(parents=True, exist_ok=True)
             (staged / "reference.patch").write_bytes(data)
@@ -1307,6 +1318,26 @@ class HarborBackend:
         text = (done.stdout or "") + (done.stderr or "")
         (run_dir / "oracle.txt").write_text(text, encoding="utf-8")
         parsed = parse_probe_output(text)
+        has_repository: bool | None = None
+        if parsed["missing_git"]:
+            probe_roots = (
+                "for d in /testbed /workspace/repo /workspace /app /root/repo "
+                '"$HOME/repo" "$PWD"; do [ -e "$d/.git" ] && echo "repo:$d"; done; true'
+            )
+            found = self._run_probe(
+                package, env_image, probe_roots, timeout=min(timeout_seconds, 120)
+            )
+            has_repository = "repo:" in (found.stdout or "")
+        return self.leak_observation(text, run_dir=run_dir, has_repository=has_repository)
+
+    @staticmethod
+    def leak_observation(
+        text: str, *, run_dir: Path, has_repository: bool | None = None
+    ) -> AuditObservation:
+        """Interpret the same probe markers on Docker and native cloud environments."""
+        from evallab.dataset_audit_checks import parse_probe_output
+
+        parsed = parse_probe_output(text)
         if not parsed["seen_probe"]:
             return AuditObservation(
                 stage="leak",
@@ -1315,17 +1346,7 @@ class HarborBackend:
                 reason="leak probe produced no LEAK_PROBE_V1 markers",
             )
         if parsed["missing_git"]:
-            # git is only needed when a candidate checkout exists. The probe
-            # reports missing_git unconditionally, so verify none of its
-            # candidate roots carries a .git entry before staying unknown.
-            probe_roots = (
-                "for d in /testbed /workspace/repo /workspace /app /root/repo "
-                '"$HOME/repo" "$PWD"; do [ -e "$d/.git" ] && echo "repo:$d"; done; true'
-            )
-            found = self._run_probe(
-                package, env_image, probe_roots, timeout=min(timeout_seconds, 120)
-            )
-            if "repo:" not in (found.stdout or ""):
+            if has_repository is False:
                 return AuditObservation(
                     stage="leak",
                     status="executed",
@@ -1523,6 +1544,11 @@ class HarborBackend:
                 oracle_timeout=float(timeout_seconds),
                 mutants=mutants,
                 log=lambda _: None,
+                **(
+                    {"environment": self.environment, "spend_gate": self.spend_gate}
+                    if self.environment == "modal"
+                    else {}
+                ),
             )
         measured = report.get("status") == "measured"
         if report.get("verdict") == "pass" and not measured:
@@ -2795,6 +2821,7 @@ def run_task(
         package=str(package),
         requested_stages=list(config.stages),
         started_at=utcnow(),
+        environment=getattr(backend, "environment", "docker"),
     )
     findings: list[Finding] = []
     task_dir = run_dir / "tasks" / task_slug(subject)
@@ -2854,6 +2881,9 @@ def run_task(
                 status="unverified", by="qa-task/digest-gate", reason=report.error
             )
     finalize(report, findings)
+    spend_gate = getattr(backend, "spend_gate", None)
+    if spend_gate is not None:
+        report.cloud_spend = spend_gate.to_json()
     write_json(task_dir / "report.json", report.model_dump(mode="json", by_alias=True))
     for finding in findings:
         filename = hashlib.sha256(finding.id.encode()).hexdigest() + ".json"
@@ -3037,6 +3067,151 @@ def key_packages(items: list[AnswerKeyItem], *, package_root: Path | None = None
     return paths
 
 
+# Native Harbor prepares an image and retries sandbox creation at most twice.
+# Reserve the preparation and both possible attempts, including unused attempts.
+MODAL_RESERVATIONS_PER_ENVIRONMENT = 3
+
+
+def modal_resource_blocker(package: Path) -> str | None:
+    """Provider-free admission; an unpriced accelerator is never treated as a CPU."""
+    config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+    environments = [
+        config.get("environment") or {},
+        (config.get("verifier") or {}).get("environment") or {},
+    ]
+    if any(env.get("gpus") or env.get("gpu") or env.get("tpu") for env in environments):
+        return "Modal QA accelerator pricing is not qualified; GPU/TPU execution is unsupported"
+    if any(str(env.get("os", "linux")).lower() != "linux" for env in environments):
+        return "Modal QA script controls require Linux environments"
+    if config.get("steps"):
+        return "Modal QA script controls do not support declared task steps"
+    if any(
+        (package / directory / name).is_file()
+        for directory in ("environment", "tests")
+        for name in ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
+    ):
+        return "Modal QA does not support Compose services; no Docker fallback is permitted"
+    return None
+
+
+def plan_task_run(
+    packages: list[Path],
+    *,
+    config: QATaskConfig,
+    environment: str,
+    concurrency: int,
+    no_model: bool,
+    max_usd: float | None,
+    usd_per_execution: float,
+    approval: str | None,
+    evidence: Path | None = None,
+    ref_patch: Path | None = None,
+) -> dict[str, Any]:
+    """Bound executions using package bytes only; never construct a runtime or model."""
+    from evallab.ref_subset import modal_execution_bound
+    from evallab.registry import task_directory_digest
+    from evallab.verifier_mutation import MAX_FILES_PER_TARGET, declared_targets
+
+    imported = 0
+    if evidence is not None and "S2" in config.stages:
+        paths = sorted(evidence.glob("*.json")) if evidence.is_dir() else [evidence]
+        imported = len(paths)
+    tasks: list[dict[str, Any]] = []
+    for package in packages:
+        raw = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        verifier = raw.get("verifier") or {}
+        separate = verifier.get("environment_mode") == "separate" or (
+            verifier.get("environment_mode") is None and verifier.get("environment") is not None
+        )
+        has_reference = (
+            separate or ref_patch is not None or (package / "solution" / "patch.diff").is_file()
+        )
+        # Docker's execution count is descriptive; cloud units include native preparation
+        # and both possible creation attempts for each environment.
+        trial_units = (2 if separate else 1) * (
+            MODAL_RESERVATIONS_PER_ENVIRONMENT if environment == "modal" else 1
+        )
+        stages: dict[str, int] = {}
+        if "S0" in config.stages:
+            stages["S0-controls"] = 2 * config.repeats * trial_units
+            stages["S0-leak"] = MODAL_RESERVATIONS_PER_ENVIRONMENT if environment == "modal" else 2
+        if "S2" in config.stages:
+            stages["S2-shortcut"] = 0 if no_model else config.shortcut_attempts * trial_units
+            stages["S2-ref-subset"] = (
+                modal_execution_bound(mutants=config.mutants, separate=separate)
+                if has_reference
+                else 0
+            )
+            targets = declared_targets(raw)
+            mutation_trials = (
+                3 + MAX_FILES_PER_TARGET * len(targets) + config.mutants
+                if config.mutants and targets and (package / "solution" / "solve.sh").is_file()
+                else 0
+            )
+            stages["S2-mutation"] = mutation_trials * trial_units
+        if "S3" in config.stages:
+            candidates = (
+                (0 if no_model else 1)
+                + int(has_reference)
+                + (0 if no_model else 2 * min(config.mutants, MAX_ADJUDICATED))
+                + imported
+                if "S2" in config.stages
+                else 0
+            )
+            # Two controls remain reserved even with S0: S3 may replace transient
+            # unmeasured controls. Every candidate needs an independent fresh trial.
+            stages["S3-controls-and-confirmations"] = (2 + candidates) * trial_units
+        blocker = modal_resource_blocker(package) if environment == "modal" else None
+        upper_bound = 0 if blocker else sum(stages.values())
+        tasks.append(
+            {
+                "package": str(package),
+                "task_id": (raw.get("task") or {}).get("name") or package.name,
+                "package_digest": task_directory_digest(package),
+                "unsupported_reason": blocker,
+                "stage_reservation_upper_bounds": stages,
+                "execution_upper_bound": upper_bound,
+                "estimated_usd": round(upper_bound * usd_per_execution, 6)
+                if environment == "modal"
+                else 0.0,
+            }
+        )
+    upper_bound = sum(task["execution_upper_bound"] for task in tasks)
+    estimated_usd = sum(task["estimated_usd"] for task in tasks)
+    refusals = [task["unsupported_reason"] for task in tasks if task["unsupported_reason"]]
+    fits_cap = environment == "docker" or (max_usd is not None and estimated_usd <= max_usd + 1e-9)
+    if environment == "modal":
+        if not (approval or "").strip():
+            refusals.append("real Modal execution requires recorded --approve text")
+        if max_usd is None:
+            refusals.append("real Modal execution requires --max-usd")
+        elif not fits_cap:
+            refusals.append("conservative execution upper bound exceeds the reservation cap")
+    return {
+        "schema": "evallab.qa_task.plan/v1",
+        "environment": environment,
+        "concurrency": concurrency,
+        "stages": list(config.stages),
+        "tasks": tasks,
+        "execution_upper_bound": upper_bound,
+        "estimated_usd": round(estimated_usd, 6),
+        "reserved_usd": 0.0,
+        "max_usd": max_usd,
+        "usd_per_execution": usd_per_execution if environment == "modal" else 0.0,
+        "approval": approval,
+        "fits_cap": fits_cap,
+        "runnable": not refusals,
+        "refusals": refusals,
+        "executed": False,
+        "model_calls": 0,
+        "budget_basis": "reservation estimates, not provider billing or a billing hard kill",
+        "reservation_policy": (
+            "3 units per native environment: preparation plus two possible sandbox-create "
+            "attempts; ref-subset includes its own preparation and grade bounds"
+        ),
+    }
+
+
 def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     from evallab.execution_contracts import new_ulid
 
@@ -3062,6 +3237,42 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             packages.extend(key_packages(items, package_root=args.packages_root))
         if not packages or len(set(packages)) != len(packages):
             raise ValueError("select nonempty, unique packages with --task or --key")
+        environment = getattr(args, "environment", "docker")
+        concurrency = getattr(args, "concurrency", 1)
+        ceiling = 16 if environment == "modal" else 2
+        if not 1 <= concurrency <= ceiling:
+            raise ValueError(f"{environment} concurrency must be in [1, {ceiling}]")
+        max_usd = getattr(args, "max_usd", None)
+        usd_per_execution = getattr(args, "usd_per_execution", 0.05)
+        approval = getattr(args, "approve", None)
+        if not math.isfinite(usd_per_execution) or usd_per_execution <= 0:
+            raise ValueError("--usd-per-execution must be positive and finite")
+        if max_usd is not None and (not math.isfinite(max_usd) or max_usd <= 0):
+            raise ValueError("--max-usd must be positive and finite")
+        plan = plan_task_run(
+            packages,
+            config=config,
+            environment=environment,
+            concurrency=concurrency,
+            no_model=args.no_model,
+            max_usd=max_usd,
+            usd_per_execution=usd_per_execution,
+            approval=approval,
+            evidence=args.evidence,
+            ref_patch=getattr(args, "ref_patch", None),
+        )
+        if getattr(args, "plan", False):
+            print(json.dumps(plan, indent=2))
+            return 0
+        spend_gate = (
+            CloudSpendGate(
+                approval=approval or "",
+                cap_usd=max_usd or 0.0,
+                usd_per_execution=usd_per_execution,
+            )
+            if environment == "modal"
+            else None
+        )
         run_dir = args.run_dir or root / "runs" / ".qa-task" / new_ulid().lower()
         run_dir = run_dir.resolve() if run_dir.is_absolute() else (root / run_dir).resolve()
         if not run_dir.is_relative_to(root.resolve()):
@@ -3071,27 +3282,44 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 "run directory exists; choose a fresh directory (evidence is immutable)"
             )
         run_dir.mkdir(parents=True)
-        backend = HarborBackend(repo_root=root)
-        lane = (
-            None
-            if args.no_model
-            else CodexLane(repo_root=root, scratch_root=run_dir / "codex", model=args.model)
-        )
-        write_json(
-            run_dir / "run.json",
-            {
-                "schema": "evallab.qa_task.run/v1",
-                "at": utcnow(),
-                "config": {
-                    k: str(v) if isinstance(v, Path) else v for k, v in asdict(config).items()
-                },
-                "packages": [str(p) for p in packages],
-                "spend_tag": SPEND_TAG,
-            },
-        )
-        reports = [
-            run_task(
-                p,
+        metadata = {
+            "schema": "evallab.qa_task.run/v1",
+            "at": utcnow(),
+            "config": {k: str(v) if isinstance(v, Path) else v for k, v in asdict(config).items()},
+            "packages": [str(p) for p in packages],
+            "environment": environment,
+            "concurrency": concurrency,
+            "plan": plan,
+            "spend_tag": SPEND_TAG,
+            "cloud_spend": spend_gate.to_json() if spend_gate is not None else None,
+            "budget_basis": plan["budget_basis"],
+        }
+        write_json(run_dir / "run.json", metadata)
+
+        def execute(item: tuple[int, Path]) -> TaskReport:
+            index, package = item
+            if spend_gate is None:
+                backend = HarborBackend(repo_root=root)
+            else:
+                try:
+                    from evallab.qa.task_modal import ModalBackend
+                except ImportError as exc:
+                    raise ValueError(
+                        "Modal QA requires the pinned lab Harbor with its Modal extra "
+                        "(uv sync --extra laminar)"
+                    ) from exc
+
+                backend = ModalBackend(repo_root=root, spend_gate=spend_gate)
+            scratch = run_dir / "codex"
+            if concurrency > 1:
+                scratch /= f"task-{index:04d}"
+            lane = (
+                None
+                if args.no_model
+                else CodexLane(repo_root=root, scratch_root=scratch, model=args.model)
+            )
+            return run_task(
+                package,
                 config=config,
                 run_dir=run_dir,
                 backend=backend,
@@ -3100,8 +3328,18 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 triplet=args.triplet,
                 ref_patch=getattr(args, "ref_patch", None),
             )
-            for p in packages
-        ]
+
+        try:
+            if concurrency == 1:
+                reports = [execute(item) for item in enumerate(packages)]
+            else:
+                with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                    reports = list(pool.map(execute, enumerate(packages)))
+        finally:
+            if spend_gate is not None:
+                metadata["cloud_spend"] = spend_gate.to_json()
+                write_json(run_dir / "cloud-spend.json", metadata["cloud_spend"])
+                write_json(run_dir / "run.json", metadata)
         summary = {
             "run_dir": str(run_dir),
             "tasks": len(reports),
@@ -3109,6 +3347,10 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             "model_tokens": sum(r.model_tokens for r in reports),
             "cost_usd": sum(r.cost_usd for r in reports),
             "spend_tag": SPEND_TAG,
+            "environment": environment,
+            "concurrency": concurrency,
+            "cloud_spend": spend_gate.to_json() if spend_gate is not None else None,
+            "budget_basis": plan["budget_basis"],
         }
         write_json(run_dir / "summary.json", summary)
         print(json.dumps(summary, indent=2))
@@ -3225,6 +3467,26 @@ def add_task_commands(sub: Any) -> None:
     task.add_argument("--rubric", type=Path)
     task.add_argument("--model", default="codex/gpt-6-luna")
     task.add_argument("--no-model", action="store_true")
+    task.add_argument("--environment", choices=("docker", "modal"), default="docker")
+    task.add_argument(
+        "--plan",
+        action="store_true",
+        help="$0 package-only execution/reservation preview; no backend or model construction",
+    )
+    task.add_argument("--max-usd", type=float, help="Run-wide Modal reservation cap (not a bill)")
+    task.add_argument("--approve", help="Recorded approval text required for real Modal execution")
+    task.add_argument(
+        "--usd-per-execution",
+        type=float,
+        default=0.05,
+        help="Positive finite USD reservation estimate per cloud execution unit (default: 0.05)",
+    )
+    task.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Concurrent tasks: 1..16 on Modal, 1..2 on Docker (default: sequential)",
+    )
     task.add_argument(
         "--evidence", type=Path, help="Existing qa.finding/v1 candidates to confirm in S3"
     )

@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal
 
 import pytest
 
+from evallab import ref_subset
 from evallab.ref_subset import (
     TRACE_SLACK,
     Block,
@@ -23,6 +27,7 @@ from evallab.ref_subset import (
     compose,
     edited_ranges,
     file_change,
+    modal_execution_bound,
     mutation_pass,
     patch_code_blocks,
     probe_task,
@@ -681,3 +686,199 @@ def test_trace_check_is_unknown_without_a_passing_reward_or_a_usable_report(
 
     nodiff = _trial(tmp_path / "d", reward="1", diff=None)
     assert trace_check(nodiff, _report())["verdict"] == "unknown"
+
+
+def _ref_args(*arguments: str) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    ref_subset.add_ref_subset_parser(parser.add_subparsers(required=True))
+    return parser.parse_args(["ref-subset", *arguments])
+
+
+def _forbid_execution(monkeypatch: pytest.MonkeyPatch) -> None:
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a local plan must not construct a backend or execute anything")
+
+    for name in (
+        "Sandbox",
+        "SeparateSandbox",
+        "ImageCache",
+        "_docker",
+        "probe_task",
+        "sweep",
+        "lab_harbor_problem",
+    ):
+        monkeypatch.setattr(ref_subset, name, forbidden)
+    monkeypatch.setitem(
+        sys.modules, "evallab.ref_subset_modal", SimpleNamespace(ModalSandbox=forbidden)
+    )
+
+
+@pytest.mark.parametrize("environment", ["docker", "modal"])
+@pytest.mark.parametrize("separate", [False, True])
+def test_cli_plan_is_zero_execution_and_keeps_package_bytes_immutable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    environment: str,
+    separate: bool,
+) -> None:
+    package = (
+        _separate_package(tmp_path / "package") if separate else _mimo_package(tmp_path / "package")
+    )
+    patch = tmp_path / "reference.patch"
+    patch.write_text(_PATCH)
+    output = tmp_path / "must-not-be-created"
+    arguments = [
+        "run",
+        str(package),
+        "--output-dir",
+        str(output),
+        "--plan",
+        "--environment",
+        environment,
+        "--max-usd",
+        "0",
+        "--usd-per-execution",
+        "0.05",
+    ]
+    if not separate:
+        arguments += ["--patch", str(patch)]
+    before = {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
+    _forbid_execution(monkeypatch)
+    args = _ref_args(*arguments)
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["plan_cost_usd"] == 0 and plan["executed"] is False
+    assert plan["backend"] == environment
+    assert len(plan["tasks"]) == 1 and plan["tasks"][0]["task_id"] == "package"
+    assert plan["tasks"][0]["package_digest"]
+    bound = modal_execution_bound(separate=separate) if environment == "modal" else 0
+    assert plan["reservation_units_upper_bound"] == bound
+    assert plan["estimated_reservation_usd"] == round(bound * 0.05, 4)
+    assert plan["fits_cap"] is (environment == "docker")
+    assert plan["execution_refused"] is (environment == "modal")
+    assert not output.exists()
+    assert before == {
+        p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()
+    }
+
+
+def test_modal_sweep_plan_lists_all_selected_tasks_and_resume_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tasks = tmp_path / "tasks"
+    for name in ("one", "two", "not-selected"):
+        _mimo_package(tasks / name)
+    patch = tmp_path / "reference.patch"
+    patch.write_text(_PATCH)
+    index = tmp_path / "index.csv"
+    index.write_text(
+        "task_id,label,patch_path\n"
+        + "".join(
+            f"{name},oracle:pass+nop:fail,{patch}\n" for name in ("one", "two", "not-selected")
+        )
+    )
+    output = tmp_path / "out"
+    report = output / "one" / "report.json"
+    report.parent.mkdir(parents=True)
+    report.write_text('{"status": "not_applicable"}\n')
+    _forbid_execution(monkeypatch)
+    args = _ref_args(
+        "sweep",
+        "--index",
+        str(index),
+        "--tasks-root",
+        str(tasks),
+        "--output-dir",
+        str(output),
+        "--environment",
+        "modal",
+        "--lanes",
+        "16",
+        "--plan",
+        "--task",
+        "one",
+        "--task",
+        "two",
+        "--max-usd",
+        "100",
+        "--approve",
+        "plan approval example",
+    )
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert [task["task_id"] for task in plan["tasks"]] == ["one", "two"]
+    assert [task["action"] for task in plan["tasks"]] == ["resume_skip", "probe"]
+    assert plan["lanes"] == 16 and plan["reservation_units_upper_bound"] == 51
+    assert plan["fits_cap"] is True and plan["execution_refused"] is False
+    assert report.read_text() == '{"status": "not_applicable"}\n'
+    assert not (output / "two").exists() and not (output / "run-receipt.json").exists()
+
+
+@pytest.mark.parametrize("estimate", ["0", "-1", "nan", "inf", "-inf"])
+def test_cli_rejects_nonpositive_or_nonfinite_reservation_estimates(estimate: str) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _ref_args("run", "unused", "--output-dir", "unused", "--usd-per-execution", estimate)
+    assert exc.value.code == 2
+
+
+def test_real_modal_requires_approval_before_backend_construction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _forbid_execution(monkeypatch)
+    args = _ref_args(
+        "run",
+        "unused",
+        "--output-dir",
+        str(tmp_path / "out"),
+        "--environment",
+        "modal",
+        "--max-usd",
+        "1",
+    )
+    assert args.func(args, tmp_path) == 2
+    assert "--approve" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+def test_modal_api_refuses_missing_gate_or_unpinned_harbor_before_any_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.regrade import CloudSpendGate
+
+    output = tmp_path / "out"
+    with pytest.raises(ValueError, match="spend gate"):
+        probe_task(tmp_path / "unused", None, output, environment="modal")
+    gate = CloudSpendGate("test approval", 1, 0.1)
+    monkeypatch.setattr(ref_subset, "lab_harbor_problem", lambda: "wrong Harbor binary")
+    with pytest.raises(ValueError, match="wrong Harbor binary"):
+        probe_task(tmp_path / "unused", None, output, environment="modal", spend_gate=gate)
+    assert gate.executions == 0 and not output.exists()
+
+
+def test_unpriced_gpu_is_refused_without_provider_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.regrade import CloudSpendGate
+
+    package = _mimo_package(tmp_path / "package")
+    with (package / "task.toml").open("a") as handle:
+        handle.write("gpus = 1\n")
+    patch = tmp_path / "reference.patch"
+    patch.write_text("")
+    _forbid_execution(monkeypatch)
+    gate = CloudSpendGate("test approval", 1, 0.1)
+    monkeypatch.setattr(ref_subset, "lab_harbor_problem", lambda: None)
+    report = probe_task(
+        package, patch, tmp_path / "out", environment="modal", spend_gate=gate, log=lambda _: None
+    )
+    assert report["status"] == "unavailable" and report["verdict"] == "unknown"
+    assert "price estimate" in report["reason"]
+    assert gate.executions == 0 and report["execution"]["events"] == []
+
+
+def test_modal_reservation_bound_counts_preparation_and_both_native_attempts() -> None:
+    assert modal_execution_bound() == 54
+    assert modal_execution_bound(separate=False) == 51
+    assert modal_execution_bound(max_grades=4, mutants=3, separate=False) == 17
+    assert modal_execution_bound(max_grades=1, mutants=0, separate=True) == 14

@@ -217,12 +217,14 @@ class CloudSpendGate:
             self.executions += 1
 
     def to_json(self) -> dict[str, Any]:
+        with self._lock:
+            executions = self.executions
         return {
             "approval": self.approval,
             "cap_usd": self.cap_usd,
             "usd_per_execution": self.usd_per_execution,
-            "executions": self.executions,
-            "reserved_usd": round(self.executions * self.usd_per_execution, 4),
+            "executions": executions,
+            "reserved_usd": round(executions * self.usd_per_execution, 4),
         }
 
 

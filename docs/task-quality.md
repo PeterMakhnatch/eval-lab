@@ -193,30 +193,71 @@ separate `--stages exploit` probe is requested.
   variant for training; unrelated API tests cannot turn a survivor into a defect.
 - `evallab hack ref-subset run <package> --patch <reference.patch> --output-dir DIR`
   and `... sweep --index research/experiments/mimo-reference-fixes/index.csv
-  --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes 1|2]` — the
+  --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes N]` — the
   reference-subset weak-test probe (`src/evallab/ref_subset.py`, QA Task S2).
   - **Blocks.** The reference fix is split into change blocks: contiguous edited
     lines per file, computed on the base and fixed contents. Docs, comment-only
     blocks and Python blocks that leave the docstring-free AST unchanged do not
     count as code.
   - **Grading.** Each grade puts a subset of the blocks on the base checkout and
-    runs the task's own `tests/test.sh`. Grades use local Docker with no network,
-    one fresh container per grade from a snapshot taken after the task's setup.
+    runs the task's own `tests/test.sh`. Docker is the default, with no network
+    for raw MiMo: one fresh container per grade from a post-setup snapshot.
   - **Separate-verifier tasks.** `run <harbor task>` without `--patch` probes a
     Harbor task whose `[verifier] environment_mode = "separate"` grades
     `artifacts`, e.g. Terminal-Bench 4. The task's own oracle (`solution/solve.sh`)
     runs once in the environment image; its artifact diff becomes the reference
-    (`reference.patch`, paths relative to `/`). Each grade is a fresh container
-    of the `tests/` image that receives only the artifacts, as Harbor uploads them.
-    These containers keep Docker's default network, because oracles and verifiers
-    install packages. GPU tasks are `unavailable`, and the built images are
-    removed afterwards.
+    (`reference.patch`, paths relative to `/`). Each grade is a fresh verifier
+    environment that receives the artifacts, including unchanged reference
+    files and file modes, but no state from earlier grades. Docker containers
+    retain the task's network settings; local GPU tasks are `unavailable`.
+  - **Modal and a $0 plan.** Both commands accept `--environment modal --plan`.
+    Planning reads only local package/index/report bytes: it constructs no
+    backend, calls neither Docker nor Modal, and needs no credentials or spend
+    approval. Its JSON lists **every selected task**, resume/not-applicable
+    skips, package/reference digests, conservative reservation counts, estimated
+    USD, cap fit and reasons real execution would be refused. For example:
+
+    ```bash
+    uv run evallab hack ref-subset run <package> --patch <reference.patch> \
+      --output-dir runs/ref-subset-modal --environment modal --plan \
+      --max-usd 1 --usd-per-execution 0.01
+    ```
+
+    A real Modal run drops `--plan` and requires both `--max-usd USD` and
+    `--approve 'recorded approval text'`. `--usd-per-execution` must be positive
+    and finite (default `$0.05`); it is the operator's **reservation estimate**,
+    not provider pricing. One thread-safe `CloudSpendGate` is shared across the
+    entire sweep. `--lanes` permits **1–16 on Modal**, **1–2 on Docker**;
+    Modal never instantiates the local image cache or pulls host Docker images.
+  - **Cloud reservation and isolation.** Native Harbor
+    `LockedModalEnvironment` prepares the task/oracle; bounded
+    `RegradeModalEnvironment` runs verifier-only operations. Image preparation
+    reserves before native start. Every sandbox creation reserves both possible
+    native retry attempts **before** entering the provider boundary; unused
+    attempt reservations remain charged estimates. At the default 24-grade
+    limit the conservative bound is **51 reservation units for raw MiMo** and
+    **54 for separate verifiers**, plus **two per requested mutant**. Reads
+    share preparation sandboxes. Immutable native filesystem snapshots avoid
+    repeating setup and have an explicit **24-hour retention**, never indefinite
+    or the SDK's month-long default. Every grade clones that pristine snapshot,
+    clears old rewards, preserves submitted bytes/modes, and tears down its
+    sandbox even on errors. CPU/memory and sandbox lifetimes are bounded;
+    GPU/TPU requests are refused before provider work because this estimate
+    does not price them. A stopped verifier, missing reward or cloud budget
+    exhaustion is **unmeasured/unknown**, never a pass.
+    Reservations are **not a provider billing hard kill**: actual charges can
+    differ. `report.json` includes native commands, sandbox/snapshot identities,
+    command stdout/stderr paths, actual lock records when present and the spend
+    receipt; a requested policy alone is never claimed as applied-lock evidence.
+    The final `run-receipt.json` records the shared gate's totals and approval.
   - **Minimisation.** A greedy pass first checks the baselines (full reference 1,
     base 0). It then drops the docs and comment blocks, then each file, then
     each block, largest first. It ends with a confirmation grade.
   - **Outputs** in `DIR/<task>/`:
     - `report.json` (`evallab.ref_subset.report/v1`);
     - `finding.json` (`qa.finding/v1`, category `weak`);
+    - `run-receipt.json` on Modal: backend, selected tasks, approval, cap and reservations;
+    - `native/` on Modal: isolated operation directories and raw command stdout/stderr;
     - `minimal.patch`, the reproducer: `git apply` it on base and grade, expected reward 1;
     - `dropped.patch`, the reference behaviour no hidden test needs.
   - **Statuses:** `measured`, `budget_exhausted`, `baseline_mismatch`, `flaky`,

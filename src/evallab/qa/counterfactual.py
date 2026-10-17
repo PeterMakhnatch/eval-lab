@@ -511,6 +511,7 @@ def _replay_patch(
         ) as staged:
             temporary = Path(staged.name)
             staged.write(script)
+        temporary.chmod(0o644)
         temporary.replace(script_path)
     finally:
         if temporary is not None:

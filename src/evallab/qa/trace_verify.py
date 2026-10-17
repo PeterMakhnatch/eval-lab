@@ -120,6 +120,8 @@ def _conclusion(answer: dict[str, Any]) -> dict[str, str]:
 
 
 def _command_forms(command: str) -> set[str]:
+    """Equivalent spellings of one tool call: the raw entry, a shell script, or
+    ``tool arg...`` for a recorded ``tool: {json args}`` entry (either argument order)."""
     forms = {command.strip()}
     tool, separator, payload = command.partition(": ")
     if separator:
@@ -129,9 +131,18 @@ def _command_forms(command: str) -> set[str]:
             if tool in {"shell", "bash"}:
                 forms.add(payload.strip())
         else:
-            if isinstance(args, dict) and isinstance(args.get("command"), str):
-                forms.add(args["command"].strip())
-    return forms - {""}
+            if isinstance(args, dict):
+                if isinstance(args.get("command"), str):
+                    forms.add(args["command"].strip())
+                values = [
+                    str(value)
+                    for key, value in args.items()
+                    if key not in {"cwd", "timeout"} and value not in (None, "")
+                ]
+                if values and tool not in {"shell", "bash"}:
+                    forms.add(f"{tool} {' '.join(values)}")
+                    forms.add(f"{tool} {' '.join(reversed(values))}")
+    return {" ".join(form.split()) for form in forms} - {""}
 
 
 def _recorded(command: str, commands: Sequence[str]) -> bool:

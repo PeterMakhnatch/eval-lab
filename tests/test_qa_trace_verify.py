@@ -174,6 +174,22 @@ def test_claims_and_counter_check_cannot_cite_unexecuted_commands(tmp_path: Path
     assert result["overall"] == "INCONCLUSIVE"
 
 
+def test_omp_tool_calls_match_their_natural_spelling(tmp_path: Path) -> None:
+    # OMP records `read: {"path": ...}` / `bash: {"command": ..., "cwd": ...}`;
+    # verifiers report `read file_changes.diff` or the bare shell command.
+    bundle = _bundle(tmp_path)
+    output = _verification()
+    output["claims"][0]["command"] = "read file_changes.diff"
+    commands = [
+        'read: {"path": "file_changes.diff"}',
+        f'bash: {{"command": "{COUNTER}", "cwd": "/tmp/scratch"}}',
+    ]
+    call = FakeCall(bundle, [(output, commands)])
+    result = tv.verify_claims(bundle, "false_negative", _answer(), VERIFY_ROUTE, call=call)
+    assert result["claims"][0]["status"] == "VERIFIED"
+    assert result["overall"] == "CONFIRMED"
+
+
 def test_claim_and_counter_check_require_separate_tool_calls(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
     output = _verification()

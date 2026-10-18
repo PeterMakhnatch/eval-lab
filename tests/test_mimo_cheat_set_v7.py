@@ -182,95 +182,53 @@ def repaired_package(tmp_path, monkeypatch):
     return package
 
 
-def _entry(package, **overrides):
-    entry = {
-        "task_id": TASK_ID,
-        "status": "complete",
-        "qualified_for_v7": True,
-        "independent_verifier_holds": [],
-        "reference": [1.0, 1.0, 1.0],
-        "do_nothing": [0.0, 0.0, 0.0],
-        "reproducers_killed": 2,
-        "recorded_reproducer_count": 2,
-        "no_original_assertion_weakened": True,
-        "parent_digest": V6,
-        "package_path": str(package),
-        "package_digest": V7,
+def _row(package, *, selection="semantic-repair", digest=V7, v6=V6):
+    return {
+        "task_id": TASK_ID.rsplit("/", 1)[-1],  # the release uses native ids
+        "successor_selection": selection,
+        "v6_package_digest": v6,
+        "evaluation_target": {
+            "package_path": str(package), "package_digest": digest,
+            "repair_scope": "append-only-verifier",
+        },
     }
-    entry.update(overrides)
-    return entry
 
 
-def test_repair_ready_when_qualified(tmp_path, repaired_package):
-    res = cs.resolve_repair(_entry(repaired_package), _task(tmp_path))
-    assert res.ready, res.reasons
-    assert res.package_digest == V7
-
-
-@pytest.mark.parametrize(
-    ("override", "reason"),
-    [
-        ({"qualified_for_v7": False, "status": "partial"}, "qualified_for_v7"),
-        ({"independent_verifier_holds": [{"kind": "MEASURED_FALSE_NEGATIVE"}]}, "holds"),
-        ({"do_nothing": [0.0, 1.0, 0.0]}, "do-nothing"),
-        ({"reference": [1.0, 0.0, 1.0]}, "reference"),
-        ({"reproducers_killed": 1}, "reproducers killed"),
-        ({"parent_digest": "sha256:" + "c" * 64}, "not the v6 package"),
-        ({"package_digest": "sha256:" + "d" * 64}, "do not hash"),
-    ],
-)
-def test_repair_fails_closed(tmp_path, repaired_package, override, reason):
-    res = cs.resolve_repair(_entry(repaired_package, **override), _task(tmp_path))
-    assert not res.ready
-    assert any(reason in r for r in res.reasons), res.reasons
-
-
-def _repairs(tmp_path, entries, required):
-    path = tmp_path / "repairs.json"
-    path.write_text(json.dumps({
-        "status": "hold", "scoring_allowed": False, "repairs": entries, "required_tasks": required,
-    }))
+def _heldout(tmp_path, rows, *, status="released", allowed=True):
+    path = tmp_path / "heldout-v7.json"
+    path.write_text(json.dumps({"status": status, "scoring_allowed": allowed, "tasks": rows}))
     return path
 
 
-def test_load_repairs_prefers_qualified_entry(tmp_path, repaired_package):
-    path = _repairs(tmp_path, [_entry(repaired_package)], [TASK_ID])
-    res, header = cs.load_repairs(path, [_task(tmp_path)], store=tmp_path / "store")
-    assert res[TASK_ID].kind == "qualified_repair"
-    assert header["status"] == "hold"
+def test_released_semantic_repair_is_ready(tmp_path, repaired_package):
+    res, header = cs.load_v7_targets(_heldout(tmp_path, [_row(repaired_package)]), [_task(tmp_path)])
+    assert res[TASK_ID].ready and res[TASK_ID].kind == "semantic_repair"
+    assert res[TASK_ID].package_digest == V7
+    assert header["status"] == "released"
 
 
-def test_load_repairs_unchanged_only_outside_required(tmp_path):
-    outside = cs.load_repairs(_repairs(tmp_path, [], ["other"]), [_task(tmp_path)],
-                              store=tmp_path / "store")[0][TASK_ID]
-    assert outside.kind == "unchanged_v6"
-    assert outside.package_digest == V6
-    inside = cs.load_repairs(_repairs(tmp_path, [], [TASK_ID]), [_task(tmp_path)],
-                             store=tmp_path / "store")[0][TASK_ID]
-    assert inside.kind == "pending" and not inside.ready
+@pytest.mark.parametrize(("status", "allowed"), [("candidate", False), ("released", False)])
+def test_unreleased_heldout_grades_nothing(tmp_path, repaired_package, status, allowed):
+    path = _heldout(tmp_path, [_row(repaired_package)], status=status, allowed=allowed)
+    res = cs.load_v7_targets(path, [_task(tmp_path)])[0][TASK_ID]
+    assert not res.ready and res.kind == "pending"
 
 
-def test_load_repairs_held_entry_stays_pending(tmp_path, repaired_package):
-    held = _entry(repaired_package, qualified_for_v7=False, status="partial")
-    res = cs.load_repairs(_repairs(tmp_path, [held], []), [_task(tmp_path)],
-                          store=tmp_path / "store")[0][TASK_ID]
-    assert res.kind == "pending"
+@pytest.mark.parametrize(
+    ("row_kwargs", "reason"),
+    [
+        ({"digest": "sha256:" + "d" * 64}, "do not hash"),
+        ({"v6": "sha256:" + "c" * 64}, "population v6 digest"),
+        ({"selection": "unchanged-v6"}, "not the v6 package"),
+        ({"selection": "mystery"}, "unknown successor_selection"),
+    ],
+)
+def test_v7_target_fails_closed(tmp_path, repaired_package, row_kwargs, reason):
+    res = cs.resolve_v7_target(_row(repaired_package, **row_kwargs), _task(tmp_path))
+    assert not res.ready and res.kind == "pending"
+    assert any(reason in r for r in res.reasons), res.reasons
 
 
-def test_load_repairs_uses_named_replacement(tmp_path, monkeypatch):
-    task = cs.TaskEntry("mimo-v2.6-rl/format-code-task-000371", tmp_path / "pkg", V6, ("f",))
-    digest = cs.REPLACEMENTS[task.task_id]
-    package = tmp_path / "store" / "mimo-v2.6-rl__format-code-task-000371" / digest[7:19]
-    package.mkdir(parents=True)
-    (package / "task.toml").write_text("[task]\n")
-    import evallab.task_variants as tv
-
-    monkeypatch.setattr(tv, "task_directory_digest", lambda p: digest)
-    held = {"task_id": task.task_id, "qualified_for_v7": False, "status": "partial"}
-    res = cs.load_repairs(_repairs(tmp_path, [held], [task.task_id]), [task],
-                          store=tmp_path / "store")[0][task.task_id]
-    assert res.kind == "replacement_prepared" and res.package == package
-    monkeypatch.setattr(tv, "task_directory_digest", lambda p: V7)
-    tampered = cs.load_repairs(_repairs(tmp_path, [held], [task.task_id]), [task],
-                               store=tmp_path / "store")[0][task.task_id]
-    assert tampered.kind == "pending"
+def test_absent_task_is_pending(tmp_path):
+    res = cs.load_v7_targets(_heldout(tmp_path, []), [_task(tmp_path)])[0][TASK_ID]
+    assert not res.ready

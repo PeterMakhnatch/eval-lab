@@ -1,0 +1,25 @@
+diff --git a/src/blob/middlewares/PreflightMiddlewareFactory.ts b/src/blob/middlewares/PreflightMiddlewareFactory.ts
+index c562a5e..23bf4dd 100644
+--- a/src/blob/middlewares/PreflightMiddlewareFactory.ts
++++ b/src/blob/middlewares/PreflightMiddlewareFactory.ts
+@@ -7,6 +7,7 @@ import {
+   Response
+ } from "express";
+ 
++import glob from "glob-to-regexp";
+ import ILogger from "../../common/ILogger";
+ import BlobStorageContext from "../context/BlobStorageContext";
+ import StorageErrorFactory from "../errors/StorageErrorFactory";
+@@ -241,6 +242,12 @@ export default class PreflightMiddlewareFactory {
+ 
+     const allowedOriginArray = allowedOrigin.split(",");
+     for (const corsOrigin of allowedOriginArray) {
++      if (corsOrigin.includes("*")) {
++        return glob(corsOrigin.trim().toLowerCase()).test(
++          origin.trim().toLowerCase()
++        );
++      }
++
+       if (origin.trim().toLowerCase() === corsOrigin.trim().toLowerCase()) {
+         return true;
+       }

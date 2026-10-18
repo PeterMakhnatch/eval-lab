@@ -1,0 +1,155 @@
+diff --git a/src/api/Annotations.js b/src/api/Annotations.js
+index d15b060..556194b 100644
+--- a/src/api/Annotations.js
++++ b/src/api/Annotations.js
+@@ -1,5 +1,14 @@
+ // @flow
+ import merge from 'lodash/merge';
++import {
++    ERROR_CODE_CREATE_ANNOTATION,
++    ERROR_CODE_DELETE_ANNOTATION,
++    ERROR_CODE_FETCH_ANNOTATION,
++    ERROR_CODE_FETCH_ANNOTATIONS,
++    PERMISSION_CAN_CREATE_ANNOTATIONS,
++    PERMISSION_CAN_DELETE,
++    PERMISSION_CAN_VIEW_ANNOTATIONS,
++} from '../constants';
+ import MarkerBasedApi from './MarkerBasedAPI';
+ import type { Annotation, Annotations as AnnotationsType, NewAnnotation } from '../common/types/annotations';
+ import type { ElementsXhrError } from '../common/types/api';
+@@ -17,9 +26,19 @@ export default class Annotations extends MarkerBasedApi {
+         fileId: string,
+         fileVersionId: string,
+         payload: NewAnnotation,
++        permissions: BoxItemPermission,
+         successCallback: (annotation: Annotation) => void,
+         errorCallback: (e: ElementsXhrError, code: string) => void,
+-    ): Promise<void> {
++    ): void {
++        this.errorCode = ERROR_CODE_CREATE_ANNOTATION;
++
++        try {
++            this.checkApiCallValidity(PERMISSION_CAN_CREATE_ANNOTATIONS, permissions, fileId);
++        } catch (e) {
++            errorCallback(e, this.errorCode);
++            return;
++        }
++
+         const defaults = {
+             description: {
+                 type: 'reply',
+@@ -46,10 +65,20 @@ export default class Annotations extends MarkerBasedApi {
+     deleteAnnotation(
+         fileId: string,
+         annotationId: string,
++        permissions: AnnotationPermission,
+         successCallback: () => void,
+         errorCallback: (e: ElementsXhrError, code: string) => void,
+-    ): Promise<void> {
+-        return this.delete({
++    ): void {
++        this.errorCode = ERROR_CODE_DELETE_ANNOTATION;
++
++        try {
++            this.checkApiCallValidity(PERMISSION_CAN_DELETE, permissions, fileId);
++        } catch (e) {
++            errorCallback(e, this.errorCode);
++            return;
++        }
++
++        this.delete({
+             id: fileId,
+             errorCallback,
+             successCallback,
+@@ -60,10 +89,20 @@ export default class Annotations extends MarkerBasedApi {
+     getAnnotation(
+         fileId: string,
+         annotationId: string,
++        permissions: BoxItemPermission,
+         successCallback: (annotation: Annotation) => void,
+         errorCallback: (e: ElementsXhrError, code: string) => void,
+-    ): Promise<void> {
+-        return this.get({
++    ): void {
++        this.errorCode = ERROR_CODE_FETCH_ANNOTATION;
++
++        try {
++            this.checkApiCallValidity(PERMISSION_CAN_VIEW_ANNOTATIONS, permissions, fileId);
++        } catch (e) {
++            errorCallback(e, this.errorCode);
++            return;
++        }
++
++        this.get({
+             id: fileId,
+             errorCallback,
+             successCallback,
+@@ -74,12 +113,22 @@ export default class Annotations extends MarkerBasedApi {
+     getAnnotations(
+         fileId: string,
+         fileVersionId?: string,
++        permissions: BoxItemPermission,
+         successCallback: (annotations: AnnotationsType) => void,
+         errorCallback: (e: ElementsXhrError, code: string) => void,
+         limit?: number,
+         shouldFetchAll?: boolean,
+-    ): Promise<void> {
+-        return this.markerGet({
++    ): void {
++        this.errorCode = ERROR_CODE_FETCH_ANNOTATIONS;
++
++        try {
++            this.checkApiCallValidity(PERMISSION_CAN_VIEW_ANNOTATIONS, permissions, fileId);
++        } catch (e) {
++            errorCallback(e, this.errorCode);
++            return;
++        }
++
++        this.markerGet({
+             id: fileId,
+             errorCallback,
+             limit,
+diff --git a/src/constants.js b/src/constants.js
+index a2021cb..358e805 100644
+--- a/src/constants.js
++++ b/src/constants.js
+@@ -142,15 +142,17 @@ export const FIELD_RETENTION: 'retention' = 'retention';
+ export const FIELD_UPLOADER_DISPLAY_NAME: 'uploader_display_name' = 'uploader_display_name';
+ 
+ /* ----------------------- Permissions --------------------------- */
++export const PERMISSION_CAN_COMMENT = 'can_comment';
++export const PERMISSION_CAN_CREATE_ANNOTATIONS = 'can_create_annotations';
++export const PERMISSION_CAN_DELETE = 'can_delete';
++export const PERMISSION_CAN_DOWNLOAD = 'can_download';
++export const PERMISSION_CAN_EDIT = 'can_edit';
+ export const PERMISSION_CAN_PREVIEW = 'can_preview';
+ export const PERMISSION_CAN_RENAME = 'can_rename';
+-export const PERMISSION_CAN_DOWNLOAD = 'can_download';
+-export const PERMISSION_CAN_DELETE = 'can_delete';
+-export const PERMISSION_CAN_UPLOAD = 'can_upload';
+-export const PERMISSION_CAN_SHARE = 'can_share';
+ export const PERMISSION_CAN_SET_SHARE_ACCESS = 'can_set_share_access';
+-export const PERMISSION_CAN_COMMENT = 'can_comment';
+-export const PERMISSION_CAN_EDIT = 'can_edit';
++export const PERMISSION_CAN_SHARE = 'can_share';
++export const PERMISSION_CAN_UPLOAD = 'can_upload';
++export const PERMISSION_CAN_VIEW_ANNOTATIONS = 'can_view_annotations';
+ 
+ /* ------------- Delimiters for bread crumbs ---------------- */
+ export const DELIMITER_SLASH: 'slash' = 'slash';
+@@ -232,6 +234,7 @@ export const ERROR_CODE_FETCH_ACCESS_STATS = 'fetch_access_stats_error';
+ export const ERROR_CODE_FETCH_SKILLS = 'fetch_skills_error';
+ export const ERROR_CODE_FETCH_RECENTS = 'fetch_recents_error';
+ export const ERROR_CODE_EXECUTE_INTEGRATION = 'execute_integrations_error';
++export const ERROR_CODE_CREATE_ANNOTATION = 'create_annotation_error';
+ export const ERROR_CODE_CREATE_COMMENT = 'create_comment_error';
+ export const ERROR_CODE_CREATE_TASK = 'create_task_error';
+ export const ERROR_CODE_CREATE_TASK_LINK = 'create_task_link_error';
+@@ -240,6 +243,7 @@ export const ERROR_CODE_CREATE_TASK_COLLABORATOR = 'create_task_collaborator_err
+ export const ERROR_CODE_CREATE_FOLDER = 'create_folder_error';
+ export const ERROR_CODE_CREATE_METADATA = 'create_metadata_error';
+ export const ERROR_CODE_DELETE_APP_ACTIVITY = 'delete_app_activity_error';
++export const ERROR_CODE_DELETE_ANNOTATION = 'delete_annotation_error';
+ export const ERROR_CODE_DELETE_COMMENT = 'delete_comment_error';
+ export const ERROR_CODE_DELETE_TASK = 'delete_task_error';
+ export const ERROR_CODE_DELETE_TASK_ASSIGNMENT = 'delete_task_assignment_error';

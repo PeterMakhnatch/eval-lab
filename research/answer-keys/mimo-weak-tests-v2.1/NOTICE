@@ -1,0 +1,31 @@
+MiMo-V2.6-RL in Harbor format
+Converted by Hugging Face and the FineEnvs team. Not affiliated with or endorsed by Xiaomi.
+
+This work is derived from, and redistributes material of:
+
+  MiMo-V2.6-RL-oss (https://huggingface.co/datasets/XiaomiMiMo/MiMo-V2.6-RL-oss, revision 639865fd3374018d6cb29b9fb82dd531406fcf5f)
+  Copyright Xiaomi Corporation. Licensed under the Apache License, Version 2.0 (LICENSE).
+  The task prompts, test patches, test commands, Terminal-Bench test files, General-domain verifier files,
+  and the Docker images referenced by digest (docker.io/xiaomimimo/mimo-v2.6-rl-oss) are Xiaomi's.
+
+  XiaomiMiMo/verl (https://github.com/XiaomiMiMo/verl, commit a2ad9f6), Apache License 2.0 (LICENSE):
+  tests/music_scorer/ (recipes/design/music/scorer), tests/webdev/shot.py, tests/webdev/eval_rubric.py,
+  tests/webdev/verdict.py (parse_verdict from eval_mode.py), the Webdev agent prompt, and the step limits.
+
+  XiaomiMiMo/mimoagent (https://github.com/XiaomiMiMo/mimoagent, commit 467f0a1), MIT License
+  (LICENSE-mimoagent.md; Copyright (c) 2026 Xiaomi Corporation, Copyright (c) 2025 Kilian A. Lieret and
+  Carlos E. Jimenez (mini-swe-agent)): tests/server_arvo.py, and the Code-domain residue scrub, cache scrub,
+  git-clean keep list, test-file reset and ARVO description parsing, ported into the setup and test scripts.
+
+Vendored files are unmodified. Changes made in this conversion (Apache-2.0 section 4(b)):
+  - Each environment is repackaged as a Harbor task: task.toml, instruction.md, environment/, tests/.
+  - Setup that Xiaomi's harness runs before the agent is written as environment/setup/setup.sh and run from
+    the task's healthcheck. In the Code residue scrub, /logs is emptied rather than deleted (Harbor owns it).
+  - Grading entry points (tests/test.sh, grade.py, verify.py) wrap the original graders. Cyber re-runs the
+    last submitted PoC with server_arvo.py's own logic; General redacts judge-key echoes from its output.
+  - Music: "Write your complete reply to /app/answer.md." is appended to each prompt, because a Harbor task
+    is an agent session rather than a single completion.
+  - Images are referenced by digest instead of by tag; the MCP sidecar pins mcp==1.26.0.
+  - agents/mimo_opencode.py extends Harbor's OpenCode agent (Apache-2.0, harbor-framework/harbor).
+
+Harbor (https://github.com/harbor-framework/harbor) is the task format and runner; it is not redistributed here.

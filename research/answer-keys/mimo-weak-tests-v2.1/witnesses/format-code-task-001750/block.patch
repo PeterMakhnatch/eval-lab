@@ -1,0 +1,17 @@
+diff --git a/kymatio/scattering3d/scattering3d.py b/kymatio/scattering3d/scattering3d.py
+index 535cfa8..c7c0777 100644
+--- a/kymatio/scattering3d/scattering3d.py
++++ b/kymatio/scattering3d/scattering3d.py
+@@ -49,6 +49,12 @@ class Scattering3D(object):
+         self.gaussian_filters = gaussian_filter_bank(
+                                 self.M, self.N, self.O, self.J + 1, self.sigma_0)
+ 
++    def cuda(self):
++        self.is_cuda = True
++
++    def cpu(self):
++        self.is_cuda = False
++
+     def _fft_convolve(self, input_array, filter_array):
+         """
+         Computes the fourier space convolution of the input_array, 

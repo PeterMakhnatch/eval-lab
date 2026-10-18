@@ -1,0 +1,101 @@
+diff --git a/polaris-react/locales/en.json b/polaris-react/locales/en.json
+index 243d83a..75e21e7 100644
+--- a/polaris-react/locales/en.json
++++ b/polaris-react/locales/en.json
+@@ -169,7 +169,8 @@
+       "clear": "Clear"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Search and filter (F)",
++      "searchFilterTooltip": "Search and filter",
++      "searchFilterTooltipWithShortcut": "Search and filter (F)",
+       "searchFilterAccessibilityLabel": "Search and filter results",
+       "sort": "Sort your results",
+       "addView": "Add a new view",
+diff --git a/polaris-react/locales/tr.json b/polaris-react/locales/tr.json
+index b3f12da..f8298d3 100644
+--- a/polaris-react/locales/tr.json
++++ b/polaris-react/locales/tr.json
+@@ -361,7 +361,8 @@
+       "clear": "Temizle"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Arama ve filtreleme (F)",
++      "searchFilterTooltip": "Arama ve filtreleme",
++      "searchFilterTooltipWithShortcut": "Arama ve filtreleme (F)",
+       "searchFilterAccessibilityLabel": "Arama ve sonuçları filtreleme",
+       "sort": "Sonuçlarınızı sıralayın",
+       "addView": "Yeni bir görünüm ekle",
+diff --git a/polaris-react/locales/vi.json b/polaris-react/locales/vi.json
+index 8edffb8..fc283a0 100644
+--- a/polaris-react/locales/vi.json
++++ b/polaris-react/locales/vi.json
+@@ -361,7 +361,8 @@
+       "clear": "Xóa"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Tìm kiếm và lọc (F)",
++      "searchFilterTooltip": "Tìm kiếm và lọc",
++      "searchFilterTooltipWithShortcut": "Tìm kiếm và lọc (F)",
+       "searchFilterAccessibilityLabel": "Tìm kiếm và lọc kết quả",
+       "sort": "Sắp xếp kết quả",
+       "addView": "Thêm chế độ xem mới",
+diff --git a/polaris-react/locales/zh-CN.json b/polaris-react/locales/zh-CN.json
+index d13a585..17d5c10 100644
+--- a/polaris-react/locales/zh-CN.json
++++ b/polaris-react/locales/zh-CN.json
+@@ -361,7 +361,8 @@
+       "clear": "清除"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "搜索和筛选 (F)",
++      "searchFilterTooltip": "搜索和筛选",
++      "searchFilterTooltipWithShortcut": "搜索和筛选 (F)",
+       "searchFilterAccessibilityLabel": "搜索和筛选结果",
+       "sort": "对结果排序",
+       "addView": "添加新视图",
+diff --git a/polaris-react/src/components/IndexFilters/IndexFilters.tsx b/polaris-react/src/components/IndexFilters/IndexFilters.tsx
+index 828cc85..5802112 100644
+--- a/polaris-react/src/components/IndexFilters/IndexFilters.tsx
++++ b/polaris-react/src/components/IndexFilters/IndexFilters.tsx
+@@ -93,6 +93,8 @@ export interface IndexFiltersProps
+   filteringAccessibilityLabel?: string;
+   /** Optional override to the default Tooltip message for the button that toggles the filtering mode */
+   filteringAccessibilityTooltip?: string;
++  /** Optional override to the default keyboard shortcuts available */
++  disableKeyboardShortcuts?: boolean;
+ }
+ 
+ export function IndexFilters({
+@@ -129,6 +131,7 @@ export function IndexFilters({
+   filteringAccessibilityLabel,
+   filteringAccessibilityTooltip,
+   hideQueryField,
++  disableKeyboardShortcuts,
+ }: IndexFiltersProps) {
+   const i18n = useI18n();
+   const {mdDown} = useBreakpoints();
+@@ -150,6 +153,8 @@ export function IndexFilters({
+   });
+ 
+   useEventListener('keydown', (event) => {
++    if (disableKeyboardShortcuts) return;
++
+     const {key} = event;
+     const tag = document?.activeElement?.tagName;
+     if (mode !== IndexFiltersMode.Default && event.key === 'Escape') {
+@@ -268,9 +273,12 @@ export function IndexFilters({
+     beginEdit();
+   }
+ 
++  const searchFilterTooltipLabelId = disableKeyboardShortcuts
++    ? 'Polaris.IndexFilters.searchFilterTooltip'
++    : 'Polaris.IndexFilters.searchFilterTooltipWithShortcut';
++
+   const searchFilterTooltip =
+-    filteringAccessibilityTooltip ||
+-    i18n.translate('Polaris.IndexFilters.searchFilterTooltip');
++    filteringAccessibilityTooltip || i18n.translate(searchFilterTooltipLabelId);
+   const searchFilterAriaLabel =
+     filteringAccessibilityLabel ||
+     i18n.translate('Polaris.IndexFilters.searchFilterAccessibilityLabel');

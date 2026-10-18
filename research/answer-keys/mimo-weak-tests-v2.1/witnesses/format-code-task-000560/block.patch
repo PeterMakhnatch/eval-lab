@@ -1,0 +1,65 @@
+diff --git a/bimmer_connected/utils.py b/bimmer_connected/utils.py
+index 454c72a..d4cfce5 100644
+--- a/bimmer_connected/utils.py
++++ b/bimmer_connected/utils.py
+@@ -37,13 +37,8 @@ def parse_datetime(date_str: str) -> Optional[datetime.datetime]:
+     date_formats = ["%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"]
+     for date_format in date_formats:
+         try:
+-            # Parse datetimes using `time.strptime` to allow running in some embedded python interpreters.
+-            # https://bugs.python.org/issue27400
+-            time_struct = time.strptime(date_str, date_format)
+-            parsed = datetime.datetime(*(time_struct[0:6]))
+-            if time_struct.tm_gmtoff and time_struct.tm_gmtoff != 0:
+-                parsed = parsed - datetime.timedelta(seconds=time_struct.tm_gmtoff)
+-            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
++            parsed = datetime.datetime.strptime(date_str, date_format)
++            parsed = parsed.replace(microsecond=0)
+             return parsed
+         except ValueError:
+             pass
+@@ -51,6 +46,19 @@ def parse_datetime(date_str: str) -> Optional[datetime.datetime]:
+     return None
+ 
+ 
++def get_next_occurrence(now: datetime.datetime, time: datetime.time) -> datetime.datetime:
++    """Get the next occurrence of a given time."""
++
++    # If current time is past the given time, add one day to the current date
++    if now.time() > time:
++        next_date = now.date() + datetime.timedelta(days=1)
++    # If current time is before the given time, use the current date
++    else:
++        next_date = now.date()
++    next_occurrence = datetime.datetime.combine(next_date, time)
++    return next_occurrence
++
++
+ class MyBMWJSONEncoder(json.JSONEncoder):
+     """JSON Encoder that handles data classes, properties and additional data types."""
+ 
+diff --git a/bimmer_connected/vehicle/fuel_and_battery.py b/bimmer_connected/vehicle/fuel_and_battery.py
+index 629cb69..3732b4b 100644
+--- a/bimmer_connected/vehicle/fuel_and_battery.py
++++ b/bimmer_connected/vehicle/fuel_and_battery.py
+@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
+ 
+ from bimmer_connected.const import ATTR_ATTRIBUTES, ATTR_STATE
+ from bimmer_connected.models import StrEnum, ValueWithUnit, VehicleDataBase
++from bimmer_connected.utils import get_next_occurrence
+ from bimmer_connected.vehicle.const import COMBUSTION_ENGINE_DRIVE_TRAINS, HV_BATTERY_DRIVE_TRAINS, DriveTrainType
+ 
+ _LOGGER = logging.getLogger(__name__)
+@@ -165,10 +166,9 @@ class FuelAndBattery(VehicleDataBase):
+             retval["charging_target"] = int(electric_data["chargingTarget"])
+ 
+         if retval["charging_status"] == ChargingState.WAITING_FOR_CHARGING and isinstance(charging_window, Dict):
+-            retval["charging_start_time"] = datetime.datetime.combine(
+-                datetime.datetime.now(datetime.timezone.utc).date(),
++            retval["charging_start_time"] = get_next_occurrence(
++                datetime.datetime.now(),
+                 datetime.time(int(charging_window["start"]["hour"]), int(charging_window["start"]["minute"])),
+-                tzinfo=datetime.timezone.utc,
+             )
+ 
+         return retval

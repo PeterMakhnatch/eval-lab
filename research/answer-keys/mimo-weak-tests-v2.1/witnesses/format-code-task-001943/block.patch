@@ -1,0 +1,30 @@
+diff --git a/mne_bids/config.py b/mne_bids/config.py
+index d225f02..7b6a38e 100644
+--- a/mne_bids/config.py
++++ b/mne_bids/config.py
+@@ -235,7 +235,7 @@ ALLOWED_PATH_ENTITIES_SHORT = {
+     "run": "run",
+     "proc": "processing",
+     "space": "space",
+-    "rec": "recording",
++    "recording": "recording",
+     "split": "split",
+     "desc": "description",
+ }
+diff --git a/mne_bids/path.py b/mne_bids/path.py
+index 63d6d12..d36ed7e 100644
+--- a/mne_bids/path.py
++++ b/mne_bids/path.py
+@@ -2280,7 +2280,11 @@ def _filter_fnames(
+         r"_proc-(" + "|".join(processing) + ")" if processing else r"(|_proc-([^_]+))"
+     )
+     space_str = r"_space-(" + "|".join(space) + ")" if space else r"(|_space-([^_]+))"
+-    rec_str = r"_rec-(" + "|".join(recording) + ")" if recording else r"(|_rec-([^_]+))"
++    rec_str = (
++        r"_recording-(" + "|".join(recording) + ")"
++        if recording
++        else r"(|_recording-([^_]+))"
++    )
+     split_str = r"_split-(" + "|".join(split) + ")" if split else r"(|_split-([^_]+))"
+     desc_str = (
+         r"_desc-(" + "|".join(description) + ")" if description else r"(|_desc-([^_]+))"

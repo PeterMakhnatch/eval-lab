@@ -1,0 +1,77 @@
+diff --git a/packages/database/lib/modular/index.d.ts b/packages/database/lib/modular/index.d.ts
+index a5c601c..1f3c86f 100644
+--- a/packages/database/lib/modular/index.d.ts
++++ b/packages/database/lib/modular/index.d.ts
+@@ -220,5 +220,13 @@ export function getServerTime(db: Database): Promise<number>;
+  */
+ export function increment(delta: number): object;
+ 
++/**
++ * Logs debugging information to the console. Not implemented on native.
++ *
++ * @param enabled
++ * @param persistent
++ */
++export declare function enableLogging(enabled: boolean, persistent?: boolean): any;
++
+ export * from './query';
+ export * from './transaction';
+diff --git a/packages/database/lib/modular/index.js b/packages/database/lib/modular/index.js
+index a5826c5..19921f9 100644
+--- a/packages/database/lib/modular/index.js
++++ b/packages/database/lib/modular/index.js
+@@ -123,5 +123,9 @@ export function increment(delta) {
+   return ServerValue.increment(delta);
+ }
+ 
++export function enableLogging(_enabled, _persistent) {
++  throw new Error('enableLogging() is not implemented');
++}
++
+ export * from './query';
+ export * from './transaction';
+diff --git a/packages/database/lib/modular/query.d.ts b/packages/database/lib/modular/query.d.ts
+index 1ae003c..855cd5a 100644
+--- a/packages/database/lib/modular/query.d.ts
++++ b/packages/database/lib/modular/query.d.ts
+@@ -903,6 +903,25 @@ export function setWithPriority(
+  */
+ export function get(query: Query): Promise<DataSnapshot>;
+ 
++/**
++ * Detaches a callback previously attached with the corresponding on*() (onValue, onChildAdded) listener.
++ * Note: This is not the recommended way to remove a listener. Instead, please use the returned callback function from the respective on* callbacks.
++ * Detach a callback previously attached with on*(). Calling off() on a parent listener will not automatically remove listeners registered on child nodes, off() must also be called on any child listeners to remove the callback.
++ * If a callback is not specified, all callbacks for the specified eventType will be removed.
++ * Similarly, if no eventType is specified, all callbacks for the Reference will be removed.
++ * Individual listeners can also be removed by invoking their unsubscribe callbacks.
++ * Note: Not implemented on native
++ *
++ * @param query - The query to run
++ * @param eventType One of the following strings: "value", "child_added", "child_changed", "child_removed", or "child_moved.
++ * @param callback
++ */
++export declare function off(
++  query: Query,
++  eventType?: EventType,
++  callback?: (snapshot: DataSnapshot, previousChildName?: string | null) => unknown,
++): void;
++
+ /**
+  * Gets a `Reference` for the location at the specified relative path.
+  *
+diff --git a/packages/database/lib/modular/query.js b/packages/database/lib/modular/query.js
+index 22e924d..192573d 100644
+--- a/packages/database/lib/modular/query.js
++++ b/packages/database/lib/modular/query.js
+@@ -239,6 +239,10 @@ export function get(query) {
+   return query.once('value');
+ }
+ 
++export function off(_query, _eventType, _callback) {
++  throw new Error('off() is not implemented');
++}
++
+ /**
+  * @param {DatabaseReference} parent
+  * @param {string} path

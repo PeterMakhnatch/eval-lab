@@ -1,0 +1,260 @@
+diff --git a/CHANGES/2844.feature b/CHANGES/2844.feature
+new file mode 100644
+index 0000000..879389c
+--- /dev/null
++++ b/CHANGES/2844.feature
+@@ -0,0 +1 @@
++Provide Content-Range header for Range requests
+diff --git a/CONTRIBUTORS.txt b/CONTRIBUTORS.txt
+index cfdf2a3..96b7374 100644
+--- a/CONTRIBUTORS.txt
++++ b/CONTRIBUTORS.txt
+@@ -208,6 +208,7 @@ Weiwei Wang
+ Yang Zhou
+ Yannick Koechlin
+ Yannick Péroux
++Ye Cao
+ Yegor Roganov
+ Young-Ho Cha
+ Yuriy Shatrov
+diff --git a/aiohttp/web_fileresponse.py b/aiohttp/web_fileresponse.py
+index 0e7ccd3..0ba1279 100644
+--- a/aiohttp/web_fileresponse.py
++++ b/aiohttp/web_fileresponse.py
+@@ -7,6 +7,7 @@ from .helpers import set_exception, set_result
+ from .http_writer import StreamWriter
+ from .log import server_logger
+ from .web_exceptions import (HTTPNotModified, HTTPOk, HTTPPartialContent,
++                             HTTPPreconditionFailed,
+                              HTTPRequestRangeNotSatisfiable)
+ from .web_response import StreamResponse
+ 
+@@ -167,6 +168,13 @@ class FileResponse(StreamResponse):
+         if modsince is not None and st.st_mtime <= modsince.timestamp():
+             self.set_status(HTTPNotModified.status_code)
+             self._length_check = False
++            # Delete any Content-Length headers provided by user. HTTP 304
++            # should always have empty response body
++            return await super().prepare(request)
++
++        unmodsince = request.if_unmodified_since
++        if unmodsince is not None and st.st_mtime > unmodsince.timestamp():
++            self.set_status(HTTPPreconditionFailed.status_code)
+             return await super().prepare(request)
+ 
+         if hdrs.CONTENT_TYPE not in self.headers:
+@@ -182,38 +190,75 @@ class FileResponse(StreamResponse):
+         file_size = st.st_size
+         count = file_size
+ 
+-        try:
+-            rng = request.http_range
+-            start = rng.start
+-            end = rng.stop
+-        except ValueError:
+-            self.set_status(HTTPRequestRangeNotSatisfiable.status_code)
+-            return await super().prepare(request)
+-
+-        # If a range request has been made, convert start, end slice notation
+-        # into file pointer offset and count
+-        if start is not None or end is not None:
+-            if start < 0 and end is None:  # return tail of file
+-                start = file_size + start
+-                count = file_size - start
+-            else:
+-                count = (end or file_size) - start
+-
+-            if start + count > file_size:
+-                # rfc7233:If the last-byte-pos value is
+-                # absent, or if the value is greater than or equal to
+-                # the current length of the representation data,
+-                # the byte range is interpreted as the remainder
+-                # of the representation (i.e., the server replaces the
+-                # value of last-byte-pos with a value that is one less than
+-                # the current length of the selected representation).
+-                count = file_size - start
+-
+-            if start >= file_size:
+-                count = 0
+-
+-        if count != file_size:
+-            status = HTTPPartialContent.status_code
++        start = None
++
++        ifrange = request.if_range
++        if ifrange is None or st.st_mtime < ifrange.timestamp():
++            # If-Range header check:
++            # condition = cached date >= last modification date
++            # return 206 if True else 200.
++            # if False:
++            #   Range header would not be processed, return 200
++            # if True but Range header missing
++            #   return 200
++            try:
++                rng = request.http_range
++                start = rng.start
++                end = rng.stop
++            except ValueError:
++                # https://tools.ietf.org/html/rfc7233:
++                # A server generating a 416 (Range Not Satisfiable) response to
++                # a byte-range request SHOULD send a Content-Range header field
++                # with an unsatisfied-range value.
++                # The complete-length in a 416 response indicates the current
++                # length of the selected representation.
++                #
++                # Will do the same below. Many servers ignore this and do not
++                # send a Content-Range header with HTTP 416
++                self.headers[hdrs.CONTENT_RANGE] = 'bytes */{0}'.format(
++                    file_size)
++                self.set_status(HTTPRequestRangeNotSatisfiable.status_code)
++                return await super().prepare(request)
++
++            # If a range request has been made, convert start, end slice
++            # notation into file pointer offset and count
++            if start is not None or end is not None:
++                if start < 0 and end is None:  # return tail of file
++                    start += file_size
++                    if start < 0:
++                        # if Range:bytes=-1000 in request header but file size
++                        # is only 200, there would be trouble without this
++                        start = 0
++                    count = file_size - start
++                else:
++                    # rfc7233:If the last-byte-pos value is
++                    # absent, or if the value is greater than or equal to
++                    # the current length of the representation data,
++                    # the byte range is interpreted as the remainder
++                    # of the representation (i.e., the server replaces the
++                    # value of last-byte-pos with a value that is one less than
++                    # the current length of the selected representation).
++                    count = min(end if end is not None else file_size,
++                                file_size) - start
++
++                if start >= file_size:
++                    # HTTP 416 should be returned in this case.
++                    #
++                    # According to https://tools.ietf.org/html/rfc7233:
++                    # If a valid byte-range-set includes at least one
++                    # byte-range-spec with a first-byte-pos that is less than
++                    # the current length of the representation, or at least one
++                    # suffix-byte-range-spec with a non-zero suffix-length,
++                    # then the byte-range-set is satisfiable. Otherwise, the
++                    # byte-range-set is unsatisfiable.
++                    self.headers[hdrs.CONTENT_RANGE] = 'bytes */{0}'.format(
++                        file_size)
++                    self.set_status(HTTPRequestRangeNotSatisfiable.status_code)
++                    return await super().prepare(request)
++
++                status = HTTPPartialContent.status_code
++                # Even though you are sending the whole file, you should still
++                # return a HTTP 206 for a Range request.
+ 
+         self.set_status(status)
+         if should_set_ct:
+@@ -225,11 +270,14 @@ class FileResponse(StreamResponse):
+         self.last_modified = st.st_mtime
+         self.content_length = count
+ 
+-        if count:
+-            with filepath.open('rb') as fobj:
+-                if start:
+-                    fobj.seek(start)
++        self.headers[hdrs.ACCEPT_RANGES] = 'bytes'
++
++        if status == HTTPPartialContent.status_code:
++            self.headers[hdrs.CONTENT_RANGE] = 'bytes {0}-{1}/{2}'.format(
++                start, start + count - 1, file_size)
+ 
+-                return await self._sendfile(request, fobj, count)
++        with filepath.open('rb') as fobj:
++            if start:  # be aware that start could be None or int=0 here.
++                fobj.seek(start)
+ 
+-        return await super().prepare(request)
++            return await self._sendfile(request, fobj, count)
+diff --git a/aiohttp/web_request.py b/aiohttp/web_request.py
+index 9ca2b42..2f02d86 100644
+--- a/aiohttp/web_request.py
++++ b/aiohttp/web_request.py
+@@ -388,19 +388,41 @@ class BaseRequest(collections.MutableMapping, HeadersMixin):
+         """A sequence of pars for all headers."""
+         return self._message.raw_headers
+ 
++    @staticmethod
++    def _http_date(_date_str):
++        """Process a date string, return a datetime object
++        """
++        if _date_str is not None:
++            timetuple = parsedate(_date_str)
++            if timetuple is not None:
++                return datetime.datetime(*timetuple[:6],
++                                         tzinfo=datetime.timezone.utc)
++        return None
++
+     @reify
+     def if_modified_since(self, _IF_MODIFIED_SINCE=hdrs.IF_MODIFIED_SINCE):
+         """The value of If-Modified-Since HTTP header, or None.
+ 
+         This header is represented as a `datetime` object.
+         """
+-        httpdate = self.headers.get(_IF_MODIFIED_SINCE)
+-        if httpdate is not None:
+-            timetuple = parsedate(httpdate)
+-            if timetuple is not None:
+-                return datetime.datetime(*timetuple[:6],
+-                                         tzinfo=datetime.timezone.utc)
+-        return None
++        return self._http_date(self.headers.get(_IF_MODIFIED_SINCE))
++
++    @reify
++    def if_unmodified_since(self,
++                            _IF_UNMODIFIED_SINCE=hdrs.IF_UNMODIFIED_SINCE):
++        """The value of If-Unmodified-Since HTTP header, or None.
++
++        This header is represented as a `datetime` object.
++        """
++        return self._http_date(self.headers.get(_IF_UNMODIFIED_SINCE))
++
++    @reify
++    def if_range(self, _IF_RANGE=hdrs.IF_RANGE):
++        """The value of If-Range HTTP header, or None.
++
++        This header is represented as a `datetime` object.
++        """
++        return self._http_date(self.headers.get(_IF_RANGE))
+ 
+     @property
+     def keep_alive(self):
+diff --git a/docs/web_reference.rst b/docs/web_reference.rst
+index bb32f1f..ac28ed2 100644
+--- a/docs/web_reference.rst
++++ b/docs/web_reference.rst
+@@ -329,6 +329,28 @@ and :ref:`aiohttp-web-signals` handlers.
+       *If-Modified-Since* header is absent or is not a valid
+       HTTP date.
+ 
++   .. attribute:: if_unmodified_since
++
++      Read-only property that returns the date specified in the
++      *If-Unmodified-Since* header.
++
++      Returns :class:`datetime.datetime` or ``None`` if
++      *If-Unmodified-Since* header is absent or is not a valid
++      HTTP date.
++
++      .. versionadded:: 3.1
++
++   .. attribute:: if_range
++
++      Read-only property that returns the date specified in the
++      *If-Range* header.
++
++      Returns :class:`datetime.datetime` or ``None`` if
++      *If-Range* header is absent or is not a valid
++      HTTP date.
++
++      .. versionadded:: 3.1
++
+    .. method:: clone(*, method=..., rel_url=..., headers=...)
+ 
+       Clone itself with replacement some attributes.

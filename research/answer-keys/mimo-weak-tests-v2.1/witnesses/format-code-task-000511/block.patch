@@ -1,0 +1,107 @@
+diff --git a/aws_embedded_metrics/config/configuration.py b/aws_embedded_metrics/config/configuration.py
+index d2aecc8..8628e26 100644
+--- a/aws_embedded_metrics/config/configuration.py
++++ b/aws_embedded_metrics/config/configuration.py
+@@ -23,6 +23,7 @@ class Configuration:
+         agent_endpoint: str,
+         ec2_metadata_endpoint: str = None,
+         namespace: str = None,
++        disable_metric_extraction: bool = False,
+     ):
+         self.debug_logging_enabled = debug_logging_enabled
+         self.service_name = service_name
+@@ -32,3 +33,4 @@ class Configuration:
+         self.agent_endpoint = agent_endpoint
+         self.ec2_metadata_endpoint = ec2_metadata_endpoint
+         self.namespace = namespace
++        self.disable_metric_extraction = disable_metric_extraction
+diff --git a/aws_embedded_metrics/config/environment_configuration_provider.py b/aws_embedded_metrics/config/environment_configuration_provider.py
+index 17c5afc..f9102ae 100644
+--- a/aws_embedded_metrics/config/environment_configuration_provider.py
++++ b/aws_embedded_metrics/config/environment_configuration_provider.py
+@@ -24,6 +24,7 @@ LOG_STREAM_NAME = "LOG_STREAM_NAME"
+ AGENT_ENDPOINT = "AGENT_ENDPOINT"
+ EC2_METADATA_ENDPOINT = "EC2_METADATA_ENDPOINT"
+ NAMESPACE = "NAMESPACE"
++DISABLE_METRIC_EXTRACTION = "DISABLE_METRIC_EXTRACTION"
+ 
+ 
+ class EnvironmentConfigurationProvider:
+@@ -41,6 +42,7 @@ class EnvironmentConfigurationProvider:
+             self.__get_env_var(AGENT_ENDPOINT),
+             self.__get_env_var(EC2_METADATA_ENDPOINT),
+             self.__get_env_var(NAMESPACE),
++            self.__get_bool_env_var(DISABLE_METRIC_EXTRACTION),
+         )
+ 
+     @staticmethod
+diff --git a/aws_embedded_metrics/serializers/log_serializer.py b/aws_embedded_metrics/serializers/log_serializer.py
+index afb5f73..593007d 100644
+--- a/aws_embedded_metrics/serializers/log_serializer.py
++++ b/aws_embedded_metrics/serializers/log_serializer.py
+@@ -11,6 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++from aws_embedded_metrics.config import get_config
+ from aws_embedded_metrics.logger.metrics_context import MetricsContext
+ from aws_embedded_metrics.serializers import Serializer
+ from aws_embedded_metrics.constants import MAX_DIMENSIONS, MAX_METRICS_PER_EVENT
+@@ -21,6 +22,8 @@ from typing import Any, Dict, List
+ class LogSerializer(Serializer):
+     @staticmethod
+     def serialize(context: MetricsContext) -> List[str]:
++        config = get_config()
++
+         dimension_keys = []
+         dimensions_properties: Dict[str, str] = {}
+ 
+@@ -30,10 +33,12 @@ class LogSerializer(Serializer):
+             dimensions_properties = {**dimensions_properties, **dimension_set}
+ 
+         def create_body() -> Dict[str, Any]:
+-            return {
++            body: Dict[str, Any] = {
+                 **dimensions_properties,
+                 **context.properties,
+-                "_aws": {
++            }
++            if not config.disable_metric_extraction:
++                body["_aws"] = {
+                     **context.meta,
+                     "CloudWatchMetrics": [
+                         {
+@@ -42,11 +47,12 @@ class LogSerializer(Serializer):
+                             "Namespace": context.namespace,
+                         },
+                     ],
+-                },
+-            }
++                }
++            return body
+ 
+         current_body: Dict[str, Any] = create_body()
+         event_batches: List[str] = []
++        num_metrics_in_current_body = 0
+ 
+         for metric_name, metric in context.metrics.items():
+ 
+@@ -55,12 +61,16 @@ class LogSerializer(Serializer):
+             else:
+                 current_body[metric_name] = metric.values
+ 
+-            current_body["_aws"]["CloudWatchMetrics"][0]["Metrics"].append({"Name": metric_name, "Unit": metric.unit})
++            if not config.disable_metric_extraction:
++                current_body["_aws"]["CloudWatchMetrics"][0]["Metrics"].append({"Name": metric_name, "Unit": metric.unit})
++
++            num_metrics_in_current_body += 1
+ 
+-            should_serialize: bool = len(current_body["_aws"]["CloudWatchMetrics"][0]["Metrics"]) == MAX_METRICS_PER_EVENT
++            should_serialize: bool = num_metrics_in_current_body == MAX_METRICS_PER_EVENT
+             if should_serialize:
+                 event_batches.append(json.dumps(current_body))
+                 current_body = create_body()
++                num_metrics_in_current_body = 0
+ 
+         if not event_batches or current_body["_aws"]["CloudWatchMetrics"][0]["Metrics"]:
+             event_batches.append(json.dumps(current_body))

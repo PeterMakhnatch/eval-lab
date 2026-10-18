@@ -1,0 +1,42 @@
+diff --git a/lib/urlwatch/jobs.py b/lib/urlwatch/jobs.py
+index a684cc2..19941bb 100644
+--- a/lib/urlwatch/jobs.py
++++ b/lib/urlwatch/jobs.py
+@@ -428,3 +428,37 @@ class UrlJob(Job):
+             return str(status_code) in ignored_codes or '%sxx' % (status_code // 100) in ignored_codes
+         return False
+ 
++
++class BrowserJob(Job):
++    """Retrieve an URL, emulating a real web browser"""
++
++    __kind__ = 'browser'
++
++    __required__ = ('navigate',)
++
++    __optional__ = ('wait_until', 'wait_for', 'useragent', 'browser')
++
++    def get_location(self):
++        return self.user_visible_url or self.navigate
++
++    def set_base_location(self, location):
++        self.navigate = location
++
++    def retrieve(self, job_state):
++        from playwright.sync_api import sync_playwright
++        with sync_playwright() as playwright:
++            browser = playwright[self.browser or "chromium"].launch()
++            page = browser.new_page(user_agent=self.useragent)
++
++            if self.wait_until in ('networkidle0', 'networkidle2'):
++                pass
++                # Pyppetteer -> Playwright migration
++                self.wait_until = 'networkidle'
++
++            page.goto(self.navigate, wait_until=self.wait_until)
++
++            if self.wait_for:
++                locator = page.locator(self.wait_for)
++                locator.wait_for()
++
++            return page.content()

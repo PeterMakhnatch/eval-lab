@@ -1,0 +1,106 @@
+diff --git a/src/ffmpeg.js b/src/ffmpeg.js
+index e67d662..cc69410 100644
+--- a/src/ffmpeg.js
++++ b/src/ffmpeg.js
+@@ -13,6 +13,7 @@ const WORKER_URL = require(
+ 
+ // TODO(Kagami): This should be done better, see GH-7.
+ const DECODE_MEMORY = isOldChakra ? 67108864 : 134217728;
++const ENCODE_MEMORY = isOldChakra ? 67108864 : 268435456;
+ 
+ // Taken from webm.py
+ export function parseTime(time) {
+@@ -252,3 +253,93 @@ export class Prober {
+     return {duration, video, audio, subs};
+   }
+ }
++
++function remove(arr, value) {
++  const index = arr.indexOf(value);
++  if (index !== -1) {
++    arr.splice(index, value);
++  }
++}
++
++/** Manager of FFmpeg jobs. */
++export class Pool {
++  constructor() {
++    this.workers = [];
++  }
++
++  spawnJob({params, onLog, MEMFS, WORKERFS}) {
++    // Send/transfer only necessary data.
++    let transfer = [];
++    MEMFS = (MEMFS || []).map(function({name, data, keep}) {
++      if (!keep) transfer.push(data.buffer);
++      return {name, data};
++    });
++    const mounts = WORKERFS ? [{
++      type: "WORKERFS",
++      opts: {blobs: WORKERFS},
++      mountpoint: WORKERFS_DIR,
++    }] : [];
++    let workers = this.workers;
++    let worker = new Worker(WORKER_URL);
++    workers.push(worker);
++    function cleanup() {
++      worker.terminate();
++      remove(workers, worker);
++    }
++    return new Promise(function(resolve, reject) {
++      let ready = false;
++      worker.onmessage = function(e) {
++        const msg = e.data || {};
++        if (!ready) {
++          if (msg.type === "ready") {
++            ready = true;
++            worker.postMessage({
++              type: "run",
++              arguments: params,
++              TOTAL_MEMORY: ENCODE_MEMORY,
++              MEMFS,
++              mounts,
++            }, transfer);
++          } else {
++            cleanup();
++            reject(new Error("Bad message from worker: " + msg));
++          }
++          return;
++        }
++        switch (msg.type) {
++        case "error":
++          cleanup();
++          reject(new Error(msg.data));
++          break;
++        case "stdout":
++          onLog(msg.data);
++          break;
++        case "stderr":
++          onLog(msg.data);
++          break;
++        case "exit":
++          if (msg.data === 0) {
++            cleanup();
++            reject(new Error("Process exited with " + msg.data));
++          }
++          break;
++        case "done":
++          cleanup();
++          resolve(msg.data && msg.data.MEMFS);
++          break;
++        }
++      };
++      worker.onerror = function(e) {
++        cleanup();
++        reject(e);
++      };
++    });
++  }
++
++  /** Destroy the pool. Safe to run multiple times. */
++  destroy() {
++    while (this.workers.length) {
++      this.workers.shift().terminate();
++    }
++  }
++}

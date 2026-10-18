@@ -1,0 +1,87 @@
+{
+  "archived_backlog": {
+    "method": "Archived prompt, complete patch and verifier-source adjudication; no fresh replay.",
+    "review_counts": {
+      "non_positive": 62,
+      "required_gap": 35,
+      "uncertain": 15
+    },
+    "survivors": 112,
+    "tasks": 22,
+    "unreviewed": 0
+  },
+  "block_review_counts": {
+    "confirmed_weak": 79,
+    "neutral": 114,
+    "out_of_scope": 50,
+    "uncertain": 35
+  },
+  "cohort_selection_sha256": "92a6030b5537bf8a26bc9931ead10e38ce1af719fde0897de203d197220d1942",
+  "cohort_tasks": 567,
+  "confirmed_weak_tasks": 114,
+  "executable_witnesses": 242,
+  "limits": "Source-derived positive target catalog, not detector recall, benchmark prevalence, a clean-task certificate, fresh witness replay, or repaired-package certification.",
+  "line_scans_by_source": {
+    "continuation_229": 229,
+    "frozen_338": 71,
+    "supplementary_line_pilot": 2
+  },
+  "line_survivor_reviews_by_source": {
+    "continuation_229": {
+      "equivalent_or_optional": 268,
+      "required_gap": 97,
+      "uncertain": 93
+    },
+    "frozen_338": {
+      "equivalent_or_optional": 33,
+      "non_positive": 59,
+      "required_gap": 46,
+      "uncertain": 55
+    },
+    "supplementary_line_pilot": {
+      "non_positive": 3,
+      "required_gap": 20
+    }
+  },
+  "negative_items": 0,
+  "not_established_tasks": 453,
+  "previous_atlas_sha256": "67c2ab7a0b6ba2849b14daa5fa69c9b322f1f509c28ff1facc087cdb19dc8c4a",
+  "previous_key": "mimo-weak-tests-v2",
+  "primary_reports": 567,
+  "primary_source_counts": {
+    "continuation_229": 229,
+    "frozen_338": 338
+  },
+  "primary_status_counts": {
+    "baseline_mismatch": 2,
+    "budget_exhausted": 22,
+    "measured": 453,
+    "not_applicable": 90
+  },
+  "primary_verdict_counts": {
+    "fail": 278,
+    "pass": 197,
+    "unknown": 92
+  },
+  "split_counts": {
+    "dev": 46,
+    "test": 68
+  },
+  "tasks_without_any_line_scan": 265,
+  "unknown_reason_counts": {
+    "archived_package_digest_absent": 1,
+    "block_claim_uncertain": 35,
+    "line_baseline_mismatch": 3,
+    "line_claims_uncertain": 60,
+    "line_grades_unscored": 5,
+    "line_mutations_not_tried": 33,
+    "line_pass_not_run_or_not_reported": 265,
+    "line_probe_not_applicable": 79,
+    "primary_block_search_budget_exhausted": 22,
+    "primary_outcome_unknown": 92
+  },
+  "witness_kind_counts": {
+    "block_subset": 79,
+    "line_mutant": 163
+  }
+}

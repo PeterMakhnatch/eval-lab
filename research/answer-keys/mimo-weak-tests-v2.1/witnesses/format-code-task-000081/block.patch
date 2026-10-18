@@ -1,0 +1,55 @@
+diff --git a/xdoctest/runner.py b/xdoctest/runner.py
+index 2eca1da..d9a6158 100644
+--- a/xdoctest/runner.py
++++ b/xdoctest/runner.py
+@@ -109,6 +109,7 @@ def _run_examples(enabled_examples, verbose):
+     n_total = len(enabled_examples)
+     print('running %d test(s)' % n_total)
+     summaries = []
++    errors = []
+     for example in enabled_examples:
+         try:
+             summary = example.run(verbose=verbose)
+@@ -116,11 +117,13 @@ def _run_examples(enabled_examples, verbose):
+                 sys.stdout.write('.')
+                 sys.stdout.flush()
+         except Exception:
++            summary = {'passed': False}
+             if not verbose:
+                 sys.stdout.write('F')
+                 sys.stdout.flush()
+-            print('\n'.join(example.repr_failure()))
+-            raise
++            errors.append('\n'.join(example.repr_failure()))
++            if len(enabled_examples) == 1:
++                raise
+         summaries.append(summary)
+     if verbose <= 0:
+         print('')
+@@ -138,19 +141,18 @@ def _run_examples(enabled_examples, verbose):
+ 
+ def _parse_commandline(command, style, verbose, argv):
+     # Determine command via sys.argv if not specified
++    if argv is None:
++        argv = sys.argv[1:]
++
+     if command is None:
+-        if argv is None:
+-            argv = sys.argv
+-        argv = argv[1:]
+         if len(argv) >= 1:
+-            command = argv[0]
+-        else:
+-            command = None
++            if argv[0] and not argv[0].startswith('-'):
++                command = argv[0]
+ 
+     # Change how docstrs are found
+-    if '--freeform' in sys.argv:
++    if '--freeform' in argv:
+         style = 'freeform'
+-    elif '--google' in sys.argv:
++    elif '--google' in argv:
+         style = 'google'
+ 
+     # Parse verbosity flag

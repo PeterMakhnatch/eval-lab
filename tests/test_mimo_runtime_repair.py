@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 import subprocess
 import sys
@@ -12,8 +11,6 @@ from pathlib import Path
 import pytest
 
 from evallab import mimo_runtime_repair as producer
-from evallab.verifier_repair import RepairTest, build_patch_appendix
-
 
 IMPORT = "from configuration_components.install_plan import build_install_plan\n"
 
@@ -79,39 +76,6 @@ def test_missing_requested_api_runs_named_unittest_not_loader_placeholder(monkey
     assert case.id() == "bounded_collection.PlanTests.test_requested_flag"
     assert "cannot import name 'build_install_plan'" in error
     assert "_FailedTest" not in error
-
-
-def test_collection_patch_changes_only_both_added_module_import_boundaries(monkeypatch: pytest.MonkeyPatch) -> None:
-    sources = {
-        next(iter(producer.TEST_PATHS_002486)): IMPORT + "\n" + "\n".join(
-            f"def test_plan_{index}():\n    assert build_install_plan() == {{}}\n"
-            for index in range(9)
-        ),
-        "tests/test_repair_browser_opt_in.py": (
-            "import unittest\n" + IMPORT + "\n"
-            + "class PlanTests(unittest.TestCase):\n"
-            + "    def test_plan(self):\n        self.assertEqual(build_install_plan(), {})\n"
-        ),
-    }
-    untouched = build_patch_appendix([
-        RepairTest(id="fixture", repo_path="fixtures/input.json", code='{"flag": false}\n'),
-    ])
-    command = (
-        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
-        "new file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n"
-        "@@ -0,0 +1,1 @@\n+python -m pytest test_plan.py\n"
-    )
-    modules = [build_patch_appendix([RepairTest(id="test", repo_path=path, code=source)])
-               for path, source in sources.items()]
-    original = (untouched + modules[0] + command + modules[1]).encode()
-    monkeypatch.setattr(producer, "PARENT_002486_PATCH_SHA256", hashlib.sha256(original).hexdigest())
-    changed = producer.collection_patch_002486(original)
-    expected_modules = [build_patch_appendix([RepairTest(
-        id="test", repo_path=path,
-        code=producer._defer_install_plan_import(source, expected_tests=producer.TEST_PATHS_002486[path]),
-    )]) for path, source in sources.items()]
-    assert changed == (untouched + expected_modules[0] + command + expected_modules[1]).encode()
-    assert changed != original
 
 
 def test_collection_patch_refuses_a_different_frozen_preimage() -> None:

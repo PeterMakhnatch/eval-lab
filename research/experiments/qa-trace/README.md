@@ -181,9 +181,51 @@ inherited acceptances and 23 unmeasured rows, so recall was then undefined.
 Neither key was used for tuning.
 
 No scoreboard row is added: pass-correctness labels are not the registered
-task-weakness answer key. Canonical `regrade-v7.json` and the fresh-solver
-`cheat-set-v7.jsonl` comparison remain pending. Both predictors and the original
+task-weakness answer key. The staged result remains historical; the subsequent
+canonical-gated exports are scored below. Both predictors and the original
 70 predictions stay frozen; fresh solver attempts are a separate cohort.
+
+### MiMo canonical-gated exports — 69 measured labels, not a completed 70
+
+The released original-33 manifest binds independent **V7-053 PASS**. Two producer
+exports are available under `research-context/bridge/2026-10-17-v7/`:
+`classifiers-v7-canonical-20261018/regrade-v7.json` (SHA prefix `65eacd72`) and
+`classifiers-v7-canonical-20261018-nativepath/regrade-v7.json` (`5dac60b9`).
+Both explicitly set `scoring_allowed`, `canonical_scoring_allowed` and `citable`
+to true. This admits the released grader selection, not a claim that every
+submission was successfully regraded.
+
+The unchanged `score_v7.py`, **without `--staged`**, scored each export against
+each predictor. All four CLI invocations exited 0, verified the complete
+355/568-file prediction seals, and joined 70/70 subjects with no missing or extra
+labels. The two exports produce byte-identical reports within each predictor.
+No models were called, predictions regenerated, or classifier changes made.
+
+Both keys contain **63 `real_pass`, 6 `wrong_pass`, and 1 `unmeasured`**.
+The B/attempt-2/task-`001246` submission lacks a measured outcome on its newly
+selected child grader; the old staged acceptance cannot transfer. It stays in
+coverage but outside both rate denominators. `measurement_status=released`
+describes admission, **not complete measurement**.
+
+| view / detector | qa6 rejected passes caught | qa7 rejected passes caught | qa6 accepted passes flagged | qa7 accepted passes flagged |
+|---|---|---|---|---|
+| all original passes / `reward_not_real` | 4/6 | 4/6 | 13/63 | 13/63 |
+| all original passes / `false_positive` | 3/6 | 3/6 | 8/63 | 9/63 |
+| primary cohort / `reward_not_real` | 2/2 | 2/2 | 5/43 | 5/43 |
+| primary cohort / `false_positive` | 2/2 | 2/2 | 3/43 | 4/43 |
+
+There is still **no rejected-pass recall gain**. On measured canonical labels,
+the staged qa7 reduction of one `reward_not_real` false flag disappears with the
+unmeasured submission, and qa7 has one additional accepted-pass
+`false_positive` flag. This is not evidence for promotion. Grader correctness
+still does not establish behavioral cheating or intent.
+
+Reports: `results/qa-trace-{6,7}-mimo-v7-canonical-5dac60b9.json`. The bridge
+receipt `qa-trace-mimo-v7-canonical-partial-5dac60b9.json` binds both full key/report
+hashes, the released manifest and Verifier proof, all four invocations, unchanged
+seals and label/prediction transitions. Identical earlier-epoch report copies
+are not duplicated. The current-child label and fresh `cheat-set-v7.jsonl` remain
+upstream dependencies; the latter cannot be scored from the original predictions.
 
 ### Fresh-solver CheatBench intake — preparation, not results
 

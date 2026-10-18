@@ -1,5 +1,71 @@
 # QA Agent - Trace (`evallab qa trace`), scored runs
 
+## qa-trace/8 (2026-10-18): explicit verifier-test review
+
+Task tests were already copied into B0 when a package resolved; this upgrade makes
+their inspection explicit rather than claiming a new source of hidden labels.
+
+- B0 seals `verifier_tests.json` alongside the retained tests: source hashes,
+  package-digest qualification, and bounded static assertion locations. The index
+  is at most 24,000 serialized bytes, 32 source files and 128 listed sites;
+  omitted files/sites and original source truncation remain explicit.
+- Python assertions and assertion-like calls are indexed without executing code.
+  MiMo `tests/test.patch` additions use the existing patch-section parser and map
+  parseable fragments back to **patch-file lines**. They are not a reconstructed
+  postimage or an inventory of unchanged repository tests. Unparsed fragments,
+  unsupported sections and source-only shell launchers do not become zero coverage.
+- T1's `false_positive` and core-outcome `failure_cause` reviews must inspect
+  relevant retained test bodies, not merely list filenames or read an index.
+  The existing one-retry inspection policy is retained. A remaining quality gap
+  does not force a verdict or automatically turn a usable answer into abstention.
+  The prompt separates the actual request from extra assumptions about general
+  repository behavior; passing tests are not complete semantic correctness.
+- T2 is deterministic, **not another model reviewer**. Its artifact now exposes
+  the same qualified test-source index and per-scenario source-inspection status,
+  while routing still uses the source-cited T1 outcome. No static-count threshold,
+  package-name heuristic or missing-test rule manufactures a flag or clears one.
+- Missing original tests remain missing. A name-only/mismatched package supplies
+  context, not authenticated original grading behavior. The index describes
+  retained, redacted syntax; it measures neither executed assertion coverage nor
+  completeness against the task's specification.
+
+### Executed dev behavior
+
+The actual bundle → verify → T0/T2 CLI on paired **dev** task `000792` resolved by
+digest crosswalk, sealed the new artifact and printed `bundle intact`. Its patch
+index located **57** assertion sites, with **one unparsed fragment and one
+source-only section**; the shell launchers remained source-only, not fabricated
+Python coverage.
+
+A real `google-antigravity/claude-sonnet-5-5:medium` T1 acceptance review then read
+the retained `tests/test.patch` and `tests/test.sh`, returned usable structured
+output, needed no inspection retry and left the seal unchanged. This is a behavior
+smoke, **not an accuracy result**. Recorded usage was 42,617 input, 87,074 cached
+input and 2,484 output tokens; `$0.118781` is API-equivalent metadata, not a paid
+invoice or independently reconciled provider cost.
+
+### Measurement boundaries
+
+Only designated dev material may select prompts or implementation. Freeze source,
+prompt/configuration digests and selected/excluded IDs before any new test output.
+The separate canonical MiMo diagnostic is not a tuning set.
+
+Trajectory Judge supplies **no executable verifier/test package** for any of its
+400 examples. Keep that absence explicit and retain its 15 legacy exclusions
+(173 eligible test items). Paired's retained qa6 manifests have tests in 81/81
+workspaces but digest-bound provenance in only 69/81; the other 12 are name-only
+context. Exclude the two inherited qa5-exposed `000169` test items for the primary
+paired comparison (25 eligible items / 17 pairs), while retaining the full
+registered denominator and historical exposure disclosure.
+
+The earlier qa6 paired run is shortcut-only, and the earlier qa7 TJ run used Codex.
+Neither is a matched full-pipeline control for a changed-model qa8 experiment.
+Compare unchanged qa7 code and qa8 with identical explicit routes, stages and
+selected IDs; report false flags, recall, abstentions and provenance separately.
+Earlier benchmark exposure means this is not a virgin-holdout claim, and the
+interface change alone is not evidence of a precision or recall gain.
+
+
 ## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
 
 Changes from qa-trace/6:

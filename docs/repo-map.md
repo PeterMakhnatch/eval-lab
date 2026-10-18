@@ -153,7 +153,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:cbe7f00baa41f7cc918d1d6d20758f952fa4da89840c57d01aa645cc0d687b80
+    digest: sha256:1280c5fd075054ddf8748871ab684cd31ba0d8f338b25be45473d4459066a6de
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -617,9 +617,9 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:bd1edbfec3c0ef567d5c8d694e4b6ed38f5bd564b058ae5ec9c0f95941d199cd
+    digest: sha256:04174b0da344575add4677bb6553a9e79b4eae1eb1df8ede4d33033961f9cd92
   - path: src/evallab/schemas/__init__.py
-    digest: sha256:1d6d96673b76f4e5f24c3534f3a13ab1221406f1bfaef1c4caf3afa4533ceecf
+    digest: sha256:4bdf2771728b28bc6c609a0bbf5908df8eb0e6d09337f6caa7b2614a17d06f00
   - path: src/evallab/screen.py
     digest: sha256:2b73a0dabcdc25ee596d9068a23935b2d9f7deaad60cca6322cd8be1061620ef
   - path: src/evallab/semantic_facts.py
@@ -759,7 +759,7 @@ inputs:
   - path: src/evallab/upstream_fetch.py
     digest: sha256:b6fe38ca207af79c33eb21a852f530b305913146a7e8d9e3e10e44719ffae23b
   - path: src/evallab/vcheck.py
-    digest: sha256:1f43bca0ad962039d2dbcbc430e3b3db21e5f9bb888aa89879ed63dccb4210d5
+    digest: sha256:c3a25e203c189aa5ac5cfd0c8f863184b7a76f1e160e5ae0ea3a860a3e725f2a
   - path: src/evallab/vcheck_blue.py
     digest: sha256:90cf212cf521ac2e9c77144e61eb7bc75368c4d8c0ba1e3e0abbf47e3b9af742
   - path: src/evallab/vcheck_cli.py
@@ -781,7 +781,7 @@ inputs:
   - path: src/evallab/verifier_hunt.py
     digest: sha256:4e6f898fafcfe919fe6a0e0695dcb57d484e41096cdadb4a157c3d6c3e00cd15
   - path: src/evallab/verifier_mutation.py
-    digest: sha256:68c07f098ba8463a7dddabf8f1a9043a6ac1b2ecc4a74e7e2fe840f464d266e3
+    digest: sha256:43e0ef71156f22dd74112ef6389d638f7cfcfe11d8909dbd3d626d54e2f7caad
   - path: src/evallab/verifier_repair.py
     digest: sha256:200acd1be54202a0a5c4807897d9f8a3e5ce421c4273fd03a343bf6b3881bdc0
   - path: src/evallab/vf_scripted_harness.py

@@ -141,6 +141,8 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "inspect": inspected,
         "inspect_error": None,
         "inspect_applied": None,
+        "interface_output": "lo unknown\ntunl0 down\n",
+        "interface_applied": None,
         "compose": {
             "services": {
                 "main": {
@@ -170,6 +172,16 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             raise state["inspect_error"]
         return [state["inspect"]]
 
+    async def daemon_output(self, *command):
+        assert command[0] == "exec"
+        state["interface_applied"] = (
+            _record(paths)["applied"] if (paths.trial_dir / EGRESS_LOCK_RECORD).exists() else None
+        )
+        output = state["interface_output"]
+        if isinstance(output, BaseException):
+            raise output
+        return output
+
     async def compose(self, command, **kwargs):
         op = command[0]
         if op == "config":
@@ -193,6 +205,7 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         return False
 
     monkeypatch.setattr(LockedDockerEnvironment, "_daemon_json", daemon)
+    monkeypatch.setattr(LockedDockerEnvironment, "_daemon_output", daemon_output)
     monkeypatch.setattr(DockerEnvironment, "_run_docker_compose_command", compose)
     monkeypatch.setattr(DockerEnvironment, "_validate_image_os", image_os)
     monkeypatch.setattr(DockerEnvironment, "_is_rootless_docker", rootless)
@@ -247,7 +260,8 @@ def test_task_compose_is_refused_before_creation(native, name):
         "windows-task",
         "gpu-task",
         "allowlist-policy",
-        "phase-policies",
+        "phase-allowlist-policy",
+        "phase-public-policy",
     ],
 )
 def test_unsupported_execution_routes_fail_closed(native, override):
@@ -264,8 +278,14 @@ def test_unsupported_execution_routes_fail_closed(native, override):
                     network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]
                 )
             },
-            "phase-policies": {
-                "phase_network_policies": [NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)]
+            "phase-allowlist-policy": {
+                "phase_network_policies": [
+                    NetworkPolicy(network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"])
+                ]
+            },
+            "phase-public-policy": {
+                "network_policy": NetworkPolicy(network_mode=NetworkMode.NO_NETWORK),
+                "phase_network_policies": [NetworkPolicy()],
             },
         }[override]
     with pytest.raises((ValueError, RuntimeError)):
@@ -456,15 +476,109 @@ def test_unwritable_success_receipt_never_allows_setup_exec(native, monkeypatch)
     assert native["exec_applied"] == [] and native["deleted"] is True
 
 
-def test_runtime_policy_change_cannot_lift_an_applied_lock(native):
-    env = native["make"]()
+def test_native_trial_no_network_plan_enters_and_restores_without_reconnecting(
+    native, tmp_path: Path
+):
+    from harbor.models.trial.config import AgentConfig, TaskConfig, TrialConfig
+    from harbor.trial.trial import Trial
+
+    task = tmp_path / "phase-task"
+    (task / "environment").mkdir(parents=True)
+    (task / "tests").mkdir()
+    (task / "tests" / "test.sh").write_text("test -f /tmp/phase-completed\n")
+    (task / "instruction.md").write_text("Exercise the host-loop network contract.")
+    (task / "task.toml").write_text(
+        '[agent]\nnetwork_mode = "no-network"\n'
+        '[verifier]\nnetwork_mode = "no-network"\n'
+        '[environment]\ndocker_image = "fixture:locked"\n'
+    )
+    native["inspect"]["Config"]["Labels"]["com.docker.compose.project"] = "trial__env"
+
+    async def exercise():
+        trial = await Trial.create(
+            TrialConfig(
+                task=TaskConfig(path=task),
+                trial_name="trial",
+                trials_dir=tmp_path,
+                agent=AgentConfig(name="nop"),
+                environment=NativeEnvironmentConfig(
+                    import_path="evallab.harbor_docker:LockedDockerEnvironment",
+                    kwargs={"egress_lock": True},
+                ),
+            )
+        )
+        env = trial.agent_environment
+        try:
+            await env.start(force_build=False)
+            plan = trial._network_plan()
+            assert plan.agent_phase.network_mode == NetworkMode.NO_NETWORK
+            assert plan.agent_env_baseline.network_mode == NetworkMode.PUBLIC
+            async with trial._phase_network_policy(
+                env,
+                baseline_policy=plan.agent_env_baseline,
+                phase_policy=plan.agent_phase,
+            ):
+                assert env.network_policy.network_mode == NetworkMode.NO_NETWORK
+                await env.exec("true")
+            assert env.network_policy.network_mode == NetworkMode.PUBLIC
+            assert _record(native["paths"])["applied"] is True
+        finally:
+            await env.stop(delete=True)
+            trial._close_logger_handler()
+
+    asyncio.run(exercise())
+
+
+def test_no_network_phase_and_baseline_restore_never_reconnect(native):
+    no_network = NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)
+    env = native["make"](phase_network_policies=[no_network])
     asyncio.run(env.start(force_build=False))
-    asyncio.run(env.set_network_policy(NetworkPolicy()))
-    with pytest.raises(ValueError, match="policy switches"):
-        asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)))
+    assert native["interface_applied"] is not True
+
+    for policy in (no_network, NetworkPolicy(), no_network, NetworkPolicy()):
+        asyncio.run(env.set_network_policy(policy))
+        asyncio.run(env.exec("true"))
+
     assert _record(native["paths"])["applied"] is True and native["running"] is True
-    assert native["exec_applied"] == [True]
+    assert env.network_policy == NetworkPolicy()
     asyncio.run(env.stop(delete=True))
+
+
+def test_no_network_baseline_refuses_public_or_allowlisted_phases(native):
+    no_network = NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)
+    env = native["make"](network_policy=no_network, phase_network_policies=[no_network])
+    asyncio.run(env.start(force_build=False))
+    for policy in (
+        NetworkPolicy(),
+        NetworkPolicy(network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]),
+    ):
+        with pytest.raises(ValueError, match="policy switches|network allowlists"):
+            asyncio.run(env.set_network_policy(policy))
+    assert _record(native["paths"])["applied"] is True and native["running"] is True
+    asyncio.run(env.stop(delete=True))
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "lo unknown\neth0 up\n",
+        "lo unknown\neth0 unknown\n",
+        "",
+        "lo unknown\neth0\n",
+        "eth0 down\n",
+        "lo unknown\nlo down\n",
+        OSError("interface census failed"),
+    ],
+)
+def test_unconfirmed_interfaces_never_admit_tools(native, output):
+    native["interface_output"] = output
+    env = native["make"]()
+
+    with pytest.raises((RuntimeError, OSError)):
+        asyncio.run(env.start(force_build=False))
+
+    assert _record(native["paths"])["applied"] is False
+    assert native["deleted"] is True and native["exec_applied"] == []
 
 
 @pytest.mark.parametrize("cap", ["NET_RAW", "CAP_NET_RAW"])

@@ -4146,6 +4146,58 @@ def finalize(report: TaskReport, findings: list[Finding]) -> None:
     report.finished_at = utcnow()
 
 
+def _independent_s0_controls(report: TaskReport) -> bool:
+    jobs: set[Path] = set()
+    for agent in ("oracle", "nop"):
+        for repeat in (1, 2, 3):
+            check = report.checks.get(f"{agent}-{repeat}")
+            if check is None or check.status != "measured":
+                return False
+            path = check.facts.get("job_path")
+            if not isinstance(path, str) or not path:
+                return False
+            jobs.add(Path(path).resolve())
+    return len(jobs) == 6
+
+
+def _resume_report_complete(
+    report: TaskReport, config: QATaskConfig, package: Path
+) -> bool:
+    """Revalidate required evidence; a historical completeness flag is insufficient."""
+    if (
+        not report.quality_complete or report.error
+        or not set(config.stages).issubset(report.requested_stages)
+    ):
+        return False
+    current = report.model_copy(deep=True)
+    current.requested_stages = list(config.stages)
+    finalize(current, [])
+    if not current.quality_complete:
+        return False
+    if "S0" in config.stages and not _independent_s0_controls(report):
+        return False
+    if "S1" in config.stages and not all(
+        (check := report.checks.get(f"rubric-sample-{i}")) is not None
+        and check.status == "measured"
+        for i in (1, 2, 3)
+    ):
+        return False
+    if "S2" in config.stages and "shortcut-agent" not in report.checks:
+        return False
+    if "S3" in config.stages:
+        replay = report.checks.get("fresh-replay")
+        if replay is None or replay.status != "measured":
+            return False
+    if "S2" in config.stages and (package / "environment/setup/setup.sh").is_file():
+        seeker = report.checks.get("shortcut-agent")
+        if (
+            seeker is None or seeker.status != "measured"
+            or seeker.facts.get("mode") != "mimo-semantic-only"
+        ):
+            return False
+    return True
+
+
 def run_task(
     package: Path,
     *,
@@ -4188,11 +4240,7 @@ def run_task(
             if loaded_prev.subject == subject:
                 prev_report = loaded_prev
                 prev_task_dir = cand_dir
-                has_quota_stop = any(
-                    "quota" in (c.reason or "").lower() or "quota" in n.lower()
-                    for n, c in loaded_prev.checks.items()
-                )
-                if loaded_prev.quality_complete and not has_quota_stop:
+                if _resume_report_complete(loaded_prev, config, package):
                     shutil.copytree(cand_dir, task_dir)
                     prev_findings_dir = resume_from.resolve() / "findings"
                     if prev_findings_dir.is_dir():
@@ -4231,7 +4279,10 @@ def run_task(
         if prev_report is None or prev_task_dir is None:
             return False
         s0_names = ("static", "oracle-1", "oracle-2", "oracle-3", "nop-1", "nop-2", "nop-3", "leak")
+        independent_controls = _independent_s0_controls(prev_report)
         for n in s0_names:
+            if n.startswith(("oracle-", "nop-")) and not independent_controls:
+                continue
             chk = prev_report.checks.get(n)
             if chk is not None and chk.status == "measured" and chk.verdict != "fail":
                 report.checks[n] = chk

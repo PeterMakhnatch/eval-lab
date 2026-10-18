@@ -314,6 +314,13 @@ today, so root-cause match is `n/a` (not measured), never 0.
   Quota-stopped, failed, missing or capped adjudications make completeness false,
   even if all numeric controls passed. Pending independent MiMo incorrectness
   review also prevents completeness. Historical raw reports are not rewritten.
+  Resume admission recomputes these gates from the checks, including nested
+  adjudication records, rather than trusting a stored `quality_complete` flag
+  or searching only top-level reason strings. S0 reuse additionally requires
+  six distinct measured job paths; duplicated/missing control custody causes
+  all six controls to run fresh. An old MiMo S2a skip never satisfies the new
+  semantic stage. Valid S1 checks and retained native probe reports can still
+  be reused independently, without overwriting the historical source report.
 - `report.verdict` is `fail` when any verified eval finding stands; otherwise
   `unknown` when measurement is incomplete, any scored check failed, any
   Signal exists, any candidate remains unverified/non-pass, or `report.error`

@@ -1782,3 +1782,78 @@ def test_requested_survivor_adjudication_must_be_complete_even_when_unscored(
     finalize(report, [])
     assert report.quality_complete is (decision is not None)
     assert report.verdict == ("pass" if decision else "unknown")
+
+
+def test_resume_revalidates_legacy_completeness_without_losing_s1_or_raw_native_evidence(
+    tmp_path: Path,
+) -> None:
+    from evallab.qa.task import task_slug
+
+    package = _package(tmp_path)
+    with (package / "task.toml").open("a", encoding="utf-8") as stream:
+        stream.write(
+            '[environment]\nworkdir = "/testbed"\n'
+            "[environment.healthcheck]\ncommand = 'true'\n"
+        )
+    setup = package / "environment/setup"
+    setup.mkdir()
+    (setup / "setup.sh").write_text("#!/bin/sh\ntrue\n", encoding="utf-8")
+    subject = Subject(
+        kind="task", task_id="bench/fake-task", task_digest=task_directory_digest(package)
+    )
+    checks = {
+        "static": Check(stage="S0", status="measured", verdict="unknown", scored=False),
+        "leak": Check(stage="S0", status="measured", verdict="pass"),
+        "shortcut-agent": Check(
+            stage="S2", status="not_run", scored=False, reason="legacy MiMo S2a skipped"
+        ),
+        "ref-mutants": Check(
+            stage="S2", status="measured", verdict="unknown", scored=False,
+            reason="one survivor not adjudicated",
+            facts={
+                "survivors": ["m1"],
+                "adjudications": [{"id": "m1", "verdict": None, "reason": "weekly quota stopped"}],
+            },
+        ),
+        "fresh-replay": Check(stage="S3", status="measured", verdict="pass"),
+    }
+    for agent, reward in (("oracle", 1.0), ("nop", 0.0)):
+        for repeat in (1, 2, 3):
+            checks[f"{agent}-{repeat}"] = Check(
+                stage="S0", status="measured", verdict="pass",
+                facts={"reward": reward, "job_path": str(tmp_path / f"one-cached-{agent}")},
+            )
+    for sample in (1, 2, 3):
+        checks[f"rubric-sample-{sample}"] = Check(
+            stage="S1", status="measured", scored=False,
+            facts={"source": f"retained-s1-{sample}"},
+        )
+    legacy = TaskReport(
+        subject=subject, package=str(package), requested_stages=["S0", "S1", "S2", "S3"],
+        started_at="t", finished_at="t", quality_complete=True, verdict="pass", checks=checks,
+    )
+    old_dir = tmp_path / "old/tasks" / task_slug(subject)
+    (old_dir / "ref_subset").mkdir(parents=True)
+    old_report = legacy.model_dump_json(by_alias=True, indent=2).encode("utf-8")
+    (old_dir / "report.json").write_bytes(old_report)
+    native = b'{"status":"measured","verdict":"pass","reason":"retained native probe"}\n'
+    (old_dir / "ref_subset/report.json").write_bytes(native)
+    backend = FakeBackend()
+    backend.environment = "docker"
+    lane = FakeLane([{"status": "no_candidate", "submission": None}])
+    resumed = run_task(
+        package, config=_config(tmp_path), run_dir=tmp_path / "new",
+        backend=backend, lane=lane, resume_from=tmp_path / "old",
+    )
+    assert backend.control_calls == ["oracle"] * 3 + ["nop"] * 3
+    jobs = {
+        resumed.checks[f"{agent}-{repeat}"].facts["job_path"]
+        for agent in ("oracle", "nop") for repeat in (1, 2, 3)
+    }
+    assert len(jobs) == 6
+    assert resumed.checks["rubric-sample-1"].facts["source"] == "retained-s1-1"
+    assert resumed.checks["shortcut-agent"].facts["mode"] == "mimo-semantic-only"
+    assert resumed.model_calls == 1
+    assert resumed.quality_complete is False
+    assert (old_dir / "report.json").read_bytes() == old_report
+    assert (tmp_path / "new/tasks" / task_slug(subject) / "ref_subset/report.json").read_bytes() == native

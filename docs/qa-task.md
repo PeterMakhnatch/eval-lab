@@ -157,6 +157,8 @@ package, and no TB4 package declares a `workdir`.
   `/var/lib/mimo/base`, which `tests/test.sh` needs; without it no reward exists.
   A separate verifier completes its clean setup **before** candidate artifact
   import; its ready marker prevents later setup from deleting that candidate.
+  Restore the exact package's private tests after setup/artifact import and
+  before grading: setup may remove the test-image's baked `/tests` directory.
   A healthcheck that never exits 0 leaves the trial `failed` (unmeasured), never a
   pass. A package whose healthcheck waits on a service the backend does not start
   (it runs `sleep infinity`) is therefore unmeasured too.

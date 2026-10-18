@@ -1680,7 +1680,8 @@ class HarborBackend:
             check=True,
             timeout=120,
         )
-        if (package / "environment/setup/setup.sh").is_file():
+        mimo_setup = (package / "environment/setup/setup.sh").is_file()
+        if mimo_setup:
             # Initialize the clean verifier before importing candidate artifacts,
             # matching native Harbor's one-time MiMo setup/ready-marker boundary.
             self._run_healthcheck(verifier_name, env_cfg)
@@ -1707,6 +1708,23 @@ class HarborBackend:
             )
             subprocess.run(
                 ["docker", "cp", src_cp, f"{verifier_name}:{dest}"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120,
+            )
+        if mimo_setup:
+            # Clean setup removes /tests. Restore the exact private package
+            # harness after setup/artifact import, never a candidate-owned copy.
+            subprocess.run(
+                ["docker", "exec", "-u", "root", verifier_name, "mkdir", "-p", "/tests"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
+            )
+            subprocess.run(
+                ["docker", "cp", f"{package / 'tests'}/.", f"{verifier_name}:/tests"],
                 capture_output=True,
                 text=True,
                 check=True,

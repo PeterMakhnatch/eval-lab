@@ -100,3 +100,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | executed-outcomes-v1 | 0 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | | | tasks in no key | 21 | |
+| qa-trace-6-label-rule | tuned | QA Trace (qa-trace/6*) | trace-paired-v1 | 3 | 0 |

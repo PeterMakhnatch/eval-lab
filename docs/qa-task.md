@@ -154,8 +154,10 @@ package, and no TB4 package declares a `workdir`.
 - **Healthcheck first.** `[environment.healthcheck]` runs in the started container
   before the oracle, a shortcut, the verifier or the leak probe (`retries + 1`
   attempts, `timeout_sec` each). For MiMo it is the one-time setup that writes
-  `/var/lib/mimo/base`, which `tests/test.sh` needs; without it no reward exists. A
-  healthcheck that never exits 0 leaves the trial `failed` (unmeasured), never a
+  `/var/lib/mimo/base`, which `tests/test.sh` needs; without it no reward exists.
+  A separate verifier completes its clean setup **before** candidate artifact
+  import; its ready marker prevents later setup from deleting that candidate.
+  A healthcheck that never exits 0 leaves the trial `failed` (unmeasured), never a
   pass. A package whose healthcheck waits on a service the backend does not start
   (it runs `sleep infinity`) is therefore unmeasured too.
 - **Patch oracle.** `--ref-patch` (or `solution/patch.diff`) is the oracle. The
@@ -214,9 +216,15 @@ can return `needs_source_context` with specific source paths; this is unmeasured
 not a fabricated patch or a pass.
 
 Accepted responses are `candidate`, `no_candidate` or `needs_source_context`.
-A candidate has only `submission.kind="patch"` and a concrete counterexample
-(`requirement`, `input`, `expected`, `actual`); the prediction is retained for
-independent inspection, never treated as a correctness judgment. Only ordinary
+A candidate has `submission.kind="source_edits"` with ordered `edits`, each
+containing a supplied production `path`, nonempty exact `old` text and replacement
+`new` text. The old text must occur exactly once in the current file at that step.
+`mimo_semantic_edit_patch(package, source_context, edits)` generates and validates
+the unified diff, including EOF markers; models do not calculate hunk counts.
+Unprovided/protected paths, ambiguous anchors and cancelled/no-op edits are
+rejected before Docker. A concrete counterexample (`requirement`, `input`,
+`expected`, `actual`) is retained for independent inspection, never treated as a
+correctness judgment. Only ordinary
 input/output behavior, including constant outputs and incomplete implementations,
 is in scope. Reading expected-answer files or hidden data, writing rewards,
 test-framework monkeypatches, introspection, process/network access and

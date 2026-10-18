@@ -681,6 +681,72 @@ def test_semantic_patch_changes_only_declared_source_and_mismatch_is_atomic(
     assert source.read_text(encoding="utf-8") == "x = 1\ny = 3\n"
 
 
+def test_exact_source_edits_apply_sequentially_and_preserve_unterminated_file(
+    tmp_path: Path,
+) -> None:
+    import runpy
+
+    from evallab.qa.task import mimo_semantic_edit_patch
+
+    repo = _repo(tmp_path)
+    context = {
+        "source.py": "def score(value):\n    return value + 1",
+        "helper.py": "EXTRA = 10\n",
+    }
+    for path, text in context.items():
+        (repo / path).write_text(text, encoding="utf-8")
+    package = _semantic_package(tmp_path, repo)
+    patch = mimo_semantic_edit_patch(
+        package,
+        context,
+        [
+            {"path": "source.py", "old": "return value + 1", "new": "return value - 1"},
+            {"path": "helper.py", "old": "EXTRA = 10", "new": "EXTRA = 2"},
+            {"path": "helper.py", "old": "EXTRA = 2", "new": "EXTRA = 3"},
+        ],
+    )
+    script, _, _ = mimo_semantic_patch_script(package, patch)
+    result = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert runpy.run_path(str(repo / "source.py"))["score"](4) == 3
+    assert runpy.run_path(str(repo / "helper.py"))["EXTRA"] == 3
+    assert not (repo / "source.py").read_bytes().endswith(b"\n")
+
+
+@pytest.mark.parametrize(
+    ("context", "edits"),
+    [
+        (
+            {"a.py": "x = 1\nx = 1\n"},
+            [{"path": "a.py", "old": "x = 1", "new": "x = 2"}],
+        ),
+        (
+            {"a.py": "x = 1\n"},
+            [{"path": "missing.py", "old": "x = 1", "new": "x = 2"}],
+        ),
+        (
+            {"tests/unit.py": "x = 1\n"},
+            [{"path": "tests/unit.py", "old": "x = 1", "new": "x = 2"}],
+        ),
+        (
+            {"a.py": "x = 1\n"},
+            [
+                {"path": "a.py", "old": "x = 1", "new": "x = 2"},
+                {"path": "a.py", "old": "x = 2", "new": "x = 1"},
+            ],
+        ),
+    ],
+)
+def test_exact_source_edits_refuse_ambiguous_unprovided_protected_or_cancelled_changes(
+    tmp_path: Path, context: dict[str, str], edits: list[dict[str, str]]
+) -> None:
+    from evallab.qa.task import mimo_semantic_edit_patch
+
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    with pytest.raises(ValueError):
+        mimo_semantic_edit_patch(package, context, edits)
+
+
 @pytest.mark.parametrize(
     "target",
     [

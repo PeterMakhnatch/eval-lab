@@ -89,6 +89,24 @@ second deployment even if a caller chooses another local journal. Retain the
 parent envelope/journal as permanent accounting evidence; the Modal Dict is
 operational coordination, not an invoice or long-term accounting archive.
 
+Bounded control-plane RPCs use the pinned SDK's explicit `retry=None` mode with
+their finite timeout. SDK 1.5.5 rejects a timeout combined with its default retry
+policy locally, before sending the metadata request.
+
+An SDK admission failure can leave an exclusively created journal without ever
+consuming its remote slot. The parent may pass
+`--recover-predeployment-sha256 <original-journal-sha256>` to **the same deploy
+command below**, retaining the exact envelope, owner, environment, and completed-stop
+deadline. This is only the first deployment of an unused journal, not a resume or
+redeploy: it refuses any local watchdog/deployment/probe/stop/prior-recovery
+evidence, a remote reservation or guard, a prior app tagged with this window, or
+any live BASE/LoRA app (including a previous named deployment absent from the app
+list). Proof uses only metadata and `Dict.get` on a named Dict opened with
+`create_if_missing=False`; a missing Dict is not created during proof. The original
+starts/expiry/deadline and full reservation remain unchanged; the wall high-water
+mark can only increase. A SHA-guarded local claim and the same atomic remote slot admit only one recovery attempt;
+failure after that claim cannot be resumed or retried with another journal.
+
 `maximum_seconds` counts conservatively from **before deployment** until
 **observed stopped state and zero active containers**, including startup,
 idle/cold renewals and shutdown. The UTC `--deadline` is the completed-stop
@@ -135,6 +153,10 @@ keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-
   --budget-state <parent-envelope.json> --budget-state-sha256 <immutable-envelope-sha256> \
   --owner <parent-owner> --deadline <completed-stop-UTC-ISO8601> \
   --environment main --state <owned-durable-window-journal.json>
+
+# Parent only, and only after proving that this exact journal never deployed:
+# append --recover-predeployment-sha256 <original-journal-sha256> to the same
+# deploy command above. Never delete/recreate the journal or change its deadline.
 
 # Free metadata observation; never wakes the GPU. Without --once, watches to stop.
 keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py watch \

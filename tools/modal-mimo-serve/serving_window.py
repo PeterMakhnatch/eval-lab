@@ -183,9 +183,12 @@ class Journal:
         require(value["reserved_usd"] == value["config"]["cap_usd"], "window reservation cannot be reset or refunded")
         return value
 
-    def update(self, **changes: Any) -> dict[str, Any]:
+    def update(self, *, expected_sha256: str | None = None, **changes: Any) -> dict[str, Any]:
         require(not ({"config", "config_sha256", "reserved_usd"} & changes.keys()), "immutable journal fields cannot change")
         with self.locked():
+            if expected_sha256 is not None:
+                require(sha256(self.path.read_bytes()) == expected_sha256,
+                        "predeployment journal changed; recovery authority is no longer valid")
             value = self.read()
             value.update(changes)
             config = value["config"]
@@ -224,7 +227,8 @@ async def _modal_rpc(method: str, request: Any, timeout: float) -> Any:
     from modal.client import _Client
 
     client = await _Client.from_env()
-    return await getattr(client.stub, method)(request, timeout=timeout)
+    # SDK 1.5.5 requires retry=None with a finite timeout; never implicitly retry.
+    return await getattr(client.stub, method)(request, timeout=timeout, retry=None)
 
 
 class ModalControl:
@@ -242,6 +246,38 @@ class ModalControl:
 
     def apps(self):
         return self.rpc("AppList", self.api.AppListRequest(environment_name=self.environment), 10).apps
+
+    def predeployment_proof(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Read-only proof; a missing Dict must not create a reservation or guard."""
+        import modal
+        from modal.exception import NotFoundError
+
+        store = modal.Dict.from_name(STATE_DICT, environment_name=self.environment, create_if_missing=False)
+        for prefix in ("reservation:", "guard:"):
+            try:
+                value = store.get(prefix + config["reservation_id"])
+            except NotFoundError:
+                value = None  # The named Dict itself does not exist.
+            require(value is None, "remote reservation or guard exists; predeployment recovery is forbidden")
+        names = {APP_NAME, APP_NAME + "-lora"}
+        app_ids = {row.app_id for row in self.apps() if (row.name or row.description) in names}
+        for name in sorted(names):
+            deployment = self.rpc("AppGetByDeploymentName",
+                self.api.AppGetByDeploymentNameRequest(name=name, environment_name=self.environment), 10)
+            app_ids.update(app_id for app_id in (deployment.app_id, deployment.previous_app_id) if app_id)
+        observations = []
+        for app_id in sorted(app_ids):
+            tags = self.tags(app_id)
+            require(tags.get("evallab_window_id") != config["window_id"]
+                    and tags.get("evallab_window_config_sha256") != sha256(encoded(config)),
+                    "this window was previously deployed; predeployment recovery is forbidden")
+            lifecycle = self.rpc("AppGetLifecycle", self.api.AppGetLifecycleRequest(app_id=app_id), 5).lifecycle
+            tasks = self.rpc("TaskList", self.api.TaskListRequest(app_id=app_id), 5).tasks
+            require(lifecycle.app_state == self.api.APP_STATE_STOPPED and not tasks,
+                    "another BASE/LoRA app is live; predeployment recovery is forbidden")
+            observations.append({"app_id": app_id, "app_state": int(lifecycle.app_state), "active_containers": 0})
+        return {"checked_at": utc(), "remote_reservation_absent": True, "remote_guard_absent": True,
+                "prior_apps": observations}
 
     def tags(self, app_id: str) -> dict[str, str]:
         response = self.rpc("AppGetTags", self.api.AppGetTagsRequest(app_id=app_id), 5)
@@ -352,16 +388,43 @@ def watch(journal: Journal, *, once: bool = False, stop_now: bool = False) -> di
         time.sleep(1 if stop_now or time.time() >= instant(value["config"]["expires_at"]) else 5)
 
 
-def deploy(args: argparse.Namespace) -> dict[str, Any]:
-    config = admitted_config(args.budget_state, args.budget_state_sha256, args.owner, args.deadline, now=time.time())
+def predeployment_config(args: argparse.Namespace, journal: Journal, digest: str) -> dict[str, Any]:
+    require(sha256(journal.path.read_bytes()) == digest, "predeployment journal SHA256 mismatch")
+    value = journal.read()
+    allowed = {"schema", "config", "config_sha256", "state", "reserved_usd", "wall_exposure_upper_bound_usd",
+               "app_id", "upstream", "stop_guard", "updated_at", "cap_exceeded"}
+    require(set(value) <= allowed and value["schema"] == "mimo.serving-window-journal/v1"
+            and value["state"] == "reserved_not_deployed"
+            and value["app_id"] is None and value["upstream"] is None and value["stop_guard"] == {"armed": False},
+            "only an unused predeployment journal is recoverable; no resume or redeploy is permitted")
+    original = value["config"]
+    config = admitted_config(args.budget_state, args.budget_state_sha256, args.owner, args.deadline,
+                             now=instant(original["starts_at"]))
     config["environment"] = args.environment
+    require(config == original, "recovery must retain the original immutable config and completed-stop deadline")
+    require(time.time() < instant(config["expires_at"]), "original window expired; recovery cannot extend it")
+    return config
+
+
+def deploy(args: argparse.Namespace) -> dict[str, Any]:
     journal = Journal(args.state)
-    journal.create(config)  # Exclusive creation; never a resume/redeploy/reset operation.
+    recovery = getattr(args, "recover_predeployment_sha256", None)
+    if recovery:
+        config = predeployment_config(args, journal, recovery)
+    else:
+        config = admitted_config(args.budget_state, args.budget_state_sha256, args.owner, args.deadline, now=time.time())
+        config["environment"] = args.environment
+        journal.create(config)  # Exclusive creation; never a resume/redeploy/reset operation.
     control = ModalControl(args.environment)
     for row in control.apps():
         if (row.name or row.description) in {APP_NAME, APP_NAME + "-lora"}:
             require(row.state == control.api.APP_STATE_STOPPED and row.n_running_tasks == 0,
                     "another BASE/LoRA app is live; do not replace it or open a parallel GPU window")
+    if recovery:
+        proof = control.predeployment_proof(config)
+        require(time.time() < instant(config["expires_at"]), "original window expired during recovery proof")
+        journal.update(expected_sha256=recovery, state="predeployment_recovery_claimed",
+                       predeployment_recovery={"journal_sha256": recovery, **proof})
     require(control.store.put("reservation:" + config["reservation_id"], sha256(encoded(config)), skip_if_exists=True),
             "parent reservation has already been consumed; a new local journal cannot reset it")
     log_path = journal.path.with_suffix(journal.path.suffix + ".watchdog.log")
@@ -526,6 +589,8 @@ def main(argv: list[str] | None = None) -> None:
     start.add_argument("--deadline", required=True, help="absolute UTC completed-stop deadline, not stop-request time")
     start.add_argument("--environment", required=True)
     start.add_argument("--state", type=Path, required=True)
+    start.add_argument("--recover-predeployment-sha256",
+        help="parent only: recover this SHA-pinned unused journal after read-only proof; never resume/redeploy")
     for name in ("watch", "health", "binding", "stop", "receipt"):
         command = commands.add_parser(name)
         command.add_argument("--state", type=Path, required=True)

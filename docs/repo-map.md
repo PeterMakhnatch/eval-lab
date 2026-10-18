@@ -129,7 +129,7 @@ inputs:
   - path: src/evallab/docker_lock.py
     digest: sha256:d6a5169956b6873b4a55eeaddcdcce1bb6c996ad7018c669185993c5ddab273c
   - path: src/evallab/edit_signals.py
-    digest: sha256:bc27ee609a7ff15634bbee13619f86e2096b8cc8b992ef7f44bdb81d9247182d
+    digest: sha256:bbb975709aa4f53f2e8c7669790e6454323f3321190c8536fd35646a6deb83d1
   - path: src/evallab/eventlog.py
     digest: sha256:4824bd5e97787140d8051dede9efe83978558f531046c381327e26b227d9410d
   - path: src/evallab/evidence/__init__.py
@@ -757,7 +757,7 @@ inputs:
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py
-    digest: sha256:a28797ad9219e510f10cfa573db5a0682a938526e5e3b7d35531b0b0eba723ab
+    digest: sha256:b6fe38ca207af79c33eb21a852f530b305913146a7e8d9e3e10e44719ffae23b
   - path: src/evallab/vcheck.py
     digest: sha256:1f43bca0ad962039d2dbcbc430e3b3db21e5f9bb888aa89879ed63dccb4210d5
   - path: src/evallab/vcheck_blue.py

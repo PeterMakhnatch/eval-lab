@@ -795,3 +795,262 @@ def test_django_completion_requires_first_party_suite_status(
         DJANGO_CASE + f"\nRan 1 test in 0.010s\n\n{terminal}\n",
     )
     assert not census["positive_case_execution"](trial)
+
+
+INLINE_DJANGO_BODY = (
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner(verbosity=2)\n"
+    "failures = runner.run_tests(list(sys.argv[1:]))\n"
+)
+TERMINAL_PYTEST_COMMAND = (
+    "python3 -m pytest $_terminal_guard_plugins --noconftest "
+    "--ctrf /logs/verifier/ctrf.json -q /tests/test_outputs.py\n"
+)
+
+
+def inline_django_command(body: str = INLINE_DJANGO_BODY) -> str:
+    return "python3 - \"$@\" <<'PY'\nimport sys\n" + body + "\nPY\n"
+
+
+@pytest.mark.parametrize("body", [
+    INLINE_DJANGO_BODY,
+    "from django.test.runner import DiscoverRunner as Suite\n"
+    "suite = Suite(verbosity=2)\nsuite.run_tests(['example.tests'])\n",
+])
+@pytest.mark.parametrize("output", [
+    DJANGO_CASE + DJANGO_SUMMARY,
+    "test_order (example.tests.OrderTests.test_order) ... warning from application\nFAIL\n"
+    "\nRan 1 test in 0.010s\n\nFAILED (failures=1)\n",
+])
+def test_inline_django_requires_an_invoked_bound_runner_and_completed_cases(
+    census: dict[str, Any], tmp_path: Path, body: str, output: str,
+) -> None:
+    assert census["positive_case_execution"](
+        framework_logs(tmp_path, inline_django_command(body), output),
+    )
+
+
+@pytest.mark.parametrize("body", [
+    "from django.test.runner import DiscoverRunner\n",
+    "from django.test.runner import DiscoverRunner\nrunner = DiscoverRunner()\n",
+    "runner = other_object\nrunner.run_tests(['example.tests'])\n",
+    "from other_module import DiscoverRunner\nrunner = DiscoverRunner()\nrunner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "DiscoverRunner = other_factory\nrunner = DiscoverRunner()\nrunner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner()\nrunner = other_object\nrunner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner()\ndel runner\nrunner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner()\nfrom other_module import runner\nrunner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner()\ndef unused():\n    runner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\n"
+    "runner = DiscoverRunner()\nif False:\n    runner.run_tests([])\n",
+    "from django.test.runner import DiscoverRunner\nrunner = DiscoverRunner(\n",
+])
+def test_inline_django_mentions_unused_and_shadowed_runners_do_not_qualify(
+    census: dict[str, Any], tmp_path: Path, body: str,
+) -> None:
+    assert not census["positive_case_execution"](
+        framework_logs(tmp_path, inline_django_command(body), DJANGO_CASE + DJANGO_SUMMARY),
+    )
+
+
+@pytest.mark.parametrize("command", [
+    "echo " + repr(INLINE_DJANGO_BODY) + "\n",
+    "# " + inline_django_command().replace("\n", "\n# "),
+    "cat <<'TEXT'\n" + inline_django_command() + "TEXT\n",
+    inline_django_command().removesuffix("PY\n"),
+])
+def test_inline_django_body_must_be_python_stdin_not_quoted_source(
+    census: dict[str, Any], tmp_path: Path, command: str,
+) -> None:
+    assert not census["positive_case_execution"](
+        framework_logs(tmp_path, command, DJANGO_CASE + DJANGO_SUMMARY),
+    )
+
+
+@pytest.mark.parametrize("output", [
+    DJANGO_CASE,
+    DJANGO_SUMMARY,
+    DJANGO_CASE + "\nRan 0 tests in 0.010s\n\nOK\n",
+    "test_order (example.tests.OrderTests.test_order) ... skipped 'unavailable'\n"
+    "\nRan 1 test in 0.010s\n\nOK (skipped=1)\n",
+    "test_missing (unittest.loader._FailedTest.test_missing) ... ERROR\n"
+    "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+])
+def test_inline_django_does_not_bypass_incomplete_zero_skipped_or_loader_guards(
+    census: dict[str, Any], tmp_path: Path, output: str,
+) -> None:
+    assert not census["positive_case_execution"](
+        framework_logs(tmp_path, inline_django_command(), output),
+    )
+
+
+def test_inline_django_native_pair_requires_all_repeat_local_invocations(
+    census: dict[str, Any], inputs: tuple[dict[str, str], dict[str, str]], tmp_path: Path,
+) -> None:
+    _, manifest = inputs
+    metadata_paths = set()
+    for agent, reward in (("oracle", 1.0), ("nop", 0.0)):
+        metadata = control(tmp_path, manifest, agent, reward=reward, cases=0)
+        repeat_runs(metadata, [reward] * 3, [None] * 3, [False] * 3)
+        for index in range(3):
+            output = DJANGO_CASE + DJANGO_SUMMARY if reward else (
+                "test_order (example.tests.OrderTests.test_order) ... FAIL\n"
+                "\nRan 1 test in 0.010s\n\nFAILED (failures=1)\n"
+            )
+            framework_logs(
+                metadata.parent / f"trial/verifier/repeat/{index}",
+                inline_django_command(), output,
+            )
+        metadata_paths.add(metadata)
+    assert classify(census, inputs, tmp_path, metadata_paths)["bucket"] == "v6_verified"
+    (tmp_path / "nop/trial/verifier/repeat/2/resolved_command.txt").unlink()
+    assert classify(census, inputs, tmp_path, metadata_paths)["bucket"] == "v6_unverified"
+
+
+@pytest.mark.parametrize("reward", [None, True, "1", float("nan"), float("inf")])
+def test_inline_case_evidence_never_substitutes_for_a_numeric_finite_native_reward(
+    census: dict[str, Any], inputs: tuple[dict[str, str], dict[str, str]],
+    tmp_path: Path, reward: Any,
+) -> None:
+    _, manifest = inputs
+    metadata = control(tmp_path, manifest, "oracle", reward=reward, cases=0)
+    framework_logs(
+        metadata.parent / "trial/verifier", inline_django_command(), DJANGO_CASE + DJANGO_SUMMARY,
+    )
+    observation, = census["native_observations"]({metadata})
+    assert observation["test_execution"] == [True]
+    assert observation["scored"] is False
+
+
+def terminal_pytest_logs(root: Path, statuses: tuple[str, ...] = ("passed", "failed")) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    cases = [
+        {"name": f"test_outputs.py::test_case_{index}", "status": status}
+        for index, status in enumerate(statuses)
+    ]
+    counts = {status: statuses.count(status) for status in ("passed", "failed", "skipped", "pending", "other")}
+    (root / "ctrf.json").write_text(json.dumps({"results": {
+        "tool": {"name": "pytest"}, "tests": cases, "summary": {"tests": len(cases), **counts},
+    }}))
+    summary = ", ".join(f"{count} {status}" for status, count in counts.items() if count)
+    (root / "test-stdout.txt").write_text(f".. [100%]\n{summary} in 0.010s\n")
+    return root
+
+
+@pytest.mark.parametrize("statuses", [
+    ("passed", "passed"), ("failed", "failed"), ("passed", "failed"),
+])
+def test_terminal_pytest_requires_caller_bound_producer_and_reconciled_named_cases(
+    census: dict[str, Any], tmp_path: Path, statuses: tuple[str, ...],
+) -> None:
+    trial = terminal_pytest_logs(tmp_path, statuses)
+    assert not census["positive_case_execution"](trial)
+    assert census["positive_case_execution"](trial, pytest_command=TERMINAL_PYTEST_COMMAND)
+
+
+@pytest.mark.parametrize("command", [
+    "",
+    "# " + TERMINAL_PYTEST_COMMAND,
+    "echo " + repr(TERMINAL_PYTEST_COMMAND) + "\n",
+    "cat <<'TEXT'\n" + TERMINAL_PYTEST_COMMAND + "TEXT\n",
+    TERMINAL_PYTEST_COMMAND.replace("/logs/verifier/ctrf.json", "/tmp/unrelated.json"),
+    TERMINAL_PYTEST_COMMAND.replace("-m pytest", "-m helper"),
+])
+def test_terminal_reports_cannot_establish_their_own_pytest_producer(
+    census: dict[str, Any], tmp_path: Path, command: str,
+) -> None:
+    assert not census["positive_case_execution"](
+        terminal_pytest_logs(tmp_path), pytest_command=command,
+    )
+
+
+@pytest.mark.parametrize("damage", [
+    "missing", "malformed", "root-list", "no-results", "cases-object", "no-cases",
+    "empty-name", "empty-node", "invalid-status", "duplicate-name", "summary-count",
+    "status-count", "boolean-count", "wrong-tool", "missing-summary",
+])
+def test_terminal_ctrf_must_prove_consistent_actual_named_case_outcomes(
+    census: dict[str, Any], tmp_path: Path, damage: str,
+) -> None:
+    trial = terminal_pytest_logs(tmp_path)
+    path = trial / "ctrf.json"
+    report = json.loads(path.read_bytes())
+    results = report["results"]
+    if damage == "missing":
+        path.unlink()
+    elif damage == "malformed":
+        path.write_text("{")
+    else:
+        if damage == "root-list":
+            report = []
+        elif damage == "no-results":
+            report = {}
+        elif damage == "cases-object":
+            results["tests"] = {}
+        elif damage == "no-cases":
+            results["tests"] = []
+        elif damage == "empty-name":
+            results["tests"][0]["name"] = " "
+        elif damage == "empty-node":
+            results["tests"][0]["name"] = "::"
+        elif damage == "invalid-status":
+            results["tests"][0]["status"] = "error"
+        elif damage == "duplicate-name":
+            results["tests"][1]["name"] = results["tests"][0]["name"]
+        elif damage == "summary-count":
+            results["summary"]["tests"] = 100
+        elif damage == "status-count":
+            results["summary"]["passed"] = 0
+            results["summary"]["failed"] = 2
+        elif damage == "boolean-count":
+            results["summary"]["passed"] = True
+        elif damage == "wrong-tool":
+            results["tool"]["name"] = "helper"
+        elif damage == "missing-summary":
+            del results["summary"]
+        path.write_text(json.dumps(report))
+    assert not census["positive_case_execution"](trial, pytest_command=TERMINAL_PYTEST_COMMAND)
+
+
+@pytest.mark.parametrize("statuses", [("skipped",), ("pending",), ("other",)])
+def test_terminal_nonexecuted_records_are_not_cases(
+    census: dict[str, Any], tmp_path: Path, statuses: tuple[str, ...],
+) -> None:
+    assert not census["positive_case_execution"](
+        terminal_pytest_logs(tmp_path, statuses), pytest_command=TERMINAL_PYTEST_COMMAND,
+    )
+
+
+@pytest.mark.parametrize("output", [
+    "",
+    "FF [100%]\n",
+    "collected 0 items / 1 error\n2 failed in 0.010s\n",
+    "ERROR test_outputs.py::test_case_0\nERROR test_outputs.py::test_case_1\n"
+    "2 errors in 0.010s\n",
+    "1 failed, 1 error in 0.010s\n",
+    "2 passed in 0.010s\n",
+    "1 failed in 0.010s\n1 failed in 0.020s\n",
+])
+def test_terminal_plugin_failed_rows_do_not_hide_setup_errors_or_stdout_disagreement(
+    census: dict[str, Any], tmp_path: Path, output: str,
+) -> None:
+    trial = terminal_pytest_logs(tmp_path, ("failed", "failed"))
+    (trial / "test-stdout.txt").write_text(output)
+    assert not census["positive_case_execution"](trial, pytest_command=TERMINAL_PYTEST_COMMAND)
+
+
+def test_terminal_report_and_stdout_must_belong_to_the_same_pytest_invocation(
+    census: dict[str, Any], tmp_path: Path,
+) -> None:
+    first = terminal_pytest_logs(tmp_path / "repeat/0")
+    second = tmp_path / "repeat/1"
+    second.mkdir()
+    (first / "test-stdout.txt").rename(second / "test-stdout.txt")
+    assert not census["positive_case_execution"](tmp_path, pytest_command=TERMINAL_PYTEST_COMMAND)
+    (second / "test-stdout.txt").rename(first / "test-stdout.txt")
+    (first / "runner.txt").write_text("RUNNER=custom\n")
+    assert not census["positive_case_execution"](tmp_path, pytest_command=TERMINAL_PYTEST_COMMAND)

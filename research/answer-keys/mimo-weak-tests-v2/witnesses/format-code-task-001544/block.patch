@@ -1,0 +1,40 @@
+diff --git a/h/schemas/api/user.py b/h/schemas/api/user.py
+index ad002f1..789b28f 100644
+--- a/h/schemas/api/user.py
++++ b/h/schemas/api/user.py
+@@ -38,6 +38,7 @@ class CreateUserAPISchema(JSONSchema):
+             },
+             'identities': {
+                 'type': 'array',
++                'minItems': 1,
+                 'items': {
+                     'type': 'object',
+                     'properties': {
+@@ -55,11 +56,22 @@ class CreateUserAPISchema(JSONSchema):
+                 }
+             },
+         },
+-        'required': [
+-            'authority',
+-            'username',
+-            'email',
+-        ],
++        'anyOf': [  # email may be empty if identities are present
++            {
++                'required': [
++                    'authority',
++                    'username',
++                    'email',
++                ],
++            },
++            {
++                'required': [
++                    'authority',
++                    'username',
++                    'identities',
++                ],
++            }
++        ]
+     }
+ 
+ 

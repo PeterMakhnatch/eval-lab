@@ -1,0 +1,25 @@
+diff --git a/asyncua/common/structures104.py b/asyncua/common/structures104.py
+index b10175c..6b1a87a 100644
+--- a/asyncua/common/structures104.py
++++ b/asyncua/common/structures104.py
+@@ -132,7 +132,10 @@ def clean_name(name):
+     return newname
+ 
+ 
+-def get_default_value(uatype, enums=None, hack=False):
++def get_default_value(uatype, enums=None, hack=False, optional=False):
++    if optional:
++        return "None"
++
+     if hasattr(ua, uatype):
+         # That type is know, make sure this is not a subtype
+         dtype = getattr(ua, uatype)
+@@ -215,7 +218,7 @@ class {struct_name}{base_class}:
+         if sfield.ValueRank >= 0:
+             default_value = "field(default_factory=list)"
+         else:
+-            default_value = get_default_value(uatype)
++            default_value = get_default_value(uatype, optional=sfield.IsOptional)
+ 
+         if sfield.DataType != data_type:
+             uatype = f"ua.{uatype}"

@@ -1,0 +1,33 @@
+diff --git a/wagtail/admin/search.py b/wagtail/admin/search.py
+index 1c66654..06b4763 100644
+--- a/wagtail/admin/search.py
++++ b/wagtail/admin/search.py
+@@ -31,9 +31,28 @@ class SearchArea(metaclass=MediaDefiningClass):
+             self.attr_string = ""
+ 
+     def __lt__(self, other):
++        if not isinstance(other, SearchArea):
++            return NotImplemented
+         return (self.order, self.label) < (other.order, other.label)
+ 
++    def __le__(self, other):
++        if not isinstance(other, SearchArea):
++            return NotImplemented
++        return (self.order, self.label) <= (other.order, other.label)
++
++    def __gt__(self, other):
++        if not isinstance(other, SearchArea):
++            return NotImplemented
++        return (self.order, self.label) > (other.order, other.label)
++
++    def __ge__(self, other):
++        if not isinstance(other, SearchArea):
++            return NotImplemented
++        return (self.order, self.label) >= (other.order, other.label)
++
+     def __eq__(self, other):
++        if not isinstance(other, SearchArea):
++            return NotImplemented
+         return (self.order, self.label) == (other.order, other.label)
+ 
+     def is_shown(self, request):

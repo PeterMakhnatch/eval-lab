@@ -141,3 +141,11 @@ run `uv run python research/answer-keys/splits/guard.py`.
   - **Caveat:** ref-subset selected most of these items, so ref-subset's own score
     on them is circular.
   - See `mimo-weak-tests-v1/README.md`.
+- `mimo-weak-tests-v2`: the fixed 567-task MiMo primary-probe atlas, with a
+  **positive-only, package-digest-bound** weak-test key and executable witnesses.
+  - Block omissions and line survivors are labels only after instruction-level
+    adjudication; unresolved, unreviewed, and unprobed cases stay explicit.
+  - Recorded controls are not fresh replay or repaired-package certification.
+  - Selection is source-derived and circular for the selecting tool; existing
+    split assignments and the historical v1 key are preserved.
+  - See `mimo-weak-tests-v2/README.md` and its deterministic `summary.json`.

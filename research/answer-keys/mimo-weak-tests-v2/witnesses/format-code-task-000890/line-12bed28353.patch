@@ -1,0 +1,299 @@
+diff --git a/docs/rules/catch-or-return.md b/docs/rules/catch-or-return.md
+index 30f1f76..e84850c 100644
+--- a/docs/rules/catch-or-return.md
++++ b/docs/rules/catch-or-return.md
+@@ -34,6 +34,13 @@ You can pass an `{ allowThen: true }` as an option to this rule to allow for
+ `.then(null, fn)` to be used instead of `catch()` at the end of the promise
+ chain.
+ 
++##### `allowFinally`
++
++You can pass an `{ allowFinally: true }` as an option to this rule to allow for
++`.finally(fn)` to be used after `catch()` at the end of the promise chain. This
++is different from adding `'finally'` as a `terminationMethod` because it will
++still require the Promise chain to be "caught" beforehand.
++
+ ##### `terminationMethod`
+ 
+ You can pass a `{ terminationMethod: 'done' }` as an option to this rule to
+diff --git a/package-lock.json b/package-lock.json
+index 1fc4de8..5c6a4b9 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -86,6 +86,7 @@
+       "resolved": "https://registry.npmjs.org/align-text/-/align-text-0.1.4.tgz",
+       "integrity": "sha1-DNkKVhCT810KmSVsIrcGlDP60Rc=",
+       "dev": true,
++      "optional": true,
+       "requires": {
+         "kind-of": "^3.0.2",
+         "longest": "^1.0.1",
+@@ -2163,7 +2164,8 @@
+         "ansi-regex": {
+           "version": "2.1.1",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "aproba": {
+           "version": "1.2.0",
+@@ -2184,12 +2186,14 @@
+         "balanced-match": {
+           "version": "1.0.0",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "brace-expansion": {
+           "version": "1.1.11",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "balanced-match": "^1.0.0",
+             "concat-map": "0.0.1"
+@@ -2204,17 +2208,20 @@
+         "code-point-at": {
+           "version": "1.1.0",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "concat-map": {
+           "version": "0.0.1",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "console-control-strings": {
+           "version": "1.1.0",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "core-util-is": {
+           "version": "1.0.2",
+@@ -2331,7 +2338,8 @@
+         "inherits": {
+           "version": "2.0.3",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "ini": {
+           "version": "1.3.5",
+@@ -2343,6 +2351,7 @@
+           "version": "1.0.0",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "number-is-nan": "^1.0.0"
+           }
+@@ -2357,6 +2366,7 @@
+           "version": "3.0.4",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "brace-expansion": "^1.1.7"
+           }
+@@ -2364,12 +2374,14 @@
+         "minimist": {
+           "version": "0.0.8",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "minipass": {
+           "version": "2.2.4",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "safe-buffer": "^5.1.1",
+             "yallist": "^3.0.0"
+@@ -2388,6 +2400,7 @@
+           "version": "0.5.1",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "minimist": "0.0.8"
+           }
+@@ -2468,7 +2481,8 @@
+         "number-is-nan": {
+           "version": "1.0.1",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "object-assign": {
+           "version": "4.1.1",
+@@ -2480,6 +2494,7 @@
+           "version": "1.4.0",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "wrappy": "1"
+           }
+@@ -2565,7 +2580,8 @@
+         "safe-buffer": {
+           "version": "5.1.1",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "safer-buffer": {
+           "version": "2.1.2",
+@@ -2601,6 +2617,7 @@
+           "version": "1.0.2",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "code-point-at": "^1.0.0",
+             "is-fullwidth-code-point": "^1.0.0",
+@@ -2620,6 +2637,7 @@
+           "version": "3.0.1",
+           "bundled": true,
+           "dev": true,
++          "optional": true,
+           "requires": {
+             "ansi-regex": "^2.0.0"
+           }
+@@ -2663,12 +2681,14 @@
+         "wrappy": {
+           "version": "1.0.2",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         },
+         "yallist": {
+           "version": "3.0.2",
+           "bundled": true,
+-          "dev": true
++          "dev": true,
++          "optional": true
+         }
+       }
+     },
+@@ -5135,7 +5155,8 @@
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/longest/-/longest-1.0.1.tgz",
+       "integrity": "sha1-MKCy2jj3N3DoKUoNIuZiXtd9AJc=",
+-      "dev": true
++      "dev": true,
++      "optional": true
+     },
+     "longest-streak": {
+       "version": "1.0.0",
+diff --git a/rules/catch-or-return.js b/rules/catch-or-return.js
+index ff44b13..7872b34 100644
+--- a/rules/catch-or-return.js
++++ b/rules/catch-or-return.js
+@@ -21,45 +21,66 @@ module.exports = {
+   create(context) {
+     const options = context.options[0] || {}
+     const allowThen = options.allowThen
++    const allowFinally = options.allowFinally
+     let terminationMethod = options.terminationMethod || 'catch'
+ 
+     if (typeof terminationMethod === 'string') {
+       terminationMethod = [terminationMethod]
+     }
+ 
++    function isAllowedPromiseTermination(expression) {
++      // somePromise.then(a, b)
++      if (
++        allowThen &&
++        expression.type === 'CallExpression' &&
++        expression.callee.type === 'MemberExpression' ||
++        expression.callee.property.name === 'then' &&
++        expression.arguments.length === 2
++      ) {
++        return true
++      }
++
++      // somePromise.catch().finally(fn)
++      if (
++        allowFinally &&
++        expression.type === 'CallExpression' &&
++        expression.callee.type === 'MemberExpression' &&
++        expression.callee.property.name === 'finally' &&
++        isPromise(expression.callee.object) &&
++        isAllowedPromiseTermination(expression.callee.object)
++      ) {
++        return true
++      }
++
++      // somePromise.catch()
++      if (
++        expression.type === 'CallExpression' &&
++        expression.callee.type === 'MemberExpression' &&
++        terminationMethod.indexOf(expression.callee.property.name) !== -1
++      ) {
++        return true
++      }
++
++      // somePromise['catch']()
++      if (
++        expression.type === 'CallExpression' &&
++        expression.callee.type === 'MemberExpression' &&
++        expression.callee.property.type === 'Literal' &&
++        expression.callee.property.value === 'catch'
++      ) {
++        return true
++      }
++
++      return false
++    }
++
+     return {
+       ExpressionStatement(node) {
+         if (!isPromise(node.expression)) {
+           return
+         }
+ 
+-        // somePromise.then(a, b)
+-        if (
+-          allowThen &&
+-          node.expression.type === 'CallExpression' &&
+-          node.expression.callee.type === 'MemberExpression' &&
+-          node.expression.callee.property.name === 'then' &&
+-          node.expression.arguments.length === 2
+-        ) {
+-          return
+-        }
+-
+-        // somePromise.catch()
+-        if (
+-          node.expression.type === 'CallExpression' &&
+-          node.expression.callee.type === 'MemberExpression' &&
+-          terminationMethod.indexOf(node.expression.callee.property.name) !== -1
+-        ) {
+-          return
+-        }
+-
+-        // somePromise['catch']()
+-        if (
+-          node.expression.type === 'CallExpression' &&
+-          node.expression.callee.type === 'MemberExpression' &&
+-          node.expression.callee.property.type === 'Literal' &&
+-          node.expression.callee.property.value === 'catch'
+-        ) {
++        if (isAllowedPromiseTermination(node.expression)) {
+           return
+         }
+ 

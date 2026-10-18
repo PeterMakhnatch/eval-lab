@@ -1,0 +1,61 @@
+diff --git a/moto/dynamodb2/exceptions.py b/moto/dynamodb2/exceptions.py
+index 7d517d8..40c5591 100644
+--- a/moto/dynamodb2/exceptions.py
++++ b/moto/dynamodb2/exceptions.py
+@@ -204,3 +204,10 @@ class UpdateHashRangeKeyException(MockValidationException):
+ 
+     def __init__(self, key_name):
+         super(UpdateHashRangeKeyException, self).__init__(self.msg.format(key_name))
++
++
++class TooManyAddClauses(InvalidUpdateExpression):
++    msg = 'The "ADD" section can only be used once in an update expression;'
++
++    def __init__(self):
++        super(TooManyAddClauses, self).__init__(self.msg)
+diff --git a/moto/dynamodb2/models/__init__.py b/moto/dynamodb2/models/__init__.py
+index 4cff163..3bd2489 100644
+--- a/moto/dynamodb2/models/__init__.py
++++ b/moto/dynamodb2/models/__init__.py
+@@ -1388,6 +1388,7 @@ class DynamoDBBackend(BaseBackend):
+             # Parse expression to get validation errors
+             update_expression_ast = UpdateExpressionParser.make(update_expression)
+             update_expression = re.sub(r"\s*([=\+-])\s*", "\\1", update_expression)
++            update_expression_ast.validate()
+ 
+         if all([table.hash_key_attr in key, table.range_key_attr in key]):
+             # Covers cases where table has hash and range keys, ``key`` param
+diff --git a/moto/dynamodb2/parsing/ast_nodes.py b/moto/dynamodb2/parsing/ast_nodes.py
+index 4b1907d..4e2a52d 100644
+--- a/moto/dynamodb2/parsing/ast_nodes.py
++++ b/moto/dynamodb2/parsing/ast_nodes.py
+@@ -3,6 +3,7 @@ from abc import abstractmethod
+ from collections import deque
+ 
+ from moto.dynamodb2.models import DynamoType
++from ..exceptions import TooManyAddClauses
+ 
+ 
+ class Node(metaclass=abc.ABCMeta):
+@@ -20,6 +21,21 @@ class Node(metaclass=abc.ABCMeta):
+     def set_parent(self, parent_node):
+         self.parent = parent_node
+ 
++    def validate(self):
++        if self.type == "UpdateExpression":
++            nr_of_clauses = len(self.find_clauses(UpdateExpressionAddClause))
++            if nr_of_clauses >= 1:
++                raise TooManyAddClauses()
++
++    def find_clauses(self, clause_type):
++        clauses = []
++        for child in self.children or []:
++            if isinstance(child, clause_type):
++                clauses.append(child)
++            elif isinstance(child, Expression):
++                clauses.extend(child.find_clauses(clause_type))
++        return clauses
++
+ 
+ class LeafNode(Node):
+     """A LeafNode is a Node where none of the children are Nodes themselves."""

@@ -1,0 +1,177 @@
+diff --git a/src/strategies/bluesky.js b/src/strategies/bluesky.js
+index f3ebc4c..0007f4c 100644
+--- a/src/strategies/bluesky.js
++++ b/src/strategies/bluesky.js
+@@ -123,7 +123,7 @@ function getUploadBlobUrl(options) {
+  * @param {Uint8Array} imageData The image data to upload.
+  * @returns {Promise<BlueskyUploadBlobResponse>} A promise that resolves with the blob data.
+  */
+-async function uploadImage(options, session, imageData) {
++async function uploadImage(options, session, imageData, signal) {
+ 	const url = getUploadBlobUrl(options);
+ 
+ 	const response = await fetch(url, {
+@@ -133,6 +133,7 @@ async function uploadImage(options, session, imageData) {
+ 			Authorization: `Bearer ${session.accessJwt}`,
+ 		},
+ 		body: imageData,
++		signal,
+ 	});
+ 
+ 	if (response.ok) {
+@@ -155,7 +156,7 @@ async function uploadImage(options, session, imageData) {
+  * @param {BlueskyOptions} options The options for the strategy.
+  * @returns {Promise<BlueskySession>} A promise that resolves with the session data.
+  */
+-async function createSession(options) {
++async function createSession(options, signal) {
+ 	const url = getCreateSessionUrl(options);
+ 
+ 	const response = await fetch(url, {
+@@ -167,6 +168,7 @@ async function createSession(options) {
+ 			identifier: options.identifier,
+ 			password: options.password,
+ 		}),
++		signal,
+ 	});
+ 
+ 	if (response.ok) {
+@@ -234,6 +236,7 @@ async function postMessage(options, session, message, postOptions) {
+ 			Authorization: `Bearer ${session.accessJwt}`,
+ 		},
+ 		body: JSON.stringify(body),
++		signal: postOptions?.signal,
+ 	});
+ 
+ 	if (response.ok) {
+diff --git a/src/strategies/devto.js b/src/strategies/devto.js
+index 1c537c5..ac43db1 100644
+--- a/src/strategies/devto.js
++++ b/src/strategies/devto.js
+@@ -82,6 +82,7 @@ async function postArticle(apiKey, content, postOptions) {
+ 				published: true,
+ 			},
+ 		}),
++		signal: postOptions?.signal,
+ 	});
+ 
+ 	if (response.ok) {
+diff --git a/src/strategies/discord-webhook.js b/src/strategies/discord-webhook.js
+index d1e0c6f..0c71290 100644
+--- a/src/strategies/discord-webhook.js
++++ b/src/strategies/discord-webhook.js
+@@ -176,6 +176,7 @@ export class DiscordWebhookStrategy {
+ 					"Crosspost CLI (https://github.com/humanwhocodes/crosspost, v0.6.3)", // x-release-please-version
+ 			},
+ 			body: formData,
++			signal: postOptions?.signal,
+ 		});
+ 
+ 		if (!response.ok) {
+diff --git a/src/strategies/discord.js b/src/strategies/discord.js
+index ad51fa7..7268a39 100644
+--- a/src/strategies/discord.js
++++ b/src/strategies/discord.js
+@@ -166,6 +166,7 @@ export class DiscordStrategy {
+ 					"Crosspost CLI (https://github.com/humanwhocodes/crosspost, v0.8.0)", // x-release-please-version
+ 			},
+ 			body: formData,
++			signal: postOptions?.signal,
+ 		});
+ 
+ 		if (!response.ok) {
+diff --git a/src/strategies/linkedin.js b/src/strategies/linkedin.js
+index 4652108..16cfe59 100644
+--- a/src/strategies/linkedin.js
++++ b/src/strategies/linkedin.js
+@@ -123,13 +123,14 @@ const USER_INFO_URL = "https://api.linkedin.com/v2/userinfo";
+  * @returns {Promise<string>} A promise that resolves with the person URN.
+  * @throws {Error} When the request fails.
+  */
+-async function fetchPersonUrn(accessToken) {
++async function fetchPersonUrn(accessToken, signal) {
+ 	const response = await fetch(USER_INFO_URL, {
+ 		method: "GET",
+ 		headers: {
+ 			Authorization: `Bearer ${accessToken}`,
+ 			"Content-Type": "application/json",
+ 		},
++		signal,
+ 	});
+ 
+ 	if (!response.ok) {
+@@ -153,7 +154,7 @@ async function fetchPersonUrn(accessToken) {
+  * @returns {Promise<string>} A promise that resolves with the asset URN.
+  * @throws {Error} When the request fails.
+  */
+-async function uploadImage(accessToken, personUrn, imageData) {
++async function uploadImage(accessToken, personUrn, imageData, signal) {
+ 	const response = await fetch(
+ 		"https://api.linkedin.com/v2/assets?action=registerUpload",
+ 		{
+@@ -173,6 +174,7 @@ async function uploadImage(accessToken, personUrn, imageData) {
+ 						},
+ 					],
+ 				},
++				signal,
+ 			}),
+ 		},
+ 	);
+@@ -198,6 +200,7 @@ async function uploadImage(accessToken, personUrn, imageData) {
+ 				"Content-Type": "image/*",
+ 			},
+ 			body: imageData,
++			signal,
+ 		},
+ 	);
+ 
+@@ -268,6 +271,7 @@ async function createPost(options, personUrn, message, postOptions) {
+ 			"X-Restli-Protocol-Version": "2.0.0",
+ 		},
+ 		body: JSON.stringify(body),
++		signal: postOptions?.signal,
+ 	});
+ 
+ 	if (!response.ok) {
+diff --git a/src/strategies/mastodon.js b/src/strategies/mastodon.js
+index e3a1aaa..8fd2f60 100644
+--- a/src/strategies/mastodon.js
++++ b/src/strategies/mastodon.js
+@@ -88,7 +88,7 @@ import { getImageMimeType } from "../util/images.js";
+  * @returns {Promise<string>} A promise that resolves with the media ID.
+  * @throws {Error} If the upload fails.
+  */
+-async function uploadMedia({ accessToken, host }, image) {
++async function uploadMedia({ accessToken, host }, image, signal) {
+ 	const url = `https://${host}/api/v1/media`;
+ 	const type = getImageMimeType(image.data);
+ 
+@@ -109,6 +109,7 @@ async function uploadMedia({ accessToken, host }, image) {
+ 			Authorization: `Bearer ${accessToken}`,
+ 		},
+ 		body: data,
++		signal,
+ 	});
+ 
+ 	if (!response.ok) {
+@@ -215,6 +216,7 @@ export class MastodonStrategy {
+ 				Authorization: `Bearer ${accessToken}`,
+ 			},
+ 			body: data,
++			signal: postOptions?.signal,
+ 		});
+ 
+ 		if (!response.ok) {
+diff --git a/src/strategies/twitter.js b/src/strategies/twitter.js
+index ba2b287..38b332f 100644
+--- a/src/strategies/twitter.js
++++ b/src/strategies/twitter.js
+@@ -108,6 +108,8 @@ export class TwitterStrategy {
+ 			accessSecret: accessTokenSecret,
+ 		});
+ 
++		postOptions?.signal?.throwIfAborted();
++
+ 		// if there are images, upload them first
+ 		if (postOptions?.images?.length) {
+ 			const mediaIds = await Promise.all(

@@ -1,0 +1,71 @@
+diff --git a/pympress/document.py b/pympress/document.py
+index de9df49..2161759 100644
+--- a/pympress/document.py
++++ b/pympress/document.py
+@@ -36,6 +36,7 @@ elsewhere).
+ import logging
+ logger = logging.getLogger(__name__)
+ 
++import math
+ import enum
+ import pathlib
+ import tempfile
+@@ -913,6 +914,58 @@ class Document(object):
+                 page.page.remove_annot(annot)
+ 
+ 
++    def guess_notes(self, horizontal, vertical, current_page=0):
++        """ Get our best guess for the document mode.
++
++        Args:
++            horizontal (`str`): A string representing the preference for horizontal slides
++            vertical (`str`): A string representing the preference for vertical slides
++
++        Returns:
++            :class:`~pympress.document.PdfPage`: the notes mode
++        """
++        if any(label.startswith('notes:') for label in self.page_labels):
++            return PdfPage.MAP
++
++        page = self.page(current_page)
++        if page is None or not page.can_render():
++            return PdfPage.NONE
++
++        ar = page.get_aspect_ratio()
++
++        # Check whether we have N slides with one aspect ratio then N slides with a different aspect ratio
++        # that is the sign if Libreoffice notes pages
++        if self.nb_pages and self.nb_pages % 2 == 0:
++            half_doc = self.nb_pages // 2
++            ar_slides = self.page(0).get_aspect_ratio()
++            ar_notes = self.page(half_doc).get_aspect_ratio()
++            if ar_slides != ar_notes and \
++                    all(self.page(p).get_aspect_ratio() == ar_slides for p in range(1, half_doc)) and \
++                    any(self.page(half_doc + p).get_aspect_ratio() == ar_notes for p in range(1, half_doc)):
++                return PdfPage.AFTER
++
++        # "Regular" slides will have an aspect ratio of 4/3, 16/9, 16/10... i.e. in the range [1..2]
++        # So if the aspect ratio is >= 2, we can assume it is a document with notes on the side.
++        if ar >= 2:
++            try:
++                return PdfPage[horizontal.upper()]
++            except KeyError:
++                return PdfPage.RIGHT
++
++        # Make exception for classic american letter format and ISO (A4, B5, etc.)
++        if abs(ar - 8.5 / 11) < 1e-3 or abs(ar - 1 / math.sqrt(2)) < 1e-3:
++            return PdfPage.NONE
++
++        # If the aspect ratio is < 1, we can assume it is a document with notes above or below.
++        if ar < 1:
++            try:
++                return PdfPage[vertical.upper()]
++            except KeyError:
++                return PdfPage.BOTTOM
++
++        return PdfPage.NONE
++
++
+     def set_notes_pos(self, notes_direction):
+         """ Set whether where the notes pages are relative to normal pages
+ 

@@ -1,0 +1,171 @@
+diff --git a/lib/cartopy/io/shapereader.py b/lib/cartopy/io/shapereader.py
+index 08c6d6e..67e3b3e 100644
+--- a/lib/cartopy/io/shapereader.py
++++ b/lib/cartopy/io/shapereader.py
+@@ -8,6 +8,23 @@ This module provides a basic interface for accessing shapefiles.
+ Combine the shapefile access of pyshp or fiona with the
+ geometry representation of shapely:
+ 
++    >>> import cartopy.io.shapereader as shapereader
++    >>> filename = shapereader.natural_earth(resolution='110m',
++    ...                                      category='physical',
++    ...                                      name='geography_regions_points')
++    >>> reader = shapereader.Reader(filename)
++    >>> len(reader)
++    3
++    >>> records = list(reader.records())
++    >>> print(', '.join(str(r) for r in sorted(records[0].attributes.keys())))
++    comment, ... name, name_alt, ... region, ...
++    >>> print(records[0].attributes['name'])
++    Niagara Falls
++    >>> geoms = list(reader.geometries())
++    >>> print(type(geoms[0]))
++    <class 'shapely.geometry.point.Point'>
++    >>> reader.close()
++
+ """
+ 
+ import io
+@@ -271,6 +288,142 @@ BasicReader and FionaReader instances can also be created directly.
+ """
+ 
+ 
++def natural_earth(resolution='110m', category='physical', name='coastline'):
++    """
++    Return the path to the requested natural earth shapefile,
++    downloading and unzipping if necessary.
++
++    To identify valid components for this function, either browse
++    NaturalEarthData.com, or if you know what you are looking for, go to
++    https://github.com/nvkelso/natural-earth-vector/ to see the actual
++    files which will be downloaded.
++
++    Note
++    ----
++        Some of the Natural Earth shapefiles have special features which are
++        described in the name. For example, the 110m resolution
++        "admin_0_countries" data also has a sibling shapefile called
++        "admin_0_countries_lakes" which excludes lakes in the country
++        outlines. For details of what is available refer to the Natural Earth
++        website, and look at the "download" link target to identify
++        appropriate names.
++
++    """
++    # get hold of the Downloader (typically a NEShpDownloader instance)
++    # which we can then simply call its path method to get the appropriate
++    # shapefile (it will download if necessary)
++    ne_downloader = Downloader.from_config(('shapefiles', 'natural_earth',
++                                            resolution, category, name))
++    format_dict = {'config': config, 'category': category,
++                   'name': name, 'resolution': resolution}
++    return ne_downloader.path(format_dict)
++
++
++class NEShpDownloader(Downloader):
++    """
++    Specialise :class:`cartopy.io.Downloader` to download the zipped
++    Natural Earth shapefiles and extract them to the defined location
++    (typically user configurable).
++
++    The keys which should be passed through when using the ``format_dict``
++    are typically ``category``, ``resolution`` and ``name``.
++
++    """
++    FORMAT_KEYS = ('config', 'resolution', 'category', 'name')
++
++    # Define the NaturalEarth URL template. Shapefiles are hosted on AWS since
++    # 2021: https://github.com/nvkelso/natural-earth-vector/issues/445
++    _NE_URL_TEMPLATE = ('https://naturalearth.s3.amazonaws.com/'
++                        '{resolution}_{category}/ne_{resolution}_{name}.zip')
++
++    def __init__(self,
++                 url_template=_NE_URL_TEMPLATE,
++                 target_path_template=None,
++                 pre_downloaded_path_template='',
++                 ):
++        # adds some NE defaults to the __init__ of a Downloader
++        Downloader.__init__(self, url_template,
++                            target_path_template,
++                            pre_downloaded_path_template)
++
++    def zip_file_contents(self, format_dict):
++        """
++        Return a generator of the filenames to be found in the downloaded
++        natural earth zip file.
++
++        """
++        for ext in ['.shp', '.dbf', '.shx', '.prj', '.cpg']:
++            yield ('ne_{resolution}_{name}'
++                   '{extension}'.format(extension=ext, **format_dict))
++
++    def acquire_resource(self, target_path, format_dict):
++        """
++        Download the zip file and extracts the files listed in
++        :meth:`zip_file_contents` to the target path.
++
++        """
++        from zipfile import ZipFile
++
++        target_dir = Path(target_path).parent
++        target_dir.mkdir(parents=True, exist_ok=False)
++
++        url = self.url(format_dict)
++
++        shapefile_online = self._urlopen(url)
++
++        zfh = ZipFile(io.BytesIO(shapefile_online.read()), 'r')
++
++        for member_path in self.zip_file_contents(format_dict):
++            try:
++                member = zfh.getinfo(member_path.replace("\\", "/"))
++            except KeyError:
++                # These extensions are required for shapefiles, so raise
++                # if they are missing, continue on otherwise as the other
++                # extensions are optional
++                if member_path.endswith(('.shp', '.shx', '.dbf')):
++                    raise
++                continue
++            target_path.with_suffix(Path(member_path).suffix).write_bytes(
++                zfh.open(member).read()
++            )
++
++        shapefile_online.close()
++        zfh.close()
++
++        return target_path
++
++    @staticmethod
++    def default_downloader():
++        """
++        Return a generic, standard, NEShpDownloader instance.
++
++        Typically, a user will not need to call this staticmethod.
++
++        To find the path template of the NEShpDownloader:
++
++            >>> ne_dnldr = NEShpDownloader.default_downloader()
++            >>> print(ne_dnldr.target_path_template)
++            {config[data_dir]}/shapefiles/natural_earth/{category}/\
++ne_{resolution}_{name}.shp
++
++        """
++        default_spec = ('shapefiles', 'natural_earth', '{category}',
++                        'ne_{resolution}_{name}.shp')
++        ne_path_template = str(
++            Path('{config[data_dir]}').joinpath(*default_spec))
++        pre_path_template = str(
++            Path('{config[pre_existing_data_dir]}').joinpath(*default_spec))
++        return NEShpDownloader(target_path_template=ne_path_template,
++                               pre_downloaded_path_template=pre_path_template)
++
++
++# add a generic Natural Earth shapefile downloader to the config dictionary's
++# 'downloaders' section.
++_ne_key = ('shapefiles', 'natural_earth')
++config['downloaders'].setdefault(_ne_key,
++                                 NEShpDownloader.default_downloader())
++
++
+ def gshhs(scale='c', level=1):
+     """
+     Return the path to the requested GSHHS shapefile,

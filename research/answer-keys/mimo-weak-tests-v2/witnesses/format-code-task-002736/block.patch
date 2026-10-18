@@ -1,0 +1,141 @@
+diff --git a/statsmodels/regression/rolling.py b/statsmodels/regression/rolling.py
+index 963e354..0b1c12c 100644
+--- a/statsmodels/regression/rolling.py
++++ b/statsmodels/regression/rolling.py
+@@ -103,9 +103,17 @@ Use params_only to skip all calculations except parameter estimation
+               extra_parameters=extra_parameters)
+ @Appender(_doc)
+ class RollingWLS(object):
+-
+-    def __init__(self, endog, exog, window=None, weights=None, min_nobs=None,
+-                 missing='drop'):
++    def __init__(
++        self,
++        endog,
++        exog,
++        window=None,
++        *,
++        weights=None,
++        min_nobs=None,
++        missing="drop",
++        expanding=False
++    ):
+         # Call Model.__init__ twice to use const detection in first pass
+         # But to not drop in the second pass
+         missing = string_like(missing, 'missing',
+@@ -128,6 +136,17 @@ class RollingWLS(object):
+         w12 = np.sqrt(self._weights)
+         self._wy = w12 * self._y
+         self._wx = w12[:, None] * self._x
++
++        min_nobs = int_like(min_nobs, "min_nobs", optional=True)
++        self._min_nobs = min_nobs if min_nobs is not None else self._x.shape[1]
++        if self._min_nobs < self._x.shape[1] or self._min_nobs > self._window:
++            raise ValueError(
++                "min_nobs must be larger than the number of "
++                "regressors in the model and less than window"
++            )
++
++        self._expanding = expanding
++
+         self._is_nan = np.zeros_like(self._y, dtype=bool)
+         self._has_nan = self._find_nans()
+         self.const_idx = self.data.const_idx
+@@ -156,12 +175,15 @@ class RollingWLS(object):
+ 
+     def _get_data(self, idx):
+         window = self._window
+-        # TODO: Make a helper function
+-        y = self._y[idx - window:idx]
+-        wy = self._wy[idx - window:idx]
+-        wx = self._wx[idx - window:idx]
+-        weights = self._weights[idx - window:idx]
+-        missing = self._is_nan[idx - window:idx]
++        if idx >= window:
++            loc = slice(idx - window, idx)
++        else:
++            loc = slice(idx)
++        y = self._y[loc]
++        wy = self._wy[loc]
++        wx = self._wx[loc]
++        weights = self._weights[loc]
++        missing = self._is_nan[loc]
+         not_missing = ~missing
+         if np.any(missing):
+             y = y[not_missing]
+@@ -280,28 +302,31 @@ class RollingWLS(object):
+ 
+         window = self._window
+         nobs, k = self._x.shape
+-        store = RollingStore(params=np.full((nobs, k), np.nan),
+-                             ssr=np.full(nobs, np.nan),
+-                             llf=np.full(nobs, np.nan),
+-                             nobs=np.zeros(nobs, dtype=int),
+-                             s2=np.full(nobs, np.nan),
+-                             xpxi=np.full((nobs, k, k), np.nan),
+-                             xeex=np.full((nobs, k, k), np.nan),
+-                             centered_tss=np.full(nobs, np.nan),
+-                             uncentered_tss=np.full(nobs, np.nan))
+-        xpx, xpy, nobs = self._reset(window)
++        store = RollingStore(
++            params=np.full((nobs, k), np.nan),
++            ssr=np.full(nobs, np.nan),
++            llf=np.full(nobs, np.nan),
++            nobs=np.zeros(nobs, dtype=int),
++            s2=np.full(nobs, np.nan),
++            xpxi=np.full((nobs, k, k), np.nan),
++            xeex=np.full((nobs, k, k), np.nan),
++            centered_tss=np.full(nobs, np.nan),
++            uncentered_tss=np.full(nobs, np.nan),
++        )
+         w = self._window
+-        if not (self._has_nan[window - 1] and self._skip_missing):
+-            self._fit_single(w, xpx, xpy, nobs, store, params_only, method)
++        first = self._min_nobs if self._expanding else w
++        xpx, xpy, nobs = self._reset(first)
++        if not (self._has_nan[first - 1] and self._skip_missing):
++            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)
+         wx, wy = self._wx, self._wy
+-        for i in range(w + 1, self._x.shape[0] + 1):
++        for i in range(first + 1, self._x.shape[0] + 1):
+             if self._has_nan[i - 1] and self._skip_missing:
+                 continue
+             if i % reset == 0:
+                 xpx, xpy, nobs = self._reset(i)
+             else:
+-                if not self._is_nan[i - w - 1]:
+-                    remove_x = wx[i - w - 1:i - w]
++                if not self._is_nan[i - w - 1] and i > w:
++                    remove_x = wx[i - w - 1 : i - w]
+                     xpx -= remove_x.T @ remove_x
+                     xpy -= remove_x.T @ wy[i - w - 1:i - w]
+                     nobs -= 1
+@@ -362,9 +387,25 @@ extra_parameters = window_parameters + extra_base
+               extra_parameters=extra_parameters)
+ @Appender(_doc)
+ class RollingOLS(RollingWLS):
+-    def __init__(self, endog, exog, window=None, min_nobs=None,
+-                 missing='drop'):
+-        super().__init__(endog, exog, window, None, min_nobs, missing)
++    def __init__(
++        self,
++        endog,
++        exog,
++        window=None,
++        *,
++        min_nobs=None,
++        missing="drop",
++        expanding=False
++    ):
++        super().__init__(
++            endog,
++            exog,
++            window,
++            weights=None,
++            min_nobs=min_nobs,
++            missing=missing,
++            expanding=expanding,
++        )
+ 
+ 
+ class RollingRegressionResults(object):

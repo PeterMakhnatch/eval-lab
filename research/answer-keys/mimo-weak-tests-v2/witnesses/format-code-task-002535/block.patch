@@ -1,0 +1,28 @@
+diff --git a/rotkehlchen/chain/substrate/manager.py b/rotkehlchen/chain/substrate/manager.py
+index 55729f5..0c674a2 100644
+--- a/rotkehlchen/chain/substrate/manager.py
++++ b/rotkehlchen/chain/substrate/manager.py
+@@ -533,6 +533,9 @@ class SubstrateManager:
+ 
+     def attempt_connections(self) -> None:
+         for node in self.connect_at_start:
++            if node.is_owned() and len(self.own_rpc_endpoint) == 0:
++                continue
++
+             self.greenlet_manager.spawn_and_track(
+                 after_seconds=None,
+                 task_name=f'{self.chain} manager connection to {node} node',
+diff --git a/rotkehlchen/chain/substrate/types.py b/rotkehlchen/chain/substrate/types.py
+index ba3611f..3a5dcf7 100644
+--- a/rotkehlchen/chain/substrate/types.py
++++ b/rotkehlchen/chain/substrate/types.py
+@@ -85,6 +85,9 @@ class PolkadotNodeName(Enum):
+             return 'https://polkadot.elara.patract.io'
+         raise AssertionError(f'Unexpected PolkadotNodeName: {self}')
+ 
++    def is_owned(self) -> bool:
++        return self.value == 0
++
+ 
+ NodeName = KusamaNodeName | PolkadotNodeName
+ 

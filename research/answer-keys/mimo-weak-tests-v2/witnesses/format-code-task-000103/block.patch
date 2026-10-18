@@ -1,0 +1,141 @@
+diff --git a/oracle/controllers/instancecontroller/utils.go b/oracle/controllers/instancecontroller/utils.go
+index 92ed742..304b84c 100644
+--- a/oracle/controllers/instancecontroller/utils.go
++++ b/oracle/controllers/instancecontroller/utils.go
+@@ -25,7 +25,7 @@ import (
+ 	"github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/controllers"
+ 	"github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/controllers/databasecontroller"
+ 	"github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/pkg/agents/common/sql"
+-	capb "github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/pkg/agents/config_agent/protos"
++	dbdpb "github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/pkg/agents/oracle"
+ 	"github.com/GoogleCloudPlatform/elcarro-oracle-operator/oracle/pkg/k8s"
+ 	"github.com/go-logr/logr"
+ 	appsv1 "k8s.io/api/apps/v1"
+@@ -181,13 +181,14 @@ func (r *InstanceReconciler) createServices(ctx context.Context, inst v1alpha1.I
+ // isImageSeeded determines from the service image metadata file if the image is seeded or unseeded.
+ func (r *InstanceReconciler) isImageSeeded(ctx context.Context, inst *v1alpha1.Instance, log logr.Logger) (bool, error) {
+ 	log.Info("isImageSeeded: requesting image metadata...", inst.GetName())
+-	caClient, closeConn, err := r.ClientFactory.New(ctx, r, inst.Namespace, inst.Name)
++	dbClient, closeConn, err := r.DatabaseClientFactory.New(ctx, inst.Name)
++
+ 	if err != nil {
+ 		log.Error(err, "failed to create config agent client")
+ 		return false, err
+ 	}
+ 	defer closeConn()
+-	serviceImageMetaData, err := caClient.FetchServiceImageMetaData(ctx, &capb.FetchServiceImageMetaDataRequest{})
++	serviceImageMetaData, err := dbClient.FetchServiceImageMetaData(ctx, &dbdpb.FetchServiceImageMetaDataRequest{})
+ 	if err != nil {
+ 		return false, fmt.Errorf("isImageSeeded: failed on FetchServiceImageMetaData call: %v", err)
+ 	}
+diff --git a/oracle/controllers/testhelpers/grpcmocks.go b/oracle/controllers/testhelpers/grpcmocks.go
+index 22e97da..194142a 100644
+--- a/oracle/controllers/testhelpers/grpcmocks.go
++++ b/oracle/controllers/testhelpers/grpcmocks.go
+@@ -90,11 +90,14 @@ type FakeConfigAgentClient struct {
+ 
+ // FakeDatabaseClient mocks DatabaseDaemon
+ type FakeDatabaseClient struct {
+-	getOperationCalledCnt   int32
+-	listOperationsCalledCnt int32
++	getOperationCalledCnt        int32
++	listOperationsCalledCnt      int32
++	fetchServiceImageMetaDataCnt int32
+ 
+ 	lock                   sync.Mutex
+ 	nextGetOperationStatus FakeOperationStatus
++
++	methodToResp map[string](interface{})
+ }
+ 
+ // CreateDir RPC call to create a directory named path, along with any
+@@ -258,7 +261,16 @@ func (cli *FakeDatabaseClient) DownloadDirectoryFromGCS(ctx context.Context, in
+ 
+ // FetchServiceImageMetaData returns the service image metadata.
+ func (cli *FakeDatabaseClient) FetchServiceImageMetaData(ctx context.Context, in *dbdpb.FetchServiceImageMetaDataRequest, opts ...grpc.CallOption) (*dbdpb.FetchServiceImageMetaDataResponse, error) {
+-	panic("implement me")
++	atomic.AddInt32(&cli.fetchServiceImageMetaDataCnt, 1)
++	if cli.methodToResp == nil {
++		return nil, nil
++	}
++	method := "FetchServiceImageMetaData"
++	if resp, ok := cli.methodToResp[method]; ok {
++		return resp.(*dbdpb.FetchServiceImageMetaDataResponse), nil
++	}
++	return nil, nil
++
+ }
+ 
+ // CreateFile creates file based on file path and content.
+@@ -566,6 +578,15 @@ func (cli *FakeConfigAgentClient) SetMethodToResp(method string, resp interface{
+ 	cli.methodToResp[method] = resp
+ }
+ 
++func (cli *FakeDatabaseClient) SetMethodToResp(method string, resp interface{}) {
++	cli.lock.Lock()
++	defer cli.lock.Unlock()
++	if cli.methodToResp == nil {
++		cli.methodToResp = make(map[string]interface{})
++	}
++	cli.methodToResp[method] = resp
++}
++
+ func (cli *FakeConfigAgentClient) SetMethodToError(method string, err error) {
+ 	cli.lock.Lock()
+ 	defer cli.lock.Unlock()
+diff --git a/oracle/pkg/agents/config_agent/protos/service_grpc.pb.go b/oracle/pkg/agents/config_agent/protos/service_grpc.pb.go
+index 93616b6..cf63a11 100644
+--- a/oracle/pkg/agents/config_agent/protos/service_grpc.pb.go
++++ b/oracle/pkg/agents/config_agent/protos/service_grpc.pb.go
+@@ -43,7 +43,6 @@ type ConfigAgentClient interface {
+ 	GetParameterTypeValue(ctx context.Context, in *GetParameterTypeValueRequest, opts ...grpc.CallOption) (*GetParameterTypeValueResponse, error)
+ 	BounceDatabase(ctx context.Context, in *BounceDatabaseRequest, opts ...grpc.CallOption) (*BounceDatabaseResponse, error)
+ 	RecoverConfigFile(ctx context.Context, in *RecoverConfigFileRequest, opts ...grpc.CallOption) (*RecoverConfigFileResponse, error)
+-	FetchServiceImageMetaData(ctx context.Context, in *FetchServiceImageMetaDataRequest, opts ...grpc.CallOption) (*FetchServiceImageMetaDataResponse, error)
+ }
+ 
+ type configAgentClient struct {
+@@ -270,7 +269,6 @@ type ConfigAgentServer interface {
+ 	GetParameterTypeValue(context.Context, *GetParameterTypeValueRequest) (*GetParameterTypeValueResponse, error)
+ 	BounceDatabase(context.Context, *BounceDatabaseRequest) (*BounceDatabaseResponse, error)
+ 	RecoverConfigFile(context.Context, *RecoverConfigFileRequest) (*RecoverConfigFileResponse, error)
+-	FetchServiceImageMetaData(context.Context, *FetchServiceImageMetaDataRequest) (*FetchServiceImageMetaDataResponse, error)
+ 	mustEmbedUnimplementedConfigAgentServer()
+ }
+ 
+@@ -714,24 +712,6 @@ func _ConfigAgent_RecoverConfigFile_Handler(srv interface{}, ctx context.Context
+ 	return interceptor(ctx, in, info, handler)
+ }
+ 
+-func _ConfigAgent_FetchServiceImageMetaData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+-	in := new(FetchServiceImageMetaDataRequest)
+-	if err := dec(in); err != nil {
+-		return nil, err
+-	}
+-	if interceptor == nil {
+-		return srv.(ConfigAgentServer).FetchServiceImageMetaData(ctx, in)
+-	}
+-	info := &grpc.UnaryServerInfo{
+-		Server:     srv,
+-		FullMethod: "/protos.ConfigAgent/FetchServiceImageMetaData",
+-	}
+-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+-		return srv.(ConfigAgentServer).FetchServiceImageMetaData(ctx, req.(*FetchServiceImageMetaDataRequest))
+-	}
+-	return interceptor(ctx, in, info, handler)
+-}
+-
+ // ConfigAgent_ServiceDesc is the grpc.ServiceDesc for ConfigAgent service.
+ // It's only intended for direct use with grpc.RegisterService,
+ // and not to be introspected or modified (even as a copy)
+@@ -819,10 +799,6 @@ var ConfigAgent_ServiceDesc = grpc.ServiceDesc{
+ 			MethodName: "RecoverConfigFile",
+ 			Handler:    _ConfigAgent_RecoverConfigFile_Handler,
+ 		},
+-		{
+-			MethodName: "FetchServiceImageMetaData",
+-			Handler:    _ConfigAgent_FetchServiceImageMetaData_Handler,
+-		},
+ 	},
+ 	Streams:  []grpc.StreamDesc{},
+ 	Metadata: "oracle/pkg/agents/config_agent/protos/service.proto",

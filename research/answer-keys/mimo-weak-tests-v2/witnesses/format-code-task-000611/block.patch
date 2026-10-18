@@ -1,0 +1,13 @@
+diff --git a/lib/communist.js b/lib/communist.js
+index 7e913f9..4d8ecea 100644
+--- a/lib/communist.js
++++ b/lib/communist.js
+@@ -327,7 +327,7 @@ function c(a,b,c){
+ 	}else if(typeof a !== "number"){
+ 		return b ? oneOff(a,b):sticksAround(a);
+ 	}else if(typeof a === "number"){
+-		return b ? incrementalMapReduce(a):nonIncrementalMapReduce(a);
++		return !b ? incrementalMapReduce(a):nonIncrementalMapReduce(a);
+ 	}
+ };
+ c.reducer = rWorker;

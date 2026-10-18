@@ -1,0 +1,155 @@
+diff --git a/batch/batch/api.py b/batch/batch/api.py
+index 8e84a2e..69c1995 100644
+--- a/batch/batch/api.py
++++ b/batch/batch/api.py
+@@ -15,10 +15,12 @@ class API():
+         self.timeout = timeout
+ 
+     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
+-                   scratch_folder, input_files, output_files, copy_service_account_name):
++                   scratch_folder, input_files, output_files, copy_service_account_name,
++                   always_run):
+         doc = {
+             'spec': spec,
+-            'parent_ids': parent_ids
++            'parent_ids': parent_ids,
++            'always_run': always_run
+         }
+         if attributes:
+             doc['attributes'] = attributes
+diff --git a/batch/batch/client.py b/batch/batch/client.py
+index 19b05ac..b77d1be 100644
+--- a/batch/batch/client.py
++++ b/batch/batch/client.py
+@@ -71,13 +71,14 @@ class Batch:
+     def create_job(self, image, command=None, args=None, env=None, ports=None,
+                    resources=None, tolerations=None, volumes=None, security_context=None,
+                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
+-                   scratch_folder=None, input_files=None, output_files=None, copy_service_account_name=None):
++                   scratch_folder=None, input_files=None, output_files=None,
++                   copy_service_account_name=None, always_run=False):
+         if parent_ids is None:
+             parent_ids = []
+         return self.client._create_job(
+             image, command, args, env, ports, resources, tolerations, volumes, security_context,
+             service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
+-            input_files, output_files, copy_service_account_name)
++            input_files, output_files, copy_service_account_name, always_run)
+ 
+     def close(self):
+         self.client._close_batch(self.id)
+@@ -123,7 +124,8 @@ class BatchClient:
+                     scratch_folder,
+                     input_files,
+                     output_files,
+-                    copy_service_account_name):
++                    copy_service_account_name,
++                    always_run):
+         if env:
+             env = [{'name': k, 'value': v} for (k, v) in env.items()]
+         else:
+@@ -174,7 +176,7 @@ class BatchClient:
+ 
+         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
+                                 parent_ids, scratch_folder, input_files, output_files,
+-                                copy_service_account_name)
++                                copy_service_account_name, always_run)
+         return Job(self,
+                    j['id'],
+                    attributes=j.get('attributes'),
+@@ -236,13 +238,14 @@ class BatchClient:
+                    scratch_folder=None,
+                    input_files=None,
+                    output_files=None,
+-                   copy_service_account_name=None):
++                   copy_service_account_name=None,
++                   always_run=False):
+         if parent_ids is None:
+             parent_ids = []
+         return self._create_job(
+             image, command, args, env, ports, resources, tolerations, volumes, security_context,
+             service_account_name, attributes, None, callback, parent_ids, scratch_folder,
+-            input_files, output_files, copy_service_account_name)
++            input_files, output_files, copy_service_account_name, always_run)
+ 
+     def create_batch(self, attributes=None, callback=None, ttl=None):
+         batch = self.api.create_batch(self.url, attributes, callback, ttl)
+diff --git a/batch/batch/server/server.py b/batch/batch/server/server.py
+index 0d4a41f..0fc369e 100644
+--- a/batch/batch/server/server.py
++++ b/batch/batch/server/server.py
+@@ -237,7 +237,8 @@ class Job:
+         return None
+ 
+     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
+-                 scratch_folder, input_files, output_files, copy_service_account_name):
++                 scratch_folder, input_files, output_files, copy_service_account_name,
++                 always_run):
+         self.id = next_id()
+         self.batch_id = batch_id
+         self.attributes = attributes
+@@ -246,6 +247,7 @@ class Job:
+         self.parent_ids = parent_ids
+         self.incomplete_parent_ids = set(self.parent_ids)
+         self.scratch_folder = scratch_folder
++        self.always_run = always_run
+ 
+         self._pvc = None
+         self._pod_name = None
+@@ -301,8 +303,7 @@ class Job:
+                 log.info(f'missing child: {child_id}')
+ 
+     def parent_new_state(self, new_state, parent_id, maybe_exit_code):
+-        if new_state == 'Complete' and maybe_exit_code == 0:
+-            log.info(f'parent {parent_id} successfully complete for {self.id}')
++        def update():
+             self.incomplete_parent_ids.discard(parent_id)
+             if not self.incomplete_parent_ids:
+                 assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
+@@ -313,10 +314,18 @@ class Job:
+                 else:
+                     log.info(f'all parents successfully complete for {self.id},'
+                              f' but it is already cancelled')
++
++        if new_state == 'Complete' and maybe_exit_code == 0:
++            log.info(f'parent {parent_id} successfully complete for {self.id}')
++            update()
+         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
+             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
+-            self.incomplete_parent_ids.discard(parent_id)
+-            self.cancel()
++            if not self.always_run:
++                self.cancel()
++            else:
++                log.info(f'job {self.id} is set to always run despite '
++                         f' parents deleted, cancelled, or failed.')
++                update()
+ 
+     def cancel(self):
+         if self.is_complete():
+@@ -434,6 +443,7 @@ def create_job():  # pylint: disable=R0912
+         'output_files': {
+             'type': 'list',
+             'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
++        'always_run': {'type': 'boolean'},
+         'attributes': {
+             'type': 'dict',
+             'keyschema': {'type': 'string'},
+@@ -470,6 +480,7 @@ def create_job():  # pylint: disable=R0912
+     input_files = parameters.get('input_files')
+     output_files = parameters.get('output_files')
+     copy_service_account_name = parameters.get('copy_service_account_name')
++    always_run = parameters.get('always_run', False)
+ 
+     if len(pod_spec.containers) != 1:
+         abort(400, f'only one container allowed in pod_spec {pod_spec}')
+@@ -495,7 +506,8 @@ def create_job():  # pylint: disable=R0912
+         scratch_folder,
+         input_files,
+         output_files,
+-        copy_service_account_name)
++        copy_service_account_name,
++        always_run)
+     return jsonify(job.to_json())
+ 
+ 

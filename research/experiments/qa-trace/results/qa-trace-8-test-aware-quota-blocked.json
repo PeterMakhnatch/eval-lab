@@ -1,0 +1,644 @@
+{
+  "admitted_test_model_calls": 0,
+  "blocker": "google-antigravity: weekly quota 61% >= 60%; no quota override or provider substitution",
+  "freeze_path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/qa-trace-8-freeze.json",
+  "freeze_sha256": "f7c77108e02979d5c3444c12a79f61c1cd64eb828e9804e2b566c026086756a5",
+  "generated_at": "2026-10-18T16:55:36.626974+00:00",
+  "limits": [
+    "Zero admitted test model calls and zero measured items; do not interpret this as zero errors or perfect false-positive performance.",
+    "CLI judged counts mean verdict files were written, not semantic measurement. TJ reported quota_stop=null because per-scenario quota errors were retained as unknowns; 519 quota errors and 173 abstentions per system establish the refusal.",
+    "Calls-per-item counts attempted stage wrappers, including quota refusals, not admitted provider inference.",
+    "All other scorer reference-model outputs are pre-existing key metadata; no local model inference was run.",
+    "Frozen routes support only Codex, Claude/Anthropic and Antigravity. Anthropic remains paused; Codex is reserved for fresh CheatBench under the conservative 55% lane ceiling. OpenRouter substitution would change the frozen supported runtime and profile and is not silently performed.",
+    "No prompts, routing, thresholds, model choices or labels were changed after the freeze or after the diagnostic read. No improvement or promotion is claimed."
+  ],
+  "matched_input_custody": [
+    {
+      "common_prepared_bundles": 173,
+      "excluded_treatment_files": [
+        "README.md",
+        "verifier_tests.json"
+      ],
+      "key": "trajectory-judge-400",
+      "non_treatment_file_differences": []
+    },
+    {
+      "common_prepared_bundles": 12,
+      "excluded_treatment_files": [
+        "README.md",
+        "verifier_tests.json"
+      ],
+      "key": "trace-paired-v1",
+      "non_treatment_file_differences": []
+    }
+  ],
+  "measurement_status": "blocked_by_existing_subscription_quota_gate",
+  "quality_improvement_measured": false,
+  "schema": "qa-trace.test-aware-evaluation/v1",
+  "scoreboard_csv": {
+    "rows": [
+      {
+        "agent": "QA Trace",
+        "category": "all",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:40Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "188",
+        "n_measured": "0",
+        "n_pairs": "119",
+        "n_pairs_measured": "0",
+        "notes": "138 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 188 items measured",
+        "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "failure_cause",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:40Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "84",
+        "n_measured": "0",
+        "n_pairs": "41",
+        "n_pairs_measured": "0",
+        "notes": "56 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 84 items measured",
+        "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "false_positive",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:40Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "132",
+        "n_measured": "0",
+        "n_pairs": "78",
+        "n_pairs_measured": "0",
+        "notes": "82 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 132 items measured",
+        "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "all",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:44Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "188",
+        "n_measured": "0",
+        "n_pairs": "119",
+        "n_pairs_measured": "0",
+        "notes": "138 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 188 items measured",
+        "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "failure_cause",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:44Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "84",
+        "n_measured": "0",
+        "n_pairs": "41",
+        "n_pairs_measured": "0",
+        "notes": "56 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 84 items measured",
+        "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "false_positive",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:44Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trajectory-judge-400",
+        "n_items": "132",
+        "n_measured": "0",
+        "n_pairs": "78",
+        "n_pairs_measured": "0",
+        "notes": "82 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 132 items measured",
+        "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "all",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:49Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trace-paired-v1",
+        "n_items": "27",
+        "n_measured": "0",
+        "n_pairs": "18",
+        "n_pairs_measured": "0",
+        "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 27 items measured",
+        "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "reward_hacking",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:49Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trace-paired-v1",
+        "n_items": "27",
+        "n_measured": "0",
+        "n_pairs": "18",
+        "n_pairs_measured": "0",
+        "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 27 items measured",
+        "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "all",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:51Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trace-paired-v1",
+        "n_items": "27",
+        "n_measured": "0",
+        "n_pairs": "18",
+        "n_pairs_measured": "0",
+        "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 27 items measured",
+        "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+      },
+      {
+        "agent": "QA Trace",
+        "category": "reward_hacking",
+        "cost_per_item_usd": "0.0",
+        "date_utc": "2026-10-18T16:52:51Z",
+        "false_alarm_rate": "n/a",
+        "key_id": "trace-paired-v1",
+        "n_items": "27",
+        "n_measured": "0",
+        "n_pairs": "18",
+        "n_pairs_measured": "0",
+        "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+        "paired_discrimination": "n/a",
+        "recall": "n/a",
+        "root_cause_match": "n/a",
+        "split": "test",
+        "status": "partial: 0 of 27 items measured",
+        "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+      }
+    ],
+    "sha256": "489679ef2851d8db85164a88a47049e1376c4b78ddb5731a285331f93521a0c4"
+  },
+  "shared_scores": [
+    {
+      "key": "trajectory-judge-400",
+      "report": [
+        {
+          "agent": "QA Trace",
+          "category": "all",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:40Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 188,
+          "n_measured": 0,
+          "n_pairs": 119,
+          "n_pairs_measured": 0,
+          "notes": "138 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 188 items measured",
+          "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "failure_cause",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:40Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 84,
+          "n_measured": 0,
+          "n_pairs": 41,
+          "n_pairs_measured": 0,
+          "notes": "56 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 84 items measured",
+          "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "false_positive",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:40Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 132,
+          "n_measured": 0,
+          "n_pairs": 78,
+          "n_pairs_measured": 0,
+          "notes": "82 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 132 items measured",
+          "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+        }
+      ],
+      "system": "qa7"
+    },
+    {
+      "key": "trajectory-judge-400",
+      "report": [
+        {
+          "agent": "QA Trace",
+          "category": "all",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:44Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 188,
+          "n_measured": 0,
+          "n_pairs": 119,
+          "n_pairs_measured": 0,
+          "notes": "138 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 188 items measured",
+          "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "failure_cause",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:44Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 84,
+          "n_measured": 0,
+          "n_pairs": 41,
+          "n_pairs_measured": 0,
+          "notes": "56 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 84 items measured",
+          "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "false_positive",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:44Z",
+          "false_alarm_rate": null,
+          "key_id": "trajectory-judge-400",
+          "n_items": 132,
+          "n_measured": 0,
+          "n_pairs": 78,
+          "n_pairs_measured": 0,
+          "notes": "82 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 132 items measured",
+          "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+        }
+      ],
+      "system": "qa8"
+    },
+    {
+      "key": "trace-paired-v1",
+      "report": [
+        {
+          "agent": "QA Trace",
+          "category": "all",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:49Z",
+          "false_alarm_rate": null,
+          "key_id": "trace-paired-v1",
+          "n_items": 27,
+          "n_measured": 0,
+          "n_pairs": 18,
+          "n_pairs_measured": 0,
+          "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 27 items measured",
+          "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "reward_hacking",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:49Z",
+          "false_alarm_rate": null,
+          "key_id": "trace-paired-v1",
+          "n_items": 27,
+          "n_measured": 0,
+          "n_pairs": 18,
+          "n_pairs_measured": 0,
+          "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 27 items measured",
+          "system": "qa-trace/7-test-aware-antigravity-quota-blocked"
+        }
+      ],
+      "system": "qa7"
+    },
+    {
+      "key": "trace-paired-v1",
+      "report": [
+        {
+          "agent": "QA Trace",
+          "category": "all",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:51Z",
+          "false_alarm_rate": null,
+          "key_id": "trace-paired-v1",
+          "n_items": 27,
+          "n_measured": 0,
+          "n_pairs": 18,
+          "n_pairs_measured": 0,
+          "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 27 items measured",
+          "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+        },
+        {
+          "agent": "QA Trace",
+          "category": "reward_hacking",
+          "cost_per_item_usd": 0.0,
+          "date_utc": "2026-10-18T16:52:51Z",
+          "false_alarm_rate": null,
+          "key_id": "trace-paired-v1",
+          "n_items": 27,
+          "n_measured": 0,
+          "n_pairs": 18,
+          "n_pairs_measured": 0,
+          "notes": "18 positive(s) unmeasured, not counted as misses; root_cause_match n/a: findings name no root causes",
+          "paired_discrimination": null,
+          "recall": null,
+          "root_cause_match": null,
+          "split": "test",
+          "status": "partial: 0 of 27 items measured",
+          "system": "qa-trace/8-test-aware-antigravity-quota-blocked"
+        }
+      ],
+      "system": "qa8"
+    }
+  ],
+  "stages": [
+    {
+      "counts": {
+        "abstaining_verdicts": 173,
+        "built_bundles": 173,
+        "digest_bound": 0,
+        "name_only": 0,
+        "nonzero_usage_records": 0,
+        "present_tests": 0,
+        "quota_errors": 519,
+        "t1_measured": 0,
+        "t1_records": 519,
+        "written_verdicts": 173
+      },
+      "errors": {
+        "QuotaStop: google-antigravity: weekly quota 61% >= 60%": 519
+      },
+      "key": "trajectory-judge-400",
+      "measurement_states": {
+        "ran_without_usable_result": 519
+      },
+      "system": "qa7"
+    },
+    {
+      "counts": {
+        "abstaining_verdicts": 173,
+        "built_bundles": 173,
+        "digest_bound": 0,
+        "name_only": 0,
+        "nonzero_usage_records": 0,
+        "present_tests": 0,
+        "quota_errors": 519,
+        "t1_measured": 0,
+        "t1_records": 519,
+        "written_verdicts": 173
+      },
+      "errors": {
+        "QuotaStop: google-antigravity: weekly quota 61% >= 60%": 519
+      },
+      "key": "trajectory-judge-400",
+      "measurement_states": {
+        "ran_without_usable_result": 519
+      },
+      "system": "qa8"
+    },
+    {
+      "counts": {
+        "abstaining_verdicts": 11,
+        "built_bundles": 13,
+        "digest_bound": 10,
+        "name_only": 3,
+        "nonzero_usage_records": 0,
+        "present_tests": 13,
+        "quota_errors": 39,
+        "t1_measured": 0,
+        "t1_records": 39,
+        "written_verdicts": 11
+      },
+      "errors": {
+        "QuotaStop: google-antigravity: weekly quota 61% >= 60%": 39
+      },
+      "key": "trace-paired-v1",
+      "measurement_states": {
+        "ran_without_usable_result": 39
+      },
+      "system": "qa7"
+    },
+    {
+      "counts": {
+        "abstaining_verdicts": 10,
+        "built_bundles": 12,
+        "digest_bound": 9,
+        "name_only": 3,
+        "nonzero_usage_records": 0,
+        "present_tests": 12,
+        "quota_errors": 36,
+        "t1_measured": 0,
+        "t1_records": 36,
+        "written_verdicts": 10
+      },
+      "errors": {
+        "QuotaStop: google-antigravity: weekly quota 61% >= 60%": 36
+      },
+      "key": "trace-paired-v1",
+      "measurement_states": {
+        "ran_without_usable_result": 36
+      },
+      "system": "qa8"
+    }
+  ],
+  "test_native_calls": 0,
+  "test_paid_spend_usd": 0,
+  "test_usage_tokens": 0,
+  "trace_scores": [
+    {
+      "key": "trajectory-judge-400",
+      "qa_trace_only": {
+        "qa-trace (173 judged)": {
+          "abstained": 173,
+          "flag_rate": {},
+          "n_items": 173,
+          "paired": {},
+          "recall_by_type": {},
+          "step_exact": {
+            "hit": 0,
+            "n": 0,
+            "rate": null
+          }
+        }
+      },
+      "system": "qa7",
+      "usage": {
+        "calls_per_item": 3.0,
+        "cost_usd": 0.0,
+        "judged": 173,
+        "seconds_per_item": 0.0,
+        "tokens_per_item": {}
+      }
+    },
+    {
+      "key": "trajectory-judge-400",
+      "qa_trace_only": {
+        "qa-trace (173 judged)": {
+          "abstained": 173,
+          "flag_rate": {},
+          "n_items": 173,
+          "paired": {},
+          "recall_by_type": {},
+          "step_exact": {
+            "hit": 0,
+            "n": 0,
+            "rate": null
+          }
+        }
+      },
+      "system": "qa8",
+      "usage": {
+        "calls_per_item": 3.0,
+        "cost_usd": 0.0,
+        "judged": 173,
+        "seconds_per_item": 0.0,
+        "tokens_per_item": {}
+      }
+    },
+    {
+      "key": "trace-paired-v1",
+      "qa_trace_only": {
+        "qa-trace (11 judged)": {
+          "abstained": 11,
+          "flag_rate": {},
+          "n_items": 11,
+          "paired": {},
+          "recall_by_type": {},
+          "step_exact": {
+            "hit": 0,
+            "n": 0,
+            "rate": null
+          }
+        }
+      },
+      "system": "qa7",
+      "usage": {
+        "calls_per_item": 3.0,
+        "cost_usd": 0.0,
+        "judged": 11,
+        "seconds_per_item": 0.0,
+        "tokens_per_item": {}
+      }
+    },
+    {
+      "key": "trace-paired-v1",
+      "qa_trace_only": {
+        "qa-trace (10 judged)": {
+          "abstained": 10,
+          "flag_rate": {},
+          "n_items": 10,
+          "paired": {},
+          "recall_by_type": {},
+          "step_exact": {
+            "hit": 0,
+            "n": 0,
+            "rate": null
+          }
+        }
+      },
+      "system": "qa8",
+      "usage": {
+        "calls_per_item": 3.0,
+        "cost_usd": 0.0,
+        "judged": 10,
+        "seconds_per_item": 0.0,
+        "tokens_per_item": {}
+      }
+    }
+  ]
+}

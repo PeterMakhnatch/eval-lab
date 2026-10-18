@@ -1,0 +1,77 @@
+diff --git a/docs/03-assertions.md b/docs/03-assertions.md
+index 933e9d2..02461b5 100644
+--- a/docs/03-assertions.md
++++ b/docs/03-assertions.md
+@@ -141,9 +141,9 @@ Assert that `actual` is not deeply equal to `expected`. The inverse of `.deepEqu
+ 
+ Assert that `actual` is like `selector`. This is a variant of `.deepEqual()`, however `selector` does not need to have the same enumerable properties as `actual` does.
+ 
+-Instead AVA derives a *comparable* object from `actual`, based on the deeply-nested properties of `selector`. This object is then compared to `selector` using `.deepEqual()`.
++Instead AVA derives a *comparable* value from `actual`, recursively based on the shape of `selector`. This value is then compared to `selector` using `.deepEqual()`.
+ 
+-Any values in `selector` that are not regular objects should be deeply equal to the corresponding values in `actual`.
++Any values in `selector` that are not arrays or regular objects should be deeply equal to the corresponding values in `actual`.
+ 
+ In the following example, the `map` property of `actual` must be deeply equal to that of `selector`. However `nested.qux` is ignored, because it's not in `selector`.
+ 
+@@ -162,6 +162,12 @@ t.like({
+ })
+ ```
+ 
++You can also use arrays, but note that any indices in `actual` that are not in `selector` are ignored:
++
++```js
++t.like([1, 2, 3], [1, 2])
++```
++
+ Finally, this returns a boolean indicating whether the assertion passed.
+ 
+ ### `.throws(fn, expectation?, message?)`
+@@ -172,7 +178,7 @@ Assert that an error is thrown. `fn` must be a function which should throw. The
+ 
+ * `instanceOf`: a constructor, the thrown error must be an instance of
+ * `is`: the thrown error must be strictly equal to `expectation.is`
+-* `message`: the following types are valid: 
++* `message`: the following types are valid:
+   * *string* - it is compared against the thrown error's message
+   * *regular expression* - it is matched against this message
+   * *function* - it is passed the thrown error message and must return a boolean for whether the assertion passed
+@@ -207,7 +213,7 @@ The thrown value *must* be an error. It is returned so you can run more assertio
+ 
+ * `instanceOf`: a constructor, the thrown error must be an instance of
+ * `is`: the thrown error must be strictly equal to `expectation.is`
+-* `message`: the following types are valid: 
++* `message`: the following types are valid:
+   * *string* - it is compared against the thrown error's message
+   * *regular expression* - it is matched against this message
+   * *function* - it is passed the thrown error message and must return a boolean for whether the assertion passed
+diff --git a/lib/like-selector.js b/lib/like-selector.js
+index 09675a9..7d4d743 100644
+--- a/lib/like-selector.js
++++ b/lib/like-selector.js
+@@ -1,8 +1,12 @@
++const isObject = selector => Reflect.getPrototypeOf(selector) === Object.prototype;
++
+ export function isLikeSelector(selector) {
+-	return selector !== null
+-		&& typeof selector === 'object'
+-		&& Reflect.getPrototypeOf(selector) === Object.prototype
+-		&& Reflect.ownKeys(selector).length > 0;
++	if (selector === null || typeof selector !== 'object') {
++		return true;
++	}
++
++	const keyCount = Reflect.ownKeys(selector).length;
++	return (Array.isArray(selector) && keyCount > 1) || (isObject(selector) && keyCount > 0);
+ }
+ 
+ export const CIRCULAR_SELECTOR = new Error('Encountered a circular selector');
+@@ -18,7 +22,7 @@ export function selectComparable(lhs, selector, circular = new Set()) {
+ 		return lhs;
+ 	}
+ 
+-	const comparable = {};
++	const comparable = Array.isArray(selector) ? [] : {};
+ 	for (const [key, rhs] of Object.entries(selector)) {
+ 		if (isLikeSelector(rhs)) {
+ 			comparable[key] = selectComparable(Reflect.get(lhs, key), rhs, circular);

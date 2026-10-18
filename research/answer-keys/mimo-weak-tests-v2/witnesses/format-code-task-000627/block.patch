@@ -1,0 +1,71 @@
+diff --git a/modules/casper.js b/modules/casper.js
+index c448e52..3b32595 100644
+--- a/modules/casper.js
++++ b/modules/casper.js
+@@ -2777,6 +2777,34 @@ Casper.prototype.waitWhileVisible = function waitWhileVisible(selector, then, on
+     });
+ };
+ 
++/**
++ * Make the provided scope for page evaluation. Note that the
++ * active scope will be reverted when finished.
++ *
++ * @param  String   selector  A DOM CSS3 / Xpath compatible selector
++ * @param  Function  then     Next step function
++ * @return Casper
++ */
++Casper.prototype.withSelectorScope = function withSelectorScope(selector, then) {
++    "use strict";
++    var currentScope;
++    this.checkStarted();
++    this.then(function _step() {
++        currentScope = this.callUtils("setScope", selector);
++    });
++    try {
++        this.then(then);
++    } catch (e) {
++        // revert to main page on error
++        this.warn("Error while processing selector scope step: " + e);
++        throw e;
++    }
++    return this.then(function _step() {
++        // revert to previous scope or main document
++        this.callUtils("setScope", currentScope);
++    });
++};
++
+ /**
+  * Makes the provided frame page as the currently active one. Note that the
+  * active page will be reverted when finished.
+diff --git a/modules/clientutils.js b/modules/clientutils.js
+index 5fcc27b..a63609b 100644
+--- a/modules/clientutils.js
++++ b/modules/clientutils.js
+@@ -427,7 +427,7 @@
+                 }
+                 return str.substring(2);
+             }
+-            return this.findOne(selector).nodeName;
++            return "";
+         };
+         
+         /**
+@@ -1082,6 +1082,18 @@
+             return out;
+         };
+ 
++        /**
++         * set the default scope selector
++         *
++         * @param  String  selector  CSS3 selector
++         * @return String
++         */
++        this.setScope = function setScope(selector) {
++            var scope = !(this.options.scope instanceof HTMLElement) ? this.getCssSelector(this.options.scope) : "";
++            this.options.scope = (selector !== "") ? this.findOne(selector) : document;
++            return scope;
++        };
++
+         /**
+          * Checks if any element matching a given selector is visible in remote page.
+          *

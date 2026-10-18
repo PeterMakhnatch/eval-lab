@@ -1,0 +1,42 @@
+diff --git a/rasterio/dtypes.py b/rasterio/dtypes.py
+index c73736f..f27675e 100644
+--- a/rasterio/dtypes.py
++++ b/rasterio/dtypes.py
+@@ -5,6 +5,7 @@ Happily strings can be used throughout Numpy and so existing code will
+ not break.
+ 
+ """
++import numpy
+ 
+ bool_ = 'bool'
+ ubyte = uint8 = 'uint8'
+@@ -70,6 +71,16 @@ dtype_ranges = {
+     'float64': (-1.7976931348623157e+308, 1.7976931348623157e+308)}
+ 
+ 
++def in_dtype_range(value, dtype):
++    """
++    Check if the value is within the dtype range
++    """
++    if numpy.dtype(dtype).kind == "f" and (numpy.isinf(value) or numpy.isnan(value)):
++        return True
++    range_min, range_max = dtype_ranges[dtype]
++    return range_min <= value <= range_max
++
++
+ def _gdal_typename(dt):
+     try:
+         return typename_fwd[dtype_rev[dt]]
+diff --git a/rasterio/rio/edit_info.py b/rasterio/rio/edit_info.py
+index a9d4a34..ebd40e7 100644
+--- a/rasterio/rio/edit_info.py
++++ b/rasterio/rio/edit_info.py
+@@ -168,7 +168,7 @@ def edit(ctx, input, bidx, nodata, unset_nodata, crs, unset_crs, transform,
+ 
+     def in_dtype_range(value, dtype):
+         kind = np.dtype(dtype).kind
+-        if kind == 'f' and np.isnan(value):
++        if kind == 'f' and (np.isnan(value) or np.isinf(value)):
+             return True
+         infos = {'c': np.finfo, 'f': np.finfo, 'i': np.iinfo,
+                  'u': np.iinfo}

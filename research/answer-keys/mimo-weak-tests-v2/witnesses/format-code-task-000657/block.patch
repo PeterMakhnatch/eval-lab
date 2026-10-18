@@ -1,0 +1,20 @@
+diff --git a/opnieuw/retries.py b/opnieuw/retries.py
+index 439cbf8..b20ee79 100644
+--- a/opnieuw/retries.py
++++ b/opnieuw/retries.py
+@@ -218,10 +218,14 @@ def retry(
+                 retry_window_after_first_call_in_seconds=retry_window_after_first_call_in_seconds,
+             )
+ 
++            last_exception = None
+             while True:
+                 try:
+                     return f(*args, **kwargs)
+-                except retry_on_exceptions as e:
++                except Exception as e:
++                    if last_exception is not None:
++                        e.__cause__ = last_exception
++
+                     last_exception = e
+ 
+                     sleep_seconds = backoff_calculator.get_backoff()

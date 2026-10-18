@@ -1,0 +1,13 @@
+diff --git a/google/cloud/forseti/notifier/notifiers/slack_webhook.py b/google/cloud/forseti/notifier/notifiers/slack_webhook.py
+index 0bb605a..4ea80dd 100644
+--- a/google/cloud/forseti/notifier/notifiers/slack_webhook.py
++++ b/google/cloud/forseti/notifier/notifiers/slack_webhook.py
+@@ -81,7 +81,7 @@ class SlackWebhook(base_notification.BaseNotification):
+ 
+     def run(self):
+         """Run the slack webhook notifier"""
+-        if not self.notifier_config.get('webhook_url'):
++        if not self.notification_config.get('webhook_url'):
+             LOGGER.warn('No url found, not running Slack notifier.')
+             return
+ 

@@ -1,0 +1,156 @@
+diff --git a/src/modules/finance/index.ts b/src/modules/finance/index.ts
+index 89b655b..e739d92 100644
+--- a/src/modules/finance/index.ts
++++ b/src/modules/finance/index.ts
+@@ -238,7 +238,7 @@ export class FinanceModule {
+     address += this.faker.string.alphanumeric({
+       length: addressLength,
+       casing: 'mixed',
+-      bannedChars: '0OIl',
++      exclude: '0OIl',
+     });
+ 
+     return address;
+diff --git a/src/modules/random/index.ts b/src/modules/random/index.ts
+index 0505744..cb81935 100644
+--- a/src/modules/random/index.ts
++++ b/src/modules/random/index.ts
+@@ -211,7 +211,11 @@ export class RandomModule {
+     if (typeof options === 'number') {
+       return this.faker.string.alpha(options);
+     }
+-    return this.faker.string.alpha({ ...options, length: options.count });
++    return this.faker.string.alpha({
++      length: options.count,
++      casing: options.casing,
++      exclude: options.bannedChars,
++    });
+   }
+ 
+   /**
+@@ -248,7 +252,7 @@ export class RandomModule {
+     });
+     return this.faker.string.alphanumeric({
+       length: count,
+-      bannedChars: options.bannedChars,
++      exclude: options.bannedChars,
+       casing: options.casing,
+     });
+   }
+@@ -290,7 +294,7 @@ export class RandomModule {
+     return this.faker.string.numeric({
+       length,
+       allowLeadingZeros: options.allowLeadingZeros,
+-      bannedDigits: options.bannedDigits,
++      exclude: options.bannedDigits,
+     });
+   }
+ }
+diff --git a/src/modules/string/index.ts b/src/modules/string/index.ts
+index 171c0cf..94e30f1 100644
+--- a/src/modules/string/index.ts
++++ b/src/modules/string/index.ts
+@@ -118,7 +118,7 @@ export class StringModule {
+       | {
+           length?: number;
+           casing?: Casing;
+-          bannedChars?: readonly LiteralUnion<AlphaChar>[] | string;
++          exclude?: readonly LiteralUnion<AlphaChar>[] | string;
+         } = {}
+   ): string {
+     if (typeof options === 'number') {
+@@ -128,7 +128,7 @@ export class StringModule {
+     }
+ 
+     const { length = 1, casing = 'mixed' } = options;
+-    let { bannedChars = [] } = options;
++    let { exclude = [] } = options;
+ 
+     if (typeof bannedChars === 'string') {
+       bannedChars = bannedChars.split('');
+@@ -152,11 +152,11 @@ export class StringModule {
+         break;
+     }
+ 
+-    charsArray = charsArray.filter((elem) => !bannedChars.includes(elem));
++    charsArray = charsArray.filter((elem) => !exclude.includes(elem));
+ 
+     if (charsArray.length === 0) {
+       throw new FakerError(
+-        'Unable to generate string, because all possible characters are banned.'
++        'Unable to generate string, because all possible characters are excluded.'
+       );
+     }
+ 
+@@ -203,7 +203,7 @@ export class StringModule {
+       return '';
+     }
+ 
+-    let { bannedChars = [] } = options;
++    let { exclude = [] } = options;
+ 
+     if (typeof bannedChars === 'string') {
+       bannedChars = bannedChars.split('');
+@@ -224,7 +224,7 @@ export class StringModule {
+         break;
+     }
+ 
+-    charsArray = charsArray.filter((elem) => !bannedChars.includes(elem));
++    charsArray = charsArray.filter((elem) => !exclude.includes(elem));
+ 
+     if (charsArray.length === 0) {
+       throw new FakerError(
+@@ -341,14 +341,14 @@ export class StringModule {
+       return '';
+     }
+ 
+-    let { bannedDigits = [] } = options;
++    let { exclude = [] } = options;
+ 
+     if (typeof bannedDigits === 'string') {
+       bannedDigits = bannedDigits.split('');
+     }
+ 
+     const allowedDigits = DIGIT_CHARS.filter(
+-      (digit) => !bannedDigits.includes(digit)
++      (digit) => !exclude.includes(digit)
+     );
+ 
+     if (
+@@ -364,7 +364,7 @@ export class StringModule {
+ 
+     let result = '';
+ 
+-    if (!allowLeadingZeros && !bannedDigits.includes('0')) {
++    if (!allowLeadingZeros && !exclude.includes('0')) {
+       result += this.faker.helpers.arrayElement(
+         allowedDigits.filter((digit) => digit !== '0')
+       );
+diff --git a/src/modules/vehicle/index.ts b/src/modules/vehicle/index.ts
+index 3ef8f74..e6bdaeb 100644
+--- a/src/modules/vehicle/index.ts
++++ b/src/modules/vehicle/index.ts
+@@ -87,19 +87,19 @@ export class VehicleModule {
+    * @since 5.0.0
+    */
+   vin(): string {
+-    const bannedChars = ['o', 'i', 'q', 'O', 'I', 'Q'];
++    const exclude = ['o', 'i', 'q', 'O', 'I', 'Q'];
+     return `${this.faker.string.alphanumeric({
+       length: 10,
+       casing: 'upper',
+-      bannedChars,
++      exclude,
+     })}${this.faker.string.alpha({
+       length: 1,
+       casing: 'upper',
+-      bannedChars,
++      exclude,
+     })}${this.faker.string.alphanumeric({
+       length: 1,
+       casing: 'upper',
+-      bannedChars,
++      exclude,
+     })}${this.faker.datatype.number({ min: 10000, max: 99999 })}` // return five digit #
+       .toUpperCase();
+   }

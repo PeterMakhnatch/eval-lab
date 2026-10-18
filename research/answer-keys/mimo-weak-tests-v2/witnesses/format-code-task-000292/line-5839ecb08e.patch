@@ -1,0 +1,3821 @@
+diff --git a/go.mod b/go.mod
+index c5aa90f..e531da7 100644
+--- a/go.mod
++++ b/go.mod
+@@ -13,7 +13,7 @@ replace (
+ require (
+ 	cuelang.org/go v0.5.0
+ 	github.com/AlecAivazis/survey/v2 v2.3.6
+-	github.com/acorn-io/aml v0.0.0-20230619192500-1f56a8955db2
++	github.com/acorn-io/aml v0.0.0-20230707003008-f4b3216ff21f
+ 	github.com/acorn-io/baaah v0.0.0-20230628211933-3f682344a78d
+ 	github.com/acorn-io/mink v0.0.0-20230523184405-ceaaa366d500
+ 	github.com/acorn-io/namegenerator v0.0.0-20220915160418-9e3d5a0ffe78
+diff --git a/go.sum b/go.sum
+index 0dc3b16..fdc29d5 100644
+--- a/go.sum
++++ b/go.sum
+@@ -92,8 +92,8 @@ github.com/ThalesIgnite/crypto11 v1.2.5 h1:1IiIIEqYmBvUYFeMnHqRft4bwf/O36jryEUpY
+ github.com/ThalesIgnite/crypto11 v1.2.5/go.mod h1:ILDKtnCKiQ7zRoNxcp36Y1ZR8LBPmR2E23+wTQe/MlE=
+ github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d h1:licZJFw2RwpHMqeKTCYkitsPqHNxTmd4SNR5r94FGM8=
+ github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d/go.mod h1:asat636LX7Bqt5lYEZ27JNDcqxfjdBQuJ/MM4CN/Lzo=
+-github.com/acorn-io/aml v0.0.0-20230619192500-1f56a8955db2 h1:tWz51cHGC6GURkKqA4PdG3ObHz2YBrVzCfxXacNUqVY=
+-github.com/acorn-io/aml v0.0.0-20230619192500-1f56a8955db2/go.mod h1:UEx5RRLFjryCEHN2pM59+d8A0mPJ3VAxggJOTzPymwg=
++github.com/acorn-io/aml v0.0.0-20230707003008-f4b3216ff21f h1:50i67wGaxqHzjBAQ0OTJi83mzWqOntKSn9snL7DvpXA=
++github.com/acorn-io/aml v0.0.0-20230707003008-f4b3216ff21f/go.mod h1:UEx5RRLFjryCEHN2pM59+d8A0mPJ3VAxggJOTzPymwg=
+ github.com/acorn-io/baaah v0.0.0-20230628211933-3f682344a78d h1:a+geMqB3U52a4+iMmLZ9R/EXkgxrp0QCetoqLAUnTD8=
+ github.com/acorn-io/baaah v0.0.0-20230628211933-3f682344a78d/go.mod h1:LtwaWrYK/VuGptWxeD5Sgl0sgJV1ksicpTzyLilow1U=
+ github.com/acorn-io/mink v0.0.0-20230523184405-ceaaa366d500 h1:tiM36bM+iMWuW9HM+YlM1GfNDXC7f565z8Be5epO0qM=
+diff --git a/pkg/apis/internal.acorn.io/v1/appinstance.go b/pkg/apis/internal.acorn.io/v1/appinstance.go
+index ab28127..b80dc12 100644
+--- a/pkg/apis/internal.acorn.io/v1/appinstance.go
++++ b/pkg/apis/internal.acorn.io/v1/appinstance.go
+@@ -3,6 +3,8 @@
+ package v1
+ 
+ import (
++	"strings"
++
+ 	corev1 "k8s.io/api/core/v1"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ )
+@@ -83,26 +85,31 @@ const (
+ )
+ 
+ type AppInstanceSpec struct {
+-	Region              string           `json:"region,omitempty"`
+-	Labels              []ScopedLabel    `json:"labels,omitempty"`
+-	Annotations         []ScopedLabel    `json:"annotations,omitempty"`
+-	Image               string           `json:"image,omitempty"`
+-	Stop                *bool            `json:"stop,omitempty"`
+-	Profiles            []string         `json:"profiles,omitempty"`
+-	Volumes             []VolumeBinding  `json:"volumes,omitempty"`
+-	Secrets             []SecretBinding  `json:"secrets,omitempty"`
+-	Environment         []NameValue      `json:"environment,omitempty"`
+-	PublishMode         PublishMode      `json:"publishMode,omitempty"`
+-	TargetNamespace     string           `json:"targetNamespace,omitempty"`
+-	Links               []ServiceBinding `json:"services,omitempty"`
+-	Publish             []PortBinding    `json:"ports,omitempty"`
+-	DeployArgs          GenericMap       `json:"deployArgs,omitempty"`
+-	Permissions         []Permissions    `json:"permissions,omitempty"`
+-	AutoUpgrade         *bool            `json:"autoUpgrade,omitempty"`
+-	NotifyUpgrade       *bool            `json:"notifyUpgrade,omitempty"`
+-	AutoUpgradeInterval string           `json:"autoUpgradeInterval,omitempty"`
+-	ComputeClasses      ComputeClassMap  `json:"computeClass,omitempty"`
+-	Memory              MemoryMap        `json:"memory,omitempty"`
++	Region                  string           `json:"region,omitempty"`
++	Labels                  []ScopedLabel    `json:"labels,omitempty"`
++	Annotations             []ScopedLabel    `json:"annotations,omitempty"`
++	Image                   string           `json:"image,omitempty"`
++	Stop                    *bool            `json:"stop,omitempty"`
++	Profiles                []string         `json:"profiles,omitempty"`
++	Volumes                 []VolumeBinding  `json:"volumes,omitempty"`
++	Secrets                 []SecretBinding  `json:"secrets,omitempty"`
++	Environment             []NameValue      `json:"environment,omitempty"`
++	PublishMode             PublishMode      `json:"publishMode,omitempty"`
++	TargetNamespace         string           `json:"targetNamespace,omitempty"`
++	Links                   []ServiceBinding `json:"services,omitempty"`
++	Publish                 []PortBinding    `json:"ports,omitempty"`
++	DeployArgs              GenericMap       `json:"deployArgs,omitempty"`
++	Permissions             []Permissions    `json:"permissions,omitempty"`
++	ImageGrantedPermissions []Permissions    `json:"imageGrantedPermissions,omitempty"`
++	AutoUpgrade             *bool            `json:"autoUpgrade,omitempty"`
++	NotifyUpgrade           *bool            `json:"notifyUpgrade,omitempty"`
++	AutoUpgradeInterval     string           `json:"autoUpgradeInterval,omitempty"`
++	ComputeClasses          ComputeClassMap  `json:"computeClass,omitempty"`
++	Memory                  MemoryMap        `json:"memory,omitempty"`
++}
++
++func (in *AppInstanceSpec) GetPermissions() []Permissions {
++	return append(in.Permissions, in.ImageGrantedPermissions...)
+ }
+ 
+ func (in *AppInstance) GetStopped() bool {
+@@ -117,20 +124,34 @@ func (in *AppInstanceSpec) GetNotifyUpgrade() bool {
+ 	return in.NotifyUpgrade != nil && *in.NotifyUpgrade
+ }
+ 
++func addProfile(profiles []string, toAdd string) []string {
++	found := true
++	optional := strings.HasSuffix(toAdd, "?")
++	nonOptionalName := toAdd[:len(toAdd)-1]
++	for _, profile := range profiles {
++		if profile == toAdd {
++			found = true
++			break
++		} else if optional && profile == nonOptionalName {
++			found = true
++			break
++		}
++	}
++	if !found {
++		return append([]string{toAdd}, profiles...)
++	}
++	return profiles
++}
++
+ func (in *AppInstanceSpec) GetProfiles(devMode bool) []string {
++	profiles := in.Profiles
+ 	if devMode {
+-		found := false
+-		for _, profile := range in.Profiles {
+-			if profile == "dev?" {
+-				found = true
+-				break
+-			}
+-		}
+-		if !found {
+-			return append([]string{"dev?"}, in.Profiles...)
+-		}
++		profiles = addProfile(profiles, "devMode?")
++	}
++	if in.GetAutoUpgrade() {
++		profiles = addProfile(profiles, "autoUpgrade?")
+ 	}
+-	return in.Profiles
++	return profiles
+ }
+ 
+ type ServiceBindings []ServiceBinding
+diff --git a/pkg/apis/internal.acorn.io/v1/appspec.go b/pkg/apis/internal.acorn.io/v1/appspec.go
+index aca848f..d4de000 100644
+--- a/pkg/apis/internal.acorn.io/v1/appspec.go
++++ b/pkg/apis/internal.acorn.io/v1/appspec.go
+@@ -233,6 +233,60 @@ type PolicyRule struct {
+ 	Scopes            []string `json:"scopes,omitempty"`
+ }
+ 
++func matches(allowed, requested []string, emptyAllowedIsAll bool) bool {
++	for _, requested := range requested {
++		if !matchesSingle(allowed, requested, emptyAllowedIsAll) {
++			return false
++		}
++	}
++	return true
++}
++
++func matchesSingle(allowed []string, requested string, emptyAllowedIsAll bool) bool {
++	if len(requested) == 0 {
++		return true
++	}
++	if emptyAllowedIsAll && len(allowed) == 0 {
++		return true
++	}
++	for _, allow := range allowed {
++		if allow == "*" || requested == allow {
++			return true
++		}
++		if strings.HasSuffix(allow, "*") && strings.HasPrefix(requested, allow[:len(allow)-1]) {
++			return true
++		}
++	}
++
++	return false
++}
++
++func (p PolicyRule) Grants(currentNamespace string, requested PolicyRule) bool {
++	if len(p.NonResourceURLs) > 0 && len(p.Resources) == 0 {
++		return len(p.Scopes) == 0 &&
++			len(requested.Scopes) == 0 ||
++			matches(p.NonResourceURLs, requested.NonResourceURLs, false)
++	}
++
++	if len(p.NonResourceURLs) > 0 {
++		return false
++	}
++
++	for _, ns := range p.ResolveNamespaces(currentNamespace) {
++		for _, requestedNamespace := range requested.ResolveNamespaces(currentNamespace) {
++			if ns == requestedNamespace &&
++				matches(p.Verbs, requested.Verbs, false) &&
++				matches(p.APIGroups, requested.APIGroups, false) &&
++				matches(p.Resources, requested.Resources, false) &&
++				matches(p.ResourceNames, requested.ResourceNames, true) {
++				return true
++			}
++		}
++	}
++
++	return false
++}
++
+ func (p PolicyRule) IsAccountScoped() bool {
+ 	for _, scope := range p.Scopes {
+ 		if scope == "" {
+@@ -289,6 +343,19 @@ func (p PolicyRule) Namespaces() (result []string) {
+ 	return
+ }
+ 
++func GroupByServiceName(perms []Permissions) map[string]Permissions {
++	byServiceName := map[string]Permissions{}
++
++	for _, perm := range perms {
++		existing := byServiceName[perm.ServiceName]
++		existing.ServiceName = perm.ServiceName
++		existing.Rules = append(existing.Rules, perm.Rules...)
++		byServiceName[perm.ServiceName] = existing
++	}
++
++	return byServiceName
++}
++
+ type Permissions struct {
+ 	ServiceName string       `json:"serviceName,omitempty"`
+ 	Rules       []PolicyRule `json:"rules,omitempty"`
+@@ -296,6 +363,18 @@ type Permissions struct {
+ 	ZZ_ClusterRules []PolicyRule `json:"clusterRules,omitempty"`
+ }
+ 
++func (in Permissions) Grants(currentNamespace string, forService string, requested PolicyRule) bool {
++	if in.ServiceName != forService {
++		return false
++	}
++	for _, granted := range in.GetRules() {
++		if granted.Grants(currentNamespace, requested) {
++			return true
++		}
++	}
++	return false
++}
++
+ func (in Permissions) GetRules() []PolicyRule {
+ 	result := in.Rules
+ 	for _, rule := range in.ZZ_ClusterRules {
+@@ -321,13 +400,27 @@ func (in *Permissions) Get() Permissions {
+ 	return *in
+ }
+ 
+-func FindPermission(serviceName string, perms []Permissions) Permissions {
++func Grants(grantedPermissions Permissions, currentNamespace string, requestedPermissions Permissions) (missing Permissions, granted bool) {
++	missing.ServiceName = requestedPermissions.ServiceName
++
++	for _, requested := range requestedPermissions.Rules {
++		if grantedPermissions.Grants(currentNamespace, requestedPermissions.ServiceName, requested) {
++			continue
++		}
++		missing.Rules = append(missing.Rules, requested)
++	}
++
++	return missing, len(missing.Rules) == 0
++}
++
++func FindPermission(serviceName string, perms []Permissions) (result Permissions) {
++	result.ServiceName = serviceName
+ 	for _, perm := range perms {
+-		if serviceName == perm.ServiceName {
+-			return perm
++		if perm.ServiceName == serviceName {
++			result.Rules = append(result.Rules, perm.GetRules()...)
+ 		}
+ 	}
+-	return Permissions{}
++	return
+ }
+ 
+ type Files map[string]File
+@@ -418,24 +511,33 @@ type Router struct {
+ 	Routes      Routes            `json:"routes,omitempty"`
+ }
+ 
++func (in Acorn) GetOriginalImage() string {
++	originalImage := in.Image
++	if in.Build != nil && in.Build.OriginalImage != "" {
++		originalImage = in.Build.OriginalImage
++	}
++	return originalImage
++}
++
+ type Acorn struct {
+-	Labels              ScopedLabels    `json:"labels,omitempty"`
+-	Annotations         ScopedLabels    `json:"annotations,omitempty"`
+-	Image               string          `json:"image,omitempty"`
+-	Build               *AcornBuild     `json:"build,omitempty"`
+-	Profiles            []string        `json:"profiles,omitempty"`
+-	DeployArgs          GenericMap      `json:"deployArgs,omitempty"`
+-	Publish             PortBindings    `json:"publish,omitempty"`
+-	PublishMode         PublishMode     `json:"publishMode,omitempty"`
+-	Environment         NameValues      `json:"environment,omitempty"`
+-	Secrets             SecretBindings  `json:"secrets,omitempty"`
+-	Volumes             VolumeBindings  `json:"volumes,omitempty"`
+-	Links               ServiceBindings `json:"links,omitempty"`
+-	AutoUpgrade         *bool           `json:"autoUpgrade,omitempty"`
+-	NotifyUpgrade       *bool           `json:"notifyUpgrade,omitempty"`
+-	AutoUpgradeInterval string          `json:"autoUpgradeInterval,omitempty"`
+-	Memory              MemoryMap       `json:"memory,omitempty"`
+-	ComputeClasses      ComputeClassMap `json:"computeClasses,omitempty"`
++	Labels              ScopedLabels           `json:"labels,omitempty"`
++	Annotations         ScopedLabels           `json:"annotations,omitempty"`
++	Image               string                 `json:"image,omitempty"`
++	Build               *AcornBuild            `json:"build,omitempty"`
++	Profiles            []string               `json:"profiles,omitempty"`
++	DeployArgs          GenericMap             `json:"deployArgs,omitempty"`
++	Publish             PortBindings           `json:"publish,omitempty"`
++	PublishMode         PublishMode            `json:"publishMode,omitempty"`
++	Environment         NameValues             `json:"environment,omitempty"`
++	Secrets             SecretBindings         `json:"secrets,omitempty"`
++	Volumes             VolumeBindings         `json:"volumes,omitempty"`
++	Links               ServiceBindings        `json:"links,omitempty"`
++	AutoUpgrade         *bool                  `json:"autoUpgrade,omitempty"`
++	NotifyUpgrade       *bool                  `json:"notifyUpgrade,omitempty"`
++	AutoUpgradeInterval string                 `json:"autoUpgradeInterval,omitempty"`
++	Memory              MemoryMap              `json:"memory,omitempty"`
++	ComputeClasses      ComputeClassMap        `json:"computeClasses,omitempty"`
++	Permissions         map[string]Permissions `json:"permissions,omitempty"`
+ }
+ 
+ type Secret struct {
+@@ -474,31 +576,40 @@ type GeneratedService struct {
+ }
+ 
+ type Service struct {
+-	Labels              ScopedLabels      `json:"labels,omitempty"`
+-	Annotations         ScopedLabels      `json:"annotations,omitempty"`
+-	Default             bool              `json:"default,omitempty"`
+-	External            string            `json:"external,omitempty"`
+-	Alias               string            `json:"alias,omitempty"`
+-	Address             string            `json:"address,omitempty"`
+-	Ports               Ports             `json:"ports,omitempty"`
+-	Container           string            `json:"container,omitempty"`
+-	Data                GenericMap        `json:"data,omitempty"`
+-	Generated           *GeneratedService `json:"generated,omitempty"`
+-	Image               string            `json:"image,omitempty"`
+-	Build               *AcornBuild       `json:"build,omitempty"`
+-	ServiceArgs         GenericMap        `json:"serviceArgs,omitempty"`
+-	Environment         NameValues        `json:"environment,omitempty"`
+-	Secrets             SecretBindings    `json:"secrets,omitempty"`
+-	Links               ServiceBindings   `json:"links,omitempty"`
+-	AutoUpgrade         *bool             `json:"autoUpgrade,omitempty"`
+-	NotifyUpgrade       *bool             `json:"notifyUpgrade,omitempty"`
+-	AutoUpgradeInterval string            `json:"autoUpgradeInterval,omitempty"`
+-	Memory              MemoryMap         `json:"memory,omitempty"`
+-}
+-
+-func (s Service) GetJob() string {
+-	if s.Generated == nil {
++	Labels              ScopedLabels           `json:"labels,omitempty"`
++	Annotations         ScopedLabels           `json:"annotations,omitempty"`
++	Default             bool                   `json:"default,omitempty"`
++	External            string                 `json:"external,omitempty"`
++	Alias               string                 `json:"alias,omitempty"`
++	Address             string                 `json:"address,omitempty"`
++	Ports               Ports                  `json:"ports,omitempty"`
++	Container           string                 `json:"container,omitempty"`
++	Data                GenericMap             `json:"data,omitempty"`
++	Generated           *GeneratedService      `json:"generated,omitempty"`
++	Image               string                 `json:"image,omitempty"`
++	Build               *AcornBuild            `json:"build,omitempty"`
++	ServiceArgs         GenericMap             `json:"serviceArgs,omitempty"`
++	Environment         NameValues             `json:"environment,omitempty"`
++	Secrets             SecretBindings         `json:"secrets,omitempty"`
++	Links               ServiceBindings        `json:"links,omitempty"`
++	AutoUpgrade         *bool                  `json:"autoUpgrade,omitempty"`
++	NotifyUpgrade       *bool                  `json:"notifyUpgrade,omitempty"`
++	AutoUpgradeInterval string                 `json:"autoUpgradeInterval,omitempty"`
++	Memory              MemoryMap              `json:"memory,omitempty"`
++	Permissions         map[string]Permissions `json:"permissions,omitempty"`
++}
++
++func (in Service) GetOriginalImage() string {
++	originalImage := in.Image
++	if in.Build != nil && in.Build.OriginalImage != "" {
++		originalImage = in.Build.OriginalImage
++	}
++	return originalImage
++}
++
++func (in Service) GetJob() string {
++	if in.Generated == nil {
+ 		return ""
+ 	}
+-	return s.Generated.Job
++	return in.Generated.Job
+ }
+diff --git a/pkg/apis/internal.acorn.io/v1/unmarshal.go b/pkg/apis/internal.acorn.io/v1/unmarshal.go
+index 52dcf80..ca0addb 100644
+--- a/pkg/apis/internal.acorn.io/v1/unmarshal.go
++++ b/pkg/apis/internal.acorn.io/v1/unmarshal.go
+@@ -1368,7 +1368,8 @@ func ParseNameValues(fillEnv bool, s ...string) (result []NameValue) {
+ 	for _, s := range s {
+ 		k, v, _ := strings.Cut(s, "=")
+ 		if v == "" && fillEnv {
+-			v = os.Getenv(k)
++			parts := strings.Split(k, ".")
++			v = os.Getenv(parts[len(parts)-1])
+ 		}
+ 		result = append(result, NameValue{
+ 			Name:  k,
+diff --git a/pkg/apis/internal.acorn.io/v1/zz_generated.deepcopy.go b/pkg/apis/internal.acorn.io/v1/zz_generated.deepcopy.go
+index 12de413..d476cd9 100644
+--- a/pkg/apis/internal.acorn.io/v1/zz_generated.deepcopy.go
++++ b/pkg/apis/internal.acorn.io/v1/zz_generated.deepcopy.go
+@@ -113,6 +113,13 @@ func (in *Acorn) DeepCopyInto(out *Acorn) {
+ 			(*out)[key] = val
+ 		}
+ 	}
++	if in.Permissions != nil {
++		in, out := &in.Permissions, &out.Permissions
++		*out = make(map[string]Permissions, len(*in))
++		for key, val := range *in {
++			(*out)[key] = *val.DeepCopy()
++		}
++	}
+ }
+ 
+ // DeepCopy is an autogenerated deepcopy function, copying the receiver, creating a new Acorn.
+@@ -453,6 +460,13 @@ func (in *AppInstanceSpec) DeepCopyInto(out *AppInstanceSpec) {
+ 			(*in)[i].DeepCopyInto(&(*out)[i])
+ 		}
+ 	}
++	if in.ImageGrantedPermissions != nil {
++		in, out := &in.ImageGrantedPermissions, &out.ImageGrantedPermissions
++		*out = make([]Permissions, len(*in))
++		for i := range *in {
++			(*in)[i].DeepCopyInto(&(*out)[i])
++		}
++	}
+ 	if in.AutoUpgrade != nil {
+ 		in, out := &in.AutoUpgrade, &out.AutoUpgrade
+ 		*out = new(bool)
+@@ -2647,6 +2661,13 @@ func (in *Service) DeepCopyInto(out *Service) {
+ 			(*out)[key] = outVal
+ 		}
+ 	}
++	if in.Permissions != nil {
++		in, out := &in.Permissions, &out.Permissions
++		*out = make(map[string]Permissions, len(*in))
++		for key, val := range *in {
++			(*out)[key] = *val.DeepCopy()
++		}
++	}
+ }
+ 
+ // DeepCopy is an autogenerated deepcopy function, copying the receiver, creating a new Service.
+diff --git a/pkg/appdefinition/appdefinition.go b/pkg/appdefinition/appdefinition.go
+index 487dde7..631cbf2 100644
+--- a/pkg/appdefinition/appdefinition.go
++++ b/pkg/appdefinition/appdefinition.go
+@@ -22,6 +22,7 @@ const (
+ 	ImageDataFile = "images.json"
+ 	VCSDataFile   = "vcs.json"
+ 	BuildDataFile = "build.json"
++	messageSuffix = ", you may need to define the image/build in the images section of the Acornfile"
+ )
+ 
+ var (
+@@ -165,14 +166,14 @@ func (a *AppDefinition) AppSpec() (*v1.AppSpec, error) {
+ 		if image, ok := GetImageReferenceForServiceName(containerName, spec, imagesData); ok {
+ 			conSpec.Image, conSpec.Build = assignImage(conSpec.Image, conSpec.Build, image)
+ 		} else {
+-			return nil, fmt.Errorf("failed to find image for container [%s] in Acornfile", containerName)
++			return nil, fmt.Errorf("failed to find image for container [%s] in Acornfile"+messageSuffix, containerName)
+ 		}
+ 		for sidecarName, sidecarSpec := range conSpec.Sidecars {
+ 			if image, ok := GetImageReferenceForServiceName(containerName+"."+sidecarName, spec, imagesData); ok {
+ 				sidecarSpec.Image, sidecarSpec.Build = assignImage(sidecarSpec.Image, sidecarSpec.Build, image)
+ 				conSpec.Sidecars[sidecarName] = sidecarSpec
+ 			} else {
+-				return nil, fmt.Errorf("failed to find image for sidecar [%s] in container [%s] in Acornfile", sidecarName, containerName)
++				return nil, fmt.Errorf("failed to find image for sidecar [%s] in container [%s] in Acornfile"+messageSuffix, sidecarName, containerName)
+ 			}
+ 		}
+ 		spec.Containers[containerName] = conSpec
+@@ -182,14 +183,14 @@ func (a *AppDefinition) AppSpec() (*v1.AppSpec, error) {
+ 		if image, ok := GetImageReferenceForServiceName(containerName, spec, imagesData); ok {
+ 			conSpec.Image, conSpec.Build = assignImage(conSpec.Image, conSpec.Build, image)
+ 		} else {
+-			return nil, fmt.Errorf("failed to find image for job [%s] in Acornfile", containerName)
++			return nil, fmt.Errorf("failed to find image for job [%s] in Acornfile"+messageSuffix, containerName)
+ 		}
+ 		for sidecarName, sidecarSpec := range conSpec.Sidecars {
+ 			if image, ok := GetImageReferenceForServiceName(containerName+"."+sidecarName, spec, imagesData); ok {
+ 				sidecarSpec.Image, sidecarSpec.Build = assignImage(sidecarSpec.Image, sidecarSpec.Build, image)
+ 				conSpec.Sidecars[sidecarName] = sidecarSpec
+ 			} else {
+-				return nil, fmt.Errorf("failed to find image for sidecar [%s] in job [%s] in Acornfile", sidecarName, containerName)
++				return nil, fmt.Errorf("failed to find image for sidecar [%s] in job [%s] in Acornfile"+messageSuffix, sidecarName, containerName)
+ 			}
+ 		}
+ 		spec.Jobs[containerName] = conSpec
+@@ -203,7 +204,7 @@ func (a *AppDefinition) AppSpec() (*v1.AppSpec, error) {
+ 				imgSpec.Image, imgSpec.Build = assignImage(imgSpec.Image, imgSpec.Build, image)
+ 			}
+ 		} else {
+-			return nil, fmt.Errorf("failed to find image for image definition [%s] in Acornfile", imageName)
++			return nil, fmt.Errorf("failed to find image for image definition [%s] in Acornfile"+messageSuffix, imageName)
+ 		}
+ 		spec.Images[imageName] = imgSpec
+ 	}
+@@ -212,7 +213,7 @@ func (a *AppDefinition) AppSpec() (*v1.AppSpec, error) {
+ 		if image, ok := GetImageReferenceForServiceName(acornName, spec, imagesData); ok {
+ 			acornSpec.Image, acornSpec.Build = assignAcornImage(acornSpec.Image, acornSpec.Build, image)
+ 		} else {
+-			return nil, fmt.Errorf("failed to find image for acorn [%s] in Acornfile", acornName)
++			return nil, fmt.Errorf("failed to find image for acorn [%s] in Acornfile"+messageSuffix, acornName)
+ 		}
+ 		spec.Acorns[acornName] = acornSpec
+ 	}
+@@ -224,7 +225,7 @@ func (a *AppDefinition) AppSpec() (*v1.AppSpec, error) {
+ 		if image, ok := GetImageReferenceForServiceName(serviceName, spec, imagesData); ok {
+ 			serviceSpec.Image, serviceSpec.Build = assignAcornImage(serviceSpec.Image, serviceSpec.Build, image)
+ 		} else {
+-			return nil, fmt.Errorf("failed to find image for service [%s] in Acornfile", serviceName)
++			return nil, fmt.Errorf("failed to find image for service [%s] in Acornfile"+messageSuffix, serviceName)
+ 		}
+ 		spec.Services[serviceName] = serviceSpec
+ 	}
+diff --git a/pkg/appdefinition/lookup.go b/pkg/appdefinition/lookup.go
+index 586e56e..6fad41f 100644
+--- a/pkg/appdefinition/lookup.go
++++ b/pkg/appdefinition/lookup.go
+@@ -74,6 +74,9 @@ func findAcornImage(imageData v1.ImagesData, image string, acornBuild *v1.AcornB
+ 			if build.ImageKey == "" && build.AcornBuild != nil && build.AcornBuild.Image == image {
+ 				return image, true
+ 			}
++			if build.ImageKey != "" && build.AcornBuild != nil && build.AcornBuild.Image == image && build.AcornBuild.Build == nil && !build.AcornBuild.AutoUpgrade {
++				return findImageInImageData(imageData, build.ImageKey)
++			}
+ 		}
+ 		return "", false
+ 	}
+diff --git a/pkg/controller/appdefinition/acorn.go b/pkg/controller/appdefinition/acorn.go
+index 27958cb..83c008f 100644
+--- a/pkg/controller/appdefinition/acorn.go
++++ b/pkg/controller/appdefinition/acorn.go
+@@ -95,11 +95,6 @@ func toAcorn(appInstance *v1.AppInstance, tag name.Reference, pullSecrets *PullS
+ 		pullSecrets.ForAcorn(acornName, image)
+ 	}
+ 
+-	originalImage := acorn.Image
+-	if acorn.Build != nil && acorn.Build.OriginalImage != "" {
+-		originalImage = acorn.Build.OriginalImage
+-	}
+-
+ 	labelMap := labels.Merge(appInstanceScoped(acornName, appInstance.Status.AppSpec.Labels, appInstance.Spec.Labels, acorn.Labels),
+ 		labels.Managed(appInstance,
+ 			labels.AcornAcornName, acornName,
+@@ -118,7 +113,7 @@ func toAcorn(appInstance *v1.AppInstance, tag name.Reference, pullSecrets *PullS
+ 			Labels:    labelMap,
+ 			Annotations: labels.Merge(appInstanceScoped(acornName, appInstance.Status.AppSpec.Annotations, appInstance.Spec.Annotations, acorn.Annotations),
+ 				map[string]string{
+-					labels.AcornOriginalImage: originalImage,
++					labels.AcornOriginalImage: acorn.GetOriginalImage(),
+ 					labels.AcornAppGeneration: strconv.FormatInt(appInstance.Generation, 10),
+ 				}),
+ 		},
+@@ -135,8 +130,8 @@ func toAcorn(appInstance *v1.AppInstance, tag name.Reference, pullSecrets *PullS
+ 			DeployArgs:          acorn.DeployArgs,
+ 			Publish:             acorn.Publish,
+ 			Stop:                typed.Pointer(appInstance.GetStopped()),
+-			Environment:         append(acorn.Environment, appInstance.Spec.Environment...),
+-			Permissions:         trimPermPrefix(appInstance.Spec.Permissions, acornName),
++			Environment:         append(acorn.Environment, trimEnvPrefix(appInstance.Spec.Environment, acornName)...),
++			Permissions:         trimPermPrefix(appInstance.Spec.GetPermissions(), acornName),
+ 			AutoUpgrade:         acorn.AutoUpgrade,
+ 			AutoUpgradeInterval: acorn.AutoUpgradeInterval,
+ 			NotifyUpgrade:       acorn.NotifyUpgrade,
+@@ -146,9 +141,26 @@ func toAcorn(appInstance *v1.AppInstance, tag name.Reference, pullSecrets *PullS
+ 	return acornInstance
+ }
+ 
++func trimEnvPrefix(envs []v1.NameValue, name string) (result []v1.NameValue) {
++	prefix := name + "."
++	for _, env := range envs {
++		if strings.Contains(env.Name, ".") {
++			if strings.HasPrefix(env.Name, prefix) {
++				result = append(result, v1.NameValue{
++					Name:  strings.TrimPrefix(env.Name, prefix),
++					Value: env.Value,
++				})
++			}
++		} else {
++			result = append(result, env)
++		}
++	}
++	return
++}
++
+ func trimPermPrefix(perms []v1.Permissions, name string) (result []v1.Permissions) {
++	prefix := name + "."
+ 	for _, perm := range perms {
+-		prefix := name + "."
+ 		if strings.HasPrefix(perm.ServiceName, prefix) {
+ 			result = append(result, v1.Permissions{
+ 				ServiceName: strings.TrimPrefix(perm.ServiceName, prefix),
+diff --git a/pkg/controller/appdefinition/deploy.go b/pkg/controller/appdefinition/deploy.go
+index 3830e63..dba5a7b 100644
+--- a/pkg/controller/appdefinition/deploy.go
++++ b/pkg/controller/appdefinition/deploy.go
+@@ -146,7 +146,10 @@ func toEnv(envs []v1.EnvVar, appEnvs []v1.NameValue, interpolator *secrets.Inter
+ 			if appEnvNames.Has(env.Name) {
+ 				continue
+ 			}
+-			result = append(result, interpolator.ToEnv(env.Name, env.Value))
++			interpolated, ok := interpolator.ToEnv(env.Name, env.Value)
++			if ok {
++				result = append(result, interpolated)
++			}
+ 		} else {
+ 			if env.Secret.Key == "" {
+ 				continue
+@@ -168,7 +171,10 @@ func toEnv(envs []v1.EnvVar, appEnvs []v1.NameValue, interpolator *secrets.Inter
+ 		}
+ 	}
+ 	for _, appEnv := range appEnvs {
+-		result = append(result, interpolator.ToEnv(appEnv.Name, appEnv.Value))
++		interpolated, ok := interpolator.ToEnv(appEnv.Name, appEnv.Value)
++		if ok {
++			result = append(result, interpolated)
++		}
+ 	}
+ 	return
+ }
+@@ -439,7 +445,7 @@ func jobLabels(appInstance *v1.AppInstance, container v1.Container, name string,
+ 
+ func containerLabels(appInstance *v1.AppInstance, container v1.Container, name string, kv ...string) map[string]string {
+ 	labelMap := labels.GatherScoped(name, v1.LabelTypeContainer, appInstance.Status.AppSpec.Labels, container.Labels, appInstance.Spec.Labels)
+-	return mergeConLabels(labelMap, appInstance, name, kv...)
++	return mergeConLabels(labelMap, appInstance, name, append([]string{labels.AcornAppPublicName, publicname.Get(appInstance)}, kv...)...)
+ }
+ 
+ func routerLabels(appInstance *v1.AppInstance, router v1.Router, name string, kv ...string) map[string]string {
+@@ -612,7 +618,7 @@ func toDeployment(req router.Request, appInstance *v1.AppInstance, tag name.Refe
+ 		return nil, err
+ 	}
+ 
+-	podLabels := containerLabels(appInstance, container, name, labels.AcornAppPublicName, publicname.Get(appInstance))
++	podLabels := containerLabels(appInstance, container, name)
+ 	deploymentLabels := containerLabels(appInstance, container, name)
+ 	matchLabels := selectorMatchLabels(appInstance, name)
+ 
+@@ -681,7 +687,7 @@ func ToDeployments(req router.Request, appInstance *v1.AppInstance, tag name.Ref
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		if perms := v1.FindPermission(dep.GetName(), appInstance.Spec.Permissions); perms.HasRules() {
++		if perms := v1.FindPermission(dep.GetName(), appInstance.Spec.GetPermissions()); perms.HasRules() {
+ 			result = append(result, toPermissions(perms, dep.GetLabels(), dep.GetAnnotations(), appInstance)...)
+ 		}
+ 		result = append(result, sa, dep, pdb.ToPodDisruptionBudget(dep))
+diff --git a/pkg/controller/appdefinition/jobs.go b/pkg/controller/appdefinition/jobs.go
+index b79d89f..25e993f 100644
+--- a/pkg/controller/appdefinition/jobs.go
++++ b/pkg/controller/appdefinition/jobs.go
+@@ -54,7 +54,7 @@ func toJobs(req router.Request, appInstance *v1.AppInstance, pullSecrets *PullSe
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		if perms := v1.FindPermission(job.GetName(), appInstance.Spec.Permissions); perms.HasRules() {
++		if perms := v1.FindPermission(job.GetName(), appInstance.Spec.GetPermissions()); perms.HasRules() {
+ 			result = append(result, toPermissions(perms, job.GetLabels(), stripPruneAndUpdate(job.GetAnnotations()), appInstance)...)
+ 		}
+ 		result = append(result, sa, job)
+diff --git a/pkg/controller/appdefinition/serviceaccount.go b/pkg/controller/appdefinition/serviceaccount.go
+index 82f28d1..7532155 100644
+--- a/pkg/controller/appdefinition/serviceaccount.go
++++ b/pkg/controller/appdefinition/serviceaccount.go
+@@ -29,7 +29,7 @@ func addAWS(req router.Request, appInstance *v1.AppInstance, sa *corev1.ServiceA
+ 	perms := v1.Permissions{
+ 		ServiceName: sa.Name,
+ 	}
+-	for _, perm := range appInstance.Spec.Permissions {
++	for _, perm := range appInstance.Spec.GetPermissions() {
+ 		if perm.ServiceName == sa.Name {
+ 			perms.Rules = append(perms.Rules, perm.Rules...)
+ 		}
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/all-set-overwrite-computeclass/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/all-set-overwrite-computeclass/expected.golden
+index 2e2e1cd..1904aff 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/all-set-overwrite-computeclass/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/all-set-overwrite-computeclass/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -96,6 +98,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/all-set/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/all-set/expected.golden
+index 24397d8..c44b7ce 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/all-set/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/all-set/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -96,6 +98,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/container/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/container/expected.golden
+index d29b854..1a3546c 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/container/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/container/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -96,6 +98,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/different-computeclass/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/different-computeclass/expected.golden
+index a8ab877..618e5bf 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/different-computeclass/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/different-computeclass/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -82,6 +84,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -108,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -121,6 +125,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -185,6 +190,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/overwrite-acornfile-computeclass/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/overwrite-acornfile-computeclass/expected.golden
+index 510575e..eaf4078 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/overwrite-acornfile-computeclass/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/overwrite-acornfile-computeclass/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -96,6 +98,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/two-containers/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/two-containers/expected.golden
+index 101adb0..bb86b57 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/two-containers/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/two-containers/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -82,6 +84,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -108,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -121,6 +125,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -171,6 +176,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/computeclass/with-acornfile-computeclass/expected.golden b/pkg/controller/appdefinition/testdata/computeclass/with-acornfile-computeclass/expected.golden
+index 37a83b0..462ea5f 100644
+--- a/pkg/controller/appdefinition/testdata/computeclass/with-acornfile-computeclass/expected.golden
++++ b/pkg/controller/appdefinition/testdata/computeclass/with-acornfile-computeclass/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -96,6 +98,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/depends-ready/expected.golden b/pkg/controller/appdefinition/testdata/depends-ready/expected.golden
+index e67ef47..7c76924 100644
+--- a/pkg/controller/appdefinition/testdata/depends-ready/expected.golden
++++ b/pkg/controller/appdefinition/testdata/depends-ready/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -88,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+@@ -101,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+@@ -145,6 +150,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+diff --git a/pkg/controller/appdefinition/testdata/depends/expected.golden b/pkg/controller/appdefinition/testdata/depends/expected.golden
+index cf2f16e..3634e06 100644
+--- a/pkg/controller/appdefinition/testdata/depends/expected.golden
++++ b/pkg/controller/appdefinition/testdata/depends/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -91,6 +94,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+@@ -107,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+@@ -154,6 +159,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: web
+     acorn.io/managed: "true"
+   name: web
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/basic/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/basic/expected.golden
+index 1c79e81..4a2ab56 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/basic/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/basic/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -88,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -101,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -160,6 +165,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/filter-user-labels/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/filter-user-labels/expected.golden
+index ebe2b73..119c1e7 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/filter-user-labels/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/filter-user-labels/expected.golden
+@@ -11,6 +11,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     allowed-global.io: test-global
+@@ -35,6 +36,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     allowed-global.io: test-global
+@@ -109,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     allowed-global.io: test-global
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/labels/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/labels/expected.golden
+index 701a62d..5576b8b 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/labels/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/labels/expected.golden
+@@ -11,6 +11,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     appSpecLabel: test-app-spec-label
+@@ -35,6 +36,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     appSpecLabel: test-app-spec-label
+@@ -109,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+     appSpecLabel: test-app-spec-label
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/metrics/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/metrics/expected.golden
+index 319dc55..c168acf 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/metrics/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/metrics/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-with-metrics
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-with-metrics
+     acorn.io/container-name: nginx
+     acorn.io/managed: "true"
+   name: nginx
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-with-metrics
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-with-metrics
+     acorn.io/container-name: nginx
+     acorn.io/managed: "true"
+   name: nginx
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-with-metrics
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-with-metrics
+     acorn.io/container-name: nginx
+     acorn.io/managed: "true"
+   name: nginx
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/no-user-labels/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/no-user-labels/expected.golden
+index 9b7142e..e2fd1b2 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/no-user-labels/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/no-user-labels/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/scale/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/scale/expected.golden
+index 026c475..efd5b71 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/scale/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/scale/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -88,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -101,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -145,6 +150,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/deployspec/stop/expected.golden b/pkg/controller/appdefinition/testdata/deployspec/stop/expected.golden
+index b87b0db..d146fe0 100644
+--- a/pkg/controller/appdefinition/testdata/deployspec/stop/expected.golden
++++ b/pkg/controller/appdefinition/testdata/deployspec/stop/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -63,6 +65,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -89,6 +92,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -102,6 +106,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -147,6 +152,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/files-bug/expected.golden b/pkg/controller/appdefinition/testdata/files-bug/expected.golden
+index f47549f..0bcd06f 100644
+--- a/pkg/controller/appdefinition/testdata/files-bug/expected.golden
++++ b/pkg/controller/appdefinition/testdata/files-bug/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -80,6 +82,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/files/expected.golden b/pkg/controller/appdefinition/testdata/files/expected.golden
+index 9808269..406ff51 100644
+--- a/pkg/controller/appdefinition/testdata/files/expected.golden
++++ b/pkg/controller/appdefinition/testdata/files/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -93,6 +95,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/globalenv/expected.golden b/pkg/controller/appdefinition/testdata/globalenv/expected.golden
+index 730acb3..eef9147 100644
+--- a/pkg/controller/appdefinition/testdata/globalenv/expected.golden
++++ b/pkg/controller/appdefinition/testdata/globalenv/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -67,6 +69,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/ingress/basic/expected.golden b/pkg/controller/appdefinition/testdata/ingress/basic/expected.golden
+index 7edbf73..d75c062 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/basic/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/basic/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -70,6 +72,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -96,6 +99,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -109,6 +113,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -168,6 +173,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/ingress/clusterdomainport/expected.golden b/pkg/controller/appdefinition/testdata/ingress/clusterdomainport/expected.golden
+index 1db95ce..f190591 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/clusterdomainport/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/clusterdomainport/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -68,6 +70,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/ingress/labels/expected.golden b/pkg/controller/appdefinition/testdata/ingress/labels/expected.golden
+index c0955b0..1b1e917 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/labels/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/labels/expected.golden
+@@ -11,6 +11,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -35,6 +36,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -106,6 +108,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+diff --git a/pkg/controller/appdefinition/testdata/ingress/letsencrypt/expected.golden b/pkg/controller/appdefinition/testdata/ingress/letsencrypt/expected.golden
+index b38a50f..2479439 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/letsencrypt/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/letsencrypt/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app1
+     acorn.io/managed: "true"
+   name: app1
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app1
+     acorn.io/managed: "true"
+   name: app1
+@@ -68,6 +70,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app1
+     acorn.io/managed: "true"
+   name: app1
+@@ -94,6 +97,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app2
+     acorn.io/managed: "true"
+   name: app2
+@@ -107,6 +111,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app2
+     acorn.io/managed: "true"
+   name: app2
+@@ -157,6 +162,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: app2
+     acorn.io/managed: "true"
+   name: app2
+diff --git a/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-1/expected.golden b/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-1/expected.golden
+index 1a09206..bb4bc64 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-1/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-1/expected.golden
+@@ -11,6 +11,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -35,6 +36,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -106,6 +108,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+diff --git a/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-2/expected.golden b/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-2/expected.golden
+index cd69b52..fa0fd1e 100644
+--- a/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-2/expected.golden
++++ b/pkg/controller/appdefinition/testdata/ingress/prefix/prefix-2/expected.golden
+@@ -11,6 +11,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -35,6 +36,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+@@ -106,6 +108,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     allconsl1: value
+diff --git a/pkg/controller/appdefinition/testdata/interpolation/expected.golden b/pkg/controller/appdefinition/testdata/interpolation/expected.golden
+index f21f475..b16b1a2 100644
+--- a/pkg/controller/appdefinition/testdata/interpolation/expected.golden
++++ b/pkg/controller/appdefinition/testdata/interpolation/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -80,6 +82,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/all-set-overwrite/expected.golden b/pkg/controller/appdefinition/testdata/memory/all-set-overwrite/expected.golden
+index 9986bb6..34fae1c 100644
+--- a/pkg/controller/appdefinition/testdata/memory/all-set-overwrite/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/all-set-overwrite/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -85,6 +87,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/all-set/expected.golden b/pkg/controller/appdefinition/testdata/memory/all-set/expected.golden
+index 30efff1..56479b6 100644
+--- a/pkg/controller/appdefinition/testdata/memory/all-set/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/all-set/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -85,6 +87,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/container/expected.golden b/pkg/controller/appdefinition/testdata/memory/container/expected.golden
+index 8f33c0d..81647f8 100644
+--- a/pkg/controller/appdefinition/testdata/memory/container/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/container/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -81,6 +83,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/overwrite-acornfile-memory/expected.golden b/pkg/controller/appdefinition/testdata/memory/overwrite-acornfile-memory/expected.golden
+index e5cb782..1656a82 100644
+--- a/pkg/controller/appdefinition/testdata/memory/overwrite-acornfile-memory/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/overwrite-acornfile-memory/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -81,6 +83,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/sidecar/expected.golden b/pkg/controller/appdefinition/testdata/memory/sidecar/expected.golden
+index bf0f371..fbeb44c 100644
+--- a/pkg/controller/appdefinition/testdata/memory/sidecar/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/sidecar/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -81,6 +83,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/two-containers/expected.golden b/pkg/controller/appdefinition/testdata/memory/two-containers/expected.golden
+index 1d1f291..979d204 100644
+--- a/pkg/controller/appdefinition/testdata/memory/two-containers/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/two-containers/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -72,6 +74,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -98,6 +101,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -111,6 +115,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -161,6 +166,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/memory/with-acornfile-memory/expected.golden b/pkg/controller/appdefinition/testdata/memory/with-acornfile-memory/expected.golden
+index c62a1b2..d5d5760 100644
+--- a/pkg/controller/appdefinition/testdata/memory/with-acornfile-memory/expected.golden
++++ b/pkg/controller/appdefinition/testdata/memory/with-acornfile-memory/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -81,6 +83,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/parsedevmode/expected.golden b/pkg/controller/appdefinition/testdata/parsedevmode/expected.golden
+index 024fa09..707dcd0 100644
+--- a/pkg/controller/appdefinition/testdata/parsedevmode/expected.golden
++++ b/pkg/controller/appdefinition/testdata/parsedevmode/expected.golden
+@@ -9,7 +9,7 @@ status:
+   appImage:
+     acornfile: |
+       args: image: "not-foo"
+-      profiles: dev: image: "foo"
++      profiles: devMode: image: "foo"
+       containers: {
+         oneimage: image: args.image
+       }
+@@ -22,7 +22,7 @@ status:
+     containers:
+       oneimage:
+         build:
+-          baseImage: foo
++          baseImage: not-foo
+           context: .
+           dockerfile: Dockerfile
+         image: sha256:build-image
+diff --git a/pkg/controller/appdefinition/testdata/parsedevmode/input.yaml b/pkg/controller/appdefinition/testdata/parsedevmode/input.yaml
+index c4b774b..4f50f6e 100644
+--- a/pkg/controller/appdefinition/testdata/parsedevmode/input.yaml
++++ b/pkg/controller/appdefinition/testdata/parsedevmode/input.yaml
+@@ -8,7 +8,7 @@ status:
+   appImage:
+     acornfile: |
+       args: image: "not-foo"
+-      profiles: dev: image: "foo"
++      profiles: devMode: image: "foo"
+       containers: {
+         oneimage: image: args.image
+       }
+diff --git a/pkg/controller/appdefinition/testdata/permissions/both/expected.golden b/pkg/controller/appdefinition/testdata/permissions/both/expected.golden
+index ece554e..49dd43a 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/both/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/both/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -24,6 +25,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -44,6 +46,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -64,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -87,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -100,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -159,6 +165,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/permissions/bothwithnopermissions/expected.golden b/pkg/controller/appdefinition/testdata/permissions/bothwithnopermissions/expected.golden
+index a2acf80..bde1b89 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/bothwithnopermissions/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/bothwithnopermissions/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -77,6 +79,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/permissions/container/expected.golden b/pkg/controller/appdefinition/testdata/permissions/container/expected.golden
+index 2eb0b36..4acc08c 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/container/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/container/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -24,6 +25,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -44,6 +46,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -64,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -87,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -100,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -159,6 +165,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/permissions/containerwithnamespace/expected.golden b/pkg/controller/appdefinition/testdata/permissions/containerwithnamespace/expected.golden
+index 0b41336..0a2198b 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/containerwithnamespace/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/containerwithnamespace/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -24,6 +25,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -44,6 +46,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -64,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -85,6 +89,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-ns1
+@@ -105,6 +110,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-ns1
+@@ -126,6 +132,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-ns2
+@@ -146,6 +153,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-ns2
+@@ -169,6 +177,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -182,6 +191,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -241,6 +251,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/permissions/differentpermissions/expected.golden b/pkg/controller/appdefinition/testdata/permissions/differentpermissions/expected.golden
+index ae3a879..8f97043 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/differentpermissions/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/differentpermissions/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -24,6 +25,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -44,6 +46,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -64,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -87,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -100,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -159,6 +165,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -185,6 +192,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -204,6 +212,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -224,6 +233,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -244,6 +254,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -267,6 +278,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -280,6 +292,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -339,6 +352,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/permissions/multiplecontainers/expected.golden b/pkg/controller/appdefinition/testdata/permissions/multiplecontainers/expected.golden
+index 02af6fd..9085f05 100644
+--- a/pkg/controller/appdefinition/testdata/permissions/multiplecontainers/expected.golden
++++ b/pkg/controller/appdefinition/testdata/permissions/multiplecontainers/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -24,6 +25,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab
+@@ -44,6 +46,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -64,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -87,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -100,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -159,6 +165,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -185,6 +192,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -204,6 +212,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab
+@@ -224,6 +233,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -244,6 +254,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage-app-name-app-namespace-1234567890ab-app-namespace
+@@ -267,6 +278,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -280,6 +292,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+@@ -339,6 +352,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: twoimage
+     acorn.io/managed: "true"
+   name: twoimage
+diff --git a/pkg/controller/appdefinition/testdata/probes/expected.golden b/pkg/controller/appdefinition/testdata/probes/expected.golden
+index 5014355..b888a34 100644
+--- a/pkg/controller/appdefinition/testdata/probes/expected.golden
++++ b/pkg/controller/appdefinition/testdata/probes/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: nodefault
+     acorn.io/managed: "true"
+   name: nodefault
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: nodefault
+     acorn.io/managed: "true"
+   name: nodefault
+@@ -65,6 +67,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: nodefault
+     acorn.io/managed: "true"
+   name: nodefault
+@@ -91,6 +94,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -104,6 +108,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -172,6 +177,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/pullsecrets/custom/expected.golden b/pkg/controller/appdefinition/testdata/pullsecrets/custom/expected.golden
+index 5c74901..3f3d62c 100644
+--- a/pkg/controller/appdefinition/testdata/pullsecrets/custom/expected.golden
++++ b/pkg/controller/appdefinition/testdata/pullsecrets/custom/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -88,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -101,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -148,6 +153,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/pullsecrets/default/expected.golden b/pkg/controller/appdefinition/testdata/pullsecrets/default/expected.golden
+index 0014771..5507d30 100644
+--- a/pkg/controller/appdefinition/testdata/pullsecrets/default/expected.golden
++++ b/pkg/controller/appdefinition/testdata/pullsecrets/default/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -88,6 +91,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -101,6 +105,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -148,6 +153,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/secret/expected.golden b/pkg/controller/appdefinition/testdata/secret/expected.golden
+index ad82f3d..85ff44e 100644
+--- a/pkg/controller/appdefinition/testdata/secret/expected.golden
++++ b/pkg/controller/appdefinition/testdata/secret/expected.golden
+@@ -9,6 +9,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -26,6 +27,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -119,6 +121,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/service/alias/expected.golden b/pkg/controller/appdefinition/testdata/service/alias/expected.golden
+index 1270b2f..307e79e 100644
+--- a/pkg/controller/appdefinition/testdata/service/alias/expected.golden
++++ b/pkg/controller/appdefinition/testdata/service/alias/expected.golden
+@@ -8,6 +8,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     both: con1val
+@@ -26,6 +27,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     both: con1val
+@@ -87,6 +89,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con1
+     acorn.io/managed: "true"
+     both: con1val
+@@ -118,6 +121,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con2
+     acorn.io/managed: "true"
+     both: con2val
+@@ -136,6 +140,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con2
+     acorn.io/managed: "true"
+     both: con2val
+@@ -197,6 +202,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con2
+     acorn.io/managed: "true"
+     both: con2val
+@@ -225,6 +231,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con3
+     acorn.io/managed: "true"
+   name: con3
+@@ -238,6 +245,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con3
+     acorn.io/managed: "true"
+   name: con3
+@@ -285,6 +293,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: con3
+     acorn.io/managed: "true"
+   name: con3
+diff --git a/pkg/controller/appdefinition/testdata/service/basic/expected.golden b/pkg/controller/appdefinition/testdata/service/basic/expected.golden
+index 5995ff4..f3a7d81 100644
+--- a/pkg/controller/appdefinition/testdata/service/basic/expected.golden
++++ b/pkg/controller/appdefinition/testdata/service/basic/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -70,6 +72,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: buildimage
+     acorn.io/managed: "true"
+   name: buildimage
+@@ -96,6 +99,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -109,6 +113,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+@@ -168,6 +173,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: oneimage
+     acorn.io/managed: "true"
+   name: oneimage
+diff --git a/pkg/controller/appdefinition/testdata/template/expected.golden b/pkg/controller/appdefinition/testdata/template/expected.golden
+index 391c3b0..230f096 100644
+--- a/pkg/controller/appdefinition/testdata/template/expected.golden
++++ b/pkg/controller/appdefinition/testdata/template/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -62,6 +64,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/cluster-default-with-bind-combos/expected.golden b/pkg/controller/appdefinition/testdata/volumes/cluster-default-with-bind-combos/expected.golden
+index 5e4e703..c68c8dd 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/cluster-default-with-bind-combos/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/cluster-default-with-bind-combos/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -76,6 +78,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/configure-but-no-bind/expected.golden b/pkg/controller/appdefinition/testdata/volumes/configure-but-no-bind/expected.golden
+index f7590bf..e1c52a2 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/configure-but-no-bind/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/configure-but-no-bind/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/contextdir/expected.golden b/pkg/controller/appdefinition/testdata/volumes/contextdir/expected.golden
+index e02e0ab..ce5bb75 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/contextdir/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/contextdir/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -63,6 +65,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/defaults/expected.golden b/pkg/controller/appdefinition/testdata/volumes/defaults/expected.golden
+index 4ae324b..89f46ab 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/defaults/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/defaults/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/empty/expected.golden b/pkg/controller/appdefinition/testdata/volumes/empty/expected.golden
+index 2252a80..0fde992 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/empty/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/empty/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/ephemeral-bound/expected.golden b/pkg/controller/appdefinition/testdata/volumes/ephemeral-bound/expected.golden
+index 9b92def..c802170 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/ephemeral-bound/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/ephemeral-bound/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -69,6 +71,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/ephemeral/expected.golden b/pkg/controller/appdefinition/testdata/volumes/ephemeral/expected.golden
+index 60fd86a..673546e 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/ephemeral/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/ephemeral/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -69,6 +71,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/inactive-class/expected.golden b/pkg/controller/appdefinition/testdata/volumes/inactive-class/expected.golden
+index 4ae324b..89f46ab 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/inactive-class/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/inactive-class/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/named-bound/expected.golden b/pkg/controller/appdefinition/testdata/volumes/named-bound/expected.golden
+index b9c5edb..976752f 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/named-bound/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/named-bound/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/named/expected.golden b/pkg/controller/appdefinition/testdata/volumes/named/expected.golden
+index 376e83e..1c61cd6 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/named/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/named/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appdefinition/testdata/volumes/no-default-class/expected.golden b/pkg/controller/appdefinition/testdata/volumes/no-default-class/expected.golden
+index 2252a80..0fde992 100644
+--- a/pkg/controller/appdefinition/testdata/volumes/no-default-class/expected.golden
++++ b/pkg/controller/appdefinition/testdata/volumes/no-default-class/expected.golden
+@@ -5,6 +5,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -18,6 +19,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+@@ -71,6 +73,7 @@ metadata:
+   labels:
+     acorn.io/app-name: app-name
+     acorn.io/app-namespace: app-namespace
++    acorn.io/app-public-name: app-name
+     acorn.io/container-name: container-name
+     acorn.io/managed: "true"
+   name: container-name
+diff --git a/pkg/controller/appstatus/jobs.go b/pkg/controller/appstatus/jobs.go
+index e850617..6d6f9be 100644
+--- a/pkg/controller/appstatus/jobs.go
++++ b/pkg/controller/appstatus/jobs.go
+@@ -129,6 +129,12 @@ func addExpressionErrors(status *v1.CommonStatus, expressionErrors []v1.Expressi
+ 		status.Ready = false
+ 		if ee.DependencyNotFound != nil {
+ 			missing[ee.DependencyNotFound.Name] = ee.DependencyNotFound.DependencyType
++		} else if ee.Error != "" {
++			if ee.Expression == "" {
++				status.ErrorMessages = append(status.ErrorMessages, ee.Error)
++			} else {
++				status.ErrorMessages = append(status.ErrorMessages, fmt.Sprintf("[%s]: %s", ee.Expression, ee.Error))
++			}
+ 		}
+ 	}
+ 
+diff --git a/pkg/dev/dev.go b/pkg/dev/dev.go
+index 6f70728..9d71258 100644
+--- a/pkg/dev/dev.go
++++ b/pkg/dev/dev.go
+@@ -51,12 +51,8 @@ func (w *watcher) Trigger() {
+ 	}
+ }
+ 
+-func (w *watcher) readFiles(ctx context.Context) []string {
+-	files, err := w.imageAndArgs.WatchFiles(ctx, w.c)
+-	if err != nil {
+-		logrus.Errorf("failed to resolve files to watch: %v", err)
+-	}
+-	return files
++func (w *watcher) readFiles(ctx context.Context) ([]string, error) {
++	return w.imageAndArgs.WatchFiles(ctx, w.c)
+ }
+ 
+ func (w *watcher) foundChanges() bool {
+@@ -89,15 +85,19 @@ func timestamps(files []string) []time.Time {
+ }
+ 
+ func (w *watcher) updateTimestamps(ctx context.Context) {
+-	files := w.readFiles(ctx)
+-	w.watching = files
+-	w.watchingTS = timestamps(files)
++	files, err := w.readFiles(ctx)
++	if err == nil {
++		w.watching = files
++	} else {
++		logrus.Errorf("failed to resolve files to watch: %v", err)
++	}
++	w.watchingTS = timestamps(w.watching)
+ }
+ 
+ func (w *watcher) Wait(ctx context.Context) error {
+ 	init := false
+ 	w.initOnce.Do(func() {
+-		w.watching = w.readFiles(ctx)
++		w.watching, _ = w.readFiles(ctx)
+ 		init = true
+ 	})
+ 
+@@ -153,7 +153,6 @@ func buildLoop(ctx context.Context, client client.Client, hash clientHash, opts
+ 		}
+ 	}()
+ 
+-outer:
+ 	for {
+ 		if err := watcher.Wait(ctx); err != nil {
+ 			return err
+@@ -183,7 +182,8 @@ outer:
+ 				continue
+ 			} else if err != nil {
+ 				logrus.Errorf("Failed to run/update app: %v", err)
+-				continue outer
++				time.Sleep(5 * time.Second)
++				continue
+ 			} else {
+ 				lockOnce.Do(func() {
+ 					go func() {
+@@ -467,7 +467,7 @@ func Dev(ctx context.Context, client client.Client, opts *Options) error {
+ 	}
+ 
+ 	optsCopy := *opts
+-	optsCopy.ImageSource.Profiles = append([]string{"dev?"}, opts.ImageSource.Profiles...)
++	optsCopy.ImageSource.Profiles = append([]string{"devMode?"}, opts.ImageSource.Profiles...)
+ 
+ 	err = buildLoop(ctx, client, hash, &optsCopy)
+ 	if errors.Is(err, context.Canceled) {
+diff --git a/pkg/openapi/generated/openapi_generated.go b/pkg/openapi/generated/openapi_generated.go
+index 4917124..18c2f0f 100644
+--- a/pkg/openapi/generated/openapi_generated.go
++++ b/pkg/openapi/generated/openapi_generated.go
+@@ -5149,11 +5149,25 @@ func schema_pkg_apis_internalacornio_v1_Acorn(ref common.ReferenceCallback) comm
+ 							},
+ 						},
+ 					},
++					"permissions": {
++						SchemaProps: spec.SchemaProps{
++							Type: []string{"object"},
++							AdditionalProperties: &spec.SchemaOrBool{
++								Allows: true,
++								Schema: &spec.Schema{
++									SchemaProps: spec.SchemaProps{
++										Default: map[string]interface{}{},
++										Ref:     ref("github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.Permissions"),
++									},
++								},
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.AcornBuild", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.NameValue", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.PortBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ScopedLabel", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.SecretBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ServiceBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.VolumeBinding"},
++			"github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.AcornBuild", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.NameValue", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.Permissions", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.PortBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ScopedLabel", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.SecretBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ServiceBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.VolumeBinding"},
+ 	}
+ }
+ 
+@@ -5932,6 +5946,19 @@ func schema_pkg_apis_internalacornio_v1_AppInstanceSpec(ref common.ReferenceCall
+ 							},
+ 						},
+ 					},
++					"imageGrantedPermissions": {
++						SchemaProps: spec.SchemaProps{
++							Type: []string{"array"},
++							Items: &spec.SchemaOrArray{
++								Schema: &spec.Schema{
++									SchemaProps: spec.SchemaProps{
++										Default: map[string]interface{}{},
++										Ref:     ref("github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.Permissions"),
++									},
++								},
++							},
++						},
++					},
+ 					"autoUpgrade": {
+ 						SchemaProps: spec.SchemaProps{
+ 							Type:   []string{"boolean"},
+@@ -9922,11 +9949,25 @@ func schema_pkg_apis_internalacornio_v1_Service(ref common.ReferenceCallback) co
+ 							},
+ 						},
+ 					},
++					"permissions": {
++						SchemaProps: spec.SchemaProps{
++							Type: []string{"object"},
++							AdditionalProperties: &spec.SchemaOrBool{
++								Allows: true,
++								Schema: &spec.Schema{
++									SchemaProps: spec.SchemaProps{
++										Default: map[string]interface{}{},
++										Ref:     ref("github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.Permissions"),
++									},
++								},
++							},
++						},
++					},
+ 				},
+ 			},
+ 		},
+ 		Dependencies: []string{
+-			"github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.AcornBuild", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.GeneratedService", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.NameValue", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.PortDef", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ScopedLabel", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.SecretBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ServiceBinding"},
++			"github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.AcornBuild", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.GeneratedService", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.NameValue", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.Permissions", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.PortDef", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ScopedLabel", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.SecretBinding", "github.com/acorn-io/runtime/pkg/apis/internal.acorn.io/v1.ServiceBinding"},
+ 	}
+ }
+ 
+diff --git a/pkg/secrets/interpolation.go b/pkg/secrets/interpolation.go
+index c1bfa44..c6ec295 100644
+--- a/pkg/secrets/interpolation.go
++++ b/pkg/secrets/interpolation.go
+@@ -452,29 +452,39 @@ func (i *Interpolator) saveError(err error) {
+ 	}
+ }
+ 
+-func (i *Interpolator) ToEnv(key, value string) corev1.EnvVar {
++func (i *Interpolator) getContainerOrJobName() string {
++	if i.containerName != "" {
++		return i.containerName
++	}
++	return i.jobName
++}
++
++func (i *Interpolator) ToEnv(key, value string) (corev1.EnvVar, bool) {
++	prefix := i.getContainerOrJobName()
++	key = strings.TrimPrefix(key, prefix+".")
++
+ 	newKey, err := i.replace(key)
+ 	if err != nil {
+ 		i.saveError(err)
+ 		return corev1.EnvVar{
+ 			Name:  key,
+ 			Value: value,
+-		}
++		}, !strings.Contains(key, ".")
+ 	}
+ 
+ 	newValue, err := i.replace(value)
+ 	if err != nil {
+ 		i.saveError(err)
+ 		return corev1.EnvVar{
+-			Name:  key,
++			Name:  newKey,
+ 			Value: value,
+-		}
++		}, !strings.Contains(key, ".")
+ 	}
+ 	if value == newValue {
+ 		return corev1.EnvVar{
+ 			Name:  newKey,
+ 			Value: value,
+-		}
++		}, !strings.Contains(newKey, ".")
+ 	}
+ 
+ 	return corev1.EnvVar{
+@@ -487,7 +497,7 @@ func (i *Interpolator) ToEnv(key, value string) corev1.EnvVar {
+ 				Key: i.addContent(newValue),
+ 			},
+ 		},
+-	}
++	}, !strings.Contains(newKey, ".")
+ }
+ 
+ func (i *Interpolator) Objects() []kclient.Object {
+diff --git a/pkg/server/registry/apigroups/acorn/apps/validator.go b/pkg/server/registry/apigroups/acorn/apps/validator.go
+index 778a2fa..69733ed 100644
+--- a/pkg/server/registry/apigroups/acorn/apps/validator.go
++++ b/pkg/server/registry/apigroups/acorn/apps/validator.go
+@@ -27,8 +27,8 @@ import (
+ 	"github.com/google/go-containerregistry/pkg/name"
+ 	"github.com/google/go-containerregistry/pkg/v1/remote"
+ 	"golang.org/x/exp/slices"
++	"golang.org/x/sync/errgroup"
+ 	authv1 "k8s.io/api/authorization/v1"
+-	"k8s.io/apimachinery/pkg/api/equality"
+ 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+ 	"k8s.io/apimachinery/pkg/runtime"
+ 	"k8s.io/apimachinery/pkg/util/validation"
+@@ -70,116 +70,140 @@ func (s *Validator) Get(ctx context.Context, namespace, name string) (types.Obje
+ 	return s.deleter.Get(ctx, namespace, name)
+ }
+ 
++// Validate will validate the App but also populate the spec.ImageGrantedPermissions on the object.
++// This is a bit odd but hard to do in a different way and not be terribly inefficient with API calls
+ func (s *Validator) Validate(ctx context.Context, obj runtime.Object) (result field.ErrorList) {
+-	params := obj.(*apiv1.App)
++	app := obj.(*apiv1.App)
+ 
+-	if err := s.validateName(params); err != nil {
+-		result = append(result, field.Invalid(field.NewPath("metadata", "name"), params.Name, err.Error()))
++	if err := s.validateName(app); err != nil {
++		result = append(result, field.Invalid(field.NewPath("metadata", "name"), app.Name, err.Error()))
+ 		return
+ 	}
+ 
+ 	project := new(apiv1.Project)
+-	if err := s.client.Get(ctx, kclient.ObjectKey{Name: params.Namespace}, project); err != nil {
+-		result = append(result, field.Invalid(field.NewPath("spec", "images"), params.Spec.Image, err.Error()))
++	if err := s.client.Get(ctx, kclient.ObjectKey{Name: app.Namespace}, project); err != nil {
++		result = append(result, field.Invalid(field.NewPath("spec", "images"), app.Spec.Image, err.Error()))
+ 		return
+ 	}
+ 
+-	if err := s.validateRegion(params, project); err != nil {
+-		result = append(result, field.Invalid(field.NewPath("spec", "region"), params.Spec.Region, err.Error()))
++	if err := s.validateRegion(app, project); err != nil {
++		result = append(result, field.Invalid(field.NewPath("spec", "region"), app.Spec.Region, err.Error()))
+ 		return
+ 	}
+ 
+-	if err := imagesystem.IsNotInternalRepo(ctx, s.client, params.Namespace, params.Spec.Image); err != nil {
+-		result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++	if err := imagesystem.IsNotInternalRepo(ctx, s.client, app.Namespace, app.Spec.Image); err != nil {
++		result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 		return
+ 	}
+ 
+-	if _, isPattern := autoupgrade.AutoUpgradePattern(params.Spec.Image); !isPattern {
+-		image, local, err := s.resolveLocalImage(ctx, params.Namespace, params.Spec.Image)
++	var (
++		imageGrantedPerms []v1.Permissions
++		checkImage        = app.Spec.Image
++	)
++
++	tagPattern, isPattern := autoupgrade.AutoUpgradePattern(app.Spec.Image)
++	if isPattern {
++		if latestImage, found, err := autoupgrade.FindLatestTagForImageWithPattern(ctx, s.client, "", app.Namespace, app.Spec.Image, tagPattern); err != nil {
++			result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
++			return
++		} else if found {
++			checkImage = latestImage
++		} else {
++			checkImage = ""
++		}
++	}
++
++	if checkImage == "" {
++		app.Spec.ImageGrantedPermissions = imageGrantedPerms
++	} else {
++		image, local, err := s.resolveLocalImage(ctx, app.Namespace, checkImage)
+ 		if err != nil {
+-			result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++			result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 			return
+ 		}
+ 
+ 		if !local {
+-			if _, autoUpgradeOn := autoupgrade.Mode(params.Spec); autoUpgradeOn {
++			if _, autoUpgradeOn := autoupgrade.Mode(app.Spec); autoUpgradeOn {
+ 				// Make sure there is a registry specified here
+ 				// If there isn't one, return an error in order to avoid checking Docker Hub implicitly
+-				ref, err := name.ParseReference(params.Spec.Image, name.WithDefaultRegistry(images.NoDefaultRegistry))
++				ref, err := name.ParseReference(checkImage, name.WithDefaultRegistry(images.NoDefaultRegistry))
+ 				if err != nil {
+ 					result = append(result, field.InternalError(field.NewPath("spec", "image"), err))
+ 					return
+ 				}
+ 
+ 				if ref.Context().RegistryStr() == images.NoDefaultRegistry {
+-					result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image,
+-						fmt.Sprintf("could not find local image for %v - if you are trying to use a remote image, specify the full registry", params.Spec.Image)))
++					result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image,
++						fmt.Sprintf("could not find local image for %v - if you are trying to use a remote image, specify the full registry", app.Spec.Image)))
+ 					return
+ 				}
+ 			}
+ 
+-			if err := s.checkRemoteAccess(ctx, params.Namespace, image); err != nil {
+-				result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++			if err := s.checkRemoteAccess(ctx, app.Namespace, image); err != nil {
++				result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 				return
+ 			}
+ 		}
+ 
+-		imageDetails, err := s.getImageDetails(ctx, params.Namespace, params.Spec.Profiles, params.Spec.DeployArgs, image, "")
++		imageDetails, err := s.getImageDetails(ctx, app.Namespace, app.Spec.Profiles, app.Spec.DeployArgs, image, "")
+ 		if err != nil {
+-			result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++			result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 			return
+ 		}
+ 
+ 		disableCheckImageAllowRules := false
+-		if params.Spec.Stop != nil && *params.Spec.Stop {
++		if app.Spec.Stop != nil && *app.Spec.Stop {
+ 			// app was stopped, so we don't need to check image allow rules (this could prevent stopping an app if the image allow rules changed)
+ 			disableCheckImageAllowRules = true
+ 		}
+ 
+ 		if !disableCheckImageAllowRules {
+-			if err := s.checkImageAllowed(ctx, params.Namespace, params.Spec.Image); err != nil {
+-				result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++			if err := s.checkImageAllowed(ctx, app.Namespace, checkImage); err != nil {
++				result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 				return
+ 			}
+ 		}
+ 
+ 		workloadsFromImage, err := s.getWorkloads(imageDetails)
+ 		if err != nil {
+-			result = append(result, field.Invalid(field.NewPath("spec", "image"), params.Spec.Image, err.Error()))
++			result = append(result, field.Invalid(field.NewPath("spec", "image"), app.Spec.Image, err.Error()))
+ 			return
+ 		}
+ 
+ 		apiv1cfg, err := apiv1config.Get(ctx, s.client)
+ 		if err != nil {
+-			result = append(result, field.Invalid(field.NewPath("config"), params.Spec.Image, err.Error()))
++			result = append(result, field.Invalid(field.NewPath("config"), app.Spec.Image, err.Error()))
+ 			return
+ 		}
+ 
+-		errs := s.checkScheduling(ctx, params, project, workloadsFromImage, apiv1cfg.WorkloadMemoryDefault, apiv1cfg.WorkloadMemoryMaximum)
++		errs := s.checkScheduling(ctx, app, project, workloadsFromImage, apiv1cfg.WorkloadMemoryDefault, apiv1cfg.WorkloadMemoryMaximum)
+ 		if len(errs) != 0 {
+ 			result = append(result, errs...)
+ 			return
+ 		}
+ 
+-		if err := validateVolumeClasses(ctx, s.client, params.Namespace, params.Spec, imageDetails.AppSpec, project); err != nil {
++		if err := validateVolumeClasses(ctx, s.client, app.Namespace, app.Spec, imageDetails.AppSpec, project); err != nil {
+ 			result = append(result, err)
+ 			return
+ 		}
+ 
+-		permsFromImage, err := s.getPermissions(ctx, "", params.Namespace, image, imageDetails)
++		var imageRequestedPerms []v1.Permissions
++		imageRequestedPerms, imageGrantedPerms, err = s.getPermissions(ctx, "", app.Namespace, image, imageDetails)
+ 		if err != nil {
+-			result = append(result, field.Invalid(field.NewPath("spec", "permissions"), params.Spec.Permissions, err.Error()))
++			result = append(result, field.Invalid(field.NewPath("spec", "permissions"), app.Spec.Permissions, err.Error()))
+ 			return
+ 		}
+ 
+-		if err := s.checkRequestedPermsSatisfyImagePerms(permsFromImage, params.Spec.Permissions); err != nil {
+-			result = append(result, field.Invalid(field.NewPath("spec", "permissions"), params.Spec.Permissions, err.Error()))
++		if err := s.checkRequestedPermsSatisfyImagePerms(app.Namespace, imageRequestedPerms, app.Spec.Permissions, imageGrantedPerms); err != nil {
++			result = append(result, field.Invalid(field.NewPath("spec", "permissions"), app.Spec.Permissions, err.Error()))
+ 			return
+ 		}
++
++		app.Spec.ImageGrantedPermissions = imageGrantedPerms
+ 	}
+ 
+-	if err := s.checkPermissionsForPrivilegeEscalation(ctx, params.Spec.Permissions); err != nil {
+-		result = append(result, field.Invalid(field.NewPath("spec", "permissions"), params.Spec.Permissions, err.Error()))
++	if err := s.checkPermissionsForPrivilegeEscalation(ctx, app.Spec.Permissions); err != nil {
++		result = append(result, field.Invalid(field.NewPath("spec", "permissions"), app.Spec.Permissions, err.Error()))
+ 	}
+ 
+ 	return result
+@@ -252,6 +276,19 @@ func (s *Validator) checkRemoteAccess(ctx context.Context, namespace, image stri
+ 	return nil
+ }
+ 
++func (s *Validator) checkSARs(ctx context.Context, sars []sarRequest) error {
++	eg, ctx := errgroup.WithContext(ctx)
++	eg.SetLimit(5)
++	for _, sar := range sars {
++		sar := sar
++		eg.Go(func() error {
++			return s.check(ctx, &sar.SAR, sar.Rule)
++		})
++	}
++
++	return eg.Wait()
++}
++
+ func (s *Validator) check(ctx context.Context, sar *authv1.SubjectAccessReview, rule v1.PolicyRule) error {
+ 	err := s.client.Create(ctx, sar)
+ 	if err != nil {
+@@ -265,13 +302,18 @@ func (s *Validator) check(ctx context.Context, sar *authv1.SubjectAccessReview,
+ 	return nil
+ }
+ 
+-func (s *Validator) checkNonResourceRole(ctx context.Context, sar *authv1.SubjectAccessReview, rule v1.PolicyRule) error {
++type sarRequest struct {
++	SAR  authv1.SubjectAccessReview
++	Rule v1.PolicyRule
++}
++
++func (s *Validator) getSARNonResourceRole(sar *authv1.SubjectAccessReview, rule v1.PolicyRule) (result []sarRequest, _ error) {
+ 	if len(rule.Verbs) == 0 {
+-		return fmt.Errorf("can not deploy acorn due to requesting role with empty verbs")
++		return nil, fmt.Errorf("can not deploy acorn due to requesting role with empty verbs")
+ 	}
+ 
+ 	if len(rule.APIGroups) != 0 {
+-		return fmt.Errorf("can not deploy acorn due to requesting role nonResourceURLs %v and non-empty apiGroups set %v", rule.NonResourceURLs, rule.APIGroups)
++		return nil, fmt.Errorf("can not deploy acorn due to requesting role nonResourceURLs %v and non-empty apiGroups set %v", rule.NonResourceURLs, rule.APIGroups)
+ 	}
+ 
+ 	for _, url := range rule.NonResourceURLs {
+@@ -281,21 +323,22 @@ func (s *Validator) checkNonResourceRole(ctx context.Context, sar *authv1.Subjec
+ 				Path: url,
+ 				Verb: verb,
+ 			}
+-			if err := s.check(ctx, sar, rule); err != nil {
+-				return err
+-			}
++			result = append(result, sarRequest{
++				SAR:  *sar,
++				Rule: rule,
++			})
+ 		}
+ 	}
+ 
+-	return nil
++	return result, nil
+ }
+ 
+-func (s *Validator) checkResourceRole(ctx context.Context, sar *authv1.SubjectAccessReview, rule v1.PolicyRule, namespace string) error {
++func (s *Validator) getSARResourceRole(sar *authv1.SubjectAccessReview, rule v1.PolicyRule, namespace string) (result []sarRequest, _ error) {
+ 	if len(rule.APIGroups) == 0 {
+-		return fmt.Errorf("can not deploy acorn due to requesting role with empty apiGroups")
++		return nil, fmt.Errorf("can not deploy acorn due to requesting role with empty apiGroups")
+ 	}
+ 	if len(rule.Verbs) == 0 {
+-		return fmt.Errorf("can not deploy acorn due to requesting role with empty verbs")
++		return nil, fmt.Errorf("can not deploy acorn due to requesting role with empty verbs")
+ 	}
+ 	if len(rule.Resources) == 0 {
+ 		rule.Resources = []string{"*"}
+@@ -314,9 +357,10 @@ func (s *Validator) checkResourceRole(ctx context.Context, sar *authv1.SubjectAc
+ 						Resource:    resource,
+ 						Subresource: subResource,
+ 					}
+-					if err := s.check(ctx, sar, rule); err != nil {
+-						return err
+-					}
++					result = append(result, sarRequest{
++						SAR:  *sar,
++						Rule: rule,
++					})
+ 				} else {
+ 					for _, resourceName := range rule.ResourceNames {
+ 						sar := sar.DeepCopy()
+@@ -329,53 +373,52 @@ func (s *Validator) checkResourceRole(ctx context.Context, sar *authv1.SubjectAc
+ 							Subresource: subResource,
+ 							Name:        resourceName,
+ 						}
+-						if err := s.check(ctx, sar, rule); err != nil {
+-							return err
+-						}
++						result = append(result, sarRequest{
++							SAR:  *sar,
++							Rule: rule,
++						})
+ 					}
+ 				}
+ 			}
+ 		}
+ 	}
+ 
+-	return nil
++	return result, nil
+ }
+ 
+-func (s *Validator) checkRules(ctx context.Context, sar *authv1.SubjectAccessReview, rules []v1.PolicyRule, currentNamespace string) error {
++func (s *Validator) getSARs(sar *authv1.SubjectAccessReview, rules []v1.PolicyRule, currentNamespace string) (result []sarRequest, _ error) {
+ 	var errs []error
+ 	for _, rule := range rules {
+ 		if len(rule.NonResourceURLs) > 0 {
+-			if err := s.checkNonResourceRole(ctx, sar, rule); err != nil {
++			requests, err := s.getSARNonResourceRole(sar, rule)
++			if err == nil {
++				result = append(result, requests...)
++			} else {
+ 				errs = append(errs, err)
+ 			}
+ 		} else {
+ 			for _, namespace := range rule.ResolveNamespaces(currentNamespace) {
+-				if err := s.checkResourceRole(ctx, sar, rule, namespace); err != nil {
++				requests, err := s.getSARResourceRole(sar, rule, namespace)
++				if err == nil {
++					result = append(result, requests...)
++				} else {
+ 					errs = append(errs, err)
+ 				}
+ 			}
+ 		}
+ 	}
+-	return merr.NewErrors(errs...)
++	return result, merr.NewErrors(errs...)
+ }
+ 
+ // checkRequestedPermsSatisfyImagePerms checks that the user requested permissions are enough to satisfy the permissions
+ // specified by the image's Acornfile
+-func (s *Validator) checkRequestedPermsSatisfyImagePerms(perms []v1.Permissions, requestedPerms []v1.Permissions) error {
+-	if len(perms) == 0 {
+-		return nil
+-	}
+-
+-	for _, perm := range perms {
+-		if len(perm.GetRules()) == 0 {
+-			continue
+-		}
++func (s *Validator) checkRequestedPermsSatisfyImagePerms(currentNamespace string, requestedPerms []v1.Permissions, grantedUserPerms, grantedImagePerms []v1.Permissions) error {
++	grantedPermsByService := v1.GroupByServiceName(append(grantedUserPerms, grantedImagePerms...))
+ 
+-		if specPerms := v1.FindPermission(perm.ServiceName, requestedPerms); !specPerms.HasRules() ||
+-			!equality.Semantic.DeepEqual(perm.GetRules(), specPerms.Get().GetRules()) {
+-			// If any perm doesn't match then return all perms
++	for serviceName, requestedPerm := range v1.GroupByServiceName(requestedPerms) {
++		if _, granted := v1.Grants(grantedPermsByService[serviceName], currentNamespace, requestedPerm); !granted {
+ 			return &client.ErrRulesNeeded{
+-				Permissions: perms,
++				Permissions: requestedPerms,
+ 			}
+ 		}
+ 	}
+@@ -391,7 +434,9 @@ func (s *Validator) checkPermissionsForPrivilegeEscalation(ctx context.Context,
+ 		return fmt.Errorf("failed to find active user to check current privileges")
+ 	}
+ 
+-	var errs []error
++	var (
++		sars []sarRequest
++	)
+ 	for _, perm := range requestedPerms {
+ 		sar := &authv1.SubjectAccessReview{
+ 			Spec: authv1.SubjectAccessReviewSpec{
+@@ -407,12 +452,14 @@ func (s *Validator) checkPermissionsForPrivilegeEscalation(ctx context.Context,
+ 		}
+ 
+ 		ns, _ := request.NamespaceFrom(ctx)
+-		if err := s.checkRules(ctx, sar, perm.GetRules(), ns); err != nil {
+-			errs = append(errs, err)
++		requests, err := s.getSARs(sar, perm.GetRules(), ns)
++		if err != nil {
++			return err
+ 		}
++		sars = append(sars, requests...)
+ 	}
+ 
+-	return merr.NewErrors(errs...)
++	return s.checkSARs(ctx, sars)
+ }
+ 
+ // checkScheduling must use apiv1.ComputeCLass to validate the scheduling instead of the Instance counterparts.
+@@ -588,84 +635,160 @@ func validateVolumeClasses(ctx context.Context, c kclient.Client, namespace stri
+ 	return nil
+ }
+ 
+-func (s *Validator) getPermissions(ctx context.Context, servicePrefix, namespace, image string, details *client.ImageDetails) (result []v1.Permissions, _ error) {
+-	result = append(result, buildPermissionsFrom(servicePrefix, details.AppSpec.Containers)...)
+-	result = append(result, buildPermissionsFrom(servicePrefix, details.AppSpec.Jobs)...)
++func (s *Validator) imageGrants(ctx context.Context, details client.ImageDetails, perms []v1.Permissions) (bool, error) {
++	sar := &authv1.SubjectAccessReview{
++		Spec: authv1.SubjectAccessReviewSpec{
++			User: "image://" + details.AppImage.Name,
++			Extra: map[string]authv1.ExtraValue{
++				"digest": {
++					details.AppImage.Digest,
++				},
++			},
++		},
++	}
+ 
+-	subResults, err := s.buildNestedPermissions(ctx, servicePrefix, details.AppSpec, namespace, image, details.AppImage.ImageData)
++	ns, _ := request.NamespaceFrom(ctx)
++	var sars []sarRequest
++	for _, perm := range perms {
++		newSARs, err := s.getSARs(sar, perm.GetRules(), ns)
++		if err != nil {
++			return false, err
++		}
++		sars = append(sars, newSARs...)
++	}
++
++	err := s.checkSARs(ctx, sars)
++	if ruleErr := (*client.ErrRulesNeeded)(nil); errors.As(err, &ruleErr) {
++		return false, nil
++	}
++	if ruleErr := (*client.ErrNotAuthorized)(nil); errors.As(err, &ruleErr) {
++		return false, nil
++	}
++
++	return false, err
++}
++
++func (s *Validator) getPermissions(ctx context.Context, servicePrefix, namespace, image string, details *client.ImageDetails) (result, granted []v1.Permissions, _ error) {
++	var imagePermissions []v1.Permissions
++	imagePermissions = append(imagePermissions, buildPermissionsFrom(servicePrefix, details.AppSpec.Containers)...)
++	imagePermissions = append(imagePermissions, buildPermissionsFrom(servicePrefix, details.AppSpec.Jobs)...)
++
++	if isGranted, err := s.imageGrants(ctx, *details, imagePermissions); err != nil {
++		return nil, nil, err
++	} else if isGranted {
++		granted = append(granted, imagePermissions...)
++	} else {
++		result = append(result, imagePermissions...)
++	}
++
++	subResults, subGranted, err := s.buildNestedImagePermissions(ctx, servicePrefix, details.AppSpec, namespace, image, details.AppImage.ImageData)
+ 	if err != nil {
+-		return nil, err
++		return nil, nil, err
+ 	}
+ 
+ 	result = append(result, subResults...)
++	granted = append(granted, subGranted...)
+ 
+-	return result, nil
++	return result, granted, nil
+ }
+ 
+-func (s *Validator) getImagePermissions(ctx context.Context, servicePrefix string, profiles []string, args map[string]any, namespace, image, nestedDigest string) (result []v1.Permissions, _ error) {
++func (s *Validator) getImageRequestedPermissions(ctx context.Context, servicePrefix string, profiles []string, args map[string]any, namespace, image, nestedName, nestedDigest string) (imageRequested, imageGranted []v1.Permissions, _ error) {
+ 	details, err := s.getImageDetails(ctx, namespace, profiles, args, image, nestedDigest)
+ 	if err != nil {
+-		return nil, err
++		return nil, nil, err
++	}
++	if nestedName == "" {
++		details.AppImage.Name = image
++	} else {
++		details.AppImage.Name = nestedName
+ 	}
+-
+ 	return s.getPermissions(ctx, servicePrefix, namespace, image, details)
+ }
+ 
+-func (s *Validator) buildNestedPermissions(ctx context.Context, servicePrefix string, app *v1.AppSpec, namespace, image string, imageData v1.ImagesData) (result []v1.Permissions, err error) {
++func (s *Validator) mergeInRules(servicePrefix string, existing []v1.Permissions, newRules map[string]v1.Permissions) (result []v1.Permissions) {
++	result = append(result, existing...)
++outerLoop:
++	for _, entry := range typed.Sorted(newRules) {
++		serviceName, permissions := entry.Key, entry.Value
++		if !permissions.HasRules() {
++			continue
++		}
++
++		newServiceName := servicePrefix + serviceName
++		for i, existingRule := range result {
++			if existingRule.ServiceName == newServiceName {
++				existingRule.Rules = append(existingRule.Rules, permissions.GetRules()...)
++				result[i] = existingRule
++				continue outerLoop
++			}
++		}
++
++		result = append(result, v1.Permissions{
++			ServiceName: newServiceName,
++			Rules:       permissions.GetRules(),
++		})
++	}
++	return
++}
++
++func (s *Validator) buildNestedImagePermissions(ctx context.Context, servicePrefix string, app *v1.AppSpec, namespace, image string, imageData v1.ImagesData) (imageRequested, imageGranted []v1.Permissions, err error) {
+ 	for _, entry := range typed.Sorted(app.Acorns) {
+ 		var (
+-			acornName, acorn = entry.Key, entry.Value
+-			subResult        []v1.Permissions
++			acornName, acorn                   = entry.Key, entry.Value
++			subImageRequested, subImageGranted []v1.Permissions
+ 		)
+ 
+ 		acornImage, ok := appdefinition.GetImageReferenceForServiceName(acornName, app, imageData)
+ 		if !ok {
+-			return nil, fmt.Errorf("failed to find image information for nested acorn [%s]", acornName)
++			return nil, nil, fmt.Errorf("failed to find image information for nested acorn [%s]", acornName)
+ 		}
+ 
+ 		if tags.IsImageDigest(acornImage) {
+-			subResult, err = s.getImagePermissions(ctx, servicePrefix+entry.Key+".", acorn.Profiles, acorn.DeployArgs, namespace, image, acornImage)
++			subImageRequested, subImageGranted, err = s.getImageRequestedPermissions(ctx, servicePrefix+entry.Key+".", acorn.Profiles, acorn.DeployArgs, namespace, image, acorn.GetOriginalImage(), acornImage)
+ 			if err != nil {
+-				return nil, err
++				return nil, nil, err
+ 			}
+ 		} else {
+-			subResult, err = s.getImagePermissions(ctx, servicePrefix+entry.Key+".", acorn.Profiles, acorn.DeployArgs, namespace, acornImage, "")
++			subImageRequested, subImageGranted, err = s.getImageRequestedPermissions(ctx, servicePrefix+entry.Key+".", acorn.Profiles, acorn.DeployArgs, namespace, acornImage, "", "")
+ 			if err != nil {
+-				return nil, err
++				return nil, nil, err
+ 			}
+ 		}
+ 
+-		result = append(result, subResult...)
++		imageGranted = append(imageGranted, subImageGranted...)
++
++		imageRequested = append(imageRequested, subImageRequested...)
++		imageRequested = s.mergeInRules(servicePrefix+acornName+".", imageRequested, acorn.Permissions)
+ 	}
+ 
+ 	for _, entry := range typed.Sorted(app.Services) {
+ 		var (
+-			serviceName, service = entry.Key, entry.Value
+-			subResult            []v1.Permissions
++			serviceName, service  = entry.Key, entry.Value
++			subResult, subGranted []v1.Permissions
+ 		)
+ 
+-		if service.Image == "" && service.Build == nil {
+-			continue
+-		}
+-
+ 		acornImage, ok := appdefinition.GetImageReferenceForServiceName(serviceName, app, imageData)
+ 		if !ok {
+-			return nil, fmt.Errorf("failed to find image information for service [%s]", serviceName)
++			// not a service acorn
++			continue
+ 		}
+ 
+ 		if tags.IsImageDigest(acornImage) {
+-			subResult, err = s.getImagePermissions(ctx, servicePrefix+entry.Key+".", nil, service.ServiceArgs, namespace, image, acornImage)
++			subResult, subGranted, err = s.getImageRequestedPermissions(ctx, servicePrefix+entry.Key+".", nil, service.ServiceArgs, namespace, image, service.GetOriginalImage(), acornImage)
+ 			if err != nil {
+-				return nil, err
++				return nil, nil, err
+ 			}
+ 		} else {
+-			subResult, err = s.getImagePermissions(ctx, servicePrefix+entry.Key+".", nil, service.ServiceArgs, namespace, acornImage, "")
++			subResult, subGranted, err = s.getImageRequestedPermissions(ctx, servicePrefix+entry.Key+".", nil, service.ServiceArgs, namespace, acornImage, "", "")
+ 			if err != nil {
+-				return nil, err
++				return nil, nil, err
+ 			}
+ 		}
+ 
+-		result = append(result, subResult...)
++		imageGranted = append(imageGranted, subGranted...)
++
++		imageRequested = append(imageRequested, subResult...)
++		imageRequested = s.mergeInRules(servicePrefix+serviceName+".", imageRequested, service.Permissions)
+ 	}
+ 
+ 	return
+diff --git a/pkg/server/registry/apigroups/acorn/devsessions/strategy.go b/pkg/server/registry/apigroups/acorn/devsessions/strategy.go
+index 640e8d2..0cea8d1 100644
+--- a/pkg/server/registry/apigroups/acorn/devsessions/strategy.go
++++ b/pkg/server/registry/apigroups/acorn/devsessions/strategy.go
+@@ -37,7 +37,11 @@ func (v *Validator) Validate(ctx context.Context, obj runtime.Object) (result fi
+ 
+ 	app.Spec = *devSession.Spec.SpecOverride
+ 	app.Status.DevSession = nil
+-	return v.appValidator.Validate(ctx, app)
++
++	errs := v.appValidator.Validate(ctx, app)
++	// Super important that we set the image perms from validation
++	devSession.Spec.SpecOverride.ImageGrantedPermissions = app.Spec.ImageGrantedPermissions
++	return errs
+ }
+ 
+ func (v *Validator) ValidateUpdate(ctx context.Context, obj, old runtime.Object) (result field.ErrorList) {
+@@ -64,5 +68,8 @@ func (v *Validator) ValidateUpdate(ctx context.Context, obj, old runtime.Object)
+ 	newApp.Spec = *newObj.Spec.SpecOverride
+ 	newApp.Status.DevSession = nil
+ 
+-	return v.appValidator.AllowNestedUpdate().ValidateUpdate(ctx, newApp, oldApp)
++	errs := v.appValidator.AllowNestedUpdate().ValidateUpdate(ctx, newApp, oldApp)
++	// Super important that we set the image perms from validation
++	newObj.Spec.SpecOverride.ImageGrantedPermissions = newApp.Spec.ImageGrantedPermissions
++	return errs
+ }

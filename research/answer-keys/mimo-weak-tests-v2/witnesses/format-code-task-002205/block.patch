@@ -1,0 +1,13 @@
+diff --git a/pandas/core/arrays/datetimelike.py b/pandas/core/arrays/datetimelike.py
+index 45eec41..ceaf9e7 100644
+--- a/pandas/core/arrays/datetimelike.py
++++ b/pandas/core/arrays/datetimelike.py
+@@ -710,7 +710,7 @@ class DatetimeLikeArrayMixin(ExtensionOpsMixin, AttributesMixin):
+                                           arr_mask=self._isnan,
+                                           b_mask=other._isnan)
+ 
+-        new_values = np.array([self.freq * x for x in new_values])
++        new_values = np.array([self.freq.base * x for x in new_values])
+         if self.hasnans or other.hasnans:
+             mask = (self._isnan) | (other._isnan)
+             new_values[mask] = NaT

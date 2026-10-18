@@ -4191,6 +4191,8 @@ def _grade_v10_python_snapshot(
         command = f"{sys.executable} -m unittest test_value"
     (repo / "test_value.py").write_text(test_source)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    # Background maintenance must not mutate .git while copytree snapshots it.
+    subprocess.run(["git", "config", "maintenance.auto", "false"], cwd=repo, check=True)
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(
         ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"],

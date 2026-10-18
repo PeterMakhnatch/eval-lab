@@ -16,17 +16,26 @@ from evallab import regrade, runner
 from evallab.execution_contracts import MODAL_ENVIRONMENT_IMPORT_PATH
 from evallab.qa import counterfactual as cf
 
-NativeJobConfig = pytest.importorskip(
-    "harbor.models.job.config", reason="requires the optional pinned Harbor native profile",
-).JobConfig
-NativeTrialConfig = pytest.importorskip("harbor.models.trial.config").TrialConfig
+NativeJobConfig: Any
+NativeTrialConfig: Any
+native: Any
 
-_PATH = Path(__file__).resolve().parents[1] / "research/experiments/heldout-v7/native.py"
-_SPEC = importlib.util.spec_from_file_location("heldout_v7_native", _PATH)
-assert _SPEC and _SPEC.loader
-native = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = native
-_SPEC.loader.exec_module(native)
+
+@pytest.fixture(scope="module", autouse=True)
+def native_runtime() -> None:
+    global NativeJobConfig, NativeTrialConfig, native
+    pytest.importorskip("harbor.job_diff", reason="requires the pinned Harbor native profile")
+    from harbor.models.job.config import JobConfig
+    from harbor.models.trial.config import TrialConfig
+
+    NativeJobConfig, NativeTrialConfig = JobConfig, TrialConfig
+    path = Path(__file__).resolve().parents[1] / "research/experiments/heldout-v7/native.py"
+    spec = importlib.util.spec_from_file_location("heldout_v7_native", path)
+    assert spec and spec.loader
+    native = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = native
+    spec.loader.exec_module(native)
+
 
 TASK = "mimo-v2.6-rl/format-code-task-000001"
 PATCH = b"diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old\n+new\n"

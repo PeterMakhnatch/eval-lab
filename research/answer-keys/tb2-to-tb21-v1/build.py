@@ -101,29 +101,59 @@ def _render(items: list[dict]) -> bytes:
         json.dumps(r, sort_keys=True, separators=(",", ":")) + "\n" for r in items
     ).encode()
 
+def _pairs(items: list[dict]) -> list[dict]:
+    """Canonical pairs for the scorer: child = TB2 (faulty on modified
+    tasks), parent = TB2.1 (clean). Without pairs.jsonl the scorer
+    loads 0 pairs and paired_discrimination is n/a (Verifier A043)."""
+    by_id = {r["item_id"]: r for r in items}
+    pairs = []
+    for r in items:
+        if r["subject"]["task_id"].startswith("tb2/"):
+            parent = by_id[r["paired_counterpart_id"]]
+            pairs.append(
+                {
+                    "pair_id": r["pair_ids"][0],
+                    "child": r["item_id"],
+                    "parent": parent["item_id"],
+                    "category": r["expected_category"],
+                    "split": r["split"],
+                    "mechanism": r["change_kind"],
+                    "task_id": r["subject"]["task_id"].split("/", 1)[1],
+                }
+            )
+    pairs.sort(key=lambda p: p["pair_id"])
+    return pairs
+
 
 def main() -> int:
     items = _items()
     blob = _render(items)
+    pairs = _pairs(items)
+    pairs_blob = _render(pairs)
     manifest = {
         "key_id": KEY_ID,
         "items": len(items),
+        "pairs": len(pairs),
         "tasks": 52,
         "modified_tasks": 26,
         "control_tasks": 26,
         "items_sha256": "sha256:" + hashlib.sha256(blob).hexdigest(),
+        "pairs_sha256": "sha256:" + hashlib.sha256(pairs_blob).hexdigest(),
         "source": "research/experiments/breaker-rediscovery-v1/tb2-diff.json",
         "control_selection": "first 26 format_only tasks sorted by task_id",
     }
     if "--check" in sys.argv:
-        ok = (HERE / "items.jsonl").read_bytes() == blob and json.loads(
-            (HERE / "manifest.json").read_text()
-        ) == manifest
+        ok = (
+            (HERE / "items.jsonl").read_bytes() == blob
+            and (HERE / "pairs.jsonl").read_bytes() == pairs_blob
+            and json.loads((HERE / "manifest.json").read_text()) == manifest
+        )
         print("OK" if ok else "STALE")
         return 0 if ok else 1
     (HERE / "items.jsonl").write_bytes(blob)
+    (HERE / "pairs.jsonl").write_bytes(pairs_blob)
     (HERE / "manifest.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
-    print(f"wrote {len(items)} items")
+    print(f"wrote {len(items)} items, {len(pairs)} pairs")
     return 0
 
 

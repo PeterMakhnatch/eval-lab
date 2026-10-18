@@ -256,11 +256,14 @@ def write_plan(path: Path, **kwargs: Any) -> dict:
 
     plan["sources"] = {name: snapshot(reference) for name, reference in plan["sources"].items()}
     plan["admission"]["manifest"] = plan["sources"]["manifest"]
+    graders = {}
     for task, binding in plan["selected_packages"].items():
         binding["record"] = snapshot(binding["record"])
         binding["controls"]["files"] = {origin: snapshot(reference)
                                        for origin, reference in binding["controls"]["files"].items()}
-        plan["admission"]["graders"][task]["record"] = binding["record"]["path"]
+        _, graders[task] = _target(task, binding, binding["record"], binding["controls"])
+    cf.canonical_graders(list(graders.values()))
+    plan["admission"]["graders"] = {task: grader.to_json() for task, grader in graders.items()}
     reference = SOURCE["create_json"](path, plan)
     return {"output": reference, "counts": plan["counts"], "budget": plan["budget"],
             "canonical_scoring_allowed": False, "citable": False}
@@ -323,11 +326,11 @@ def load_plan(path: Path, inventory: dict) -> tuple[dict, dict[str, cf.Grader]]:
         if {row["source_package"]["sha256"] for row in inventory["rows"] if row["task_id"] == task} != {originals[task]["package_digest"]}:
             raise ValueError("staged original parent differs from retained native sources")
         graders[task] = grader
+    cf.canonical_graders(list(graders.values()))
     if (plan["admission"] != {"schema": "heldout-v7.staged-admission/v1", **FLAGS,
                              "manifest": plan["sources"]["manifest"], "frozen_task_ids": tasks,
                              "graders": {task: grader.to_json() for task, grader in graders.items()}}):
         raise ValueError("staged plan admission cannot open or replace the canonical gate")
-    cf.canonical_graders(list(graders.values()))
     return plan, graders
 
 

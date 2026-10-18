@@ -38,3 +38,20 @@ binds all four canonical arms, native job/trial identities, full frozen packages
 Use `regrade.py run --help` for the native campaign. Execution requires a released original33 v7 manifest, its explicitly Verifier-accepted exact SHA, the independent receipt, and retained native cost calibration. The cumulative $3 journal and exclusive lease live alongside the bound source-input configuration, not in a new per-invocation work directory. Reservations survive failed calls and restarts; they are estimates, not provider bills or a native billing tag.
 
 Outputs are `report.json` and QA Trace's `regrade-v7.json`. Primary B–C, B–Base and C–Base use one identical qualified attempt-1 task cohort, exact sign tests and paired-task bootstrap difference intervals. Full B2 comparisons are secondary; diagnostics and quarantined canaries never enter primary rates. `real_pass`/`wrong_pass` describe original-v6-pass grading correctness, not shortcut behavior or intent.
+
+Explicitly authorized pre-release measurement uses `regrade.py plan-staged` then `run-staged`. Plans freeze the original33, repairs, controls, packages and kept diffs. Changed graders need native replay; identical graders inherit only canonical measured binary rewards. Nulls stay unmeasured and historical agent exceptions stay visible.
+
+Staged labels are provisional, noncanonical and noncitable. `promote` still requires the exact independent release and matching grader/package/control/source-diff bindings. Staging and canonical execution share one cumulative allowance; restarting never refreshes it.
+
+## Fresh repaired-data native generation
+
+`experiments/repaired-data-sft-v2/control_admission.py` audits typed native controls and immutable candidate records. Its campaign profile admits fresh generation only: no fabricated ledger ancestry, candidate-status promotion or global admission-policy change.
+
+For the bounded 2026-10-18 campaign, `native_generation.py plan --config <settings> --out runs/<campaign>` materializes nineteen exact repaired train packages and seventy-six distinct base cells. Run `admit --plan <plan> --envelope <budget>` before paid `run`, which also requires a hash-bound authenticated serving receipt and time for both sandbox TTLs.
+
+The shared envelope separates serving, native cells and replay, with explicit Sandbox prices and image/provider buffers. Unknown billing extras are acknowledged; reservations are not provider invoices. Cells have hard CPU/RAM limits, provider TTLs, one SDK create call, no transient retry and no reservation refund.
+
+`collect` admits only actual repaired passes with generation-time diff, effective lock interval, exact model/control/package binding and faithful full-conversation custody. Held-out or answer-visible tasks, historical rows, incomplete evidence and duplicate executions cannot inflate fresh counts.
+
+Fifty-one qualifying fresh rows is a minimum-count gate, not automatic training approval. Token-matched control construction and an admitted training budget remain separate requirements.
+

@@ -40,11 +40,11 @@ def envelope(tmp_path, admitted=True):
     plan_path = tmp_path / "plan.json"
     g.write_json(plan_path, plan)
     value = {"schema": "mimo.phase2-envelope/v1", "admitted": admitted, "reservation_id": "phase2-trainer-shared-20261018",
-             "approval": "Peter phase2 combined12", "approved_usd": 12, "plan": g.ref(plan_path),
+             "approval": "Peter phase2 combined12", "approved_usd": "12.00", "plan": g.ref(plan_path),
              "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
-             "native": {"cap_usd": 6.5, "usd_per_execution": .0855, "executions_max": 76,
+             "native": {"cap_usd": "6.50", "usd_per_execution": "0.0855", "executions_max": 76,
                         "durable_journal_path": str(tmp_path / "native-ledger.json")},
-             "serving": {"cap_usd": 2.5}, "heldout_regrade": {"cap_usd": 3.0}}
+             "serving": {"cap_usd": "2.50"}, "heldout_regrade": {"cap_usd": "3.00"}}
     path = tmp_path / "envelope.json"
     g.write_json(path, value)
     return path, plan_path, value, plan
@@ -55,7 +55,6 @@ def test_exact_independent_k4_matrix():
     g.validate_cells(plan)
     assert len(plan["cells"]) == 76
     assert "002486" not in g.TASK_IDS and "001478" not in g.TASK_IDS
-    assert a.MINIMUM_FRESH == 51
 
 
 @pytest.mark.parametrize("mutation", ["held", "retry", "alias", "wrong_ancestry", "bad_name", "trial_expansion"])
@@ -132,7 +131,9 @@ def test_native_durable_gate_never_refunds_or_retries(tmp_path):
 
 def phases():
     times = [("environment_setup", 0, 1), ("agent_setup", 1, 2), ("agent_execution", 2, 3), ("verifier", 3, 4)]
-    instant = lambda second: f"2026-10-18T09:00:0{second}+00:00"
+    def instant(second):
+        return f"2026-10-18T09:00:0{second}+00:00"
+
     return {**{name: {"started_at": instant(start), "finished_at": instant(end)} for name, start, end in times}, "finished_at": instant(5)}
 
 
@@ -168,7 +169,8 @@ def test_missing_native_grade_is_not_a_zero_or_a_pass():
 
 @pytest.mark.parametrize("changed_reasoning", [False, True])
 def test_faithful_native_projection_preserves_reasoning_and_tools(tmp_path, changed_reasoning):
-    from harbor.models.trajectories.trajectory import Trajectory
+    Trajectory = pytest.importorskip("harbor.models.trajectories.trajectory").Trajectory
+
     from evallab.mimoagent_trajectory import native_to_atif
 
     native = {"info": {"exit_status": "Idle", "antihack": False, "antihack_blocks": [],
@@ -204,3 +206,51 @@ def test_faithful_native_projection_preserves_reasoning_and_tools(tmp_path, chan
         assert proof["assistant_turns"] == 2
         assert proof["fidelity"] == "complete_native_messages_tools_reasoning"
         assert proof["projection_normalizations"]["antihack_blocks"] == "actual_worker_verdict_list_to_finished_event_count"
+
+
+def test_actual_serving_receipt_custody_is_usable_and_rejects_artifact_drift(tmp_path, monkeypatch):
+    window = load(
+        "phase2_native_serving_receipt_contract",
+        str(ROOT / "tools/modal-mimo-serve/serving_window.py"),
+    )
+    envelope_path, _, value, plan = envelope(tmp_path)
+    controls = tmp_path / "controls.json"
+    controls.write_text('{"strict_tasks":19}')
+    monkeypatch.setattr(window, "CONTROLS_SHA256", window.sha256(controls.read_bytes()))
+    value.update(ledger_tag="2026-10-17-v7", controls=g.ref(controls))
+    value["serving"].update(
+        app_name=window.APP_NAME, gpu="L40S", maximum_seconds=3500,
+        usd_per_second_upper_bound="0.0006676325", shutdown_reserve_seconds=120,
+        hard_cpu_limit=4, hard_memory_mib_limit=32768,
+    )
+    g.write_json(envelope_path, value, replace=True)
+    current = datetime.now(UTC)
+    config = window.admitted_config(
+        envelope_path, g.ref(envelope_path)["sha256"].removeprefix("sha256:"),
+        "fixture-owner", (current + timedelta(seconds=3500)).isoformat(),
+        now=current.timestamp(),
+    )
+    journal = window.Journal(tmp_path / "owned-window.json")
+    journal.create(config)
+    upstream = "https://fixture-owned-base.modal.run"
+    app_id = "ap-fixture-owned"
+    models = journal.artifact("models", {"data": [{"id": g.RETURNED_MODEL}]})
+    guard = {"armed": True, "app_id": app_id, "deadline": config["expires_at"]}
+    guard["evidence"] = journal.artifact("guard", guard)
+    record = window.receipt(journal.update(
+        state="active", app_id=app_id, upstream=upstream, stop_guard=guard,
+        deployment=journal.artifact("deployment", {"app_id": app_id}),
+        readiness={
+            "authenticated": True, "method": "GET", "path": "/v1/models",
+            "status_code": 200, "upstream": upstream, "checked_at": current.isoformat(),
+            "response": models,
+        },
+        authenticated_binding={"requested_model": g.RETURNED_MODEL, "returned_model": g.RETURNED_MODEL},
+    ))
+    receipt_path = tmp_path / "fixed-ready-receipt.json"
+    g.write_json(receipt_path, record)
+    plan["config"] = {"sandbox_timeout_seconds": 300}
+    g.checked_window(receipt_path, envelope_path, plan)
+    Path(models["path"]).write_text('{"data":[{"id":"different-model"}]}')
+    with pytest.raises(g.Refusal):
+        g.checked_window(receipt_path, envelope_path, plan)

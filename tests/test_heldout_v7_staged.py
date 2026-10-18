@@ -7,20 +7,25 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-
-from evallab.registry import compute_task_digests, harbor_task_digest
-from evallab.regrade import SpendCapReached
-from evallab.task_variants import derive_task
-
 from test_heldout_v7_campaign import (
     HERE,
+)
+from test_heldout_v7_campaign import (
     inventory_module as inventory_module,
+)
+from test_heldout_v7_campaign import (
     no_native_input as no_native_input,
+)
+from test_heldout_v7_campaign import (
     released_source as released_source,
 )
 from test_heldout_v7_report import inventory as report_inventory
 from test_heldout_v7_report import observation as report_observation
 from test_heldout_v7_report import source as report_source
+
+from evallab.registry import compute_task_digests, harbor_task_digest
+from evallab.regrade import SpendCapReached
+from evallab.task_variants import derive_task
 
 
 @pytest.fixture

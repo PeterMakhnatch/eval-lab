@@ -15,7 +15,7 @@ import json
 import platform
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -545,7 +545,7 @@ def audit(*, root: Path, handoff_path: Path, request_path: Path, archive_path: P
         "fresh_rollouts_executed": 0, "dispatch_allowed": False, "scoring_allowed": False,
         "scope": "Exact19 generation-only input; not canonical-ledger admission or dataset validation."}
     scope_ref = write_json(output / "generation-control-scope.json", generation_scope)
-    report = {"schema": SCHEMA, "created_at": datetime.now(timezone.utc).isoformat(),
+    report = {"schema": SCHEMA, "created_at": datetime.now(UTC).isoformat(),
         "status": "control_qualified_candidates_not_canonical_ledger_admitted" if generation_scope["all19_controls_qualified"] else "audit_has_blockers",
         "sources": sources, "source_controls_handoff": sources[0], "source_controls_request": sources[1],
         "current_reader_runtime": {"python": sys.version, "platform": platform.platform(),

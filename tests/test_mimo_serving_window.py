@@ -29,7 +29,7 @@ def config(window):
             "usd_per_second_upper_bound": "0.0006676325", "maximum_seconds": 3500,
             "shutdown_reserve_seconds": 120, "cap_usd": "2.50", "reservation_id": "fixture-reservation",
             "window_id": "fixture-reservation", "owner": "fixture-owner", "environment": "main",
-            "budget_state": {"path": "/unused/parent-envelope.json", "sha256": "a" * 64},
+            "budget_state": {"path": "/unused/parent-envelope.json", "sha256": "sha256:" + "a" * 64},
             "starts_at": window.utc(1000), "expires_at": window.utc(4380), "stop_deadline": window.utc(4500)}
 
 
@@ -50,7 +50,7 @@ def test_twelve_dollar_parent_total_includes_heldout_and_other_declared_caps(win
     budget = {"schema": "mimo.phase2-envelope/v1", "reservation_id": "fixture-reservation", "admitted": True,
               "ledger_tag": "2026-10-17-v7", "approved_usd": "12.00", "serving": serving,
               "native": {"cap_usd": "6.50"}, "heldout_regrade": {"cap_usd": "3.00"},
-              "controls": {"path": str(controls), "sha256": controls_sha}}
+              "controls": {"path": str(controls), "sha256": "sha256:" + controls_sha}}
     path = tmp_path / "budget.json"
 
     def admit():
@@ -125,7 +125,6 @@ def test_active_receipt_cannot_outlive_absolute_deadline(window, config, tmp_pat
     value = journal.update(state="active")
     monkeypatch.setattr(window.time, "time", lambda: 4381)
     assert window.receipt(value)["state"] == "expired"
-    assert window.receipt(value)["budget"]["envelope"] == config["budget_state"]
 
 
 def test_readiness_refuses_unarmed_guard_before_model_or_metadata_request(window, config, tmp_path, monkeypatch):

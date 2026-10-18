@@ -23,9 +23,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
-from decimal import Decimal, ROUND_FLOOR
+from decimal import ROUND_FLOOR, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -113,7 +113,7 @@ def admitted_config(path: Path, digest: str, owner: str, deadline: str, *, now: 
             "parent envelope is not explicitly admitted")
     require(budget["ledger_tag"] == "2026-10-17-v7", "wrong parent ledger")
     require(money(budget["approved_usd"]) > 0, "parent total authorization must be positive")
-    require(budget["controls"]["sha256"] == CONTROLS_SHA256, "parent envelope is not bound to the repaired19 controls")
+    require(budget["controls"]["sha256"] == "sha256:" + CONTROLS_SHA256, "parent envelope is not bound to the repaired19 controls")
     require(sha256(Path(budget["controls"]["path"]).read_bytes()) == CONTROLS_SHA256,
             "parent controls bytes changed")
     serving = budget["serving"]
@@ -130,7 +130,7 @@ def admitted_config(path: Path, digest: str, owner: str, deadline: str, *, now: 
     )}
     config.update(schema="mimo.serving-window-config/v1", reservation_id=budget["reservation_id"],
                   window_id=budget["reservation_id"], owner=owner,
-                  budget_state={"path": str(path.resolve()), "sha256": digest},
+                  budget_state={"path": str(path.resolve()), "sha256": "sha256:" + digest},
                   starts_at=utc(now), expires_at=utc(end - serving["shutdown_reserve_seconds"]),
                   stop_deadline=utc(end))
     validate_config(config)
@@ -217,7 +217,7 @@ class Journal:
             target.write(raw)
             target.flush()
             os.fsync(target.fileno())
-        return {"path": str(path), "sha256": sha256(raw)}
+        return {"path": str(path), "sha256": "sha256:" + sha256(raw)}
 
 
 async def _modal_rpc(method: str, request: Any, timeout: float) -> Any:
@@ -313,10 +313,8 @@ def arm_container_deadline(config: dict[str, Any], process: subprocess.Popen[byt
 
     def expire() -> None:
         threading.Event().wait(wait)
-        try:
+        with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         os._exit(78)
 
     threading.Thread(target=expire, daemon=True, name="owned-window-deadline").start()
@@ -380,7 +378,7 @@ def deploy(args: argparse.Namespace) -> dict[str, Any]:
     os.environ["EVALLAB_MIMO_GPU"] = config["gpu"]
     os.environ["EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS"] = "60"
     serve = importlib.import_module("serve")
-    require(serve.WINDOW == config, "serve.py did not retain this exact window config")
+    require(config == serve.WINDOW, "serve.py did not retain this exact window config")
     # No weights download, readiness request, autoscaler minimum, or second app.
     serve.app.deploy(environment_name=args.environment, strategy="recreate")
     app_id = serve.app.app_id

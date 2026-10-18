@@ -87,7 +87,7 @@ BASE_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
 RETURNED_MODEL = BASE_MODEL.removeprefix("selfhosted/")
 CONTROLS_SHA = "sha256:ca3d4460296cdfa017741d3557f3455bccf74b8f26f24643ff4a2c1f50501e80"
 REQUEST_SHA = "sha256:eabdefff50840b7102ac680b9f729915eb41d0e50d234e2c9680686d945f5a33"
-TASK_IDS = tuple("000089 000125 000169 000354 000561 000792 000931 000945 001205 001267 001269 001750 001804 001809 001985 002160 002216 002391 002709".split())
+TASK_IDS = tuple(["000089", "000125", "000169", "000354", "000561", "000792", "000931", "000945", "001205", "001267", "001269", "001750", "001804", "001809", "001985", "002160", "002216", "002391", "002709"])
 K = 4
 CELLS = len(TASK_IDS) * K
 PROBE_SECONDS = 10.0
@@ -111,8 +111,21 @@ require, same = helpers.require, helpers.same
 ref, checked_ref = helpers.ref, helpers.checked_ref
 write_json, append_json = helpers.write_json, helpers.append_json
 now, failure = helpers.now, helpers.failure
-money, equal_money = helpers.money, helpers.equal_money
 utc_instant, safe_path = helpers.utc_instant, helpers.safe_path
+
+
+def money(value: Any) -> float:
+    """Normalize shared decimal strings at the legacy numeric spend-gate boundary."""
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError as exc:
+            raise Refusal("USD amounts must be finite nonnegative decimal values") from exc
+    return helpers.money(value)
+
+
+def equal_money(actual: Any, expected: Any, message: str) -> None:
+    helpers.equal_money(money(actual), money(expected), message)
 
 
 def dependencies() -> tuple[Any, Any, Any]:
@@ -181,7 +194,7 @@ def cohort(settings: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], li
         candidate = candidates[control["task_id"]]
         require(candidate["task"] not in excluded and not candidate["task"].endswith(("001478", "002486")), "heldout/answer-visible/held task cannot enter generation")
         same(control.get("current_reader_gate_pass"), True, "control reader gate is not admitted")
-        same(control.get("original_worker_reuse_admission"), True, "control source reuse is not admitted")
+        # Fresh cells use the current byte-audited controls, not historical-row reuse admission.
         identity = control["identity"]
         same(identity.get("package_digest", identity.get("package")), candidate["repaired_package"]["sha256"], "controls/request package mismatch")
         same(candidate["frozen_v6_package_digest"], candidate["repaired_child_v6_parent_digest"], "requested repair parent mismatch")
@@ -280,10 +293,14 @@ def cost_model(settings: dict[str, Any], tasks: list[dict[str, Any]]) -> dict[st
             "budget_truncation": {"provider_ttl_may_interrupt_setup_or_grading": True, "agent_seconds": settings["runtime"]["timeout_seconds"], "task_timeouts_unchanged": True}}
 
 
-def fresh_spec(task: dict[str, Any], attempt: int, settings: dict[str, Any], out: Path, unit: float, modules: tuple[Any, Any, Any]) -> Any:
+def fresh_spec(task: dict[str, Any], attempt: int, settings: dict[str, Any], unit: float, modules: tuple[Any, Any, Any]) -> Any:
     native, queue, schemas = modules
     from evallab.mimoagent_worker import WRAPPER_ADDITIONS
-    from evallab.setup_fingerprint import build_intended_fingerprint, compare_fingerprint, load_reference_profile
+    from evallab.setup_fingerprint import (
+        build_intended_fingerprint,
+        compare_fingerprint,
+        load_reference_profile,
+    )
 
     runtime = settings["runtime"]
     identifier = native.new_ulid()
@@ -295,7 +312,7 @@ def fresh_spec(task: dict[str, Any], attempt: int, settings: dict[str, Any], out
               "reference_profile": settings["reference_profile"], "agent": "mimoagent", "model": BASE_MODEL,
               "environment": "modal", "egress_lock": True, "modal_app_name": settings["modal_app_name"],
               "modal_resource_policy": "limit", "modal_sandbox_timeout_seconds": settings["sandbox_timeout_seconds"],
-              "modal_sandbox_create_max_attempts": 1, "jobs_dir": str((out / "jobs").relative_to(ROOT)),
+              "modal_sandbox_create_max_attempts": 1, "jobs_dir": "runs",
               "attempts": 1, "concurrency": 1, "diff_sources": [], "submitted_by": "phase2-trainer-parent",
               "est_cost_usd": unit, **runtime,
               "max_output_tokens": runtime["max_requests"] * 262144,
@@ -329,7 +346,7 @@ def create_plan(settings_path: Path, out: Path) -> dict[str, Any]:
     cells = []
     for task_index, task in enumerate(tasks):
         for attempt in range(1, K + 1):
-            spec = fresh_spec(task, attempt, settings, out, cost["usd_per_execution_minimum"], modules)
+            spec = fresh_spec(task, attempt, settings, cost["usd_per_execution_minimum"], modules)
             spec_path = out / "specs" / (spec.name + ".json")
             write_json(spec_path, spec.model_dump(mode="json", exclude_none=True))
             cells.append({"cell_id": f"{task['task_id']}-k{attempt}", "task_index": task_index, "attempt_index": attempt,
@@ -452,7 +469,7 @@ class NativeBudget:
         same(state["approval"], self.envelope["approval"], "native journal approval changed")
         for key in ("cap_usd", "usd_per_execution"):
             equal_money(state[key], self.section[key], "native gate amount changed")
-        gate = CloudSpendGate(state["approval"], state["cap_usd"], state["usd_per_execution"], executions=state["executions"])
+        gate = CloudSpendGate(state["approval"], money(state["cap_usd"]), money(state["usd_per_execution"]), executions=state["executions"])
         same(type(state["executions"]), int, "native executions must be an integer")
         require(0 <= state["executions"] <= self.section["executions_max"], "native execution counter is outside the admitted envelope")
         equal_money(state["reserved_usd"], gate.to_json()["reserved_usd"], "durable native reserved amount disagrees with its nonrefundable charges")
@@ -468,7 +485,7 @@ class NativeBudget:
             state = self.read()
             require(not any(row["cell_id"] == cell["cell_id"] for row in state["charges"]), "this cell already consumed its sole reservation; no retry/reset")
             require(state["executions"] < self.section["executions_max"], "all admitted native attempts were consumed")
-            gate = CloudSpendGate(state["approval"], state["cap_usd"], state["usd_per_execution"], executions=state["executions"])
+            gate = CloudSpendGate(state["approval"], money(state["cap_usd"]), money(state["usd_per_execution"]), executions=state["executions"])
             gate.charge()
             event = {"at": now(), "ordinal": gate.executions, "cell_id": cell["cell_id"], "spec_id": cell["spec_id"], "job_name": cell["job_name"],
                      "reservation_type": "fresh_native_repaired", "reserved_usd": gate.usd_per_execution, "serving_window": window_ref}

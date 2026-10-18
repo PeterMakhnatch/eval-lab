@@ -60,6 +60,7 @@ def effective_agent_lock(result: dict[str, Any], document: dict[str, Any], g: An
 
 def faithful_trace(row: dict[str, Any], g: Any) -> dict[str, Any]:
     from harbor.models.trajectories.trajectory import Trajectory
+
     from evallab.mimoagent_trajectory import native_to_atif
 
     trajectory = g.bound_json(row["trajectory"])

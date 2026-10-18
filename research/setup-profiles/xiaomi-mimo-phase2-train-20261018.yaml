@@ -115,6 +115,6 @@ campaign_lineage:
     - sha256:eb04a73b5b5f9a8836cace67c6c06ffa312cadd0d47856ae213aae497d40a7dd
 campaign_native_controls:
   audit:
-    path: /Users/petermakhnatch/Developer/eval-lab/.worktrees/phase2-control-admission-20261018/runs/phase2-control-admission-20261018-a3/control-admission.json
-    sha256: sha256:6cbe2f1fa0974b0fa528ad742cebf1aa7ae3e9a552fde33a61d3e3332c568b6b
+    path: /Users/petermakhnatch/Developer/eval-lab-results/2026-10-18/classifiers-phase2-control-admission/control-admission.json
+    sha256: sha256:35d909868e52e888a43033c6c961e575949acc1ce7a27a8589f6f508710be3e1
   purpose: fresh_native_repaired

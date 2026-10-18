@@ -370,6 +370,7 @@ python3 - <<'PY'
 from __future__ import annotations
 import os
 assert os.environ["EVALLAB_SMOKE_INTERPRETER"] == "helper"
+assert os.environ["PIP_NO_CACHE_DIR"] == "1"
 print("supported helper ran cleanup")
 PY
 rm -rf {shlex.quote(str(tests_dir))}
@@ -391,7 +392,9 @@ touch {shlex.quote(str(state_dir / "ready"))}
         )
         python.chmod(0o755)
         paths[name] = f"{binary_dir}:/usr/bin:/bin"
-    monkeypatch.setattr(wrapper, "MODAL_PATH_PIN", paths["helper"])
+    monkeypatch.setattr(
+        wrapper, "SETUP_HELPER_ENV", {"PATH": paths["helper"], "PIP_NO_CACHE_DIR": "1"}
+    )
     monkeypatch.setattr(wrapper, "_TESTS_DIR", str(tests_dir))
     monkeypatch.setattr(wrapper, "MIMO_STATE_DIR", str(state_dir))
     monkeypatch.setattr(wrapper, "V2_GRADE_DIR", str(grade_dir))
@@ -407,7 +410,10 @@ touch {shlex.quote(str(state_dir / "ready"))}
     async def local_exec(*args: str, **kwargs: Any) -> Any:
         image_env = dict(os.environ)
         image_env.pop("PYTHONPATH", None)
-        image_env.update(PATH=paths["task"], PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
+        image_env.update(
+            PATH=paths["task"], PIP_NO_CACHE_DIR="task-cache",
+            PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
+        )
         for secret in creations[-1]["secrets"] + kwargs["secrets"]:
             image_env.update(secret)
         exec_envs.append(image_env)
@@ -553,6 +559,7 @@ def _seed_task_submission(runtime: Any) -> None:
         "def test_original_task_interpreter_and_dependencies():\n"
         "    assert os.environ['EVALLAB_SMOKE_INTERPRETER'] == 'task'\n"
         "    assert os.environ['TASK_SETTING'] == 'preserved'\n"
+        "    assert os.environ['PIP_NO_CACHE_DIR'] == 'task-cache'\n"
         "    assert task_dependency.VALUE == 'submitted'\n"
     )
 
@@ -583,7 +590,6 @@ def test_native_modal_task_python_survives_verifier_setup_boundary(
             path.relative_to(runtime.tests_dir): path.read_bytes()
             for path in runtime.tests_dir.rglob("*") if path.is_file()
         } == original_tests
-        assert not list(runtime.grade_dir.glob("modal-tests.*"))
         assert env._persistent_env == {"TASK_SETTING": "preserved"}
         with env.scoped_exec_env({"PATH": runtime.paths["helper"]}):
             missing = await env.exec("python3 -c 'import pytest'")

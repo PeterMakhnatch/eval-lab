@@ -46,6 +46,7 @@ import base64
 import binascii
 import hashlib
 import re
+import shlex
 import tomllib
 import xml.etree.ElementTree as ET
 from collections.abc import Collection
@@ -360,6 +361,34 @@ V2_SETUP_SUBDIR = "tests/_verifier-setup"
 #: repo, where the code under test cannot reach it); ``/var/lib/mimo`` itself
 #: is setup state (``chmod 700``, rewritten by setup.sh).
 V2_GRADE_DIR = "/var/lib/mimo-grade"
+
+#: Setup's system interpreter need not have pip. The existing cache-disabled
+#: cleanup branch removes cache directories directly; neither override belongs
+#: in the task's persistent environment or its test runner.
+SETUP_HELPER_ENV = {"PATH": SETUP_PYTHON_PATH, "PIP_NO_CACHE_DIR": "1"}
+
+
+def render_verifier_setup_bootstrap(*, tests_dir: str, state_dir: str, grade_dir: str) -> str:
+    """Run bundled setup before artifact seeding and restore its tests on exit.
+
+    Setup wipes /tests and /logs. The native backend invokes this only in the
+    dedicated verifier, under SETUP_HELPER_ENV, before Harbor uploads submissions.
+    """
+    bundle_name = PurePosixPath(V2_SETUP_SUBDIR).name
+    return f"""set -eu
+tests={shlex.quote(tests_dir)}
+state={shlex.quote(state_dir)}
+grade={shlex.quote(grade_dir)}
+mkdir -p "$state" "$grade"
+backup=$(mktemp -d "$grade/native-tests.XXXXXX")
+cp -a "$tests/." "$backup/"
+trap 'status=$?; rm -rf "$tests"; cp -a "$backup/." "$tests" || exit 1; rm -rf "$backup"; exit "$status"' EXIT
+cp -a "$backup/{bundle_name}/." "$state/"
+bash "$state/setup.sh"
+test -f "$state/ready"
+echo "native setup: ready marker observed"
+"""
+
 
 #: Tamper signatures gated on added lines of the kept agent change. One
 #: Python constant so the list is testable; the rendered grader embeds the

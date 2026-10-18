@@ -23,13 +23,14 @@ from __future__ import annotations
 import contextlib
 import ipaddress
 import json
+import math
 import os
 import re
 import tempfile
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -45,6 +46,13 @@ from harbor.models.task.config import NetworkMode, NetworkPolicy  # ty: ignore[u
 
 from evallab.harbor_docker import _SECURITY_OPTIONS, LockedDockerEnvironment
 from evallab.host_isolation import desktop_dns_addresses, nft_objects, nft_rules
+from evallab.separate_verifier import (
+    MIMO_STATE_DIR,
+    SETUP_HELPER_ENV,
+    V2_GRADE_DIR,
+    V2_SETUP_SUBDIR,
+    render_verifier_setup_bootstrap,
+)
 
 ISOLATION_PORT_ENV = "EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT"
 ISOLATION_RECORD = "host-isolation.json"
@@ -52,6 +60,8 @@ ISOLATION_RECORD_PREFIX = "host-isolation"
 _TOOL_BASE = "alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
 _TOOL_TARGET = "/opt/evallab-host-isolation"
 _PHASE_SWITCH_MODES = frozenset({NetworkMode.PUBLIC, NetworkMode.NO_NETWORK})
+_TESTS_DIR = "/tests"
+_SETUP_BUNDLE_NAME = PurePosixPath(V2_SETUP_SUBDIR).name
 #: Per-sandbox project-network subnets, tried in order until `docker network
 #: create --subnet` succeeds (a stale network may hold an earlier slice).
 #: Docker's default pools (rfc1918/100.64/10, Docker Desktop host space) are
@@ -1036,6 +1046,45 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
         )
         self._write_lock_record(applied=True)
 
+    async def run_healthcheck(self, healthcheck: Any = None) -> None:
+        # Scope the helper interpreter/cache policy to readable clean setup.
+        # Explicit overrides and ordinary task healthchecks keep their task env.
+        if healthcheck is not None or not (
+            self.environment_dir / "setup" / "setup.sh"
+        ).is_file():
+            await super().run_healthcheck(healthcheck)
+            return
+        with self.scoped_exec_env(SETUP_HELPER_ENV):
+            await super().run_healthcheck(healthcheck)
+
+    async def _bootstrap_verifier_setup(self) -> None:
+        # Primary environments must never inspect the sibling hidden tests.
+        if self._enable_environment_dir_upload or not (
+            self.environment_dir / _SETUP_BUNDLE_NAME / "setup.sh"
+        ).is_file():
+            return
+        with self.scoped_exec_env(SETUP_HELPER_ENV):
+            result = await self.exec(
+                render_verifier_setup_bootstrap(
+                    tests_dir=_TESTS_DIR, state_dir=MIMO_STATE_DIR, grade_dir=V2_GRADE_DIR
+                ),
+                timeout_sec=math.ceil(self.task_env_config.build_timeout_sec),
+                user="root",
+            )
+        # Harbor clears verifier/ before seeding; repeated grades reopen its
+        # setup.log. Preserve the actual pre-seed bootstrap output separately.
+        setup_log = Path(self.trial_paths.trial_dir) / f"docker-setup-{self.session_id}.log"
+        setup_log.parent.mkdir(parents=True, exist_ok=True)
+        setup_log.write_text(
+            (result.stdout or "")
+            + (result.stderr or "")
+            + f"\ndocker setup: return_code={result.return_code}\n"
+        )
+        if result.return_code != 0:
+            raise RuntimeError(
+                f"Docker verifier setup failed (exit {result.return_code}); see {setup_log}"
+            )
+
     async def start(self, force_build: bool) -> None:
         try:
             await self._prepare_tool()
@@ -1097,6 +1146,9 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                         )
             self._isolation_confirmed = True
             self._write_lock_record(applied=True)
+            # Setup may execute only after the complete host boundary is proved,
+            # and must finish before Harbor seeds any submitted artifacts.
+            await self._bootstrap_verifier_setup()
         except BaseException as error:
             self._isolation_confirmed = False
             self._write_lock_record(applied=False, error=error)

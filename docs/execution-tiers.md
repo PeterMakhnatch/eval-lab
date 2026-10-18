@@ -123,16 +123,23 @@ keeping private control evidence out of tracked or shared default projections.
 
 The native Modal route uses `evallab.harbor_modal:TaskModalEnvironment`;
 `LockedModalEnvironment` and `RegradeModalEnvironment` inherit the same
-interpreter behavior. There is **no global `persistent_env.PATH` override**.
+interpreter behavior. The ordinary Docker route's
+`evallab.harbor_host_isolation:HostIsolatedDockerEnvironment` shares this
+setup boundary. Explicit Docker `egress_lock=true` still selects the separate
+creation-time locked backend; this does not change that route.
+There is **no global `persistent_env.PATH` or cache-policy override**.
 Agent commands, the verifier's grading script and its task test commands retain
 the image/task PATH and installed dependencies. Installing pytest into a
 different interpreter, adding dependency paths across Python versions, or
 changing a task package to mask an interpreter mismatch is not a runtime fix.
 
 MiMo's benign `environment/setup/setup.sh` needs a modern interpreter in some
-images whose task Python is older. Only that environment's setup healthcheck
-gets the `/usr/bin`-first helper PATH (`MODAL_PATH_PIN`). Healthchecks without
-that readable setup contract keep the task PATH. The primary sandbox starts
+images whose task Python is older. Only that environment's default setup
+healthcheck gets `SETUP_HELPER_ENV`: a `/usr/bin`-first helper PATH and
+`PIP_NO_CACHE_DIR=1`. System Python need not have pip; setup's existing
+cache-disabled branch still removes its on-disk pip cache directories directly.
+Explicit per-step healthchecks and healthchecks without that readable setup
+contract keep the task environment. The primary sandbox starts
 normally, then Harbor runs its healthcheck; this route does not read or upload
 the sibling hidden `tests/`, test patch, grading source, or reference solution
 to bootstrap the agent. The helper environment is scoped to the call, not
@@ -141,9 +148,10 @@ mutated on the environment object or leaked to later task execs.
 Harbor 0.24 does **not** run an equivalent setup healthcheck for a bundled
 separate verifier. The v6 `tests/test.sh` instead invokes its unchanged
 `_verifier-setup/setup.sh` before grading. During native verifier startup, the
-wrapper runs that existing benign setup bundle under the helper PATH, on the
-verifier's own pristine image, **before Harbor seeds any agent artifacts or
-submitted source**. Setup still performs its required cleanup. Because it
+wrapper runs that existing benign setup bundle under the helper environment,
+on the verifier's own pristine image, **before Harbor seeds any agent artifacts
+or submitted source**. Docker does this only after its complete host-isolation
+boundary is proved. Setup still performs its required cleanup. Because it
 removes `/tests` and `/logs`, the wrapper preserves/restores the verifier's
 own `/tests` inside its private grade directory, including on setup failure.
 No new sandbox or agent-side test upload is involved. The existing setup
@@ -152,22 +160,24 @@ cannot neutralize a seeded submission and the task tests use their original
 Python. Package, test, and solution bytes are unchanged.
 
 Actual bootstrap stdout/stderr, its return code and the observed ready marker
-are retained as `modal-setup-<session_id>.log` beside the trial. The grading
-script may reopen `verifier/setup.log` on each repeat; that file is not the
-sole setup receipt. Nonzero bootstrap exit or a missing ready marker fails
-environment startup as infrastructure, never as a fabricated task zero.
-Native sandbox TTLs, CPU/RAM enforcement and phase network policies remain
-in force; the locked subclass still records only policies Modal accepted.
+are retained as `modal-setup-<session_id>.log` or `docker-setup-<session_id>.log`
+beside the trial. The grading script may reopen `verifier/setup.log` on each
+repeat; that file is not the sole setup receipt. Nonzero bootstrap exit or a
+missing ready marker fails environment startup as infrastructure, never as a
+fabricated task zero. Docker bootstrap uses the existing environment build
+timeout and its failure tears down the owned sandbox. Native sandbox TTLs,
+CPU/RAM enforcement and phase network policies remain in force; the locked
+Modal subclass still records only policies Modal accepted.
 Regrades keep the 3,600-second maximum sandbox lifetime.
 
 The cheap executable smoke below uses the installed Harbor 0.24 lifecycle
-with an inert Modal SDK boundary, real local shell execution and real pytest.
-It checks open/locked/regrade startup, cleanup-before-seeding, ready-marker
-idempotence, hidden-input confidentiality, setup failure and task dependency
-resolution. It makes no provider, model, Docker or service calls:
+with inert Modal/Docker transports, real local shell execution and real pytest.
+It checks primary and dedicated-verifier setup, cleanup-before-seeding,
+ready-marker idempotence, hidden-input confidentiality, setup failure and task
+dependency resolution. It makes no provider, model, Docker or service calls:
 
 ```bash
-.venv/bin/python -m pytest -q tests/test_harbor_modal.py -k native_modal
+.venv/bin/python -m pytest -q tests/test_harbor_modal.py tests/test_harbor_host_isolation.py -k 'native_modal or native_docker'
 ```
 
 A smoke pass is not qualification of a real image. A native retry must keep
@@ -175,10 +185,11 @@ the exact immutable package/image and solution digests, use a new matrix run
 name/output directory rather than overwriting the failed evidence, and retain
 the existing campaign's cumulative spend reservations. Run reference and nop
 first, then the admitted prompt-valid alternate and known-wrong control through
-the existing Eval Lab qualification path, with the same bounded Modal
-app/resources/TTL and three verifier observations for each positive control.
-A `No module named pytest` result is infrastructure evidence; neither a repair
-nor the backend is qualified until the real reference/alternate retry passes.
+the existing Eval Lab qualification path, with the backend's admitted resources,
+timeouts and spend boundaries and three verifier observations for each positive
+control. A `No module named pytest` failure in a declared pytest test command is
+infrastructure evidence; neither a repair nor the backend is qualified until
+the real reference/alternate retry passes.
 
 ## Running locally (free)
 

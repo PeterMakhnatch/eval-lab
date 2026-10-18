@@ -1,4 +1,4 @@
-"""Source-bound collection repair for the frozen BurnMan activities task only.
+"""Source-bound collection repairs for the frozen MiMo 001246 and 002486 tasks.
 
 No application implementation is supplied. The missing helper belongs to the
 requested reference change; application imports and model construction therefore
@@ -11,6 +11,7 @@ import argparse
 import ast
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +133,102 @@ def collection_patch(original: bytes) -> bytes:
         raise ValueError("collection repair changed original test semantics")
     appendix = build_patch_appendix([RepairTest(id="bounded001246", repo_path=TEST_PATH, code=changed)])
     return appendix.encode("utf-8") + command
+
+
+TRANSFORM_002486 = "mimo-002486-collection@1"
+PARENT_002486_PATCH_SHA256 = "d282c75c350571bdbe8cc1aea84d3f132eff0ec25e5d89de236c21742ee51839"
+TEST_PATHS_002486 = {
+    "usercase-test-coderl/test_build_install_plan.py": 9,
+    "tests/test_repair_browser_opt_in.py": 1,
+}
+
+
+def _defer_install_plan_import(source: str, *, expected_tests: int) -> str:
+    """Move the missing requested API import into each existing named test body."""
+    tree = ast.parse(source)
+    imports = [
+        node for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.level == 0
+        and node.module == "configuration_components.install_plan"
+        and [(alias.name, alias.asname) for alias in node.names] == [("build_install_plan", None)]
+    ]
+    tests = [
+        node
+        for outer in tree.body
+        for node in (outer.body if isinstance(outer, ast.ClassDef) else [outer])
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
+    if len(imports) != 1 or len(tests) != expected_tests or not tests:
+        raise ValueError("bounded002486 application import/test boundary changed")
+    application_import = imports[0]
+    lines = source.splitlines(keepends=True)
+    assert application_import.end_lineno is not None
+    edits = [(application_import.lineno - 1, application_import.end_lineno, "")]
+    import_text = ast.get_source_segment(source, application_import)
+    assert import_text is not None
+    for test in tests:
+        statement = test.body[0]
+        if (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant)
+                and isinstance(statement.value.value, str)):
+            statement = test.body[1]
+        insertion = statement.lineno - 1
+        indent = lines[insertion][:len(lines[insertion]) - len(lines[insertion].lstrip())]
+        edits.append((insertion, insertion, indent + import_text + "\n"))
+    changed = list(lines)
+    for begin, finish, replacement in sorted(edits, reverse=True):
+        changed[begin:finish] = [replacement] if replacement else []
+    result = "".join(changed)
+
+    # Undo only import relocation. The entire original AST, including every
+    # assertion, decorator, fixture, subprocess script and unittest subTest,
+    # must survive; a missing API is never implemented, caught or skipped.
+    restored = ast.parse(result)
+    restored_tests = [
+        node
+        for outer in restored.body
+        for node in (outer.body if isinstance(outer, ast.ClassDef) else [outer])
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
+    for test in restored_tests:
+        position = 1 if ast.get_docstring(test, clean=False) is not None else 0
+        if ast.dump(test.body[position]) != ast.dump(application_import):
+            raise ValueError("bounded002486 deferred import changed")
+        del test.body[position]
+    restored.body.insert(tree.body.index(application_import), application_import)
+    if ast.dump(restored) != ast.dump(tree):
+        raise ValueError("collection repair changed original test semantics")
+    return result
+
+
+def collection_patch_002486(original: bytes) -> bytes:
+    """Repair both frozen test modules, preserving every other patch entry."""
+    from evallab.verifier_repair import RepairTest, build_patch_appendix
+
+    if hashlib.sha256(original).hexdigest() != PARENT_002486_PATCH_SHA256:
+        raise ValueError("collection repair requires the exact frozen002486 test patch")
+    sections = re.split(r"(?m)(?=^diff --git )", original.decode("utf-8"))
+    for path, count in TEST_PATHS_002486.items():
+        matches = [
+            index for index, section in enumerate(sections)
+            if section.startswith(f"diff --git a/{path} b/{path}\n")
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"bounded002486 requires exactly one added {path}")
+        index = matches[0]
+        lines = sections[index].splitlines(keepends=True)
+        if (lines[:4] != [
+                f"diff --git a/{path} b/{path}\n", "new file mode 100644\n",
+                "--- /dev/null\n", f"+++ b/{path}\n",
+            ] or lines[4] != f"@@ -0,0 +1,{len(lines) - 5} @@\n"
+                or not all(line.startswith("+") for line in lines[5:])):
+            raise ValueError(f"bounded002486 added-test patch structure changed: {path}")
+        source = "".join(line[1:] for line in lines[5:])
+        changed = _defer_install_plan_import(source, expected_tests=count)
+        sections[index] = build_patch_appendix([
+            RepairTest(id="bounded002486", repo_path=path, code=changed),
+        ])
+    return "".join(sections).encode("utf-8")
 
 
 def file_binding(path: Path) -> dict[str, Any]:

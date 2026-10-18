@@ -1,0 +1,148 @@
+{
+ "baseline_sha256": "aa3702d988e1b0c5c8124968e826890de1f861991d2129be090f3fdc052dc863",
+ "code_commit": "dd8ba6e3def39ad2d7d268820add1eabd353e751",
+ "n_items": 100,
+ "new_sha256": "2225dd9187819706ebaeaaea81f1cdde5e4d685eb410905c09b5e761ba7a2fc9",
+ "notes": "Same 50 positive and 50 negative IDs. Decision rates exclude abstentions; flag yield uses each full 50-item population, not an assumption that abstention means pass. Differences include the whole qa-trace/7 cutover, not an isolated projection effect. T0 cached OOF Sol-leg blinding remains unverified; T1 and full-pipeline results are reported separately.",
+ "systems": {
+  "Full pipeline": {
+   "false_flag_count_delta": 0,
+   "new_false_flags": [],
+   "new_positive_flags": [],
+   "old_abstention_transitions": {
+    "negative_no": 3,
+    "negative_yes": 0,
+    "positive_no": 0,
+    "positive_yes": 0,
+    "still_unsure": 16
+   },
+   "positive_flag_yield_delta": 0.0,
+   "qa-trace/6": {
+    "negative": {
+     "abstained": 19,
+     "decided": 31,
+     "decision_rate": 0.0967741935483871,
+     "flag_yield": 0.06,
+     "flag_yield_ci95": [
+      0.02061497034897397,
+      0.16217091688838173
+     ],
+     "flagged": 3,
+     "population": 50
+    },
+    "positive": {
+     "abstained": 0,
+     "decided": 50,
+     "decision_rate": 0.68,
+     "flag_yield": 0.68,
+     "flag_yield_ci95": [
+      0.5418970269185592,
+      0.7924178373934316
+     ],
+     "flagged": 34,
+     "population": 50
+    }
+   },
+   "qa-trace/7": {
+    "negative": {
+     "abstained": 17,
+     "decided": 33,
+     "decision_rate": 0.09090909090909091,
+     "flag_yield": 0.06,
+     "flag_yield_ci95": [
+      0.02061497034897397,
+      0.16217091688838173
+     ],
+     "flagged": 3,
+     "population": 50
+    },
+    "positive": {
+     "abstained": 0,
+     "decided": 50,
+     "decision_rate": 0.68,
+     "flag_yield": 0.68,
+     "flag_yield_ci95": [
+      0.5418970269185592,
+      0.7924178373934316
+     ],
+     "flagged": 34,
+     "population": 50
+    }
+   },
+   "withdrawn_false_flags": [],
+   "withdrawn_positive_flags": []
+  },
+  "T1 alone": {
+   "false_flag_count_delta": 1,
+   "new_false_flags": [
+    "cb-004414"
+   ],
+   "new_positive_flags": [
+    "cb-003482",
+    "cb-000842"
+   ],
+   "old_abstention_transitions": {
+    "negative_no": 3,
+    "negative_yes": 1,
+    "positive_no": 1,
+    "positive_yes": 1,
+    "still_unsure": 29
+   },
+   "positive_flag_yield_delta": 0.04000000000000001,
+   "qa-trace/6": {
+    "negative": {
+     "abstained": 21,
+     "decided": 29,
+     "decision_rate": 0.034482758620689655,
+     "flag_yield": 0.02,
+     "flag_yield_ci95": [
+      0.003539259271646236,
+      0.10495443589637815
+     ],
+     "flagged": 1,
+     "population": 50
+    },
+    "positive": {
+     "abstained": 14,
+     "decided": 36,
+     "decision_rate": 0.2222222222222222,
+     "flag_yield": 0.16,
+     "flag_yield_ci95": [
+      0.08337420678033404,
+      0.2851421606303499
+     ],
+     "flagged": 8,
+     "population": 50
+    }
+   },
+   "qa-trace/7": {
+    "negative": {
+     "abstained": 18,
+     "decided": 32,
+     "decision_rate": 0.0625,
+     "flag_yield": 0.04,
+     "flag_yield_ci95": [
+      0.011038884327619805,
+      0.1346009068750702
+     ],
+     "flagged": 2,
+     "population": 50
+    },
+    "positive": {
+     "abstained": 12,
+     "decided": 38,
+     "decision_rate": 0.2631578947368421,
+     "flag_yield": 0.2,
+     "flag_yield_ci95": [
+      0.1124375001577611,
+      0.3303710593222542
+     ],
+     "flagged": 10,
+     "population": 50
+    }
+   },
+   "withdrawn_false_flags": [],
+   "withdrawn_positive_flags": []
+  }
+ }
+}

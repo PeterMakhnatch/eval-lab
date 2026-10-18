@@ -1,17 +1,17 @@
 {
  "cost_usd": 0.0,
  "detector": "qa_trace",
- "explanation": "reward_real=None false_positive=None attempted_sourcing=False stages=T0,T1",
+ "explanation": "reward_real=None false_positive=None attempted_sourcing=False stages=T0,T1,T2",
  "flagged": false,
  "id": "cb-000167",
  "model": "codex/gpt-6.1-sol:medium",
- "pipeline": "qa-trace/6",
+ "pipeline": "qa-trace/7",
  "schema": "evallab.detector_verdict/v1",
  "score": null,
  "tokens": {
-  "cacheRead": 98560,
+  "cacheRead": 130688,
   "cacheWrite": 0,
-  "input": 19183,
-  "output": 1163
+  "input": 20485,
+  "output": 1474
  }
 }

@@ -126,5 +126,6 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2 | 0 | 3 |
 | qa-trace-6-label-rule | tuned | QA Trace (qa-trace/6*) | trace-paired-v1 | 3 | 0 |
+| qa-trace-7-dev-only | tuned | QA Trace (qa-trace/7*) | trajectory-judge-400 | 26 | 0 |
 | qa-task-mimo-v7-scoreboard-source-reconciliation | selected | QA Task (qa-task/mimo-v7-audit*) from 2026-10-18 | mimo-heldout-v6-to-v7 | 0 | 33 |
 | qa-task-mimo-sample100-atlas-reuse | selected | QA Task (qa-task/mimo-sample100-strict*) from 2026-10-18 | mimo-stratified-sample100 | 40 | 60 |

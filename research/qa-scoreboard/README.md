@@ -30,6 +30,9 @@ Writers so far:
 - `evallab qa score` appends findings-based rows using the shared contract in
   `src/evallab/qa/`. It does not execute the task or independently validate its
   labels.
+  Category-match counts appear in row notes, distinct from root-cause attribution.
+  Corpus-only CheatBench and staged MiMo pass-correctness measurements remain in
+  their experiment reports rather than using unregistered scoreboard keys.
 
 ## Retrospective MiMo audit publication
 

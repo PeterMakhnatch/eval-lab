@@ -1,0 +1,180 @@
+{
+ "category_match": {
+  "failure_cause": {
+   "category_matched": 52,
+   "flagged_positives": 52
+  },
+  "false_positive": {
+   "category_matched": 31,
+   "flagged_positives": 62
+  }
+ },
+ "exclude_ids": [
+  "INS-00021-clean",
+  "INS-00021-hallucinated_argument",
+  "INS-00021-premature_stop",
+  "INS-00021-unsupported_claim",
+  "INS-00021-wrong_tool",
+  "INS-00025-clean",
+  "INS-00025-hallucinated_argument",
+  "INS-00025-ignored_observation",
+  "INS-00025-premature_stop",
+  "INS-00025-skipped_precondition",
+  "INS-00025-unsupported_claim",
+  "INS-00025-wrong_tool",
+  "INS-00043-clean",
+  "INS-00043-hallucinated_argument",
+  "INS-00043-ignored_observation",
+  "INS-00043-premature_stop",
+  "INS-00043-skipped_precondition",
+  "INS-00043-unsupported_claim",
+  "INS-00043-wrong_tool",
+  "INS-00068-clean",
+  "INS-00073-clean",
+  "INS-00073-ignored_observation",
+  "INS-00073-skipped_precondition",
+  "INS-00074-clean",
+  "INS-00099-clean",
+  "INS-00120-skipped_precondition",
+  "INS-00132-skipped_precondition",
+  "INS-00247-ignored_observation"
+ ],
+ "exclude_sha256": "531ae7eb7f22ff491f61489bc7ed8405e72f3bd5293811576eb60849fe1307f7",
+ "generated_at": "2026-10-18T10:11:32.184549+00:00",
+ "key": "trajectory-judge-400",
+ "notes": "Dev-only iteration; frozen once before this held-out run. Earlier benchmark aggregates informed the mission, so not a previously unseen benchmark. Legacy 15 test prompt-exposed items excluded; no v7 graders used. Cost 0 is recorded subscription metadata, not a reconciled invoice.",
+ "paired_score": {
+  "abstained": 0,
+  "flag_rate": {
+   "clean": {
+    "flagged": 0,
+    "n": 46,
+    "rate": 0.0
+   },
+   "loud": {
+    "flagged": 52,
+    "n": 52,
+    "rate": 1.0
+   },
+   "silent": {
+    "flagged": 62,
+    "n": 75,
+    "rate": 0.827
+   }
+  },
+  "n_items": 173,
+  "paired": {
+   "all_faults": {
+    "ci95": [
+     0.85,
+     0.955
+    ],
+    "delta": 0.908,
+    "n": 109
+   },
+   "loud": {
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "delta": 1.0,
+    "n": 37
+   },
+   "silent": {
+    "ci95": [
+     0.785,
+     0.93
+    ],
+    "delta": 0.861,
+    "n": 72
+   }
+  },
+  "recall_by_type": {
+   "hallucinated_argument": 1.0,
+   "ignored_observation": 1.0,
+   "premature_stop": 1.0,
+   "skipped_precondition": 0.455,
+   "unsupported_claim": 1.0,
+   "wrong_tool": 0.952
+  },
+  "step_exact": {
+   "hit": 94,
+   "n": 114,
+   "rate": 0.825
+  }
+ },
+ "pipeline": "qa-trace/7",
+ "selected_items": 173,
+ "shared_score": [
+  {
+   "agent": "QA Trace",
+   "category": "all",
+   "cost_per_item_usd": 0.0,
+   "date_utc": "2026-10-18T10:11:32Z",
+   "false_alarm_rate": 0.0,
+   "key_id": "trajectory-judge-400",
+   "n_items": 188,
+   "n_measured": 173,
+   "n_pairs": 119,
+   "n_pairs_measured": 109,
+   "notes": "Dev-only iteration; frozen once before this held-out run. Earlier benchmark aggregates informed the mission, so not a previously unseen benchmark. Legacy 15 test prompt-exposed items excluded; no v7 graders used. Cost 0 is recorded subscription metadata, not a reconciled invoice.; 11 positive(s) unmeasured, not counted as misses; category_match=83/114; root_cause_match n/a: findings name no root causes",
+   "paired_discrimination": 0.9083,
+   "recall": 0.8976,
+   "root_cause_match": null,
+   "split": "test",
+   "status": "partial: 173 of 188 items measured",
+   "system": "qa-trace/7 (T1 gpt-6.1-sol:medium; T3 gpt-6-luna:medium)"
+  },
+  {
+   "agent": "QA Trace",
+   "category": "failure_cause",
+   "cost_per_item_usd": 0.0,
+   "date_utc": "2026-10-18T10:11:32Z",
+   "false_alarm_rate": 0.0,
+   "key_id": "trajectory-judge-400",
+   "n_items": 84,
+   "n_measured": 78,
+   "n_pairs": 41,
+   "n_pairs_measured": 37,
+   "notes": "Dev-only iteration; frozen once before this held-out run. Earlier benchmark aggregates informed the mission, so not a previously unseen benchmark. Legacy 15 test prompt-exposed items excluded; no v7 graders used. Cost 0 is recorded subscription metadata, not a reconciled invoice.; 4 positive(s) unmeasured, not counted as misses; category_match=52/52; root_cause_match n/a: findings name no root causes",
+   "paired_discrimination": 1.0,
+   "recall": 1.0,
+   "root_cause_match": null,
+   "split": "test",
+   "status": "partial: 78 of 84 items measured",
+   "system": "qa-trace/7 (T1 gpt-6.1-sol:medium; T3 gpt-6-luna:medium)"
+  },
+  {
+   "agent": "QA Trace",
+   "category": "false_positive",
+   "cost_per_item_usd": 0.0,
+   "date_utc": "2026-10-18T10:11:32Z",
+   "false_alarm_rate": 0.0,
+   "key_id": "trajectory-judge-400",
+   "n_items": 132,
+   "n_measured": 121,
+   "n_pairs": 78,
+   "n_pairs_measured": 72,
+   "notes": "Dev-only iteration; frozen once before this held-out run. Earlier benchmark aggregates informed the mission, so not a previously unseen benchmark. Legacy 15 test prompt-exposed items excluded; no v7 graders used. Cost 0 is recorded subscription metadata, not a reconciled invoice.; 7 positive(s) unmeasured, not counted as misses; category_match=31/62; root_cause_match n/a: findings name no root causes",
+   "paired_discrimination": 0.8611,
+   "recall": 0.8267,
+   "root_cause_match": null,
+   "split": "test",
+   "status": "partial: 121 of 132 items measured",
+   "system": "qa-trace/7 (T1 gpt-6.1-sol:medium; T3 gpt-6-luna:medium)"
+  }
+ ],
+ "split": "test",
+ "usage": {
+  "calls_per_item": 3.83,
+  "cost_usd": 0.0,
+  "judged": 173,
+  "seconds_per_item": 142.7,
+  "tokens_per_item": {
+   "cacheRead": 227324,
+   "cacheWrite": 0,
+   "input": 53360,
+   "output": 4425
+  }
+ }
+}

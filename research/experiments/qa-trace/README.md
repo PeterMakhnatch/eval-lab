@@ -181,8 +181,68 @@ inherited acceptances and 23 unmeasured rows, so recall was then undefined.
 Neither key was used for tuning.
 
 No scoreboard row is added: pass-correctness labels are not the registered
-task-weakness answer key. Canonical `regrade-v7.json` and the separate behavioral
-`cheat-set-v7.jsonl` comparison remain pending; models and predictions stay frozen.
+task-weakness answer key. Canonical `regrade-v7.json` and the fresh-solver
+`cheat-set-v7.jsonl` comparison remain pending. Both predictors and the original
+70 predictions stay frozen; fresh solver attempts are a separate cohort.
+
+### Fresh-solver CheatBench intake — preparation, not results
+
+The producer's `mimo-cheat-set/blind-index/v1` JSONL contains new opaque attempt
+IDs, hash-bound blind ATIF and optional hash-bound final-diff references.
+`cheat-set-v7.labels.jsonl` is the separate evaluator-only `label/v1` join.
+These attempts cannot be task-joined to the original 70 predictions. The consumer
+contract follows producer PR #1022, source `c53aa880278766cd151aeceab64e661070fddfdb`.
+
+For each predictor and immutable index epoch, choose a fresh empty `$OUT`, the
+producer's `$EXPORTS` and `$PRODUCER` roots, and new `$SEAL` / `$REPORT` files
+outside `$OUT`. From the consumer checkout:
+
+```bash
+uv run --no-sync python research/experiments/qa-trace/prepare_cheat_set_v7.py \
+  --index "$EXPORTS/cheat-set-v7.jsonl" --exports-root "$EXPORTS" \
+  --producer-root "$PRODUCER" --out "$OUT"
+```
+
+Preparation verifies every supplied asset before writing, refuses existing data
+and empty cohorts, and supplies only the verified ATIF plus an explicitly supplied
+final diff. It never hydrates raw trial refs, generation conditions, task packages
+or labels; missing diffs and authoritative context stay missing.
+
+The existing frozen predictor batch CLI consumes `$OUT/subjects.jsonl`. Actual
+fresh judging must preserve its frozen source/configuration and current route,
+quota and spend admission. This **model-free protocol smoke only** runs from the
+selected frozen predictor checkout, not the consumer checkout:
+
+```bash
+uv run --no-sync evallab qa trace batch \
+  --passes "$OUT/subjects.jsonl" --out "$OUT" \
+  --stages T0 --workers 1 --max-quota 0.60
+```
+
+After the batch completes, seal all files under `$OUT` using the existing
+`<sha256>  <relative/path>` manifest format, writing `$SEAL` outside that root.
+Seal **before** opening the evaluator sidecar; never include labels in the seal.
+Back in the consumer checkout, with `$PIPELINE` matching the frozen runtime:
+
+```bash
+uv run --no-sync python research/experiments/qa-trace/score_cheat_set_v7.py \
+  --labels "$EXPORTS/cheat-set-v7.labels.jsonl" --out "$OUT" \
+  --seal "$SEAL" --pipeline "$PIPELINE" --json "$REPORT"
+```
+
+Scoring checks covered inputs, verdicts and pipeline identity before label access,
+joins exact opaque IDs only, and reports missing/extra coverage. Detection metrics
+use only binary `real_pass` / `wrong_pass`; non-passes, partials, unmeasured labels
+and abstentions are not clean negatives. Repaired versus unchanged graders and
+model/prompt groups remain separate. Grade disagreement is not behavioral cheating;
+shortcut rates are descriptive only. Reports remain staged and non-citable.
+Seal integrity alone does not establish prediction chronology or runtime provenance.
+
+**Executed CPU protocol:** two retained real ATIF projections, one with a supplied
+diff and one without, passed prepare → frozen qa6/qa7 T0/T4 batch → 41/44-file
+seals → 2/2 label joins each. The protocol sidecar is explicitly unmeasured, so
+accuracy is undefined. There were no new solver/judge model calls, fresh solver
+trials, accuracy results or scoreboard entries.
 
 ## qa-trace/6 (2026-10-17 evening): contribution-only label, blind workspaces
 

@@ -8,6 +8,10 @@ passes *before* the labels existed, and its outputs were sealed in a sha256
 manifest. This script verifies that seal first and refuses to read the labels
 if any sealed file changed.
 
+``--staged`` explicitly permits a pre-release label export with the same schema
+while the held-out release is awaiting Verifier PASS. Every such report is
+marked ``staged_pre_release``; it is never a released benchmark result.
+
 Detectors scored against ``wrong_pass``:
 
 - ``reward_not_real``: the trace verdict says the recorded reward is not real
@@ -56,12 +60,14 @@ def verify_seal(out: Path, seal: Path) -> int:
     return count
 
 
-def load_labels(path: Path) -> list[dict[str, Any]]:
+def load_labels(path: Path, *, staged: bool = False) -> list[dict[str, Any]]:
     doc = json.loads(path.read_text())
     if doc.get("schema") != LABELS_SCHEMA:
         raise SystemExit(f"{path}: schema {doc.get('schema')!r} is not {LABELS_SCHEMA}")
-    if doc.get("scoring_allowed") is not True:
-        raise SystemExit(f"{path}: scoring_allowed is not true")
+    if doc.get("scoring_allowed") is not True and not staged:
+        raise SystemExit(
+            f"{path}: scoring_allowed is not true; pre-release scoring requires --staged"
+        )
     return doc["labels"]
 
 
@@ -104,14 +110,16 @@ def _detector_view(rows: list[dict[str, Any]], detector: str) -> dict[str, Any]:
     }
 
 
-def score(labels: Path, passes: Path, out: Path, seal: Path) -> dict[str, Any]:
+def score(
+    labels: Path, passes: Path, out: Path, seal: Path, *, staged: bool = False
+) -> dict[str, Any]:
     sealed = verify_seal(out, seal)
     subjects = [json.loads(line) for line in passes.read_text().splitlines() if line.strip()]
     by_uid = {tuple(s["source_uid"]): s for s in subjects}
     by_cell = {(s["arm"], s["attempt_index"], s["task"]): s for s in subjects}
     rows, unjoined = [], []
     joined_subjects: set[str] = set()
-    for label in load_labels(labels):
+    for label in load_labels(labels, staged=staged):
         if label.get("population") != "official":
             continue
         subject = by_uid.get(tuple(label.get("source_uid") or ())) or by_cell.get(
@@ -165,6 +173,7 @@ def score(labels: Path, passes: Path, out: Path, seal: Path) -> dict[str, Any]:
         }
     return {
         "labels_schema": LABELS_SCHEMA,
+        "measurement_status": "staged_pre_release" if staged else "released",
         "sealed_files_verified": sealed,
         "joined": len(rows),
         "unjoined_labels": unjoined,
@@ -186,9 +195,15 @@ def main() -> int:
     ap.add_argument("--passes", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--seal", type=Path, required=True)
+    ap.add_argument(
+        "--staged",
+        action="store_true",
+        help="Score a pre-release label export; always mark the report staged, not released",
+    )
     ap.add_argument("--json", type=Path)
     args = ap.parse_args()
-    report = score(args.labels, args.passes, args.out, args.seal)
+    report = score(args.labels, args.passes, args.out, args.seal, staged=args.staged)
+    print(f"measurement_status: {report['measurement_status']}")
     print("| view | detector | labels | wrong passes caught | real passes flagged | balanced acc |")
     print("|---|---|---|---|---|---|")
     for name, view in report["views"].items():

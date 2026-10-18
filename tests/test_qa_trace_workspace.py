@@ -55,7 +55,7 @@ def test_full_diff_beats_empty_agent_diff_and_preserves_kept_subset(tmp_path: Pa
     _write(tmp_path / "verifier/agent.diff", "")
     _write(tmp_path / "verifier/agent.full.diff", "full change\n")
     _write(tmp_path / "verifier/agent.kept.diff", "kept change\n")
-    recovered = workspace.recover_file_changes(tmp_path, [])
+    recovered = workspace.recover_file_changes(tmp_path)
     assert recovered.text == "full change\n"
     assert recovered.source == "verifier/agent.full.diff"
     assert recovered.kept == "kept change\n"
@@ -65,13 +65,13 @@ def test_kept_only_is_an_explicit_primary_fallback(tmp_path: Path) -> None:
     _write(tmp_path / "verifier/agent.diff", " \n")
     _write(tmp_path / "verifier/agent.kept.diff", "kept change\n")
     _write(tmp_path / "artifacts/less-authoritative.patch", "artifact\n")
-    recovered = workspace.recover_file_changes(tmp_path, [])
+    recovered = workspace.recover_file_changes(tmp_path)
     assert recovered.text == recovered.kept == "kept change\n"
     assert recovered.source == "verifier/agent.kept.diff"
 
 
-def test_trajectory_write_reconstruction_is_not_labelled_as_a_workspace_diff(
-    tmp_path: Path,
+def test_trajectory_writes_are_not_invented_final_workspace_diffs(
+    tmp_path: Path, local_store: Path
 ) -> None:
     steps = [
         {
@@ -88,10 +88,17 @@ def test_trajectory_write_reconstruction_is_not_labelled_as_a_workspace_diff(
             ],
         }
     ]
-    recovered = workspace.recover_file_changes(tmp_path, steps)
-    assert recovered.text is not None and "+answer = 42" in recovered.text
-    assert "reconstructed from trajectory writes" in recovered.source
-    assert "not a workspace snapshot" in recovered.source
+    package = _package(tmp_path / "package")
+    trial = _trial(tmp_path / "trial", package)
+    _write(trial / "agent/trajectory.json", json.dumps({"steps": steps}))
+    bundle = workspace.build_workspace(trial, tmp_path / "bundle", task_dir=package)
+    assert bundle.manifest["availability"]["diff"] == "missing"
+    assert not (bundle.root / "file_changes.diff").exists()
+    evidence = json.loads(bundle.text("trace_evidence.json"))
+    assert any(
+        event["kind"] == "tool_call" and "answer = 42" in event["text"]
+        for event in evidence["events"]
+    )
 
 
 def test_snapshot_without_git_records_why_no_diff_can_be_recovered(tmp_path: Path) -> None:
@@ -102,7 +109,7 @@ def test_snapshot_without_git_records_why_no_diff_can_be_recovered(tmp_path: Pat
         member = tarfile.TarInfo("app/parser.py")
         member.size = len(content)
         tar.addfile(member, io.BytesIO(content))
-    recovered = workspace.recover_file_changes(tmp_path, [])
+    recovered = workspace.recover_file_changes(tmp_path)
     assert recovered.text is None
     assert "no .git" in recovered.source
     assert "baseline unavailable" in recovered.source
@@ -138,7 +145,7 @@ def test_git_snapshot_includes_staged_and_untracked_changes(tmp_path: Path) -> N
     archive.parent.mkdir(parents=True)
     with tarfile.open(archive, "w:gz") as tar:
         tar.add(repo, arcname="workspace")
-    recovered = workspace.recover_file_changes(tmp_path / "trial", [])
+    recovered = workspace.recover_file_changes(tmp_path / "trial")
     assert recovered.text is not None
     assert "+after" in recovered.text and "+untracked" in recovered.text
     assert "workspace.tgz" in recovered.source and "git diff HEAD" in recovered.source
@@ -160,7 +167,7 @@ def test_state_diff_is_a_change_list_with_hashes_sizes_and_contents(tmp_path: Pa
             }
         ),
     )
-    recovered = workspace.recover_file_changes(tmp_path, [])
+    recovered = workspace.recover_file_changes(tmp_path)
     assert recovered.text is not None
     assert "answer.txt: added" in recovered.text and "size_bytes" in recovered.text
     assert "a" * 64 in recovered.text and '"yes"' in recovered.text
@@ -277,6 +284,7 @@ def test_workspace_availability_and_seal_round_trip(local_store: Path) -> None:
     assert bundle.manifest["availability"] == {
         "prompt": "present",
         "trajectory": "missing",
+        "trace_evidence": "missing",
         "verifier_output": "present",
         "tests": "present",
         "diff": "verifier/agent.diff",
@@ -442,6 +450,7 @@ def test_trajectory_judge_v2_marks_unavailable_context_missing(local_store: Path
     bundle = workspace.tj_workspace(row, local_store / "tj")
     availability = bundle.manifest["availability"]
     assert availability["prompt"] == availability["trajectory"] == "present"
+    assert availability["trace_evidence"] == "missing"
     assert all(
         availability[key] == "missing"
         for key in (
@@ -456,3 +465,292 @@ def test_trajectory_judge_v2_marks_unavailable_context_missing(local_store: Path
     assert row["trajectory_id"] not in json.dumps(bundle.manifest)
     assert row["trajectory_id"] not in bundle.text("metadata.json")
     assert Bundle.load(bundle.root).verify() == []
+
+
+def test_trace_only_workspace_keeps_failed_writes_and_reverts_as_observations(
+    local_store: Path,
+) -> None:
+    trial = _trial(local_store / "runs/job/trial")
+    steps = [
+        {"step_id": 10, "source": "user", "message": "Compute the requested result."},
+        {
+            "step_id": 11,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "write_file",
+                    "tool_call_id": "failed-write",
+                    "arguments": {"path": "answer.txt", "content": "copied answer"},
+                }
+            ],
+            "observation": {
+                "results": [
+                    {
+                        "source_call_id": "failed-write",
+                        "is_error": True,
+                        "exit_code": 1,
+                        "content": "permission denied",
+                    }
+                ]
+            },
+        },
+        {
+            "step_id": 12,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "write_file",
+                    "tool_call_id": "temporary-write",
+                    "arguments": {"path": "answer.txt", "content": "temporary answer"},
+                }
+            ],
+            "observation": {
+                "results": [{"source_call_id": "temporary-write", "content": "file written"}]
+            },
+        },
+        {
+            "step_id": 13,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "shell",
+                    "tool_call_id": "restore",
+                    "arguments": {"command": "git restore answer.txt; cat answer.txt"},
+                }
+            ],
+            "observation": {
+                "results": [{"source_call_id": "restore", "content": "original answer"}]
+            },
+        },
+        {"step_id": 14, "source": "agent", "message": "Submitted answer: original answer."},
+    ]
+    _write(trial / "agent/trajectory.json", json.dumps({"steps": steps}))
+    bundle = workspace.build_workspace(trial, local_store / "trace-only")
+    assert bundle.manifest["availability"]["diff"] == "missing"
+    assert bundle.manifest["availability"]["trace_evidence"] == "present"
+    assert bundle.text("file_changes.diff") == ""
+    evidence = json.loads(bundle.text("trace_evidence.json"))
+    assert evidence["coverage"]["complete"] is True
+    events = evidence["events"]
+    failed = next(
+        event
+        for event in events
+        if event.get("call_id") == "failed-write" and event["kind"] == "tool_result"
+    )
+    assert failed["reported"] == {"is_error": True, "exit_code": 1}
+    assert failed["text"] == "permission denied"
+    assert failed["call_ref"] == "trajectory.json#/steps/1/tool_calls/0"
+    assert any("git restore answer.txt" in event["text"] for event in events)
+    assert any(event["text"] == "original answer" for event in events)
+    final = next(event for event in events if event.get("last_agent_message"))
+    assert final["step_id"] == 4
+    assert final["text"] == "Submitted answer: original answer."
+    trajectory = json.loads(bundle.text("trajectory.json"))
+    for event in events:
+        source: Any = trajectory
+        for part in event["source_ref"].split("#/", 1)[1].split("/"):
+            source = source[int(part)] if isinstance(source, list) else source[part]
+        assert source is not None
+    assert bundle.manifest["step_origin"] == [10, 11, 12, 13, 14]
+
+
+def test_trace_evidence_links_delayed_results_but_not_reused_or_unknown_ids() -> None:
+    steps = [
+        {
+            "step_id": 0,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "read",
+                    "tool_call_id": "delayed",
+                    "arguments": {"path": "answer.txt"},
+                },
+                {
+                    "function_name": "shell",
+                    "tool_call_id": "reused",
+                    "arguments": {"command": "first command"},
+                },
+            ],
+        },
+        {
+            "step_id": 1,
+            "source": "agent",
+            "tool_calls": [
+                {"function_name": "unknown_tool", "tool_call_id": "delayed", "arguments": {}},
+                {
+                    "function_name": "shell",
+                    "tool_call_id": "reused",
+                    "arguments": {"command": "second command"},
+                },
+            ],
+            "observation": {
+                "results": [
+                    {"source_call_id": "delayed", "content": "observed answer"},
+                    {"source_call_id": "reused", "content": "ambiguous result"},
+                    {"source_call_id": "unknown", "content": "echoed input, no execution proof"},
+                ]
+            },
+        },
+    ]
+    results = {
+        event["call_id"]: event
+        for event in workspace.trace_evidence(steps)["events"]
+        if event["kind"] == "tool_result"
+    }
+    assert results["delayed"]["call_link"] == "unique_id"
+    assert results["delayed"]["call_ref"] == "trajectory.json#/steps/0/tool_calls/0"
+    assert results["delayed"]["source_ref"] == "trajectory.json#/steps/1/observation/results/0"
+    assert results["reused"]["call_link"] == "ambiguous_id"
+    assert results["reused"]["call_ref"] is None
+    assert results["unknown"]["call_link"] == "unlinked"
+    assert results["unknown"]["call_ref"] is None
+
+
+def test_trace_projection_is_invariant_to_evaluator_labels_and_annotations(
+    local_store: Path,
+) -> None:
+    trial = _trial(local_store / "runs/job/trial")
+    first = {
+        "metadata": {"cheatbench_label": "cheating"},
+        "steps": [
+            {
+                "step_id": 4,
+                "source": "user",
+                "message": "[CheatBench annotation]\nlabel: cheating",
+            },
+            {
+                "step_id": 9,
+                "source": "agent",
+                "message": "Submitted answer: computed value.",
+                "extra": {"cheatbench": {"label": "cheating"}},
+            },
+        ],
+    }
+    _write(trial / "agent/trajectory.json", json.dumps(first))
+    before = workspace.build_workspace(trial, local_store / "first").text("trace_evidence.json")
+    first["metadata"]["cheatbench_label"] = "not_cheating"
+    first["steps"][0]["message"] = "[CheatBench annotation]\nlabel: not_cheating"
+    first["steps"][1]["extra"]["cheatbench"]["label"] = "not_cheating"
+    _write(trial / "agent/trajectory.json", json.dumps(first))
+    after = workspace.build_workspace(trial, local_store / "second").text("trace_evidence.json")
+    assert before == after
+    assert "cheatbench" not in before.lower()
+    assert json.loads(before)["events"][0]["step_id"] == 0
+
+
+def test_bounded_projection_preserves_last_answer_and_later_failed_revert() -> None:
+    steps = [
+        {
+            "step_id": index,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "shell",
+                    "tool_call_id": f"call-{index}",
+                    "arguments": {"command": f"command {index} " + "x" * 4000},
+                }
+            ],
+            "observation": {
+                "results": [{"source_call_id": f"call-{index}", "content": "output " * 1000}]
+            },
+        }
+        for index in range(120)
+    ]
+    steps.extend(
+        [
+            {"step_id": 120, "source": "agent", "message": "Submitted answer: retained value."},
+            {
+                "step_id": 121,
+                "source": "agent",
+                "tool_calls": [
+                    {
+                        "function_name": "shell",
+                        "tool_call_id": "revert",
+                        "arguments": {"command": "restore original.txt"},
+                    }
+                ],
+                "observation": {
+                    "results": [
+                        {"source_call_id": "revert", "content": "restore failed", "is_error": True}
+                    ]
+                },
+            },
+        ]
+    )
+    evidence = workspace.trace_evidence(steps, max_bytes=5000)
+    assert len(workspace._json_bytes(evidence)) <= 5000
+    assert evidence["coverage"]["complete"] is False
+    assert evidence["coverage"]["omitted_events"] > 0
+    assert evidence["coverage"]["truncated_events"] > 0
+    events = evidence["events"]
+    assert any(event.get("last_agent_message") and event["step_id"] == 120 for event in events)
+    assert events[-1]["reported"]["is_error"] is True
+    assert events[-1]["text"] == "restore failed"
+    assert evidence["last_agent_message_ref"] == "trajectory.json#/steps/120/message"
+    assert [event["step_id"] for event in events] == sorted(event["step_id"] for event in events)
+
+
+def test_retained_final_diff_remains_primary_despite_later_failed_trace_write(
+    local_store: Path,
+) -> None:
+    trial = _trial(local_store / "runs/job/trial")
+    retained = "--- a/answer.txt\n+++ b/answer.txt\n@@ -1 +1 @@\n-old\n+final observed answer\n"
+    _write(trial / "verifier/agent.full.diff", retained)
+    _write(
+        trial / "agent/trajectory.json",
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": 2,
+                        "source": "agent",
+                        "tool_calls": [
+                            {
+                                "function_name": "write",
+                                "tool_call_id": "failed",
+                                "arguments": {"path": "answer.txt", "content": "unsubmitted text"},
+                            }
+                        ],
+                        "observation": {
+                            "results": [
+                                {"source_call_id": "failed", "is_error": True, "content": "denied"}
+                            ]
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+    bundle = workspace.build_workspace(trial, local_store / "retained-diff")
+    assert bundle.manifest["availability"]["diff"] == "verifier/agent.full.diff"
+    assert bundle.text("file_changes.diff") == "# source: verifier/agent.full.diff\n" + retained
+    assert "unsubmitted text" not in bundle.text("file_changes.diff")
+    assert bundle.manifest["availability"]["trace_evidence"] == "present"
+
+
+def test_projection_byte_cap_is_applied_after_blind_identity_redaction(local_store: Path) -> None:
+    trial = _trial(local_store / "runs/job/trial")
+    _write(
+        trial / "agent/trajectory.json",
+        json.dumps({"steps": [{"step_id": 7, "source": "agent", "message": "trial " * 2500}]}),
+    )
+    blind = "opaque-" + "x" * 100
+    bundle = workspace.build_workspace(trial, local_store / "bounded", blind=blind)
+    projected = bundle.text("trace_evidence.json")
+    assert len(projected.encode()) <= workspace.MAX_TRACE_EVIDENCE_BYTES
+    evidence = json.loads(projected)
+    assert evidence["coverage"]["truncated_events"] == 1
+    assert evidence["coverage"]["complete"] is False
+    assert blind in evidence["events"][0]["text"]
+
+
+@pytest.mark.parametrize("max_bytes", [2048, 5000, workspace.MAX_TRACE_EVIDENCE_BYTES])
+def test_trace_projection_bounds_serialized_unicode_and_retains_last_message(
+    max_bytes: int,
+) -> None:
+    steps = [{"step_id": 0, "source": "agent", "message": "\U0001d400" * 10000}]
+    evidence = workspace.trace_evidence(steps, max_bytes=max_bytes)
+    assert len(workspace._json_bytes(evidence)) <= max_bytes
+    assert evidence["events"][0]["last_agent_message"] is True
+    assert evidence["events"][0]["omitted_chars"] > 0
+    assert evidence["coverage"]["complete"] is False

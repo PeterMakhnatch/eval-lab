@@ -41,6 +41,7 @@ from evallab.qa.task import (
     import_evidence,
     load_findings,
     load_rubric,
+    mutation_findings,
     observation_check,
     run_task,
     score_command,
@@ -569,6 +570,110 @@ def test_s1_no_model_and_quota_stop_record_not_run(
             lane.gate()
 
 
+def test_codex_lane_keeps_votes_isolated_and_checks_quota_before_each_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.gepa_optimizer import codex_transport
+
+    monkeypatch.setattr(codex_transport.CodexTransport, "preflight", lambda self: {})
+    monkeypatch.setattr(codex_transport, "_executable", lambda: Path("/test/codex"))
+    launches: list[tuple[Path, Path, bytes, tuple[Path, ...]]] = []
+    answers = iter(("first private rubric vote", "second independent rubric vote"))
+    seed_calls = []
+
+    def empty_seed(*, directory: Path, cwd: Path, model: str):
+        assert gate_calls == [0.57]
+        seed_calls.append(cwd)
+        directory.mkdir()
+        rollout = tmp_path / "native-seed.jsonl"
+        thread_id = "00000000-0000-4000-8000-000000000000"
+        content = (json.dumps({
+            "timestamp": "2026-10-19T00:00:00Z", "type": "session_meta",
+            "payload": {
+                "id": thread_id, "session_id": thread_id, "cwd": str(cwd),
+                "runtime_workspace_roots": [str(cwd)], "model_provider": "openai",
+                "cli_version": "0.162.1", "history_mode": "legacy",
+                "base_instructions": {
+                    "text": "Native model-only instructions",
+                    "provenance": {"type": "model", "model": model},
+                },
+            },
+        }) + "\n").encode()
+        rollout.write_bytes(content)
+        snapshot = directory / "seed-rollout.jsonl"
+        snapshot.write_bytes(content)
+        return codex_transport._EmptySeed(thread_id, rollout, snapshot, content)
+
+    monkeypatch.setattr(codex_transport, "_create_empty_seed", empty_seed)
+
+    class CompletedChild:
+        returncode = 0
+
+        def __init__(self, argv: list[str], **kwargs: object) -> None:
+            cwd = Path(kwargs["cwd"])
+            evidence = Path(kwargs["stdout"].name).parent
+            launches.append((cwd, evidence, kwargs["stdin"].read(), tuple(cwd.iterdir())))
+            answer = next(answers)
+            events = [
+                {
+                    "type": "thread.started",
+                    "thread_id": f"00000000-0000-4000-8000-{len(launches):012d}",
+                },
+                {"type": "turn.started"},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": answer}},
+                {
+                    "type": "turn.completed",
+                    "usage": {"input_tokens": 120, "cached_input_tokens": 80, "output_tokens": 10},
+                },
+            ]
+            kwargs["stdout"].write(("".join(json.dumps(e) + "\n" for e in events)).encode())
+            kwargs["stdout"].flush()
+            (evidence / "last_message.txt").write_text(answer, encoding="utf-8")
+
+        def poll(self) -> int:
+            return self.returncode
+
+    monkeypatch.setattr(codex_transport, "_POPEN", CompletedChild)
+    scratch = tmp_path / "codex"
+    lane = CodexLane(repo_root=tmp_path, scratch_root=scratch)
+    admissions = iter((0.57, 0.59, QuotaStop("study quota exhausted")))
+    gate_calls = []
+
+    def gate() -> float:
+        admission = next(admissions)
+        gate_calls.append(admission)
+        if isinstance(admission, QuotaStop):
+            raise admission
+        return admission
+
+    monkeypatch.setattr(lane, "gate", gate)
+    prompt = "Independently review this task's rubric."
+    first = lane.complete(prompt, label="rubric-sample-1")
+    second = lane.complete(prompt, label="rubric-sample-2")
+    assert first.text == "first private rubric vote"
+    assert second.text == "second independent rubric vote"
+    retained = {
+        evidence: {p.name: p.read_bytes() for p in evidence.iterdir() if p.is_file()}
+        for _, evidence, _, _ in launches
+    }
+    with pytest.raises(QuotaStop, match="exhausted"):
+        lane.complete(prompt, label="rubric-sample-3")
+    assert len(gate_calls) == 3
+    assert len(launches) == 2
+    assert seed_calls == [scratch / "prefill-cwd"]
+    assert launches[0][1] != launches[1][1]
+    assert all(cwd == scratch / "prefill-cwd" for cwd, _, _, _ in launches)
+    assert all(stdin == prompt.encode() and not files for _, _, stdin, files in launches)
+    assert not tuple((scratch / "prefill-cwd").iterdir())
+    assert retained == {
+        evidence: {p.name: p.read_bytes() for p in evidence.iterdir() if p.is_file()}
+        for _, evidence, _, _ in launches
+    }
+    rows = [json.loads(line) for line in (scratch / "spend.jsonl").read_text().splitlines()]
+    assert [row["weekly_used_fraction"] for row in rows] == [0.57, 0.59]
+    assert [row["tokens"] for row in rows] == [130, 130]
+
+
 def test_finding_requires_reproducer_and_import_binds_subject_digest_and_downgrades_verified(
     tmp_path: Path,
 ) -> None:
@@ -850,13 +955,175 @@ def _survivor(tmp_path: Path, mutant_id: str = "m1", reward: float = 1.0) -> dic
 
 
 def _hunt(survivors: list[dict[str, object]]) -> dict[str, object]:
+    total = max(3, len(survivors))
     return {
         "status": "measured",
         "verdict": "survivors_found",
         "reason": f"{len(survivors)} mutant(s) earned reward",
-        "counts": {"total": 3, "killed": 3 - len(survivors), "survived": len(survivors)},
+        "counts": {"total": total, "killed": total - len(survivors), "survived": len(survivors)},
         "survivors": survivors,
     }
+
+
+def _adjudication(mutant_id: str, verdict: str) -> dict[str, object]:
+    return {"id": mutant_id, "verdict": verdict, "requirement": "must write 1", "reason": "r"}
+
+
+def test_mutation_batch_binds_shuffled_verdicts_preserves_eligibility_and_shared_usage(
+    tmp_path: Path,
+) -> None:
+    package = _package(tmp_path)
+    survivors = [_survivor(tmp_path, f"m{i}") for i in range(1, 9)]
+    expected = [
+        _adjudication("m1", "wrong"),
+        _adjudication("m2", "equivalent"),
+        _adjudication("m3", "unspecified"),
+        _adjudication("m4", "wrong"),
+        _adjudication("m5", "equivalent"),
+        _adjudication("m6", "unspecified"),
+    ]
+    lane = FakeLane([{"adjudications": list(reversed(expected))}])
+    report = TaskReport(
+        subject=Subject(
+            kind="task", task_id="bench/fake-task", task_digest=task_directory_digest(package)
+        ),
+        package=str(package),
+        requested_stages=["S2"],
+        started_at="2026-10-18T15:00:00+00:00",
+    )
+    findings = mutation_findings(report, _hunt(survivors), lane, _config(tmp_path))
+
+    assert len(lane.prompts) == 1
+    instruction = (package / "instruction.md").read_text(encoding="utf-8")
+    evidence = json.loads(lane.prompts[0].rsplit("\n", 1)[-1])
+    assert evidence["instruction.md"] == instruction
+    assert lane.prompts[0].count(json.dumps(instruction)) == 1
+    assert evidence["mutations"] == [
+        {
+            **{
+                key: survivor[key]
+                for key in ("id", "operator", "file", "line", "original", "replacement")
+            },
+            "diff": Path(str(survivor["patch"])).read_text(encoding="utf-8"),
+        }
+        for survivor in survivors[:6]
+    ]
+    check = report.checks["mutation-hunt"]
+    assert check.facts["survivors"] == [f"m{i}" for i in range(1, 9)]
+    assert check.facts["adjudications"] == expected
+    assert check.facts["adjudication_batch"] == {
+        "ids": [f"m{i}" for i in range(1, 7)],
+        "model": lane.model,
+        "tokens": 10,
+    }
+    assert report.model_calls == 1
+    assert report.model_tokens == 10
+    assert check.verdict == "fail"
+    assert "2 survivor(s) not adjudicated" in check.reason
+    assert len(report.signals) == 1
+    assert [finding.reproducer.path for finding in findings] == [
+        survivors[0]["script"],
+        survivors[3]["script"],
+    ]
+    assert all(finding.refutation.status == "unverified" for finding in findings)
+    assert sum(finding.reviewer.tokens for finding in findings) == 0
+    assert all(finding.reviewer.agent == "qa-task/mutation-hunt" for finding in findings)
+    assert [finding.evidence_refs[0] for finding in findings] == [
+        survivors[0]["patch"],
+        survivors[3]["patch"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        {},
+        {"adjudications": [_adjudication("m1", "wrong")]},
+        {
+            "adjudications": [
+                _adjudication("m1", "wrong"),
+                _adjudication("m1", "equivalent"),
+                _adjudication("m2", "equivalent"),
+            ]
+        },
+        {
+            "adjudications": [
+                _adjudication("m1", "wrong"),
+                _adjudication("m2", "equivalent"),
+                _adjudication("unknown", "equivalent"),
+            ]
+        },
+        {"adjudications": [_adjudication("m1", "wrong"), _adjudication("M2", "equivalent")]},
+        {
+            "adjudications": [
+                _adjudication("m1", "wrong"),
+                {**_adjudication("m2", "equivalent"), "id": 2},
+            ]
+        },
+        {"adjudications": [_adjudication("m1", "wrong"), _adjudication("m2", "pass")]},
+        {
+            "adjudications": [
+                _adjudication("m1", "wrong"),
+                {**_adjudication("m2", "equivalent"), "requirement": []},
+            ]
+        },
+        {
+            "adjudications": [
+                _adjudication("m1", "wrong"),
+                {**_adjudication("m2", "equivalent"), "reason": None},
+            ]
+        },
+        {"adjudications": [_adjudication("m1", "wrong"), {"id": "m2", "verdict": "equivalent"}]},
+        {"adjudications": [_adjudication("m1", "wrong"), None]},
+        "not JSON",
+        '{"adjudications": []}\n{"adjudications": []}',
+        '{"adjudications": [], "adjudications": '
+        + json.dumps([_adjudication("m1", "wrong"), _adjudication("m2", "equivalent")])
+        + "}",
+    ],
+    ids=[
+        "missing-list",
+        "missing-id",
+        "duplicate-id",
+        "unknown-id",
+        "changed-id",
+        "nonstring-id",
+        "invalid-verdict",
+        "invalid-requirement",
+        "invalid-reason",
+        "incomplete-entry",
+        "nonobject-entry",
+        "invalid-json",
+        "multiple-json-objects",
+        "duplicate-json-key",
+    ],
+)
+def test_invalid_mutation_batch_keeps_every_eligible_id_unknown_without_fallback(
+    tmp_path: Path, reply: dict[str, object] | str
+) -> None:
+    package = _package(tmp_path)
+    backend = FakeBackend(
+        mutation_report=_hunt([_survivor(tmp_path, "m1"), _survivor(tmp_path, "m2")])
+    )
+    lane = FakeLane([_no_bypass_reply(), _no_bypass_reply(), reply])
+    report = run_task(
+        package,
+        config=_config(tmp_path, stages=("S2", "S3")),
+        run_dir=tmp_path / "run",
+        backend=backend,
+        lane=lane,
+    )
+    check = report.checks["mutation-hunt"]
+    assert check.verdict == "unknown"
+    assert [entry["id"] for entry in check.facts["adjudications"]] == ["m1", "m2"]
+    assert all(entry["verdict"] is None for entry in check.facts["adjudications"])
+    assert all(entry["reason"] for entry in check.facts["adjudications"])
+    assert check.facts["adjudication_batch"]["tokens"] == 10
+    assert report.model_calls == 3
+    assert report.model_tokens == 30
+    assert len(lane.prompts) == 3
+    assert backend.replay_calls == []
+    assert load_findings(tmp_path / "run")[0] == []
 
 
 @pytest.mark.parametrize(
@@ -874,7 +1141,7 @@ def test_mutation_survivor_needs_wrong_adjudication_and_fresh_replay_to_be_verif
 ) -> None:
     package = _package(tmp_path)
     backend = FakeBackend(mutation_report=_hunt([_survivor(tmp_path)]), replay_reward=replay_reward)
-    reply = {"verdict": verdict, "requirement": "must write 1", "reason": "r"}
+    reply = {"adjudications": [_adjudication("m1", verdict)]}
     report = run_task(
         package,
         config=_config(tmp_path, stages=("S0", "S2", "S3")),
@@ -895,11 +1162,12 @@ def test_mutation_survivor_needs_wrong_adjudication_and_fresh_replay_to_be_verif
     assert report.verdict == report_verdict
 
 
-def test_mutation_survivors_without_lane_or_after_quota_stop_stay_unadjudicated(
-    tmp_path: Path,
+@pytest.mark.parametrize("lane_error", [QuotaStop("quota 60%"), RuntimeError("transport failed")])
+def test_mutation_survivors_without_lane_or_after_lane_failure_stay_unadjudicated(
+    tmp_path: Path, lane_error: Exception
 ) -> None:
     package = _package(tmp_path)
-    hunt = _hunt([_survivor(tmp_path)])
+    hunt = _hunt([_survivor(tmp_path, "m1"), _survivor(tmp_path, "m2")])
     no_lane = run_task(
         package,
         config=_config(tmp_path, stages=("S2",)),
@@ -911,17 +1179,23 @@ def test_mutation_survivors_without_lane_or_after_quota_stop_stay_unadjudicated(
     assert [s.category for s in no_lane.signals] == ["weak"]
     assert load_findings(tmp_path / "run-a")[0] == []
 
+    lane = FakeLane([_no_bypass_reply(), _no_bypass_reply(), lane_error])
     quota = run_task(
         package,
         config=_config(tmp_path, stages=("S2",)),
         run_dir=tmp_path / "run-b",
         backend=FakeBackend(mutation_report=hunt),
-        lane=FakeLane([_no_bypass_reply(), _no_bypass_reply(), QuotaStop("quota 60%")]),
+        lane=lane,
     )
     assert quota.checks["mutation-hunt"].verdict == "unknown"
     assert quota.verdict == "unknown"
     assert quota.quality_complete is False
     assert load_findings(tmp_path / "run-b")[0] == []
+    assert len(lane.prompts) == 3
+    adjudications = quota.checks["mutation-hunt"].facts["adjudications"]
+    assert [entry["id"] for entry in adjudications] == ["m1", "m2"]
+    assert all(entry["verdict"] is None for entry in adjudications)
+    assert "tokens" not in quota.checks["mutation-hunt"].facts["adjudication_batch"]
 
 
 @pytest.mark.parametrize(
@@ -986,7 +1260,7 @@ def test_ref_subset_line_mutant_survivor_is_adjudicated_then_replayed_as_a_patch
             [
                 _no_bypass_reply(),
                 _no_bypass_reply(),
-                {"verdict": verdict, "requirement": "compare strictly", "reason": "r"},
+                {"adjudications": [_adjudication("m7", verdict)]},
             ]
         ),
     )

@@ -16,8 +16,10 @@ from evallab.qa.trace import (
     Bundle,
     CallResult,
     ModelRoute,
+    TraceConfig,
     _schema_problems,
     render_steps,
+    review_bundle,
 )
 from evallab.qa.trace_agents import (
     SCENARIO_SCHEMA,
@@ -202,6 +204,68 @@ class FakeCaller:
             api_equivalent_usd=0.01,
             commands=list(self.commands[min(index, len(self.commands) - 1)]),
         )
+
+
+@pytest.mark.parametrize("budget", [160, 600, 8000])
+def test_step_excerpt_budget_includes_omissions_and_preserves_sparse_ids(budget: int) -> None:
+    steps = [
+        {"step_id": 101, "source": "user", "message": "Start the task."},
+        *[
+            {"step_id": 300 + 7 * i, "source": "agent", "message": "evidence " * 200}
+            for i in range(80)
+        ],
+        {"step_id": 9001, "source": "agent", "message": "The observed final result."},
+    ]
+    excerpt = render_steps(steps, field_limit=100, budget=budget)
+    assert len(excerpt) <= budget
+    assert "steps elided" in excerpt
+    assert "[step 9001]" in excerpt
+    assert "[step 1]" not in excerpt
+    if budget >= 600:
+        assert "[step 101]" in excerpt
+        assert "chars elided" in excerpt
+
+
+def test_oversized_step_is_explicitly_omitted_instead_of_exceeding_excerpt_budget() -> None:
+    step = {
+        "step_id": 731,
+        "source": "agent",
+        "tool_calls": [{"function_name": "shell", "arguments": "x" * 200}] * 1000,
+    }
+    excerpt = render_steps([step], field_limit=100, budget=160)
+    assert len(excerpt) <= 160
+    assert "1 steps elided" in excerpt
+    assert "step_id 731 through 731" in excerpt
+    assert "trajectory.json" in excerpt
+
+
+def test_changed_excerpt_policy_invalidates_resumed_t1_answer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.qa import trace_agents
+
+    bundle = _bundle(
+        tmp_path,
+        steps=[{"step_id": 3, "source": "agent", "message": "Observed task evidence. " * 200}],
+    )
+    bundle.manifest["inputs_digest"] = "unchanged-sealed-inputs"
+    revised = _answer()
+    revised["answer"] = "unsure"
+    fake = FakeCaller(outputs=[_answer(), revised])
+    config = TraceConfig(
+        scenario=ROUTE, stages=frozenset({"T0", "T1"}), questions=("reward_shortcut",)
+    )
+    out = tmp_path / "review"
+    review_bundle(bundle, out, config=config, call=fake)
+    review_bundle(bundle, out, config=config, call=fake)
+    assert len(fake.calls) == 1
+
+    monkeypatch.setattr(trace_agents, "_TRAJECTORY_FIELD_LIMIT", 40)
+    verdict = review_bundle(bundle, out, config=config, call=fake)
+    assert len(fake.calls) == 2
+    assert fake.calls[0]["system"] != fake.calls[1]["system"]
+    answer = next(q for q in verdict["questions"] if q["question"] == "reward_shortcut")
+    assert answer["answer"] == "unsure"
 
 
 @pytest.mark.parametrize(
@@ -449,6 +513,7 @@ def test_missing_inspection_retries_once_and_aggregates_usage(tmp_path: Path) ->
         timeout=37.0,
     )
     assert len(fake.calls) == 2
+    assert record["calls"] == 2
     assert record["inspection"]["complete"] is True
     assert record["inspection"]["retried"] is True
     assert record["usage"] == {"input_tokens": 14}
@@ -701,9 +766,13 @@ def test_caller_exception_and_schema_failure_are_records(tmp_path: Path) -> None
 def test_scenarios_have_independent_concurrent_workspaces(tmp_path: Path) -> None:
     barrier = threading.Barrier(2)
     workspaces: list[Path] = []
+    prefixes: list[str] = []
+    prompts: list[str] = []
 
     def fake(route: ModelRoute, prompt: str, schema: dict[str, Any], **kwargs: Any) -> CallResult:
         workspaces.append(kwargs["cwd"])
+        prefixes.append(kwargs["system"])
+        prompts.append(prompt)
         barrier.wait(timeout=5)
         return CallResult(route.label, _answer(), "", {}, 0.1, commands=INSPECTED)
 
@@ -719,6 +788,11 @@ def test_scenarios_have_independent_concurrent_workspaces(tmp_path: Path) -> Non
     )
     assert list(records) == questions
     assert len(set(workspaces)) == 2
+    assert len(set(prefixes)) == 1
+    assert len(set(prompts)) == 2
+    assert all(str(workspace) not in prefixes[0] for workspace in workspaces)
+    assert all("# QUESTION (" not in prefix for prefix in prefixes)
+    assert all(record["calls"] == 1 for record in records.values())
     assert all(record["measurement"] == "measured" for record in records.values())
 
 

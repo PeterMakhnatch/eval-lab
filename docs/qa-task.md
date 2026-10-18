@@ -54,6 +54,25 @@ a Python unified-diff fallback for minimal images without `git`/`patch`, or
 `patch`).
 Invalid submissions are unusable, never passes.
 
+### Mutant adjudication batches
+
+The mutation hunt and reference-line pass adjudicate the same first six surviving
+mutants in one text-only request. The shared instruction appears once; each
+independent mutation retains its original ID, metadata and bounded diff. Responses
+must contain exactly one `wrong`, `equivalent` or `unspecified` entry per supplied
+ID. Missing, duplicated, changed or unknown IDs, malformed entries, duplicate JSON
+keys and trailing content invalidate the complete batch. No per-mutant fallback
+calls are made: every affected survivor remains unadjudicated, with an `unknown`
+check and advisory Signal unless another adjudicated survivor established failure.
+
+Batch model/tokens are recorded once in
+`checks[check].facts.adjudication_batch` and report totals, not copied or divided
+among individual findings. S3's fresh replay and controls remain mandatory.
+The existing `codex/spend.jsonl` ledger also retains the transport's source `usage`
+mapping. Missing components are not synthesized; cached input is a subset of
+native Codex input, and reasoning must not be added to output again. These are
+reported-token diagnostics, not a subscription-quota conversion or invoice.
+
 ### Execution backend
 
 The default `--environment docker` uses `HarborBackend.run_container_trial`,

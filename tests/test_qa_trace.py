@@ -456,7 +456,6 @@ def test_a_proposed_action_without_its_result_cannot_establish_success(
 
 
 
-
 @pytest.mark.parametrize(
     ("reward", "grader", "skipped"),
     [

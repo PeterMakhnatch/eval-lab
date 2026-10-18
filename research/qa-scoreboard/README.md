@@ -27,5 +27,7 @@ Writers so far:
 - `combined_v1_baseline.py` writes the $0 combined_v1 baseline on `trace-paired-v1`
   and `trajectory-judge-400`, plus upstream reference rows for the latter. Its
   per-item decisions go to `combined_v1_baseline/<key>.jsonl`.
-- `evallab qa score` (planned, Infra, `src/evallab/qa/`) should write the same
-  columns.
+- `evallab qa score` writes the same columns from findings against registered
+  answer keys. Category-match counts appear in row notes; they are distinct from
+  root-cause attribution. Corpus-only CheatBench and staged MiMo measurements stay
+  in their experiment reports rather than masquerading as registered-key rows.

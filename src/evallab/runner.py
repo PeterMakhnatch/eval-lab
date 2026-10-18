@@ -669,6 +669,7 @@ def _read_proxy_usage(
             "proxy_usage_invalid",
             f"{provider_label} proxy usage report is invalid",
         )
+
     # Pricing freezes at the first reservation. A zero-call ledger keeps
     # ``pricing: null``: no rate may be invented without a physical call.
     # The proxy always freezes a three-key card (cached rate may be None);
@@ -1440,6 +1441,8 @@ def run_harbor_process(
     laminar_metadata: dict[str, Any] | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
     claude_gateway_model: str | None = None,
+    docker_platform: str | None = None,
+    include_modal_credentials: bool = False,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
     if lease_path is not None and lease_generation is None:
@@ -1486,6 +1489,8 @@ def run_harbor_process(
         include_zai_openapi_credentials=zai_openapi_lane,
         include_laminar_credentials=MIMO_AGENT_IMPORT_PATH in command,
         include_daytona_credentials=environment_selector in _DAYTONA_ENVIRONMENT_SELECTORS,
+        include_modal_credentials=include_modal_credentials,
+        docker_platform=docker_platform,
     )
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
@@ -1963,9 +1968,7 @@ def run_harbor_process(
             # before any sandbox starts.
             allowed_model = resolve_harbor_model("claude-code", claude_gateway_model)
             if not allowed_model:
-                raise ValueError(
-                    f"Claude gateway lane cannot resolve {claude_gateway_model!r}"
-                )
+                raise ValueError(f"Claude gateway lane cannot resolve {claude_gateway_model!r}")
             claude_gateway_usage_dir = Path(
                 tempfile.mkdtemp(
                     prefix="evallab-claude-gateway-usage.",
@@ -2924,10 +2927,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 proxy_limits=_proxy_trial_limits(request),
                 laminar_metadata=laminar_metadata,
                 claude_gateway_model=(
-                    staged_request.model
-                    if is_claude_gateway_model(staged_request.model)
-                    else None
+                    staged_request.model if is_claude_gateway_model(staged_request.model) else None
                 ),
+                docker_platform=staged_request.docker_platform,
+                include_modal_credentials=staged_request.environment == "modal",
             )
         except BaseException:
             _write_executor_state(
@@ -3216,6 +3219,39 @@ def load_matrix(path: Path) -> ExperimentMatrix:
         raise ValueError(f"Invalid experiment matrix {path}: {exc}") from exc
 
 
+def _pin_task_platform(task_dir: Path, platform: str) -> None:
+    """Pin a staged execution copy to ``platform``. Never call this on an answer-key package."""
+    if not re.fullmatch(r"linux/[a-z0-9_]+", platform):
+        raise ValueError(f"unsupported docker platform {platform!r}")
+    environment = task_dir / "environment"
+    environment.mkdir(parents=True, exist_ok=True)
+    compose = environment / "docker-compose.yaml"
+    alternate = environment / "docker-compose.yml"
+    target = compose if compose.exists() or not alternate.exists() else alternate
+    if not target.exists():
+        target.write_text(
+            f"services:\n  main:\n    platform: {platform}\n",
+            encoding="utf-8",
+        )
+    elif "platform:" not in target.read_text(encoding="utf-8"):
+        raise ValueError(
+            f"{target} exists without a platform pin; refusing to rewrite an authored compose file"
+        )
+    for relative in ("environment/Dockerfile", "tests/Dockerfile"):
+        dockerfile = task_dir / relative
+        if not dockerfile.is_file():
+            continue
+        original = dockerfile.read_text(encoding="utf-8")
+        pinned = re.sub(
+            r"^(FROM)(?!\s+--platform=)(\s+)",
+            rf"\1 --platform={platform}\2",
+            original,
+            flags=re.MULTILINE,
+        )
+        if pinned != original:
+            dockerfile.write_text(pinned, encoding="utf-8")
+
+
 def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path) -> RunRequest:
     return RunRequest(
         task=(repo_root / matrix.task).resolve(),
@@ -3227,6 +3263,7 @@ def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: 
         modal_resource_policy=matrix.modal_resource_policy,
         modal_sandbox_timeout_seconds=matrix.modal_sandbox_timeout_seconds,
         modal_sandbox_create_max_attempts=matrix.modal_sandbox_create_max_attempts,
+        docker_platform=matrix.docker_platform,
         model=run.model,
         concurrency=matrix.concurrency,
         attempts=run.attempts,
@@ -3239,28 +3276,39 @@ def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: 
 def staged_matrix_request(
     matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path
 ) -> Iterator[tuple[RunRequest, dict[str, str]]]:
-    """Keep a solution-control snapshot alive only for the duration of its run."""
+    """Keep a solution-control snapshot alive only for the duration of its run.
+
+    A requested ``docker_platform`` is applied only to that snapshot. The
+    answer-key package bytes stay unchanged.
+    """
     from evallab.registry import compute_task_digests
 
     request = request_from_matrix(matrix, run, repo_root=repo_root)
-    if run.solution is None:
+    platform = matrix.docker_platform
+    if platform and matrix.environment != "docker":
+        raise ValueError("docker_platform applies only to environment='docker'")
+    if run.solution is None and not platform:
         yield request, {}
         return
 
-    relative = Path(run.solution)
-    solution = (repo_root / relative).resolve()
-    if relative.is_absolute() or not solution.is_relative_to(repo_root.resolve()):
-        raise ValueError("matrix solution must be a repo-root-relative path inside the repository")
-    if not solution.is_file():
-        raise ValueError(f"matrix solution is not a regular file: {run.solution}")
-    script = solution.read_bytes()
+    script: bytes | None = None
     source = request.task
-    task_config = tomllib.loads((source / "task.toml").read_text())
-    if task_config.get("steps"):
-        raise ValueError(
-            "matrix solution overrides do not support declared task steps; "
-            "the override contract selects only root solution/solve.sh"
-        )
+    if run.solution is not None:
+        relative = Path(run.solution)
+        solution = (repo_root / relative).resolve()
+        if relative.is_absolute() or not solution.is_relative_to(repo_root.resolve()):
+            raise ValueError(
+                "matrix solution must be a repo-root-relative path inside the repository"
+            )
+        if not solution.is_file():
+            raise ValueError(f"matrix solution is not a regular file: {run.solution}")
+        script = solution.read_bytes()
+        task_config = tomllib.loads((source / "task.toml").read_text())
+        if task_config.get("steps"):
+            raise ValueError(
+                "matrix solution overrides do not support declared task steps; "
+                "the override contract selects only root solution/solve.sh"
+            )
     with tempfile.TemporaryDirectory(prefix="evallab-matrix-") as temporary:
         staged = Path(temporary) / source.name
         shutil.copytree(
@@ -3274,17 +3322,19 @@ def staged_matrix_request(
         if any(path.is_symlink() for path in staged.rglob("*")):
             raise ValueError("task package snapshots reject symlinks")
         _make_snapshot_writable(staged)
-        solve = staged / "solution" / "solve.sh"
-        solve.parent.mkdir(parents=True, exist_ok=True)
-        solve.write_bytes(script)
-        solve.chmod(0o755)
-        yield (
-            replace(request, task=staged),
-            {
-                "solution_sha256": hashlib.sha256(script).hexdigest(),
-                "staged_task_digest": compute_task_digests(staged).package,
-            },
-        )
+        if script is not None:
+            solve = staged / "solution" / "solve.sh"
+            solve.parent.mkdir(parents=True, exist_ok=True)
+            solve.write_bytes(script)
+            solve.chmod(0o755)
+        if platform:
+            _pin_task_platform(staged, platform)
+        provenance = {"staged_task_digest": compute_task_digests(staged).package}
+        if script is not None:
+            provenance["solution_sha256"] = hashlib.sha256(script).hexdigest()
+        if platform:
+            provenance["docker_platform"] = platform
+        yield replace(request, task=staged), provenance
 
 
 def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:

@@ -74,7 +74,15 @@ def _measurement(value: Any, error: Any, null_reason: str) -> tuple[bool | None,
 def _validate(
     inventory: dict[str, Any], observations: list[dict[str, Any]], admission: dict[str, Any]
 ) -> tuple[list[str], dict[str, list[str]]]:
-    if not isinstance(admission, dict) or admission.get("scoring_allowed") is not True:
+    staged = isinstance(admission, dict) and admission.get("schema") == "heldout-v7.staged-admission/v1"
+    if staged:
+        if (admission.get("measurement_mode") != "staged" or admission.get("release_status") != "pre_release"
+                or admission.get("measurement_allowed") is not True
+                or any(admission.get(key) is not False for key in ("scoring_allowed", "canonical_scoring_allowed", "citable"))
+                or admission.get("frozen_task_ids") != inventory.get("frozen_task_ids")
+                or set(admission.get("graders", {})) != set(inventory.get("frozen_task_ids", []))):
+            raise ValueError("staged measurement must be explicitly pre-release, full-cohort and noncitable")
+    elif not isinstance(admission, dict) or admission.get("scoring_allowed") is not True:
         raise ValueError("admitted scoring_allowed must be true")
     if not isinstance(inventory, dict) or inventory.get("schema") != "heldout-v7.inventory/v1":
         raise ValueError("expected heldout-v7.inventory/v1 inventory")
@@ -297,6 +305,7 @@ def build_report(
     four-arm, original-only, cross-version and full-B2 populations are named views.
     """
     tasks, unscheduled = _validate(inventory, observations, admission)
+    staged = admission.get("schema") == "heldout-v7.staged-admission/v1"
     bootstrap = paired_task_bootstrap([], replicates, seed)
     by_uid = {tuple(row["source_uid"]): row for row in observations}
     records: list[dict[str, Any]] = []
@@ -382,7 +391,11 @@ def build_report(
 
     report: dict[str, Any] = {
         "schema": "heldout-v7.report/v1",
-        "scoring_allowed": True,
+        "scoring_allowed": not staged,
+        "canonical_scoring_allowed": not staged,
+        "citable": not staged,
+        "measurement_mode": "staged" if staged else "canonical",
+        "release_status": "pre_release" if staged else "independently_accepted",
         "admission": deepcopy(admission),
         "inventory": deepcopy(inventory),
         "frozen_task_ids": tasks,
@@ -390,8 +403,8 @@ def build_report(
         "authorized_attempts": deepcopy(ATTEMPTS),
         "bootstrap": {key: value for key, value in bootstrap.items() if key not in {"ci95", "ci95_fraction", "independent_units"}},
         "estimand_notes": {
-            "primary": "Qualified v7 attempt1 on one common Base/B/C task cohort for B-C, B-Base and C-Base; neither B2 nor A changes that cohort. Requested frozen33 and exclusions remain in the enclosing cohort object.",
-            "versions": "Original canonical v6 and qualified new v7 are independent nullable endpoints. Old errors do not discard a valid new measurement; a new error always discards a stale new boolean.",
+            "primary": "Measured selected-grader attempt1 on one common Base/B/C task cohort for B-C, B-Base and C-Base; neither B2 nor A changes that cohort. Staged measurements are pre-release and do not imply canonical qualification. Requested frozen33 and exclusions remain in the enclosing cohort object.",
+            "versions": "Original canonical v6 and selected v7 are nullable endpoints. Exact unchanged grader outcomes may explicitly inherit an actual measured original reward; these are NOT new native executions or independent measurements. Changed graders require real model-free native regrades. Old errors do not discard a valid new regrade; a new error always discards a stale new boolean.",
             "coverage": "No unscheduled source, scheduled-without-native cell, missing retained diff, missing observation, error or null is imputed as a failure. Native source UIDs are never invented for missing cells.",
             "cross_version": "Cross-version comparisons use one common cohort measured in BOTH versions for Base/B/C attempt1; per-arm dual summaries explicitly identify their own same-source cells.",
             "secondary": "Full B2 analyses require both B attempt IDs, weight tasks equally, and are secondary. Raw observed attempt rates and partial task means are coverage descriptions, not the primary estimand.",
@@ -463,8 +476,13 @@ def build_report(
                 "native_sources_without_kept_diff": sum(row["source"]["diff"] is None for row in arm_rows),
                 "observation_sources": len(observed),
                 "replayed_native_sources": sum(row["replayed"] is True for row in arm_rows),
+                "inherited_identical_grader_sources": sum(
+                    row["observation"].get("measurement_origin") == "inherited_identical_v6_grader"
+                    and row["v7_outcome"] is not None for row in observed
+                ),
                 "replay_status_unknown_sources": sum(row["replayed"] is None for row in observed),
-                "qualified_v7_sources": sum(row["v7_outcome"] is not None for row in arm_rows),
+                "measured_selected_grader_sources": sum(row["v7_outcome"] is not None for row in arm_rows),
+                "qualified_v7_sources": 0 if staged else sum(row["v7_outcome"] is not None for row in arm_rows),
             },
             "v6": {
                 **_coverage(cells["v6"][arm], tasks, ATTEMPTS[arm], absent[arm]),

@@ -25,7 +25,7 @@ bound_bytes = INVENTORY["bound_bytes"]
 create_json = INVENTORY["create_json"]
 CAP_USD = 3.0
 APP = "mimo-clean-census-v7-classifiers-20261017"
-APPROVAL = "Peter-approved held-out v7 kept-diff replay lane, 2026-10-17 18:15 ET; ledger 2026-10-17-v7"
+APPROVAL = "Peter-approved 2026-10-18 focused sprint; cumulative heldout regrade $3 inside Trainer $12 (native $6.50, serving $2.50); ledger 2026-10-17-v7"
 
 
 def admit(
@@ -102,39 +102,56 @@ class JournalGate(CloudSpendGate):
         self.path = path
         self.context = threading.local()
         self.reserved_uids: set[tuple[str, str]] = set()
+        self.reserved_keys: set[tuple[str, str, str | None]] = set()
         if path.exists():
             for line in path.read_text().splitlines():
                 entry = json.loads(line)
                 uid = tuple(entry["source_uid"])
-                if (len(uid) != 2 or uid in self.reserved_uids
+                digest = entry.get("grader_digest")
+                key = (*uid, digest)
+                if (len(uid) != 2 or key in self.reserved_keys
+                        or digest is not None and "sha256:" + INVENTORY["bare_sha"](digest) != digest
                         or entry["execution"] != self.executions + 1
                         or entry["usd_per_execution"] != self.usd_per_execution
                         or entry["ledger_tag"] != "2026-10-17-v7"
                         or entry["reserved_usd"] != round((self.executions + 1) * self.usd_per_execution, 8)):
                     raise ValueError("invalid cumulative reservation journal")
                 self.reserved_uids.add(uid)
+                self.reserved_keys.add(key)
                 self.executions += 1
         if self.executions * self.usd_per_execution > self.cap_usd + 1e-9:
             raise ValueError("prior reservations exceed the lane cap")
 
+    def is_reserved(self, uid: tuple[str, str], digest: str | None) -> bool:
+        if digest is None:
+            return uid in self.reserved_uids
+        # Legacy source-only reservations are never silently reassigned or refunded.
+        return (*uid, None) in self.reserved_keys or (*uid, digest) in self.reserved_keys
+
     def charge(self) -> None:
         uid = tuple(self.context.source_uid)
+        digest = getattr(self.context, "grader_digest", None)
+        if digest is not None:
+            INVENTORY["bare_sha"](digest)
         with self._lock:
             reserved = (self.executions + 1) * self.usd_per_execution
             if reserved > self.cap_usd + 1e-9:
                 raise SpendCapReached("the cumulative heldout-v7 reservation cap is exhausted")
-            if uid in self.reserved_uids:
+            if self.is_reserved(uid, digest):
                 raise SpendCapReached("source already reserved; no implicit retry or refund")
             entry = {
                 "ledger_tag": "2026-10-17-v7", "source_uid": list(uid),
                 "execution": self.executions + 1, "usd_per_execution": self.usd_per_execution,
                 "reserved_usd": round(reserved, 8),
             }
+            if digest is not None:
+                entry["grader_digest"] = digest
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(entry, sort_keys=True, allow_nan=False) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             self.reserved_uids.add(uid)
+            self.reserved_keys.add((*uid, digest))
             self.executions += 1
 
 
@@ -150,9 +167,10 @@ def _retained_observation(path: Path) -> dict[str, Any]:
 
 
 def execute(
-    *, inventory_path: Path, manifest_path: Path, accepted_sha: str, verifier_receipt: Path,
+    *, inventory_path: Path, manifest_path: Path, accepted_sha: str | None, verifier_receipt: Path | None,
     rate_evidence: Path, usd_per_execution: float, work: Path, output: Path,
-    repo_root: Path, workers: int = 4,
+    repo_root: Path, workers: int = 4, staged_plan_path: Path | None = None, reuse_work: Path | None = None,
+    sandbox_timeout_seconds: int = 300,
 ) -> dict[str, Any]:
     """Run the complete bounded inventory. No source/graded row is silently omitted."""
     inventory_ref = file_ref(inventory_path)
@@ -162,11 +180,27 @@ def execute(
     reconstructed = INVENTORY["inventory"](Path(inventory["sources"]["configuration"]["path"]))
     if {**inventory, "created": None} != {**reconstructed, "created": None}:
         raise ValueError("inventory cells differ from their bound canonical/native source evidence")
-    admission, graders = admit(inventory, manifest_path, accepted_sha, verifier_receipt)
+    staged = runpy.run_path(str(HERE / "staged.py"))
+    plan = None
+    if staged_plan_path is not None:
+        plan, graders = staged["load_plan"](staged_plan_path, inventory)
+        if (Path(plan["sources"]["manifest"]["path"]).resolve() != manifest_path.resolve()
+                or plan["budget"]["usd_per_execution"] != usd_per_execution
+                or file_ref(rate_evidence) != bound_bytes(plan["sources"]["rate_evidence"])[1]):
+            raise ValueError("staged execution changes its bound manifest or reservation basis")
+        admission, targets = plan["admission"], plan["selected_packages"]
+        sandbox_timeout_seconds = plan["budget"]["sandbox_timeout_seconds"]
+    else:
+        if accepted_sha is None or verifier_receipt is None:
+            raise ValueError("canonical run requires an independently accepted exact manifest")
+        admission, graders = admit(inventory, manifest_path, accepted_sha, verifier_receipt)
+        targets = staged["canonical_bindings"](manifest_path)
     # Validate the entire raw map before any paid call, including all exclusions.
     REPORT["_validate"](inventory, [], admission)
     if workers < 1 or workers > 4:
         raise ValueError("workers must be between 1 and 4")
+    if type(sandbox_timeout_seconds) is not int or sandbox_timeout_seconds < 1:
+        raise ValueError("an explicit positive integer Sandbox TTL is required")
     rate_ref = file_ref(rate_evidence)
     work, output, repo_root = work.resolve(), output.resolve(), repo_root.resolve()
     if output.exists() or output.is_relative_to(work) or work.is_relative_to(output):
@@ -179,6 +213,12 @@ def execute(
             raise ValueError("campaign output overlaps immutable input evidence")
     try:
         replay_and_collect = runpy.run_path(str(HERE / "native.py"))["replay_and_collect"]
+        from evallab import harbor_modal
+        from evallab.schemas import ExperimentMatrix
+
+        if (getattr(harbor_modal, "NATIVE_SINGLE_CREATE_SUPPORTED", False) is not True
+                or "modal_sandbox_create_max_attempts" not in ExperimentMatrix.model_fields):
+            raise ValueError("heldout regrades require the integrated typed single-create Modal runtime before reserving spend")
     except ImportError as exc:
         raise ValueError("install the pinned Harbor/Modal native runtime before v7 execution") from exc
     work.mkdir(parents=True, exist_ok=True)
@@ -189,8 +229,13 @@ def execute(
             "schema": "heldout-v7.campaign/v1", "ledger_tag": "2026-10-17-v7",
             "inventory": inventory_ref, "admission": admission,
             "rate_evidence": rate_ref, "usd_per_execution": usd_per_execution, "cap_usd": CAP_USD,
-            "modal_policy": {"app": APP, "resource_policy": "limit", "sandbox_timeout_seconds": 300},
-            "consumer_code": {name: file_ref(HERE / name) for name in ("regrade.py", "campaign.py", "native.py", "report.py")},
+            "modal_policy": {"app": APP, "resource_policy": "limit", "sandbox_timeout_seconds": sandbox_timeout_seconds,
+                             "sandbox_create_max_attempts": 1},
+            "measurement_mode": "staged" if plan is not None else "canonical",
+            "canonical_scoring_allowed": plan is None, "citable": plan is None,
+            "staged_plan": file_ref(staged_plan_path) if staged_plan_path is not None else None,
+            "reuse_work": str(reuse_work.resolve()) if reuse_work is not None else None,
+            "consumer_code": {name: file_ref(HERE / name) for name in ("regrade.py", "campaign.py", "native.py", "report.py", "staged.py")},
             "reservation_caveat": "Cumulative estimates, not settled provider bills; retain all failures and interrupted reservations.",
         }
         header_path = work / "campaign.json"
@@ -202,24 +247,46 @@ def execute(
         gate = JournalGate(budget_root / "classifiers-v7-reservations.jsonl", usd_per_execution)
         cases = work / "cases"
         cases.mkdir(exist_ok=True)
-        cached: dict[tuple[str, str], dict[str, Any]] = {}
+        def case_path(source: dict[str, Any]) -> Path:
+            key = "\n".join([*source["source_uid"], targets[source["task_id"]]["package_digest"]])
+            return cases / hashlib.sha256(key.encode()).hexdigest()
+
+        cached: dict[tuple[str, str], dict[str, Any]] = (
+            staged["retained_observations"](reuse_work.resolve(), inventory, targets) if reuse_work is not None else {}
+        )
         for source in inventory["rows"]:
             uid = tuple(source["source_uid"])
-            case = cases / hashlib.sha256((uid[0] + "\n" + uid[1]).encode()).hexdigest()
+            case = case_path(source)
             if (case / "observation.json").exists():
                 retained = _retained_observation(case / "observation.json")
-                if retained["source_uid"] != list(uid):
+                if retained["source_uid"] != list(uid) or not staged["same_measurement"](source, retained, targets[source["task_id"]]):
                     raise ValueError("retained observation source identity changed")
+                staged["qualify_retained"](source, retained, targets[source["task_id"]])
                 cached[uid] = retained
+        needed = sum(
+            tuple(source["source_uid"]) not in cached and source["diff"] is not None
+            and not (plan is not None and not targets[source["task_id"]]["changed_from_v6"])
+            and not gate.is_reserved(tuple(source["source_uid"]), targets[source["task_id"]]["package_digest"])
+            for source in inventory["rows"]
+        )
+        if (gate.executions + needed) * usd_per_execution > CAP_USD + 1e-9:
+            raise SpendCapReached("the complete selected cohort does not fit the remaining cumulative $3 subcap; no new dispatch")
 
         def one(source: dict[str, Any]) -> dict[str, Any]:
             uid = tuple(source["source_uid"])
-            case = cases / hashlib.sha256((uid[0] + "\n" + uid[1]).encode()).hexdigest()
+            target = targets[source["task_id"]]
+            case = case_path(source)
             case.mkdir(exist_ok=True)
             saved = case / "observation.json"
             if uid in cached:
-                return cached[uid]
-            if uid in gate.reserved_uids:
+                observation = cached[uid]
+                if not saved.exists():
+                    reference = create_json(saved, observation)
+                    create_json(case / "observation-ref.json", reference)
+                return observation
+            if plan is not None and not target["changed_from_v6"]:
+                observation = staged["inherit"](source, target)
+            elif gate.is_reserved(uid, target["package_digest"]):
                 # Never silently spend again after a crash in the dispatch window.
                 observation = {
                     "source_uid": list(uid), "v7_outcome": None,
@@ -228,11 +295,13 @@ def execute(
                 }
             else:
                 gate.context.source_uid = uid
+                gate.context.grader_digest = target["package_digest"]
 
                 def dispatch(matrix: Any, *, root: Path) -> Any:
                     configured = matrix.model_copy(update={
                         "modal_app_name": APP, "modal_resource_policy": "limit",
-                        "modal_sandbox_timeout_seconds": 300,
+                        "modal_sandbox_timeout_seconds": sandbox_timeout_seconds,
+                        "modal_sandbox_create_max_attempts": 1,
                     })
                     create_json(case / "dispatch.json", configured.model_dump(mode="json"))
                     return runner.run_matrix(configured, root=root)
@@ -241,22 +310,31 @@ def execute(
                     source, graders[source["task_id"]], repo_root=repo_root, work=case / "replay",
                     spend_gate=gate, matrix_runner=dispatch,
                 )
+                observation["measurement_origin"] = (
+                    "new_native_model_free_regrade"
+                    if (observation.get("native_evidence") or {}).get("dispatched") is True
+                    else "not_dispatched"
+                )
+            observation["measurement_binding"] = staged["measurement_binding"](source, target)
             reference = create_json(saved, observation)
             create_json(case / "observation-ref.json", reference)
             return observation
 
+        previous_executions = gate.executions
         with ThreadPoolExecutor(max_workers=workers) as pool:
             observations = list(pool.map(one, inventory["rows"]))
         report = REPORT["build_report"](inventory, observations, admission)
         report["campaign"] = {**header, "spend": gate.to_json(), "journal": file_ref(gate.path) if gate.path.exists() else None}
-        output.mkdir(parents=True, exist_ok=False)
-        report_ref = create_json(output / "report.json", report)
-        label_ref = create_json(output / "regrade-v7.json", {
-            "schema": "heldout-v7.pass-labels/v1", "scoring_allowed": True,
-            "report": report_ref, "admission": admission,
-            "population": "canonical original v6 passes; official estimates exclude other populations",
-            "labels": report["per_pass_labels"],
-            "limits": ["wrong_pass is a grading-correctness label, not behavioral shortcut or intent evidence"],
-        })
-        return {"report": report_ref, "labels": label_ref, "spend": gate.to_json(),
-                "primary_cohort": report["primary"]["cohort"], "scoring_allowed": True}
+        report["campaign"]["this_invocation"] = {
+            "new_reservations": gate.executions - previous_executions,
+            "new_native_dispatches": sum(
+                tuple(row["source_uid"]) not in cached and row["native_evidence"].get("dispatched") is True
+                for row in observations
+            ),
+            "reused_observations": len(cached),
+            "pricing_basis": "resource_bound_plus_build_buffer",
+            "all_in_invoice_hard_bound_proven": False,
+        }
+        result = staged["publish"](report, output, staged=plan is not None)
+        result["spend"] = gate.to_json()
+        return result

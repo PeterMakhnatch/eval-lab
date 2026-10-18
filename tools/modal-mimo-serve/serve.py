@@ -25,6 +25,7 @@ SGLang's ``mimo`` reasoning parser only splits ``<think>`` into
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -36,6 +37,9 @@ from pathlib import Path
 from typing import IO
 
 import modal
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import serving_window  # noqa: E402
 
 APP_NAME = "evallab-mimo-v26-9b"
 MODEL_ID = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
@@ -78,6 +82,11 @@ def _configured_gpu() -> str:
 GPU = _configured_gpu()
 MAX_RUNNING_REQUESTS = _bounded_env_int("EVALLAB_MIMO_MAX_RUNNING_REQUESTS", 20, 1, 20)
 SCALEDOWN_WINDOW_SECONDS = _bounded_env_int("EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS", 300, 1, 1200)
+WINDOW = serving_window.config_from_env()
+if WINDOW is not None:
+    serving_window.require(WINDOW["gpu"] == GPU, "window GPU does not match the resolved deployment")
+SERVER_CPU = (4.0, float(WINDOW["hard_cpu_limit"])) if WINDOW else 4.0
+SERVER_MEMORY = (16 * 1024, WINDOW["hard_memory_mib_limit"]) if WINDOW else 16 * 1024
 
 image = (
     modal.Image.from_registry(SGLANG_IMAGE)
@@ -94,7 +103,9 @@ image = (
     )
 )
 weights = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
-app = modal.App(APP_NAME)
+if WINDOW is not None:
+    image = image.env({serving_window.WINDOW_ENV: json.dumps(WINDOW)}).add_local_python_source("serving_window")
+app = modal.App(APP_NAME, tags=serving_window.ownership_tags(WINDOW)) if WINDOW else modal.App(APP_NAME)
 
 
 @app.function(image=image, volumes={WEIGHTS_ROOT: weights}, cpu=4.0, timeout=30 * MINUTES)
@@ -107,6 +118,27 @@ def download_weights() -> str:
     snapshot_download(repo_id=MODEL_ID, revision=MODEL_REVISION, local_dir=MODEL_DIR)
     weights.commit()
     return f"downloaded: {MODEL_DIR}"
+
+
+if WINDOW is not None:
+
+    @app.function(
+        image=image,
+        cpu=(float(serving_window.GUARD_CPU), float(serving_window.GUARD_CPU)),
+        memory=(128, serving_window.GUARD_MEMORY_MIB),
+        min_containers=0,
+        max_containers=1,
+        buffer_containers=0,
+        scaledown_window=1,
+        timeout=serving_window.MAX_SECONDS + 60,
+        startup_timeout=60,
+        retries=0,
+        schedule=modal.Period(seconds=60),
+    )
+    def stop_window() -> None:
+        """Independent guard in this app, not another serving app or GPU."""
+        assert WINDOW is not None and app.app_id is not None
+        serving_window.remote_guard(WINDOW, app.app_id)
 
 
 def _relay_redacted(stream: IO[bytes], secret: str) -> None:
@@ -177,8 +209,8 @@ def sglang_command(api_key: str) -> list[str]:
 @app.server(
     image=image,
     gpu=GPU,
-    cpu=4.0,
-    memory=16 * 1024,
+    cpu=SERVER_CPU,
+    memory=SERVER_MEMORY,
     volumes={WEIGHTS_ROOT: weights},
     secrets=[modal.Secret.from_name(SECRET_NAME, required_keys=["SGLANG_API_KEY"])],
     min_containers=0,
@@ -195,13 +227,19 @@ def sglang_command(api_key: str) -> list[str]:
 class MimoServer:
     @modal.enter()
     def start(self) -> None:
+        if WINDOW is not None and time.time() >= serving_window.instant(WINDOW["expires_at"]):
+            raise RuntimeError("owned serving window expired; refusing a new model process")
         if not (MODEL_DIR / "config.json").exists():
             raise RuntimeError(
                 f"weights missing at {MODEL_DIR}; run serve.py::download_weights first"
             )
         api_key = os.environ["SGLANG_API_KEY"]
         command = sglang_command(api_key)
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=WINDOW is not None
+        )
+        if WINDOW is not None:
+            serving_window.arm_container_deadline(WINDOW, self.process)
         assert self.process.stdout is not None
         threading.Thread(
             target=_relay_redacted, args=(self.process.stdout, api_key), daemon=True

@@ -1,0 +1,54 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000945",
+  "variant_digest": "sha256:1a8374fe3cbd46f7197a09fa2f702b76abadb6b4c8341c607e17ab605d788a3f",
+  "variant_harbor_digest": "sha256:58cdbb33909636319551a94f699303bcdd3f7ebcca64d0127ffe36b17a52b6ad",
+  "parent": {
+    "digest": "sha256:7b9d174267bcc2d223d3f2a47adff651950637383608e2ef1d16d24b492643ea",
+    "harbor_digest": "sha256:3ec3eab5904729554c70a92afd83942f740c280859272515709be7e62fed649a",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000945/7b9d174267bc",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:6739d41e9192ece6900690fcdf66c00cd518b828b37385f61feddfa6f6f75924",
+      "after_sha256": "sha256:0c7694348daa1763e5ca222c6098e054970e75762cc81befdd7ecd680c8d8904",
+      "content": "diff --git a/usaspending_api/etl/tests/test_load_submission.py b/usaspending_api/etl/tests/test_load_submission.py\nindex 7340c518d..557ba60ca 100644\n--- a/usaspending_api/etl/tests/test_load_submission.py\n+++ b/usaspending_api/etl/tests/test_load_submission.py\n@@ -195,6 +195,93 @@ def test_get_submission_attributes():\n         get_submission_attributes(11111, new_submission_data)\n \n \n+def _submission_data(cgac_code, fiscal_year, fiscal_period, is_quarter_format=True, frec_code='0000'):\n+    return {\n+        'cgac_code': cgac_code,\n+        'frec_code': frec_code,\n+        'reporting_fiscal_year': fiscal_year,\n+        'reporting_fiscal_period': fiscal_period,\n+        'is_quarter_format': is_quarter_format,\n+        'publishable': False,\n+        'number_of_errors': 0,\n+        'reporting_start_date': datetime.date(2017, 1, 1),\n+        'reporting_end_date': datetime.date(2017, 3, 31),\n+        'updated_at': datetime.datetime(2017, 4, 10, 12, 0, 0),\n+    }\n+\n+\n+def _submission_record(cgac_code, fiscal_year, fiscal_period, is_quarter_format=True):\n+    return SubmissionAttributes.objects.create(\n+        broker_submission_id=93000 + fiscal_period,\n+        cgac_code=cgac_code,\n+        reporting_fiscal_year=fiscal_year,\n+        reporting_fiscal_period=fiscal_period,\n+        quarter_format_flag=is_quarter_format,\n+    )\n+\n+\n+@pytest.mark.django_db\n+def test_get_submission_attributes_links_previous_quarter_with_unmatched_optional_fields():\n+    earlier = get_submission_attributes(\n+        91001,\n+        _submission_data(\n+            cgac_code='073',\n+            fiscal_year=2017,\n+            fiscal_period=3,\n+            is_quarter_format=True,\n+            frec_code='EARLY',\n+        ),\n+    )\n+\n+    later = get_submission_attributes(\n+        91002,\n+        _submission_data(\n+            cgac_code='073',\n+            fiscal_year=2017,\n+            fiscal_period=6,\n+            is_quarter_format=True,\n+            frec_code='LATER',\n+        ),\n+    )\n+\n+    assert later.previous_submission_id == earlier.submission_id\n+\n+\n+@pytest.mark.django_db\n+def test_get_submission_attributes_links_previous_quarter_for_another_reporting_series():\n+    earlier = get_submission_attributes(\n+        93001,\n+        _submission_data('020', 2018, 3, True, 'FIRST'),\n+    )\n+\n+    later = get_submission_attributes(\n+        93002,\n+        _submission_data('020', 2018, 6, True, 'SECOND'),\n+    )\n+\n+    assert later.previous_submission_id == earlier.submission_id\n+\n+\n+@pytest.mark.django_db\n+def test_previous_submission_uses_nearest_valid_quarter_in_reporting_sequence():\n+    first_quarter = get_submission_attributes(92001, _submission_data('073', 2017, 3, True, 'A001'))\n+    expected_previous = get_submission_attributes(92002, _submission_data('073', 2017, 6, True, 'A002'))\n+\n+    different_agency = _submission_record('097', 2017, 8, True)\n+    different_year = _submission_record('073', 2018, 8, True)\n+    non_quarter = _submission_record('073', 2017, 8, False)\n+    later_period = _submission_record('073', 2017, 12, True)\n+\n+    target = get_submission_attributes(92007, _submission_data('073', 2017, 9, True, 'A007'))\n+\n+    assert target.previous_submission_id == expected_previous.submission_id\n+    assert target.previous_submission_id != first_quarter.submission_id\n+    assert target.previous_submission_id != different_agency.submission_id\n+    assert target.previous_submission_id != different_year.submission_id\n+    assert target.previous_submission_id != non_quarter.submission_id\n+    assert target.previous_submission_id != later_period.submission_id\n+\n+\n @pytest.mark.django_db\n def test_load_submission_command_program_activity_uniqueness(endpoint_data, partially_flushed):\n     \"\"\"\ndiff --git a/usaspending_api/submissions/tests/test_submission_attributes_serializer.py b/usaspending_api/submissions/tests/test_submission_attributes_serializer.py\nnew file mode 100644\nindex 000000000..a5d16422a\n--- /dev/null\n+++ b/usaspending_api/submissions/tests/test_submission_attributes_serializer.py\n@@ -0,0 +1,24 @@\n+import pytest\n+from model_mommy import mommy\n+\n+\n+@pytest.mark.django_db\n+def test_submissions_endpoint_omits_frec_code_from_output(client):\n+    mommy.make(\n+        'submissions.SubmissionAttributes',\n+        cgac_code='073',\n+        reporting_fiscal_year=2017,\n+        reporting_fiscal_quarter=2,\n+    )\n+\n+    response = client.get('/api/v1/submissions/')\n+\n+    assert response.status_code == 200\n+    assert len(response.data['results']) == 1\n+\n+    submission = response.data['results'][0]\n+    assert 'submission_id' in submission\n+    assert submission['cgac_code'] == '073'\n+    assert submission['reporting_fiscal_year'] == 2017\n+    assert submission['reporting_fiscal_quarter'] == 2\n+    assert 'frec_code' not in submission\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,41 @@\n+#!/bin/bash\n+set -uo pipefail\n+\n+cd /testbed\n+\n+\n+export PYENV_ROOT=\"$HOME/.pyenv\"\n+export PATH=\"$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH\"\n+eval \"$(pyenv init -)\"\n+\n+pg_isready -q 2>/dev/null || pg_ctlcluster 16 main start 2>/dev/null || true\n+for i in $(seq 1 10); do\n+    pg_isready -q && break\n+    sleep 1\n+done\n+\n+su - postgres -c \"psql -tc \\\"SELECT 1 FROM pg_database WHERE datname='usaspending_test'\\\" | grep -q 1\" 2>/dev/null \\\n+    || su - postgres -c \"createdb usaspending_test\" 2>/dev/null || true\n+\n+export DATABASE_URL=\"postgres://localhost/usaspending_test\"\n+\n+\n+case \"${1:-}\" in\n+  base)\n+    python3 -m pytest \\\n+      usaspending_api/submissions/tests/test_submissions.py::test_submissions_list \\\n+      -v\n+    ;;\n+  new)\n+    python3 -m pytest \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_get_submission_attributes_links_previous_quarter_with_unmatched_optional_fields \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_get_submission_attributes_links_previous_quarter_for_another_reporting_series \\\n+      usaspending_api/etl/tests/test_load_submission.py::test_previous_submission_uses_nearest_valid_quarter_in_reporting_sequence \\\n+      usaspending_api/submissions/tests/test_submission_attributes_serializer.py::test_submissions_endpoint_omits_frec_code_from_output \\\n+      -v\n+    ;;\n+  *)\n+    echo \"usage: $0 base|new\"\n+    exit 2\n+    ;;\n+esac\ndiff --git a/usaspending_api/submissions/tests/test_repair_submission_frec_model.py b/usaspending_api/submissions/tests/test_repair_submission_frec_model.py\nnew file mode 100644\n--- /dev/null\n+++ b/usaspending_api/submissions/tests/test_repair_submission_frec_model.py\n@@ -0,0 +1,22 @@\n+import os\n+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'usaspending_api.settings')\n+os.environ.setdefault('DATABASE_URL', 'postgres://localhost/usaspending_test')\n+import django\n+django.setup()\n+\n+from django.db.migrations.loader import MigrationLoader\n+from usaspending_api.submissions.models import SubmissionAttributes\n+\n+\n+def test_submission_attributes_does_not_expose_frec_code_field():\n+    field_names = {f.name for f in SubmissionAttributes._meta.get_fields()}\n+    assert 'frec_code' not in field_names\n+    assert not hasattr(SubmissionAttributes, 'frec_code')\n+\n+\n+def test_submissions_migration_state_omits_frec_code():\n+    loader = MigrationLoader(None, ignore_no_migrations=True)\n+    state = loader.project_state()\n+    model = state.apps.get_model('submissions', 'SubmissionAttributes')\n+    migrated_fields = {f.name for f in model._meta.get_fields()}\n+    assert 'frec_code' not in migrated_fields\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:98fa726e887b89a54afedfa43048eed7d13077f02c967032d04f120a85c245e0",
+      "after_sha256": "sha256:eeaa276d44bf3126859a61c75e1d3b2a6a687bdbcbb1c504f75c24eed881444a",
+      "content": "(\nbash /testbed/mimo_test_command.sh base && bash /testbed/mimo_test_command.sh new\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/root/.pyenv/shims/python3 -m pytest usaspending_api/submissions/tests/test_repair_submission_frec_model.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000945.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-file-usaspending-api-submissions-migrations-0002-add-frec-c",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/root/.pyenv/shims/python3 -m pytest usaspending_api/submissions/tests/test_repair_submission_frec_model.py -q",
+    "repo_paths": [
+      "usaspending_api/submissions/tests/test_repair_submission_frec_model.py"
+    ],
+    "port_of_variant": "sha256:02cd3831891a689a0954300752ef8a77d855c0a620aaaf274c74cd284a1ee553",
+    "source_record_sha256": "sha256:f0ab407fcfd453b7740a54e70ec1c803d2c3da7ca259fc1029c9ffede5ec67a7",
+    "v6_parent_digest": "sha256:7b9d174267bcc2d223d3f2a47adff651950637383608e2ef1d16d24b492643ea"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:50Z",
+  "status": "candidate",
+  "evidence": []
+}

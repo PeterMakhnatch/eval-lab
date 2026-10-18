@@ -1,0 +1,55 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001809",
+  "variant_digest": "sha256:04b38bf946f07754bbf8788ddc0876061d70e56b581ded21f8e392b0c5f21525",
+  "variant_harbor_digest": "sha256:497d2b1aa51dabac693446f173bef0c7a7b4f3a9952de78946da46a023625bec",
+  "parent": {
+    "digest": "sha256:263686c81728eb152dfb1b1ea3a13cfc993fde37bdc112b6dbb17803de328f40",
+    "harbor_digest": "sha256:7bfb2410e55ef720a2f129529b27746d3422ab70f3f5002dbd7dbdcbd9fb1889",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001809/263686c81728",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:941e5c3dce9d7f31a4fed2acfc853bb54e00f982efa6ee715ddc8266c5cac153",
+      "after_sha256": "sha256:7acb8698b5ec8e921832ed26d77ac49ffab70911b2e1e79fd7b448d6688a1c26",
+      "content": "diff --git a/test_commands.json b/test_commands.json\nnew file mode 100644\nindex 000000000..b4cc23a15\n--- /dev/null\n+++ b/test_commands.json\n@@ -0,0 +1,3 @@\n+{\n+  \"test_commands\": [\"python -m pytest tests/unit/test_sqs.py -k \\\"msg_size or batch_size\\\" -v\"]\n+}\ndiff --git a/tests/unit/test_sqs.py b/tests/unit/test_sqs.py\nindex fce5a19dc..19392f8ed 100644\n--- a/tests/unit/test_sqs.py\n+++ b/tests/unit/test_sqs.py\n@@ -62,3 +62,186 @@ def test_except_check_message_size():\n def test_check_message_size():\n     message_body = \"a\"\n     provider.check_message_size(message_body, DEFAULT_MAXIMUM_MESSAGE_SIZE)\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+\n+def _single_string_attribute(name=\"k\", value=\"v\"):\n+    return {name: {\"DataType\": \"String\", \"StringValue\": value}}\n+\n+\n+def test_msg_size_body_within_limit_no_attributes_passes():\n+\n+    provider.check_message_size(\n+        message_body=\"a\", message_attributes=None, max_message_size=100\n+    )\n+\n+\n+def test_msg_size_body_within_limit_empty_attributes_passes():\n+\n+    provider.check_message_size(\n+        message_body=\"a\", message_attributes={}, max_message_size=100\n+    )\n+\n+\n+def test_msg_size_body_only_at_limit_passes():\n+\n+    provider.check_message_size(\n+        message_body=\"a\" * 100, message_attributes=None, max_message_size=100\n+    )\n+\n+\n+def test_msg_size_body_only_exceeds_limit_raises():\n+\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"a\" * 101, message_attributes=None, max_message_size=100\n+        )\n+\n+\n+def test_msg_size_body_at_limit_with_attributes_raises():\n+\n+\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"a\" * 100,\n+            message_attributes=_single_string_attribute(),\n+            max_message_size=100,\n+        )\n+\n+\n+def test_msg_size_body_plus_attributes_exactly_at_limit_passes():\n+\n+\n+\n+\n+    provider.check_message_size(\n+        message_body=\"a\" * 92,\n+        message_attributes=_single_string_attribute(),\n+        max_message_size=100,\n+    )\n+\n+\n+def test_msg_size_body_plus_attributes_over_limit_by_one_raises():\n+\n+\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"a\" * 93,\n+            message_attributes=_single_string_attribute(),\n+            max_message_size=100,\n+        )\n+\n+\n+def test_msg_size_attributes_counted_via_name_type_and_value():\n+\n+\n+\n+\n+    attrs = {\"longname\": {\"DataType\": \"String\", \"StringValue\": \"longvalue\"}}\n+    provider.check_message_size(\n+        message_body=\"a\" * 77, message_attributes=attrs, max_message_size=100\n+    )\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"a\" * 78, message_attributes=attrs, max_message_size=100\n+        )\n+\n+\n+def test_msg_size_multiple_attributes_summed():\n+\n+\n+\n+\n+    attrs = {\n+        \"k1\": {\"DataType\": \"String\", \"StringValue\": \"v1\"},\n+        \"k2\": {\"DataType\": \"String\", \"StringValue\": \"v2\"},\n+    }\n+    provider.check_message_size(\n+        message_body=\"a\" * 80, message_attributes=attrs, max_message_size=100\n+    )\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"a\" * 81, message_attributes=attrs, max_message_size=100\n+        )\n+\n+\n+def test_msg_size_issue_reproduction_exact():\n+\n+\n+\n+    with pytest.raises(localstack.services.sqs.exceptions.InvalidParameterValue):\n+        provider.check_message_size(\n+            message_body=\"x\" * DEFAULT_MAXIMUM_MESSAGE_SIZE,\n+            message_attributes=_single_string_attribute(),\n+            max_message_size=DEFAULT_MAXIMUM_MESSAGE_SIZE,\n+        )\n+\n+\n+\n+    provider.check_message_size(\n+        message_body=\"x\" * (DEFAULT_MAXIMUM_MESSAGE_SIZE - 8),\n+        message_attributes=_single_string_attribute(),\n+        max_message_size=DEFAULT_MAXIMUM_MESSAGE_SIZE,\n+    )\n+\n+\n+def test_batch_size_includes_attributes_raises():\n+\n+\n+\n+\n+\n+    entries = [\n+        {\n+            \"Id\": \"1\",\n+            \"MessageBody\": \"a\" * 8,\n+            \"MessageAttributes\": _single_string_attribute(),\n+        },\n+        {\"Id\": \"2\", \"MessageBody\": \"b\" * 3},\n+    ]\n+    from localstack.aws.api.sqs import BatchRequestTooLong\n+\n+    with pytest.raises(BatchRequestTooLong):\n+        provider.SqsProvider()._assert_valid_batch_size(entries, 18)\n+\n+\n+def test_batch_size_with_attributes_at_limit_passes():\n+\n+    entries = [\n+        {\n+            \"Id\": \"1\",\n+            \"MessageBody\": \"a\" * 8,\n+            \"MessageAttributes\": _single_string_attribute(),\n+        },\n+        {\"Id\": \"2\", \"MessageBody\": \"b\" * 3},\n+    ]\n+    provider.SqsProvider()._assert_valid_batch_size(entries, 19)\n+\n+\n+def test_batch_size_without_attributes_preserved():\n+\n+    entries = [\n+        {\"Id\": \"1\", \"MessageBody\": \"a\" * 10},\n+        {\"Id\": \"2\", \"MessageBody\": \"b\" * 5},\n+    ]\n+    provider.SqsProvider()._assert_valid_batch_size(entries, 15)\n+    from localstack.aws.api.sqs import BatchRequestTooLong\n+\n+    with pytest.raises(BatchRequestTooLong):\n+        provider.SqsProvider()._assert_valid_batch_size(entries, 14)\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,8 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed\n+rc=0\n+python -m pytest tests/unit/test_sqs.py -k \"msg_size or batch_size\" -v\n+rc=$(( rc | $? ))\n+exit $rc\ndiff --git a/tests/unit/test_repair_sqs_attribute_limit.py b/tests/unit/test_repair_sqs_attribute_limit.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/unit/test_repair_sqs_attribute_limit.py\n@@ -0,0 +1,52 @@\n+import unittest\n+from types import SimpleNamespace\n+from unittest.mock import patch\n+\n+from localstack.services.sqs.provider import SqsProvider\n+from localstack.services.sqs.models import StandardQueue\n+from localstack.services.sqs.exceptions import InvalidParameterValue\n+\n+\n+class MessageAttributeBoundaryTests(unittest.TestCase):\n+    LIMIT = 262144\n+\n+    def setUp(self):\n+        self.context = SimpleNamespace(region='us-east-1', account_id='000000000000')\n+        self.service = SqsProvider()\n+        queue = StandardQueue('repair-boundary', 'us-east-1', '000000000000',\n+                              {'MaximumMessageSize': str(self.LIMIT)}, {})\n+        resolver = patch.object(self.service, '_resolve_queue', return_value=queue)\n+        resolver.start()\n+        self.addCleanup(resolver.stop)\n+        self.url = 'http://localhost:4566/000000000000/repair-boundary'\n+\n+    def send(self, body, attributes):\n+        return self.service.send_message(\n+            context=self.context, queue_url=self.url, message_body=body,\n+            message_attributes=attributes,\n+        )\n+\n+    def test_string_attributes_are_part_of_the_limit(self):\n+        with self.assertRaises(InvalidParameterValue):\n+            self.send('x' * self.LIMIT, {'k': {'DataType': 'String', 'StringValue': 'v'}})\n+\n+    def test_binary_payload_at_boundary_is_delivered(self):\n+        attributes = {'k': {'DataType': 'Binary', 'BinaryValue': b'abcdefgh'}}\n+        body = 'x' * (self.LIMIT - 15)\n+        self.send(body, attributes)\n+        result = self.service.receive_message(\n+            context=self.context, queue_url=self.url,\n+            message_attribute_names=['All'], wait_time_seconds=0,\n+        )\n+        message, = result['Messages']\n+        self.assertEqual(message['Body'], body)\n+        self.assertEqual(message['MessageAttributes'], attributes)\n+\n+    def test_binary_payload_one_byte_over_is_rejected(self):\n+        with self.assertRaises(InvalidParameterValue):\n+            self.send('x' * (self.LIMIT - 14),\n+                      {'k': {'DataType': 'Binary', 'BinaryValue': b'abcdefgh'}})\n+\n+\n+if __name__ == '__main__':\n+    unittest.main()\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:0ee45408e7f571b0fd7803de5ef0f568ef99a37a8e9f5ecedf23a5b30f4ad02e",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\npython -m unittest tests/unit/test_repair_sqs_attribute_limit.py\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-001809.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal",
+      "partial-stock",
+      "partial-gepa"
+    ],
+    "unrepairable": [],
+    "command": "python -m unittest tests/unit/test_repair_sqs_attribute_limit.py",
+    "repo_paths": [
+      "tests/unit/test_repair_sqs_attribute_limit.py"
+    ],
+    "port_of_variant": "sha256:d10b4570c231bae12afc7b729ef91c7ca06811ea63dbffc3812919c395b77bca",
+    "source_record_sha256": "sha256:c0be8f8918f1f551f03e57638e6ae7ba27ea9d37d19a291e165f3a9f8cc394c7",
+    "v6_parent_digest": "sha256:263686c81728eb152dfb1b1ea3a13cfc993fde37bdc112b6dbb17803de328f40"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:59Z",
+  "status": "candidate",
+  "evidence": []
+}

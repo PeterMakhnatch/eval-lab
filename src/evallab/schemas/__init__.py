@@ -422,6 +422,14 @@ class ExperimentSpec(ContractModel):
     modal_sandbox_timeout_seconds: int | None = Field(
         default=None, strict=True, ge=1, exclude_if=lambda value: value is None
     )
+    modal_sandbox_create_max_attempts: Literal[1] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Opt-in single provider-create attempt for a Modal sandbox. "
+            "Required when the cost reservation allows no hidden create retry."
+        ),
+    )
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -700,6 +708,9 @@ class ExperimentMatrix(ContractModel):
     )
     modal_sandbox_timeout_seconds: int | None = Field(
         default=None, strict=True, ge=1, exclude_if=lambda value: value is None
+    )
+    modal_sandbox_create_max_attempts: Literal[1] | None = Field(
+        default=None, exclude_if=lambda value: value is None
     )
     runs: list[MatrixRun] = Field(min_length=1)
 

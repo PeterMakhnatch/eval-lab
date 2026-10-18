@@ -951,6 +951,16 @@ def _validate_modal_sandbox_timeout(request: RunRequest) -> None:
         )
 
 
+def _validate_modal_create_attempts(request: RunRequest) -> None:
+    attempts = request.modal_sandbox_create_max_attempts
+    if attempts is None:
+        return
+    if request.environment != "modal":
+        raise ValueError("modal_sandbox_create_max_attempts requires the Modal backend")
+    if type(attempts) is not int or attempts != 1:
+        raise ValueError("modal_sandbox_create_max_attempts must be 1 or None")
+
+
 def mimo_selfhosted_trial_cost_usd(
     trial_hours: float, concurrency: int, sandbox_usd: float
 ) -> float:
@@ -1354,6 +1364,7 @@ class RunRequest:
     modal_app_name: str | None = None
     modal_resource_policy: str | None = None
     modal_sandbox_timeout_seconds: int | None = None
+    modal_sandbox_create_max_attempts: int | None = None
     diff_sources: tuple[Path, ...] = ()
     subscription_quota: dict[str, Any] | None = None
 
@@ -2002,6 +2013,7 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
     _validate_modal_app_name(request)
     _validate_modal_resource_policy(request)
     _validate_modal_sandbox_timeout(request)
+    _validate_modal_create_attempts(request)
     proxy_limits = (
         request.max_requests,
         request.max_input_tokens,
@@ -2458,6 +2470,9 @@ def build_command(
         if timeout is None:
             timeout = request.trial_watchdog_seconds
         command.extend(["--environment-kwarg", f"sandbox_timeout_secs={timeout}"])
+    _validate_modal_create_attempts(request)
+    if request.modal_sandbox_create_max_attempts is not None:
+        command.extend(["--environment-kwarg", "sandbox_create_max_attempts=1"])
     _validate_modal_app_name(request)
     if request.modal_app_name is not None:
         command.extend(["--environment-kwarg", f"app_name={request.modal_app_name}"])

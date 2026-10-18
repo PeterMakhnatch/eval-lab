@@ -1,0 +1,53 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000931",
+  "variant_digest": "sha256:a80b1e34643ec24295ae224bb8f87a161a8a20619f2c4f2b6794436e90bd707a",
+  "variant_harbor_digest": "sha256:e04e32b52c3d0692cce1be6bbb0e620b828116e590af4d68cf5f8e2250f39dab",
+  "parent": {
+    "digest": "sha256:4bf4410705da830f6be70e70676946575390c62446d8e09f9e68fd5e85916f73",
+    "harbor_digest": "sha256:25420c9b23ab0b0faad901dd3adab99f5a88c15c61384c94498482d7d119671a",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000931/4bf4410705da",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:f1c23e908594e8be762a2e76ad223d5e2f9a6b860112a7fd32e110f6b626b004",
+      "after_sha256": "sha256:50f9fc780de29b5760d63370f84a6347fb8afb43617775162fd939507d57b0d6",
+      "content": "diff --git a/tests/test_schema_evolution.py b/tests/test_schema_evolution.py\nindex 4e397dfd..2eadca4e 100644\n--- a/tests/test_schema_evolution.py\n+++ b/tests/test_schema_evolution.py\n@@ -116,3 +116,87 @@ def test_enum_evolution_using_default():\n \n     new_records = list(fastavro.reader(bio, new_schema))\n     assert new_records == [\"C\"]\n+\n+\n+def test_schema_matching_with_records_in_arrays():\n+    \"\"\"https://github.com/fastavro/fastavro/issues/363\"\"\"\n+    original_schema = {\n+        \"type\": \"record\",\n+        \"name\": \"DataRecord\",\n+        \"fields\": [{\n+            \"name\": \"string1\",\n+            \"type\": \"string\",\n+        }, {\n+            \"name\": \"subrecord\",\n+            \"type\": {\n+                \"type\": \"array\",\n+                \"items\": {\n+                    \"type\": \"record\",\n+                    \"name\": \"SubRecord\",\n+                    \"fields\": [{\n+                        \"name\": \"string2\",\n+                        \"type\": \"string\",\n+                    }]\n+                }\n+            }\n+        }]\n+    }\n+\n+    new_schema = {\n+        \"type\": \"record\",\n+        \"name\": \"DataRecord\",\n+        \"fields\": [{\n+            \"name\": \"string1\",\n+            \"type\": \"string\",\n+        }, {\n+            \"name\": \"subrecord\",\n+            \"type\": {\n+                \"type\": \"array\",\n+                \"items\": {\n+                    \"type\": \"record\",\n+                    \"name\": \"SubRecord\",\n+                    \"fields\": [{\n+                        \"name\": \"string2\",\n+                        \"type\": \"string\",\n+                    }, {\n+                        \"name\": \"logs\",\n+                        \"default\": None,\n+                        \"type\": [\n+                            \"null\",\n+                            {\n+                                \"type\": \"array\",\n+                                \"items\": {\n+                                    \"type\": \"record\",\n+                                    \"name\": \"LogRecord\",\n+                                    \"fields\": [{\n+                                        \"name\": \"msg\",\n+                                        \"type\": \"string\",\n+                                        \"default\": \"\",\n+                                    }]\n+                                }\n+                            }\n+\n+                        ]\n+                    }]\n+                }\n+            }\n+        }]\n+    }\n+\n+    record = {\n+        \"string1\": \"test\",\n+        \"subrecord\": [{\"string2\": \"foo\"}],\n+    }\n+\n+    binary = avro_to_bytes_with_schema(original_schema, record)\n+\n+    output_using_original_schema = bytes_with_schema_to_avro(\n+        original_schema, binary\n+    )\n+    assert output_using_original_schema == record\n+\n+    output_using_new_schema = bytes_with_schema_to_avro(new_schema, binary)\n+    assert output_using_new_schema == {\n+        \"string1\": \"test\",\n+        \"subrecord\": [{\"string2\": \"foo\", \"logs\": None}],\n+    }\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,7 @@\n+H4sIAAAAAAAAA+3Tz0+DMBQHcM78Fc940QOMyo/Fww6L0ehFzaYmngiDTppAIWtB999bwMUfie4y\n+Y9Tv51Kgr30vfcVdNKLIYi7bkfVdPGMchv1ofBz7ZxYeMTYOotCLLI+xiHkWhd9W0RuN0smKyFpV\n+lf4qbtv8L+W+9l9zpeO0KstEZq7Kd5djW/9DM7fpf+AHpv9B5DOLvN2V8Ll/3v/9vdFCyNEiUbmd\n+ZtRfggXPbHuf5o9Cpznpiq7XOq8k+S5jdHAyvJiLUosi0cI8LxNRKBoigkM7462jhsV1H+z3S7s9\n+L6Q57qKgjNdcZlymgit7E+SUVIuaxEuM48jKEbJuNKV9xGTiuUfHrh9125o63264TMzYrioyeXN6\n+qZE/aS6VqVDZZ9P5zfRudhXfzk/jk/ub86vLCaPtmR1Obpdn1kgyF+WBa+pSvy+6r2b4PvxFKs15\n+mcS8rYqmOyG3XpPT2j/dbAAAAAAAAAAAAAAAAAAAAAD4c54BYKziVwAoAAA=\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/tests/test_repair_python_nested_union_defaults.py b/tests/test_repair_python_nested_union_defaults.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/test_repair_python_nested_union_defaults.py\n@@ -0,0 +1,64 @@\n+import io\n+\n+import fastavro\n+import pytest\n+from fastavro._read_py import reader\n+\n+\n+@pytest.mark.parametrize('container', ['array', 'map'])\n+def test_python_reader_evolves_nested_records_with_complex_union_default(container):\n+    writer_item = {\n+        'type': 'record',\n+        'name': 'Entry',\n+        'fields': [{'name': 'value', 'type': 'int'}],\n+    }\n+    reader_item = {\n+        'type': 'record',\n+        'name': 'Entry',\n+        'fields': [\n+            {'name': 'value', 'type': 'int'},\n+            {\n+                'name': 'logs',\n+                'type': [\n+                    'null',\n+                    {\n+                        'type': 'array',\n+                        'items': {\n+                            'type': 'record',\n+                            'name': 'LogEntry',\n+                            'fields': [{'name': 'message', 'type': 'string'}],\n+                        },\n+                    },\n+                ],\n+                'default': None,\n+            },\n+        ],\n+    }\n+    item_key = 'items' if container == 'array' else 'values'\n+    writer_schema = {\n+        'type': 'record',\n+        'name': 'Envelope',\n+        'fields': [\n+            {'name': 'entries', 'type': {'type': container, item_key: writer_item}},\n+        ],\n+    }\n+    reader_schema = {\n+        'type': 'record',\n+        'name': 'Envelope',\n+        'fields': [\n+            {'name': 'entries', 'type': {'type': container, item_key: reader_item}},\n+        ],\n+    }\n+    if container == 'array':\n+        entries = [{'value': 7}, {'value': -2}]\n+        expected = [{'value': 7, 'logs': None}, {'value': -2, 'logs': None}]\n+    else:\n+        entries = {'first': {'value': 7}, 'second': {'value': -2}}\n+        expected = {\n+            'first': {'value': 7, 'logs': None},\n+            'second': {'value': -2, 'logs': None},\n+        }\n+    buffer = io.BytesIO()\n+    fastavro.writer(buffer, writer_schema, [{'entries': entries}])\n+    buffer.seek(0)\n+    assert list(reader(buffer, reader_schema=reader_schema)) == [{'entries': expected}]\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:43606dca35a6ccae5dd704e9c3ff18d4a83a28ec664848e67d6963eb78ad9371",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\npython -m pytest tests/test_repair_python_nested_union_defaults.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000931.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "python -m pytest tests/test_repair_python_nested_union_defaults.py -q",
+    "repo_paths": [
+      "tests/test_repair_python_nested_union_defaults.py"
+    ],
+    "port_of_variant": "sha256:b9fc9db220e9c325dd35ef9bf0af76748a6c8baed3a5b35a51093b6b77917b53",
+    "source_record_sha256": "sha256:38f0250e28eb61c5e4edc3ed5d195359c64a19429358aa9f08d1d7933b6059b5",
+    "v6_parent_digest": "sha256:4bf4410705da830f6be70e70676946575390c62446d8e09f9e68fd5e85916f73"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:59Z",
+  "status": "candidate",
+  "evidence": []
+}

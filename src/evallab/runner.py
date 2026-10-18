@@ -3226,6 +3226,7 @@ def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: 
         modal_app_name=matrix.modal_app_name,
         modal_resource_policy=matrix.modal_resource_policy,
         modal_sandbox_timeout_seconds=matrix.modal_sandbox_timeout_seconds,
+        modal_sandbox_create_max_attempts=matrix.modal_sandbox_create_max_attempts,
         model=run.model,
         concurrency=matrix.concurrency,
         attempts=run.attempts,

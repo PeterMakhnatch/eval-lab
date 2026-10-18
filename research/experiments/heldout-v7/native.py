@@ -32,6 +32,7 @@ from evallab.schemas import ExperimentMatrix
 # The caller may apply these existing native policies through matrix_runner.
 _MODAL_POLICY_FIELDS = {
     "modal_app_name", "modal_resource_policy", "modal_sandbox_timeout_seconds",
+    "modal_sandbox_create_max_attempts",
 }
 
 

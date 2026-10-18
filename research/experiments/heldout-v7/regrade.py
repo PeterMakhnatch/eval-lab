@@ -356,6 +356,33 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--work", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True, help="New report/labels output directory")
     run.add_argument("--workers", type=int, choices=range(1, 5), default=4)
+    run.add_argument("--reuse-work", type=Path, help="Reuse identical staged native grades; execute only differing final graders, on the same cumulative journal")
+    run.add_argument("--sandbox-timeout-seconds", type=int, default=300)
+    plan = commands.add_parser("plan-staged", help="Freeze exact original33/12-repair pre-release measurement custody; no native dispatch")
+    plan.add_argument("--inventory", type=Path, required=True)
+    plan.add_argument("--manifest", type=Path, required=True)
+    plan.add_argument("--repairs", type=Path, required=True)
+    plan.add_argument("--replacement-scope", type=Path, required=True)
+    plan.add_argument("--rate-evidence", type=Path, required=True)
+    plan.add_argument("--usd-per-execution", type=float, required=True)
+    plan.add_argument("--sandbox-timeout-seconds", type=int, required=True)
+    plan.add_argument("--out", type=Path, required=True)
+    staged_run = commands.add_parser("run-staged", help="Measure the explicit staged plan, never open canonical release")
+    staged_run.add_argument("--plan", type=Path, required=True)
+    staged_run.add_argument("--work", type=Path, required=True)
+    staged_run.add_argument("--out", type=Path, required=True, help="New output directory, or exact regrade-v7-staged.json path")
+    staged_run.add_argument("--workers", type=int, choices=range(1, 5), default=4)
+    staged_report = commands.add_parser("report-staged", help="Rebuild pre-release labels from all retained observations without dispatch")
+    staged_report.add_argument("--plan", type=Path, required=True)
+    staged_report.add_argument("--work", type=Path, required=True)
+    staged_report.add_argument("--out", type=Path, required=True)
+    promote = commands.add_parser("promote", help="Independently admit the exact canonical manifest, then reuse identical staged evidence with zero native dispatch")
+    promote.add_argument("--inventory", type=Path, required=True)
+    promote.add_argument("--manifest", type=Path, required=True)
+    promote.add_argument("--accepted-sha", required=True)
+    promote.add_argument("--verifier-receipt", type=Path, required=True)
+    promote.add_argument("--work", type=Path, required=True)
+    promote.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "inventory":
@@ -363,6 +390,33 @@ def main(argv: list[str] | None = None) -> int:
             output = create_json(args.out, value)
             result = {"output": output, "summary": value["summary"], "quarantined": value["quarantined_summary"],
                       "scoring_allowed": False}
+        elif args.command == "plan-staged":
+            staged = runpy.run_path(str(Path(__file__).with_name("staged.py")))
+            result = staged["write_plan"](
+                args.out,
+                inventory_path=args.inventory, manifest_path=args.manifest, repairs_path=args.repairs,
+                replacement_scope=args.replacement_scope, rate_evidence=args.rate_evidence,
+                usd_per_execution=args.usd_per_execution, sandbox_timeout_seconds=args.sandbox_timeout_seconds,
+            )
+        elif args.command == "run-staged":
+            campaign = runpy.run_path(str(Path(__file__).with_name("campaign.py")))
+            plan = json_object(args.plan)
+            result = campaign["execute"](
+                inventory_path=Path(plan["sources"]["inventory"]["path"]),
+                manifest_path=Path(plan["sources"]["manifest"]["path"]), accepted_sha=None, verifier_receipt=None,
+                rate_evidence=Path(plan["sources"]["rate_evidence"]["path"]),
+                usd_per_execution=plan["budget"]["usd_per_execution"], work=args.work, output=args.out,
+                workers=args.workers, repo_root=Path(__file__).resolve().parents[3], staged_plan_path=args.plan,
+            )
+        elif args.command == "report-staged":
+            staged = runpy.run_path(str(Path(__file__).with_name("staged.py")))
+            result = staged["report_staged"](plan_path=args.plan, work=args.work, output=args.out)
+        elif args.command == "promote":
+            staged = runpy.run_path(str(Path(__file__).with_name("staged.py")))
+            result = staged["promote"](
+                inventory_path=args.inventory, manifest_path=args.manifest, accepted_sha=args.accepted_sha,
+                verifier_receipt=args.verifier_receipt, work=args.work, output=args.out,
+            )
         else:
             campaign = runpy.run_path(str(Path(__file__).with_name("campaign.py")))
             result = campaign["execute"](
@@ -370,6 +424,7 @@ def main(argv: list[str] | None = None) -> int:
                 verifier_receipt=args.verifier_receipt, rate_evidence=args.rate_evidence,
                 usd_per_execution=args.usd_per_execution, work=args.work, output=args.out,
                 workers=args.workers, repo_root=Path(__file__).resolve().parents[3],
+                reuse_work=args.reuse_work, sandbox_timeout_seconds=args.sandbox_timeout_seconds,
             )
         print(json.dumps(result, sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError) as exc:

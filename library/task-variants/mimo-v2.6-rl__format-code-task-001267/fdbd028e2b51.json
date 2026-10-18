@@ -1,0 +1,53 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001267",
+  "variant_digest": "sha256:fdbd028e2b51c9c77911561449160cf417897e5918b76e20689c2a96d48fa450",
+  "variant_harbor_digest": "sha256:32c4d55f749d097e6acea5c327b71406a5f90d6295aa324929a492b7a4fd008f",
+  "parent": {
+    "digest": "sha256:7ed3475cedd571b634e09fe0e70d10798373280b0f86fa5b640ad1e94c08aba3",
+    "harbor_digest": "sha256:8e464d3618d7b1a8147f93ce1d73a296b20de7d988840afb85edab0c04a7bcae",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001267/7ed3475cedd5",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:33d78f958a1d2a8e73456e74815dbdd3eeea2d0eb6918bb95c7c55c56b92cff0",
+      "after_sha256": "sha256:c66d59d611a88ce3dc6bba01eea517fcf2dbde90686c243a39a76078f5c42694",
+      "content": "diff --git a/tests/test_models.py b/tests/test_models.py\nindex b24b380c81..d210f5677d 100644\n--- a/tests/test_models.py\n+++ b/tests/test_models.py\n@@ -30,6 +30,28 @@ def test_changing_query_text_changes_hash(self):\n \n         self.assertNotEquals(old_hash, q.query_hash)\n \n+    def test_search_finds_in_name(self):\n+        q1 = query_factory.create(name=\"Testing search\")\n+        q2 = query_factory.create(name=\"Testing searching\")\n+        q3 = query_factory.create(name=\"Testing sea rch\")\n+\n+        queries = models.Query.search(\"search\")\n+\n+        self.assertIn(q1, queries)\n+        self.assertIn(q2, queries)\n+        self.assertNotIn(q3, queries)\n+\n+    def test_search_finds_in_description(self):\n+        q1 = query_factory.create(description=\"Testing search\")\n+        q2 = query_factory.create(description=\"Testing searching\")\n+        q3 = query_factory.create(description=\"Testing sea rch\")\n+\n+        queries = models.Query.search(\"search\")\n+\n+        self.assertIn(q1, queries)\n+        self.assertIn(q2, queries)\n+        self.assertNotIn(q3, queries)\n+\n \n class QueryResultTest(BaseTestCase):\n     def setUp(self):\n@@ -94,6 +116,7 @@ def test_get_latest_returns_the_last_cached_result_for_negative_ttl(self):\n \n         self.assertEqual(found_query_result.id, qr.id)\n \n+\n class TestQueryResultStoreResult(BaseTestCase):\n     def setUp(self):\n         super(TestQueryResultStoreResult, self).setUp()\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,10 @@\n+H4sIAAAAAAAAA+2Ub2vbMBDG89qf4uoGur2wHXtJMzoyKMVbCmmTOSllEAj+ozpmtuRacmghH34n\n+m6ahrOublrHtfi8sWSc998h32I7qLE9WjG+czlvRQ4aDQTMiT8dm7g481/OGnue6nZ7rDob9Dgze\n+zNEetVRhBdCphFC/2/dS/C/Ffqy/YlKtYlEUIU9suX69HC/UH6v9YVd/t3+M9e8fu8MO9F7PwvP8\n+5/U/PHCijDtRKNdGnEDTBBFLDOMQ5kxBXUJ5j80BN6KC2b1aCw6ePTTYXSkqBbPTxXhkdsfTC9+x\n+m41a7aSr102DbcIczO67ViHjmQLLKkO1fv/rGC63r2kuIgxjItv9uGdl9n0xnl5qcZACKpagayjD\n++EeYMsCuBe0ebsJYiSpjEsKKQVZop2GUs53pncro4bonD5NmlHiB3R6d3ueyRqmZkCqt2PzbBDIJ\n+Vc15xlNDsmqTxQzKNipvc9AtpcD77CRs4/A6z2G7BVXVbE9MrRnonsJHzoDdZZjXkDVYOyGwYjBL\n+rYeTpTn3J/7ZAlz4EkwvoExX+qCE67Ef+FqEhwUbHWnJo6UJW0CJEqxbPIDJH2XOAv904UMwnfht\n+/utz/JyT6dfzS5hfzfzgau4Hn5am+Zz/oOaNebxjimVpPhjWrWkNqwAuJGsX2x9KIRKWS2wO40+3\n+OkEQBEEQBEEQBEEQBEEQBEEQBEEQBEEQxD/JT8nA23MAKAAA\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/test_repair_query_search_http.py b/test_repair_query_search_http.py\nnew file mode 100644\n--- /dev/null\n+++ b/test_repair_query_search_http.py\n@@ -0,0 +1,43 @@\n+import json\n+\n+from tests.test_controllers import BaseTestCase, app, authenticated_user, query_factory\n+\n+\n+class QuerySearchHTTPTest(BaseTestCase):\n+    def test_search_returns_name_and_description_matches(self):\n+        by_name = query_factory.create(\n+            name='Monthly apricot revenue', description='Totals by region')\n+        by_description = query_factory.create(\n+            name='Cohort overview', description='Revenue from apricot orders')\n+        unrelated = query_factory.create(\n+            name='Retention report', description='Weekly customer activity')\n+\n+        with app.test_client() as client, authenticated_user(client):\n+            response = client.get('/api/queries/search',\n+                                  query_string={'q': 'apricot'})\n+\n+        self.assertEqual(response.status_code, 200, response.data)\n+        results = json.loads(response.data)\n+        self.assertIsInstance(results, list)\n+        ids = set(item['id'] for item in results)\n+        self.assertEqual(ids, set([by_name.id, by_description.id]))\n+        self.assertNotIn(unrelated.id, ids)\n+\n+    def test_search_uses_the_requested_keyword(self):\n+        first = query_factory.create(\n+            name='Warehouse invoices', description='Invoice totals')\n+        second = query_factory.create(\n+            name='Shipping overview', description='Delivery delays by region')\n+\n+        with app.test_client() as client, authenticated_user(client):\n+            for term, expected in [('invoices', first), ('delays', second)]:\n+                response = client.get('/api/queries/search',\n+                                      query_string={'q': term})\n+                self.assertEqual(response.status_code, 200, response.data)\n+                results = json.loads(response.data)\n+                self.assertEqual(set(item['id'] for item in results),\n+                                 set([expected.id]))\n+\n+\n+# Expose these tests to Python 2 unittest's dotted-name .py argument.\n+py = QuerySearchHTTPTest\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:5843423e7ca680ea589967812dfaf14b3c1aaaaa8e178bac8756e34c6867a50e",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/root/.pyenv/versions/2.7.18/bin/python -m nose -v test_repair_query_search_http.py\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-001267.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/root/.pyenv/versions/2.7.18/bin/python -m nose -v test_repair_query_search_http.py",
+    "repo_paths": [
+      "test_repair_query_search_http.py"
+    ],
+    "port_of_variant": "sha256:14c9212726d7878dc0a07da4f0f953434b43a985b8b61033fbdbd9815d9af521",
+    "source_record_sha256": "sha256:95191abf67ad52392078a0b3483dbaf15b0ce57aafc4f23599c7258ce5e22a50",
+    "v6_parent_digest": "sha256:7ed3475cedd571b634e09fe0e70d10798373280b0f86fa5b640ad1e94c08aba3"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:36:35Z",
+  "status": "candidate",
+  "evidence": []
+}

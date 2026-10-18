@@ -45,7 +45,7 @@ TASK_VARIANTS_RELATIVE = "library/task-variants"
 #: Fingerprint fields compared against the reference. Deployment identity
 #: (server.model_revision, server.sglang_image) is recorded but never
 #: compared: the reference pins behaviour, not which container serves it.
-#: lock.mode and the task ledger binding are hard gates, never deviations.
+#: lock.mode and the selected task-admission proof are hard gates, never deviations.
 COMPARED_FIELDS = (
     "harness.id",
     "harness.additions",
@@ -64,8 +64,8 @@ COMPARED_FIELDS = (
     "budgets.cost_limit_usd",
 )
 
-#: Compared fields a spec deviation may cover. The lock and the ledger
-#: binding cannot be waived by declaration.
+#: Compared fields a spec deviation may cover. The lock and task-admission
+#: proof cannot be waived by declaration.
 DEVIATION_ELIGIBLE_FIELDS = frozenset(name for name in COMPARED_FIELDS if name != "lock.mode")
 
 # Request caps are compared to native steps; cumulative token ceilings only to
@@ -1137,6 +1137,20 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     task = fingerprint["task"]
     if task.get("error"):
         reasons.append(f"task: unreadable: {task['error']}")
+    elif "campaign_native_controls" in profile:
+        from evallab.campaign_native_controls import campaign_native_control_binding
+
+        binding = campaign_native_control_binding(
+            repo_root=repo_root,
+            profile=profile,
+            fingerprint=fingerprint,
+            spec=spec,
+            request=request,
+        )
+        if binding["admitted"]:
+            task["admission"] = binding
+        else:
+            reasons.append(f"fresh task admission refused: {binding['reason']}")
     elif not task.get("ledger_match"):
         binding = lineage_ledger_binding(
             repo_root,
@@ -1311,7 +1325,21 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
             f"(declared={fingerprint['lock']['declared']}, "
             f"resolved intent={fingerprint['lock']['effective']})"
         )
-    if not fingerprint["task"]["ledger_match"]:
+    if "campaign_native_controls" in profile:
+        from evallab.campaign_native_controls import campaign_native_control_binding
+
+        binding = campaign_native_control_binding(
+            repo_root=repo_root,
+            profile=profile,
+            fingerprint=fingerprint,
+            spec=spec,
+        )
+        if binding["admitted"]:
+            fingerprint["task"]["admission"] = binding
+            lines.append(f"\nfresh task admission: admitted: {binding['reason']}")
+        else:
+            hard.append(f"fresh task admission refused: {binding['reason']}")
+    elif not fingerprint["task"]["ledger_match"]:
         binding = lineage_ledger_binding(
             repo_root,
             fingerprint["subject"]["task"],

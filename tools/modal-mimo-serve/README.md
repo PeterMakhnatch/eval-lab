@@ -47,7 +47,10 @@ The reference profile explicitly marks `server.reasoning_parser` **unsourced**:
 the upstream rollout configs name no server reasoning parser. The existing
 `mimo` reasoning parser is preserved, not claimed as sourced reference parity.
 
-The Modal proxy is unauthenticated, so any request can wake the container, but every `/v1` call needs the key. `max_containers=1` and the 5-minute idle window bound what an unwanted wake-up can cost. Stop the app when it is not in use.
+The Modal proxy is unauthenticated, so any request can wake the container, but
+every `/v1` call needs the key. A one-container limit and idle timeout do **not**
+bound total uptime: repeated requests can keep the app alive indefinitely. Stop
+the app when not in use; use the owned absolute window below for a capped run.
 
 ## Commands (from the repository root)
 
@@ -59,9 +62,127 @@ uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-s
 # smoke: cold start, reasoning split, a Terminus-shaped JSON turn, TTFT and decode tok/s at 1 and 8 streams
 EVALLAB_MIMO_SELFHOSTED_UPSTREAM=<url> MIMO_SELFHOSTED_API_KEY=<key> \
   uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/smoke.py --out runs/har90-modal-smoke/smoke.json
-# stop (nothing is billed afterwards except volume storage)
+# request stop; verify stopped state AND zero active containers before closing accounting
 uv run --project tools/modal-mimo-serve --locked modal app stop evallab-mimo-v26-9b
 ```
+
+### One admitted shared BASE window
+
+`serving_window.py` consumes the parent's immutable, SHA-pinned
+`mimo.phase2-envelope/v1` rather than granting another budget. The parent sets
+`admitted: true`, `approved_usd`, `reservation_id`, `ledger_tag: 2026-10-17-v7`,
+`controls: {path, sha256}`, and complementary `serving`, `native` and
+`heldout_regrade` sections. **Every** top-level section with `cap_usd` contributes
+to the combined total. The later combined $12 approval is not $12 plus an older
+$3/$4 gate. No command resets, refunds, renews, or redeploys a reservation.
+
+The serving section requires `app_name: evallab-mimo-v26-9b`, `gpu`,
+`cap_usd`, `maximum_seconds`, `usd_per_second_upper_bound`,
+`shutdown_reserve_seconds`, `hard_cpu_limit`, and
+`hard_memory_mib_limit`. Its model/image/auth remain exactly those above.
+The controls SHA is fixed to
+`ca3d4460296cdfa017741d3557f3455bccf74b8f26f24643ff4a2c1f50501e80`.
+The local journal lives in an owned durable runtime directory, not the shared
+handoff directory. It preserves the full reservation and monotone wall-exposure
+high-water mark. An atomic remote one-use reservation additionally refuses a
+second deployment even if a caller chooses another local journal. Retain the
+parent envelope/journal as permanent accounting evidence; the Modal Dict is
+operational coordination, not an invoice or long-term accounting archive.
+
+`maximum_seconds` counts conservatively from **before deployment** until
+**observed stopped state and zero active containers**, including startup,
+idle/cold renewals and shutdown. The UTC `--deadline` is the completed-stop
+deadline; `expires_at` is earlier by the shutdown reserve (minimum 120 seconds).
+The full `maximum_seconds * usd_per_second_upper_bound` must fit `cap_usd`.
+Leave additional dollars for storage/egress and any separately admitted image
+build/download work; those are not free because a container count is zero.
+
+Only the canonical BASE app is deployed. Opening refuses any live canonical
+BASE/LoRA app, rather than overwriting someone else's deployment or starting a
+second GPU app. There is one GPU container and at most one tiny CPU guard
+container **inside that same app**. Stop operations verify the exact app ID and
+window/config/budget ownership tags, never merely a mutable name.
+
+Three safeguards are independent of the foreground deploy/health controller:
+
+1. A detached local metadata watchdog starts before deployment.
+2. A same-app scheduled guard has the baked absolute deadline; an immediate
+   invocation must report actually armed before any paid readiness request.
+3. Each server process group has an in-container deadline kill, and a new model
+   process refuses to start after expiry. Killing that process alone is **not**
+   claimed to stop the deployed app.
+
+The remote guard uses Modal's runtime task credentials, not copied API keys.
+Its stop RPC and scheduler behavior remain **unqualified until actually run**.
+Provider/control-plane failure, a delayed schedule, or a simultaneous local
+machine/network failure is not a mathematically hard dollar cap: the controller
+continues stop attempts and reports overrun rather than clamping/refunding it.
+Do not claim zero billing from an accepted stop RPC, a deployment, a process
+exit, or a bare `/health` response.
+
+```bash
+# Free, provider-free quote; does not admit/deploy/probe anything.
+uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py quote \
+  --gpu L40S --cpu-limit 4 --memory-mib-limit 32768 \
+  --cap-usd 2.50 --shutdown-reserve-seconds 120
+
+# Parent only, after final admission; no download_weights is invoked.
+# First check presence with keys has; never print/copy values.
+keys has MODAL_TOKEN_ID
+keys has MODAL_TOKEN_SECRET
+keys has MIMO_SELFHOSTED_API_KEY
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py deploy \
+  --budget-state <parent-envelope.json> --budget-state-sha256 <immutable-envelope-sha256> \
+  --owner <parent-owner> --deadline <completed-stop-UTC-ISO8601> \
+  --environment main --state <owned-durable-window-journal.json>
+
+# Free metadata observation; never wakes the GPU. Without --once, watches to stop.
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py watch \
+  --state <owned-durable-window-journal.json> --once
+
+# Parent only: either request can start paid GPU compute.
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py health \
+  --state <owned-durable-window-journal.json> --timeout 900
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py binding \
+  --state <owned-durable-window-journal.json> --timeout 30
+
+# Receipt prints real state; does not manufacture readiness or publish a handoff.
+uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py receipt \
+  --state <owned-durable-window-journal.json>
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py stop \
+  --state <owned-durable-window-journal.json>
+```
+
+`binding` authenticates `/v1/models` (only the exact BASE ID may appear) and one
+real `/v1/chat/completions` request (`max_tokens=1`, thinking enabled). It refuses
+a missing/different/LoRA returned model and refuses redirects. There is no retry
+of the completion. JSON artifacts contain responses, not request headers or keys.
+The receipt supplies `app_id`, `upstream`, `starts_at`, `expires_at`,
+`stop_deadline`, `model_id`, the pinned `model_revision`/`image`, actual
+`deployment`/`stop_guard` evidence refs, `readiness`, `authenticated_binding`
+(exact requested/returned IDs), parent envelope SHA/reservation, enforced
+resources, and observations. Those are the fields the parent can publish in
+`serving-window-v7.json`; `active` is not returned after expiry. The model field
+round trip proves the served name, not cryptographic attestation of GPU weights.
+
+With hard CPU=4 and RAM=32 GiB, the **resource** upper rates (2026-10-18 posted
+pricing) are:
+
+| Window resource | L40S | A100-80GB |
+|---|---:|---:|
+| GPU + 4 CPU + 32 GiB | $0.00066544/s | $0.00081744/s |
+| Same-app guard: 0.125 CPU + 0.25 GiB | $0.0000021925/s | $0.0000021925/s |
+| Combined bound | **$0.0006676325/s ($2.403477/h)** | **$0.0008196325/s ($2.950677/h)** |
+
+A $2.50 L40S envelope buys at most **3,744 total wall seconds**, of which
+3,624 precede a 120s shutdown reserve, before storage/egress or separately
+admitted build/download costs. A conservative 3,500s choice reserves
+$2.33671375 of resource exposure and leaves $0.16328625 for those extras within
+the same $2.50. This is not a measured readiness/throughput claim. L40S is already
+an allowed exact-checkpoint/BF16 configuration, but remains live-unqualified;
+OOM or failure must stop the attempt, not substitute quantization, a different
+model/image, another GPU window, or a fresh allowance.
+
 
 ### Native tools: historical acceptance and reference choice
 

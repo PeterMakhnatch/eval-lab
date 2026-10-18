@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from evallab.execution_contracts import MIMO_SELFHOSTED_CONTEXT_TOKENS, RunRequest, validate_request
-from evallab.schemas import ExperimentSpec
+from evallab.schemas import ExperimentSpec, ReferenceDeviation
 from evallab.setup_fingerprint import (
     build_intended_fingerprint,
     compare_fingerprint,
@@ -1062,3 +1062,205 @@ def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while
     )
     with pytest.raises(ValueError, match="outside the ledger"):
         validate_request(or_unlisted_req, repo_root=root)
+
+
+@pytest.fixture(params=("package_digest", "package"))
+def control_qualified_native_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+):
+    import hashlib
+
+    import yaml
+
+    from evallab import campaign_native_controls
+    from evallab.queue import Executor
+
+    root, _ = make_repo_root(
+        tmp_path,
+        with_parser=True,
+        task_id=TASK_ID,
+        task_name=VARIANT_TASK_NAME,
+        ledger_task_id="format-code-task-900000",
+    )
+    from evallab.registry import compute_task_digests
+
+    # Populate the immutable task-index input before its first cached read.
+    other = root / "tasks/format-code-task-900099"
+    other.mkdir()
+    (other / "task.toml").write_text(
+        '[task]\nname = "mimo-v2.6-rl/format-code-task-900099"\n'
+    )
+    other_digest = compute_task_digests(other).package
+    with (root / "research/experiments/python-task-ledger/ledger.csv").open("a") as stream:
+        stream.write(
+            "format-code-task-900099,train,fixture,100,usable,fixture,original,"
+            f"{other_digest},,,sound,fixture-job,fixture-evidence,none_found,fixture\n"
+        )
+    record, package = make_variant_package(root, tmp_path, transform="verifier-repair@1")
+    spec = make_variant_spec(root, record, package).model_copy(
+        update={
+            "agent": "mimoagent",
+            "environment": "modal",
+            "reference_profile": "fresh-controls-fixture",
+            "modal_app_name": "mimo-clean-census-phase2-test",
+            "modal_resource_policy": "limit",
+            "modal_sandbox_create_max_attempts": 1,
+            "diff_sources": [],
+        }
+    )
+    config = root / "tools/mimoagent-harbor/swe.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text("agent:\n  step_limit: 500\n")
+
+    def binding(path: Path, *, relative: bool = False) -> dict:
+        return {
+            "path": str(path.relative_to(root) if relative else path),
+            "sha256": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+
+    canonical = (
+        root / "library/task-variants" / record.task_slug / f"{record.digest12}.json"
+    )
+    original = tmp_path / "retained-candidate.json"
+    original.write_bytes(canonical.read_bytes())
+    controls = root / "retained-controls.json"
+    rows = [
+        {
+            "task_id": f"{index:06d}",
+            "current_reader_gate_pass": True,
+            "strict_assertion_scope_admission": True,
+            "identity": {request.param: record.variant_digest},
+        }
+        for index in range(900001, 900020)
+    ]
+    controls.write_text(json.dumps({"tasks": rows}))
+    # Test trust root only; production pins the actual ca3d4460... handoff.
+    monkeypatch.setattr(
+        campaign_native_controls,
+        "CONTROLS_SHA256",
+        binding(controls)["sha256"].removeprefix("sha256:"),
+    )
+    audit = root / "control-audit.json"
+    audit.write_text(
+        json.dumps(
+            {
+                "schema": "repaired_data_sft_v2.control_admission/v1",
+                "source_controls_handoff": binding(controls),
+                "tasks": [
+                    {
+                        "task_id": row["task_id"],
+                        "controls_qualified": True,
+                        "strict_assertion_scope_admission": True,
+                        "admission_basis": "control_qualified",
+                        "ledger_root_reached": False,
+                        "repaired_package": {"sha256": record.variant_digest},
+                        "canonical_record": binding(canonical, relative=True),
+                        "source_record": binding(original),
+                    }
+                    for row in rows
+                ],
+            }
+        )
+    )
+    profile = load_reference_profile(root, "xiaomi-mimo-rl")
+    profile["name"] = "fresh-controls-fixture"
+    profile["campaign_native_controls"] = {
+        "purpose": "fresh_native_repaired",
+        "audit": binding(audit),
+    }
+    profile_path = root / "research/setup-profiles/fresh-controls-fixture.yaml"
+    profile_path.write_text(yaml.safe_dump(profile))
+    native_request = Executor.prepare_request(spec, repo_root=root)
+    intended = build_intended_fingerprint(
+        spec=spec,
+        task_dir=native_request.task,
+        model=native_request.model,
+        agent=native_request.agent,
+        environment=native_request.environment,
+        repo_root=root,
+        request=native_request,
+    )
+    spec = spec.model_copy(
+        update={
+            "deviations": [
+                ReferenceDeviation(field=diff["field"], value=diff["actual"], reason="Fixture runtime.")
+                for diff in compare_fingerprint(intended, profile)
+            ]
+        }
+    )
+    native_request = Executor.prepare_request(spec, repo_root=root)
+    return root, spec, native_request, controls, canonical
+
+
+def test_control_qualified_fresh_generation_preserves_candidate_and_unreached_ledger(
+    control_qualified_native_case,
+) -> None:
+    root, spec, request, _, canonical = control_qualified_native_case
+    fingerprint = validate_mimo_setup(request, root)
+    assert fingerprint["task"]["admission"]["admitted"] is True
+    assert fingerprint["task"]["ledger_match"] is False
+    assert fingerprint["task"]["admission"]["ledger_root_reached"] is False
+    assert json.loads(canonical.read_bytes())["status"] == "candidate"
+    path = root / "fresh-spec.json"
+    path.write_text(spec.model_dump_json())
+    _, admitted = render_spec_preflight(path, root)
+    assert admitted
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"model": MIMO_MODEL + ":rds1-a"},
+        {"attempts": 2},
+        {"diff_sources": (Path("retained.diff"),)},
+        {"egress_lock": False},
+        {"environment": "docker"},
+        {"modal_resource_policy": None},
+        {"modal_sandbox_create_max_attempts": None},
+    ],
+)
+def test_fresh_control_scope_checks_effective_request_not_just_spec(
+    control_qualified_native_case, overrides: dict
+) -> None:
+    root, _, request, _, _ = control_qualified_native_case
+    with pytest.raises(ValueError):
+        validate_mimo_setup(replace(request, **overrides), root)
+
+
+@pytest.mark.parametrize("artifact_index", [3, 4])
+def test_control_scope_refuses_changed_control_or_candidate_bytes(
+    control_qualified_native_case, artifact_index: int
+) -> None:
+    root, _, request, _, _ = control_qualified_native_case
+    path = control_qualified_native_case[artifact_index]
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(ValueError):
+        validate_mimo_setup(request, root)
+
+
+def test_fresh_profile_cannot_bypass_its_cohort_with_an_ordinary_ledger_task(
+    control_qualified_native_case,
+) -> None:
+    from evallab.queue import Executor
+    from evallab.registry import compute_task_digests
+
+    root, spec, _, _, _ = control_qualified_native_case
+    task_id = "format-code-task-900099"
+    task = root / "tasks" / task_id
+    digest = compute_task_digests(task).package
+    spec = spec.model_copy(
+        update={
+            "task": str(task.relative_to(root)),
+            "task_path": str(task.relative_to(root)),
+            "task_id": task_id,
+            "task_package_digest": digest,
+        }
+    )
+    request = Executor.prepare_request(spec, repo_root=root)
+    fingerprint = build_intended_fingerprint(
+        spec=spec, task_dir=task, model=request.model, agent=request.agent,
+        environment=request.environment, repo_root=root, request=request,
+    )
+    assert fingerprint["task"]["ledger_match"] is True
+    with pytest.raises(ValueError):
+        validate_mimo_setup(request, root)

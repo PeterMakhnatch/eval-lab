@@ -50,6 +50,9 @@ REGRADE_SANDBOX_TIMEOUT_SECS = 3600
 EGRESS_LOCK_RECORD = "egress-lock.json"
 MODAL_LOCK_MECHANISM = "modal-agent-phase-outbound-allowlist"
 
+#: Opt-in capability: one provider create, with no inherited Tenacity retry.
+NATIVE_SINGLE_CREATE_SUPPORTED = True
+
 _RESTRICTIVE_MODES = frozenset({"no-network", "allowlist"})
 
 
@@ -81,6 +84,42 @@ echo "modal setup: ready marker observed"
 
 class TaskModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
     """Harbor Modal with a modern setup interpreter, not a global PATH pin."""
+
+    def __init__(
+        self,
+        *args: Any,
+        sandbox_create_max_attempts: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if sandbox_create_max_attempts is not None and (
+            type(sandbox_create_max_attempts) is not int
+            or sandbox_create_max_attempts != 1
+        ):
+            raise ValueError("sandbox_create_max_attempts must be 1 or None")
+        super().__init__(*args, **kwargs)
+        self._sandbox_create_max_attempts = sandbox_create_max_attempts
+
+    async def _create_sandbox(  # ty: ignore[unresolved-import]
+        self,
+        *,
+        entrypoint: Any = None,
+        block_network: bool | None = None,
+        experimental_options: Any = None,
+    ) -> Any:
+        create = super()._create_sandbox
+        arguments = {
+            "entrypoint": entrypoint,
+            "block_network": block_network,
+            "experimental_options": experimental_options,
+        }
+        if self._sandbox_create_max_attempts == 1:
+            # A lost response may already have allocated a billable sandbox.
+            # Harbor 0.24's default two-create retry cannot fit that reservation.
+            implementation = getattr(create, "__wrapped__", None)
+            if implementation is None:
+                raise RuntimeError("pinned Harbor Modal single-create entry is unavailable")
+            return await implementation(self, **arguments)
+        return await create(**arguments)
 
     async def run_healthcheck(self, healthcheck: Any = None) -> None:
         # The readable environment setup is benign; do not inspect or stage
@@ -156,10 +195,13 @@ def _parse_lock_flag(value: Any) -> bool:
 
 
 class LockedModalEnvironment(TaskModalEnvironment):
-    """Modal environment that records the applied egress policy."""
+    """Record the actual effective egress policy accepted by Modal."""
 
     def __init__(
-        self, *args: Any, evallab_egress_lock: bool | str = False, **kwargs: Any
+        self,
+        *args: Any,
+        evallab_egress_lock: bool | str = False,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self._evallab_egress_lock = _parse_lock_flag(evallab_egress_lock)

@@ -116,6 +116,7 @@ def test_regrade_preserves_caller_environment_and_bounds_lifetime(
 def _env(tmp_path: Path) -> LockedModalEnvironment:
     env = LockedModalEnvironment.__new__(LockedModalEnvironment)
     env._evallab_egress_lock = True
+    env._sandbox_create_max_attempts = None
     env.trial_paths = SimpleNamespace(trial_dir=tmp_path)
     env.session_id = "sess-1"
     env.logger = logging.getLogger("test-modal")
@@ -292,6 +293,7 @@ def test_real_creation_records_effective_arguments(
     def make_env() -> LockedModalEnvironment:
         env = LockedModalEnvironment.__new__(LockedModalEnvironment)
         env._evallab_egress_lock = True
+        env._sandbox_create_max_attempts = None
         env.trial_paths = SimpleNamespace(trial_dir=tmp_path)
         env.session_id = "sess-1"
         env.logger = logging.getLogger("test-modal")
@@ -469,7 +471,9 @@ touch {shlex.quote(str(state_dir / "ready"))}
         modal_mod, "Sandbox", SimpleNamespace(create=SimpleNamespace(aio=create))
     )
 
-    def make(lane: str, *, separate: bool) -> Any:
+    def make(
+        lane: str, *, separate: bool, create_max_attempts: int | None = None
+    ) -> Any:
         request = RunRequest(
             task=package,
             agent="oracle",
@@ -481,6 +485,7 @@ touch {shlex.quote(str(state_dir / "ready"))}
             modal_sandbox_timeout_seconds=600,
             modal_resource_policy="limit",
             modal_app_name="mimo-clean-census-modal-smoke",
+            modal_sandbox_create_max_attempts=create_max_attempts,
         )
         command = build_command(request, setup_fingerprint="fixture")
         selector = command[command.index("--env") + 1]
@@ -739,3 +744,32 @@ def test_native_modal_missing_ready_marker_fails_startup(
     assert "supported helper ran cleanup" in evidence
     assert "ready marker observed" not in evidence
     assert "return_code=1" in evidence
+
+
+@pytest.mark.parametrize("lane", ["open", "locked", "regrade"])
+def test_native_single_create_does_not_repeat_an_ambiguous_allocation(
+    native_modal_runtime: Any, monkeypatch: pytest.MonkeyPatch, lane: str
+) -> None:
+    """A lost response must not spend a second sandbox reservation."""
+    import harbor.environments.modal as modal_mod
+
+    allocated: list[object] = []
+
+    async def lost_response(*args: Any, **kwargs: Any) -> None:
+        allocated.append(object())
+        raise RuntimeError("allocation committed but response was lost")
+
+    monkeypatch.setattr(
+        modal_mod, "Sandbox",
+        SimpleNamespace(create=SimpleNamespace(aio=lost_response)),
+    )
+    env = native_modal_runtime.make(
+        lane, separate=False, create_max_attempts=1
+    )
+    env._app = object()
+    env._image = object()
+    with pytest.raises(RuntimeError, match="allocation committed"):
+        asyncio.run(env._create_sandbox())
+
+    assert len(allocated) == 1
+    assert not (env.trial_paths.trial_dir / "egress-lock.json").exists()

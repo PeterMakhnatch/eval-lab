@@ -11,6 +11,8 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | delphik-open-defect-tb2 | 0 (0/0) | 47 (23/24) heldout | 0 / 0 | 47 | 0 |
 | envcheck-tb4-39 | 13 (7/6) | 26 (18/8) heldout | 0 / 0 | 39 | 0 |
 | executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
+| mimo-heldout-v6-to-v7 | 0 (0/0) | 33 (11/0) heldout | 0 / 0 | 33 | 0 |
+| mimo-stratified-sample100 | 40 (12/0) | 60 (11/0) test | 0 / 0 | 100 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
 | mimo-weak-tests-v2 | 45 (45/0) | 66 (66/0) test | 0 / 0 | 111 | 0 |
 | tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
@@ -33,6 +35,9 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | filter-js-from-html | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | financial-document-processor | breaker-bench-v1 | tb2-to-tb21-v1 |
 | fix-ocaml-gc | breaker-bench-v1 | tb2-to-tb21-v1 |
+| format-code-task-001246 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
+| format-code-task-001480 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
+| format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
 | git-multibranch | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | make-doom-for-mips | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | mteb-leaderboard | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
@@ -57,6 +62,14 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1; pass: envcheck-tb4-39 |
 | fix-git | sha256:f264d981302b | fail: executed-outcomes-v1, tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | fix-git | sha256:2f0e8d8e3c29 | fail: executed-outcomes-v1; pass: tb2-to-tb21-v1 |
+| format-code-task-000237 | sha256:5929118977d4 | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-001244 | sha256:2e9234abf407 | fail: mimo-weak-tests-v2; unknown: mimo-stratified-sample100 |
+| format-code-task-001400 | sha256:a35fc4f8ee0e | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-002188 | sha256:05c56be38526 | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-002649 | sha256:956bedd81ddc | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-002742 | sha256:eebc07e8d34a | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-002866 | sha256:c1fa445d03cd | fail: executed-outcomes-v1; unknown: mimo-stratified-sample100 |
+| format-code-task-002884 | sha256:85fbd05efb9a | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | git-multibranch | sha256:4512d76e39b6 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
 | mteb-leaderboard | sha256:0a60e5513574 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | polyglot-c-py | sha256:d04bb722a5a5 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
@@ -77,15 +90,19 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | executed-outcomes-v1 | 2 | 1 |
+| ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-stratified-sample100 | 2 | 0 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-weak-tests-v1 | 11 | 1 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-weak-tests-v2 | 2 | 0 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | trace-paired-v1 | 19 | 0 |
 | ref-subset-rule-iteration | | | tasks in no key | 1 | |
 | envcheck-867-repair-dev | tuned | EnvCheck | executed-outcomes-v1 | 11 | 18 |
+| envcheck-867-repair-dev | tuned | EnvCheck | mimo-heldout-v6-to-v7 | 0 | 2 |
+| envcheck-867-repair-dev | tuned | EnvCheck | mimo-stratified-sample100 | 4 | 2 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v1 | 1 | 0 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v2 | 0 | 3 |
 | envcheck-867-repair-dev | tuned | EnvCheck | trace-paired-v1 | 6 | 6 |
 | separate-verifier-10-probes | tuned | Verifier hardening | executed-outcomes-v1 | 3 | 4 |
+| separate-verifier-10-probes | tuned | Verifier hardening | mimo-stratified-sample100 | 2 | 1 |
 | separate-verifier-10-probes | tuned | Verifier hardening | mimo-weak-tests-v2 | 1 | 0 |
 | separate-verifier-10-probes | tuned | Verifier hardening | trace-paired-v1 | 4 | 0 |
 | separate-verifier-10-probes | | | tasks in no key | 1 | |
@@ -100,11 +117,14 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-s2-prompt-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 4 | 0 |
 | qa-task-s2-heldout-metadata | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | executed-outcomes-v1 | 0 | 3 |
+| qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-heldout-v6-to-v7 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2 | 0 | 3 |
 | qa-trace-5-t3-fusion-fix | tuned | QA Trace (qa-trace/5*) | trace-paired-v1 | 6 | 2 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | executed-outcomes-v1 | 0 | 7 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-heldout-v6-to-v7 | 0 | 33 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2 | 0 | 3 |
-| qa-task-mimo-v6-heldout-audit-33 | | | tasks in no key | 21 | |
 | qa-trace-6-label-rule | tuned | QA Trace (qa-trace/6*) | trace-paired-v1 | 3 | 0 |
+| qa-task-mimo-v7-scoreboard-source-reconciliation | selected | QA Task (qa-task/mimo-v7-audit*) from 2026-10-18 | mimo-heldout-v6-to-v7 | 0 | 33 |
+| qa-task-mimo-sample100-atlas-reuse | selected | QA Task (qa-task/mimo-sample100-strict*) from 2026-10-18 | mimo-stratified-sample100 | 40 | 60 |

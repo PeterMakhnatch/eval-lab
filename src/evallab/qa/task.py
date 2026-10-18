@@ -52,7 +52,7 @@ from evallab.regrade import (
 )
 from evallab.schemas import ContractModel
 
-SPEND_TAG = "2026-10-15"
+SPEND_TAG = "2026-10-17-v7"
 Stage = Literal["S0", "S1", "S2", "S3"]
 Verdict = Literal["pass", "fail", "unknown"]
 Status = Literal["measured", "ran_without_usable_result", "not_run"]
@@ -2166,11 +2166,8 @@ class HarborBackend:
             'if [ -z "$BASE" ]; then echo "setup never ran" >&2; exit 1; fi\n'
             f"cd {shlex.quote(workdir)} || exit 1\n"
             'if [ -d "/var/lib/mimo/git-hidden" ]; then rm -rf ".git"; mv "/var/lib/mimo/git-hidden" ".git"; fi\n'
-            "git add -A >/dev/null 2>&1 || true\n"
-            'git -c core.fileMode=false diff --cached "$BASE" > /tmp/agent.diff\n'
-            'git reset --hard "$BASE" >/dev/null 2>&1 || true\n'
-            "git clean -fd >/dev/null 2>&1 || true\n"
-            "if [ -s /tmp/agent.diff ]; then git apply --whitespace=nowarn /tmp/agent.diff >/dev/null 2>&1 || true; fi\n"
+            'git add -A >/dev/null 2>&1 && git -c core.fileMode=false diff --cached "$BASE" > /logs/verifier/agent.diff\n'
+            "git reset -q\n"
             "while IFS= read -r tf; do\n"
             '  [ -z "$tf" ] && continue\n'
             '  if git cat-file -e "$BASE:$tf" 2>/dev/null; then\n'
@@ -2184,6 +2181,7 @@ class HarborBackend:
             "EOF_RESET_TEST_FILES\n"
             "if [ -s /tests/test.patch ]; then\n"
             "  if ! git apply --verbose /tests/test.patch >/logs/verifier/apply.log 2>&1; then\n"
+            "    cat /logs/verifier/apply.log >&2\n"
             "    echo 'test.patch failed to apply' >&2; exit 1\n"
             "  fi\n"
             "fi\n"
@@ -2191,8 +2189,10 @@ class HarborBackend:
             f"{test_cmd}\n"
             "EOF_MIMO_TEST_COMMAND\n"
             "chmod +x /tmp/mimo_test_command.sh\n"
+            "unset PIP_NO_CACHE_DIR\n"
             "bash /tmp/mimo_test_command.sh >/logs/verifier/test-output.log 2>&1\n"
             "RC=$?\n"
+            "tail -c 12000 /logs/verifier/test-output.log\n"
             "if [ $RC -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; else echo 0 > /logs/verifier/reward.txt; fi\n"
         )
         tmp_root = Path(tempfile.mkdtemp(prefix="qa-mimo-probe-pkg-"))
@@ -2239,9 +2239,18 @@ class HarborBackend:
                 "verdict": "unknown",
                 "reason": "multi-service Compose package uses S0 controls, S1 rubric, and S2a shortcut-agent",
             }
+        patch: Path | None = None
+        probe_pkg = package
+        cleanup_dir: Path | None = None
+        if (package / "environment" / "setup" / "setup.sh").is_file() and (
+            package / "tests" / "test_command.sh"
+        ).is_file():
+            probe_pkg, cleanup_dir = self._prepare_mimo_probe_package(package)
         try:
-            loaded = Package.load(package)
+            loaded = Package.load(probe_pkg)
         except ValueError as exc:
+            if cleanup_dir is not None:
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
             return {"status": "not_applicable", "verdict": "unknown", "reason": str(exc)[-400:]}
         if loaded.separate and (
             self._needs_amd64(package)
@@ -2251,26 +2260,28 @@ class HarborBackend:
                 in (package / "tests" / "Dockerfile").read_text(encoding="utf-8", errors="ignore")
             )
         ):
+            if cleanup_dir is not None:
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
             return {
                 "status": "not_applicable",
                 "verdict": "unknown",
                 "reason": "package requires HarborBackend platform/dockerfile handling; covered by S2c mutation-hunt",
             }
-        patch: Path | None = None
-        probe_pkg = package
-        cleanup_dir: Path | None = None
         if not loaded.separate:
             default_patch = package / "solution" / "patch.diff"
             patch = ref_patch or (default_patch if default_patch.is_file() else None)
             if patch is None:
                 patch = self._extract_embedded_patch(package, run_dir)
             if patch is None:
+                if cleanup_dir is not None:
+                    shutil.rmtree(cleanup_dir, ignore_errors=True)
                 return {
                     "status": "not_applicable",
                     "verdict": "unknown",
                     "reason": "raw MiMo package without a reference patch",
                 }
-            probe_pkg, cleanup_dir = self._prepare_mimo_probe_package(package)
+            if cleanup_dir is None:
+                probe_pkg, cleanup_dir = self._prepare_mimo_probe_package(package)
         try:
             with self.slot(f"qa-task/{package.name}/ref-subset"):
                 report = probe_task(
@@ -3522,6 +3533,8 @@ def stage_s3(
 
 def import_evidence(path: Path, subject: Subject) -> list[Finding]:
     """Import candidate records; never trust their claimed refutation status."""
+    if path.is_dir() and (path / subject.task_id.split("/")[-1]).is_dir():
+        path = path / subject.task_id.split("/")[-1]
     paths = sorted(path.glob("*.json")) if path.is_dir() else [path]
     findings = []
     for source in paths:

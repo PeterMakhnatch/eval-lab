@@ -38,6 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import serve  # noqa: E402
 
+if serve.WINDOW is not None:
+    raise ValueError("an admitted BASE serving window cannot deploy LoRA adapters")
+
 APP_NAME = "evallab-mimo-v26-9b-lora"
 SFT_VOLUME_NAME = "evallab-mimo-v26-9b-sft"
 SFT_ROOT = Path("/sft")

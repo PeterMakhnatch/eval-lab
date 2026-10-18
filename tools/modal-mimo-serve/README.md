@@ -124,6 +124,22 @@ continues stop attempts and reports overrun rather than clamping/refunding it.
 Do not claim zero billing from an accepted stop RPC, a deployment, a process
 exit, or a bare `/health` response.
 
+Ownership digest tags use unpadded Base32 of the **complete SHA-256** (52
+characters), because the pinned SDK rejects 64-character hex values and the
+`sha256:` prefix in tags. Journal, envelope and remote reservation digests
+retain their original hex representations.
+
+If a local constructor failed **before** any deployment was invoked, the parent
+may finish that already-consumed reservation once with `complete-startup`.
+First identify and stop only its previous owned local watchdog, preserve the
+failure evidence, and bind the resulting journal SHA. The command requires the
+same remote claim, no existing guard or previously owned app, no live Base/LoRA,
+and the unchanged admitted config/start/deadline. It never creates/refunds a
+reservation, extends time, or resumes a deployment; an attempted completion is
+irreversible even if the external deployment fails. A new fresh-source local
+watchdog must heartbeat before deployment, and remote/process guards remain
+mandatory before readiness.
+
 ```bash
 # Free, provider-free quote; does not admit/deploy/probe anything.
 uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py quote \
@@ -139,6 +155,11 @@ keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-
   --budget-state <parent-envelope.json> --budget-state-sha256 <immutable-envelope-sha256> \
   --owner <parent-owner> --deadline <completed-stop-UTC-ISO8601> \
   --environment main --state <owned-durable-window-journal.json>
+
+# Parent only, after a proven pre-deployment constructor failure and owned-watchdog stop:
+# Uses exactly the existing budget, reservation, start and deadline; no new claim.
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py complete-startup \
+  --state <owned-durable-window-journal.json> --journal-sha256 <exact-frozen-journal-sha256>
 
 # Free metadata observation; never wakes the GPU. Without --once, watches to stop.
 keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py watch \

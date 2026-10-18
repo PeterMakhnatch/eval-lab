@@ -175,3 +175,107 @@ def test_bounded_metadata_reaches_real_sdk_transport_once(window, monkeypatch, u
     else:
         assert [row.app_id for row in control.apps()] == ["ap-metadata"]
     assert calls == [("main", 10)]
+
+
+def test_real_sdk_accepts_owned_tags_and_rejects_a_changed_digest_suffix(window, config):
+    modal = pytest.importorskip("modal")
+    tags = window.ownership_tags(config)
+    modal.App(window.APP_NAME, tags=tags)
+    control = object.__new__(window.ModalControl)
+    control.tags = lambda app_id: tags
+    control.rpc = Mock()
+    changed = {**config, "budget_state": {**config["budget_state"], "sha256": "sha256:" + "a" * 63 + "b"}}
+    with pytest.raises(ValueError, match="ownership"):
+        control.stop(changed, "ap-owned")
+    control.rpc.assert_not_called()
+
+
+@pytest.fixture
+def claimed_startup(window, config, tmp_path, monkeypatch):
+    controls = tmp_path / "controls.json"
+    controls.write_text('{"strict_tasks":19}')
+    controls_sha = window.sha256(controls.read_bytes())
+    monkeypatch.setattr(window, "CONTROLS_SHA256", controls_sha)
+    serving = {key: config[key] for key in ("app_name", "gpu", "hard_cpu_limit", "hard_memory_mib_limit",
+        "usd_per_second_upper_bound", "maximum_seconds", "shutdown_reserve_seconds", "cap_usd")}
+    budget = {"schema": "mimo.phase2-envelope/v1", "reservation_id": config["reservation_id"], "admitted": True,
+              "ledger_tag": "2026-10-17-v7", "approved_usd": "12.00", "serving": serving,
+              "native": {"cap_usd": "6.50"}, "heldout_regrade": {"cap_usd": "3.00"},
+              "controls": {"path": str(controls), "sha256": "sha256:" + controls_sha}}
+    path = tmp_path / "budget.json"
+    path.write_text(json.dumps(budget))
+    config["budget_state"] = {"path": str(path), "sha256": "sha256:" + window.sha256(path.read_bytes())}
+    journal = window.Journal(tmp_path / "window.json")
+    journal.create(config)
+    claim = window.sha256(window.encoded(config))
+    store = {"reservation:" + config["reservation_id"]: claim}
+    provider = {"app_id": "", "previous_app_id": "", "tags": {}, "state": 5, "tasks": []}
+
+    def rpc(method, request, timeout):
+        if method == "AppGetByDeploymentName":
+            return SimpleNamespace(app_id=provider["app_id"], previous_app_id=provider["previous_app_id"])
+        if method == "AppGetLifecycle":
+            return SimpleNamespace(lifecycle=SimpleNamespace(app_state=provider["state"]))
+        if method == "TaskList":
+            return SimpleNamespace(tasks=provider["tasks"])
+        raise AssertionError(method)
+
+    control = SimpleNamespace(store=SimpleNamespace(get=store.get), apps=lambda: [], rpc=rpc,
+        tags=lambda app_id: provider["tags"], api=SimpleNamespace(APP_STATE_STOPPED=5,
+            AppGetByDeploymentNameRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+            AppGetLifecycleRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+            TaskListRequest=lambda **kwargs: SimpleNamespace(**kwargs)))
+    monkeypatch.setattr(window, "ModalControl", lambda environment: control)
+    monkeypatch.setattr(window.time, "time", lambda: 2000)
+    args = SimpleNamespace(state=journal.path, journal_sha256=window.sha256(journal.path.read_bytes()))
+    return journal, args, store, provider
+
+
+def test_interrupted_startup_cannot_create_a_second_app_or_extend_its_claim(window, claimed_startup, monkeypatch):
+    journal, args, store, provider = claimed_startup
+    before = journal.read()
+    attempts = []
+
+    def interrupted(journal, config, control):
+        attempts.append(1)
+        raise RuntimeError("external deployment interrupted")
+
+    monkeypatch.setattr(window, "_deploy_reserved", interrupted)
+    with pytest.raises(RuntimeError, match="interrupted"):
+        window.complete_startup(args)
+    args.journal_sha256 = window.sha256(journal.path.read_bytes())
+    with pytest.raises(ValueError, match="unstarted"):
+        window.complete_startup(args)
+    after = journal.read()
+    assert attempts == [1]
+    assert after["state"] == "startup_completion_claimed"
+    assert after["config"] == before["config"] and after["reserved_usd"] == before["reserved_usd"]
+    assert store == {"reservation:" + before["config"]["reservation_id"]: before["config_sha256"]}
+
+
+@pytest.mark.parametrize("unsafe", ["expired", "claim_mismatch", "armed_guard", "owned_previous_app", "foreign_live_app",
+                                  "deployment_invoked", "journal_changed"])
+def test_startup_refuses_unsafe_claims_before_any_deployment(window, claimed_startup, monkeypatch, unsafe):
+    journal, args, store, provider = claimed_startup
+    config = journal.read()["config"]
+    if unsafe == "expired":
+        monkeypatch.setattr(window.time, "time", lambda: 4381)
+    elif unsafe == "claim_mismatch":
+        store["reservation:" + config["reservation_id"]] = "different-config"
+    elif unsafe == "armed_guard":
+        store["guard:" + config["reservation_id"]] = {"armed": True}
+    elif unsafe == "owned_previous_app":
+        provider.update(previous_app_id="ap-previous", tags={"evallab_window_id": config["window_id"]})
+    elif unsafe == "foreign_live_app":
+        provider.update(app_id="ap-foreign", state=4, tasks=[SimpleNamespace(task_id="task-live")])
+    elif unsafe == "deployment_invoked":
+        journal.update(deployment_invoked_at=window.utc(1500))
+        args.journal_sha256 = window.sha256(journal.path.read_bytes())
+    elif unsafe == "journal_changed":
+        journal.update(watchdog_heartbeat_at=window.utc(1500))
+    deployment = Mock()
+    monkeypatch.setattr(window, "_deploy_reserved", deployment)
+    with pytest.raises(ValueError):
+        window.complete_startup(args)
+    deployment.assert_not_called()
+    assert journal.read()["reserved_usd"] == "2.50"

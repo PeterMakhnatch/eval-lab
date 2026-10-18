@@ -9,6 +9,7 @@ absolute in-container process deadline do not depend on that controller.
 from __future__ import annotations
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import importlib
@@ -148,9 +149,13 @@ def config_from_env() -> dict[str, Any] | None:
 
 
 def ownership_tags(config: dict[str, Any]) -> dict[str, str]:
+    def digest_tag(digest: str) -> str:
+        # Modal permits at most 63 tag characters; retain all 256 bits, not a truncated hex prefix.
+        return base64.b32encode(bytes.fromhex(digest.removeprefix("sha256:"))).decode().rstrip("=")
+
     return {"evallab_window_id": config["window_id"],
-            "evallab_window_config_sha256": sha256(encoded(config)),
-            "evallab_budget_sha256": config["budget_state"]["sha256"]}
+            "evallab_window_config_sha256": digest_tag(sha256(encoded(config))),
+            "evallab_budget_sha256": digest_tag(config["budget_state"]["sha256"])}
 
 
 class Journal:
@@ -183,9 +188,11 @@ class Journal:
         require(value["reserved_usd"] == value["config"]["cap_usd"], "window reservation cannot be reset or refunded")
         return value
 
-    def update(self, **changes: Any) -> dict[str, Any]:
+    def update(self, *, expected_sha256: str | None = None, **changes: Any) -> dict[str, Any]:
         require(not ({"config", "config_sha256", "reserved_usd"} & changes.keys()), "immutable journal fields cannot change")
         with self.locked():
+            if expected_sha256 is not None:
+                require(sha256(self.path.read_bytes()) == expected_sha256, "owned journal changed before startup claim")
             value = self.read()
             value.update(changes)
             config = value["config"]
@@ -365,11 +372,16 @@ def deploy(args: argparse.Namespace) -> dict[str, Any]:
                     "another BASE/LoRA app is live; do not replace it or open a parallel GPU window")
     require(control.store.put("reservation:" + config["reservation_id"], sha256(encoded(config)), skip_if_exists=True),
             "parent reservation has already been consumed; a new local journal cannot reset it")
+    return _deploy_reserved(journal, config, control)
+
+
+def _deploy_reserved(journal: Journal, config: dict[str, Any], control: ModalControl) -> dict[str, Any]:
     log_path = journal.path.with_suffix(journal.path.suffix + ".watchdog.log")
     with log_path.open("ab") as logs:
         process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "watch", "--state", str(journal.path)],
             stdin=subprocess.DEVNULL, stdout=logs, stderr=logs, start_new_session=True)
-    journal.update(watchdog_spawned_pid=process.pid, watchdog_log=str(log_path))
+    journal.update(watchdog_spawned_pid=process.pid, watchdog_log=str(log_path),
+                   watchdog_heartbeat_at=None, watchdog_pid=None)
     arm_until = time.monotonic() + 20
     while not journal.read().get("watchdog_heartbeat_at"):
         require(process.poll() is None and time.monotonic() < arm_until, "independent local watchdog failed to start")
@@ -381,7 +393,8 @@ def deploy(args: argparse.Namespace) -> dict[str, Any]:
     serve = importlib.import_module("serve")
     require(config == serve.WINDOW, "serve.py did not retain this exact window config")
     # No weights download, readiness request, autoscaler minimum, or second app.
-    serve.app.deploy(environment_name=args.environment, strategy="recreate")
+    journal.update(deployment_invoked_at=utc())
+    serve.app.deploy(environment_name=config["environment"], strategy="recreate")
     app_id = serve.app.app_id
     require(isinstance(app_id, str) and app_id.startswith("ap-"), "deployment did not return an actual app ID")
     control.verify_owner(config, app_id)
@@ -411,6 +424,53 @@ def deploy(args: argparse.Namespace) -> dict[str, Any]:
     journal.update(state="guard_not_armed")
     control.stop(config, app_id)
     raise RuntimeError("remote guard did not arm; stop requested and no readiness/model request admitted")
+
+
+def complete_startup(args: argparse.Namespace) -> dict[str, Any]:
+    """Complete an unstarted deployment under its existing claim and immutable deadline, once."""
+    journal = Journal(args.state)
+    require(sha256(journal.path.read_bytes()) == args.journal_sha256, "owned journal SHA256 mismatch")
+    value = journal.read()
+    require(value["state"] == "reserved_not_deployed" and value["app_id"] is None and value["upstream"] is None
+            and value["stop_guard"] == {"armed": False} and not value.get("deployment_invoked_at")
+            and not value.get("deployment") and not value.get("stopped_at"),
+            "only an unstarted owned deployment may complete startup; never resume or redeploy")
+    config = value["config"]
+    original = admitted_config(Path(config["budget_state"]["path"]),
+        config["budget_state"]["sha256"].removeprefix("sha256:"), config["owner"], config["stop_deadline"],
+        now=instant(config["starts_at"]))
+    original["environment"] = config["environment"]
+    require(original == config, "startup completion cannot change budget, start, reservation or deadline")
+    require(time.time() < instant(config["expires_at"]), "original window expired; startup cannot extend it")
+    for pid in {value.get("watchdog_spawned_pid"), value.get("watchdog_pid")} - {None}:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise WindowError("the previous owned watchdog must be stopped before replacing its startup code")
+    control = ModalControl(config["environment"])
+    require(control.store.get("reservation:" + config["reservation_id"]) == value["config_sha256"],
+            "existing remote reservation does not match this immutable config")
+    require(control.store.get("guard:" + config["reservation_id"]) is None, "remote guard already exists; refusing rearm")
+    names = {APP_NAME, APP_NAME + "-lora"}
+    app_ids = {row.app_id for row in control.apps() if (row.name or row.description) in names}
+    for name in sorted(names):
+        deployment = control.rpc("AppGetByDeploymentName",
+            control.api.AppGetByDeploymentNameRequest(name=name, environment_name=config["environment"]), 10)
+        app_ids.update(app_id for app_id in (deployment.app_id, deployment.previous_app_id) if app_id)
+    for app_id in sorted(app_ids):
+        tags = control.tags(app_id)
+        require(tags.get("evallab_window_id") != config["window_id"], "this window already created an app; refusing redeploy")
+        lifecycle = control.rpc("AppGetLifecycle", control.api.AppGetLifecycleRequest(app_id=app_id), 5).lifecycle
+        tasks = control.rpc("TaskList", control.api.TaskListRequest(app_id=app_id), 5).tasks
+        require(lifecycle.app_state == control.api.APP_STATE_STOPPED and not tasks,
+                "a BASE/LoRA app is live; refusing a parallel serving window")
+    require(time.time() < instant(config["expires_at"]), "original window expired during startup proof")
+    journal.update(expected_sha256=args.journal_sha256, state="startup_completion_claimed",
+        startup_completion={"previous_journal_sha256": args.journal_sha256, "claimed_at": utc(),
+                            "remote_claim_reused_without_put": True, "examined_app_ids": sorted(app_ids)})
+    return _deploy_reserved(journal, config, control)
 
 
 def validate_upstream(upstream: str) -> None:
@@ -527,6 +587,9 @@ def main(argv: list[str] | None = None) -> None:
     start.add_argument("--deadline", required=True, help="absolute UTC completed-stop deadline, not stop-request time")
     start.add_argument("--environment", required=True)
     start.add_argument("--state", type=Path, required=True)
+    complete = commands.add_parser("complete-startup", help="parent only: finish one already-claimed unstarted window")
+    complete.add_argument("--state", type=Path, required=True)
+    complete.add_argument("--journal-sha256", required=True, help="exact stopped-watchdog journal bytes; no new deadline")
     for name in ("watch", "health", "binding", "stop", "receipt"):
         command = commands.add_parser(name)
         command.add_argument("--state", type=Path, required=True)
@@ -549,6 +612,8 @@ def main(argv: list[str] | None = None) -> None:
                       "qualified": False, "admitted": False}
         elif args.command == "deploy":
             result = receipt(deploy(args))
+        elif args.command == "complete-startup":
+            result = receipt(complete_startup(args))
         else:
             journal = Journal(args.state)
             if args.command in {"watch", "stop"}:

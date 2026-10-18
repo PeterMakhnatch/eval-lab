@@ -19,9 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from evallab.counts import task_index_for
 from evallab.registry import compute_subpath_digest, compute_task_digests, harbor_task_digest
-from evallab.setup_fingerprint import lineage_ledger_binding
+from evallab.setup_fingerprint import lineage_ledger_binding, load_reference_profile
 from evallab.task_variants import VariantRecord, derive_task, lineage_chain, materialize, verify
 
 SCHEMA = "repaired_data_sft_v2.control_admission/v1"
@@ -332,8 +334,8 @@ def copy_candidate(record: VariantRecord, source: Path, root: Path) -> dict[str,
         shutil.copyfile(source, target)
     if target.read_bytes() != source.read_bytes():
         raise ValueError("canonical copy changed source record history")
-    return {**file_binding(target), "relative_path": str(record.record_relpath()), "status": record.status,
-            "byte_identical_to_source": True, "status_evidence_appended": False}
+    return {**file_binding(target), "path": str(record.record_relpath()), "audited_path": str(target.resolve()),
+            "status": record.status, "byte_identical_to_source": True, "status_evidence_appended": False}
 
 
 def audit(*, root: Path, handoff_path: Path, request_path: Path, archive_path: Path,
@@ -576,6 +578,37 @@ def audit(*, root: Path, handoff_path: Path, request_path: Path, archive_path: P
     return {"report": report_ref, "counts": report["counts"], "status": report["status"], "generation_scope": scope_ref}
 
 
+def write_generation_profile(root: Path, report_ref: dict[str, Any], target: Path) -> dict[str, Any]:
+    """Rebind the owned generation profile to an actual completed audit receipt."""
+    name = "xiaomi-mimo-phase2-train-20261018"
+    if target.name != name + ".yaml":
+        raise ValueError("profile output must name the exact generation-only profile")
+    report_path = Path(report_ref["path"])
+    require_binding(report_path, report_ref["sha256"])
+    report = json.loads(report_path.read_bytes())
+    tasks = report["tasks"]
+    if (report["schema"] != SCHEMA or [task["task_id"] for task in tasks] != list(STRICT_TASK_IDS)
+            or not all(task["controls_qualified"] and task["strict_assertion_scope_admission"] for task in tasks)):
+        raise ValueError("profile requires a complete exact19 current control audit")
+    profile = load_reference_profile(root, "xiaomi-mimo-rl")
+    profile["name"] = name
+    profile["description"] = (
+        "Exact19 repaired train candidates for fresh native MiMo-9B generation only. "
+        "Native fields retain xiaomi-mimo-rl's actual source citations. Retained controls are "
+        "not new executions, locked-nop validation, general semantic certification or ledger admission. "
+        "No held-out scoring, replay or dataset validation is authorized."
+    )
+    profile["campaign_lineage"] = {"headline": {
+        "transforms": sorted({edge["transform"] for task in tasks for edge in task["lineage"]}),
+        "package_digests": [task["identity"]["package_digest"] for task in tasks],
+    }}
+    profile["campaign_native_controls"] = {"audit": {"path": str(report_path.resolve()), "sha256": report_ref["sha256"]},
+                                           "purpose": "fresh_native_repaired"}
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(yaml.safe_dump(profile, sort_keys=False), encoding="utf-8")
+    return file_binding(target)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[3])
@@ -583,9 +616,13 @@ def main() -> int:
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--native-proof-archive", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="New, owned immutable audit directory")
+    parser.add_argument("--profile-output", type=Path,
+                        help="Explicitly generate/rebind the exact19 generation-only profile after a complete audit")
     args = parser.parse_args()
     result = audit(root=args.repo_root.resolve(), handoff_path=args.handoff.resolve(), request_path=args.request.resolve(),
                    archive_path=args.native_proof_archive.resolve(), output=args.output.resolve())
+    if args.profile_output is not None:
+        result["profile"] = write_generation_profile(args.repo_root.resolve(), result["report"], args.profile_output.resolve())
     print(json.dumps(result, sort_keys=True))
     return 0 if result["counts"]["strict_control_qualified"] == len(STRICT_TASK_IDS) else 1
 

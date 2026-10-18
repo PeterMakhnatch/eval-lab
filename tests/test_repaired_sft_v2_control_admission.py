@@ -146,7 +146,8 @@ def test_byte_copy_preserves_candidate_history_and_local_lineage(tmp_path):
     path = source_root / record.record_relpath()
     original = path.read_bytes()
     copied = admission.copy_candidate(record, path, destination)
-    canonical = Path(copied["path"])
+    assert not Path(copied["path"]).is_absolute()
+    canonical = destination / copied["path"]
     assert canonical.read_bytes() == original == path.read_bytes()
     assert copied["sha256"] == "sha256:" + hashlib.sha256(original).hexdigest()
     assert not copied["status_evidence_appended"]
@@ -199,3 +200,23 @@ def test_native_custody_refuses_missing_source_or_changed_bound_file(tmp_path):
     assert admission.native_file_custody(job, expected, None, expected, expected)["failures"]
     retained.unlink()
     assert "missing" in " ".join(admission.native_file_custody(job, expected, None, expected, set())["failures"])
+
+
+def test_profile_rebind_preserves_native_fields_and_removes_unrelated_scopes(tmp_path, monkeypatch):
+    native = {"name": "xiaomi-mimo-rl", "harness": {"id": {"value": "mimoagent-default", "source": "actual upstream"}},
+              "sampling": {"temperature": {"value": 1.0, "source": "actual upstream"}},
+              "campaign_lineage": {"pin_diagnostic": {"package_digests": ["not-a-train-task"]}}}
+    monkeypatch.setattr(admission, "load_reference_profile", lambda root, name: copy.deepcopy(native))
+    tasks = [{"task_id": task, "controls_qualified": True, "strict_assertion_scope_admission": True,
+              "identity": {"package_digest": "sha256:" + task.zfill(64)},
+              "lineage": [{"transform": "verifier-repair@1"}]} for task in admission.STRICT_TASK_IDS]
+    report = admission.write_json(tmp_path / "control-admission.json", {"schema": admission.SCHEMA, "tasks": tasks})
+    profile_path = tmp_path / "xiaomi-mimo-phase2-train-20261018.yaml"
+    admission.write_generation_profile(tmp_path, report, profile_path)
+    profile = admission.yaml.safe_load(profile_path.read_text())
+    assert profile["harness"] == native["harness"]
+    assert profile["sampling"] == native["sampling"]
+    assert list(profile["campaign_lineage"]) == ["headline"]
+    assert profile["campaign_lineage"]["headline"]["package_digests"] == [task["identity"]["package_digest"] for task in tasks]
+    assert profile["campaign_native_controls"] == {"purpose": "fresh_native_repaired",
+                                                  "audit": {"path": report["path"], "sha256": report["sha256"]}}

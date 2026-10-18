@@ -171,6 +171,31 @@ outcome, and a positive counted `Ran ... tests` with a counted `PASSED`/`FAILED`
 completion. A nonfatal Python site startup warning does not erase those completed
 cases.
 
+Inline Python stdin invocations are also recognized when their parsed body
+imports Django's `DiscoverRunner`, constructs it, and directly calls that bound
+instance's `run_tests`. Imported names and instances must not have been shadowed;
+imports, unused runners, dormant Python functions, comments, and echoed source
+are not invocations. This inspects code as data, never executes it, and retains
+the adjacent command/output and named completed-suite requirements above.
+
+For native terminal pytest artifacts, a separate case-reader caller may supply
+`positive_case_execution(repeat, pytest_command=producer_code)`. The caller must
+first bind that producer code to the recorded package and verifier digests;
+the reader does not recover it from an old staged tree. It requires a declared
+`python -m pytest --ctrf /logs/verifier/ctrf.json` invocation, unique named
+passed/failed cases in the repeat's real `ctrf.json`, internally consistent
+report totals, and adjacent `test-stdout.txt` with matching completed
+passed/failed counts and no collection/setup error count. Skipped/pending/other
+records alone, malformed reports, contradictory counts, and another invocation's
+output do not qualify. Without a bound producer this terminal path stays
+unqualified. The ordinary formatter fleet reader and its membership are not
+expanded to terminal tasks.
+
+Reader support added on 2026-10-18 changes only a new interpretation of retained
+evidence. Keep previous observations and source hashes immutable; publish a
+separately versioned, source-bound assessment rather than overwriting historical
+`scored` or `test_execution` flags or granting training/scoring admission.
+
 Generic custom commands, bare exit codes or markers, arbitrary status words or
 file counts, zero-case or all-skipped runs, truncated or merely started suites,
 and loader-only import failures remain unmeasured. Pytest's zero-case collection

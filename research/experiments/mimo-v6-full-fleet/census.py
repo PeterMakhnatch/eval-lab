@@ -8,17 +8,23 @@ execution UUIDs deduplicate receipt copies; setup failures remain unscored.
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import hashlib
 import json
 import math
 import os
 import re
+import shlex
 from collections import Counter
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from evallab.mimo_census import (
+    _PYTEST_COLLECTED_NONE_RE,
+    _PYTEST_COUNT_RE,
+    _PYTEST_SUMMARY_RE,
     _runner_output_executed,
     job_has_trial_errors,
     trial_grade_logs,
@@ -112,6 +118,147 @@ def _custom_framework_output_executed(framework: str, text: str) -> bool:
     return False
 
 
+def _python_invocations(command: str) -> Iterator[tuple[list[str], str | None]]:
+    """Read declared Python commands and stdin bodies, without executing shell code."""
+    lines = iter(command.splitlines())
+    for line in lines:
+        lexer = shlex.shlex(line, posix=True, punctuation_chars="<>")
+        lexer.whitespace_split = True
+        try:
+            argv = list(lexer)
+        except ValueError:
+            continue
+        body = None
+        if "<<" in argv:
+            index = argv.index("<<")
+            if index + 1 >= len(argv):
+                continue
+            delimiter = argv[index + 1]
+            source = []
+            for line in lines:
+                if line == delimiter:
+                    body = "\n".join(source)
+                    break
+                source.append(line)
+            argv = argv[:index]
+            if body is None:
+                continue
+        if argv[:1] == ["exec"]:
+            argv = argv[1:]
+        if argv and re.fullmatch(r"(?:\S*/)?python(?:\d+(?:\.\d+)*)?", argv[0]):
+            yield argv[1:], body
+
+
+def _inline_django_invocation(command: str) -> bool:
+    for argv, body in _python_invocations(command):
+        if not argv or argv[0] != "-" or body is None:
+            continue
+        try:
+            statements = ast.parse(body).body
+        except SyntaxError:
+            continue
+        constructors: set[str] = set()
+        runners: set[str] = set()
+        for statement in statements:
+            value = statement.value if isinstance(statement, (ast.Assign, ast.Expr)) else None
+            if (
+                isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute)
+                and value.func.attr == "run_tests" and isinstance(value.func.value, ast.Name)
+                and value.func.value.id in runners
+            ):
+                return True
+            constructed = statement.targets[0].id if (
+                isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+                and isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                and value.func.id in constructors
+            ) else None
+            # Do not mistake a reassigned import/runner, a dormant function,
+            # or another object's similarly named method for DiscoverRunner.
+            for node in ast.walk(statement):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+                    constructors.discard(node.id)
+                    runners.discard(node.id)
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                constructors.discard(statement.name)
+                runners.discard(statement.name)
+            if isinstance(statement, (ast.Import, ast.ImportFrom)):
+                for alias in statement.names:
+                    name = alias.asname or alias.name.split(".")[0]
+                    constructors.discard(name)
+                    runners.discard(name)
+                    if (
+                        isinstance(statement, ast.ImportFrom)
+                        and statement.module == "django.test.runner" and statement.level == 0
+                        and alias.name == "DiscoverRunner"
+                    ):
+                        constructors.add(name)
+            if constructed is not None:
+                runners.add(constructed)
+    return False
+
+
+def _terminal_pytest_execution(trial: Path, command: str) -> bool:
+    """Require a caller-bound producer and consistent, repeat-local native reports."""
+    if not any(
+        argv[:2] == ["-m", "pytest"] and body is None
+        and any(
+            argv[index:index + 2] == ["--ctrf", "/logs/verifier/ctrf.json"]
+            for index in range(len(argv))
+        )
+        for argv, body in _python_invocations(command)
+    ):
+        return False
+    for report in sorted(trial.rglob("ctrf.json")):
+        if trial_runner(report.parent) != "pytest":
+            continue
+        try:
+            results = json.loads(report.read_bytes())["results"]
+            text = report.with_name("test-stdout.txt").read_text(encoding="utf-8", errors="replace")
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if not isinstance(results, dict) or not isinstance(results.get("tool"), dict):
+            continue
+        cases, summary = results.get("tests"), results.get("summary")
+        if results["tool"].get("name") != "pytest" or not isinstance(cases, list) or not cases:
+            continue
+        if not isinstance(summary, dict):
+            continue
+        statuses = ("passed", "failed", "skipped", "pending", "other")
+        if any(
+            not isinstance(case, dict) or not isinstance(case.get("name"), str)
+            or "::" not in case["name"]
+            or not all(part.strip() for part in case["name"].rsplit("::", 1))
+            or case.get("status") not in statuses
+            for case in cases
+        ):
+            continue
+        counts = Counter(case["status"] for case in cases)
+        expected = {"tests": len(cases), **{status: counts[status] for status in statuses}}
+        if (
+            len({case["name"] for case in cases}) != len(cases)
+            or any(type(summary.get(key)) is not int or summary[key] != count for key, count in expected.items())
+            or counts["passed"] + counts["failed"] == 0
+            or _PYTEST_COLLECTED_NONE_RE.search(text)
+        ):
+            continue
+        # A plugin can emit named failed rows for fixture/collection errors.
+        # Require the completed stdout's actual passed/failed tallies to agree.
+        summaries = _PYTEST_SUMMARY_RE.findall(text)
+        if len(summaries) != 1:
+            continue
+        observed = Counter()
+        for count, status in _PYTEST_COUNT_RE.findall(summaries[0]):
+            observed[status] += int(count)
+        if (
+            observed["error"] == 0
+            and observed["passed"] == counts["passed"]
+            and observed["failed"] == counts["failed"]
+        ):
+            return True
+    return False
+
+
 def _custom_framework_execution(trial: Path) -> bool:
     for output_path in sorted(trial.rglob("test_output.log")):
         if trial_runner(output_path.parent) != "custom":
@@ -123,6 +270,8 @@ def _custom_framework_execution(trial: Path) -> bool:
             text = output_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        if _inline_django_invocation(command) and _custom_framework_output_executed("django", text):
+            return True
         for invocation in re.finditer(
             r"(?m)^[ \t]*(?:exec[ \t]+)?(?:(?:\S*/)?pipenv[ \t]+run[ \t]+)?"
             r"(?:(?P<django>(?:\S*/)?python(?:\d+(?:\.\d+)*)?[ \t]+"
@@ -137,14 +286,16 @@ def _custom_framework_execution(trial: Path) -> bool:
     return False
 
 
-def positive_case_execution(trial: Path) -> bool:
-    """Require case evidence, not the older verifier's markers=True shortcut."""
+def positive_case_execution(trial: Path, *, pytest_command: str | None = None) -> bool:
+    """Read cases; callers must bind optional terminal producer code to its package."""
     if any(grade["cases"] > 0 for grade in trial_grade_logs(trial)):
         return True
     if any(
         re.search(r"\b(?:mvn|gradle)\s+surefire=\d+\s+cases=[1-9]\d*\b", text)
         for text in trial_output_logs(trial, "junit-grade.log")
     ):
+        return True
+    if pytest_command is not None and _terminal_pytest_execution(trial, pytest_command):
         return True
     runner = trial_runner(trial)
     if runner == "custom" and _custom_framework_execution(trial):

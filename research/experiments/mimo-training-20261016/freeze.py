@@ -932,6 +932,10 @@ def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str
     semantic_controls = selected.get("semantic_repair_controls")
     if semantic_controls is not None:
         rewards = semantic_controls["measured_rewards"]
+    runtime_controls = selected.get("runtime_repair_controls")
+    if runtime_controls is not None and "measured_rewards" in runtime_controls:
+        rewards = runtime_controls["measured_rewards"]
+        indexes = []
     return {
         "source": source, "backend": controls["backend"],
         "retained_frozen_v6": {
@@ -941,9 +945,11 @@ def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str
         },
         "reported_setup_controls": setup_controls,
         **({"reported_baseline_controls": baseline_controls} if baseline_controls is not None else {}),
+        **({"reported_runtime_repair_controls": runtime_controls} if runtime_controls is not None else {}),
         "selected_package": {
             "package_digest": selected["package_digest"], "harbor_digest": selected["harbor_digest"],
             **({"measurement_source": "reported_baseline_controls"} if baseline_controls is not None else {}),
+            **({"measurement_source": "reported_runtime_repair_controls"} if runtime_controls is not None else {}),
             "observation_indexes": indexes, "measured_reference_rewards": rewards["oracle"],
             "measured_nop_rewards": rewards["nop"], "status": "pending",
             "missing": [
@@ -1004,6 +1010,14 @@ def _successor_repairs(path: Path | None, sources: dict[str, dict[str, Any]]) ->
 
 def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[str, Any],
                                selected: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    # EnvCheck remains an append-only semantic-repair contract with a nonempty
+    # wrong inventory. The bounded runtime path verifies its own full inventory.
+    return _successor_native_repair_controls(candidate, qualification, selected, sources, require_wrong_inventory=True)
+
+
+def _successor_native_repair_controls(candidate: dict[str, Any], qualification: dict[str, Any],
+                                      selected: dict[str, Any], sources: dict[str, dict[str, Any]], *,
+                                      require_wrong_inventory: bool) -> dict[str, Any]:
     from evallab.registry import compute_task_digests
     from evallab.runner import load_job, load_matrix, matrix_run_outcome, staged_matrix_request
     from evallab.task_variants import harbor_task_digest
@@ -1026,7 +1040,8 @@ def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[st
     wrongs = {control["run"]: control for control in candidate["known_wrong_reproducers"]}
     alternates = {control["run"] for control in candidate["adjudicated_correct_controls"]}
     if (len(matrix.runs) < 3 or matrix.runs[0].agent != "oracle" or matrix.runs[1].agent != "nop"
-            or {run.name for run in matrix.runs[2:]} != set(wrongs) | alternates or not wrongs):
+            or {run.name for run in matrix.runs[2:]} != set(wrongs) | alternates
+            or (require_wrong_inventory and not wrongs)):
         raise ValueError("repair matrix does not cover its complete declared wrong/correct inventory")
     native_reader = runpy.run_path(str(ROOT / "research/experiments/mimo-v6-full-fleet/census.py"))["native_observations"]
     observations = []
@@ -1041,6 +1056,7 @@ def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[st
         if (check["status"] != "ok" or check["role"] != role
                 or check["matrix_sha256"] != candidate["matrix_sha256"]
                 or run.expect_reward != expected or run.attempts != 1
+                or check.get("expected_reward", expected) != expected
                 or run.agent != ("nop" if role == "nop" else "oracle")):
             raise ValueError(f"repair control role, expectation or completion mismatch: {run.name}")
         job = Path(check["job_dir"]).resolve()
@@ -1059,10 +1075,14 @@ def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[st
                         "source_harbor_digest", "staged_harbor_digest", "executed_harbor_digest",
                     ))):
                 raise ValueError(f"repair control executed a different package, grader or submission: {run.name}")
+        loaded = load_job(job)
         if (native["agent"] != run.agent or native["scored"] is not True
+                or canonical_id(native["task_id"]) != matrix.task_id
                 or native["rewards"] != [expected] * (3 if repeated else 1)
                 or (repeated and not _successor_repeat_proof(native, sources))
-                or matrix_run_outcome(load_job(job), run)["status"] != "ok"
+                or matrix_run_outcome(loaded, run)["status"] != "ok"
+                or any((trial.result.get("config", {}).get("agent") or {}).get("model_name") is not None
+                       for trial in loaded.trials)
                 or (repeated and check["repeats"] != native["rewards"])):
             raise ValueError(f"repair control has absent, errored or conflicting native outcomes: {run.name}")
         if run.name in wrongs:
@@ -1076,6 +1096,7 @@ def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[st
             Path(native["metadata_path"]), Path(native["result_path"]),
             Path(native["task_binding"]["config_path"]), Path(native["task_binding"]["lock_path"]),
         ]
+        paths.extend(job / name for name in ("result.json", "config.json", "lock.json") if (job / name).is_file())
         trial = Path(native["result_path"]).parent
         paths.extend(path for directory in ("agent", "verifier") for path in (trial / directory).rglob("*") if path.is_file())
         for path in sorted(set(paths)):
@@ -1222,9 +1243,84 @@ def _successor_setup(path: Path, parent: dict[str, Any], repo_root: Path,
     }
 
 
+def _successor_runtime_repair(path: Path, parent: dict[str, Any], repo_root: Path,
+                              sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    from evallab.runner import load_matrix
+    from evallab.training_freeze import RuntimeRepairHandoff, validate_runtime_repair
+
+    handoff = RuntimeRepairHandoff.model_validate(_successor_json(path, sources))
+    verified = validate_runtime_repair(handoff, parent, repo_root=repo_root, sources=sources)
+    selected = handoff.selected.model_dump()
+    record_path = Path(handoff.native_record.path)
+    lineage = _successor_lineage(
+        handoff.task_id, selected, str(record_path), handoff.native_record.sha256, repo_root, sources,
+        records_root=record_path.parent.parent,
+    )
+    if lineage["records_newest_first"][1:] != parent["lineage"]["records_newest_first"]:
+        raise ValueError("runtime repair does not extend the complete exact-parent lineage")
+    matrix_path = Path(handoff.matrix.path)
+    matrix = load_matrix(matrix_path)
+    producer_root = next((item for item in matrix_path.parents if (item / "pyproject.toml").is_file()), None)
+    controls = {item.run: item for item in handoff.controls}
+    if (producer_root is None or matrix.task_id != handoff.task_id
+            or (producer_root / matrix.task).resolve() != Path(selected["package_path"])
+            or matrix.task_package_digest != selected["package_digest"]
+            or matrix.verifier_digest != selected["verifier_digest"]
+            or [run.name for run in matrix.runs[:2]] != ["reference", "nop"]
+            or len(matrix.runs) != len(controls) + 2
+            or len({run.name for run in matrix.runs}) != len(matrix.runs)
+            or {run.name for run in matrix.runs[2:]} != set(controls)):
+        raise ValueError("runtime repair matrix does not bind the selected package and complete inventory")
+    for index, run in enumerate(matrix.runs):
+        role = "reference" if index == 0 else "nop" if index == 1 else controls[run.name].role
+        expected = 0.0 if role in {"nop", "known-wrong"} else 1.0
+        if (run.agent != ("nop" if role == "nop" else "oracle")
+                or run.model is not None or run.allow_billable is not False
+                or run.attempts != 1 or run.expect_reward != expected
+                or (index < 2 and run.solution is not None)
+                or (index >= 2 and (run.solution is None
+                    or (producer_root / run.solution).resolve() != Path(controls[run.name].script.path).resolve()))):
+            raise ValueError("runtime repair matrix changed a role, payload or model-free control")
+    native = {
+        "status": "pending", "required": {
+            "reference": [1, 1, 1], "nop": [0, 0, 0],
+            "known_wrong": [{"run": item.run, "reward": 0} for item in handoff.controls if item.role == "known-wrong"],
+            "adjudicated_correct": [{"run": item.run, "rewards": [1, 1, 1]} for item in handoff.controls if item.role == "prompt-valid-alternate"],
+        },
+        "scope": "New selected digest only; no parent controls or verdicts transfer.",
+    }
+    receipt = verified["qualification"]
+    if receipt is not None:
+        candidate = {
+            "matrix": handoff.matrix.path, "matrix_sha256": handoff.matrix.sha256,
+            "known_wrong_reproducers": [
+                {"run": item.run, "patch": item.patch.path, "patch_sha256": item.patch.sha256,
+                 "script": item.script.path, "script_sha256": item.script.sha256}
+                for item in handoff.controls if item.role == "known-wrong"
+            ],
+            "adjudicated_correct_controls": [
+                {"run": item.run} for item in handoff.controls if item.role == "prompt-valid-alternate"
+            ],
+        }
+        qualification = {"qualified": True, "matrix_sha256": receipt.matrix_sha256,
+                         "checks": [check.model_dump() for check in receipt.checks]}
+        native = _successor_native_repair_controls(
+            candidate, qualification, selected, sources, require_wrong_inventory=False,
+        )
+    return selected | {
+        "version_column": "v7", "repair_scope": "source-bound-collection-boundary",
+        "test_repair_claim": True, "setup_only": False, "lineage": lineage,
+        "qualified_for_v7": False, "runtime_repair_controls": native,
+        "selection_handoff": {
+            "source": dict(sources[str(path.resolve())]),
+            "receipt": handoff.model_dump(mode="json", by_alias=True),
+        },
+    }
+
+
 def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None = None,
-                      setup_handoff: Path | None = None, repo_root: Path = ROOT,
-                      native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
+                      setup_handoff: Path | None = None, runtime_repair_handoff: Path | None = None,
+                      repo_root: Path = ROOT, native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
     """Assemble the frozen33 candidate; no ranking, execution, or scoring release."""
     frozen_source_dir, repo_root = frozen_source_dir.resolve(), repo_root.resolve()
     sources: dict[str, dict[str, Any]] = {}
@@ -1306,6 +1402,11 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
         if task_id in repairs["selections"]:
             selected = _successor_repair(task_id, selected, repairs["selections"][task_id], repo_root, sources)
             kind = "semantic-repair"
+        if task_id == "format-code-task-001246" and runtime_repair_handoff is not None:
+            if task_id in repairs["selections"]:
+                raise ValueError("001246 cannot select both an EnvCheck semantic repair and a runtime repair")
+            selected = _successor_runtime_repair(runtime_repair_handoff, parent, repo_root, sources)
+            kind = "runtime-repair"
         tasks.append(row | {
             "frozen_parent": parent, "evaluation_target": selected, "successor_selection": kind,
             "native_controls": _successor_controls(
@@ -1325,6 +1426,10 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
         "frozen_sources": {name: dict(sources[str(path)]) for name, path in files.items()},
         "tasks": tasks, "semantic_repairs": repairs,
         "setup_selection": {"status": "selected" if setup_handoff is not None else "pending"},
+        "runtime_repair_selection": {
+            "status": "development_candidate" if runtime_repair_handoff is not None else "not_supplied",
+            "qualified_for_v7": False,
+        },
         "sources": sorted(sources.values(), key=lambda item: item["path"]),
         "scoring_allowed": False, "freeze_ready": False,
         "validity_check_allowed": True, "validity_release": None,
@@ -1341,6 +1446,7 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
             "selected_unchanged_v6": sum(row["successor_selection"] == "unchanged-v6" for row in tasks),
             "selected_setup_only": sum(row["successor_selection"] == "setup-only" for row in tasks),
             "selected_semantic_repairs": sum(row["successor_selection"] == "semantic-repair" for row in tasks),
+            "selected_runtime_repairs": sum(row["successor_selection"] == "runtime-repair" for row in tasks),
         },
         "limits": [
             "Historical scoring authorization is not inherited. This API cannot open scoring.",
@@ -1355,10 +1461,11 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
 
 def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
-                       repo_root: Path = ROOT, native_control_metadata: tuple[Path, ...] = ()) -> None:
+                       runtime_repair_handoff: Path | None = None, repo_root: Path = ROOT,
+                       native_control_metadata: tuple[Path, ...] = ()) -> None:
     """Validate candidate contents and current source/package/record custody."""
     expected = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
-                                 setup_handoff=setup_handoff, repo_root=repo_root,
+                                 setup_handoff=setup_handoff, runtime_repair_handoff=runtime_repair_handoff, repo_root=repo_root,
                                  native_control_metadata=native_control_metadata)
     if encoded(payload) != encoded(expected):
         raise ValueError("successor manifest differs from its exact frozen inputs, selected identities, or closed gates")
@@ -1366,14 +1473,14 @@ def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
 
 def assemble_successor(frozen_source_dir: Path, destination: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
-                       repo_root: Path = ROOT,
+                       runtime_repair_handoff: Path | None = None, repo_root: Path = ROOT,
                        native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
     """Atomically publish a new candidate without replacing any existing file."""
     destination = destination.resolve()
     if destination.is_relative_to(frozen_source_dir.resolve()):
         raise ValueError("successor destination must be outside the frozen source directory")
     payload = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
-                                setup_handoff=setup_handoff, repo_root=repo_root,
+                                setup_handoff=setup_handoff, runtime_repair_handoff=runtime_repair_handoff, repo_root=repo_root,
                                 native_control_metadata=native_control_metadata)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=destination.parent, suffix=".tmp", delete=False) as handle:
@@ -1399,6 +1506,7 @@ def main() -> None:
     parser.add_argument("--frozen-source-dir", type=Path)
     parser.add_argument("--repairs-handoff", type=Path)
     parser.add_argument("--setup-handoff", type=Path)
+    parser.add_argument("--runtime-repair-handoff", type=Path)
     parser.add_argument("--native-control-metadata", type=Path, action="append", default=[])
     parser.add_argument("--successor-destination", type=Path)
     mode = parser.add_mutually_exclusive_group()
@@ -1422,7 +1530,8 @@ def main() -> None:
                 raise ValueError("successor assembly cannot accept scoring-release authority")
             payload = assemble_successor(
                 args.frozen_source_dir, args.successor_destination,
-                repairs_handoff=args.repairs_handoff, setup_handoff=args.setup_handoff, repo_root=args.repo_root,
+                repairs_handoff=args.repairs_handoff, setup_handoff=args.setup_handoff,
+                runtime_repair_handoff=args.runtime_repair_handoff, repo_root=args.repo_root,
                 native_control_metadata=tuple(args.native_control_metadata),
             )
             print(json.dumps({
@@ -1431,7 +1540,8 @@ def main() -> None:
             }, sort_keys=True))
             return
         if any(value is not None for value in (
-                args.frozen_source_dir, args.repairs_handoff, args.setup_handoff, args.successor_destination,
+                args.frozen_source_dir, args.repairs_handoff, args.setup_handoff,
+                args.runtime_repair_handoff, args.successor_destination,
                 *args.native_control_metadata)):
             raise ValueError("successor input/destination arguments require --assemble-successor")
         if args.release_scoring:

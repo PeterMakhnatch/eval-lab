@@ -171,6 +171,102 @@ is not acceptance. V7 acceptance requires reference `[1,1,1]`, do-nothing
 rejected adjudicated-correct submission, and an independent Verifier PASS
 bound to the final manifest and grader bytes.
 
+### Source-bound 001246 collection repair
+
+`format-code-task-001246` has a separate, bounded runtime-repair producer:
+`python -m evallab.mimo_runtime_repair`. It is **not** an EnvCheck semantic
+repair, and does not relax the append-only `verifier-repair@1` selector.
+The optional `--runtime-repair-handoff /absolute/runtime-plan.json` argument
+is forwarded by assembly and exact-source validation. Without it, selection
+is unchanged. Supplying both selectors for 001246 is rejected.
+
+The retained nop UUID `bf0d13f9-ff9a-446f-87a1-7cd1231edd6e` failed before
+collection: `import burnman` eagerly imported `elasticsolutionmodel`, which
+imports the absent `_ideal_activities_fct`. Setup already reported that
+failure before neutralizing **zero** installed copies. The retained
+`solution.py` and `solutionmodel.py` Git blobs are respectively
+`b370f4399b309d14f385aac3b21bff7c78f4debf` and
+`e08ec127c682616c721195ec9490e96c974d2044`: the exact recovered reference
+patch preimages. The reference patch introduces the helper alongside the
+requested public activity implementations. Installing the helper in nop
+setup would therefore install part of the answer, not repair an unrelated
+environment defect.
+
+`mimo-001246-collection@1` changes only `tests/test.patch` on the fixed
+`c4d94db236a5` parent. It moves the thirteen BurnMan imports into a loader
+called at the beginning of every original test, and realizes the four
+existing parameter model factories there, before the temperature exception
+assertion. Imports are never caught. All eleven test functions, fourteen
+cases, model constructors, numeric inputs, assertions and exception checks
+remain; an inverse AST check must reproduce the entire original test AST.
+The command diff and every other package member remain byte-identical.
+A missing helper must now fail a named test body, not be counted as a
+successful zero-case rejection. Native controls must still establish this;
+derivation alone makes no reference/nop outcome claim.
+
+Use an already-installed interpreter and the isolated source tree, with
+explicit artifact destinations (no native execution occurs):
+
+```sh
+PYTHONPATH="$PWD/src" "$EXISTING_PYTHON" -m evallab.mimo_runtime_repair \
+  --parent "$FROZEN_001246_PARENT" \
+  --inventory "$BRIDGE/input-inventory-v7-v3.json" \
+  --causal-evidence /absolute/retained-causal-evidence.json \
+  --repo-root "$PWD" \
+  --output-dir "$PWD/derived/001246-control-plan" \
+  --variants-root "$PWD/derived/001246-variants" \
+  --handoff /absolute/new-runtime-plan.json \
+  --created-by "$ACTOR"
+```
+
+The producer refuses overwrite and uses `derive_task`, full canonical parent
+lineage, and the original frozen patch hash. Its closed
+`mimo-v7-runtime-repair/v1` handoff binds the parent/selected package,
+Harbor and verifier identities, native record, snapshot/reference/log
+evidence, complete effective inventory and its actual authoritative sources,
+every wrong/correct patch and generated script, and a native control matrix.
+The manifest independently rebuilds the only permitted patch and replays
+the record. Added inventory entries, changed bytes, altered adjudications,
+unbound scripts, local-parent substitutions and unrelated deltas are rejected.
+Zero wrong rows is permitted only because the complete bound inventory says
+so, never as a hardcoded qualification count.
+
+The initial handoff has `qualification.status="pending"` and is a
+`development_candidate`: `qualified_for_v7`, `scoring_allowed` and
+`training_allowed` must be literal `false`. Parent controls stay historical,
+never transfer to the child, and selected measurement arrays remain empty.
+The parent executes the planned reference and nop with verifier repeat3,
+each wrong control once, and each adjudicated-correct alternative with
+repeat3. Every run is a distinct, completed, model-free physical execution.
+The current effective inventory's sole correct alternative is the exact
+`ref-mutants-323865e88f` patch (SHA-256
+`eb228e2508808878720ff654fe8822d5b53a32d8a54f827750b135edc8ca6b6d`);
+the authoritative correction says `.prod(-1)` and `.prod(1)` are equivalent
+on the actual two-dimensional occupancy array. It must pass, not be killed.
+
+Completed measurements are optional input, not producer assertions. Publish
+a separately bound `mimo-v7-runtime-controls/v1` receipt (validated by
+`evallab.training_freeze.RuntimeQualificationReceipt`) and replace the
+qualification field in a **new** handoff with
+`{"status":"recorded","receipt":{"path":"/absolute/controls.json",
+"sha256":"sha256:<64 hex>","bytes":1234}}`. The receipt binds `task_id`,
+`package_digest`, `harbor_digest`, `verifier_digest`, `matrix_sha256` and
+`inventory_sha256`; its `checks` contain `run`, `role`, `status="ok"`,
+`expected_reward`, `matrix_sha256`, absolute `job_dir`, `repeats`
+(`null` for wrong, three expected rewards otherwise), plus native matrix
+staging's `solution_sha256` (raw hex) and `staged_task_digest` for submission
+overrides. Omit absent staging fields. No `qualified=true` flag is accepted.
+
+The consumer reuses the existing native fact reader, repeat proof,
+`staged_matrix_request` and `matrix_run_outcome` guards: reference must be
+`[1,1,1]`, nop `[0,0,0]`, every actual wrong submission `0`, and every
+correct alternative `[1,1,1]`, on the exact selected grader and staged
+payload. Case execution is required even for zeros; aliased repeats, parent
+package outcomes, errored or incomplete submissions and false negatives are
+rejected. Successful intake records native custody, **not** v7 acceptance:
+scoring and training stay closed and an independently source-bound Verifier
+PASS remains mandatory.
+
 Exclusion compatibility is not grading admission. Historical byte-pinned
 partition inputs and frozen-v6 scoring analyzers remain historical consumers;
 pointing them at a new filename does not authorize a changed grader.

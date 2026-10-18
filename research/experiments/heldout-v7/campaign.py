@@ -1,10 +1,15 @@
 """Execute only an explicitly Verifier-accepted v7 release.
 
 Canonical execution also requires an admitted parent envelope within Trainer's
-combined $12 approval. Its heldout cap continues the same cumulative journal:
-raising that allocation never resets charges or authorizes retries. Staged runs
-retain their frozen historical $3 cap and approval, without a new envelope.
-Financial admission never releases a scientific HOLD.
+combined $12 approval, raised only by an explicit current aggregate authority
+carrying the window2 authorization identity (Peter's 2026-10-18 11AM ET
+cumulative $14.50, no training). Its heldout cap continues the same cumulative
+journal: raising that allocation never resets charges, and retries exist only
+through the smallest explicit opt-in ``heldout_regrade.retry_grant`` bound to
+the exact pinned original49 journal prefix, a unique grant identity, a deadline
+inside the parent expiry, and exactly the authorized original UID/grader pairs.
+Staged runs retain their frozen historical $3 cap and approval, without a new
+envelope. Financial admission never releases a scientific HOLD.
 """
 
 from __future__ import annotations
@@ -15,11 +20,13 @@ import json
 import os
 import runpy
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from evallab import runner
 from evallab.qa import counterfactual as cf
@@ -33,6 +40,38 @@ file_ref = INVENTORY["file_ref"]
 bound_bytes = INVENTORY["bound_bytes"]
 create_json = INVENTORY["create_json"]
 APP = "mimo-clean-census-v7-classifiers-20261017"
+# The historical combined approval stays $12 unless an explicit current
+# aggregate_authority raises it; the authorized 2026-10-18 11AM ET Trainer
+# window2 cumulative approval is $14.50 and carries no training reservation.
+AGGREGATE_LEGACY_USD = Decimal("12")
+AGGREGATE_CURRENT_USD = Decimal("14.50")
+# A raised ceiling binds only this exact current authority identity, never any
+# nonempty citation text.
+AGGREGATE_AUTHORITY_ID = "trainer-finish-data-20261018-window-2"
+# The window2 retry grant is the smallest possible duplicate exception: exactly
+# these four authorized original (source UID, grader) pairs on this one task may
+# each append one second provenance-marked reservation to the bound journal.
+RETRY_GRANT_TASK = "mimo-v2.6-rl/format-code-task-001246"
+RETRY_GRANT_DIGEST = "sha256:aa6cae30652ed7f270b3279a4ef1f6b9924efb799f8858d0344c827be9441d9d"
+RETRY_GRANT_CELLS = frozenset(
+    (job, trial, RETRY_GRANT_DIGEST)
+    for job, trial in (
+        ("409b9226-faa9-41e9-8161-3fc9e532ff2c", "d58deb1e-082f-406f-9c44-d8d880fb4613"),
+        ("8c17271a-a875-445e-8206-1ad499bf4cc3", "cccc88a4-a489-471a-afe7-495356a09a20"),
+        ("f0f72b17-7229-44e7-9558-a701bbd3e2d5", "92dfa5d0-a350-4d54-bdf7-5e0d658fc020"),
+        ("d94ccebf-a7e3-4bda-9d16-a92fae7bce57", "8548c859-0819-479e-9fec-4f6f5d640dce"),
+    )
+)
+# A grant binds only the exact original 49-row journal prefix at the pinned
+# quote; an internally consistent alternative prefix — expanded or otherwise —
+# is refused even under a fresh grant identity.
+RETRY_GRANT_QUOTE = Decimal("0.0666")
+RETRY_GRANT_PREFIX = {
+    "rows": 49,
+    "size_bytes": 14192,
+    "sha256": "sha256:374d448801156994ecce3766b029db8517770c63470113b61590085c523e0fb2",
+    "reserved_usd": "3.2634",
+}
 
 
 def _money(value: Any, name: str) -> Decimal:
@@ -70,8 +109,21 @@ def checked_budget(
 
     approved = _money(envelope.get("approved_usd"), "approved_usd")
     limit = _money(envelope.get("require_envelope_sum_at_most_usd"), "require_envelope_sum_at_most_usd")
-    if not 0 < approved <= 12 or not 0 < limit <= approved:
-        raise ValueError("the aggregate parent approval and envelope ceiling must be positive and within the actual $12 approval")
+    ceiling = AGGREGATE_LEGACY_USD
+    authority = envelope.get("aggregate_authority")
+    if authority is not None:
+        if (not isinstance(authority, dict) or authority.get("schema") != "mimo.phase2-authority/v1"
+                or authority.get("ledger_tag") != "2026-10-17-v7"
+                or authority.get("authorization_id") != AGGREGATE_AUTHORITY_ID
+                or not isinstance(authority.get("text"), str) or not authority["text"].strip()
+                or authority.get("training_authorized") is not False):
+            raise ValueError("a raised aggregate approval requires an explicit current authority")
+        declared = _money(authority.get("approved_usd_at_most"), "aggregate_authority.approved_usd_at_most")
+        if not AGGREGATE_LEGACY_USD < declared <= AGGREGATE_CURRENT_USD:
+            raise ValueError("a raised aggregate authority exceeds the actual current cumulative authorization")
+        ceiling = declared
+    if not 0 < approved <= ceiling or not 0 < limit <= approved:
+        raise ValueError("the aggregate parent approval and envelope ceiling must be positive and within the actual cumulative approval")
     for name in ("serving", "native", "heldout_regrade"):
         if not isinstance(envelope.get(name), dict) or "cap_usd" not in envelope[name]:
             raise ValueError(f"the parent budget requires a {name} cap")
@@ -80,6 +132,8 @@ def checked_budget(
     total = sum(caps, Decimal(0)) + _money(envelope.get("training_reservation_usd", 0), "training_reservation_usd")
     if total > approved or total > limit:
         raise ValueError("aggregate envelope caps plus training reservation exceed the parent approval or envelope ceiling")
+    if authority is not None and _money(envelope.get("training_reservation_usd", 0), "training_reservation_usd") != 0:
+        raise ValueError("the current aggregate authority admits no training reservation")
 
     heldout = envelope["heldout_regrade"]
     unit = _money(usd_per_execution, "execution quote")
@@ -96,6 +150,7 @@ def checked_budget(
         raise ValueError("the heldout budget must bind the existing cumulative journal") from exc
     if not expected.is_file() or admitted_journal != expected:
         raise ValueError("the heldout budget binds a different cumulative journal")
+    retry_grant(envelope, journal=expected, usd_per_execution=usd_per_execution, now=instant)
 
     sources = envelope.get("sources", {})
     if not isinstance(sources, dict):
@@ -106,6 +161,84 @@ def checked_budget(
             raise ValueError("each parent budget source requires a path and SHA-256")
         bound_bytes(source)
     return envelope, reference
+
+
+def retry_grant(
+    envelope: dict[str, Any], *, journal: Path, usd_per_execution: float, now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Normalize an explicitly declared heldout retry grant, or None when absent.
+
+    A grant is the smallest opt-in duplicate exception on the cumulative
+    journal: a unique canonical-UUID identity, a recorded approval, a live
+    deadline inside the parent expiry, an exact immutable journal-prefix
+    declaration, and exactly the authorized original UID/grader cells. Each
+    granted cell permits a single second reservation carrying the grant
+    identity; anything else keeps the legacy refusal.
+    """
+    heldout = envelope["heldout_regrade"]
+    grant = heldout.get("retry_grant")
+    if grant is None:
+        return None
+    instant = now if now is not None else datetime.now(UTC)
+    unit = _money(usd_per_execution, "execution quote")
+    if (not isinstance(grant, dict) or grant.get("schema") != "heldout-v7.retry-grant/v1"
+            or not isinstance(grant.get("approval"), str) or not grant["approval"].strip()):
+        raise ValueError("a heldout retry grant requires its exact schema and recorded approval")
+    grant_id = grant.get("grant_id")
+    try:
+        identity = isinstance(grant_id, str) and str(UUID(grant_id)) == grant_id
+    except (ValueError, AttributeError, TypeError):
+        identity = False
+    if not identity:
+        raise ValueError("a heldout retry grant requires a unique canonical UUID identity")
+    if not isinstance(envelope.get("expires_at"), str) or not isinstance(grant.get("expires_at"), str):
+        raise ValueError("grant and parent deadlines must be timezone-aware instants")
+    parent_expires = datetime.fromisoformat(envelope["expires_at"])
+    deadline = datetime.fromisoformat(grant["expires_at"])
+    if (deadline.tzinfo is None or deadline.utcoffset() is None or parent_expires.tzinfo is None
+            or instant.tzinfo is None or instant.utcoffset() is None
+            or deadline <= instant or deadline > parent_expires):
+        raise ValueError("the grant deadline must be live and within the parent expiry")
+    declared = grant.get("journal_prefix")
+    if (not isinstance(declared, dict) or unit != RETRY_GRANT_QUOTE
+            or declared.get("rows") != RETRY_GRANT_PREFIX["rows"]
+            or declared.get("size_bytes") != RETRY_GRANT_PREFIX["size_bytes"]
+            or declared.get("sha256") != RETRY_GRANT_PREFIX["sha256"]
+            or _money(declared.get("reserved_usd"), "retry_grant.journal_prefix.reserved_usd")
+            != Decimal(RETRY_GRANT_PREFIX["reserved_usd"])):
+        raise ValueError("a retry grant binds only the exact authorized original49 journal prefix at the pinned quote")
+    raw = journal.expanduser().resolve(strict=True).read_bytes()
+    head = raw[: RETRY_GRANT_PREFIX["size_bytes"]]
+    if (len(raw) < RETRY_GRANT_PREFIX["size_bytes"]
+            or INVENTORY["sha"](head) != RETRY_GRANT_PREFIX["sha256"]
+            or len(head.decode("utf-8").splitlines()) != RETRY_GRANT_PREFIX["rows"]):
+        raise ValueError("the cumulative journal differs from the granted immutable prefix")
+    entries = grant.get("entries")
+    if not isinstance(entries, list) or len(entries) != len(RETRY_GRANT_CELLS):
+        raise ValueError("a retry grant must name exactly the authorized original cells")
+    cells: set[tuple[str, str, str]] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("each granted retry entry must be an object")
+        uid = entry.get("source_uid")
+        try:
+            valid_uid = (isinstance(uid, list) and len(uid) == 2
+                         and all(isinstance(part, str) and str(UUID(part)) == part for part in uid))
+        except (ValueError, AttributeError, TypeError):
+            valid_uid = False
+        if (entry.get("task_id") != RETRY_GRANT_TASK or not valid_uid
+                or entry.get("grader_digest") != RETRY_GRANT_DIGEST):
+            raise ValueError("each granted retry must bind an authorized original UID/grader pair")
+        key = (uid[0], uid[1], RETRY_GRANT_DIGEST)
+        if key not in RETRY_GRANT_CELLS or key in cells:
+            raise ValueError("granted retries must be exactly the authorized original pairs")
+        cells.add(key)
+    if cells != RETRY_GRANT_CELLS:
+        raise ValueError("granted retries must be exactly the authorized original pairs")
+    return {
+        "schema": "heldout-v7.retry-grant/v1", "grant_id": grant_id, "approval": grant["approval"],
+        "expires_at": deadline, "cells": frozenset(cells), "prefix": dict(RETRY_GRANT_PREFIX),
+    }
 
 
 def admit(
@@ -175,10 +308,20 @@ def admit(
 
 
 class JournalGate(CloudSpendGate):
-    """Reserve before dispatch; failures and process restarts never refund spend."""
+    """Reserve before dispatch; failures and process restarts never refund spend.
+
+    With an admitted ``retry_grant``, the journal must still begin with the
+    exact pinned original49 prefix, and every suffix row must be a
+    provenance-marked retry of an authorized cell under this grant identity —
+    once per entry, never across a restart, and only while the grant deadline is
+    live at the actual charge. Grant-free replay admits provenance-marked
+    duplicates only for the pinned four cells, at most once each, after the
+    exact original49 prefix, and under a single grant identity.
+    """
 
     def __init__(
         self, path: Path, usd_per_execution: float, *, cap_usd: float, approval: str,
+        grant: dict[str, Any] | None = None, clock: Callable[[], datetime] | None = None,
     ) -> None:
         if not isinstance(approval, str):
             raise ValueError("a cumulative reservation journal requires its recorded approval")
@@ -188,26 +331,101 @@ class JournalGate(CloudSpendGate):
         self.context = threading.local()
         self.reserved_uids: set[tuple[str, str]] = set()
         self.reserved_keys: set[tuple[str, str, str | None]] = set()
+        self.grant_remaining: set[tuple[str, str, str]] = set()
+        self._replayed_retries: set[tuple[str, str, str | None]] = set()
+        self._suffix_identity: str | None = None
+        self._grant_id: str | None = None
+        self._deadline: datetime | None = None
+        self._clock = clock if clock is not None else (lambda: datetime.now(UTC))
+        if grant is not None:
+            prefix = grant.get("prefix") if isinstance(grant, dict) else None
+            if (not isinstance(grant, dict) or grant.get("schema") != "heldout-v7.retry-grant/v1"
+                    or not isinstance(grant.get("grant_id"), str) or not grant["grant_id"]
+                    or not isinstance(grant.get("expires_at"), datetime)
+                    or grant["expires_at"].tzinfo is None or grant["expires_at"].utcoffset() is None
+                    or grant.get("cells") != RETRY_GRANT_CELLS
+                    or prefix != RETRY_GRANT_PREFIX):
+                raise ValueError("a retry grant must be the normalized explicit grant")
+            self.grant_remaining = set(grant["cells"])
+            self._grant_id = grant["grant_id"]
+            self._deadline = grant["expires_at"]
+        if grant is not None and not path.is_file():
+            raise ValueError("a granted reservation journal must exist with its immutable prefix")
         if path.exists():
-            for line in path.read_text().splitlines():
+            raw = path.read_bytes()
+            if grant is not None:
+                prefix = grant["prefix"]
+                head = raw[: prefix["size_bytes"]]
+                if (len(raw) < prefix["size_bytes"] or INVENTORY["sha"](head) != prefix["sha256"]
+                        or len(head.decode("utf-8").splitlines()) != prefix["rows"]):
+                    raise ValueError("the reservation journal does not start with the granted immutable prefix")
+                lines = head.decode("utf-8").splitlines() + raw[prefix["size_bytes"]:].decode("utf-8").splitlines()
+                prefix_rows = prefix["rows"]
+            else:
+                lines = raw.decode("utf-8").splitlines()
+                prefix_rows = len(lines)
+            prefix_keys: set[tuple[str, str, str | None]] = set()
+            for index, line in enumerate(lines):
                 entry = json.loads(line)
                 uid = tuple(entry["source_uid"])
                 digest = entry.get("grader_digest")
                 key = (*uid, digest)
-                if (len(uid) != 2 or key in self.reserved_keys
+                if (len(uid) != 2
                         or digest is not None and "sha256:" + INVENTORY["bare_sha"](digest) != digest
                         or entry["execution"] != self.executions + 1
                         or _money(entry["usd_per_execution"], "journal usd_per_execution") != unit
                         or entry["ledger_tag"] != "2026-10-17-v7"
                         or _money(entry["reserved_usd"], "journal reserved_usd") != Decimal(str(round((self.executions + 1) * self.usd_per_execution, 8)))):
                     raise ValueError("invalid cumulative reservation journal")
+                provenance = entry.get("retry_grant")
+                if key in self.reserved_keys:
+                    try:
+                        identity = isinstance(provenance, str) and str(UUID(provenance)) == provenance
+                    except (ValueError, AttributeError, TypeError):
+                        identity = False
+                    if grant is not None:
+                        # Sealed prefix history never carries grant provenance; a
+                        # marked suffix row replays only a still-unconsumed
+                        # granted retry under this exact grant identity.
+                        if (index < prefix_rows or not identity or provenance != self._grant_id
+                                or key not in self.grant_remaining):
+                            raise ValueError("invalid cumulative reservation journal")
+                        self.grant_remaining.discard(key)
+                    # Grant-free replay keeps default refusal except the pinned
+                    # four cells' single marked retries after the exact
+                    # original49 prefix, all under one grant identity.
+                    elif (index < RETRY_GRANT_PREFIX["rows"] or not identity
+                            or key not in RETRY_GRANT_CELLS or key in self._replayed_retries
+                            or (self._suffix_identity is not None
+                                and provenance != self._suffix_identity)):
+                        raise ValueError("invalid cumulative reservation journal")
+                    else:
+                        self._suffix_identity = provenance
+                        self._replayed_retries.add(key)
+                # Provenance marks only consumed granted retries; under a grant
+                # every suffix row must be one of them.
+                elif provenance is not None or grant is not None and index >= prefix_rows:
+                    raise ValueError("invalid cumulative reservation journal")
                 self.reserved_uids.add(uid)
                 self.reserved_keys.add(key)
+                if index < prefix_rows:
+                    prefix_keys.add(key)
                 self.executions += 1
+            if grant is not None and not grant["cells"] <= prefix_keys:
+                raise ValueError("granted retry cells are not original prefix reservations")
+            if grant is None and self._replayed_retries:
+                head = raw[: RETRY_GRANT_PREFIX["size_bytes"]]
+                if (len(raw) < RETRY_GRANT_PREFIX["size_bytes"]
+                        or INVENTORY["sha"](head) != RETRY_GRANT_PREFIX["sha256"]
+                        or len(head.decode("utf-8").splitlines()) != RETRY_GRANT_PREFIX["rows"]):
+                    raise ValueError("invalid cumulative reservation journal")
         if self.executions * self.usd_per_execution > self.cap_usd + 1e-9:
             raise ValueError("prior reservations exceed the lane cap")
 
     def is_reserved(self, uid: tuple[str, str], digest: str | None) -> bool:
+        # An unconsumed granted retry is not masked by its original reservation.
+        if digest is not None and (*uid, digest) in self.grant_remaining:
+            return False
         if digest is None:
             return uid in self.reserved_uids
         # Legacy source-only reservations are never silently reassigned or refunded.
@@ -222,8 +440,17 @@ class JournalGate(CloudSpendGate):
             reserved = (self.executions + 1) * self.usd_per_execution
             if reserved > self.cap_usd + 1e-9:
                 raise SpendCapReached("the cumulative heldout-v7 reservation cap is exhausted")
+            key = (*uid, digest)
             if self.is_reserved(uid, digest):
                 raise SpendCapReached("source already reserved; no implicit retry or refund")
+            granted = key in self.grant_remaining
+            if granted:
+                instant = self._clock()
+                if (not isinstance(instant, datetime) or instant.tzinfo is None
+                        or instant.utcoffset() is None or self._deadline <= instant):
+                    raise SpendCapReached("the explicit retry grant expired before this reservation")
+            elif self._grant_id is not None:
+                raise SpendCapReached("the retry grant admits only its four authorized original cells")
             entry = {
                 "ledger_tag": "2026-10-17-v7", "source_uid": list(uid),
                 "execution": self.executions + 1, "usd_per_execution": self.usd_per_execution,
@@ -231,17 +458,20 @@ class JournalGate(CloudSpendGate):
             }
             if digest is not None:
                 entry["grader_digest"] = digest
+            if granted:
+                entry["retry_grant"] = self._grant_id
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(entry, sort_keys=True, allow_nan=False) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             self.reserved_uids.add(uid)
-            self.reserved_keys.add((*uid, digest))
+            self.reserved_keys.add(key)
+            self.grant_remaining.discard(key)
             self.executions += 1
 
 
 def _retained_observation(path: Path) -> dict[str, Any]:
-    reference = json.loads(path.with_name("observation-ref.json").read_bytes())
+    reference = json.loads(path.with_name(path.stem + "-ref.json").read_bytes())
     if Path(reference["path"]).resolve() != path.resolve():
         raise ValueError("retained observation pointer changed")
     data, _ = bound_bytes(reference)
@@ -249,6 +479,32 @@ def _retained_observation(path: Path) -> dict[str, Any]:
     for reference in observation["native_evidence"].get("files", {}).values():
         bound_bytes(reference)
     return observation
+
+
+def _case_paths(case: Path, key: tuple[str, str, str | None], grant: dict[str, Any] | None) -> tuple[Path, Path]:
+    """A case's effective retained observation and the path a new observation takes.
+
+    A granted cell whose original observation already exists writes its one
+    authorized retry as ``observation.retry-<grant_id>.json``; existing bytes are
+    never edited. A retained retry observation supersedes the original.
+    """
+    # Hash-pointer ``*-ref.json`` companions are never observations themselves.
+    retries = sorted(
+        path for path in case.glob("observation.retry-*.json") if not path.name.endswith("-ref.json")
+    )
+    if len(retries) > 1:
+        raise ValueError("a source cell carries multiple retained retry observations")
+    base = case / "observation.json"
+    retained = retries[0] if retries else base
+    granted = grant is not None and key in grant["cells"]
+    fresh = case / f"observation.retry-{grant['grant_id']}.json" if granted and base.exists() else base
+    return retained, fresh
+
+
+def _masked_by_grant(observation: dict[str, Any], key: tuple[str, str, str | None], grant: dict[str, Any] | None) -> bool:
+    """A granted cell's stale unmeasured original observation never blocks its authorized retry."""
+    return (grant is not None and key in grant["cells"]
+            and observation["v7_outcome"] is None and observation.get("granted_retry") is None)
 
 
 def execute(
@@ -299,12 +555,14 @@ def execute(
     budget_root = Path(inventory["sources"]["configuration"]["path"]).resolve().parent
     journal = budget_root / "classifiers-v7-reservations.jsonl"
     budget_ref = None
+    grant = None
     if plan is None:
         if budget_envelope is None:
             raise ValueError("canonical run requires an admitted parent budget envelope")
         envelope, budget_ref = checked_budget(budget_envelope, journal=journal, usd_per_execution=usd_per_execution)
         cap_usd = float(_money(envelope["heldout_regrade"]["cap_usd"], "heldout_regrade.cap_usd"))
         approval = envelope["approval"]
+        grant = retry_grant(envelope, journal=journal, usd_per_execution=usd_per_execution)
     else:
         cap_usd, approval = plan["budget"]["cap_usd"], plan["budget"]["prior"]["approval"]
     try:
@@ -328,6 +586,11 @@ def execute(
             "modal_policy": {"app": APP, "resource_policy": "limit", "sandbox_timeout_seconds": sandbox_timeout_seconds,
                              "sandbox_create_max_attempts": 1},
             "measurement_mode": "staged" if plan is not None else "canonical",
+            "retry_grant": ({
+                "grant_id": grant["grant_id"], "expires_at": grant["expires_at"].isoformat(),
+                "cells": [{"source_uid": [job, trial], "grader_digest": digest}
+                          for job, trial, digest in sorted(grant["cells"])],
+            } if grant is not None else None),
             "canonical_scoring_allowed": plan is None, "citable": plan is None,
             "staged_plan": file_ref(staged_plan_path) if staged_plan_path is not None else None,
             "reuse_work": str(reuse_work.resolve()) if reuse_work is not None else None,
@@ -340,7 +603,7 @@ def execute(
                 raise ValueError("resume changes the admitted inventory, graders or budget basis")
         else:
             create_json(header_path, header)
-        gate = JournalGate(journal, usd_per_execution, cap_usd=cap_usd, approval=approval)
+        gate = JournalGate(journal, usd_per_execution, cap_usd=cap_usd, approval=approval, grant=grant)
         cases = work / "cases"
         cases.mkdir(exist_ok=True)
         def case_path(source: dict[str, Any]) -> Path:
@@ -350,14 +613,24 @@ def execute(
         cached: dict[tuple[str, str], dict[str, Any]] = (
             staged["retained_observations"](reuse_work.resolve(), inventory, targets) if reuse_work is not None else {}
         )
+        if grant is not None:
+            for source in inventory["rows"]:
+                uid = tuple(source["source_uid"])
+                key = (*uid, targets[source["task_id"]]["package_digest"])
+                if uid in cached and _masked_by_grant(cached[uid], key, grant):
+                    del cached[uid]
         for source in inventory["rows"]:
             uid = tuple(source["source_uid"])
-            case = case_path(source)
-            if (case / "observation.json").exists():
-                retained = _retained_observation(case / "observation.json")
-                if retained["source_uid"] != list(uid) or not staged["same_measurement"](source, retained, targets[source["task_id"]]):
+            target = targets[source["task_id"]]
+            key = (*uid, target["package_digest"])
+            retained_path, _ = _case_paths(case_path(source), key, grant)
+            if retained_path.exists():
+                retained = _retained_observation(retained_path)
+                if retained["source_uid"] != list(uid) or not staged["same_measurement"](source, retained, target):
                     raise ValueError("retained observation source identity changed")
-                staged["qualify_retained"](source, retained, targets[source["task_id"]])
+                staged["qualify_retained"](source, retained, target)
+                if _masked_by_grant(retained, key, grant):
+                    continue  # An explicitly granted cell retries past its stale unmeasured original.
                 cached[uid] = retained
         needed = sum(
             tuple(source["source_uid"]) not in cached and source["diff"] is not None
@@ -373,12 +646,13 @@ def execute(
             target = targets[source["task_id"]]
             case = case_path(source)
             case.mkdir(exist_ok=True)
-            saved = case / "observation.json"
+            key = (*uid, target["package_digest"])
+            retained_path, saved = _case_paths(case, key, grant)
             if uid in cached:
                 observation = cached[uid]
-                if not saved.exists():
-                    reference = create_json(saved, observation)
-                    create_json(case / "observation-ref.json", reference)
+                if not retained_path.exists():
+                    reference = create_json(retained_path, observation)
+                    create_json(retained_path.with_name(retained_path.stem + "-ref.json"), reference)
                 return observation
             if plan is not None and not target["changed_from_v6"]:
                 observation = staged["inherit"](source, target)
@@ -411,9 +685,11 @@ def execute(
                     if (observation.get("native_evidence") or {}).get("dispatched") is True
                     else "not_dispatched"
                 )
+            if grant is not None and key in grant["cells"]:
+                observation["granted_retry"] = {"grant_id": grant["grant_id"]}
             observation["measurement_binding"] = staged["measurement_binding"](source, target)
             reference = create_json(saved, observation)
-            create_json(case / "observation-ref.json", reference)
+            create_json(saved.with_name(saved.stem + "-ref.json"), reference)
             return observation
 
         previous_executions = gate.executions

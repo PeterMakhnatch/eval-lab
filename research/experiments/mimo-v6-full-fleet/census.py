@@ -68,6 +68,14 @@ def positive_case_execution(trial: Path) -> bool:
     ):
         return True
     runner = trial_runner(trial)
+    custom_python = runner == "custom" and any(
+        re.search(
+            r"(?m)^[ \t]*(?:\S*/)?python(?:\d+(?:\.\d+)*)?"
+            r"[ \t]+-m[ \t]+(?:nose|unittest)(?:[ \t]|$)",
+            command,
+        )
+        for command in trial_output_logs(trial, "resolved_command.txt")
+    )
     for text in trial_output_logs(trial, "test_output.log"):
         # These shared recognizers also accept bare status words or file
         # counts. This consumer requires a positive case count instead.
@@ -81,6 +89,23 @@ def positive_case_execution(trial: Path) -> bool:
             ran = any(
                 _runner_output_executed(runner, "Tests " + summary)
                 for summary in re.findall(r"(?m)^\s*Tests\s+([^\n]+)", text)
+            )
+        elif custom_python:
+            # Old wrappers label nose as custom. Require the actual command,
+            # named non-loader cases and a completed counted Python suite.
+            ran = (
+                _runner_output_executed("unittest", text)
+                and re.search(
+                    r"(?m)^Ran [1-9]\d* tests? in \d+(?:\.\d+)?s[ \t]*\n[ \t]*\n"
+                    r"(?:OK(?: \([^)\n]*\))?|FAILED \([^)\n]+\))[ \t]*$",
+                    text,
+                ) is not None
+                and re.search(
+                    r"(?m)^(?![^\n]*(?:_FailedTest|nose\.failure\.Failure))"
+                    r"(?:(?:FAIL|ERROR): test\S+ \([^)\n]+\)"
+                    r"|test\S+ \([^)\n]+\) \.\.\. (?:ok|FAIL|ERROR))[ \t]*$",
+                    text,
+                ) is not None
             )
         else:
             ran = _runner_output_executed(runner, text)

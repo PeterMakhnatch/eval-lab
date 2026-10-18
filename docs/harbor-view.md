@@ -378,12 +378,19 @@ and T3; `qa-trace/6` is `qa-trace/5` with the contribution-only cheat label and
   - **Cloud spend gate.** `--plan` writes `OUT/plan.json` and runs nothing: the
     executions a run would still start (uncached nop/reference controls plus
     uncached replays) and the estimate at `--usd-per-execution` (default
-    $0.01, the measured Modal $0.003-0.008 at MiMo spec, rounded up). A cloud run
+    $0.01 **per logical replay**, not per native allocation/preparation unit).
+    The October 17 Modal sample has 169 paired replay jobs / 338 2-CPU/8-GiB
+    native allocations: the mean resource/lifecycle estimate is `$0.006446`
+    per pair, giving a **55.1% mean-based safety margin**. This is not a
+    per-replay bill or a bound on long tails; other workloads/providers need
+    their own explicit estimate. A cloud run
     requires `--max-usd` and `--approve "<recorded approval>"`, refuses up front
     when the plan's estimate exceeds the cap, and reserves the estimate before
     every execution. An execution that would pass the cap is a
     `spend_cap_reached` refusal, not a run. `summary.json` records the plan and
     the gate (approval, cap, executions, reserved USD).
+    Cap checks use unrounded exposure and the gate's `1e-9` tolerance, so a
+    sub-cent plan cannot round itself into approval and fail later in bookkeeping.
   - Cloud runs refuse any `harbor` on PATH other than the lab's pinned version
     (`uv sync --extra laminar`, then run under `uv run`). Harbor 0.21 starts a
     Modal separate verifier from the agent's prebuilt image, which has no

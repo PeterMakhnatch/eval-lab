@@ -59,9 +59,12 @@ DOCKER_SLOTS = threading.BoundedSemaphore(1)
 #: (every mimo-clean-v6 package), so Modal is the cloud backend for v6 replays.
 ENVIRONMENTS = ("docker", "daytona", "modal")
 
-#: Reserved per cloud execution (agent+verifier patch replay, or verifier-only
-#: snapshot regrade). Measured $0.003-0.008 at MiMo spec (2 CPU, 8 GiB) on
-#: Modal, 2026-10-16; rounded up so the gate errs toward stopping early.
+#: Logical execution: agent+verifier patch replay, or a verifier-only regrade;
+#: not an allocation/preparation unit. October 17, 2026 Modal CPU replay evidence
+#: (169 paired jobs, 338 native 2-CPU/8-GiB allocations) gives a $0.006446 mean
+#: resource/lifecycle estimate, cross-checked against metered app CPU/memory.
+#: $0.01 is >50% above that mean, not a bound on observed tails or provider bills.
+#: Slow/larger workloads and other providers need their own explicit estimate.
 CLOUD_USD_PER_EXECUTION = 0.01
 
 

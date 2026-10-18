@@ -153,6 +153,15 @@ Qualification is fail-closed and scoped to reference/nop controls:
   accepted unresolved same-reference failure, or an exact-input failed control.
 - `missing_ref`: indexed patch bytes are absent or fail their SHA256 binding.
 
+Frozen wrappers marked `RUNNER=custom` can supply Python case evidence when the
+resolved command directly invokes `python -m nose` or `python -m unittest`.
+Admission also requires a completed, positive `Ran ... tests` summary and a named
+non-loader case outcome or failure diagnostic. Interleaved application logs do
+not erase a named `FAIL`/`ERROR` report. Bare exit codes or markers, zero-case or
+all-skipped runs, truncated summaries and loader-only import failures remain
+unmeasured. This recognizes execution; native identity, reward and exception
+gates still apply, and semantic correctness is not inferred.
+
 Native execution UUIDs deduplicate copied evidence only when every normalized
 qualification fact agrees; conflicting copies refuse.
 Native task checksums are retained diagnostically, not confused with the full
@@ -222,3 +231,23 @@ cap refuses that admission. This deliberately conservative upper-bound plan is
 neither a minimum certification cost nor a Modal bill. In particular, actual
 zero-provider preflight refusals and native execution outcomes must not be
 reported as measured spend or passing controls.
+
+### October 17 reservation calibration
+
+Fresh planning scopes use the shared Modal **allocation/preparation-unit**
+estimate, `$0.0025`; three units per environment still reserve preparation and
+both possible native creation attempts. The
+[reference-subset calibration](../../../docs/task-quality.md) states the native
+sample, metered-usage cross-check and mean-based safety margin. This is not a
+900-second worst-case reservation: slow tasks, cold builds and larger resources
+need an explicitly higher `--usd-per-unit`. Plans preserve unrounded exposure
+and report the selected rate; sub-cent rounding never determines cap fit.
+
+The historical `native-admissions.json` remains bound to `$0.05` and its original
+`$4` cap. Calibration **does not reprice, refund, clear or migrate** that ledger
+to the lower rate. Resuming its provider-free plan requires
+`--usd-per-unit 0.05`; using the new default with it refuses the rate mismatch.
+A fresh-scope preview can use an empty `--repo-root` with an explicit frozen
+`--manifest` and `--package-root`, **without `--execute`**. That preview is not
+authorization for a new ledger or fleet run: the unchanged `$4` mission ceiling
+and a current approval still gate real execution.

@@ -107,6 +107,18 @@ still account for those costs and other live allocations within its approved
 cap. See the [MiMo v6 readiness receipt](../research/experiments/mimo-clean-v6/README.md#modal-x1-continuation-2026-10-15-not-run)
 for the deliberately unlaunched hard-cap case.
 
+The native repair qualifier
+`research/experiments/test-repair-performance-20261017/qualify.py` requires
+explicit `--approval` and `--modal-app-name` arguments. Use the current approved
+scope and an owned `mimo-clean-census-*` app, not the earlier overnight campaign.
+Its persisted gate refuses a changed approval, cap, or per-execution reservation;
+reopening the same gate preserves prior charges, including failed controls.
+The current EnvCheck v7 CLI ceiling is $6 across both phases, not a standing
+spending grant. Planning omits `--execute` and charges nothing; actual controls
+still require the separately recorded current authorization.
+The qualifier also isolates its derived Parquet projections beneath `--out`,
+keeping private control evidence out of tracked or shared default projections.
+
 ### Setup and task Python are separate runtime boundaries
 
 The native Modal route uses `evallab.harbor_modal:TaskModalEnvironment`;

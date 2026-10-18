@@ -247,10 +247,11 @@ def _grade(package: Path, submission: Any, run_dir: Path, timeout: int) -> Any:
 
     result = once()
     error = str((result.verifier_outputs or {}).get("error") or "")
-    match = re.search(r"Refusing to reuse existing job directory: (.+)", error)
+    # The runner appends ". Use --reuse-existing ..." after the path.
+    match = re.search(r"Refusing to reuse existing job directory: (\S+)", error)
     if result.status != "infra" or match is None:
         return result
-    stale = Path(match.group(1).strip())
+    stale = Path(match.group(1).rstrip("."))
     if stale.is_dir() and stale.is_relative_to(REPO_ROOT / "runs"):
         shutil.rmtree(stale)
         return once()

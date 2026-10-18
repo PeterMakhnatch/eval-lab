@@ -2,6 +2,8 @@
 
 Run once to create split.json and heldout.json. Once package-pairs.csv arrives,
 run --manifest-only. --check is read-only; drift requires a new --output-dir.
+--assemble-successor publishes a separate, scoring-closed v7 candidate without
+regenerating the historical split or transferring its scoring authorization.
 """
 from __future__ import annotations
 
@@ -10,8 +12,10 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import re
+import runpy
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +53,9 @@ EXPLICIT_EXCLUSIONS = {
         "000336", "002135", "002402",
     )},
 }
+SUCCESSOR_SIZE = 33
+SUCCESSOR_MEMBERSHIP_SHA256 = "ce90659538cac139177d1e2af5c643a51f48d5f40af2f2a7efcc03ddbad285da"
+SUCCESSOR_ORDER_SHA256 = "48c02dd2b16ae29d7d5d6df11bd5d3f3057fe654afacccf37d089dbf0ddbbb9b"
 
 
 def canonical_id(value: Any, known: set[str] | None = None) -> str:
@@ -603,6 +610,694 @@ def release_scoring(output_dir: Path, actor: str | None, approval: str | None) -
     return split
 
 
+def _successor_json(path: Path, sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    payload = json.loads(source_bytes(path, sources))
+    if not isinstance(payload, dict):
+        raise ValueError(f"expected a JSON object: {path}")
+    return payload
+
+
+def _successor_binding(path: Path, binding: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Check bytes, not historical absolute locations, when using a frozen copy."""
+    key = str(path.resolve())
+    if key not in sources:
+        source_bytes(path, sources)
+    actual = sources[key]
+    expected_sha256 = binding.get("sha256")
+    if (not isinstance(expected_sha256, str) or expected_sha256.removeprefix("sha256:") != actual["sha256"]
+            or ("bytes" in binding and binding["bytes"] != actual["bytes"])):
+        raise ValueError(f"source hash/digest mismatch: {path}")
+    return dict(actual)
+
+
+def _successor_identity(path: Path, package_digest: str, harbor_digest: str) -> dict[str, str]:
+    from evallab.registry import compute_task_digests, harbor_task_digest
+
+    digests = compute_task_digests(path)
+    if digests.package != package_digest or harbor_task_digest(path) != harbor_digest:
+        raise ValueError(f"materialized package/Harbor digest mismatch: {path}")
+    if not digests.verifier:
+        raise ValueError(f"missing concrete verifier identity: {path}")
+    return {
+        "package_path": str(path.resolve()), "package_digest": digests.package,
+        "harbor_digest": harbor_digest, "verifier_digest": digests.verifier,
+    }
+
+
+def _successor_lineage(task_id: str, identity: dict[str, Any], record_path: str, record_sha256: str,
+                       repo_root: Path, sources: dict[str, dict[str, Any]], *,
+                       records_root: Path | None = None) -> dict[str, Any]:
+    from evallab.task_variants import VariantRecord
+
+    records = []
+    digest, harbor = identity["package_digest"], identity["harbor_digest"]
+    seen: set[str] = set()
+    while True:
+        path = (repo_root / record_path).resolve()
+        storage = records_root if not records and records_root is not None else repo_root / "library/task-variants"
+        canonical = storage / f"mimo-v2.6-rl__{task_id}" / f"{digest.removeprefix('sha256:')[:12]}.json"
+        if path != canonical.resolve() or digest in seen:
+            raise ValueError(f"noncanonical or cyclic grader lineage: {task_id}")
+        seen.add(digest)
+        record = VariantRecord.model_validate(_successor_json(path, sources))
+        binding = dict(sources[str(path)])
+        if not records:
+            _successor_binding(path, {"sha256": record_sha256}, sources)
+        if (record.task_name != NAMESPACE + task_id or record.variant_digest != digest
+                or record.variant_harbor_digest != harbor):
+            raise ValueError(f"grader lineage task/package/Harbor digest mismatch: {task_id}")
+        records.append({
+            "record_path": str(path.relative_to(repo_root)) if path.is_relative_to(repo_root) else str(path),
+            "record": binding,
+            "package_digest": digest, "harbor_digest": harbor,
+            "transform": record.transform, "components_changed": record.components_changed,
+            "parent": record.parent.model_dump(mode="json"),
+        })
+        if record.parent.source.kind != "variant":
+            break
+        record_path = record.parent.source.record
+        digest, harbor = record.parent.digest, record.parent.harbor_digest
+    return {
+        "record_path": records[0]["record_path"], "record_sha256": records[0]["record"]["sha256"],
+        "records_newest_first": records,
+        "full_transform_chain_newest_first": [record["transform"] for record in records],
+        "terminal_parent": records[-1]["parent"],
+        "scope": "Canonical record custody and endpoint digests; not a replay or semantic/native qualification.",
+    }
+
+
+def _successor_repeat_proof(native: dict[str, Any], sources: dict[str, dict[str, Any]]) -> bool:
+    if len(native["rewards"]) == 1:
+        return True
+    path = Path(native["result_path"]).parent / "verifier/stability.json"
+    if not path.is_file():
+        return False
+    stability = _successor_json(path, sources)
+    runs = stability.get("runs")
+    return (
+        stability.get("schema") == "evallab.verifier_stability/v1"
+        and stability.get("repeat_n_requested") == 3 and stability.get("n_runs") == 3
+        and isinstance(runs, list) and len(runs) == 3 and all(isinstance(run, dict) for run in runs)
+        and [run.get("index") for run in runs] == [0, 1, 2]
+        and stability.get("first_reward") == native["rewards"][0]
+    )
+
+
+def _successor_setup_controls(selected: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    if selected.get("setup_only") is not True:
+        return None
+    handoff = selected.get("selection_handoff")
+    if handoff is None:
+        return None
+    declared = handoff["receipt"]["controls"]
+    if not declared.get("evidence_path"):
+        return {"status": "pending", "source": None, "receipt": None}
+    path = Path(handoff["source"]["path"]).parent / declared["evidence_path"]
+    if not path.is_file():
+        return {"status": "pending", "source": None, "receipt": None, "recorded_path": str(path)}
+    receipt = _successor_json(path, sources)
+    if "evidence_sha256" in declared:
+        _successor_binding(path, {"sha256": declared["evidence_sha256"]}, sources)
+    if (receipt.get("schema") != "mimo-v7-native-controls/v1"
+            or canonical_id(receipt["task_id"]) != "format-code-task-001948"
+            or receipt["package_digest"] != selected["package_digest"]
+            or receipt["harbor_digest"] != selected["harbor_digest"]
+            or receipt.get("scoring_allowed") is not False):
+        raise ValueError("setup native controls task/package/Harbor digest mismatch")
+    native_reader = runpy.run_path(str(ROOT / "research/experiments/mimo-v6-full-fleet/census.py"))["native_observations"]
+    actual_native = {
+        observation["execution_id"]: observation
+        for observation in native_reader({Path(item["metadata_path"]) for item in receipt["observations"]})
+    }
+    rewards: dict[str, list[float]] = {"oracle": [], "nop": []}
+    seen = set()
+    observations = []
+    for observation in receipt["observations"]:
+        binding = observation["task_binding"]
+        agent, execution_id = observation["agent"], observation["execution_id"]
+        if (agent not in rewards or execution_id in seen
+                or canonical_id(observation["task_id"]) != "format-code-task-001948"
+                or observation["source_package_digest"] != selected["package_digest"]
+                or binding["source_package_digest"] != selected["package_digest"]
+                or any(observation[key] != selected["harbor_digest"] for key in (
+                    "source_harbor_digest", "staged_harbor_digest", "executed_harbor_digest"))
+                or binding["task_digest"] != selected["harbor_digest"]):
+            raise ValueError("setup native observation has duplicate execution or mismatched selected identity")
+        seen.add(execution_id)
+        raw_sources = []
+        for owner, name in ((observation, "metadata"), (observation, "result"), (binding, "config"), (binding, "lock")):
+            raw = Path(owner[f"{name}_path"])
+            raw_sources.append({
+                "kind": name,
+                "status": "available_hash_verified" if raw.is_file() else "raw_evidence_unavailable",
+                "source": _successor_binding(raw, {"sha256": owner[f"{name}_sha256"]}, sources) if raw.is_file() else {
+                    "path": str(raw), "sha256": owner[f"{name}_sha256"],
+                },
+            })
+        native = actual_native.get(execution_id)
+        raw_available = all(item["status"] == "available_hash_verified" for item in raw_sources)
+        if raw_available and (native is None or native["task_binding"] != binding or any(
+                native[key] != observation[key] for key in (
+                    "agent", "metadata_path", "metadata_sha256", "result_path", "result_sha256", "rewards",
+                    "source_package_digest", "source_harbor_digest", "staged_harbor_digest", "executed_harbor_digest",
+                ))):
+            raise ValueError("setup native observation does not match its actual physical execution identity or score")
+        case_sources = []
+        if native is not None:
+            for raw in sorted((Path(native["result_path"]).parent / "verifier").rglob("*")):
+                if raw.is_file():
+                    source_bytes(raw, sources)
+                    case_sources.append(dict(sources[str(raw.resolve())]))
+        values = observation["rewards"]
+        measured = (
+            native is not None and native["scored"] is True
+            and _successor_repeat_proof(native, sources)
+            and type(observation["returncode"]) is int and observation["returncode"] == 0
+            and observation["timed_out"] is False
+            and observation["process_ok"] is True and observation["process_failed"] is False
+            and observation["exception_present"] is False and observation["scored"] is True
+            and observation["native_identity_verified"] is True and binding["verified"] is True
+            and binding["error"] is None and bool(values)
+            and all(type(value) in (int, float) and math.isfinite(value) for value in values)
+            and all(
+                len(observation[key]) == len(values) and all(value is flag for value in observation[key])
+                for key, flag in (("repeat_scored", True), ("test_execution", True), ("run_error_present", False))
+            )
+            and observation["run_errors"] == [None] * len(values)
+            and raw_available
+        )
+        observations.append({
+            "execution_id": execution_id, "measured": measured,
+            "native_scored": native is not None and native["scored"] is True,
+            "raw_sources": raw_sources, "case_sources": case_sources,
+        })
+        if measured:
+            rewards[agent].extend(values)
+    return {
+        "status": "reported_mechanical_evidence", "source": dict(sources[str(path.resolve())]),
+        "handoff_hash_bound": "evidence_sha256" in declared, "receipt": receipt,
+        "observations": observations, "measured_rewards": rewards,
+        "wrong_and_valid_alternate_gate": receipt["wrong_and_valid_alternate_gate"],
+        "scope": "Mechanical native controls only; not an independent Verifier PASS or wrong/correct qualification.",
+    }
+
+
+def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str, Any],
+                        controls: dict[str, Any], pairs: dict[str, Any], source: dict[str, Any],
+                        sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    pair = pairs.get(task_id)
+    retained = []
+    rewards: dict[str, list[float]] = {"oracle": [], "nop": []}
+    indexes = []
+    if pair is not None:
+        if pair["package_digest"] != parent["package_digest"]:
+            raise ValueError(f"native controls bind a different frozen package: {task_id}")
+        for agent in ("oracle", "nop"):
+            index = pair[f"{agent}_observation"]
+            if type(index) is not int or not 0 <= index < len(controls["observations"]):
+                raise ValueError(f"invalid native observation index: {task_id}")
+            observation = controls["observations"][index]
+            receipt = observation["receipt"]
+            if (canonical_id(receipt["task_id"]) != task_id or receipt["agent"] != agent
+                    or Path(receipt["package"]).resolve() != Path(parent["package_path"])
+                    or observation["source_package_digest"] != parent["package_digest"]
+                    or observation["source_harbor_digest"] != parent["harbor_digest"]
+                    or observation["staged_harbor_digest"] != parent["harbor_digest"]):
+                raise ValueError(f"native observation task/package/Harbor digest mismatch: {task_id}")
+            metadata = observation["native_metadata"]
+            registered = parent["registered_endpoint"]["controls"][agent]
+            if (registered["observation_index"] != index or registered["reward"] != receipt["reward"]
+                    or registered["native_metadata"] != metadata
+                    or registered["receipt_source"] != observation["receipt_source"]
+                    or registered["receipt_line"] != observation["receipt_line"]):
+                raise ValueError(f"registered native-control custody mismatch: {task_id}")
+            metadata_path = Path(metadata["path"])
+            if metadata_path.is_file():
+                custody = {"status": "available_hash_verified", "source": _successor_binding(metadata_path, metadata, sources)}
+            else:
+                custody = {"status": "raw_metadata_unavailable", "recorded_source": metadata}
+            reward = receipt["reward"]
+            measured = (
+                type(observation["native_exit_code"]) is int and observation["native_exit_code"] == 0
+                and observation["timed_out"] is False and receipt["error"] is None
+                and type(reward) in (int, float) and math.isfinite(reward)
+            )
+            retained.append({
+                "observation_index": index, "observation": observation,
+                "measured": measured, "raw_metadata_custody": custody,
+            })
+            if selected["package_digest"] == parent["package_digest"]:
+                indexes.append(index)
+                if measured:
+                    rewards[agent].append(reward)
+    setup_controls = _successor_setup_controls(selected, sources)
+    if setup_controls is not None and "measured_rewards" in setup_controls:
+        rewards = setup_controls["measured_rewards"]
+    semantic_controls = selected.get("semantic_repair_controls")
+    if semantic_controls is not None:
+        rewards = semantic_controls["measured_rewards"]
+    return {
+        "source": source, "backend": controls["backend"],
+        "retained_frozen_v6": {
+            "status": "retained" if pair is not None else "missing",
+            "selected_pair": pair, "observations": retained,
+            "scope": controls["qualification_scope"],
+        },
+        "reported_setup_controls": setup_controls,
+        "selected_package": {
+            "package_digest": selected["package_digest"], "harbor_digest": selected["harbor_digest"],
+            "observation_indexes": indexes, "measured_reference_rewards": rewards["oracle"],
+            "measured_nop_rewards": rewards["nop"], "status": "pending",
+            "missing": [
+                *([] if rewards["oracle"] == [1, 1, 1] else ["native_reference_1_1_1"]),
+                *([] if rewards["nop"] == [0, 0, 0] else ["native_nop_0_0_0"]),
+                "adjudicated_wrong_inventory_and_exact_digest_zero_outcomes",
+                "admitted_correct_inventory_and_exact_digest_accepted_outcomes",
+                "independent_verifier_pass",
+            ],
+        },
+    }
+
+
+def _successor_repairs(path: Path | None, sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    if path is None:
+        return {"status": "pending", "source": None, "handoff": None, "selections": {},
+                "reason": "EnvCheck handoff not supplied"}
+    handoff = _successor_json(path, sources)
+    if handoff.get("schema") != "envcheck.repairs-v7/v1":
+        raise ValueError("unsupported EnvCheck repair handoff schema")
+    rows = handoff.get("repairs")
+    if (not isinstance(rows, list)
+            or type(handoff.get("complete_count")) is not int or handoff["complete_count"] < 0
+            or type(handoff.get("required_task_count")) is not int or handoff["required_task_count"] < 0
+            or type(handoff.get("recorded_reproducer_count")) is not int or handoff["recorded_reproducer_count"] < 0
+            or handoff.get("training_allowed") is not False
+            or handoff.get("scoring_allowed", False) is not False):
+        raise ValueError("invalid EnvCheck repair handoff counts or closed gates")
+    selections = {}
+    seen = set()
+    for row in rows:
+        if (not isinstance(row, dict) or not isinstance(row.get("task_id"), str)
+                or type(row.get("qualified_for_v7")) is not bool
+                or row.get("status") not in {"partial", "complete"}):
+            raise ValueError("unrecognized nonempty EnvCheck repair handoff row")
+        task_id = canonical_id(row["task_id"])
+        if task_id in seen:
+            raise ValueError(f"duplicate EnvCheck repair task: {task_id}")
+        seen.add(task_id)
+        if row["qualified_for_v7"]:
+            if (row["status"] != "complete" or row.get("reference") != [1, 1, 1]
+                    or row.get("do_nothing") != [0, 0, 0]
+                    or row.get("task_control_bindings_unchanged") is not True
+                    or row.get("no_original_assertion_weakened") is not True
+                    or row.get("training_allowed") is not False or row.get("unrepairable") != []):
+                raise ValueError(f"incomplete EnvCheck repair advertised as complete: {task_id}")
+            selections[task_id] = row
+    if len(selections) != handoff["complete_count"]:
+        raise ValueError("EnvCheck complete count differs from selected repair rows")
+    for item in handoff["source_inputs"]:
+        _successor_binding(path.parent / item["path"], item, sources)
+    return {
+        "status": "pending", "source": dict(sources[str(path.resolve())]), "handoff": handoff,
+        "selections": selections,
+        "reason": "Bound repair candidates still require exact native custody and independent semantic acceptance",
+    }
+
+
+def _successor_repair_controls(candidate: dict[str, Any], qualification: dict[str, Any],
+                               selected: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    from evallab.registry import compute_task_digests
+    from evallab.runner import load_job, load_matrix, matrix_run_outcome, staged_matrix_request
+    from evallab.task_variants import harbor_task_digest
+
+    matrix_path = Path(candidate["matrix"]).resolve()
+    _successor_binding(matrix_path, {"sha256": candidate["matrix_sha256"]}, sources)
+    matrix = load_matrix(matrix_path)
+    producer_root = next((path for path in matrix_path.parents if (path / "pyproject.toml").is_file()), None)
+    if producer_root is None:
+        raise ValueError("repair matrix producer repository is unavailable")
+    if ((producer_root / matrix.task).resolve() != Path(selected["package_path"])
+            or matrix.task_package_digest != selected["package_digest"]
+            or matrix.verifier_digest != selected["verifier_digest"]
+            or qualification["matrix_sha256"] != candidate["matrix_sha256"]
+            or qualification["qualified"] is not True):
+        raise ValueError("repair qualification matrix/package binding mismatch")
+    checks = {check["run"]: check for check in qualification["checks"]}
+    if len(checks) != len(qualification["checks"]) or set(checks) != {run.name for run in matrix.runs}:
+        raise ValueError("repair qualification has missing or duplicated native controls")
+    wrongs = {control["run"]: control for control in candidate["known_wrong_reproducers"]}
+    alternates = {control["run"] for control in candidate["adjudicated_correct_controls"]}
+    if (len(matrix.runs) < 3 or matrix.runs[0].agent != "oracle" or matrix.runs[1].agent != "nop"
+            or {run.name for run in matrix.runs[2:]} != set(wrongs) | alternates or not wrongs):
+        raise ValueError("repair matrix does not cover its complete declared wrong/correct inventory")
+    native_reader = runpy.run_path(str(ROOT / "research/experiments/mimo-v6-full-fleet/census.py"))["native_observations"]
+    observations = []
+    seen = set()
+    for index, run in enumerate(matrix.runs):
+        check = checks[run.name]
+        role = "reference" if index == 0 else "nop" if index == 1 else (
+            "prompt-valid-alternate" if run.name in alternates else "known-wrong"
+        )
+        expected = 0.0 if role in {"nop", "known-wrong"} else 1.0
+        repeated = role != "known-wrong"
+        if (check["status"] != "ok" or check["role"] != role
+                or check["matrix_sha256"] != candidate["matrix_sha256"]
+                or run.expect_reward != expected or run.attempts != 1
+                or run.agent != ("nop" if role == "nop" else "oracle")):
+            raise ValueError(f"repair control role, expectation or completion mismatch: {run.name}")
+        job = Path(check["job_dir"]).resolve()
+        actual = native_reader({job / "lab-metadata.json"})
+        if len(actual) != 1 or actual[0]["execution_id"] in seen:
+            raise ValueError("repair control lacks a distinct physical native execution")
+        native = actual[0]
+        seen.add(native["execution_id"])
+        with staged_matrix_request(matrix, run, repo_root=producer_root) as (request, provenance):
+            identity = compute_task_digests(request.task)
+            harbor = harbor_task_digest(request.task)
+            if (identity.verifier != selected["verifier_digest"]
+                    or any(check.get(key) != value for key, value in provenance.items())
+                    or native["source_package_digest"] != identity.package
+                    or any(native[key] != harbor for key in (
+                        "source_harbor_digest", "staged_harbor_digest", "executed_harbor_digest",
+                    ))):
+                raise ValueError(f"repair control executed a different package, grader or submission: {run.name}")
+        if (native["agent"] != run.agent or native["scored"] is not True
+                or native["rewards"] != [expected] * (3 if repeated else 1)
+                or (repeated and not _successor_repeat_proof(native, sources))
+                or matrix_run_outcome(load_job(job), run)["status"] != "ok"
+                or (repeated and check["repeats"] != native["rewards"])):
+            raise ValueError(f"repair control has absent, errored or conflicting native outcomes: {run.name}")
+        if run.name in wrongs:
+            control = wrongs[run.name]
+            for key in ("patch", "script"):
+                _successor_binding(Path(control[key]), {"sha256": control[f"{key}_sha256"]}, sources)
+            if (run.solution is None or (producer_root / run.solution).resolve() != Path(control["script"]).resolve()
+                    or check["solution_sha256"].removeprefix("sha256:") != control["script_sha256"].removeprefix("sha256:")):
+                raise ValueError("wrong-submission control is not bound to the recorded script")
+        paths = [
+            Path(native["metadata_path"]), Path(native["result_path"]),
+            Path(native["task_binding"]["config_path"]), Path(native["task_binding"]["lock_path"]),
+        ]
+        trial = Path(native["result_path"]).parent
+        paths.extend(path for directory in ("agent", "verifier") for path in (trial / directory).rglob("*") if path.is_file())
+        for path in sorted(set(paths)):
+            source_bytes(path, sources)
+        observations.append({"role": role, "run": run.name, "native": native,
+                             "raw_sources": [dict(sources[str(path.resolve())]) for path in sorted(set(paths))]})
+    return {
+        "status": "native_custody_verified_not_semantically_certified", "observations": observations,
+        "measured_rewards": {
+            "oracle": observations[0]["native"]["rewards"], "nop": observations[1]["native"]["rewards"],
+        },
+        "scope": "Exact package/submission, physical execution and case proof; adjudications remain independent.",
+    }
+
+
+def _successor_repair(task_id: str, parent: dict[str, Any], row: dict[str, Any],
+                      repo_root: Path, sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    from evallab.task_variants import VariantRecord, materialize
+    from evallab.verifier_repair import build_command_wrapper, read_task_workdir
+
+    qualification_path = Path(row["qualification"]).resolve()
+    producer_root = next((path for path in qualification_path.parents if (path / "pyproject.toml").is_file()), None)
+    if producer_root is None:
+        raise ValueError("repair publication producer repository is unavailable")
+    candidate_path = (producer_root / row["candidate"]).resolve()
+    _successor_binding(candidate_path, {"sha256": row["candidate_sha256"]}, sources)
+    _successor_binding(qualification_path, {"sha256": row["qualification_sha256"]}, sources)
+    candidate = _successor_json(candidate_path, sources)
+    qualification = _successor_json(qualification_path, sources)
+    if (candidate.get("schema") != "envcheck.v7.candidate/v1"
+            or canonical_id(candidate["task_id"]) != task_id or canonical_id(row["task_id"]) != task_id
+            or candidate["parent_digest"] != parent["package_digest"]
+            or row["parent_digest"] != parent["package_digest"]
+            or Path(candidate["parent_package"]).resolve() != Path(parent["package_path"])
+            or any(candidate[key] != row[key] for key in (
+                "package_path", "package_digest", "harbor_digest", "verifier_digest", "native_record", "native_record_sha256",
+            ))
+            or qualification["package_digest"] != row["package_digest"]
+            or qualification["verifier_digest"] != row["verifier_digest"]):
+        raise ValueError(f"repair candidate does not bind the exact selected parent and qualification: {task_id}")
+    selected = _successor_identity(Path(row["package_path"]), row["package_digest"], row["harbor_digest"])
+    if selected["verifier_digest"] != row["verifier_digest"]:
+        raise ValueError("repair grader digest differs from the selected package bytes")
+    record_path = Path(row["native_record"]).resolve()
+    lineage = _successor_lineage(
+        task_id, selected, str(record_path), row["native_record_sha256"], repo_root, sources,
+        records_root=record_path.parent.parent,
+    )
+    record = VariantRecord.model_validate(_successor_json(record_path, sources))
+    before, after = Path(parent["package_path"]), Path(selected["package_path"])
+    if (record.transform != "verifier-repair@1" or set(record.components_changed) != {"verifier"}
+            or record.parent.digest != parent["package_digest"] or record.parent.harbor_digest != parent["harbor_digest"]
+            or {item.path for item in record.files} != {"tests/test.patch", "tests/test_command.sh"}
+            or record.inputs.get("edits") or not isinstance(record.inputs.get("command"), str)):
+        raise ValueError("semantic repair is not an append-only verifier transform of the exact parent")
+    if len(lineage["records_newest_first"]) == 1 and record.parent.source.kind == "local":
+        if Path(record.parent.source.path).resolve() != before:
+            raise ValueError("local repair parent is not the exact selected package")
+        lineage["records_newest_first"].extend(parent["lineage"]["records_newest_first"])
+        lineage["full_transform_chain_newest_first"].extend(parent["lineage"]["full_transform_chain_newest_first"])
+        lineage["terminal_parent"] = parent["lineage"]["terminal_parent"]
+    elif lineage["records_newest_first"][1:] != parent["lineage"]["records_newest_first"]:
+        raise ValueError("semantic repair does not extend the full exact-parent grader lineage")
+    original_patch = (before / "tests/test.patch").read_bytes()
+    expected_command = build_command_wrapper(
+        (before / "tests/test_command.sh").read_text(), record.inputs["command"].strip(), workdir=read_task_workdir(before),
+    ).encode()
+    if (not (after / "tests/test.patch").read_bytes().startswith(original_patch)
+            or (after / "tests/test.patch").read_bytes() == original_patch
+            or (after / "tests/test_command.sh").read_bytes() != expected_command):
+        raise ValueError("semantic repair removed original test bytes or bypassed the original test command")
+    with tempfile.TemporaryDirectory(prefix="mimo-v7-repair-replay-") as scratch:
+        replay = materialize(record, before, repo_root=repo_root, variants_root=Path(scratch))
+        if _successor_identity(replay, row["package_digest"], row["harbor_digest"])["verifier_digest"] != selected["verifier_digest"]:
+            raise ValueError("independent repair record replay differs from selected bytes")
+    source_path = Path(candidate["source_manifest"])
+    _successor_binding(source_path, {"sha256": candidate["source_sha256"]}, sources)
+    admitted = _successor_json(source_path, sources)
+    expected = {item["finding_id"]: item for item in admitted["rows"] if canonical_id(item["task_id"]) == task_id}
+    wrongs = candidate["known_wrong_reproducers"]
+    if (set(expected) != {item["finding_id"] for item in wrongs}
+            or set(expected) != {item["finding_id"] for item in row["reproducers"]}
+            or any(item["patch_sha256"] != expected[item["finding_id"]]["reproducer_sha256"] for item in wrongs)
+            or row["recorded_reproducer_count"] != len(wrongs)
+            or row["reproducers_killed"] != len(wrongs)
+            or row["adjudicated_correct_controls"] != candidate["adjudicated_correct_controls"]):
+        raise ValueError("repair omits or changes its admitted wrong-submission inventory")
+    native = _successor_repair_controls(candidate, qualification, selected, sources)
+    return selected | {
+        "version_column": "v7", "repair_scope": "append-only-verifier", "test_repair_claim": True,
+        "setup_only": False, "lineage": lineage, "semantic_repair_controls": native,
+        "selection_handoff": {
+            "receipt": row, "candidate": dict(sources[str(candidate_path.resolve())]),
+            "qualification": dict(sources[str(qualification_path.resolve())]),
+        },
+    }
+
+
+def _successor_setup(path: Path, parent: dict[str, Any], repo_root: Path,
+                     sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    from evallab.registry import compute_subpath_digest
+
+    handoff = _successor_json(path, sources)
+    task_id = "format-code-task-001948"
+    if (handoff.get("schema") != "mimo-v7-setup-derivation/v1"
+            or canonical_id(handoff["task_id"]) != task_id
+            or handoff.get("scoring_allowed") is not False
+            or handoff["parent_package_digest"] != parent["package_digest"]
+            or Path(handoff["parent_package"]).resolve() != Path(parent["package_path"])
+            or handoff["transform"] != "setup-python-path@1"):
+        raise ValueError("setup selection is not derived from the exact frozen 001948 parent")
+    selected = _successor_identity(Path(handoff["package"]), handoff["package_digest"], handoff["harbor_digest"])
+    lineage = _successor_lineage(task_id, selected, handoff["record"], handoff["record_sha256"], repo_root, sources)
+    record = _successor_json(repo_root / lineage["record_path"], sources)
+    allowed = {"environment/setup/setup.sh", "task.toml"}
+    if (selected["package_digest"] == parent["package_digest"]
+            or record["transform"] != "setup-python-path@1"
+            or set(record["components_changed"]) != {"task_toml", "environment"}
+            or {item["path"] for item in record["files"]} != allowed
+            or set(handoff["changed_files"]) != allowed
+            or handoff.get("tests_byte_identical") is not True
+            or handoff["tests_digest"] != selected["verifier_digest"]
+            or selected["verifier_digest"] != parent["verifier_digest"]
+            or lineage["records_newest_first"][1:] != parent["lineage"]["records_newest_first"]):
+        raise ValueError("setup-only selection changed verifier bytes or does not extend the exact frozen lineage")
+    before, after = Path(parent["package_path"]), Path(selected["package_path"])
+    for relative in ("instruction.md", "solution", "environment/Dockerfile"):
+        if compute_subpath_digest(before / relative) != compute_subpath_digest(after / relative):
+            raise ValueError(f"setup-only selection changed {relative}")
+    for relative, digest in handoff["unchanged_files"].items():
+        if Path(relative).is_absolute() or ".." in Path(relative).parts:
+            raise ValueError(f"invalid setup unchanged-file path: {relative}")
+        for package in (before, after):
+            _successor_binding(package / relative, {"sha256": digest}, sources)
+    return selected | {
+        "version_column": "setup_only", "repair_scope": "setup-only-python-path",
+        "test_repair_claim": False, "setup_only": True, "lineage": lineage,
+        "selection_handoff": {"source": dict(sources[str(path.resolve())]), "receipt": handoff},
+    }
+
+
+def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None = None,
+                      setup_handoff: Path | None = None, repo_root: Path = ROOT) -> dict[str, Any]:
+    """Assemble the frozen33 candidate; no ranking, execution, or scoring release."""
+    frozen_source_dir, repo_root = frozen_source_dir.resolve(), repo_root.resolve()
+    sources: dict[str, dict[str, Any]] = {}
+    files = {name: frozen_source_dir / name for name in (
+        "heldout.json", "split.json", "manifest.json", "native-controls.json", "lineage-registration.json",
+    )}
+    heldout, split, manifest, controls, registration = (
+        _successor_json(path, sources) for path in files.values()
+    )
+    schemas = ("mimo.heldout/v1", "mimo.training-split/v1", "mimo.training-manifest/v1",
+               "mimo.native-controls/v1", "mimo.frozen-lineage-registration/v1")
+    if any(payload.get("schema") != schema for payload, schema in zip(
+            (heldout, split, manifest, controls, registration), schemas, strict=True)):
+        raise ValueError("unsupported frozen successor source schema")
+    validate_split(split)
+    membership = heldout["heldout"]
+    if (len(membership) != SUCCESSOR_SIZE or len(set(membership)) != SUCCESSOR_SIZE
+            or any(canonical_id(task_id) != task_id for task_id in membership)
+            or hashlib.sha256(("\n".join(sorted(membership)) + "\n").encode()).hexdigest() != SUCCESSOR_MEMBERSHIP_SHA256
+            or hashlib.sha256(("\n".join(membership) + "\n").encode()).hexdigest() != SUCCESSOR_ORDER_SHA256
+            or membership != split["heldout"] or membership != manifest["heldout"]):
+        raise ValueError("successor requires the exact frozen33 membership and order; no swaps or duplicates")
+    if manifest["training_exposure"] != split["training_exposure"] or manifest["train"] != split["train"]:
+        raise ValueError("frozen historical training exposure differs between sources")
+    _successor_binding(files["split.json"], heldout["split"], sources)
+    _successor_binding(files["split.json"], manifest["split"], sources)
+    _successor_binding(files["heldout.json"], manifest["heldout_manifest"], sources)
+    registered_sources = {Path(item["path"]).name: item for item in registration["frozen_sources"]}
+    for name in ("heldout.json", "manifest.json", "native-controls.json"):
+        _successor_binding(files[name], registered_sources[name], sources)
+    pairs_path = frozen_source_dir / "package-pairs.csv"
+    pair_data = source_bytes(pairs_path, sources)
+    reader = csv.DictReader(io.StringIO(pair_data.decode("utf-8")))
+    if tuple(reader.fieldnames or ()) != PAIR_COLUMNS:
+        raise ValueError("unexpected frozen package-pairs columns")
+    pairs = rows_by_id(list(reader))
+    _successor_binding(pairs_path, manifest["package_pairs"], sources)
+    frozen_rows = rows_by_id(manifest["tasks"])
+    metadata = rows_by_id(split["heldout_task_metadata"])
+    endpoints = rows_by_id([row for row in registration["endpoints"] if row["role"] == "headline"])
+    if (set(metadata) != set(membership) or set(endpoints) != set(membership)
+            or {task_id for task_id, row in frozen_rows.items() if row["split"] == "heldout"} != set(membership)):
+        raise ValueError("frozen rich task/metadata/lineage membership differs from frozen33")
+    control_pairs = rows_by_id(controls["selected_pairs"])
+    repairs = _successor_repairs(repairs_handoff, sources)
+    if any(canonical_id(row["task_id"]) not in membership for row in (repairs["handoff"] or {}).get("repairs", [])):
+        raise ValueError("EnvCheck repair handoff includes a task outside the frozen33")
+    tasks = []
+    package_root = Path(split["config"]["package_root"])
+    for task_id in membership:
+        row, endpoint = frozen_rows[task_id], endpoints[task_id]
+        digest = row["v6_package_digest"]
+        package_path = (package_root / row["v6_package_path"]).resolve()
+        target = row["evaluation_target"]
+        if (any(row[column] != pairs[task_id][column] for column in PAIR_COLUMNS)
+                or metadata[task_id]["v6_package_digest"] != digest
+                or (package_root / metadata[task_id]["v6_package_path"]).resolve() != package_path
+                or endpoint["package_digest"] != digest or Path(endpoint["package_path"]).resolve() != package_path
+                or target["version_column"] != "v6" or target["package_digest"] != digest
+                or Path(target["package_path"]).resolve() != package_path or target["test_repair_claim"] is not False):
+            raise ValueError(f"frozen parent package identity mismatch: {task_id}")
+        parent = _successor_identity(package_path, digest, endpoint["harbor_digest"])
+        parent["lineage"] = _successor_lineage(task_id, parent, endpoint["record_path"], endpoint["record_sha256"], repo_root, sources)
+        if parent["lineage"]["full_transform_chain_newest_first"] != endpoint["full_transform_chain_newest_first"]:
+            raise ValueError(f"registered full grader lineage mismatch: {task_id}")
+        _successor_binding(files["native-controls.json"], endpoint["control_source"], sources)
+        parent["registered_endpoint"] = endpoint
+        selected = target | parent
+        # Registration's historical controls remain under frozen_parent, not a
+        # selected-child qualification claim.
+        selected = {key: value for key, value in selected.items() if key != "registered_endpoint"}
+        kind = "unchanged-v6"
+        if task_id == "format-code-task-001948" and setup_handoff is not None:
+            selected = _successor_setup(setup_handoff, parent, repo_root, sources)
+            kind = "setup-only"
+        if task_id in repairs["selections"]:
+            selected = _successor_repair(task_id, selected, repairs["selections"][task_id], repo_root, sources)
+            kind = "semantic-repair"
+        tasks.append(row | {
+            "frozen_parent": parent, "evaluation_target": selected, "successor_selection": kind,
+            "native_controls": _successor_controls(
+                task_id, parent, selected, controls, control_pairs,
+                dict(sources[str(files["native-controls.json"])]), sources,
+            ),
+        })
+    # Recheck every consumed source before returning a deterministically encoded
+    # candidate, so a concurrently updated handoff cannot be silently mixed in.
+    for item in list(sources.values()):
+        source_bytes(Path(item["path"]), sources)
+    return {
+        "schema": "mimo.heldout/v1", "successor_version": "v7", "status": "candidate",
+        "canonical_id_form": "bare-source-id", "task_family": "mimo-v2.6-rl",
+        "heldout": membership, "train": split["train"], "training_exposure": split["training_exposure"],
+        "split": dict(sources[str(files["split.json"])]),
+        "frozen_sources": {name: dict(sources[str(path)]) for name, path in files.items()},
+        "tasks": tasks, "semantic_repairs": repairs,
+        "setup_selection": {"status": "selected" if setup_handoff is not None else "pending"},
+        "sources": sorted(sources.values(), key=lambda item: item["path"]),
+        "scoring_allowed": False, "freeze_ready": False,
+        "validity_check_allowed": True, "validity_release": None,
+        "independent_verifier": {"status": "pending", "evidence": None},
+        "pending_gates": [
+            "semantic_repairs", "native_reference_1_1_1_and_nop_0_0_0_on_each_selected_digest",
+            "all_adjudicated_wrong_reproducer_outcomes_zero",
+            "no_rejected_adjudicated_correct_case", "independent_verifier_pass",
+            *([] if setup_handoff is not None else ["setup_001948_selection"]),
+        ],
+        "counts": {
+            "heldout": len(membership), "heldout_training_overlap": 0,
+            "training_exposure_unique_tasks": len(split["training_exposure"]),
+            "selected_unchanged_v6": sum(row["successor_selection"] == "unchanged-v6" for row in tasks),
+            "selected_setup_only": sum(row["successor_selection"] == "setup-only" for row in tasks),
+            "selected_semantic_repairs": sum(row["successor_selection"] == "semantic-repair" for row in tasks),
+        },
+        "limits": [
+            "Historical scoring authorization is not inherited. This API cannot open scoring.",
+            "Retained exact-v6 x1 controls do not establish v7 repeat3 or qualify a changed package.",
+            "Missing/error/null native outcomes are unmeasured, never successful rejection.",
+            "Reproducer adjudications and admitted-correct inventory remain independent evidence; no verdict is inferred from a wrong-only export.",
+            "Candidate assembly authorizes no execution or spend and makes no v7 acceptance claim.",
+            "Historical frozen-v6 headline grading analyzers do not admit new selected digests; they require a separate consumer integration.",
+        ],
+    }
+
+
+def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
+                       repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
+                       repo_root: Path = ROOT) -> None:
+    """Validate candidate contents and current source/package/record custody."""
+    expected = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
+                                 setup_handoff=setup_handoff, repo_root=repo_root)
+    if encoded(payload) != encoded(expected):
+        raise ValueError("successor manifest differs from its exact frozen inputs, selected identities, or closed gates")
+
+
+def assemble_successor(frozen_source_dir: Path, destination: Path, *,
+                       repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
+                       repo_root: Path = ROOT) -> dict[str, Any]:
+    """Atomically publish a new candidate without replacing any existing file."""
+    destination = destination.resolve()
+    if destination.is_relative_to(frozen_source_dir.resolve()):
+        raise ValueError("successor destination must be outside the frozen source directory")
+    payload = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
+                                setup_handoff=setup_handoff, repo_root=repo_root)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=destination.parent, suffix=".tmp", delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(encoded(payload))
+            handle.flush()
+            os.fsync(handle.fileno())
+            os.link(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent)
@@ -611,6 +1306,10 @@ def main() -> None:
     parser.add_argument("--training-root", type=Path)
     parser.add_argument("--findings", type=Path)
     parser.add_argument("--pairs", type=Path)
+    parser.add_argument("--frozen-source-dir", type=Path)
+    parser.add_argument("--repairs-handoff", type=Path)
+    parser.add_argument("--setup-handoff", type=Path)
+    parser.add_argument("--successor-destination", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--manifest-only", action="store_true")
@@ -618,12 +1317,30 @@ def main() -> None:
     mode.add_argument("--preseal-target-policy", action="store_true")
     mode.add_argument("--release-validity", type=Path)
     mode.add_argument("--release-scoring", action="store_true")
+    mode.add_argument("--assemble-successor", action="store_true")
     parser.add_argument("--actor")
     parser.add_argument("--approval")
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     pairs_path = (args.pairs or output_dir / "package-pairs.csv").resolve()
     try:
+        if args.assemble_successor:
+            if args.frozen_source_dir is None or args.successor_destination is None:
+                raise ValueError("--assemble-successor requires --frozen-source-dir and --successor-destination")
+            if args.actor is not None or args.approval is not None:
+                raise ValueError("successor assembly cannot accept scoring-release authority")
+            payload = assemble_successor(
+                args.frozen_source_dir, args.successor_destination,
+                repairs_handoff=args.repairs_handoff, setup_handoff=args.setup_handoff, repo_root=args.repo_root,
+            )
+            print(json.dumps({
+                "counts": payload["counts"], "manifest": fingerprint(args.successor_destination),
+                "scoring_allowed": False, "pending_gates": payload["pending_gates"],
+            }, sort_keys=True))
+            return
+        if any(value is not None for value in (
+                args.frozen_source_dir, args.repairs_handoff, args.setup_handoff, args.successor_destination)):
+            raise ValueError("successor input/destination arguments require --assemble-successor")
         if args.release_scoring:
             split = release_scoring(output_dir, args.actor, args.approval)
         elif args.release_validity:

@@ -15,6 +15,9 @@ benchmarks (TVB). Built deterministically by `build.py` from
   - TB2.1 item: `expected_verdict = "pass"`.
 - **26 unmodified controls**: format-only tasks (first 26 sorted by
   task_id). Both versions `expected_verdict = "pass"`.
+- **52 canonical pairs** (`pairs.jsonl`): child = TB2 item, parent =
+  TB2.1 item. The scorer loads pairs only from this file; without it
+  paired discrimination is n/a.
 
 ## Scoring rule
 

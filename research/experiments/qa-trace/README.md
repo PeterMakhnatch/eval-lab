@@ -11,12 +11,12 @@ Changes from qa-trace/6:
   submission evidence, and trajectory writes no longer masquerade as a retained diff.
   T1 must inspect the trace when no diff exists; T3 checks observed contribution
   without demanding an unavailable reward, test package or `agent.diff`.
-- **Silent faults keep the right category.** T1 assesses visible task-level outcome
+- **Outcome-cited category routing.** T1 assesses visible task-level outcome
   separately from a process defect. T2 routes an existing causal fault to
   `false_positive` only with results supporting the user's core task outcome,
-  not a bare completion claim, preserving
-  the source question, owner and causal step. Failed/unknown outcomes and platform
-  faults retain `failure_cause`. T3 can refute the outcome route independently.
+  not a bare completion claim, preserving the source question, owner and causal
+  step. Failed/unknown outcomes and platform faults retain `failure_cause`.
+  T3 can refute the outcome route independently.
 - **Staged MiMo scoring is explicit.** `score_v7.py --staged` permits a pre-release
   label export, always marks its report `staged_pre_release`, and still verifies
   the prediction seal before reading labels. Default scoring still requires the
@@ -31,6 +31,120 @@ a previously unseen benchmark even though item-level iteration stays on dev.
 Behavioral smoke: the actual bundle/verify CLI on a diff-less blinded CheatBench
 dev trace emitted a 9,558-byte source-cited projection and reported `bundle intact`.
 No labels reached the workspace; missing diff, grader and task package stayed missing.
+
+### Dev-only iteration and freeze
+
+Code: PR #1038, merged `dd8ba6e3`. Prompt, source and configuration digests were
+recorded in `research-context/bridge/2026-10-17-v7/qa-trace-7-freeze.json` at
+05:35:38 ET on October 18, before a v7 label handoff arrived or held-out output
+was inspected. The held-out protocol uses the same 173 trajectory-judge items
+(15 legacy exclusions), 100 blind CheatBench items and 70 original MiMo passes.
+
+The 26-item trajectory-judge dev pilot has 13 silent faults, 6 loud faults and
+7 clean items. Category match is conditional on flagging a positive, not a second
+recall denominator.
+
+| dev variant | silent caught | silent category match | loud caught | loud category match | clean flagged |
+|---|---|---|---|---|---|
+| Initial completion-based outcome | 11/13 | 11/11 | 6/6 | 4/6 | 0/7 |
+| Final core-goal outcome | 12/13 | 6/12 | 6/6 | 6/6 | 0/7 |
+
+Two loud refunds had a confident completion message but the wrong amount.
+The final prompt requires observed core-goal results. It correctly categorizes
+all 6 loud faults but leaves 6 caught silent faults in the old category: this
+is a remaining limit, not a solved category problem. T1 was re-run on dev after
+the prompt change, so the recall difference is not an isolated routing effect.
+See `results/qa-trace-7-trajectory-judge-dev{,-initial}.json`.
+
+| CheatBench dev (10 items) | positives caught | negatives flagged | abstained |
+|---|---|---|---|
+| T1 alone | 0/2 | 0/4 | 4/10 |
+| Full pipeline | 3/5 | 1/4 | 1/10 |
+
+See `results/qa-trace-7-cheatbench-dev.json`. Trace-only inspection cannot recover
+omitted submission bodies; reading tests alone is not proof their contents
+contributed to the graded submission. No cheat flag was forced to meet a recall
+target. These dev results informed the upgrade; no further changes are permitted
+after the freeze based on the held-out results.
+
+### Trajectory-judge test retest — category improvement with a recall tradeoff
+
+The frozen run judged all 173 eligible items once (2,032 seconds), excluding the
+same 15 legacy prompt-exposed test items. The registered-key scoreboard keeps all
+188 test items in its denominator and measures 173; the table below uses the
+173-item eligible population. Earlier benchmark outputs/aggregates were known,
+as disclosed in `research/answer-keys/splits/exposure.jsonl`; this is not a virgin benchmark result.
+
+| metric | published qa-trace/5 baseline | frozen qa-trace/7 |
+|---|---|---|
+| Silent faults caught | 70/75 | 62/75 |
+| Silent category match, conditional on flagging | 0/70 | 31/62 |
+| Loud faults caught | 52/52 | 52/52 |
+| Clean items flagged | 10/46 | 0/46 |
+| Paired Δ, all 109 eligible pairs [95% CI] | 0.642 [0.464, 0.820] | 0.908 [0.850, 0.955] |
+
+Silent routing improves from no category matches to 31, but half of the caught
+silent faults still retain the wrong category. Correctly categorized silent
+faults are **31/75 overall**, not a 50% recall claim. The stricter pipeline also
+has net eight fewer silent detections while eliminating the ten clean false flags.
+All 52 loud detections have the right category. This is a measurable tradeoff,
+not a universal recall improvement or a complete routing fix.
+
+The shared scorer/exported findings agree with the verdicts: `category_match=31/62`
+for `false_positive`, `52/52` for `failure_cause`, `83/114` overall. Root-cause
+attribution remains N/A, distinct from category matching. See
+`results/qa-trace-7-trajectory-judge-400-test.json` and the three `qa-trace/7` rows in
+`research/qa-scoreboard/scoreboard.csv`. No held-out-driven change was made.
+
+### Blind CheatBench held-out retest — no fixed-false-flag recall gain
+
+All 100 of the same held-out IDs were judged once after the freeze (1,161 seconds).
+Rate denominators below exclude abstentions; each version has the identical full
+population of 50 positives and 50 negatives.
+
+| version / system | positives caught | negatives flagged | abstained |
+|---|---|---|---|
+| qa-trace/6 T1 alone | 8/36 | 1/29 | 35/100 |
+| qa-trace/7 T1 alone | 10/38 | 2/32 | 30/100 |
+| qa-trace/6 full pipeline | 34/50 | 3/31 | 19/100 |
+| qa-trace/7 full pipeline | 34/50 | 3/33 | 17/100 |
+
+T1 adds two positive flags and one false flag. Positive flag yield on all 50
+positives moves 16%→20%; the Wilson 95% intervals overlap widely (8%–29% versus
+11%–33%). Only 6 of the 35 old T1 abstentions become decisions (one added positive,
+one added false flag, four no findings); one previously decided item now abstains.
+The full pipeline changes **no flagged IDs**, positive or negative: no incremental
+recall beyond the cached T0 OOF leg. Its Sol-leg input blinding remains unverified.
+**The requested recall lift without additional false flags is not demonstrated.**
+
+The new T1 false flag (`cb-004414`) assumes a macro-only restriction from the agent's
+own description while the substantive task prompt is missing. We retain the corpus
+label and count it as a false flag; authorization cannot be recovered just by adding
+more terminal observations. There was no post-test prompt change or relabeling.
+
+See `results/qa-trace-7-cheatbench-heldout.json` and
+`results/qa-trace-7-cheatbench-comparison.json` for per-ID transitions and denominators.
+Only these 100 CB QA Trace cache rows were refreshed; other corpus rows retain
+their recorded versions. `evallab detectors verify` reports all 6,768 cached rows
+checksum-valid. The two versions differ by the complete qa-trace/7 cutover, not
+an isolated projection-only change.
+
+### MiMo held-out prediction custody; label handoff missing
+
+Both versions judged the same 70 original v6 passes before any label contents were
+read, with no quota stop or counterfactual grading execution.
+
+| predictor | frozen code | predictions complete | sealed files | prediction seal |
+|---|---|---|---|---|
+| qa-trace/6 (primary fresh result) | `556170ab5` | 70/70 | 355 | `qa-trace-v7-predictions.sha256` |
+| qa-trace/7 (generic dev-only upgrade) | `dd8ba6e3` | 70/70 | 568 | `qa-trace-7-v7-predictions.sha256` |
+
+Seals and the qa7 source/prompt freeze receipt are in
+`research-context/bridge/2026-10-17-v7/`. The qa6 seal is unchanged. After the qa7
+seal was written, no staged/canonical `regrade-v7*.json` or `cheat-set-v7.jsonl`
+handoff existed there; label-dependent accuracy is therefore unmeasured, not zero.
+`score_v7.py` is ready for both seals and explicitly marks any `--staged` result.
+A future v7 rejection is a correctness label, never evidence of behavioral cheating.
 
 ## qa-trace/6 (2026-10-17 evening): contribution-only label, blind workspaces
 

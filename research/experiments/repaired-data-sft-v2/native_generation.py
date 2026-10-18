@@ -92,6 +92,16 @@ K = 4
 CELLS = len(TASK_IDS) * K
 PROBE_SECONDS = 10.0
 
+#: Admitted serving origins, matching the repository's self-hosted route pin:
+#: one serving label under ``*.modal.run`` or one serving label under a
+#: documented routing region ``*.modal.direct``; lookalike suffixes,
+#: non-region ``*.modal.direct`` hosts and multi-label regions never match.
+MODAL_ORIGIN_RES = (
+    re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$"),
+    re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\."
+               r"(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct$"),
+)
+
 
 def load_module(name: str, path: Path) -> Any:
     spec = importlib.util.spec_from_file_location(name, path)
@@ -504,7 +514,7 @@ def checked_window(path: Path, envelope_path: Path, plan: dict[str, Any], *, exp
     same(value["state"], "active", "parent serving window is not active")
     require(value.get("owner") and value.get("app_id") and value.get("window_id"), "actual parent serving ownership/app/window IDs are required")
     parsed = urlsplit(value["upstream"])
-    require(parsed.scheme == "https" and parsed.hostname and parsed.hostname.endswith(".modal.run") and not parsed.username and not parsed.password and parsed.path in ("", "/") and not parsed.query and not parsed.fragment and parsed.port is None, "upstream must be the actual authenticated HTTPS Modal origin, not a fake endpoint")
+    require(parsed.scheme == "https" and parsed.hostname and any(pattern.match(parsed.hostname) for pattern in MODAL_ORIGIN_RES) and not parsed.username and not parsed.password and parsed.path in ("", "/") and not parsed.query and not parsed.fragment and parsed.port is None, "upstream must be the actual authenticated HTTPS Modal origin, not a fake endpoint")
     require(RETURNED_MODEL in value["allowed_models"], "serving window does not admit the exact actual upstream BASE ID")
     start, end = utc_instant(value["starts_at"]), utc_instant(value["expires_at"])
     now_utc = datetime.now(UTC)

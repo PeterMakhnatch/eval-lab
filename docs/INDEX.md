@@ -145,7 +145,7 @@ inputs:
   - path: docs/task-stability.md
     digest: sha256:66ce5bd404a04d6ce58b4dd034ab549e5abcff50d94239abf8876cedfbf59bab
   - path: docs/task-variants.md
-    digest: sha256:5ea28f4117b0165490d4afad50526027dcb452fb0a89a162de30527eeae17d3f
+    digest: sha256:f330876569c151ebb69f11a5fa1e2050f0eb62027f7b46a5f474c4166d99ae48
   - path: docs/task-workbench.md
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md

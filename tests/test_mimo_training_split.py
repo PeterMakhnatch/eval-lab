@@ -602,6 +602,8 @@ def successor_case(driver, tmp_path: Path):
             "solution/solve.sh": "#!/bin/sh\nprintf 'reference implementation\\n'\n",
             "tests/test.sh": "#!/bin/sh\npython -c 'assert 2 + 2 == 4'\n",
             "tests/test.patch": (
+                (Path(__file__).parent / "fixtures/mimo_runtime_repair_001246.patch").read_text()
+                if task_id == "format-code-task-001246" else
                 "diff --git a/test_existing.py b/test_existing.py\nnew file mode 100644\n"
                 "--- /dev/null\n+++ b/test_existing.py\n@@ -0,0 +1,2 @@\n"
                 "+def test_existing():\n+    assert 2 + 2 == 4\n"

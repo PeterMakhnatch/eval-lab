@@ -201,7 +201,8 @@ before constructing/using the backend; each actual trial uses the first-party
 text lane; the callable does not construct another model route.
 
 `source_context` is a bounded mapping from safe repository-relative production
-paths to pristine base-source text (55,000 characters per entry, 160,000 total).
+paths to pristine base-source text (160,000 characters total). One larger source
+module may use that shared allowance; per-file splitting is not required.
 Obtain it only from the untouched package image after its normal setup, with a
 trusted read-only reader over an explicit production-path allowlist. Do not
 export history, tests, fixtures, setup/grader files, solutions, reference patches
@@ -216,9 +217,10 @@ Accepted responses are `candidate`, `no_candidate` or `needs_source_context`.
 A candidate has only `submission.kind="patch"` and a concrete counterexample
 (`requirement`, `input`, `expected`, `actual`); the prediction is retained for
 independent inspection, never treated as a correctness judgment. Only ordinary
-input/output behavior and incomplete implementations are in scope. Expected-answer
-copying, hidden-data reads, reward writes, test-framework monkeypatches,
-introspection, process/network access and sandbox/control-plane bypasses are not.
+input/output behavior, including constant outputs and incomplete implementations,
+is in scope. Reading expected-answer files or hidden data, writing rewards,
+test-framework monkeypatches, introspection, process/network access and
+sandbox/control-plane bypasses are not.
 
 `grade_shortcut(..., {"kind": "semantic_patch", "content": diff}, ...)` is the
 safe execution entry for an already obtained proposal, including a genuinely
@@ -228,7 +230,9 @@ The semantic validator:
 - accepts bounded, same-path text git diffs for production source; rejects
   absolute/traversal/hidden paths, tests and every path in `tests/test.patch`,
   fixtures/golden files, solutions, grader/reward/security/auth/network controls,
-  runner/dependency configuration, hooks and plugins;
+  runner/dependency configuration, hooks and plugins.
+  Legitimate production modules such as `burnman/classes/solution.py` are allowed;
+  reference-solution directories are not.
 - rejects inconsistent headers, binary content, deletion, rename/copy, mode
   changes, symlink/gitlink creation, and added test-control/introspection/
   process/network code using the existing verifier guards plus the narrower

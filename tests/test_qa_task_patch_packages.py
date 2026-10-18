@@ -657,36 +657,50 @@ def _semantic_diff(path: str = "a.py") -> str:
     )
 
 
-def test_semantic_patch_changes_only_declared_source_and_mismatch_is_atomic(tmp_path: Path) -> None:
+@pytest.mark.parametrize("target", ["a.py", "burnman/classes/solution.py"])
+def test_semantic_patch_changes_only_declared_source_and_mismatch_is_atomic(
+    tmp_path: Path, target: str
+) -> None:
     repo = _repo(tmp_path)
+    source = repo / target
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("x = 1\ny = 2\n", encoding="utf-8")
     package = _semantic_package(tmp_path, repo)
     unrelated = tmp_path / "a.py"
     unrelated.write_text("unrelated\n", encoding="utf-8")
-    script, paths, workdir = mimo_semantic_patch_script(package, _semantic_diff())
+    script, paths, workdir = mimo_semantic_patch_script(package, _semantic_diff(target))
     first = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
     assert first.returncode == 0, first.stderr
-    assert paths == ["a.py"]
+    assert paths == [target]
     assert workdir == str(repo.resolve())
-    assert (repo / "a.py").read_text(encoding="utf-8") == "x = 1\ny = 3\n"
+    assert source.read_text(encoding="utf-8") == "x = 1\ny = 3\n"
     assert unrelated.read_text(encoding="utf-8") == "unrelated\n"
 
     again = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
     assert again.returncode != 0
-    assert (repo / "a.py").read_text(encoding="utf-8") == "x = 1\ny = 3\n"
+    assert source.read_text(encoding="utf-8") == "x = 1\ny = 3\n"
 
 
 @pytest.mark.parametrize(
     "target",
     [
-        "../outside.py", "/outside.py", ".git/config.py", "tests/helper.py",
-        "pkg/test_runner.py", "pkg/conftest.py", "grader.py", "reward.py",
-        "pkg/security.py", "auth/permissions.py", "pkg/sitecustomize.py",
-        "solution/main.py", "pkg/pytest.ini", "pkg/setup.py",
+        "../outside.py",
+        "/outside.py",
+        ".git/config.py",
+        "tests/helper.py",
+        "pkg/test_runner.py",
+        "pkg/conftest.py",
+        "grader.py",
+        "reward.py",
+        "pkg/security.py",
+        "auth/permissions.py",
+        "pkg/sitecustomize.py",
+        "solution/main.py",
+        "pkg/pytest.ini",
+        "pkg/setup.py",
     ],
 )
-def test_semantic_patch_refuses_protected_or_traversal_targets(
-    tmp_path: Path, target: str
-) -> None:
+def test_semantic_patch_refuses_protected_or_traversal_targets(tmp_path: Path, target: str) -> None:
     package = _semantic_package(tmp_path, tmp_path / "source")
     with pytest.raises(ValueError):
         mimo_semantic_patch_script(package, _semantic_diff(target))
@@ -694,9 +708,7 @@ def test_semantic_patch_refuses_protected_or_traversal_targets(
 
 def test_semantic_patch_protects_every_path_in_the_verifier_patch(tmp_path: Path) -> None:
     package = _semantic_package(tmp_path, tmp_path / "source")
-    (package / "tests/test.patch").write_text(
-        _semantic_diff("pkg/ordinary.py"), encoding="utf-8"
-    )
+    (package / "tests/test.patch").write_text(_semantic_diff("pkg/ordinary.py"), encoding="utf-8")
     with pytest.raises(ValueError, match="protected"):
         mimo_semantic_patch_script(package, _semantic_diff("pkg/ordinary.py"))
 
@@ -707,6 +719,7 @@ def test_semantic_patch_protects_every_path_in_the_verifier_patch(tmp_path: Path
         _semantic_diff().replace("--- a/a.py", "--- a/other.py"),
         _semantic_diff().replace("+++ b/a.py", "+++ b/other.py"),
         _semantic_diff().replace("@@ -1,2 +1,2 @@", "@@ -1,200 +1,200 @@"),
+        _semantic_diff().replace("@@ -1,2 +1,2 @@", "@@"),
         _semantic_diff().replace("--- a/a.py", "new file mode 120000\n--- a/a.py"),
         _semantic_diff().replace("+y = 3", "+y = vars()"),
     ],
@@ -720,9 +733,7 @@ def test_semantic_patch_refuses_malformed_file_types_and_introspection(
 
 
 @pytest.mark.parametrize("link", ["symlink", "hardlink", "parent-symlink"])
-def test_semantic_apply_never_writes_through_linked_source(
-    tmp_path: Path, link: str
-) -> None:
+def test_semantic_apply_never_writes_through_linked_source(tmp_path: Path, link: str) -> None:
     source = tmp_path / "source"
     source.mkdir()
     outside = tmp_path / "outside.py"
@@ -751,10 +762,12 @@ def test_semantic_replay_refuses_changed_candidate_bytes_before_docker(
     original = _semantic_diff()
     candidate.write_text(original.replace("+y = 3", "+y = 4"), encoding="utf-8")
     (tmp_path / "semantic-candidate.json").write_text(
-        json.dumps({
-            "source_task_digest": task_directory_digest(package),
-            "candidate_sha256": hashlib.sha256(original.encode("utf-8")).hexdigest(),
-        }),
+        json.dumps(
+            {
+                "source_task_digest": task_directory_digest(package),
+                "candidate_sha256": hashlib.sha256(original.encode("utf-8")).hexdigest(),
+            }
+        ),
         encoding="utf-8",
     )
     observation = backend.replay_reproducer(
@@ -776,8 +789,10 @@ def test_mimo_s2a_rejects_generic_submission_channels_before_docker(
 ) -> None:
     package = _semantic_package(tmp_path, tmp_path / "source")
     observation, reproducer = backend.grade_shortcut(
-        package, {"kind": kind, "path": "/app/out.py", "content": "x = 1\n"},
-        digest=task_directory_digest(package), run_dir=tmp_path / "candidate",
+        package,
+        {"kind": kind, "path": "/app/out.py", "content": "x = 1\n"},
+        digest=task_directory_digest(package),
+        run_dir=tmp_path / "candidate",
         timeout_seconds=1,
     )
     assert observation.status == "failed"
@@ -792,7 +807,8 @@ def test_repeated_controls_keep_six_independent_outcomes_and_trial_paths(
     package = _mimo(tmp_path)
     backend.bind_reference_patch(package, _reference(tmp_path))
     task = SimpleNamespace(
-        task_id="mimo/format-code-task-000001", path=str(package),
+        task_id="mimo/format-code-task-000001",
+        path=str(package),
         package_digest=task_directory_digest(package),
     )
     fake = _install(monkeypatch, FakeDocker())
@@ -800,15 +816,26 @@ def test_repeated_controls_keep_six_independent_outcomes_and_trial_paths(
     monkeypatch.setattr("evallab.qa.task.time.monotonic", lambda: float(next(ticks)))
     outcomes = []
     for agent, reward in [
-        ("oracle", 1.0), ("oracle", 0.0), ("oracle", 1.0),
-        ("nop", 0.0), ("nop", 1.0), ("nop", 0.0),
+        ("oracle", 1.0),
+        ("oracle", 0.0),
+        ("oracle", 1.0),
+        ("nop", 0.0),
+        ("nop", 1.0),
+        ("nop", 0.0),
     ]:
         fake._reward = f"{reward}\n"
-        outcomes.append(backend.control(task, agent, timeout_seconds=1, run_dir=tmp_path / "controls"))
+        outcomes.append(
+            backend.control(task, agent, timeout_seconds=1, run_dir=tmp_path / "controls")
+        )
     assert [obs.facts["reward"] for obs in outcomes] == [1.0, 0.0, 1.0, 0.0, 1.0, 0.0]
     assert all(obs.status == "executed" for obs in outcomes)
     jobs = [Path(obs.facts["job_path"]) for obs in outcomes]
     assert len(set(jobs)) == 6
     assert [json.loads((job / "result.json").read_text())["reward"] for job in jobs] == [
-        1.0, 0.0, 1.0, 0.0, 1.0, 0.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
     ]

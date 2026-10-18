@@ -281,6 +281,198 @@ def test_startup_refuses_unsafe_claims_before_any_deployment(window, claimed_sta
     assert journal.read()["reserved_usd"] == "2.50"
 
 
+@pytest.mark.parametrize("upstream,accepted", [
+    ("https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct", True),
+    ("https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.modal.run", True),
+    ("https://other-owner--app-server.us-west.modal.direct", True),
+    ("https://abc123.ap-southeast-2.modal.direct", True),
+    ("http://x.us-east.modal.direct", False),
+    ("https://modal.direct", False),
+    ("https://modal.run", False),
+    ("https://x.modal.direct", False),
+    ("https://xmodal.direct", False),
+    ("https://x.notmodal.direct", False),
+    ("https://x.evil.modal.direct", False),
+    ("https://x.us-central.modal.direct", False),
+    ("https://a.b.us-east.modal.direct", False),
+    ("https://a.b.modal.run", False),
+    ("https://x.modal.direct.evil.example", False),
+    ("https://x.modal.run.evil.example", False),
+    ("https://x.us-east.modal.directx", False),
+    ("https://user:pw@x.us-east.modal.direct", False),
+    ("https://x.us-east.modal.direct:8443", False),
+    ("https://x.us-east.modal.direct/v1", False),
+    ("https://x.us-east.modal.direct/?q=1", False),
+    ("https://x.us-east.modal.direct#frag", False),
+    ("https://other.example/redirect?to=x.modal.direct", False),
+])
+def test_upstream_origin_boundary(window, upstream, accepted):
+    if accepted:
+        window.validate_upstream(upstream)
+    else:
+        with pytest.raises(ValueError, match="Modal origin"):
+            window.validate_upstream(upstream)
+
+
+def test_locked_state_precondition_blocks_lost_race(window, config, tmp_path):
+    journal = window.Journal(tmp_path / "window.json")
+    journal.create(config)
+    with pytest.raises(ValueError, match="state"):
+        journal.update(expected_state="stopped", upstream="https://a.modal.run")
+    assert journal.read()["upstream"] is None
+
+
+@pytest.fixture
+def adoptable(window, config, tmp_path, monkeypatch):
+    controls = tmp_path / "controls.json"
+    controls.write_text('{"strict_tasks":19}')
+    controls_sha = window.sha256(controls.read_bytes())
+    monkeypatch.setattr(window, "CONTROLS_SHA256", controls_sha)
+    serving = {key: config[key] for key in ("app_name", "gpu", "hard_cpu_limit", "hard_memory_mib_limit",
+        "usd_per_second_upper_bound", "maximum_seconds", "shutdown_reserve_seconds", "cap_usd")}
+    budget = {"schema": "mimo.phase2-envelope/v1", "reservation_id": config["reservation_id"], "admitted": True,
+              "ledger_tag": "2026-10-17-v7", "approved_usd": "12.00", "serving": serving,
+              "native": {"cap_usd": "6.50"}, "heldout_regrade": {"cap_usd": "3.00"},
+              "controls": {"path": str(controls), "sha256": "sha256:" + controls_sha}}
+    path = tmp_path / "budget.json"
+    path.write_text(json.dumps(budget))
+    config["budget_state"] = {"path": str(path), "sha256": "sha256:" + window.sha256(path.read_bytes())}
+    journal = window.Journal(tmp_path / "window.json")
+    journal.create(config)
+    # The original deploy consumed its remote claim and invoked the deployment,
+    # then crashed before recording it; the live watchdog still heartbeats.
+    journal.update(deployment_invoked_at=window.utc(1400), watchdog_heartbeat_at=window.utc(1500))
+    claim = window.sha256(window.encoded(config))
+    app_id = "ap-existing"
+    store = {
+        "reservation:" + config["reservation_id"]: claim,
+        "guard:" + config["reservation_id"]: {
+            "armed": True, "app_id": app_id, "deadline": config["expires_at"],
+            "config_sha256": claim, "armed_at": window.utc(1400),
+            "mechanism": "same-app scheduled guard plus detached local watchdog and container absolute deadline",
+        },
+    }
+    provider = {
+        "app_id": app_id, "previous_app_id": "", "state": 3,
+        "tasks": [SimpleNamespace(task_id="ta-1", started_at=1400.0, enqueued_at=1390.0)],
+        "url": "https://owner--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct",
+        "apps": [SimpleNamespace(app_id=app_id, name="", description=window.APP_NAME)],
+        "tags": {app_id: window.ownership_tags(config)},
+    }
+    calls = []
+
+    def rpc(method, request, timeout):
+        calls.append(method)
+        if method == "AppGetByDeploymentName":
+            return SimpleNamespace(app_id=provider["app_id"], previous_app_id=provider["previous_app_id"])
+        if method == "AppGetTags":
+            return SimpleNamespace(tags=provider["tags"].get(request.app_id, {}))
+        if method == "AppGetLifecycle":
+            return SimpleNamespace(lifecycle=SimpleNamespace(app_state=provider["state"]))
+        if method == "TaskList":
+            return SimpleNamespace(tasks=provider["tasks"])
+        raise AssertionError(method)
+
+    control = object.__new__(window.ModalControl)
+    control.api = SimpleNamespace(
+        APP_STATE_STOPPED=5,
+        AppGetByDeploymentNameRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+        AppGetTagsRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+        AppGetLifecycleRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+        TaskListRequest=lambda **kwargs: SimpleNamespace(**kwargs))
+    control.rpc = rpc
+    control.store = SimpleNamespace(get=store.get, put=Mock())
+    control.apps = lambda: provider["apps"]
+    control.environment = "main"
+    monkeypatch.setattr(window, "ModalControl", lambda environment: control)
+    monkeypatch.setattr(window, "deployed_server_url", lambda environment: provider["url"])
+    monkeypatch.setattr(window.time, "time", lambda: 2000)
+    args = SimpleNamespace(state=journal.path, config_sha256=claim,
+                           deployed_source_revision="e698e6cb7132274ce2e30960963a717e3812f87b")
+    return journal, args, store, provider, control, calls
+
+
+def test_adopt_existing_binds_deployed_app_under_live_watchdog(window, adoptable):
+    journal, args, store, provider, control, calls = adoptable
+    value = window.adopt_existing(args)
+    config = value["config"]
+    assert value["state"] == "armed_not_ready"
+    assert value["app_id"] == provider["app_id"]
+    assert value["upstream"] == provider["url"]
+    assert value["config_sha256"] == args.config_sha256
+    assert value["deployment_invoked_at"] == window.utc(1400)
+    assert value["watchdog_heartbeat_at"] == window.utc(1500)
+    assert value["reserved_usd"] == config["cap_usd"]
+    control.store.put.assert_not_called()
+    assert "AppStop" not in calls
+    record = json.loads(Path(value["deployment"]["path"]).read_bytes())
+    assert record["adoption"] == "existing_owned_deployment"
+    assert record["observed_at"] and record["adopted_at"] and "deployed_at" not in record
+    assert record["upstream"] == provider["url"] and record["app_id"] == provider["app_id"]
+    assert record["deployed_source"]["reported_revision"] == args.deployed_source_revision
+    assert record["controller_source"]["sha256"] == window.sha256(
+        Path(record["controller_source"]["path"]).read_bytes())
+    assert record["observation"]["app_state"] == provider["state"]
+    guard = value["stop_guard"]
+    assert guard["armed"] is True and guard["app_id"] == provider["app_id"]
+    assert guard["deadline"] == config["expires_at"] and Path(guard["evidence"]["path"]).is_file()
+
+
+@pytest.mark.parametrize("unsafe", [
+    "config_sha_mismatch", "missing_source_revision", "journal_upstream_recorded", "journal_stopped",
+    "expired", "claim_mismatch", "no_named_deployment", "journal_app_mismatch", "wrong_owner",
+    "second_deploy", "stopped_app", "bad_upstream", "guard_missing", "guard_unarmed",
+    "guard_wrong_app", "guard_wrong_config", "guard_wrong_deadline",
+])
+def test_adopt_existing_refuses_unsafe_adoption(window, adoptable, unsafe, monkeypatch):
+    journal, args, store, provider, control, calls = adoptable
+    config = journal.read()["config"]
+    if unsafe == "config_sha_mismatch":
+        args.config_sha256 = "0" * 64
+    elif unsafe == "missing_source_revision":
+        args.deployed_source_revision = " "
+    elif unsafe == "journal_upstream_recorded":
+        journal.update(upstream="https://earlier.modal.run")
+    elif unsafe == "journal_stopped":
+        journal.update(state="stopped", stopped_at=window.utc(1600))
+    elif unsafe == "expired":
+        monkeypatch.setattr(window.time, "time", lambda: 4381)
+    elif unsafe == "claim_mismatch":
+        store["reservation:" + config["reservation_id"]] = "different-config"
+    elif unsafe == "no_named_deployment":
+        provider["app_id"] = ""
+    elif unsafe == "journal_app_mismatch":
+        journal.update(app_id="ap-another")
+    elif unsafe == "wrong_owner":
+        provider["tags"][provider["app_id"]] = {"evallab_window_id": "another-window"}
+    elif unsafe == "second_deploy":
+        second = "ap-second-owned"
+        provider["apps"].append(SimpleNamespace(app_id=second, name="", description=window.APP_NAME))
+        provider["tags"][second] = window.ownership_tags(config)
+    elif unsafe == "stopped_app":
+        provider["state"] = 5
+    elif unsafe == "bad_upstream":
+        provider["url"] = "https://x.modal.direct.evil.example"
+    elif unsafe == "guard_missing":
+        del store["guard:" + config["reservation_id"]]
+    elif unsafe == "guard_unarmed":
+        store["guard:" + config["reservation_id"]]["armed"] = False
+    elif unsafe == "guard_wrong_app":
+        store["guard:" + config["reservation_id"]]["app_id"] = "ap-other"
+    elif unsafe == "guard_wrong_config":
+        store["guard:" + config["reservation_id"]]["config_sha256"] = "f" * 64
+    elif unsafe == "guard_wrong_deadline":
+        store["guard:" + config["reservation_id"]]["deadline"] = config["stop_deadline"]
+    with pytest.raises(ValueError):
+        window.adopt_existing(args)
+    value = journal.read()
+    assert value["state"] in {"reserved_not_deployed", "stopped"}
+    assert value["stop_guard"] == {"armed": False}
+    assert not value.get("deployment")
+    control.store.put.assert_not_called()
+    assert "AppStop" not in calls
+
+
 def test_cli_retains_modal_validation_reason_without_credentials(window, monkeypatch, capsys):
     modal = pytest.importorskip("modal")
     secret = "fixture-private-value"

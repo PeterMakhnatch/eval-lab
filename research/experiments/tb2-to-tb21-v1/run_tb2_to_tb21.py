@@ -61,7 +61,7 @@ MODAL_APP_NAME = "tb2-amd64-modal"
 MODAL_CAP_USD = 1.0
 DEFAULT_PLATFORM = "linux/amd64"
 DEFAULT_USD_PER_EXECUTION = 0.20
-DEBIAN_DPKG_SNAPSHOT = "20250715T000000Z"
+DEBIAN_DPKG_SNAPSHOT = "20251101T000000Z"
 UBUNTU_CURL_SNAPSHOT = "20260115T000000Z"
 KNOWN_CONTROL_LIMITS = {
     "protein-assembly": (
@@ -115,16 +115,14 @@ def oracle_prelude(slug: str, version: str) -> str:
     """
     if slug == "build-pmars" and version == LLM_VERSION:
         stamp = DEBIAN_DPKG_SNAPSHOT
+        # Pin the dependency closure: current libc6-dev breaks libdpkg-perl
+        # 1.22.21, so selecting only the old dpkg family is insufficient.
         return _apt_snapshot_prelude(
             "deb http://snapshot.debian.org/archive/debian/"
             f"{stamp} trixie main\n"
             "deb-src http://snapshot.debian.org/archive/debian/"
             f"{stamp} trixie main\n",
-            preferences=(
-                "Package: dpkg dpkg-dev libdpkg-perl dselect\n"
-                "Pin: version 1.22.21*\n"
-                "Pin-Priority: 1001\n"
-            ),
+            preferences=("Package: *\nPin: origin snapshot.debian.org\nPin-Priority: 1001\n"),
         )
     if slug == "rstan-to-pystan" and version == LLM_VERSION:
         return (

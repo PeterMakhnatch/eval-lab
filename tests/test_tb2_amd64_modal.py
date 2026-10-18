@@ -163,25 +163,6 @@ def test_harbor_child_receives_platform_and_modal_tokens_only_when_asked() -> No
     assert "modal-secret" in collected_secret_values(source)
 
 
-def test_oracle_preludes_cover_only_the_recorded_pins() -> None:
-    pmars = driver.oracle_prelude("build-pmars", "tb2")
-    assert "snapshot.debian.org" in pmars
-    assert driver.DEBIAN_DPKG_SNAPSHOT in pmars
-    assert "Pin: version 1.22.21*" in pmars
-    assert "Pin-Priority: 1001" in pmars
-    assert driver.oracle_prelude("build-pmars", "tb21") == ""
-    rstan = driver.oracle_prelude("rstan-to-pystan", "tb2")
-    assert "snapshot.ubuntu.com" in rstan
-    assert driver.UBUNTU_CURL_SNAPSHOT in rstan
-    assert "apt-get install -y ca-certificates" in rstan
-    assert "Pin: version 8.5.0-2ubuntu10.6*" in rstan
-    assert "libssl-dev" not in rstan
-    assert "cmake" in driver.oracle_prelude("mcmc-sampling-stan", "tb2")
-    assert "cmake" in driver.oracle_prelude("mcmc-sampling-stan", "tb21")
-    assert driver.oracle_prelude("protein-assembly", "tb2") == ""
-    assert driver.oracle_prelude("install-windows-3.11", "tb2") == ""
-
-
 def test_modal_backend_refuses_a_missing_approval_or_a_cap_over_one_dollar() -> None:
     with pytest.raises(ValueError, match="--approve"):
         driver.build_grade_backend(

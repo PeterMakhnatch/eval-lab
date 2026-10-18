@@ -140,6 +140,13 @@ irreversible even if the external deployment fails. A new fresh-source local
 watchdog must heartbeat before deployment, and remote/process guards remain
 mandatory before readiness.
 
+The same-app `stop_window` uses a 2-second scaledown window: Modal requires
+`2 <= scaledown_window <= 3600`, including for this scheduled CPU guard.
+The controller prints redacted Modal `InvalidError` validation messages so a
+rejected deployment's reason is visible; other SDK/HTTP exception details
+remain withheld. A rejected deployment does not authorize another reservation
+or deadline without a new explicit parent approval.
+
 ```bash
 # Free, provider-free quote; does not admit/deploy/probe anything.
 uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py quote \

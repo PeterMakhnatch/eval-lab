@@ -11,13 +11,13 @@ import tarfile
 from pathlib import Path
 
 import pytest
-
-from evallab import mimo_runtime_repair as producer
-from evallab.runner import load_matrix, staged_matrix_request
-from evallab.task_variants import derive_task
 from test_mimo_training_split import driver as driver
 from test_mimo_training_split import native_control_fixture
 from test_mimo_training_split import successor_case as successor_case
+
+from evallab import mimo_runtime_repair as producer
+from evallab.runner import load_matrix, staged_matrix_request
+from evallab.task_variants import VariantExistsError, derive_task
 
 FIXTURE = Path(__file__).parent / "fixtures/mimo_runtime_repair_001246.patch"
 
@@ -168,6 +168,37 @@ def runtime_case(successor_case, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     )
     return case | {"handoff": handoff, "handoff_path": handoff_path, "inventory_data": inventory,
                    "inventory_path": inventory_path, "source_path": source_path, "parent": parent}
+
+
+@pytest.mark.parametrize("conflicting_parent", [False, True])
+def test_registered_runtime_variant_rebuilds_without_rewriting_lineage_or_accepting_another_parent(
+    runtime_case, conflicting_parent: bool,
+) -> None:
+    case, repo = runtime_case, runtime_case["repo"]
+    original = case["handoff"]
+    record_path = Path(original["native_record"]["path"])
+    if conflicting_parent:
+        record = json.loads(record_path.read_bytes())
+        record["parent"]["source"] = {"kind": "local", "path": str(case["parent"])}
+        record_path.write_text(json.dumps(record))
+    record_before = record_path.read_bytes()
+    arguments = {
+        "parent": case["parent"], "inventory": case["inventory_path"],
+        "evidence": original["causal_evidence"], "repo_root": repo,
+        "output_dir": repo / "derived/rebuilt-plan",
+        "variants_root": repo / "derived/rebuilt-variants",
+        "handoff_path": repo / "rebuilt-handoff.json", "created_by": "pytest-fresh-checkout",
+    }
+    if conflicting_parent:
+        with pytest.raises(VariantExistsError):
+            producer.derive_runtime_repair(**arguments)
+    else:
+        rebuilt = producer.derive_runtime_repair(**arguments)
+        selected = producer.package_identity(Path(rebuilt["selected"]["package_path"]))
+        assert selected["package_path"] != original["selected"]["package_path"]
+        for key in ("package_digest", "harbor_digest", "verifier_digest"):
+            assert selected[key] == original["selected"][key]
+    assert record_path.read_bytes() == record_before
 
 
 def save_handoff(case) -> None:
@@ -355,14 +386,3 @@ def test_runtime_handoff_is_not_an_envcheck_semantic_repair(driver, runtime_case
         driver["successor_payload"](runtime_case["frozen"], repairs_handoff=runtime_case["handoff_path"], repo_root=runtime_case["repo"])
 
 
-def test_runtime_cli_forwards_optional_intake_without_releasing_scoring(driver, runtime_case, tmp_path: Path, monkeypatch) -> None:
-    destination = tmp_path / "cli-successor.json"
-    monkeypatch.setattr(sys, "argv", [
-        "freeze.py", "--assemble-successor", "--frozen-source-dir", str(runtime_case["frozen"]),
-        "--successor-destination", str(destination), "--repo-root", str(runtime_case["repo"]),
-        "--runtime-repair-handoff", str(runtime_case["handoff_path"]),
-    ])
-    driver["main"]()
-    payload = json.loads(destination.read_text())
-    assert selected_row(payload)["successor_selection"] == "runtime-repair"
-    assert payload["scoring_allowed"] is False

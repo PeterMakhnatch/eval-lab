@@ -204,11 +204,11 @@ A missing helper must now fail a named test body, not be counted as a
 successful zero-case rejection. Native controls must still establish this;
 derivation alone makes no reference/nop outcome claim.
 
-Use an already-installed interpreter and the isolated source tree, with
+Use this worktree's already-installed interpreter and editable source, with
 explicit artifact destinations (no native execution occurs):
 
 ```sh
-PYTHONPATH="$PWD/src" "$EXISTING_PYTHON" -m evallab.mimo_runtime_repair \
+.venv/bin/python -B -m evallab.mimo_runtime_repair \
   --parent "$FROZEN_001246_PARENT" \
   --inventory "$BRIDGE/input-inventory-v7-v3.json" \
   --causal-evidence /absolute/retained-causal-evidence.json \
@@ -219,8 +219,12 @@ PYTHONPATH="$PWD/src" "$EXISTING_PYTHON" -m evallab.mimo_runtime_repair \
   --created-by "$ACTOR"
 ```
 
-The producer refuses overwrite and uses `derive_task`, full canonical parent
-lineage, and the original frozen patch hash. Its closed
+The producer never overwrites a plan, handoff or canonical record. It uses
+`derive_task` for a new variant and `materialize` to rebuild an existing exact
+record in a fresh checkout. Reuse requires the same full parent, transform,
+inputs and only permitted patch bytes; conflicting records are rejected.
+The full canonical parent lineage and original frozen patch hash stay pinned.
+Its closed
 `mimo-v7-runtime-repair/v1` handoff binds the parent/selected package,
 Harbor and verifier identities, native record, snapshot/reference/log
 evidence, complete effective inventory and its actual authoritative sources,

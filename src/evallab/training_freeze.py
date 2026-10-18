@@ -113,7 +113,7 @@ class NativeControlCheck(ClosedModel):
     run: str
     role: Literal["reference", "nop", "known-wrong", "prompt-valid-alternate"]
     status: Literal["ok"]
-    expected_reward: Literal[0.0, 1.0]
+    expected_reward: Literal[0, 1]
     matrix_sha256: Digest
     job_dir: str
     repeats: list[float] | None

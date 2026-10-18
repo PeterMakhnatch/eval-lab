@@ -71,12 +71,16 @@ def collection_patch(original: bytes) -> bytes:
     for line in lines:
         offsets.append(offsets[-1] + len(line))
 
-    def span(node: ast.AST) -> tuple[int, int]:
+    def span(node: ast.expr | ast.stmt) -> tuple[int, int]:
+        assert node.end_lineno is not None and node.end_col_offset is not None
         return offsets[node.lineno - 1] + node.col_offset, offsets[node.end_lineno - 1] + node.end_col_offset
 
     names = [alias.asname or alias.name for node in imports for alias in node.names]
     loader = "def _load_burnman():\n    global " + ", ".join(names) + "\n"
-    loader += "".join("    " + ast.get_source_segment(source, node) + "\n" for node in imports)
+    for node in imports:
+        segment = ast.get_source_segment(source, node)
+        assert segment is not None
+        loader += "    " + segment + "\n"
     edits: list[tuple[int, int, str]] = []
     start, _ = span(imports[0])
     _, end = span(imports[-1])
@@ -86,13 +90,19 @@ def collection_patch(original: bytes) -> bytes:
         setup = "    _load_burnman()\n"
         if test.name == PARAMETER_TEST:
             decorator = test.decorator_list[0]
-            pairs = decorator.args[1].elts
-            if [pair.elts[0].func.id for pair in pairs] != list(FACTORIES):
-                raise ValueError("bounded001246 parameter model inventory changed")
-            for pair in pairs:
+            assert isinstance(decorator, ast.Call)
+            parameters = decorator.args[1]
+            assert isinstance(parameters, ast.List)
+            factory_names = []
+            for pair in parameters.elts:
+                assert isinstance(pair, ast.Tuple)
                 call = pair.elts[0]
+                assert isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                factory_names.append(call.func.id)
                 begin, finish = span(call)
                 edits.append((begin, finish, call.func.id))
+            if factory_names != list(FACTORIES):
+                raise ValueError("bounded001246 parameter model inventory changed")
             setup += "    model = model()\n"
         edits.append((insertion, insertion, setup))
     changed = source
@@ -111,7 +121,12 @@ def collection_patch(original: bytes) -> bytes:
         test.body.pop(0)
         if test.name == PARAMETER_TEST:
             test.body.pop(0)
-            for pair in test.decorator_list[0].args[1].elts:
+            decorator = test.decorator_list[0]
+            assert isinstance(decorator, ast.Call)
+            parameters = decorator.args[1]
+            assert isinstance(parameters, ast.List)
+            for pair in parameters.elts:
+                assert isinstance(pair, ast.Tuple)
                 pair.elts[0] = ast.Call(func=pair.elts[0], args=[], keywords=[])
     if ast.dump(restored) != ast.dump(tree):
         raise ValueError("collection repair changed original test semantics")
@@ -168,7 +183,14 @@ def derive_runtime_repair(*, parent: Path, inventory: Path, evidence: dict[str, 
                           handoff_path: Path, created_by: str) -> dict[str, Any]:
     """Derive and publish a nonqualifying plan. This API never launches controls."""
     from evallab.schemas import ExperimentMatrix
-    from evallab.task_variants import derive_task, lineage_chain
+    from evallab.task_variants import (
+        VariantExistsError,
+        VariantRecord,
+        derive_task,
+        lineage_chain,
+        materialize,
+        resolve_record,
+    )
     from evallab.training_freeze import RuntimeRepairHandoff
 
     repo_root, output_dir, variants_root = (path.resolve() for path in (repo_root, output_dir, variants_root))
@@ -191,12 +213,38 @@ def derive_runtime_repair(*, parent: Path, inventory: Path, evidence: dict[str, 
                 or ("v6_package" in row and Path(row["v6_package"]).resolve() != parent.resolve())
                 or file_binding(Path(row["reproducer_patch"]))["sha256"] != row["reproducer_sha256"]):
             raise ValueError("runtime repair inventory patch/parent binding mismatch")
-    record = derive_task(
-        parent, changes={"tests/test.patch": collection_patch((parent / "tests/test.patch").read_bytes())},
-        transform=TRANSFORM, rationale=RATIONALE, created_by=created_by, inputs=TRANSFORM_INPUTS,
-        parent_source={"kind": "variant", "record": str(parent_record)},
-        repo_root=repo_root, variants_root=variants_root,
-    )
+    parent_patch = (parent / "tests/test.patch").read_bytes()
+    repaired_patch = collection_patch(parent_patch)
+    parent_source = {"kind": "variant", "record": str(parent_record)}
+    try:
+        record = derive_task(
+            parent, changes={"tests/test.patch": repaired_patch},
+            transform=TRANSFORM, rationale=RATIONALE, created_by=created_by, inputs=TRANSFORM_INPUTS,
+            parent_source=parent_source, repo_root=repo_root, variants_root=variants_root,
+        )
+    except VariantExistsError:
+        expected_change = {
+            "path": "tests/test.patch",
+            "before_sha256": "sha256:" + hashlib.sha256(parent_patch).hexdigest(),
+            "after_sha256": "sha256:" + hashlib.sha256(repaired_patch).hexdigest(),
+            "content": repaired_patch.decode(),
+        }
+        matches: list[VariantRecord] = []
+        for path in sorted((repo_root / parent_record.parent).glob("*.json")):
+            candidate = resolve_record(path, repo_root=repo_root)
+            if (candidate.task_name == TASK_NAME and candidate.transform == TRANSFORM
+                    and candidate.parent.digest == PARENT_PACKAGE
+                    and candidate.parent.harbor_digest == PARENT_HARBOR
+                    and candidate.parent.source.model_dump(exclude_none=True) == parent_source
+                    and candidate.inputs == TRANSFORM_INPUTS
+                    and candidate.components_changed == ["verifier"]
+                    and len(candidate.files) == 1
+                    and candidate.files[0].model_dump() == expected_change):
+                matches.append(candidate)
+        if len(matches) != 1:
+            raise
+        record = matches[0]
+        materialize(record, parent, repo_root=repo_root, variants_root=variants_root)
     selected = package_identity(variants_root / record.task_slug / record.digest12)
     output_dir.mkdir(parents=True)
     controls = []

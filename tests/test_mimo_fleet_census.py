@@ -485,3 +485,88 @@ def test_recorded_native_relocations_deduplicate_without_losing_qualification(
     assert row["bucket"] == "v6_verified"
     ids = json.loads(row["oracle_execution_ids"])
     assert ids.count("00000000-0000-0000-0000-000000000001") == 1
+
+
+@pytest.mark.parametrize(("command", "output", "expected"), [
+    (
+        "/root/.pyenv/versions/2.7.18/bin/python -m nose -v test_search.py\n",
+        "test_search (test_search.QueryTest) ... ok\n\n"
+        "----------------------------------------------------------------------\nRan 4 tests in 0.364s\n\nOK\n",
+        True,
+    ),
+    (
+        "python3 -m unittest -v test_search\n",
+        "test_search (test_search.QueryTest.test_search) ... FAIL\n\n"
+        "Ran 1 test in 0.010s\n\nFAILED (failures=1)\n",
+        True,
+    ),
+    (
+        "python -m nose -v test_search.py\n",
+        "test_search (test_search.QueryTest) ... ERROR\n\n"
+        "Ran 1 test in 0.010s\n\nFAILED (errors=1)\n",
+        True,
+    ),
+    (
+        "python -m nose -v test_search.py\n",
+        "test_search (test_search.QueryTest) ... [ERROR] HTTP request failed\n"
+        "Traceback from application logging\nFAIL\n\n"
+        "FAIL: test_search (test_search.QueryTest)\nAssertionError: 500 != 200\n\n"
+        "Ran 1 test in 0.010s\n\nFAILED (failures=1)\n",
+        True,
+    ),
+    ("python -m nose test_search.py\n", "Ran 0 tests in 0.001s\n\nOK\n", False),
+    (
+        "python3 -m unittest test_missing\n",
+        "test_missing (unittest.loader._FailedTest.test_missing) ... ERROR\n\n"
+        "Ran 1 test in 0.001s\n\nFAILED (errors=1)\n",
+        False,
+    ),
+    (
+        "python3 -m unittest test_missing\n",
+        "ERROR: test_missing (unittest.loader._FailedTest.test_missing)\n"
+        "Ran 1 test in 0.001s\n\nFAILED (errors=1)\n",
+        False,
+    ),
+    (
+        "python -m nose test_missing.py\n",
+        "Failure: ImportError (test_missing) ... ERROR\n\n"
+        "Ran 1 test in 0.001s\n\nFAILED (errors=1)\n",
+        False,
+    ),
+    (
+        "python -m nose test_search.py\n",
+        "test_search (test_search.QueryTest) ... ok\n\nRan 1 test in 0.001s\n",
+        False,
+    ),
+    (
+        "echo 'python -m nose test_search.py'\n",
+        "test_search (test_search.QueryTest) ... ok\n\nRan 1 test in 0.001s\n\nOK\n",
+        False,
+    ),
+    (
+        "",
+        "test_search (test_search.QueryTest) ... ok\n\nRan 1 test in 0.001s\n\nOK\n",
+        False,
+    ),
+    (
+        "python -m nose test_search.py\n",
+        "test_search (test_search.QueryTest) ... skipped 'unavailable'\n\n"
+        "Ran 1 test in 0.001s\n\nOK (skipped=1)\n",
+        False,
+    ),
+    ("python -m nose test_search.py\n", "OK\nREWARD=1 rc=0\n", False),
+    ("python -m nose test_search.py\n", "Ran 1 test in 0.001s\n\nOK\n", False),
+])
+def test_custom_python_execution_requires_command_cases_and_completed_suite(
+    census: dict[str, Any], inputs: tuple[dict[str, str], dict[str, str]], tmp_path: Path,
+    command: str, output: str, expected: bool,
+) -> None:
+    _, manifest = inputs
+    metadata = control(tmp_path, manifest, "oracle", reward=0.0)
+    verifier = metadata.parent / "trial/verifier"
+    (verifier / "runner.txt").write_text("RUNNER=custom\n")
+    (verifier / "junit-grade.log").write_text("runner=custom rc=1\nrc=1 custom markers=True\n")
+    (verifier / "resolved_command.txt").write_text(command)
+    (verifier / "test_output.log").write_text(output)
+    observed = census["native_observations"]({metadata})
+    assert observed[0]["scored"] is expected

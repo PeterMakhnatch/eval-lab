@@ -5,9 +5,15 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
 
@@ -1073,3 +1079,225 @@ def test_ipv6_only_desktop_dns_refuses_ipv4_bridge_and_cleans_tool_resources(too
     assert not tool["helper_alive"]
     assert tool["removed_images"] == [tool["tag"]]
     assert env._tool_temp is None
+
+
+@pytest.fixture
+def native_setup(native, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Native Docker exec/env merging over a real local shell transport."""
+    from harbor.models.task.config import HealthcheckConfig
+
+    import evallab.harbor_host_isolation as wrapper
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    tests_dir = tmp_path / "image tests"
+    state_dir = tmp_path / "image state"
+    grade_dir = tmp_path / "image grade"
+    setup_dir = native["environment_dir"] / "setup"
+    setup_dir.mkdir()
+    hidden_dir = tmp_path / "hidden-tests"
+    bundle = hidden_dir / wrapper._SETUP_BUNDLE_NAME
+    bundle.mkdir(parents=True)
+    (hidden_dir / "assertions.py").write_text("hidden assertion sentinel\n")
+    setup = f"""set -eu
+mkdir -p {shlex.quote(str(state_dir))}
+[ ! -f {shlex.quote(str(state_dir / "ready"))} ] || exit 0
+python3 - <<'PY'
+from __future__ import annotations
+import os
+assert os.environ["SETUP_TEST_INTERPRETER"] == "helper"
+assert os.environ["PIP_NO_CACHE_DIR"] == "1"
+print("supported helper completed cleanup")
+PY
+rm -rf {shlex.quote(str(tests_dir))}
+printf "VALUE = 'baseline'\\n" > {shlex.quote(str(workdir / "task_dependency.py"))}
+touch {shlex.quote(str(state_dir / "ready"))}
+"""
+    (setup_dir / "setup.sh").write_text(setup)
+    (bundle / "setup.sh").write_text(setup)
+    task_paths = {}
+    for name, isolated in (("task", False), ("helper", True)):
+        binary_dir = tmp_path / f"{name}-bin"
+        binary_dir.mkdir()
+        binary = binary_dir / "python3"
+        binary.write_text(
+            "#!/bin/sh\n"
+            f"export SETUP_TEST_INTERPRETER={name}\n"
+            f"exec {shlex.quote(sys.executable)} {'-S ' if isolated else ''}\"$@\"\n"
+        )
+        binary.chmod(0o755)
+        task_paths[name] = f"{binary_dir}:/usr/bin:/bin"
+    monkeypatch.setattr(
+        wrapper, "SETUP_HELPER_ENV",
+        {"PATH": task_paths["helper"], "PIP_NO_CACHE_DIR": "1"},
+    )
+    monkeypatch.setattr(wrapper, "_TESTS_DIR", str(tests_dir))
+    monkeypatch.setattr(wrapper, "MIMO_STATE_DIR", str(state_dir))
+    monkeypatch.setattr(wrapper, "V2_GRADE_DIR", str(grade_dir))
+    compose = DockerEnvironment._run_docker_compose_command
+
+    async def local_compose(self, command, **kwargs):
+        result = await compose(self, command, **kwargs)
+        if command[0] != "exec" or command == ["exec", "main", "true"]:
+            return result
+        # Do not replace exec/_merge_env: consume the real SDK's Compose argv.
+        assert self._isolation_confirmed and _record(native)["applied"] is True
+        main = command.index("main")
+        child_env = dict(os.environ)
+        child_env.pop("PYTHONPATH", None)
+        child_env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+        cwd = workdir
+        options = iter(command[1:main])
+        for option in options:
+            value = next(options)
+            if option == "-e":
+                key, _, value = value.partition("=")
+                child_env[key] = value
+            elif option == "-w":
+                cwd = Path(value)
+            else:
+                assert option == "-u"
+        completed = subprocess.run(
+            command[main + 1:],
+            cwd=cwd,
+            env=child_env,
+            capture_output=True,
+            text=True,
+            timeout=kwargs.get("timeout_sec") or 30,
+            check=False,
+        )
+        return ExecResult(
+            stdout=completed.stdout, stderr=completed.stderr,
+            return_code=completed.returncode,
+        )
+
+    monkeypatch.setattr(DockerEnvironment, "_run_docker_compose_command", local_compose)
+
+    def make(*, separate: bool):
+        if separate:
+            shutil.copytree(hidden_dir, tests_dir)
+        config = native["config"].model_copy(update={
+            "workdir": str(workdir),
+            "env": {
+                "PATH": task_paths["task"], "PIP_NO_CACHE_DIR": "task-cache",
+                "TASK_SETTING": "preserved",
+            },
+            "build_timeout_sec": 30,
+            "healthcheck": HealthcheckConfig(
+                command=f"bash {shlex.quote(str(setup_dir / 'setup.sh'))}",
+                retries=0,
+            ),
+        })
+        return native["make"](
+            environment_dir=hidden_dir if separate else native["environment_dir"],
+            task_env_config=config, enable_environment_dir_upload=not separate,
+            isolation_lane="nop",
+        )
+
+    return SimpleNamespace(
+        make=make, native=native, workdir=workdir, tests_dir=tests_dir,
+        state_dir=state_dir, hidden_dir=hidden_dir, bundle=bundle,
+        setup_dir=setup_dir,
+    )
+
+
+@pytest.mark.parametrize("separate", [False, True])
+def test_native_docker_setup_keeps_task_dependencies_and_seeded_changes(
+    native_setup, separate: bool,
+):
+    runtime = native_setup
+    env = runtime.make(separate=separate)
+    original = {
+        path.relative_to(runtime.tests_dir): path.read_bytes()
+        for path in runtime.tests_dir.rglob("*") if path.is_file()
+    }
+
+    async def exercise():
+        await env.start(force_build=False)
+        if not separate:
+            await env.run_healthcheck()
+        assert (runtime.state_dir / "ready").is_file()
+        assert {
+            path.relative_to(runtime.tests_dir): path.read_bytes()
+            for path in runtime.tests_dir.rglob("*") if path.is_file()
+        } == original
+        (runtime.workdir / "task_dependency.py").write_text("VALUE = 'submitted'\n")
+        (runtime.workdir / "test_runtime.py").write_text(
+            "import os, task_dependency\n"
+            "def test_submitted_change_and_task_environment():\n"
+            "    assert task_dependency.VALUE == 'submitted'\n"
+            "    assert os.environ['SETUP_TEST_INTERPRETER'] == 'task'\n"
+            "    assert os.environ['PIP_NO_CACHE_DIR'] == 'task-cache'\n"
+            "    assert os.environ['TASK_SETTING'] == 'preserved'\n"
+        )
+        result = await env.exec("python3 -m pytest -q -p no:cacheprovider test_runtime.py")
+        assert result.return_code == 0, (result.stdout, result.stderr)
+        # The unchanged grader calls setup again after Harbor seeds artifacts.
+        setup_path = (runtime.state_dir if separate else runtime.setup_dir) / "setup.sh"
+        result = await env.exec(f"bash {shlex.quote(str(setup_path))}")
+        assert result.return_code == 0, (result.stdout, result.stderr)
+        result = await env.exec("python3 -m pytest -q -p no:cacheprovider test_runtime.py")
+        assert result.return_code == 0, (result.stdout, result.stderr)
+        await env.stop(delete=True)
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("status", [0, 17])
+def test_native_docker_verifier_setup_failure_restores_tests_and_cleans_up(
+    native_setup, status: int,
+):
+    runtime = native_setup
+    (runtime.bundle / "setup.sh").write_text(
+        f"rm -rf {shlex.quote(str(runtime.tests_dir))}\n"
+        f"echo setup-failed >&2\nexit {status}\n"
+    )
+    env = runtime.make(separate=True)
+    original = {
+        path.relative_to(runtime.tests_dir): path.read_bytes()
+        for path in runtime.tests_dir.rglob("*") if path.is_file()
+    }
+    with pytest.raises(RuntimeError):
+        asyncio.run(env.start(force_build=False))
+    assert {
+        path.relative_to(runtime.tests_dir): path.read_bytes()
+        for path in runtime.tests_dir.rglob("*") if path.is_file()
+    } == original
+    assert runtime.native["deleted"] and _record(runtime.native)["applied"] is False
+
+
+@pytest.mark.parametrize("kind", ["explicit", "ordinary", "failed-setup"])
+def test_native_docker_healthcheck_preserves_task_env_outside_clean_setup(
+    native_setup, kind: str,
+):
+    from harbor.environments.base import HealthcheckError
+    from harbor.models.task.config import HealthcheckConfig
+
+    runtime = native_setup
+    env = runtime.make(separate=False)
+    check_task = HealthcheckConfig(
+        command="python3 -c 'import os; "
+        'assert os.environ["SETUP_TEST_INTERPRETER"] == "task"; '
+        'assert os.environ["PIP_NO_CACHE_DIR"] == "task-cache"'
+        "'", retries=0,
+    )
+    if kind == "ordinary":
+        (runtime.setup_dir / "setup.sh").unlink()
+        env.task_env_config.healthcheck = check_task
+    elif kind == "failed-setup":
+        (runtime.setup_dir / "setup.sh").write_text("exit 17\n")
+
+    async def exercise():
+        await env.start(force_build=False)
+        if kind == "failed-setup":
+            with pytest.raises(HealthcheckError):
+                await env.run_healthcheck()
+        elif kind == "ordinary":
+            await env.run_healthcheck()
+        else:
+            await env.run_healthcheck(check_task)
+        result = await env.exec(check_task.command)
+        assert result.return_code == 0, (result.stdout, result.stderr)
+        await env.stop(delete=True)
+
+    asyncio.run(exercise())

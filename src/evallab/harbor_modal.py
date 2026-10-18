@@ -30,15 +30,19 @@ says ``applied: false``. Nothing is fabricated from spec intent.
 from __future__ import annotations
 
 import json
-import shlex
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from harbor.environments.modal import ModalEnvironment  # ty: ignore[unresolved-import]
 
-from evallab.execution_contracts import MODAL_PATH_PIN
-from evallab.separate_verifier import MIMO_STATE_DIR, V2_GRADE_DIR, V2_SETUP_SUBDIR
+from evallab.separate_verifier import (
+    MIMO_STATE_DIR,
+    SETUP_HELPER_ENV,
+    V2_GRADE_DIR,
+    V2_SETUP_SUBDIR,
+    render_verifier_setup_bootstrap,
+)
 
 #: Longest a regrade's verifier sandbox may live: the MiMo verifier timeout
 #: (2,100 s) plus artifact upload and teardown margin.
@@ -58,28 +62,6 @@ _RESTRICTIVE_MODES = frozenset({"no-network", "allowlist"})
 
 _TESTS_DIR = "/tests"
 _SETUP_BUNDLE_NAME = PurePosixPath(V2_SETUP_SUBDIR).name
-
-
-def _verifier_setup_command() -> str:
-    """Run the existing setup bundle, restoring tests even when setup fails.
-
-    The bundle wipes /tests and /logs. This runs during native environment
-    startup, before Harbor restores any submitted files or artifacts. Its
-    backup stays in the verifier-only grade directory, never in the agent.
-    """
-    return f"""set -eu
-tests={shlex.quote(_TESTS_DIR)}
-state={shlex.quote(MIMO_STATE_DIR)}
-grade={shlex.quote(V2_GRADE_DIR)}
-mkdir -p "$state" "$grade"
-backup=$(mktemp -d "$grade/modal-tests.XXXXXX")
-cp -a "$tests/." "$backup/"
-trap 'status=$?; rm -rf "$tests"; cp -a "$backup/." "$tests" || exit 1; rm -rf "$backup"; exit "$status"' EXIT
-cp -a "$backup/{_SETUP_BUNDLE_NAME}/." "$state/"
-bash "$state/setup.sh"
-test -f "$state/ready"
-echo "modal setup: ready marker observed"
-"""
 
 
 class TaskModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
@@ -130,7 +112,7 @@ class TaskModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
         ).is_file():
             await super().run_healthcheck(healthcheck)
             return
-        with self.scoped_exec_env({"PATH": MODAL_PATH_PIN}):
+        with self.scoped_exec_env(SETUP_HELPER_ENV):
             await super().run_healthcheck(healthcheck)
 
     async def start(self, force_build: bool) -> None:
@@ -142,9 +124,11 @@ class TaskModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
             self.environment_dir / _SETUP_BUNDLE_NAME / "setup.sh"
         ).is_file():
             return
-        with self.scoped_exec_env({"PATH": MODAL_PATH_PIN}):
+        with self.scoped_exec_env(SETUP_HELPER_ENV):
             result = await self.exec(
-                _verifier_setup_command(),
+                render_verifier_setup_bootstrap(
+                    tests_dir=_TESTS_DIR, state_dir=MIMO_STATE_DIR, grade_dir=V2_GRADE_DIR
+                ),
                 timeout_sec=self._sandbox_timeout,
                 user="root",
             )

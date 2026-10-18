@@ -1,4 +1,11 @@
-"""Execute only an explicitly Verifier-accepted v7 release, with durable reservations."""
+"""Execute only an explicitly Verifier-accepted v7 release.
+
+Canonical execution also requires an admitted parent envelope within Trainer's
+combined $12 approval. Its heldout cap continues the same cumulative journal:
+raising that allocation never resets charges or authorizes retries. Staged runs
+retain their frozen historical $3 cap and approval, without a new envelope.
+Financial admission never releases a scientific HOLD.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +16,8 @@ import os
 import runpy
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +32,80 @@ REPORT = runpy.run_path(str(HERE / "report.py"))
 file_ref = INVENTORY["file_ref"]
 bound_bytes = INVENTORY["bound_bytes"]
 create_json = INVENTORY["create_json"]
-CAP_USD = 3.0
 APP = "mimo-clean-census-v7-classifiers-20261017"
-APPROVAL = "Peter-approved 2026-10-18 focused sprint; cumulative heldout regrade $3 inside Trainer $12 (native $6.50, serving $2.50); ledger 2026-10-17-v7"
+
+
+def _money(value: Any, name: str) -> Decimal:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise ValueError(f"{name} must be a finite nonnegative monetary amount")
+    try:
+        amount = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError(f"{name} must be a finite nonnegative monetary amount") from exc
+    if not amount.is_finite() or amount < 0:
+        raise ValueError(f"{name} must be a finite nonnegative monetary amount")
+    return amount
+
+
+def checked_budget(
+    path: Path, *, journal: Path, usd_per_execution: float, now: datetime | None = None,
+) -> tuple[dict, dict]:
+    """Read a hash-bound parent allocation without dispatching or changing its journal."""
+    reference = file_ref(path)
+    envelope = json.loads(bound_bytes(reference)[0])
+    if (not isinstance(envelope, dict) or envelope.get("schema") != "mimo.phase2-envelope/v1"
+            or envelope.get("admitted") is not True):
+        raise ValueError("an admitted mimo.phase2-envelope/v1 parent budget is required")
+    if not isinstance(envelope.get("approval"), str) or not envelope["approval"].strip():
+        raise ValueError("the parent budget requires a nonempty approval")
+    if envelope.get("ledger_tag") != "2026-10-17-v7":
+        raise ValueError("the parent budget must retain ledger 2026-10-17-v7")
+    if not isinstance(envelope.get("expires_at"), str):
+        raise ValueError("the parent budget requires a timezone-aware expiry")
+    expires = datetime.fromisoformat(envelope["expires_at"])
+    instant = now if now is not None else datetime.now(UTC)
+    if (expires.tzinfo is None or expires.utcoffset() is None
+            or instant.tzinfo is None or instant.utcoffset() is None or expires <= instant):
+        raise ValueError("the parent budget must be unexpired with a timezone-aware clock and expiry")
+
+    approved = _money(envelope.get("approved_usd"), "approved_usd")
+    limit = _money(envelope.get("require_envelope_sum_at_most_usd"), "require_envelope_sum_at_most_usd")
+    if not 0 < approved <= 12 or not 0 < limit <= approved:
+        raise ValueError("the aggregate parent approval and envelope ceiling must be positive and within the actual $12 approval")
+    for name in ("serving", "native", "heldout_regrade"):
+        if not isinstance(envelope.get(name), dict) or "cap_usd" not in envelope[name]:
+            raise ValueError(f"the parent budget requires a {name} cap")
+    caps = [_money(section["cap_usd"], f"{name}.cap_usd") for name, section in envelope.items()
+            if isinstance(section, dict) and "cap_usd" in section]
+    total = sum(caps, Decimal(0)) + _money(envelope.get("training_reservation_usd", 0), "training_reservation_usd")
+    if total > approved or total > limit:
+        raise ValueError("aggregate envelope caps plus training reservation exceed the parent approval or envelope ceiling")
+
+    heldout = envelope["heldout_regrade"]
+    unit = _money(usd_per_execution, "execution quote")
+    if (_money(heldout["cap_usd"], "heldout_regrade.cap_usd") <= 0 or unit <= 0
+            or _money(heldout.get("usd_per_execution"), "heldout_regrade.usd_per_execution") != unit):
+        raise ValueError("the heldout cap must be positive and its unit must exactly match the positive execution quote")
+    if (heldout.get("reset_authorized") is not False
+            or heldout.get("canonical_reuses_exact_measurements_only") is not True):
+        raise ValueError("the heldout budget must forbid journal resets and require exact measurement reuse")
+    try:
+        expected = journal.expanduser().resolve(strict=True)
+        admitted_journal = Path(heldout["durable_journal_path"]).expanduser().resolve(strict=True)
+    except (OSError, KeyError, TypeError) as exc:
+        raise ValueError("the heldout budget must bind the existing cumulative journal") from exc
+    if not expected.is_file() or admitted_journal != expected:
+        raise ValueError("the heldout budget binds a different cumulative journal")
+
+    sources = envelope.get("sources", {})
+    if not isinstance(sources, dict):
+        raise ValueError("parent budget sources must be named file references")
+    for source in sources.values():
+        if (not isinstance(source, dict) or not isinstance(source.get("path"), str)
+                or not isinstance(source.get("sha256"), str)):
+            raise ValueError("each parent budget source requires a path and SHA-256")
+        bound_bytes(source)
+    return envelope, reference
 
 
 def admit(
@@ -97,8 +177,13 @@ def admit(
 class JournalGate(CloudSpendGate):
     """Reserve before dispatch; failures and process restarts never refund spend."""
 
-    def __init__(self, path: Path, usd_per_execution: float) -> None:
-        super().__init__(APPROVAL, CAP_USD, usd_per_execution)
+    def __init__(
+        self, path: Path, usd_per_execution: float, *, cap_usd: float, approval: str,
+    ) -> None:
+        if not isinstance(approval, str):
+            raise ValueError("a cumulative reservation journal requires its recorded approval")
+        cap, unit = _money(cap_usd, "cap_usd"), _money(usd_per_execution, "usd_per_execution")
+        super().__init__(approval, float(cap), float(unit))
         self.path = path
         self.context = threading.local()
         self.reserved_uids: set[tuple[str, str]] = set()
@@ -112,9 +197,9 @@ class JournalGate(CloudSpendGate):
                 if (len(uid) != 2 or key in self.reserved_keys
                         or digest is not None and "sha256:" + INVENTORY["bare_sha"](digest) != digest
                         or entry["execution"] != self.executions + 1
-                        or entry["usd_per_execution"] != self.usd_per_execution
+                        or _money(entry["usd_per_execution"], "journal usd_per_execution") != unit
                         or entry["ledger_tag"] != "2026-10-17-v7"
-                        or entry["reserved_usd"] != round((self.executions + 1) * self.usd_per_execution, 8)):
+                        or _money(entry["reserved_usd"], "journal reserved_usd") != Decimal(str(round((self.executions + 1) * self.usd_per_execution, 8)))):
                     raise ValueError("invalid cumulative reservation journal")
                 self.reserved_uids.add(uid)
                 self.reserved_keys.add(key)
@@ -170,7 +255,7 @@ def execute(
     *, inventory_path: Path, manifest_path: Path, accepted_sha: str | None, verifier_receipt: Path | None,
     rate_evidence: Path, usd_per_execution: float, work: Path, output: Path,
     repo_root: Path, workers: int = 4, staged_plan_path: Path | None = None, reuse_work: Path | None = None,
-    sandbox_timeout_seconds: int = 300,
+    sandbox_timeout_seconds: int = 300, budget_envelope: Path | None = None,
 ) -> dict[str, Any]:
     """Run the complete bounded inventory. No source/graded row is silently omitted."""
     inventory_ref = file_ref(inventory_path)
@@ -211,6 +296,17 @@ def execute(
     for target in (work, output):
         if any(target.is_relative_to(path) or path.is_relative_to(target) for path in immutable):
             raise ValueError("campaign output overlaps immutable input evidence")
+    budget_root = Path(inventory["sources"]["configuration"]["path"]).resolve().parent
+    journal = budget_root / "classifiers-v7-reservations.jsonl"
+    budget_ref = None
+    if plan is None:
+        if budget_envelope is None:
+            raise ValueError("canonical run requires an admitted parent budget envelope")
+        envelope, budget_ref = checked_budget(budget_envelope, journal=journal, usd_per_execution=usd_per_execution)
+        cap_usd = float(_money(envelope["heldout_regrade"]["cap_usd"], "heldout_regrade.cap_usd"))
+        approval = envelope["approval"]
+    else:
+        cap_usd, approval = plan["budget"]["cap_usd"], plan["budget"]["prior"]["approval"]
     try:
         replay_and_collect = runpy.run_path(str(HERE / "native.py"))["replay_and_collect"]
         from evallab import harbor_modal
@@ -222,13 +318,13 @@ def execute(
     except ImportError as exc:
         raise ValueError("install the pinned Harbor/Modal native runtime before v7 execution") from exc
     work.mkdir(parents=True, exist_ok=True)
-    budget_root = Path(inventory["sources"]["configuration"]["path"]).resolve().parent
     with (budget_root / "classifiers-v7-ledger.lock").open("a") as lease:
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         header = {
             "schema": "heldout-v7.campaign/v1", "ledger_tag": "2026-10-17-v7",
             "inventory": inventory_ref, "admission": admission,
-            "rate_evidence": rate_ref, "usd_per_execution": usd_per_execution, "cap_usd": CAP_USD,
+            "rate_evidence": rate_ref, "usd_per_execution": usd_per_execution, "cap_usd": cap_usd,
+            "budget_envelope": budget_ref,
             "modal_policy": {"app": APP, "resource_policy": "limit", "sandbox_timeout_seconds": sandbox_timeout_seconds,
                              "sandbox_create_max_attempts": 1},
             "measurement_mode": "staged" if plan is not None else "canonical",
@@ -244,7 +340,7 @@ def execute(
                 raise ValueError("resume changes the admitted inventory, graders or budget basis")
         else:
             create_json(header_path, header)
-        gate = JournalGate(budget_root / "classifiers-v7-reservations.jsonl", usd_per_execution)
+        gate = JournalGate(journal, usd_per_execution, cap_usd=cap_usd, approval=approval)
         cases = work / "cases"
         cases.mkdir(exist_ok=True)
         def case_path(source: dict[str, Any]) -> Path:
@@ -269,8 +365,8 @@ def execute(
             and not gate.is_reserved(tuple(source["source_uid"]), targets[source["task_id"]]["package_digest"])
             for source in inventory["rows"]
         )
-        if (gate.executions + needed) * usd_per_execution > CAP_USD + 1e-9:
-            raise SpendCapReached("the complete selected cohort does not fit the remaining cumulative $3 subcap; no new dispatch")
+        if (gate.executions + needed) * usd_per_execution > cap_usd + 1e-9:
+            raise SpendCapReached("the complete selected cohort does not fit the remaining admitted cumulative heldout cap; no new dispatch")
 
         def one(source: dict[str, Any]) -> dict[str, Any]:
             uid = tuple(source["source_uid"])

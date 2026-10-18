@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from evallab.edit_signals import codex_exec_commands
 from evallab.tripwires import (
     external_sourcing_hits,
     scan_prefix,
@@ -199,6 +200,29 @@ def test_codex_exec_command_unwraps_across_live_tripwires() -> None:
     assert [h["step"] for h in report["codeban_violation"]] == [5]
     assert [h["step"] for h in report["hidden_reads"]] == [5]
     assert [h["step"] for h in report["history_mining"]] == [6]
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [" + report", ".concat(report)", " && report", " /* first */ + report /* second */"],
+)
+def test_codex_exec_does_not_report_literal_prefix_of_expression(suffix: str) -> None:
+    complete = "printf '%s,}' \"literal\""
+    script = (
+        'await tools.exec_command({cmd: "printf prefix"' + suffix + "});\n"
+        f"await tools.exec_command({{cmd: {json.dumps(complete)}, yield_time_ms: 10}});"
+    )
+    assert codex_exec_commands(script) == [complete]
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [" /* comment, } */", " // comment, }\n", " // comment, }\r", " // comment, }\u2028"],
+)
+def test_codex_exec_keeps_complete_literal_before_comment(comment: str) -> None:
+    command = "printf complete"
+    script = f"await tools.exec_command({{cmd: {json.dumps(command)}{comment}}});"
+    assert codex_exec_commands(script) == [command]
 
 
 def test_codex_apply_patch_triggers_submission_and_grader_tamper() -> None:

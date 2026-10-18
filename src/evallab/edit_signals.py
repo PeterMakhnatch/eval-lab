@@ -87,8 +87,12 @@ _SHELL_WRAPPER_RE = re.compile(r"^(?:(?:/usr)?/bin/)?(?:ba|z|da)?sh\s+-(?:l?c|cl
 #: Codex runs shell commands through a scripted ``exec`` tool whose ``input`` is
 #: JavaScript calling ``tools.exec_command({cmd: "<shell>", ...})`` (older
 #: runs quote the key: ``{"cmd": "<shell>"}``). One script may call it several times.
+#: Only complete JSON string values count, not literal prefixes of JS expressions.
+#: Comment matching must stop at the first terminator, not swallow an expression.
 _CODEX_EXEC_CMD_RE = re.compile(
     r'exec_command\s*\(\s*\{[^{}]*?(?<![\w"])(?:"cmd"|cmd)\s*:\s*("(?:[^"\\]|\\.)*")'
+    r"(?=(?:\s|/\*(?:[^*]|\*(?!/))*\*/|"
+    r"//[^\r\n\u2028\u2029]*(?:[\r\n\u2028\u2029]|\Z))*[,}])"
 )
 
 #: ``tools.apply_patch(patch)`` scripts bind the patch to a JSON-escaped string
@@ -110,7 +114,7 @@ def unwrap_shell_wrapper(command: str) -> str:
 
 
 def codex_exec_commands(script: str) -> list[str]:
-    """Shell command strings a Codex ``exec`` JS script runs (in call order)."""
+    """Complete literal ``cmd`` values in a Codex ``exec`` script, in call order."""
     if not isinstance(script, str) or "exec_command" not in script:
         return []
     out: list[str] = []

@@ -33,6 +33,9 @@ work is `exec` calls whose `arguments.input` is JavaScript calling
 patches, so `hidden_test_read`, `task_protected_read`, `history_mining`,
 `codeban_violation` and the tamper rules see Codex steps as they see
 Terminus-2 `keystrokes`.
+Only complete JSON-string `cmd` values are decoded. Variables, template strings
+and expressions remain unresolved; a quoted prefix of an expression is not a
+complete command. The extractor never evaluates the JavaScript.
 
 **MiMo / host-loop shell calls.** Shell rules also read
 `bash(arguments.command)` (including calls with a separate `timeout` argument).

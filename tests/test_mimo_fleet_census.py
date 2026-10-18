@@ -570,3 +570,228 @@ def test_custom_python_execution_requires_command_cases_and_completed_suite(
     (verifier / "test_output.log").write_text(output)
     observed = census["native_observations"]({metadata})
     assert observed[0]["scored"] is expected
+
+
+DJANGO_CASE = "test_order (example.tests.OrderTests.test_order) ... ok\n"
+DJANGO_SUMMARY = "\nRan 1 test in 0.010s\n\nOK\n"
+TWISTED_CASE = "example.tests.test_order\n  OrderTests\n    test_order ... [OK]\n"
+TWISTED_SUMMARY = "\nRan 1 test in 0.010s\n\nPASSED (successes=1)\n"
+
+
+def framework_logs(
+    root: Path, command: str, output: str, *,
+    grade: str = "runner=custom rc=0\nrc=0 custom: exit-code grading\nrc=0 custom markers=True\n",
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "junit-grade.log").write_text(grade)
+    (root / "resolved_command.txt").write_text(command)
+    (root / "test_output.log").write_text(output)
+    return root
+
+
+@pytest.mark.parametrize(("command", "output"), [
+    (
+        "pipenv run python manage.py test example.tests.OrderTests.test_order -v 2\n",
+        "test_order (example.tests.OrderTests.test_order) ... application warning\n"
+        "Traceback (most recent call last):\n  application_callback()\n"
+        "ValueError: optional integration unavailable\nok\n"
+        "----------------------------------------------------------------------\n"
+        + DJANGO_SUMMARY,
+    ),
+    ("python3 manage.py test example.tests -v 2\n", DJANGO_CASE + DJANGO_SUMMARY),
+    (
+        "exec /opt/env/bin/python3.12 ./manage.py test example.tests -v 2\n",
+        "test_order (example.tests.OrderTests.test_order) ... FAIL\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (failures=1)\n",
+    ),
+    ("trial example.tests.test_order\n", TWISTED_CASE + TWISTED_SUMMARY),
+    (
+        "/opt/env/bin/trial example.tests.test_order\n",
+        "example.tests.test_order\n  OrderTests\n    test_order ... [ERROR]\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    (
+        "python2.7 -m twisted.trial example.tests.test_order\n",
+        "example.tests.test_order\n  OrderTests\n"
+        "    test_optional ... [SKIPPED]\n    test_order ... [OK]\n"
+        "\nRan 2 tests in 0.010s\n\nPASSED (skips=1, successes=1)\n",
+    ),
+])
+def test_custom_framework_counted_named_execution(
+    census: dict[str, Any], tmp_path: Path, command: str, output: str,
+) -> None:
+    assert census["positive_case_execution"](framework_logs(tmp_path, command, output))
+
+
+@pytest.mark.parametrize("output", [
+    DJANGO_CASE + DJANGO_SUMMARY, TWISTED_CASE + TWISTED_SUMMARY,
+], ids=["django-output", "twisted-output"])
+@pytest.mark.parametrize("command", [
+    "",
+    "bash /testbed/test_command.sh\n",
+    "echo 'python manage.py test example.tests'\n",
+    "# python manage.py test example.tests\n",
+    "echo 'trial example.tests'\n",
+    "# trial example.tests\n",
+    "python manage.py collectstatic --noinput\n",
+    "python manage.py testbed example.tests\n",
+    "python manage.py test-extra example.tests\n",
+    "pipenv run python helper.py test example.tests\n",
+    "python -c 'import django; import twisted.trial'\n",
+    "nottrial example.tests\n",
+])
+def test_custom_framework_commands_are_not_inferred_from_output(
+    census: dict[str, Any], tmp_path: Path, command: str, output: str,
+) -> None:
+    assert not census["positive_case_execution"](framework_logs(tmp_path, command, output))
+
+
+@pytest.mark.parametrize("command", [
+    "pipenv run python manage.py test example.tests -v 2\n",
+    "trial example.tests\n",
+])
+@pytest.mark.parametrize("output", [
+    "OK\n", "PASSED\n", "PASSED (successes=20)\n", "20\n",
+    "Test Files 1 passed (1)\nTests 0 passed (0)\n",
+    "REWARD=1 rc=0\n", DJANGO_SUMMARY, TWISTED_SUMMARY,
+    "ImportError: cannot import name 'missing'\n",
+])
+def test_custom_framework_status_counts_and_markers_alone_are_unmeasured(
+    census: dict[str, Any], tmp_path: Path, command: str, output: str,
+) -> None:
+    assert not census["positive_case_execution"](framework_logs(tmp_path, command, output))
+
+
+@pytest.mark.parametrize(("command", "output"), [
+    ("trial example.tests\n", DJANGO_CASE + DJANGO_SUMMARY),
+    ("python manage.py test example.tests\n", TWISTED_CASE + TWISTED_SUMMARY),
+    (
+        "python manage.py test example.tests\n",
+        DJANGO_CASE + "\nRan 0 tests in 0.010s\n\nOK\n",
+    ),
+    (
+        "python manage.py test example.tests\n",
+        "test_order (example.tests.OrderTests.test_order) ... starting\n" + DJANGO_SUMMARY,
+    ),
+    ("python manage.py test example.tests\n", DJANGO_CASE + "\nRan 1 test in 0.010s\n"),
+    (
+        "python manage.py test example.tests\n",
+        "test_order (example.tests.OrderTests.test_order) ... skipped 'unavailable'\n"
+        "\nRan 1 test in 0.010s\n\nOK (skipped=1)\n",
+    ),
+    (
+        "python manage.py test example.tests\n",
+        "test_missing (unittest.loader._FailedTest.test_missing) ... ERROR\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    (
+        "python manage.py test example.tests\n",
+        "setUpClass (unittest.suite._ErrorHolder) ... ERROR\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    (
+        "python manage.py test example.tests\n",
+        "Failure: ImportError (test_missing) ... ERROR\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    ("trial example.tests\n", TWISTED_CASE + "\nRan 0 tests in 0.010s\n\nPASSED\n"),
+    (
+        "trial example.tests\n",
+        "example.tests.test_order\n  OrderTests\n    test_order ... starting\n" + TWISTED_SUMMARY,
+    ),
+    ("trial example.tests\n", TWISTED_CASE + "\nRan 1 test in 0.010s\n"),
+    ("trial example.tests\n", TWISTED_CASE + "\nRan 1 test in 0.010s\n\nPASSED\n"),
+    (
+        "trial example.tests\n",
+        TWISTED_CASE + "\nRan 1 test in 0.010s\n\nPASSED (files=1)\n",
+    ),
+    (
+        "trial example.tests\n",
+        "example.tests.test_order\n  OrderTests\n    test_order ... [SKIPPED]\n"
+        "\nRan 1 test in 0.010s\n\nPASSED (skips=1)\n",
+    ),
+    (
+        "trial example.tests\n",
+        "example.tests.test_missing\n  test_missing ... [ERROR]\n"
+        "ImportError: no module named test_missing\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    (
+        "trial example.tests\n",
+        "example.tests.test_missing\n  ErrorHolder\n    test_missing ... [ERROR]\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+    (
+        "trial example.tests\n",
+        "example.tests.test_missing\n    test_missing ... [ERROR]\n"
+        "\nRan 1 test in 0.010s\n\nFAILED (errors=1)\n",
+    ),
+])
+def test_custom_framework_unfinished_zero_skipped_and_loader_suites_are_unmeasured(
+    census: dict[str, Any], tmp_path: Path, command: str, output: str,
+) -> None:
+    assert not census["positive_case_execution"](framework_logs(tmp_path, command, output))
+
+
+def test_custom_framework_evidence_stays_with_its_invocation(
+    census: dict[str, Any], tmp_path: Path,
+) -> None:
+    framework_logs(
+        tmp_path / "repeat/0", "python manage.py test example.tests -v 2\n", "starting\n",
+    )
+    framework_logs(
+        tmp_path / "repeat/1", "bash unrelated_command.sh\n", DJANGO_CASE + DJANGO_SUMMARY,
+    )
+    assert not census["positive_case_execution"](tmp_path)
+
+
+def test_twisted_completed_twenty_case_suite_survives_site_warning(
+    census: dict[str, Any], tmp_path: Path,
+) -> None:
+    warning = (
+        "Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:\n\n"
+        "  Traceback (most recent call last):\n"
+        '    File "<frozen site>", line 219, in addpackage\n'
+        "  ModuleNotFoundError: No module named '_distutils_hack'\n\nRemainder of file ignored\n"
+    )
+    output = (
+        "CryptographyDeprecationWarning: legacy Python\nexample.tests.test_transport\n"
+        "  TransportTests\n"
+        + "".join(f"    test_case_{index} ... [OK]\n" for index in range(20))
+        + "\nRan 20 tests in 0.564s\n\nPASSED (successes=20)\n"
+    )
+    trial = framework_logs(
+        tmp_path, "trial example.tests.test_transport\n", output,
+        grade=warning + "runner=custom rc=0\nrc=0 custom: exit-code grading\n",
+    )
+    assert census["positive_case_execution"](trial)
+
+
+def test_pytest_zero_case_import_collection_remains_unmeasured(
+    census: dict[str, Any], tmp_path: Path,
+) -> None:
+    trial = framework_logs(
+        tmp_path, "exec python -m pytest tests/test_solution_activities.py -v\n",
+        "collecting ... collected 0 items / 1 error\n"
+        "______ ERROR collecting tests/test_solution_activities.py _______\n"
+        "ImportError while importing test module 'tests/test_solution_activities.py'.\n"
+        "E   ImportError: cannot import name '_ideal_activities_fct'"
+        " from 'burnman.classes.solutionmodel'\n"
+        "ERROR tests/test_solution_activities.py\n"
+        "Interrupted: 1 error during collection\n1 warning, 1 error in 3.73s\n",
+        grade="runner=pytest rc=2\nrc=2 cases=0 bad=0 skipped=0 named=0 missing=[]\n",
+    )
+    assert not census["positive_case_execution"](trial)
+
+
+@pytest.mark.parametrize("terminal", [
+    "OK (files=1)", "OK (custom)", "FAILED", "FAILED (files=1)", "FAILED (custom)",
+])
+def test_django_completion_requires_first_party_suite_status(
+    census: dict[str, Any], tmp_path: Path, terminal: str,
+) -> None:
+    trial = framework_logs(
+        tmp_path, "python manage.py test example.tests -v 2\n",
+        DJANGO_CASE + f"\nRan 1 test in 0.010s\n\n{terminal}\n",
+    )
+    assert not census["positive_case_execution"](trial)

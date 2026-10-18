@@ -58,6 +58,85 @@ def resolve_path(root: Path, value: str) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def _custom_framework_output_executed(framework: str, text: str) -> bool:
+    """Recognize completed named Django/unittest or Twisted tree-reporter cases."""
+    if framework == "twisted":
+        counts = r"(?:successes|failures|errors|skips|expectedFailures|unexpectedSuccesses)=\d+"
+        terminal = rf"(?:PASSED|FAILED) \({counts}(?:, {counts})*\)"
+    else:
+        counts = r"(?:failures|errors|skipped|expected failures|unexpected successes)=\d+"
+        terminal = (
+            rf"OK(?: \({counts}(?:, {counts})*\))?"
+            rf"|FAILED \({counts}(?:, {counts})*\)"
+        )
+    completed = re.search(
+        r"(?m)^Ran (?P<cases>[1-9]\d*) tests? in \d+(?:\.\d+)?s[ \t]*\n[ \t]*\n"
+        rf"(?P<result>{terminal})[ \t]*$",
+        text,
+    )
+    if completed is None:
+        return False
+    skipped = re.search(r"\b(?:skipped|skips)=(\d+)\b", completed["result"])
+    if skipped and int(skipped[1]) >= int(completed["cases"]):
+        return False
+    cases = text[:completed.start()]
+    if framework == "twisted":
+        # Import-error holders have no real test class/method tree. A module
+        # name followed by an indented [ERROR] is not a case outcome.
+        return re.search(
+            r"(?m)^  (?!(?:_FailedTest|_ErrorHolder|ErrorHolder|Failure)\b)[A-Za-z_]\w*[ \t]*\n"
+            r"(?:    test\w* \.\.\.[^\n]*\n)*"
+            r"    test\w* \.\.\.[ \t]+\[(?:OK|FAIL|ERROR)\][ \t]*$",
+            cases,
+        ) is not None
+    pending = False
+    for line in cases.splitlines():
+        case = re.fullmatch(
+            r"(?P<name>[^()\n]+) \((?P<identity>[^)\n]+)\) \.\.\. (?P<outcome>.*)", line,
+        )
+        if case:
+            pending = (
+                re.fullmatch(r"test\S+", case["name"]) is not None
+                and not any(
+                    loader in case["identity"]
+                    for loader in ("_FailedTest", "_ErrorHolder", "nose.failure.Failure")
+                )
+            )
+            line = case["outcome"]
+        # Application logging can separate Django's named case from its
+        # terminal outcome; a start without an outcome still proves nothing.
+        if pending and re.fullmatch(r"(?:ok|FAIL|ERROR)[ \t]*", line):
+            return True
+        if re.match(r"skipped\b|expected failure\b|unexpected success\b", line):
+            pending = False
+    return False
+
+
+def _custom_framework_execution(trial: Path) -> bool:
+    for output_path in sorted(trial.rglob("test_output.log")):
+        if trial_runner(output_path.parent) != "custom":
+            continue
+        try:
+            command = output_path.with_name("resolved_command.txt").read_text(
+                encoding="utf-8", errors="replace",
+            )
+            text = output_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for invocation in re.finditer(
+            r"(?m)^[ \t]*(?:exec[ \t]+)?(?:(?:\S*/)?pipenv[ \t]+run[ \t]+)?"
+            r"(?:(?P<django>(?:\S*/)?python(?:\d+(?:\.\d+)*)?[ \t]+"
+            r"(?:\S*/)?manage\.py[ \t]+test)"
+            r"|(?P<twisted>(?:\S*/)?trial|(?:\S*/)?python(?:\d+(?:\.\d+)*)?"
+            r"[ \t]+-m[ \t]+twisted\.trial))(?:[ \t]|$)",
+            command,
+        ):
+            framework = "django" if invocation["django"] else "twisted"
+            if _custom_framework_output_executed(framework, text):
+                return True
+    return False
+
+
 def positive_case_execution(trial: Path) -> bool:
     """Require case evidence, not the older verifier's markers=True shortcut."""
     if any(grade["cases"] > 0 for grade in trial_grade_logs(trial)):
@@ -68,6 +147,8 @@ def positive_case_execution(trial: Path) -> bool:
     ):
         return True
     runner = trial_runner(trial)
+    if runner == "custom" and _custom_framework_execution(trial):
+        return True
     custom_python = runner == "custom" and any(
         re.search(
             r"(?m)^[ \t]*(?:\S*/)?python(?:\d+(?:\.\d+)*)?"

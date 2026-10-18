@@ -153,6 +153,15 @@ Qualification is fail-closed and scoped to reference/nop controls:
   accepted unresolved same-reference failure, or an exact-input failed control.
 - `missing_ref`: indexed patch bytes are absent or fail their SHA256 binding.
 
+Frozen wrappers marked `RUNNER=custom` can supply Python case evidence when the
+resolved command directly invokes `python -m nose` or `python -m unittest`.
+Admission also requires a completed, positive `Ran ... tests` summary and a named
+non-loader case outcome or failure diagnostic. Interleaved application logs do
+not erase a named `FAIL`/`ERROR` report. Bare exit codes or markers, zero-case or
+all-skipped runs, truncated summaries and loader-only import failures remain
+unmeasured. This recognizes execution; native identity, reward and exception
+gates still apply, and semantic correctness is not inferred.
+
 Native execution UUIDs deduplicate copied evidence only when every normalized
 qualification fact agrees; conflicting copies refuse.
 Native task checksums are retained diagnostically, not confused with the full

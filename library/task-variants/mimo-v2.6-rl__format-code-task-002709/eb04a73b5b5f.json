@@ -1,0 +1,54 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002709",
+  "variant_digest": "sha256:eb04a73b5b5f9a8836cace67c6c06ffa312cadd0d47856ae213aae497d40a7dd",
+  "variant_harbor_digest": "sha256:17dbc691fca74bf3d91fce6bca93c015527b75ddf30e8327b0d9b7464238cab2",
+  "parent": {
+    "digest": "sha256:5495b9cc67fd9e362cceda298d92c4162d09a6658d9359de704f782cc1c27061",
+    "harbor_digest": "sha256:b3b9b2c587505da7effab7df7275b57f593d04ce8fe8d19160fa264285635735",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002709/5495b9cc67fd",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:e966506749be6777724d58249a86d55ee973fdbf1aaa7062e6dbe52ab5f36d35",
+      "after_sha256": "sha256:1982afe0ece6818605c0311224445b6c7c9b9d38e9ef53a3c0d8ec29fff2e676",
+      "content": "diff --git a/test/file_test.py b/test/file_test.py\nindex 5f4d56c8f8..449a7cae2e 100644\n--- a/test/file_test.py\n+++ b/test/file_test.py\n@@ -276,6 +276,15 @@ def setUp(self):\n     def tearDown(self):\n         self.setUp()\n \n+    def test_copy(self):\n+        src = os.path.join(self.path, 'src.txt')\n+        dest = os.path.join(self.path, 'newdir', 'dest.txt')\n+\n+        LocalTarget(src).open('w').close()\n+        self.fs.copy(src, dest)\n+        self.assertTrue(os.path.exists(src))\n+        self.assertTrue(os.path.exists(dest))\n+\n     def test_mkdir(self):\n         testpath = os.path.join(self.path, 'foo/bar')\n \ndiff --git a/test/mock_test.py b/test/mock_test.py\nindex 45af3b358f..833ab72633 100644\n--- a/test/mock_test.py\n+++ b/test/mock_test.py\n@@ -64,9 +64,15 @@ def setUp(self):\n         self.fs.clear()\n         self.path = \"/tmp/foo\"\n         self.path2 = \"/tmp/bar\"\n+        self.path3 = \"/tmp/foobar\"\n         self._touch(self.path)\n         self._touch(self.path2)\n \n+    def test_copy(self):\n+        self.fs.copy(self.path, self.path3)\n+        self.assertTrue(self.fs.exists(self.path))\n+        self.assertTrue(self.fs.exists(self.path3))\n+\n     def test_exists(self):\n         self.assertTrue(self.fs.exists(self.path))\n \n@@ -79,6 +85,11 @@ def test_remove_recursive(self):\n         self.assertFalse(self.fs.exists(self.path))\n         self.assertFalse(self.fs.exists(self.path2))\n \n+    def test_rename(self):\n+        self.fs.rename(self.path, self.path3)\n+        self.assertFalse(self.fs.exists(self.path))\n+        self.assertTrue(self.fs.exists(self.path3))\n+\n     def test_listdir(self):\n         self.assertEqual(sorted([self.path, self.path2]), sorted(self.fs.listdir(\"/tmp\")))\n \ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,8 @@\n+H4sIAAAAAAAAA+3TX2/TMBAA8D77U5xCHzakJA1dEglpDwgmbQ/ANNBeqzS5bobEtvwnWr89thPW\n+CWnsZQMh7vfQVOerfb5Ls63jfbdBMeaLl7Ly6rKMT+/XZ/xelG+Koq7qulgvVkVR+QeUL1bRA87Y\n+RgMstJT2d3lPrf+jssP8LRq7aeUwNKLLzO3znfHU/Ouiup9/Vfp4cVKt/fxXz1fC4/7z+bcdxMFv\n+sWPsFbzvsRHgW9Kjjw8KdrxHAzstB1AaRy6dgZAP2gnD9ADpLibGTTJ7Z9PXYZ8vaMEpUHv/YsER\n+F2HHHjvgAvLQyTyLS8cM75TUFi7ffT0/TZbnnz+ezUv5lou3yxBPGI5ND8nyaNqOC24hPU5ivRob\n+izCGuHTW8A4P97k++3S9+XBxdZrMZ4a0tHf8hidM7e2tFGtIh+nXyfJnesKMdLrFB6FQTN60lo/+\n+tHjwxXQl3xT5DVsL/j8z9aVDhaJD0XI0THEF8+UhPVTm+xJzB9l+D5tdOQH+LbzxTQtxMxcXapsz\n+w0ceZrGJfVb7KRI2uI+kI/vbbxMhhBBCCCGEEEIIIYQQQgghhBBCCPnTfgCnMMohACgAAA==\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/test/test_repair_file_operations.py b/test/test_repair_file_operations.py\nnew file mode 100644\n--- /dev/null\n+++ b/test/test_repair_file_operations.py\n@@ -0,0 +1,50 @@\n+import os\n+import shutil\n+import tempfile\n+import unittest\n+\n+from luigi.file import LocalFileSystem\n+from luigi.mock import MockFileSystem, MockTarget\n+\n+\n+class LocalRenameTest(unittest.TestCase):\n+    def test_filesystem_rename_moves_file_contents(self):\n+        directory = tempfile.mkdtemp(prefix='luigi-rename-')\n+        try:\n+            source = os.path.join(directory, 'source.txt')\n+            destination = os.path.join(directory, 'renamed.txt')\n+            payload = b'first line\\nsecond line\\n'\n+            with open(source, 'wb') as stream:\n+                stream.write(payload)\n+\n+            LocalFileSystem().rename(source, destination)\n+\n+            self.assertFalse(os.path.exists(source))\n+            self.assertTrue(os.path.exists(destination))\n+            with open(destination, 'rb') as stream:\n+                self.assertEqual(stream.read(), payload)\n+        finally:\n+            shutil.rmtree(directory)\n+\n+\n+class MockMoveTest(unittest.TestCase):\n+    def setUp(self):\n+        self.fs = MockFileSystem()\n+        self.fs.clear()\n+\n+    def tearDown(self):\n+        self.fs.clear()\n+\n+    def test_target_move_moves_file_contents(self):\n+        source = MockTarget('/repair/source.txt')\n+        destination = MockTarget('/repair/moved.txt')\n+        payload = 'first line\\nsecond line\\n'\n+        with source.open('w') as stream:\n+            stream.write(payload)\n+\n+        source.move(destination.path)\n+\n+        self.assertFalse(MockTarget('/repair/source.txt').exists())\n+        self.assertTrue(destination.exists())\n+        with destination.open('r') as stream:\n+            self.assertEqual(stream.read(), payload)\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:386465c06b1a7fd46fd1b20a2cb75fed62ec4c86719ed767832d2774ef93abb5",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/root/.venv-luigi/bin/python -m pytest test/test_repair_file_operations.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-002709.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-luigi-file-py-1",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/root/.venv-luigi/bin/python -m pytest test/test_repair_file_operations.py -q",
+    "repo_paths": [
+      "test/test_repair_file_operations.py"
+    ],
+    "port_of_variant": "sha256:4aad466b1fb02d538fa4d308e7b1d62be9aa95de09133443c641286a506b5770",
+    "source_record_sha256": "sha256:fcd4ca6d0e5453d5fa74bb47b0c2954e9e1f6f23e9dae68e25737468d3bfd3c0",
+    "v6_parent_digest": "sha256:5495b9cc67fd9e362cceda298d92c4162d09a6658d9359de704f782cc1c27061"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:57:35Z",
+  "status": "candidate",
+  "evidence": []
+}

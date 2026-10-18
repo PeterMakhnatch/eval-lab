@@ -1,0 +1,54 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000561",
+  "variant_digest": "sha256:cea3b5f107efb1cd5f013d5aff18cb509bd703db312337c786036d062533ceea",
+  "variant_harbor_digest": "sha256:6dca543f9ee05f3c88cef54159f9102426f2ea1d12981fd57a01651b9bfcc214",
+  "parent": {
+    "digest": "sha256:651c7eb3183a0b797a441d263ca6b710362458a39725a3438ce0842f47e98360",
+    "harbor_digest": "sha256:fc8abc0fbeb7445e5b99a2652a38e8591b5cd71ec9f22b9129e366102fd10f20",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000561/651c7eb3183a",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:67de61325b0177925cf5b6efbd4b469e9667866132da4975e64328d97e580442",
+      "after_sha256": "sha256:92715e3c1d0e76a34191fdbae33ce027328d242135f1e113d5636b5caf2af95c",
+      "content": "diff --git a/tests/sequence/test_fasta.py b/tests/sequence/test_fasta.py\nindex 3f2802413..1b7103e30 100644\n--- a/tests/sequence/test_fasta.py\n+++ b/tests/sequence/test_fasta.py\n@@ -39,10 +39,11 @@ def test_access_low_level():\n     }\n \n \n-def test_access_high_level():\n+@pytest.mark.parametrize(\"seq_type\", (None, seq.NucleotideSequence))\n+def test_access_high_level(seq_type):\n     path = os.path.join(data_dir(\"sequence\"), \"nuc.fasta\")\n     file = fasta.FastaFile.read(path)\n-    sequences = fasta.get_sequences(file)\n+    sequences = fasta.get_sequences(file, seq_type=seq_type)\n     assert sequences == {\n         \"dna sequence\" : seq.NucleotideSequence(\"ACGCTACGT\", False),\n         \"another dna sequence\" : seq.NucleotideSequence(\"A\", False),\n@@ -52,34 +53,72 @@ def test_access_high_level():\n     }\n \n \n-def test_sequence_conversion():\n+@pytest.mark.parametrize(\n+        \"seq_type\", (None, seq.NucleotideSequence, seq.ProteinSequence)\n+)\n+def test_sequence_conversion_ambiguous(seq_type):\n     path = os.path.join(data_dir(\"sequence\"), \"nuc.fasta\")\n     file = fasta.FastaFile.read(path)\n-    assert seq.NucleotideSequence(\"ACGCTACGT\") == fasta.get_sequence(file)\n+    sequence = \"ACGCTACGT\"\n+\n+    if seq_type is None:\n+\n+        assert seq.NucleotideSequence(sequence) == fasta.get_sequence(\n+            file, seq_type=None\n+        )\n+    else:\n+        assert seq_type(sequence) == fasta.get_sequence(\n+            file, seq_type=seq_type\n+        )\n     \n     seq_dict = fasta.get_sequences(file)\n     file2 = fasta.FastaFile()\n     fasta.set_sequences(file2, seq_dict)\n-    seq_dict2 = fasta.get_sequences(file2)\n-    # Cannot compare dicts directly, since the original RNA sequence is\n-    # now guessed as protein sequence\n-    for seq1, seq2 in zip(seq_dict.values(), seq_dict2.values()):\n-        assert str(seq1) == str(seq2)\n-    \n-    file3 = fasta.FastaFile()\n-    fasta.set_sequence(file3, seq.NucleotideSequence(\"AACCTTGG\"))\n-    assert file3[\"sequence\"] == \"AACCTTGG\"\n+    seq_dict2 = fasta.get_sequences(file2, seq_type=seq_type)\n+\n+    if seq_type == seq.ProteinSequence:\n+\n+\n+        assert seq_dict != seq_dict2\n+        for seq1, seq2 in zip(seq_dict.values(), seq_dict2.values()):\n+            assert str(seq1) == str(seq2)\n+    else:\n+        assert seq_dict == seq_dict2\n     \n+    if seq_type is not None:\n+        sequence = \"AACCTTGG\"\n+        file3 = fasta.FastaFile()\n+        fasta.set_sequence(file3, seq_type(sequence))\n+        assert file3[\"sequence\"] == sequence\n+\n+\n+@pytest.mark.parametrize(\n+        \"seq_type\", (None, seq.NucleotideSequence, seq.ProteinSequence)\n+)\n+def test_sequence_conversion_protein(seq_type):\n     path = os.path.join(data_dir(\"sequence\"), \"prot.fasta\")\n     file4 = fasta.FastaFile.read(path)\n-    # Expect a warning for selenocysteine conversion\n-    with pytest.warns(UserWarning):\n-        assert seq.ProteinSequence(\"YAHCGFRTGS\") == fasta.get_sequence(file4)\n-    \n+\n+    if seq_type != seq.NucleotideSequence:\n+\n+        with pytest.warns(UserWarning):\n+            assert seq.ProteinSequence(\"YAHCGFRTGS\") == fasta.get_sequence(\n+                file4, seq_type=seq_type\n+            )\n+    else:\n+\n+        with pytest.raises(seq.AlphabetError):\n+            fasta.get_sequence(file4, seq_type=seq_type)\n+\n+\n+@pytest.mark.parametrize(\n+        \"seq_type\", (None, seq.NucleotideSequence, seq.ProteinSequence)\n+)\n+def test_sequence_conversion_invalid(seq_type):\n     path = os.path.join(data_dir(\"sequence\"), \"invalid.fasta\")\n-    file5 = fasta.FastaFile.read(path)\n+    file = fasta.FastaFile.read(path)\n     with pytest.raises(ValueError):\n-        seq.NucleotideSequence(fasta.get_sequence(file5))\n+        seq.NucleotideSequence(fasta.get_sequence(file), seq_type=seq_type)\n \n \n def test_rna_conversion():\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,10 @@\n+H4sIAAAAAAAAA+2UwXLTMBCGc/ZT7IQLHGzHDnaHQw7QS7lABnrh1HHkJdbUloS0dpK3R5aTNoWB\n+XtoBhv0OceJd7f6rX0qy6WVb36Aa0tlzsfBcFEV4en58hu9ZkWd5Xl5khX+fZeUin0HxbIrO6B1V\n+FmBmtabf5T0W/0dJ7v0ndHQjdNdVqk5c83Q9HvE/y4v85H9ZLpbe/9dlvpjB4ukk/Jr/3H9RQzB+\n+g3UUvYDPO0miAdKwPlCjFSyTLIOX/lSYiuSmRfAJDVxOwUWSv0n24M8LUCMdCF3jpnL4KqpxiN1U\n+y4TcZag0tri0WBHC4I8c6J6crPFOAjgNksD1dpADOqjAotH+wyFFp0JxNy1OtaF0IzVJwnh8Eznd\n+W4E/B/wPlVaC5OA7jxreK+9620I4/FCjQVWjEtK3NFIpL8TvwNnQA1ontXKRkQbkcfFcBEGrVdiG\n+ZTmHuW5rP0jsemO0Jaxj1XfmMAcvvzekdetg1yC2o4Z3ofdxJ3FPqEILXz42bSXwbt6wODEHOF7V\n+PUEcSzUlnQ1je0Wyw4fjBG+8pjGq0D4YwOK33occdG5rKnELCmmn7e1+9MwHxuKfegX+gmyRQhk3\n++b/+cn318cP67fUVGC19W7Udd4waHOWTRYTJi+g+c3UyOXVWwJmZU7OpfOpGTUrg9G/0tfJKx9Hj\n+IfrTN4VhGIZhGIZhGIZhGIZhGIZhGIZhGIZhGObv5DueLJ1jACgAAA==\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/tests/sequence/test_repair_fasta_alignment_seq_type.py b/tests/sequence/test_repair_fasta_alignment_seq_type.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/sequence/test_repair_fasta_alignment_seq_type.py\n@@ -0,0 +1,26 @@\n+import sys\n+if '/testbed/src' not in sys.path:\n+    sys.path.insert(0, '/testbed/src')\n+\n+import biotite.sequence as seq\n+import biotite.sequence.io.fasta as fasta\n+\n+\n+def test_get_alignment_respects_forced_protein_seq_type():\n+    ff = fasta.FastaFile()\n+    ff['p1'] = 'ACGT-ACGT'\n+    ff['p2'] = 'ACGTACGT-'\n+    alignment = fasta.get_alignment(ff, seq_type=seq.ProteinSequence)\n+    assert [type(s) for s in alignment.sequences] == [\n+        seq.ProteinSequence,\n+        seq.ProteinSequence,\n+    ]\n+    assert [str(s) for s in alignment.sequences] == ['ACGTACGT', 'ACGTACGT']\n+\n+\n+def test_get_sequence_autodetect_uppercases_and_normalizes_rna():\n+    ff = fasta.FastaFile()\n+    ff['n1'] = 'acgtu'\n+    detected = fasta.get_sequence(ff)\n+    assert isinstance(detected, seq.NucleotideSequence)\n+    assert detected == seq.NucleotideSequence('ACGTT')\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:cdbc1080d64f310e2e8c16b208f4dacf8c61f33f9162ce3b4679376438f2d4d4",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/opt/biotite-venv/bin/python3 -m pytest tests/sequence/test_repair_fasta_alignment_seq_type.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000561.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-src-biotite-sequence-io-fasta-convert-py-10",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/opt/biotite-venv/bin/python3 -m pytest tests/sequence/test_repair_fasta_alignment_seq_type.py -q",
+    "repo_paths": [
+      "tests/sequence/test_repair_fasta_alignment_seq_type.py"
+    ],
+    "port_of_variant": "sha256:99bc85ded2b84ff23ee6816f2f2d18f32e3c38e1f54bfe7ba52bc47c5fd1a41c",
+    "source_record_sha256": "sha256:ec7c6691a7246470064eabed6556f9e08538229bfa12717f138b6f30b3374d3f",
+    "v6_parent_digest": "sha256:651c7eb3183a0b797a441d263ca6b710362458a39725a3438ce0842f47e98360"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:50Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,55 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000089",
+  "variant_digest": "sha256:01327d809210e559f1bd81c63fc51b5a66a45341bc3289b0ee455ba8231c97ff",
+  "variant_harbor_digest": "sha256:7468bd17b98cfdfb588ba4a9a078e471df4ceef7a058590c8dea22a4f7f94e8f",
+  "parent": {
+    "digest": "sha256:edf7ae4f6d8bd5a5b0ca895ed9b44e78bc9b9c86aef84617d8d8f4b9267e695f",
+    "harbor_digest": "sha256:8d6625ae4715b9500d02c410b95dcac00ce04135b2f260d45ac55ae6519c4b5d",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000089/edf7ae4f6d8b",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:cca364d88eae270017cafa29210deb689ed962543831c89c03f27560dda88d3b",
+      "after_sha256": "sha256:68edfde0bbfd12c4cc555748fd8de1f4610504721353f4b18519c12e9ebcd7c4",
+      "content": "diff --git a/tests/test_common.py b/tests/test_common.py\nindex 1f07f955a..c2012a693 100644\n--- a/tests/test_common.py\n+++ b/tests/test_common.py\n@@ -1148,7 +1148,7 @@ async def test_import_xml_data_type_definition(opc):\n     s = ua.MyStruct()\n     s.toto = 0.1\n     ss = ua.MySubstruct()\n-    assert ss.titi == 0\n+    assert ss.titi == None\n     assert isinstance(ss.structs, list)\n \n     ss.titi = 1\n@@ -1253,6 +1253,11 @@ async def test_custom_struct_with_optional_fields(opc):\n     await opc.opc.load_data_type_definitions()\n \n     my_struct_optional = ua.MyOptionalStruct()\n+    assert my_struct_optional.MyBool is not None\n+    assert my_struct_optional.MyUInt32 is not None\n+    assert my_struct_optional.MyString is None\n+    assert my_struct_optional.MyInt64 is None\n+\n     my_struct_optional.MyUInt32 = 45\n     my_struct_optional.MyInt64 = -67\n     var = await opc.opc.nodes.objects.add_variable(idx, \"my_struct_optional\", ua.Variant(my_struct_optional, ua.VariantType.ExtensionObject))\n@@ -1664,4 +1669,4 @@ async def test_sql_injection():\n         validate_table_name(table)\n     table = \"user'\"\n     with pytest.raises(SqlInjectionError) as _:\n-        validate_table_name(table)\n\\ No newline at end of file\n+        validate_table_name(table)\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,5 @@\n+H4sIAAAAAAAAA+3SwUrEMBAG4Jz7FCOCt7ZJ3aQnfZUlaQMt2KQ008K+vW09rAq6l11E/b9DEshA\n+JvxTuLl/aY8+LKW4Fbmqtd731ed9Pytdyao2pjYHIZUylRSkb9bRO3NiOxGJKUb+ru7S/S9VnPNn\n+n/jYxGGwoS1Sd703LuWv1sw/5n8wj1qQvF4LX/vn+d/fla4PpbOpy5qW9iFwvs1SnKfGUxlHfhuM\n+ZRuRrdQ23C+WfTaeuIuB8oHW01pC25LOYxRDMZ4oXyjP2T2lLk5M1fODyn76zwAAAAAAAAAAAAAA\n+AAAAAAAAf8UruuAXQgAoAAA=\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/tests/test_repair_extension_defaults.py b/tests/test_repair_extension_defaults.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/test_repair_extension_defaults.py\n@@ -0,0 +1,56 @@\n+import pytest\n+\n+from asyncua import Server, ua\n+from asyncua.common.structures104 import new_struct, new_struct_field\n+\n+\n+SCALAR_TYPES = (\n+    \"String\", \"Int16\", \"Int32\", \"Int64\", \"UInt16\", \"UInt32\", \"UInt64\",\n+    \"Double\", \"Float\", \"Byte\", \"SByte\",\n+)\n+\n+\n+async def imported_struct(name, with_optional_fields):\n+    server = Server()\n+    await server.init()\n+    namespace = await server.register_namespace(\"urn:test:extension-defaults\")\n+    fields = [\n+        new_struct_field(\"Required\" + name, getattr(ua.VariantType, name))\n+        for name in SCALAR_TYPES\n+    ]\n+    if with_optional_fields:\n+        fields.extend(\n+            new_struct_field(\n+                \"Optional\" + name, getattr(ua.VariantType, name), optional=True\n+            )\n+            for name in SCALAR_TYPES + (\"Boolean\",)\n+        )\n+    await new_struct(server, namespace, name, fields)\n+    await server.load_data_type_definitions()\n+    return getattr(ua, name)\n+\n+\n+@pytest.mark.asyncio\n+@pytest.mark.parametrize(\"with_optional_fields\", [False, True])\n+async def test_required_scalar_defaults_have_their_declared_value_type(with_optional_fields):\n+    name = \"RepairMixedScalarDefaults\" if with_optional_fields else \"RepairScalarDefaults\"\n+    struct_type = await imported_struct(name, with_optional_fields)\n+    value = struct_type()\n+    for scalar_name in SCALAR_TYPES:\n+        constructor = getattr(ua, scalar_name)\n+        example = constructor() if scalar_name == \"String\" else constructor(0)\n+        default = getattr(value, \"Required\" + scalar_name)\n+        assert isinstance(default, type(example)), (\n+            scalar_name, \"default must be a value of the declared scalar type\", default\n+        )\n+\n+\n+@pytest.mark.asyncio\n+async def test_optional_scalar_defaults_preserve_unset_versus_explicit_zero():\n+    struct_type = await imported_struct(\"RepairOptionalScalarDefaults\", True)\n+    value = struct_type()\n+    for scalar_name in SCALAR_TYPES + (\"Boolean\",):\n+        assert getattr(value, \"Optional\" + scalar_name) is None, scalar_name\n+    value.OptionalInt32 = ua.Int32(0)\n+    assert value.OptionalInt32 == 0\n+    assert struct_type().OptionalInt32 is None\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:f3677a5dc52504bb3fd84e5547249984d7d08d241dbe65bf9ff580d586e450fd",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/opt/test_venv/bin/python -m pytest tests/test_repair_extension_defaults.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000089.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-asyncua-common-structures104-py-1",
+      "drop-block-asyncua-common-structures104-py-2",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/opt/test_venv/bin/python -m pytest tests/test_repair_extension_defaults.py -q",
+    "repo_paths": [
+      "tests/test_repair_extension_defaults.py"
+    ],
+    "port_of_variant": "sha256:f556181d6c83af20039090ac2671f9b04301ce73ea1c2b8bd18a90d5bbc5f992",
+    "source_record_sha256": "sha256:6361c47232e8c6fef876af74357c0a14c1be479a689357dc376627acab68b59b",
+    "v6_parent_digest": "sha256:edf7ae4f6d8bd5a5b0ca895ed9b44e78bc9b9c86aef84617d8d8f4b9267e695f"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T07:00:20Z",
+  "status": "candidate",
+  "evidence": []
+}

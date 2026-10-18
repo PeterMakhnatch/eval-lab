@@ -1,0 +1,53 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-001205",
+  "variant_digest": "sha256:d3ca6dc28408d9593ff781faa4dc5f3a632355b3bcad2d65dfff6a0ddd949c2a",
+  "variant_harbor_digest": "sha256:051abc7ac418c89a255e0626b3d644b3050fdd959b8a678dc4e620412a081160",
+  "parent": {
+    "digest": "sha256:4cb0bb75715cb5c6434a870f56a338e8bd4749bd95435d78fe6f840069d19fef",
+    "harbor_digest": "sha256:42d652edd49c229b0fb3b0cbd3ff26b90a83bd23fb2aabbd1b2ad1f889a5ded9",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001205/4cb0bb75715c",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:9a4d5128abdbf67a702a0b7e23c72a1f7c0c8fda689124be01c565e1c75a6b67",
+      "after_sha256": "sha256:d6c8967d7f8a147f5db1e27c2efde6389d436cb58d3c0c1eaaf76e74e253652f",
+      "content": "diff --git a/tests/notifier/notifiers/slack_webhook_test.py b/tests/notifier/notifiers/slack_webhook_test.py\nindex 8c1424163a..76b38bc61c 100644\n--- a/tests/notifier/notifiers/slack_webhook_test.py\n+++ b/tests/notifier/notifiers/slack_webhook_test.py\n@@ -56,7 +56,7 @@ def test_no_url_no_run_notifier(self):\n         \"\"\"Test that no url for Slack notifier will skip running.\"\"\"\n         with mock.patch.object(slack_webhook.SlackWebhook, '__init__', lambda x: None):\n             slack_notifier = slack_webhook.SlackWebhook()\n-            slack_notifier.notifier_config = {}\n+            slack_notifier.notification_config = {}\n             slack_notifier._compose = mock.MagicMock()\n             slack_notifier.run()\n \ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,6 @@\n+H4sIAAAAAAAAA+3STU+EMBAGYM78ignhoAcKVAFj4sGDyV6MHrwTPqqQhZbQLuq/t2DiGqPuZTcb\n+4/sc6DAzSScMrNy0XZ0LOYXOoURWliTLaX09lzhOeMyjNMm47YvjNEodSg420ScbbYqRyBmVMr/1\n+7ar/UWy7fyO0ySvV94WsmW72d8eu/fMs2e4/OrP7P085dyja3wg/++f7r2paFl+K2nXFy6BGQ/fX\n+D6srz1/d3d6EbHid/42ylZf+nPdcMRUdef7JUqBWtoaCYChMc/p9zabfX586VdoyZxmLL1ybNI2S\n+FPRkIzsBzQ8dSmXax1aMH4EOdVdU6/xZlI1S63xus1NRMLnH/ngAAAAAAAAAAAAAAAAAAAAAAEf2\n+BjXXg6gAKAAA\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/tests/notifier/notifiers/test_repair_slack_webhook_post.py b/tests/notifier/notifiers/test_repair_slack_webhook_post.py\nnew file mode 100644\n--- /dev/null\n+++ b/tests/notifier/notifiers/test_repair_slack_webhook_post.py\n@@ -0,0 +1,15 @@\n+import unittest\n+from mock import patch\n+\n+from google.cloud.forseti.notifier.notifiers import slack_webhook\n+\n+\n+class SlackWebhookSendTest(unittest.TestCase):\n+    def test_send_uses_notification_config_webhook_url(self):\n+        url = 'https://hooks.slack.com/services/T000/B000/X000'\n+        with patch.object(slack_webhook.SlackWebhook, '__init__', lambda self: None), \\\n+                patch.object(slack_webhook.requests, 'post') as mock_post:\n+            notifier = slack_webhook.SlackWebhook()\n+            notifier.notification_config = {'webhook_url': url}\n+            notifier._send(payload='violation-payload')\n+            mock_post.assert_called_once_with(url, json={'text': 'violation-payload'})\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:1e9407056dfd1bbdc7625dc65ad1bebf4233d8fc992239ac872a833e0fb2d4eb",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/root/.pyenv/shims/python -m pytest tests/notifier/notifiers/test_repair_slack_webhook_post.py -v\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-001205.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/root/.pyenv/shims/python -m pytest tests/notifier/notifiers/test_repair_slack_webhook_post.py -v",
+    "repo_paths": [
+      "tests/notifier/notifiers/test_repair_slack_webhook_post.py"
+    ],
+    "port_of_variant": "sha256:084c3e23f29928c000e20db56e95af047f13e8cb690b628c716c0de6831974f3",
+    "source_record_sha256": "sha256:ed5f286ac067dd7a4b26ff3bcf5151c1303f8e762d81046b8e4d665330a965fc",
+    "v6_parent_digest": "sha256:4cb0bb75715cb5c6434a870f56a338e8bd4749bd95435d78fe6f840069d19fef"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:50Z",
+  "status": "candidate",
+  "evidence": []
+}

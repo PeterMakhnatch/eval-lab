@@ -1,0 +1,55 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002216",
+  "variant_digest": "sha256:102d71645321b7a6979c7d8a89eb3378eb7db230739c257ef01784f16c5a6baf",
+  "variant_harbor_digest": "sha256:62413167daf4c5a92a4b4dc444f1ad069858bcd02d2bd37521474691f5be32c7",
+  "parent": {
+    "digest": "sha256:5bca73f1e2462cb200ccec7badf53b46d7da8ac96787592f4afb0a730d7fcab3",
+    "harbor_digest": "sha256:80016731ffefb76ad6745df83c3db40b3a6229698ae183b7495d8e6963bf0de9",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002216/5bca73f1e246",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:3d51d673bee5f32a84c578425db80354ceca6ebed4b0c3f6f1e6d5dee9c44b6c",
+      "after_sha256": "sha256:fe2e1fe889050edb4e8a41940a092e498bf26fba0a77778c5c97989e85d99145",
+      "content": "diff --git a/pandas/tests/indexing/multiindex/test_loc.py b/pandas/tests/indexing/multiindex/test_loc.py\nindex 165d34180d..2454710d7e 100644\n--- a/pandas/tests/indexing/multiindex/test_loc.py\n+++ b/pandas/tests/indexing/multiindex/test_loc.py\n@@ -608,6 +608,76 @@ class TestKeyErrorsWithMultiIndex:\n         with pytest.raises(KeyError, match=r\"\\(0, 3\\)\"):\n             ser.loc[0, 3]\n \n+    def test_missing_key_combination_slice_raises_keyerror(self):\n+\n+\n+\n+        mi = MultiIndex.from_arrays(\n+            [\n+                np.array([\"a\", \"a\", \"b\", \"b\"]),\n+                np.array([\"1\", \"2\", \"2\", \"3\"]),\n+                np.array([\"alpha\", \"beta\", \"alpha\", \"beta\"]),\n+            ],\n+            names=[\"one\", \"two\", \"three\"],\n+        )\n+        df = DataFrame(np.arange(12).reshape(4, 3), index=mi)\n+\n+\n+\n+\n+        with pytest.raises(KeyError, match=r\"'b'.*'1'\"):\n+            df.loc[(\"b\", \"1\", slice(None)), :]\n+\n+\n+        with pytest.raises(KeyError):\n+            df.loc[(\"b\", \"1\"), :]\n+\n+\n+        ser = Series(np.arange(4), index=mi)\n+        with pytest.raises(KeyError, match=r\"'b'.*'1'\"):\n+            ser.loc[(\"b\", \"1\", slice(None))]\n+\n+    def test_valid_combination_with_trailing_slice_returns_rows(self):\n+\n+\n+        mi = MultiIndex.from_arrays(\n+            [\n+                np.array([\"a\", \"a\", \"b\", \"b\"]),\n+                np.array([\"1\", \"2\", \"2\", \"3\"]),\n+                np.array([\"alpha\", \"beta\", \"alpha\", \"beta\"]),\n+            ],\n+            names=[\"one\", \"two\", \"three\"],\n+        )\n+        df = DataFrame(np.arange(12).reshape(4, 3), index=mi)\n+\n+\n+        result = df.loc[(\"b\", \"2\", slice(None)), :]\n+        assert len(result) == 1\n+        assert list(result.iloc[0]) == [6, 7, 8]\n+\n+\n+        result = df.loc[(\"a\", \"1\", slice(None)), :]\n+        assert len(result) == 1\n+        assert list(result.iloc[0]) == [0, 1, 2]\n+\n+    def test_valid_middle_slice_combination_returns_rows(self):\n+\n+\n+\n+        mi = MultiIndex.from_arrays(\n+            [\n+                np.array([\"a\", \"a\", \"b\", \"b\"]),\n+                np.array([\"1\", \"2\", \"2\", \"3\"]),\n+                np.array([\"alpha\", \"beta\", \"alpha\", \"beta\"]),\n+            ],\n+            names=[\"one\", \"two\", \"three\"],\n+        )\n+        df = DataFrame(np.arange(12).reshape(4, 3), index=mi)\n+\n+        result = df.loc[(\"b\", slice(None), \"alpha\"), :]\n+        assert len(result) == 1\n+        assert list(result.iloc[0]) == [6, 7, 8]\n+\n \n def test_getitem_loc_commutability(multiindex_year_month_day_dataframe_random_data):\n     df = multiindex_year_month_day_dataframe_random_data\ndiff --git a/test_commands.json b/test_commands.json\nnew file mode 100644\nindex 0000000000..9b09e2c11f\n--- /dev/null\n+++ b/test_commands.json\n@@ -0,0 +1,3 @@\n+{\n+  \"test_commands\": [\"python -m pytest pandas/tests/indexing/multiindex/test_loc.py -k 'test_missing_key_combination_slice_raises_keyerror or test_valid_combination_with_trailing_slice_returns_rows or test_valid_middle_slice_combination_returns_rows' -v\"]\n+}\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,8 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed\n+rc=0\n+python -m pytest pandas/tests/indexing/multiindex/test_loc.py -k 'test_missing_key_combination_slice_raises_keyerror or test_valid_combination_with_trailing_slice_returns_rows or test_valid_middle_slice_combination_returns_rows' -v\n+rc=$(( rc | $? ))\n+exit $rc\ndiff --git a/pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py b/pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py\nnew file mode 100644\n--- /dev/null\n+++ b/pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py\n@@ -0,0 +1,47 @@\n+import pandas as pd\n+import pytest\n+\n+\n+def make_frame():\n+    index = pd.MultiIndex.from_arrays(\n+        [\n+            [\"a\", \"a\", \"b\", \"b\"],\n+            [\"1\", \"2\", \"2\", \"3\"],\n+            [\"alpha\", \"beta\", \"alpha\", \"beta\"],\n+        ],\n+        names=[\"one\", \"two\", \"three\"],\n+    )\n+    return pd.DataFrame({\"value\": [10, 20, 30, 40]}, index=index)\n+\n+\n+@pytest.mark.parametrize(\n+    \"key\",\n+    [\n+        (\"b\", \"1\", slice(None)),\n+        ([\"b\"], \"1\", slice(None)),\n+        (\"b\", [\"1\"], slice(None)),\n+        ([False, False, True, True], \"1\", slice(None)),\n+        (\"b\", [True, False, False, False], slice(None)),\n+    ],\n+    ids=[\"scalar\", \"first-level-list\", \"second-level-list\", \"first-level-mask\", \"second-level-mask\"],\n+)\n+def test_missing_combination_with_trailing_slice_raises_keyerror(key):\n+    frame = make_frame()\n+    with pytest.raises(KeyError):\n+        frame.loc[key, :]\n+\n+\n+@pytest.mark.parametrize(\n+    \"key\",\n+    [\n+        (\"b\", slice(None), slice(None)),\n+        ([\"b\"], slice(None), slice(None)),\n+        ([False, False, True, True], slice(None), slice(None)),\n+    ],\n+    ids=[\"scalar\", \"list\", \"mask\"],\n+)\n+def test_existing_combination_with_trailing_slices_selects_rows(key):\n+    frame = make_frame()\n+    result = frame.loc[key, :]\n+    assert result[\"value\"].tolist() == [30, 40]\n+    assert len(result) == 2\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:e33ead68c12530fb73800991136a0e9784d49f5e1ce19a36b67509e150eed500",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/usr/local/bin/python -m pytest pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-002216.",
+  "inputs": {
+    "mutant_ids": [
+      "drop-block-pandas-core-indexes-multi-py-2",
+      "drop-block-pandas-core-indexes-multi-py-3",
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/usr/local/bin/python -m pytest pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py -q",
+    "repo_paths": [
+      "pandas/tests/indexing/multiindex/test_repair_multiindex_empty_selection_002216.py"
+    ],
+    "port_of_variant": "sha256:8cdece59f17dfbf275c20deb381e533e52a39a094ed14a0d3d7327cceafec266",
+    "source_record_sha256": "sha256:61500951d2b70d88d1a0fa6ebae7ae105bcf2465ec166d12d98edb5dc666a085",
+    "v6_parent_digest": "sha256:5bca73f1e2462cb200ccec7badf53b46d7da8ac96787592f4afb0a730d7fcab3"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:56:43Z",
+  "status": "candidate",
+  "evidence": []
+}

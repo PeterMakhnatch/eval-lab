@@ -1,0 +1,53 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000125",
+  "variant_digest": "sha256:a38c9890ad4239f10c7265399a78daf7122b94c245240196c5539f91c0794391",
+  "variant_harbor_digest": "sha256:d5ae9317638c8d0c2707cc4c16b8ec8d20761be6ecfae785e85c642d7a02d740",
+  "parent": {
+    "digest": "sha256:6ebef48c1ba3041a5714bd63b7f1018eecdfb3345c94569c4808f67a5b012b8a",
+    "harbor_digest": "sha256:2a1fa053e4ccfea994f7256342e20732d8160cf1f3d5bc40e60f2138466ff090",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000125/6ebef48c1ba3",
+      "record": null
+    }
+  },
+  "transform": "verifier-repair@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/test.patch",
+      "before_sha256": "sha256:f1bce7ad0f2910c2466f0c05ac5825883b2b5aca4a8b6a1a9fac7c67c0bb2e62",
+      "after_sha256": "sha256:386cdc5cc45374b5c8619dab4467d49c58cba2407f9144aef62bb1e26b1ee866",
+      "content": "diff --git a/libcst/_nodes/tests/test_atom.py b/libcst/_nodes/tests/test_atom.py\nindex 452c9f704..1a14e3722 100644\n--- a/libcst/_nodes/tests/test_atom.py\n+++ b/libcst/_nodes/tests/test_atom.py\n@@ -668,6 +668,35 @@ class AtomTest(CSTNodeTest):\n                 \"parser\": parse_expression,\n                 \"expected_position\": CodeRange((1, 1), (1, 4)),\n             },\n+\n+            {\n+                \"node\": cst.FormattedString(\n+                    start='f\"',\n+                    parts=[\n+                        cst.FormattedStringExpression(\n+                            expression=cst.GeneratorExp(\n+                                elt=cst.Name(\n+                                    value=\"x\",\n+                                ),\n+                                for_in=cst.CompFor(\n+                                    target=cst.Name(\n+                                        value=\"x\",\n+                                    ),\n+                                    iter=cst.Name(\n+                                        value=\"y\",\n+                                    ),\n+                                ),\n+                                lpar=[],\n+                                rpar=[],\n+                            ),\n+                        ),\n+                    ],\n+                    end='\"',\n+                ),\n+                \"code\": 'f\"{x for x in y}\"',\n+                \"parser\": parse_expression,\n+                \"expected_position\": None,\n+            },\n             # Concatenated strings\n             {\n                 \"node\": cst.ConcatenatedString(\ndiff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\nnew file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n@@ -0,0 +1,5 @@\n+H4sIAAAAAAAAA+3S0WrDIBQGYK/zFOcFYmKWxMcJRoUGGi3xJKxvP5dBWwZbb1rGtv+70CMqKr9y\n+XKejG3zYKvEsdaa7bu+zz/1eq65RqteNfmlFnSulBHVPu9GNNbFZiMQSI3+37t78LyWv+bNPPNg4\n+zyY4mQ6PO+Ne/qrV1/xVn/Nv+0YLqh93ha/98/ytoz340bsixXWx/jKu5Pb+LcYpVMbytBn2xenM\n+hxionClXeRkdp9EmroYQnU/7zo92MBxneTpT+UrlVvz0MwEAAAAAAAAAAAAAAAAAAAAA/qQ3GfHE\n+UwAoAAA=\ndiff --git a/mimo_test_command.sh b/mimo_test_command.sh\nnew file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n@@ -0,0 +1,6 @@\n+#!/usr/bin/env bash\n+\n+set -uo pipefail\n+cd /testbed || exit 1\n+base64 -d mimo_build_env.tar.gz.b64 | tar -xzf - -C /testbed || exit 1\n+exec bash -lc 'cd /testbed && bash -eo pipefail /testbed/.build_env/test_command.sh'\ndiff --git a/libcst/_nodes/tests/test_repair_fstring_py37.py b/libcst/_nodes/tests/test_repair_fstring_py37.py\nnew file mode 100644\n--- /dev/null\n+++ b/libcst/_nodes/tests/test_repair_fstring_py37.py\n@@ -0,0 +1,10 @@\n+import libcst as cst\n+\n+\n+def test_fstring_generator_expressions_parse_under_py37_and_py38():\n+    for version in ('3.6', '3.7', '3.8'):\n+        cfg = cst.PartialParserConfig(python_version=version)\n+        expr = cst.parse_expression('f\"{x for x in y}\"', config=cfg)\n+        assert isinstance(expr, cst.FormattedString)\n+        mod = cst.parse_module('x = f\"{i * 2 for i in range(3)}\"\\n', config=cfg)\n+        assert mod.code == 'x = f\"{i * 2 for i in range(3)}\"\\n'\n"
+    },
+    {
+      "path": "tests/test_command.sh",
+      "before_sha256": "sha256:7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "after_sha256": "sha256:972d92cfa4278b6907fdec7a6ab9577cf61b2c6b1c86597714ffd2851a2e8149",
+      "content": "(\nbash /testbed/mimo_test_command.sh\n)\nREPAIR_RC=$?\ncd /testbed || exit 1\nif [ -x /opt/test_venv/bin/python3 ]; then\n  PATH=/opt/test_venv/bin:$PATH\n  export PATH\n  python() { /opt/test_venv/bin/python3 \"$@\"; }\n  python3() { /opt/test_venv/bin/python3 \"$@\"; }\nfi\n/testbed/.venv/bin/python -m pytest libcst/_nodes/tests/test_repair_fstring_py37.py -q\nREPAIR_NEW_RC=$?\nif [ \"$REPAIR_NEW_RC\" -ne 0 ]; then exit 1; fi\nexit \"$REPAIR_RC\"\n"
+    }
+  ],
+  "rationale": "Port the validated EnvCheck semantic assertions to the mimo-clean-v6 parent unchanged: Add semantic assertions so ref-subset shortcut submissions fail on format-code-task-000125.",
+  "inputs": {
+    "mutant_ids": [
+      "minimal"
+    ],
+    "unrepairable": [],
+    "command": "/testbed/.venv/bin/python -m pytest libcst/_nodes/tests/test_repair_fstring_py37.py -q",
+    "repo_paths": [
+      "libcst/_nodes/tests/test_repair_fstring_py37.py"
+    ],
+    "port_of_variant": "sha256:1d13b40bb3288380034783ea332a819e589d5f3c391cc18dbd2ee36f374ed313",
+    "source_record_sha256": "sha256:d5ab65ae807b9625375428b0da6a6c5abc283c0cfdeb7ffc394e06a3ce4fa6ff",
+    "v6_parent_digest": "sha256:6ebef48c1ba3041a5714bd63b7f1018eecdfb3345c94569c4808f67a5b012b8a"
+  },
+  "created_by": "envcheck-v6-port-2026-10-16",
+  "created_at": "2026-10-16T06:07:50Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -139,6 +139,9 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
 )
 
 DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS = frozenset({"DAYTONA_API_KEY"})
+MODAL_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
+    {"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MODAL_TOKEN"}
+)
 
 DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
@@ -1365,6 +1368,7 @@ class RunRequest:
     modal_resource_policy: str | None = None
     modal_sandbox_timeout_seconds: int | None = None
     modal_sandbox_create_max_attempts: int | None = None
+    docker_platform: str | None = None
     diff_sources: tuple[Path, ...] = ()
     subscription_quota: dict[str, Any] | None = None
 
@@ -1683,6 +1687,7 @@ def collected_secret_values(
         *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
         ("LMNR_PROJECT_API_KEY", ""),
+        *((key, "") for key in MODAL_CREDENTIAL_ENVIRONMENT_KEYS),
         # The gateway lane presents its per-trial capability as
         # ANTHROPIC_AUTH_TOKEN to Harbor's claude-code agent (custom-base-URL
         # auth). The value is trial-scoped, but it is still a bearer: redact
@@ -1865,6 +1870,8 @@ def subscription_environment(
     include_glm_selfhosted_credentials: bool = False,
     include_daytona_credentials: bool = False,
     include_laminar_credentials: bool = False,
+    include_modal_credentials: bool = False,
+    docker_platform: str | None = None,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
@@ -1876,6 +1883,12 @@ def subscription_environment(
         for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS:
             if source.get(key):
                 sanitized[key] = source[key]
+    if include_modal_credentials:
+        for key in MODAL_CREDENTIAL_ENVIRONMENT_KEYS:
+            if source.get(key):
+                sanitized[key] = source[key]
+    if docker_platform:
+        sanitized["DOCKER_DEFAULT_PLATFORM"] = docker_platform
     if include_laminar_credentials and source.get("LMNR_PROJECT_API_KEY"):
         sanitized["LMNR_PROJECT_API_KEY"] = source["LMNR_PROJECT_API_KEY"]
     if include_deepseek_credentials:

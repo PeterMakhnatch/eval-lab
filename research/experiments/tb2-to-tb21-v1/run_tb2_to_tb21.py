@@ -16,6 +16,7 @@ import argparse
 import contextlib
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -24,6 +25,7 @@ import sys
 import time
 import tomllib
 from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,145 @@ LAUNCH_COMMAND = (
     "--controls --floor --all-rounds --replay --status "
     "--actor rh-agents-2026-10-17/tick"
 )
+MODAL_APP_NAME = "tb2-amd64-modal"
+MODAL_CAP_USD = 1.0
+DEFAULT_PLATFORM = "linux/amd64"
+DEFAULT_USD_PER_EXECUTION = 0.20
+DEBIAN_DPKG_SNAPSHOT = "20250715T000000Z"
+UBUNTU_CURL_SNAPSHOT = "20260115T000000Z"
+KNOWN_CONTROL_LIMITS = {
+    "protein-assembly": (
+        "not an architecture or apt-pin failure: the recorded oracle fetches "
+        "live RCSB sequences that still contain chromophore X, then DnaChisel "
+        "fails EnforceTranslation and never writes gblock.txt. Fixing that "
+        "changes answer-key bytes, so this runner does not."
+    ),
+    "caffe-cifar-10": (
+        "TB2 declares 1200s; the recorded amd64 install did not finish in that "
+        "window under emulation. TB2.1 declares 3600s and this runner uses that "
+        "version's own timeout. Native amd64 is the remaining probe for TB2."
+    ),
+    "install-windows-3.11": (
+        "the recorded oracle compiled QEMU and started two processes; the "
+        "fixture then read /proc/<pid>\\n<pid>/cmdline. Local Docker does not "
+        "disable Rosetta. Use --environment modal."
+    ),
+}
+
+
+@dataclass(frozen=True)
+class GradeBackend:
+    """How one controls invocation grades. Modal carries the spend gate."""
+
+    environment: str
+    docker_platform: str | None
+    spend_gate: Any | None
+    modal_app_name: str | None
+
+
+def _apt_snapshot_prelude(sources: str, *, preferences: str = "") -> str:
+    text = (
+        "mkdir -p /etc/apt/apt.conf.d /etc/apt/sources.list.d /etc/apt/preferences.d || exit 1\n"
+        "printf '%s\\n' 'Acquire::Check-Valid-Until \"false\";' "
+        "> /etc/apt/apt.conf.d/99evallab-snapshot || exit 1\n"
+        "cat > /etc/apt/sources.list.d/evallab-snapshot.list << 'EOF'\n"
+        f"{sources}"
+        "EOF\n"
+    )
+    if preferences:
+        text += f"cat > /etc/apt/preferences.d/99evallab-snapshot << 'EOF'\n{preferences}EOF\n"
+    return text
+
+
+def oracle_prelude(slug: str, version: str) -> str:
+    """Runner-side bootstrap for a frozen oracle. Empty when no bootstrap applies.
+
+    The text is prepended to the grade script. It does not modify the
+    answer-key package. Snapshot dates were checked on 2026-10-18.
+    """
+    if slug == "build-pmars" and version == LLM_VERSION:
+        stamp = DEBIAN_DPKG_SNAPSHOT
+        return _apt_snapshot_prelude(
+            "deb http://snapshot.debian.org/archive/debian/"
+            f"{stamp} trixie main\n"
+            "deb-src http://snapshot.debian.org/archive/debian/"
+            f"{stamp} trixie main\n",
+            preferences=(
+                "Package: dpkg dpkg-dev libdpkg-perl dselect\n"
+                "Pin: version 1.22.21*\n"
+                "Pin-Priority: 1001\n"
+            ),
+        )
+    if slug == "rstan-to-pystan" and version == LLM_VERSION:
+        return (
+            "apt-get update || exit 1\n"
+            "apt-get install -y ca-certificates || exit 1\n"
+            + _apt_snapshot_prelude(
+                "deb http://snapshot.ubuntu.com/ubuntu/"
+                f"{UBUNTU_CURL_SNAPSHOT} noble-updates main universe\n"
+                "deb http://snapshot.ubuntu.com/ubuntu/"
+                f"{UBUNTU_CURL_SNAPSHOT} noble-security main universe\n",
+                preferences=(
+                    "Package: curl libcurl4t64 libcurl4\n"
+                    "Pin: version 8.5.0-2ubuntu10.6*\n"
+                    "Pin-Priority: 1001\n"
+                ),
+            )
+        )
+    if slug == "mcmc-sampling-stan":
+        return "apt-get update || exit 1\napt-get install -y cmake || exit 1\n"
+    return ""
+
+
+def build_grade_backend(
+    *,
+    environment: str,
+    platform: str,
+    max_usd: float | None,
+    approve: str | None,
+    usd_per_execution: float,
+) -> GradeBackend:
+    """Resolve CLI backend flags. Modal without an approval and a cap at most $1 is refused."""
+    if environment not in {"docker", "modal"}:
+        raise ValueError(f"unsupported environment {environment!r}")
+    if not math.isfinite(usd_per_execution) or usd_per_execution <= 0:
+        raise ValueError("--usd-per-execution must be positive and finite")
+    platform_value = platform.strip() or None
+    if environment == "docker":
+        if platform_value and not re.fullmatch(r"linux/[a-z0-9_]+", platform_value):
+            raise ValueError(f"unsupported docker platform {platform_value!r}")
+        return GradeBackend("docker", platform_value, None, None)
+    if approve is None or not approve.strip():
+        raise ValueError("modal requires --approve TEXT")
+    if max_usd is None or not math.isfinite(max_usd) or max_usd <= 0 or max_usd > MODAL_CAP_USD:
+        raise ValueError(f"this runner refuses a Modal cap outside (0, {MODAL_CAP_USD:g}]")
+    from evallab.regrade import CloudSpendGate
+
+    return GradeBackend(
+        "modal",
+        None,
+        CloudSpendGate(
+            approval=approve.strip(),
+            cap_usd=max_usd,
+            usd_per_execution=usd_per_execution,
+        ),
+        MODAL_APP_NAME,
+    )
+
+
+def version_timeout(cell: TaskCell, version: str, runs_dir: Path) -> int:
+    """Use that version's own agent timeout. TB2.1 Caffe declares 3600s; TB2 declares 1200s."""
+    row = None
+    try:
+        report = materialize.load_report(runs_dir)
+        candidate = report["packages"].get(cell.subject_task_id(version))
+        if isinstance(candidate, dict):
+            row = candidate
+    except (OSError, ValueError, json.JSONDecodeError, KeyError, TypeError):
+        row = None
+    if row and row.get("digest_match"):
+        return _timeout_seconds(_recorded_path(row))
+    return cell.timeout_seconds
 
 
 class TaskCell(rh.Cell):
@@ -213,9 +354,10 @@ def build_prompt(arm: str, attempt: int, prior_rows: Sequence[Mapping[str, Any]]
     base = rh.pilot.build_attempt_prompt(arm, 1, [], repo_root=REPO_ROOT).rstrip()
     text = base + "\n\n" + ADDENDUM_PATH.read_text(encoding="utf-8").rstrip()
     if attempt > 1:
-        text += "\n\n" + rh.pilot._render_feedback_section(
-            attempt, prior_rows, repo_root=REPO_ROOT
-        ).rstrip()
+        text += (
+            "\n\n"
+            + rh.pilot._render_feedback_section(attempt, prior_rows, repo_root=REPO_ROOT).rstrip()
+        )
     return text + "\n"
 
 
@@ -233,7 +375,15 @@ def _heldout_hooks() -> Iterator[None]:
         rh.build_prompt = old_prompt
 
 
-def _grade(package: Path, submission: Any, run_dir: Path, timeout: int) -> Any:
+def _grade(
+    package: Path,
+    submission: Any,
+    run_dir: Path,
+    timeout: int,
+    *,
+    prelude: str,
+    backend: GradeBackend,
+) -> Any:
     from evallab.verifier_mutation import grade_submission
 
     def once() -> Any:
@@ -243,6 +393,13 @@ def _grade(package: Path, submission: Any, run_dir: Path, timeout: int) -> Any:
             repo_root=REPO_ROOT,
             run_dir=run_dir,
             timeout_seconds=timeout,
+            environment=backend.environment,
+            docker_platform=backend.docker_platform,
+            spend_gate=backend.spend_gate,
+            prelude=prelude,
+            modal_app_name=backend.modal_app_name,
+            modal_resource_policy="limit" if backend.environment == "modal" else None,
+            modal_sandbox_create_max_attempts=1 if backend.environment == "modal" else None,
         )
 
     result = once()
@@ -288,7 +445,8 @@ def _control_row(
     }
 
 
-def controls_phase(cells: Sequence[TaskCell], runs_dir: Path) -> int:
+def controls_phase(cells: Sequence[TaskCell], runs_dir: Path, backend: GradeBackend) -> int:
+    from evallab.regrade import SpendCapReached
     from evallab.vcheck import run_controls
 
     rc = 0
@@ -301,16 +459,30 @@ def controls_phase(cells: Sequence[TaskCell], runs_dir: Path) -> int:
                 continue
             started = time.monotonic()
             error = None
+            stopped = False
             try:
                 package = stage_cell(cell, runs_dir).base[version]
-                timeout = min(28_800, max(900, cell.timeout_seconds))
+                timeout = min(28_800, max(900, version_timeout(cell, version, runs_dir)))
+                prelude = oracle_prelude(cell.slug, version)
                 graded = run_controls(
                     package,
-                    lambda pkg, submission, _timeout=timeout: _grade(
-                        Path(pkg), submission, runs_dir / "vcheck", _timeout
+                    lambda pkg, submission, _timeout=timeout, _prelude=prelude, _backend=backend: (
+                        _grade(
+                            Path(pkg),
+                            submission,
+                            runs_dir / "vcheck",
+                            _timeout,
+                            prelude=_prelude,
+                            backend=_backend,
+                        )
                     ),
                     task=cell.subject_task_id(version),
                 )
+            except SpendCapReached as exc:
+                rc = 1
+                error = f"{type(exc).__name__}: {exc}"
+                graded = None
+                stopped = True
             except (OSError, RuntimeError, ValueError) as exc:
                 rc = 1
                 error = f"{type(exc).__name__}: {exc}"
@@ -335,14 +507,21 @@ def controls_phase(cells: Sequence[TaskCell], runs_dir: Path) -> int:
                     duration=round(time.monotonic() - started, 2),
                     error=error,
                 )
+            row["environment"] = backend.environment
+            row["docker_platform"] = backend.docker_platform
             rh.append_row(runs_dir / rh.CONTROLS_JSONL, row)
             print(
                 f"[controls] {cell.label} {version}: verdict={row['verdict']} "
-                f"oracle={row.get('oracle_reward')} nop={row.get('nop_reward')}",
+                f"oracle={row.get('oracle_reward')} nop={row.get('nop_reward')} "
+                f"env={backend.environment}",
                 flush=True,
             )
+            if cell.slug in KNOWN_CONTROL_LIMITS and row["verdict"] != "ok":
+                print(f"[controls] {cell.label}: {KNOWN_CONTROL_LIMITS[cell.slug]}", flush=True)
             if row["verdict"] != "ok":
                 rc = 1
+            if stopped:
+                return rc
     return rc
 
 
@@ -502,12 +681,20 @@ def _print_materialization(report: Mapping[str, Any]) -> None:
         f"tb21={counts['unmaterialized'].get('tb21', 0)}"
     )
     for row in report.get("mismatches") or []:
-        print(f"[materialize] MISMATCH {row['task']}: {row['actual_digest']} != {row['expected_digest']}")
+        print(
+            f"[materialize] MISMATCH {row['task']}: {row['actual_digest']} != {row['expected_digest']}"
+        )
     for row in report.get("unmaterialized") or []:
         print(f"[materialize] UNMATERIALIZED {row['task']}: {row['error']}")
 
 
-def status_report(cells: Sequence[TaskCell], runs_dir: Path, *, gate_mode: str) -> None:
+def status_report(
+    cells: Sequence[TaskCell],
+    runs_dir: Path,
+    *,
+    gate_mode: str,
+    backend: GradeBackend | None = None,
+) -> None:
     try:
         report = materialize.load_report(runs_dir)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -521,7 +708,24 @@ def status_report(cells: Sequence[TaskCell], runs_dir: Path, *, gate_mode: str) 
         f"excluded={sum(state is False for state in states)} "
         f"pending={sum(state is None for state in states)} of {len(cells)} tasks"
     )
-    print("[plan] controls: oracle=1 and nop=0 on both versions, sequential local Docker")
+    if backend is None or backend.environment == "docker":
+        platform = (
+            "daemon default"
+            if backend is None or not backend.docker_platform
+            else backend.docker_platform
+        )
+        print(
+            f"[plan] controls: local Docker, platform {platform}; apt/cmake preludes where recorded"
+        )
+    else:
+        assert backend.spend_gate is not None
+        print(
+            f"[plan] controls: Modal app {backend.modal_app_name}, "
+            f"cap ${backend.spend_gate.cap_usd:.2f}, "
+            f"${backend.spend_gate.usd_per_execution:.2f} reserved per grade"
+        )
+    print("[plan] install-windows stays on Rosetta under local Docker; use --environment modal")
+    print(f"[plan] protein-assembly: {KNOWN_CONTROL_LIMITS['protein-assembly']}")
     print("[plan] floor: cheat ladder on TB2 only; cracked subsets replay on TB2 and TB2.1")
     print("[plan] codex: blind + verifier-aware on TB2 only, K=3, failed-attempt memory")
     print("[plan] replay: every claim in a fresh container on both versions")
@@ -544,8 +748,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--timeout-override", type=int, default=None)
     parser.add_argument("--actor", default=DEFAULT_ACTOR)
+    parser.add_argument("--environment", choices=("docker", "modal"), default="docker")
+    parser.add_argument(
+        "--platform",
+        default=DEFAULT_PLATFORM,
+        help="Docker platform pin for the staged copy; empty keeps the daemon default",
+    )
+    parser.add_argument(
+        "--max-usd", type=float, default=None, help="Modal reservation cap, at most 1"
+    )
+    parser.add_argument("--approve", default=None, help="Recorded approval text required for Modal")
+    parser.add_argument("--usd-per-execution", type=float, default=DEFAULT_USD_PER_EXECUTION)
     args = parser.parse_args(argv)
 
+    try:
+        backend = build_grade_backend(
+            environment=args.environment,
+            platform=args.platform,
+            max_usd=args.max_usd,
+            approve=args.approve,
+            usd_per_execution=args.usd_per_execution,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     os.environ.setdefault("EVALLAB_DERIVED_ROOT", str(REPO_ROOT / "derived" / "parquet"))
     runs_dir = args.runs_dir.resolve()
     arms = rh.ARMS if args.arms == "both" else (args.arms,)
@@ -553,7 +778,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit(f"--arms must be one of {rh.ARMS} or 'both'")
     items = materialize.load_items()
     cells = rh.select_cells(cells_from_items(items), only=args.cells, shard=args.shard)
-    print(f"[driver] {len(cells)} task pair(s); runs dir {runs_dir}", flush=True)
+    print(
+        f"[driver] {len(cells)} task pair(s); runs dir {runs_dir}; "
+        f"environment={backend.environment} platform={backend.docker_platform or 'daemon'}",
+        flush=True,
+    )
 
     rc = 0
     if args.materialize:
@@ -564,7 +793,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if (runs_dir / "materialization.json").is_file():
         apply_timeouts(cells, runs_dir)
     if args.controls:
-        rc |= controls_phase(cells, runs_dir)
+        rc |= controls_phase(cells, runs_dir, backend)
     if args.floor:
         rc |= floor_phase(cells, runs_dir, args.controls_gate)
     rounds = [1, 2, 3] if args.all_rounds else ([args.codex_round] if args.codex_round else [])
@@ -595,7 +824,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.replay,
         )
     ):
-        status_report(cells, runs_dir, gate_mode=args.controls_gate)
+        status_report(cells, runs_dir, gate_mode=args.controls_gate, backend=backend)
     return rc
 
 

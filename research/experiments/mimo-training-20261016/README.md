@@ -129,9 +129,13 @@ not tests or assertions, and must not be labelled a test repair.
 Only complete EnvCheck rows are selectable. The assembler binds their
 candidate, qualification, matrix, native-record and source-inventory hashes,
 replays the variant independently, checks that the original test patch is
-retained as a byte prefix, and verifies the command wrapper still runs the
-original test command. Partial rows leave the exact v6 parent selected;
-changed source hashes are rejected rather than silently reinterpreted.
+retained as a byte prefix, and requires the exact original-command wrapper:
+either the current task-interpreter preference or its immutable historical
+form without that preference. Both retain the complete original command
+and propagate failures from both suites; skipping or masking either is
+rejected. Partial rows leave the exact v6 parent selected; changed source
+hashes are rejected rather than silently reinterpreted. This compatibility
+check does not waive semantic acceptance or qualify a known false negative.
 
 Native control labels and aggregate qualification flags are not execution
 evidence. Each selected observation is re-read from its actual Harbor UUID,

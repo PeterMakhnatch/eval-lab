@@ -415,16 +415,17 @@ def test_quota_receipt_does_not_export_account_details():
     assert "account-secret" not in json.dumps(record)
 
 
+@pytest.mark.parametrize("interpreter", [None, "/opt/test_venv/bin/python3"])
 @pytest.mark.parametrize(
     ("original", "new_code", "expected"),
     [("exit 0", 0, 0), ("exit 9", 0, 9), ("exit 0", 7, 1), ("set -e; false", 0, 1)],
 )
 def test_wrapper_runs_additions_despite_original_exit_and_preserves_failures(
-    tmp_path, original, new_code, expected
+    tmp_path, original, new_code, expected, interpreter
 ):
-    wrapper = build_command_wrapper(original, f"touch ran; exit {new_code}", workdir=str(tmp_path))
-    # The proposed command is a child interpreter invocation in production.
-    wrapper = wrapper.replace(f"touch ran; exit {new_code}", f"sh -c 'touch ran; exit {new_code}'")
+    wrapper = build_command_wrapper(
+        original, f"sh -c 'touch ran; exit {new_code}'", workdir=str(tmp_path), interpreter=interpreter,
+    )
     result = subprocess.run(["sh", "-c", wrapper], cwd=tmp_path, check=False)
     assert result.returncode == expected
     assert (tmp_path / "ran").exists()

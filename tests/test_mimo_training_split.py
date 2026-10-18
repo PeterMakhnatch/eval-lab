@@ -951,6 +951,7 @@ def test_successor_does_not_promote_a_partial_envcheck_repair(driver, successor_
 @pytest.mark.parametrize("change", [
     None, "remove_assertions", "skip_original", "missing_wrong", "false_negative",
     "no_case_evidence", "repeat_alias", "unbound_submission",
+    "historical_wrapper", "historical_original_status", "historical_addition_status",
 ])
 def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_submission_controls(
     driver, successor_case, tmp_path: Path, change,
@@ -975,6 +976,22 @@ def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_subm
     wrapper = build_command_wrapper(
         (parent / "tests/test_command.sh").read_text(), command, workdir="/testbed",
     ).encode()
+    if change in {"historical_wrapper", "historical_original_status", "historical_addition_status"}:
+        base = (parent / "tests/test_command.sh").read_text()
+        base = base if base.endswith("\n") else base + "\n"
+        wrapper = (
+            f"(\n{base})\n"
+            "REPAIR_RC=$?\n"
+            "cd /testbed || exit 1\n"
+            f"{command}\n"
+            "REPAIR_NEW_RC=$?\n"
+            'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'
+            'exit "$REPAIR_RC"\n'
+        ).encode()
+        if change == "historical_original_status":
+            wrapper = wrapper.replace(b"REPAIR_RC=$?", b"REPAIR_RC=0")
+        elif change == "historical_addition_status":
+            wrapper = wrapper.replace(b"REPAIR_NEW_RC=$?", b"REPAIR_NEW_RC=0")
     record = derive_task(
         parent, transform="verifier-repair@1", rationale="scratch append-only repair",
         created_by="pytest", parent_source={"kind": "variant", "record": str(parent_record.record_relpath())},
@@ -1072,7 +1089,7 @@ def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_subm
     handoff = json.loads(case["repairs"].read_text())
     handoff.update(repairs=[row], complete_count=1)
     case["repairs"].write_text(json.dumps(handoff))
-    if change is not None:
+    if change not in {None, "historical_wrapper"}:
         with pytest.raises(ValueError):
             driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
         return

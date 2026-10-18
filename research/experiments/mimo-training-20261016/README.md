@@ -126,6 +126,24 @@ an old x1 pair is not three observations. EnvCheck's actual hash-bound
 `setup-python-path@1` child changes setup and its embedded healthcheck only,
 not tests or assertions, and must not be labelled a test repair.
 
+Fresh controls for an unchanged v6 selection are explicit, optional inputs:
+add `--native-control-metadata /absolute/job/lab-metadata.json` once for each
+reference and nop job. Each supplied task must have one distinct, model-free
+oracle execution and one nop execution, with actual repeat3 case evidence
+and rewards `[1,1,1]` / `[0,0,0]`. Partial pairs, duplicate roles or UUIDs,
+uncompleted or nonzero-exit oracle submissions, conflicting primary rewards,
+and observations for another package or a repaired selection are rejected.
+The native job/config/lock, agent, verifier and stability artifacts are
+hash-bound; three stability rows without case execution do not qualify.
+These are three grader invocations on each final state, not three independent
+agent trials. `reported_baseline_controls` records the new native environment
+type/import path separately from the retained historical controls. The frozen
+v6 files, packages and x1 evidence are not rewritten; every semantic and independent gate
+below remains closed.
+Selected metrics identify that measurement source instead of reusing the
+historical observation indices. The enclosing `backend` continues to describe
+the frozen source, not the fresh native environment.
+
 Only complete EnvCheck rows are selectable. The assembler binds their
 candidate, qualification, matrix, native-record and source-inventory hashes,
 replays the variant independently, checks that the original test patch is

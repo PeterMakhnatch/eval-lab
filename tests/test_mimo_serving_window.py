@@ -125,6 +125,7 @@ def test_active_receipt_cannot_outlive_absolute_deadline(window, config, tmp_pat
     value = journal.update(state="active")
     monkeypatch.setattr(window.time, "time", lambda: 4381)
     assert window.receipt(value)["state"] == "expired"
+    assert window.receipt(value)["budget"]["envelope"] == config["budget_state"]
 
 
 def test_readiness_refuses_unarmed_guard_before_model_or_metadata_request(window, config, tmp_path, monkeypatch):

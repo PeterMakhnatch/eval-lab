@@ -1,10 +1,12 @@
 """Hash-bound, all-attempt heldout-v7 campaign; native execution is never discovery.
 
 Canonical ``run`` needs both the independently accepted release and a parent
-budget envelope within Trainer's combined $12 approval. Its heldout allocation
-continues the existing cumulative journal, including every prior reservation;
-it does not authorize a reset or implicit retry. ``run-staged`` instead retains
-the exact historical $3 cap and approval frozen in its pre-release plan.
+budget envelope within Trainer's combined $12 approval, raised only by an
+explicit current aggregate authority. Its heldout allocation continues the
+existing cumulative journal, including every prior reservation; it does not
+authorize a reset or implicit retry beyond an explicit ``retry_grant``.
+``run-staged`` instead retains the exact historical $3 cap and approval frozen
+in its pre-release plan.
 """
 
 from __future__ import annotations
@@ -359,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--accepted-sha", required=True, help="Exact manifest SHA independently accepted by the Verifier")
     run.add_argument("--verifier-receipt", type=Path, required=True)
     run.add_argument("--rate-evidence", type=Path, required=True)
-    run.add_argument("--budget-envelope", type=Path, required=True, help="Admitted hash-bound parent budget; its heldout cap continues all reservations on the same journal within the combined $12 approval")
+    run.add_argument("--budget-envelope", type=Path, required=True, help="Admitted hash-bound parent budget; its heldout cap continues all reservations on the same journal within the admitted cumulative approval")
     run.add_argument("--usd-per-execution", type=float, required=True, help="Explicit native reservation bound from the retained calibration evidence")
     run.add_argument("--work", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True, help="New report/labels output directory")

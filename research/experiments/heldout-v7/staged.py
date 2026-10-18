@@ -2,7 +2,8 @@
 
 Staged plans retain their exact historical $3 cap and approval on the cumulative
 journal. Only canonical execution accepts a new heldout allocation from Trainer's
-combined-$12 parent envelope; neither path resets or refunds prior reservations.
+admitted cumulative parent envelope; neither path resets or refunds prior
+reservations.
 """
 from __future__ import annotations
 
@@ -461,8 +462,21 @@ def retained_observations(work: Path, inventory: dict, targets: dict) -> dict[tu
     if json.loads(bound_bytes(header["inventory"])[0]) != inventory:
         raise ValueError("reuse work belongs to a different original native inventory")
     sources = {tuple(row["source_uid"]): row for row in inventory["rows"]}
+    # A granted retry observation supersedes the original in the same case dir;
+    # hash-pointer ``*-ref.json`` files are never observations themselves.
+    by_case: dict[Path, Path] = {}
+    for path in sorted((work / "cases").glob("*/observation*.json")):
+        if path.name.endswith("-ref.json"):
+            continue
+        chosen = by_case.get(path.parent)
+        if path.name == "observation.json":
+            by_case.setdefault(path.parent, path)
+        elif chosen is None or chosen.name == "observation.json":
+            by_case[path.parent] = path
+        else:
+            raise ValueError("duplicate retained retry observation")
     observations = {}
-    for path in sorted((work / "cases").glob("*/observation.json")):
+    for path in sorted(by_case.values()):
         observation = campaign["_retained_observation"](path)
         uid = tuple(observation["source_uid"])
         if uid not in sources or uid in observations:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 import csv
+import hashlib
 import io
 import json
 import runpy
@@ -743,3 +745,644 @@ def test_canonical_execution_refuses_invalid_budget_before_runtime_or_writes(
     assert not kwargs["output"].exists()
     assert not journal.with_name("classifiers-v7-ledger.lock").exists()
     assert journal.read_bytes() == prior
+
+
+GRANT_ID = "11111111-2222-4333-8444-abcdef555555"
+GRANT_FOREIGN_ID = "99999999-8888-4777-8666-777777777777"
+GRANT_LIVE = datetime(2026, 10, 18, 9, 30, tzinfo=UTC)
+WINDOW2_AUTHORITY = "trainer-finish-data-20261018-window-2"
+
+
+def _grant_clock() -> datetime:
+    return GRANT_LIVE
+
+
+@pytest.fixture
+def granted_budget(tmp_path, campaign, monkeypatch):
+    """Isolated raised-authority envelope and its bound 49-row journal; not a real approval."""
+    journal = tmp_path / "classifiers-v7-reservations.jsonl"
+    filler = "sha256:" + "c" * 64
+    gate = campaign["JournalGate"](journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+    for index in range(45):
+        gate.context.source_uid = (f"job-{index:03d}", f"trial-{index:03d}")
+        gate.context.grader_digest = filler
+        gate.charge()
+    for job, trial, digest in sorted(campaign["RETRY_GRANT_CELLS"]):
+        gate.context.source_uid = (job, trial)
+        gate.context.grader_digest = digest
+        gate.charge()
+    prefix = journal.read_bytes()
+    # Tests pin their own isolated journal prefix into the runpy module
+    # globals; they never read the real user journal the production pin binds.
+    isolated_prefix = {
+        "rows": 49, "size_bytes": len(prefix),
+        "sha256": "sha256:" + hashlib.sha256(prefix).hexdigest(), "reserved_usd": "3.2634",
+    }
+    monkeypatch.setitem(
+        campaign["retry_grant"].__globals__, "RETRY_GRANT_PREFIX", isolated_prefix,
+    )
+    approval_file = tmp_path / "approval.txt"
+    approval_file.write_text("Isolated combined-authority fixture, not a real approval.\n")
+    declared_grant = {
+        "schema": "heldout-v7.retry-grant/v1", "grant_id": GRANT_ID,
+        "approval": "Isolated retry-grant fixture, not a real approval.",
+        "expires_at": "2026-10-18T10:00:00+00:00",
+        "journal_prefix": {**isolated_prefix, "reserved_usd": 3.2634},
+        "entries": [{"task_id": campaign["RETRY_GRANT_TASK"], "source_uid": [job, trial],
+                     "grader_digest": digest} for job, trial, digest in sorted(campaign["RETRY_GRANT_CELLS"])],
+    }
+    value = {
+        "schema": "mimo.phase2-envelope/v1", "admitted": True, "approval": JOURNAL_APPROVAL,
+        "ledger_tag": "2026-10-17-v7", "expires_at": "2026-10-18T10:00:00+00:00",
+        "approved_usd": 14.5, "require_envelope_sum_at_most_usd": 14.4998,
+        "aggregate_authority": {
+            "schema": "mimo.phase2-authority/v1", "ledger_tag": "2026-10-17-v7",
+            "authorization_id": WINDOW2_AUTHORITY,
+            "text": "Isolated fixture naming the 2026-10-18 11AM ET window2 cumulative $14.50 approval.",
+            "approved_usd_at_most": 14.5, "training_authorized": False,
+        },
+        "serving": {"cap_usd": 4.47}, "native": {"cap_usd": 6.50},
+        "heldout_regrade": {
+            "cap_usd": 3.5298, "usd_per_execution": 0.0666,
+            "durable_journal_path": str(journal), "reset_authorized": False,
+            "canonical_reuses_exact_measurements_only": True,
+            "retry_grant": declared_grant,
+        },
+        "training_reservation_usd": 0,
+        "sources": {"approval": campaign["file_ref"](approval_file)},
+    }
+    path = tmp_path / "budget-envelope.json"
+    path.write_text(json.dumps(value))
+    grant = campaign["retry_grant"](value, journal=journal, usd_per_execution=0.0666, now=BUDGET_NOW)
+    return {"envelope": path, "value": value, "journal": journal, "prefix": prefix, "grant": grant}
+
+
+def test_retry_grant_is_opt_in_and_off_by_default(campaign, budget_envelope):
+    path, value, journal = budget_envelope
+    assert campaign["retry_grant"](
+        value, journal=journal, usd_per_execution=0.0666, now=BUDGET_NOW,
+    ) is None
+    admitted, _ = campaign["checked_budget"](
+        path, journal=journal, usd_per_execution=0.0666, now=BUDGET_NOW,
+    )
+    assert "retry_grant" not in admitted["heldout_regrade"]
+
+
+def test_window2_authority_admits_raised_aggregate_and_the_four_authorized_cells(campaign, granted_budget):
+    admitted, reference = campaign["checked_budget"](
+        granted_budget["envelope"], journal=granted_budget["journal"],
+        usd_per_execution=0.0666, now=BUDGET_NOW,
+    )
+    assert admitted == granted_budget["value"]
+    assert reference == campaign["file_ref"](granted_budget["envelope"])
+    grant = granted_budget["grant"]
+    assert grant["grant_id"] == GRANT_ID
+    assert grant["cells"] == campaign["RETRY_GRANT_CELLS"]
+    assert grant["prefix"]["reserved_usd"] == "3.2634"
+
+
+@pytest.mark.parametrize("change", [
+    {"approved_usd": 14.51},
+    {"approved_usd": 14.5, "require_envelope_sum_at_most_usd": 14.51},
+    {"approved_usd": 12.0, "require_envelope_sum_at_most_usd": 12.0},
+    {"serving": {"cap_usd": 4.5}},
+])
+def test_raised_authority_still_bounds_the_parent_totals(campaign, granted_budget, change):
+    value = copy.deepcopy(granted_budget["value"])
+    value.update(change)
+    granted_budget["envelope"].write_text(json.dumps(value))
+    prior = granted_budget["journal"].read_bytes()
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=granted_budget["journal"],
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+    assert granted_budget["journal"].read_bytes() == prior
+
+
+def test_raised_authority_admits_no_training_reservation(campaign, granted_budget):
+    value = copy.deepcopy(granted_budget["value"])
+    value["serving"]["cap_usd"] = 4.4
+    value["training_reservation_usd"] = 0.01
+    granted_budget["envelope"].write_text(json.dumps(value))
+    with pytest.raises(ValueError, match="no training"):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=granted_budget["journal"],
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+
+
+@pytest.mark.parametrize("change", [
+    {"schema": "mimo.phase2-authority/v2"},
+    {"ledger_tag": "2026-10-18-v7"},
+    {"authorization_id": "trainer-finish-data-20261018-window-1"},
+    {"authorization_id": ""},
+    {"authorization_id": None},
+    {"authorization_id": True},
+    {"text": " "},
+    {"training_authorized": True},
+    {"approved_usd_at_most": 14.51},
+    {"approved_usd_at_most": 12.0},
+    {"approved_usd_at_most": 0},
+])
+def test_raised_aggregate_requires_the_exact_current_authority(campaign, granted_budget, change):
+    value = copy.deepcopy(granted_budget["value"])
+    value["aggregate_authority"].update(change)
+    granted_budget["envelope"].write_text(json.dumps(value))
+    prior = granted_budget["journal"].read_bytes()
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=granted_budget["journal"],
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+    assert granted_budget["journal"].read_bytes() == prior
+
+
+@pytest.mark.parametrize("field", ["aggregate_authority", "authorization_id"])
+def test_raised_approval_without_current_authority_refuses(campaign, granted_budget, field):
+    value = copy.deepcopy(granted_budget["value"])
+    if field == "aggregate_authority":
+        del value["aggregate_authority"]
+    else:
+        del value["aggregate_authority"]["authorization_id"]
+    granted_budget["envelope"].write_text(json.dumps(value))
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=granted_budget["journal"],
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+
+
+def _mutated_grant(value: dict, name: str) -> None:
+    grant = value["heldout_regrade"]["retry_grant"]
+    if name == "wrong_uid":
+        entry = dict(grant["entries"][0])
+        entry["source_uid"] = ["00000000-0000-0000-0000-000000000000", entry["source_uid"][1]]
+        grant["entries"][0] = entry
+    elif name == "wrong_grader":
+        grant["entries"][0]["grader_digest"] = "sha256:" + "0" * 64
+    elif name == "wrong_task":
+        grant["entries"][0]["task_id"] = "mimo-v2.6-rl/format-code-task-000001"
+    elif name == "missing_entry":
+        grant["entries"].pop()
+    elif name == "duplicate_entry":
+        grant["entries"].append(dict(grant["entries"][0]))
+    elif name == "wrong_identity":
+        grant["grant_id"] = "not-a-canonical-uuid"
+    elif name == "noncanonical_identity":
+        grant["grant_id"] = GRANT_ID.upper()
+    elif name == "grant_after_parent":
+        grant["expires_at"] = "2026-10-18T10:00:01+00:00"
+    elif name == "expired_grant":
+        grant["expires_at"] = "2026-10-18T09:00:00+00:00"
+    elif name == "naive_deadline":
+        grant["expires_at"] = "2026-10-18T09:59:00"
+    elif name == "no_approval":
+        grant["approval"] = " "
+    elif name == "wrong_schema":
+        grant["schema"] = "heldout-v7.retry-grant/v2"
+    elif name == "wrong_prefix_sha":
+        grant["journal_prefix"]["sha256"] = "sha256:" + "0" * 64
+    elif name == "wrong_prefix_size":
+        grant["journal_prefix"]["size_bytes"] += 1
+    elif name == "wrong_prefix_rows":
+        grant["journal_prefix"]["rows"] = 48
+    elif name == "wrong_prefix_reserved":
+        grant["journal_prefix"]["reserved_usd"] = 3.0
+    else:
+        raise AssertionError(name)
+
+
+@pytest.mark.parametrize("mutation", [
+    "wrong_uid", "wrong_grader", "wrong_task", "missing_entry", "duplicate_entry",
+    "wrong_identity", "noncanonical_identity", "grant_after_parent", "expired_grant",
+    "naive_deadline", "no_approval", "wrong_schema",
+    "wrong_prefix_sha", "wrong_prefix_size", "wrong_prefix_rows", "wrong_prefix_reserved",
+])
+def test_retry_grant_fails_closed_on_any_changed_binding(campaign, granted_budget, mutation):
+    value = copy.deepcopy(granted_budget["value"])
+    _mutated_grant(value, mutation)
+    granted_budget["envelope"].write_text(json.dumps(value))
+    prior = granted_budget["journal"].read_bytes()
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=granted_budget["journal"],
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+    assert granted_budget["journal"].read_bytes() == prior
+
+
+def test_retry_grant_requires_the_actual_journal_prefix(campaign, granted_budget, tmp_path):
+    value = copy.deepcopy(granted_budget["value"])
+    other = tmp_path / "other-journal.jsonl"
+    gate = campaign["JournalGate"](other, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+    for index in range(49):
+        gate.context.source_uid = (f"job-{index:03d}", f"trial-{index:03d}")
+        gate.context.grader_digest = "sha256:" + "c" * 64
+        gate.charge()
+    value["heldout_regrade"]["durable_journal_path"] = str(other)
+    granted_budget["envelope"].write_text(json.dumps(value))
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=other,
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+
+
+def test_grant_permits_exactly_one_retry_per_authorized_cell(campaign, granted_budget):
+    journal, grant, prefix = (granted_budget[name] for name in ("journal", "grant", "prefix"))
+    gate = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+    )
+    assert gate.executions == 49
+    for job, trial, digest in sorted(grant["cells"]):
+        # The granted cell's original reservation no longer masks its one retry.
+        assert not gate.is_reserved((job, trial), digest)
+        gate.context.source_uid = (job, trial)
+        gate.context.grader_digest = digest
+        gate.charge()
+    after = journal.read_bytes()
+    assert after.startswith(prefix)
+    assert gate.executions == 53
+    assert gate.to_json()["reserved_usd"] == pytest.approx(3.5298)
+    entries = [json.loads(line) for line in after.decode().splitlines()]
+    assert len(entries) == 53
+    assert [entry["execution"] for entry in entries] == list(range(1, 54))
+    granted_rows = entries[49:]
+    assert all(row["retry_grant"] == GRANT_ID for row in granted_rows)
+    assert [row["reserved_usd"] for row in granted_rows] == [3.33, 3.3966, 3.4632, 3.5298]
+    # The four retries total exactly $0.2664; a 54th reservation exceeds the lane cap.
+    gate.context.source_uid = ("job-extra", "trial-extra")
+    gate.context.grader_digest = "sha256:" + "c" * 64
+    with pytest.raises(SpendCapReached, match="cap is exhausted"):
+        gate.charge()
+    # A granted cell can never take a third reservation; a higher synthetic
+    # cap probe isolates the one-use refusal from the exhausted lane cap.
+    job, trial, digest = sorted(grant["cells"])[0]
+    probe = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=4.0, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+    )
+    probe.context.source_uid = (job, trial)
+    probe.context.grader_digest = digest
+    with pytest.raises(SpendCapReached, match="already reserved"):
+        probe.charge()
+    assert journal.read_bytes() == after
+
+
+def test_consumed_grant_retry_never_refreshes_across_restart(campaign, granted_budget):
+    journal, grant, prefix = (granted_budget[name] for name in ("journal", "grant", "prefix"))
+    job, trial, digest = sorted(grant["cells"])[0]
+    gate = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+    )
+    gate.context.source_uid = (job, trial)
+    gate.context.grader_digest = digest
+    gate.charge()
+    after_one = journal.read_bytes()
+
+    restarted = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+    )
+    assert restarted.executions == 50
+    # A consumed retry stays reserved: a crash after the reservation remains unknown.
+    assert restarted.is_reserved((job, trial), digest)
+    restarted.context.source_uid = (job, trial)
+    restarted.context.grader_digest = digest
+    with pytest.raises(SpendCapReached, match="already reserved"):
+        restarted.charge()
+    # The other three authorized cells remain eligible exactly once.
+    for other_job, other_trial, other_digest in sorted(grant["cells"])[1:]:
+        assert not restarted.is_reserved((other_job, other_trial), other_digest)
+    assert journal.read_bytes() == after_one
+
+
+def test_grant_deadline_is_rechecked_at_the_actual_charge(campaign, granted_budget):
+    journal, grant, prefix = (granted_budget[name] for name in ("journal", "grant", "prefix"))
+    expired = datetime(2026, 10, 18, 10, tzinfo=UTC)  # at the grant deadline
+    gate = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant,
+        clock=lambda: expired,
+    )
+    job, trial, digest = sorted(grant["cells"])[0]
+    gate.context.source_uid = (job, trial)
+    gate.context.grader_digest = digest
+    with pytest.raises(SpendCapReached, match="expired"):
+        gate.charge()
+    assert journal.read_bytes() == prefix
+
+
+def _forged_suffix_row(uid: tuple[str, str], digest: str, execution: int, provenance: str | None) -> bytes:
+    entry = {
+        "ledger_tag": "2026-10-17-v7", "source_uid": list(uid), "grader_digest": digest,
+        "execution": execution, "usd_per_execution": 0.0666,
+        "reserved_usd": round(execution * 0.0666, 8),
+    }
+    if provenance is not None:
+        entry["retry_grant"] = provenance
+    return (json.dumps(entry, sort_keys=True, allow_nan=False) + "\n").encode()
+
+
+@pytest.mark.parametrize("forgery", [
+    "missing_provenance", "wrong_identity", "provenance_on_new_key", "wrong_grader", "consumed_twice",
+    "unmarked_fresh",
+])
+def test_grant_suffix_rows_require_exact_provenance(campaign, granted_budget, tmp_path, forgery):
+    grant = granted_budget["grant"]
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(granted_budget["prefix"])
+    job, trial, digest = sorted(grant["cells"])[0]
+    if forgery == "missing_provenance":
+        journal.write_bytes(granted_budget["prefix"] + _forged_suffix_row((job, trial), digest, 50, None))
+    elif forgery == "wrong_identity":
+        journal.write_bytes(
+            granted_budget["prefix"] + _forged_suffix_row((job, trial), digest, 50, GRANT_FOREIGN_ID))
+    elif forgery == "provenance_on_new_key":
+        journal.write_bytes(
+            granted_budget["prefix"] + _forged_suffix_row(("job-new", "trial-new"), "sha256:" + "c" * 64, 50, GRANT_ID))
+    elif forgery == "wrong_grader":
+        journal.write_bytes(
+            granted_budget["prefix"] + _forged_suffix_row((job, trial), "sha256:" + "0" * 64, 50, GRANT_ID))
+    elif forgery == "unmarked_fresh":
+        journal.write_bytes(
+            granted_budget["prefix"] + _forged_suffix_row(("job-new", "trial-new"), "sha256:" + "c" * 64, 50, None))
+    else:
+        journal.write_bytes(
+            granted_budget["prefix"]
+            + _forged_suffix_row((job, trial), digest, 50, GRANT_ID)
+            + _forged_suffix_row((job, trial), digest, 51, GRANT_ID))
+    with pytest.raises(ValueError, match="invalid cumulative reservation journal"):
+        campaign["JournalGate"](
+            journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+        )
+
+
+@pytest.mark.parametrize("damage", ["truncate", "flip_byte"])
+def test_changed_grant_prefix_fails_closed(campaign, granted_budget, tmp_path, damage):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(granted_budget["prefix"])
+    if damage == "truncate":
+        journal.write_bytes(granted_budget["prefix"][:-2])
+    else:
+        journal.write_bytes(granted_budget["prefix"][:10] + b"XX" + granted_budget["prefix"][12:])
+    with pytest.raises(ValueError):
+        campaign["JournalGate"](
+            journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL,
+            grant=granted_budget["grant"], clock=_grant_clock,
+        )
+
+
+def test_provenance_history_replays_without_grant_but_stays_reserved(campaign, granted_budget, tmp_path):
+    # After the grant window the journal must remain valid history: a grant-free
+    # gate replays provenance-marked duplicates as consumed and never reuses them.
+    journal = tmp_path / "journal.jsonl"
+    job, trial, digest = sorted(granted_budget["grant"]["cells"])[0]
+    journal.write_bytes(
+        granted_budget["prefix"] + _forged_suffix_row((job, trial), digest, 50, GRANT_ID),
+    )
+    gate = campaign["JournalGate"](journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+    assert gate.executions == 50
+    assert gate.is_reserved((job, trial), digest)
+    gate.context.source_uid = (job, trial)
+    gate.context.grader_digest = digest
+    with pytest.raises(SpendCapReached, match="already reserved"):
+        gate.charge()
+    # An unmarked duplicate remains malformed history even without a grant.
+    broken = tmp_path / "broken.jsonl"
+    broken.write_bytes(
+        granted_budget["prefix"] + _forged_suffix_row((job, trial), digest, 50, None),
+    )
+    with pytest.raises(ValueError, match="invalid cumulative reservation journal"):
+        campaign["JournalGate"](broken, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+
+
+def test_grant_cells_must_be_original_prefix_reservations(campaign, granted_budget, tmp_path, monkeypatch):
+    journal = tmp_path / "foreign.jsonl"
+    gate = campaign["JournalGate"](journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+    for index in range(49):
+        gate.context.source_uid = (f"job-{index:03d}", f"trial-{index:03d}")
+        gate.context.grader_digest = "sha256:" + "c" * 64
+        gate.charge()
+    prefix = journal.read_bytes()
+    # Repin the isolated constants onto a foreign journal that never reserved
+    # the authorized cells; the granted cells must already be prefix history.
+    foreign_prefix = {
+        "rows": 49, "size_bytes": len(prefix),
+        "sha256": "sha256:" + hashlib.sha256(prefix).hexdigest(), "reserved_usd": "3.2634",
+    }
+    monkeypatch.setitem(
+        campaign["JournalGate"].__init__.__globals__, "RETRY_GRANT_PREFIX", foreign_prefix,
+    )
+    grant = {**granted_budget["grant"], "prefix": foreign_prefix}
+    with pytest.raises(ValueError, match="original prefix reservations"):
+        campaign["JournalGate"](
+            journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+        )
+
+
+def test_granted_retry_supersedes_only_unmeasured_original_observations(campaign, tmp_path):
+    case = tmp_path / "case"
+    case.mkdir()
+    grant = {"cells": campaign["RETRY_GRANT_CELLS"], "grant_id": GRANT_ID}
+    key = sorted(grant["cells"])[0]
+    unmeasured = {"v7_outcome": None, "v7_error": "interrupted_after_reservation_requires_native_evidence_reconciliation",
+                  "native_evidence": {"files": {}}}
+    retained, fresh = campaign["_case_paths"](case, key, grant)
+    assert retained == case / "observation.json" == fresh
+    reference = campaign["create_json"](case / "observation.json", unmeasured)
+    campaign["create_json"](case / "observation-ref.json", reference)
+    retained, fresh = campaign["_case_paths"](case, key, grant)
+    assert retained == case / "observation.json"
+    assert fresh == case / f"observation.retry-{GRANT_ID}.json"
+    assert campaign["_masked_by_grant"](unmeasured, key, grant)
+    assert not campaign["_masked_by_grant"]({**unmeasured, "v7_outcome": False}, key, grant)
+    retry_observation = {**unmeasured, "granted_retry": {"grant_id": GRANT_ID}}
+    assert not campaign["_masked_by_grant"](retry_observation, key, grant)
+    reference = campaign["create_json"](case / f"observation.retry-{GRANT_ID}.json", retry_observation)
+    campaign["create_json"](case / f"observation.retry-{GRANT_ID}-ref.json", reference)
+    retained, _ = campaign["_case_paths"](case, key, grant)
+    assert retained.name == f"observation.retry-{GRANT_ID}.json"
+    loaded = campaign["_retained_observation"](retained)
+    assert loaded["granted_retry"]["grant_id"] == GRANT_ID
+    # A cell outside the grant keeps the single original observation path.
+    foreign = tmp_path / "foreign-case"
+    foreign.mkdir()
+    retained, fresh = campaign["_case_paths"](foreign, ("job", "trial", "sha256:" + "0" * 64), grant)
+    assert retained == foreign / "observation.json" == fresh
+
+
+def test_retry_pointer_companion_does_not_block_restart_retention(campaign, tmp_path):
+    # The post-write case dir holds observation.retry-<grant_id>.json plus its
+    # observation.retry-<grant_id>-ref.json hash pointer; a restart's _case_paths
+    # must select the real retry observation, never refuse on two glob matches.
+    case = tmp_path / "case"
+    case.mkdir()
+    grant = {"cells": campaign["RETRY_GRANT_CELLS"], "grant_id": GRANT_ID}
+    key = sorted(grant["cells"])[0]
+    original = {"source_uid": list(key[:2]), "v7_outcome": None,
+                "v7_error": "interrupted_after_reservation_requires_native_evidence_reconciliation",
+                "native_evidence": {"files": {}}}
+    reference = campaign["create_json"](case / "observation.json", original)
+    campaign["create_json"](case / "observation-ref.json", reference)
+    retry_observation = {**original, "v7_outcome": True, "granted_retry": {"grant_id": GRANT_ID}}
+    reference = campaign["create_json"](case / f"observation.retry-{GRANT_ID}.json", retry_observation)
+    campaign["create_json"](case / f"observation.retry-{GRANT_ID}-ref.json", reference)
+    retained, _ = campaign["_case_paths"](case, key, grant)
+    assert retained == case / f"observation.retry-{GRANT_ID}.json"
+    loaded = campaign["_retained_observation"](retained)
+    assert loaded["v7_outcome"] is True
+    assert loaded["granted_retry"]["grant_id"] == GRANT_ID
+    # The pointer exclusion never hides a second genuine retry observation.
+    foreign = case / f"observation.retry-{GRANT_FOREIGN_ID}.json"
+    reference = campaign["create_json"](foreign, retry_observation)
+    campaign["create_json"](case / f"observation.retry-{GRANT_FOREIGN_ID}-ref.json", reference)
+    with pytest.raises(ValueError, match="multiple retained retry observations"):
+        campaign["_case_paths"](case, key, grant)
+
+
+def _granted_suffix(cells, provenance: str) -> bytes:
+    return b"".join(
+        _forged_suffix_row((job, trial), digest, 50 + index, provenance)
+        for index, (job, trial, digest) in enumerate(sorted(cells))
+    )
+
+
+@pytest.mark.parametrize("identity", ["same", "new"])
+def test_expanded_prefix_cannot_authorize_a_third_use(campaign, granted_budget, tmp_path, identity):
+    """An internally consistent expanded 53-row prefix — even under a fresh
+    grant identity — never reopens the pinned original49 grant."""
+    grant, prefix = granted_budget["grant"], granted_budget["prefix"]
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(prefix + _granted_suffix(grant["cells"], GRANT_ID))
+    prior = journal.read_bytes()
+    value = copy.deepcopy(granted_budget["value"])
+    declared = value["heldout_regrade"]["retry_grant"]
+    declared["journal_prefix"] = {
+        "rows": 53, "size_bytes": len(prior),
+        "sha256": "sha256:" + hashlib.sha256(prior).hexdigest(), "reserved_usd": 3.5298,
+    }
+    if identity == "new":
+        declared["grant_id"] = GRANT_FOREIGN_ID
+    value["heldout_regrade"]["durable_journal_path"] = str(journal)
+    granted_budget["envelope"].write_text(json.dumps(value))
+    with pytest.raises(ValueError):
+        campaign["checked_budget"](
+            granted_budget["envelope"], journal=journal,
+            usd_per_execution=0.0666, now=BUDGET_NOW,
+        )
+    assert journal.read_bytes() == prior
+
+
+def test_changed_grant_identity_cannot_take_a_third_reservation(campaign, granted_budget, tmp_path):
+    grant, prefix = granted_budget["grant"], granted_budget["prefix"]
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(prefix + _granted_suffix(grant["cells"], GRANT_ID))
+    prior = journal.read_bytes()
+    foreign = {**grant, "grant_id": GRANT_FOREIGN_ID}
+    with pytest.raises(ValueError, match="invalid cumulative reservation journal"):
+        campaign["JournalGate"](
+            journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL,
+            grant=foreign, clock=_grant_clock,
+        )
+    gate = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL,
+        grant=grant, clock=_grant_clock,
+    )
+    assert gate.executions == 53
+    job, trial, digest = sorted(grant["cells"])[0]
+    gate.context.source_uid = (job, trial)
+    gate.context.grader_digest = digest
+    # The exact 3.5298 lane cap refuses any further reservation first.
+    with pytest.raises(SpendCapReached, match="cap is exhausted"):
+        gate.charge()
+    # A higher synthetic cap isolates the one-use refusal: the consumed cell
+    # stays reserved independent of the cap boundary.
+    probe = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=4.0, approval=JOURNAL_APPROVAL,
+        grant=grant, clock=_grant_clock,
+    )
+    probe.context.source_uid = (job, trial)
+    probe.context.grader_digest = digest
+    with pytest.raises(SpendCapReached, match="already reserved"):
+        probe.charge()
+    assert journal.read_bytes() == prior
+
+
+def test_sealed_prefix_history_never_carries_retry_provenance(
+    campaign, granted_budget, tmp_path, monkeypatch,
+):
+    grant = granted_budget["grant"]
+    job, trial, digest = sorted(grant["cells"])[0]
+    lines = granted_budget["prefix"].splitlines(keepends=True)
+    tampered = b"".join(lines[:48]) + _forged_suffix_row((job, trial), digest, 49, GRANT_ID)
+    journal = tmp_path / "journal.jsonl"
+    journal.write_bytes(tampered)
+    # Even when the declared pin is repointed onto this tampered head, a
+    # provenance-marked duplicate inside the original49 stays malformed.
+    sealed = {
+        "rows": 49, "size_bytes": len(tampered),
+        "sha256": "sha256:" + hashlib.sha256(tampered).hexdigest(), "reserved_usd": "3.2634",
+    }
+    monkeypatch.setitem(campaign["JournalGate"].__init__.__globals__, "RETRY_GRANT_PREFIX", sealed)
+    with pytest.raises(ValueError, match="invalid cumulative reservation journal"):
+        campaign["JournalGate"](
+            journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL,
+            grant={**grant, "prefix": sealed}, clock=_grant_clock,
+        )
+
+
+@pytest.mark.parametrize("forgery", [
+    "foreign_prefix", "non_granted_key", "third_duplicate", "changed_identity", "inside_prefix",
+])
+def test_grant_free_replay_keeps_default_refusal_for_arbitrary_provenance(
+    campaign, granted_budget, tmp_path, forgery,
+):
+    grant, prefix = granted_budget["grant"], granted_budget["prefix"]
+    cells = sorted(grant["cells"])
+    job, trial, digest = cells[0]
+    journal = tmp_path / "journal.jsonl"
+    if forgery == "foreign_prefix":
+        foreign = tmp_path / "foreign.jsonl"
+        gate = campaign["JournalGate"](foreign, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+        for index in range(48):
+            gate.context.source_uid = (f"job-{index:03d}", f"trial-{index:03d}")
+            gate.context.grader_digest = "sha256:" + "c" * 64
+            gate.charge()
+        gate.context.source_uid = (job, trial)
+        gate.context.grader_digest = digest
+        gate.charge()
+        journal.write_bytes(foreign.read_bytes() + _forged_suffix_row((job, trial), digest, 50, GRANT_ID))
+    elif forgery == "non_granted_key":
+        journal.write_bytes(
+            prefix + _forged_suffix_row(("job-000", "trial-000"), "sha256:" + "c" * 64, 50, GRANT_ID))
+    elif forgery == "third_duplicate":
+        journal.write_bytes(
+            prefix + _forged_suffix_row((job, trial), digest, 50, GRANT_ID)
+            + _forged_suffix_row((job, trial), digest, 51, GRANT_ID))
+    elif forgery == "changed_identity":
+        other = cells[1]
+        journal.write_bytes(
+            prefix + _forged_suffix_row((job, trial), digest, 50, GRANT_ID)
+            + _forged_suffix_row((other[0], other[1]), other[2], 51, GRANT_FOREIGN_ID))
+    else:
+        lines = prefix.splitlines(keepends=True)
+        journal.write_bytes(b"".join(lines[:48]) + _forged_suffix_row((job, trial), digest, 49, GRANT_ID))
+    written = journal.read_bytes()
+    with pytest.raises(ValueError, match="invalid cumulative reservation journal"):
+        campaign["JournalGate"](journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL)
+    assert journal.read_bytes() == written
+
+
+def test_grant_backed_charge_refuses_unrelated_fresh_uids(campaign, granted_budget):
+    journal, grant, prefix = (granted_budget[name] for name in ("journal", "grant", "prefix"))
+    gate = campaign["JournalGate"](
+        journal, 0.0666, cap_usd=3.5298, approval=JOURNAL_APPROVAL, grant=grant, clock=_grant_clock,
+    )
+    gate.context.source_uid = ("job-unrelated", "trial-unrelated")
+    gate.context.grader_digest = "sha256:" + "c" * 64
+    with pytest.raises(SpendCapReached, match="authorized"):
+        gate.charge()
+    gate.context.source_uid = ("job-unrelated", "trial-unrelated")
+    gate.context.grader_digest = None
+    with pytest.raises(SpendCapReached, match="authorized"):
+        gate.charge()
+    assert journal.read_bytes() == prefix

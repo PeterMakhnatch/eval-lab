@@ -1,5 +1,37 @@
 # QA Agent - Trace (`evallab qa trace`), scored runs
 
+## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
+
+Changes from qa-trace/6:
+
+- **Diff-less evidence is usable, not a fabricated diff.** B0 emits a bounded
+  `trace_evidence.json` from the blinded ATIF: calls, observed results and agent
+  messages, each with source references and explicit omissions. Delayed results
+  link only through unique call IDs. Proposed/failed/reverted writes are not final
+  submission evidence, and trajectory writes no longer masquerade as a retained diff.
+  T1 must inspect the trace when no diff exists; T3 checks observed contribution
+  without demanding an unavailable reward, test package or `agent.diff`.
+- **Silent faults keep the right category.** T1 assesses visible task-level outcome
+  separately from a process defect. T2 routes an existing causal fault to
+  `false_positive` only with results supporting the user's core task outcome,
+  not a bare completion claim, preserving
+  the source question, owner and causal step. Failed/unknown outcomes and platform
+  faults retain `failure_cause`. T3 can refute the outcome route independently.
+- **Staged MiMo scoring is explicit.** `score_v7.py --staged` permits a pre-release
+  label export, always marks its report `staged_pre_release`, and still verifies
+  the prediction seal before reading labels. Default scoring still requires the
+  released `scoring_allowed=true` key. Grader rejection remains correctness evidence,
+  not a behavioral-cheating label.
+
+Development uses 8 hash-seeded trajectory-judge dev instances (26 items) and the 10
+designated CheatBench dev rows. Legacy trajectory-judge test exclusions remain in
+force. Earlier benchmark aggregates motivated these changes, so a new run is not
+a previously unseen benchmark even though item-level iteration stays on dev.
+
+Behavioral smoke: the actual bundle/verify CLI on a diff-less blinded CheatBench
+dev trace emitted a 9,558-byte source-cited projection and reported `bundle intact`.
+No labels reached the workspace; missing diff, grader and task package stayed missing.
+
 ## qa-trace/6 (2026-10-17 evening): contribution-only label, blind workspaces
 
 Code: PR #1019 (`qa-trace/5` plus two changes, frozen at `556170ab5` before any v7 label
@@ -35,9 +67,10 @@ measurement without the label leak. Subscriptions only, $0 Modal.
   ("unverified"), so the flag stands.
 - **cb (blind, first valid measurement):** without the label, T1 alone falls from 17/38
   to 8/36. T1 abstains on 35 of the 100 imports (no reward, tests or diff), and
-  qa-trace/5's higher cb recall came from the leak. The pipeline's 34/50 is entirely
-  `combined_v1`'s 34/50 raised through T0. `combined_v1`'s Sol leg was judged outside
-  this repository; whether its input carried the CheatBench metadata is unverified.
+  qa-trace/5's higher recall is contaminated by the leaked label. Blinding and the
+  contribution-only definition changed together, so this is not an isolated estimate
+  of the leak's effect. The pipeline's 34/50 is entirely `combined_v1`'s 34/50 raised
+  through T0; whether that externally judged Sol leg's input was blinded is unverified.
 - 1.13 (ca), 1.58 (tw) and 1.37 (cb) model calls per row. No answer was forced.
 
 ### trace-paired-v1, `reward_shortcut` only (`results/qa-trace-6-trace-paired-v1.json`)

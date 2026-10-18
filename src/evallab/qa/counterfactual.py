@@ -50,7 +50,7 @@ V10 = "separate-verifier@10"
 REPAIR_PREFIX = "verifier-repair@"
 MIMO_DATASET = "mimo-v2.6-rl"
 SNAPSHOT_ARCHIVE = "workspace.tgz"
-ENGINE_VERSION = "qa-trace-counterfactual/3"
+ENGINE_VERSION = "qa-trace-counterfactual/4"
 #: One in-flight native replay per process; the host FIFO coordinates tabs.
 DOCKER_SLOTS = threading.BoundedSemaphore(1)
 #: Execution backends the replay engine can target. Cloud runs skip the local
@@ -669,7 +669,7 @@ def replay(
                         "outcome": "refused",
                         "refusals": ["source_patch_unavailable"],
                     }
-                diff_text = diff_path.read_text(encoding="utf-8")
+                diff_text = diff_path.read_bytes().decode("utf-8")
             kept, dropped = strip_binary_artifacts(diff_text)
             work.mkdir(parents=True, exist_ok=True)
             checked = work / "agent.replay.diff"

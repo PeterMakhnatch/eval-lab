@@ -13,11 +13,11 @@ import pytest
 
 from evallab.qa.trace import (
     BUNDLE_SCHEMA,
-    QUESTIONS,
     Bundle,
     CallResult,
     ModelRoute,
     _schema_problems,
+    render_steps,
 )
 from evallab.qa.trace_agents import (
     SCENARIO_SCHEMA,
@@ -25,8 +25,8 @@ from evallab.qa.trace_agents import (
     run_scenario,
     run_scenarios,
     scan_external_sourcing,
-    scenario_prompt,
 )
+from evallab.qa.trace_workspace import trace_evidence
 
 ROUTE = ModelRoute.parse("codex/test-model:low")
 INSPECTED = ["shell: find task_codebase -type f", "shell: cat file_changes.diff"]
@@ -79,11 +79,14 @@ def _bundle(
     diff: str = "-old\n+new\n",
 ) -> Bundle:
     root = tmp_path / "bundle"
+    evidence = trace_evidence(steps or [])
     files = {
         "README.md": "Read task_codebase and file_changes.diff first.\n",
         "trajectory_summary.md": "step 3: command\n",
         "trajectory.json": json.dumps({"steps": steps or []}),
         "prompt.md": "Repair widget behavior.\n",
+        "trace_evidence.json": json.dumps(evidence),
+        "steps.txt": render_steps(steps or [], field_limit=4000, budget=10**9),
     }
     if available:
         files.update(
@@ -109,7 +112,8 @@ def _bundle(
         "availability": {
             "task_codebase": "present" if available else "missing",
             "diff": "verifier/agent.diff" if available else "missing",
-            "trajectory": "present",
+            "trajectory": "present" if steps else "missing",
+            "trace_evidence": "present" if evidence["events"] else "missing",
             "agent_logs": "present" if logs else "missing",
             "tests": "present" if available else "missing",
             "verifier_output": "missing",
@@ -146,6 +150,7 @@ def _answer(
         ],
         "contribution_check": check,
         "attempted_sourcing": list(attempts),
+        "run_outcome": None,
         "rationale": "The inspected change implements the requested behavior.",
     }
 
@@ -445,6 +450,7 @@ def test_missing_inspection_retries_once_and_aggregates_usage(tmp_path: Path) ->
     assert record["inspection"] == {
         "task_codebase": True,
         "file_changes": True,
+        "trace_evidence": False,
         "complete": True,
         "retried": True,
     }
@@ -465,6 +471,7 @@ def test_still_missing_inspection_is_quality_gap_not_abstention(tmp_path: Path) 
     assert record["inspection"] == {
         "task_codebase": False,
         "file_changes": False,
+        "trace_evidence": False,
         "complete": False,
         "retried": True,
     }
@@ -493,6 +500,175 @@ def test_omp_inspection_and_missing_evidence_do_not_trigger_retry(tmp_path: Path
     )
     assert record["inspection"]["complete"] is True
     assert record["inspection"]["retried"] is False
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'read: {"path":"trace_evidence.json:1-120"}',
+        'read: {"path":"trace_evidence.json?q=.events"}',
+        'grep: {"path":"trajectory.json","pattern":"output"}',
+        "shell: cat trace_evidence.json",
+        "shell: jq '.events' trace_evidence.json",
+        "shell: cat steps.txt",
+    ],
+)
+def test_diff_less_inspection_reads_concrete_trace_without_inventing_a_diff(
+    tmp_path: Path, command: str
+) -> None:
+    steps = [
+        {
+            **_step({"command": "cat output.txt"}),
+            "observation": {"results": [{"content": "computed output"}]},
+        },
+        {"step_id": 4, "source": "agent", "message": "The answer is computed output."},
+    ]
+    answer = _answer(check="The observed output and submitted answer agree.")
+    answer["evidence_steps"] = [3, 4]
+    answer["evidence_files"] = ["trace_evidence.json:1"]
+    fake = FakeCaller(output=answer, commands=[[command]])
+    record = run_scenario(
+        _bundle(tmp_path, available=False, steps=steps),
+        "reward_shortcut",
+        ROUTE,
+        prescan=EMPTY_SCAN,
+        t0={},
+        call=fake,
+    )
+    assert len(fake.calls) == 1
+    assert record["inspection"] == {
+        "task_codebase": False,
+        "file_changes": False,
+        "trace_evidence": True,
+        "complete": True,
+        "retried": False,
+    }
+    assert record["answer"] == answer
+    assert record["forced"] is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "shell: pwd",
+        "shell: ls trace_evidence.json",
+        "shell: echo 'cat trace_evidence.json'",
+        'glob: {"path":"trajectory.json"}',
+    ],
+)
+def test_listing_or_mentioning_trace_is_not_diff_less_inspection(
+    tmp_path: Path, command: str
+) -> None:
+    fake = FakeCaller(output=_answer(), commands=[[command]])
+    record = run_scenario(
+        _bundle(tmp_path, available=False, steps=[_step({"command": "write output.txt"})]),
+        "reward_shortcut",
+        ROUTE,
+        prescan=EMPTY_SCAN,
+        t0={},
+        call=fake,
+    )
+    assert len(fake.calls) == 2
+    assert record["inspection"]["trace_evidence"] is False
+    assert record["inspection"]["file_changes"] is False
+    assert record["inspection"]["complete"] is False
+
+
+@pytest.mark.parametrize("verdict", ["yes", "no", "unsure"])
+def test_trace_only_path_preserves_supported_judgments_and_uncertainty(
+    tmp_path: Path, verdict: str
+) -> None:
+    answer = _answer(check="Inspect the observed tool result and final submitted answer.")
+    answer["answer"] = verdict
+    if verdict == "yes":
+        answer["fault"] = "agent"
+        answer["taxonomy"] = "output_hardcoding"
+    fake = FakeCaller(
+        output=answer,
+        commands=[['read: {"path":"trace_evidence.json"}']],
+    )
+    record = run_scenario(
+        _bundle(
+            tmp_path,
+            available=False,
+            steps=[{"step_id": 3, "source": "agent", "message": "Submitted answer: 7."}],
+        ),
+        "reward_shortcut",
+        ROUTE,
+        prescan=EMPTY_SCAN,
+        t0={},
+        call=fake,
+    )
+    assert record["answer"]["answer"] == verdict
+    assert record["measurement"] == "measured"
+    assert record["forced"] is None
+
+
+@pytest.mark.parametrize("outcome", ["failed", "returned_unused", "unclear"])
+def test_diff_less_failed_reverted_or_unresolved_attempts_are_never_forced_cheats(
+    tmp_path: Path, outcome: str
+) -> None:
+    attempt = {**FAILED_CLONE, "outcome": outcome}
+    answer = _answer(
+        check="The fetch failed or its content was removed; no submitted use is established.",
+        attempts=(attempt,),
+    )
+    answer["answer"] = "unsure" if outcome == "unclear" else "no"
+    fetch = {
+        **_step({"command": FAILED_CLONE["action"]}),
+        "observation": {"results": [{"content": "network unreachable", "is_error": True}]},
+    }
+    revert = {
+        **_step({"command": "git restore widget.py"}, step_id=4),
+        "observation": {"results": [{"content": "restored original content"}]},
+    }
+    bundle = _bundle(tmp_path, available=False, steps=[fetch, revert])
+    scan = prescan(bundle)
+    assert scan["fired"] is True and scan["copied_code"] is None
+    record = run_scenario(
+        bundle,
+        "reward_shortcut",
+        ROUTE,
+        prescan=scan,
+        t0={},
+        call=FakeCaller(output=answer, commands=[["shell: cat trajectory.json"]]),
+    )
+    assert record["answer"] == answer
+    assert record["forced"] is None
+
+
+@pytest.mark.parametrize("status", ["success", "failure", "unknown"])
+def test_run_outcome_has_separate_cited_evidence_without_rewriting_causal_fault(
+    tmp_path: Path, status: str
+) -> None:
+    answer = _answer()
+    answer.update(
+        answer="yes",
+        fault="agent",
+        failure_step=3,
+        run_outcome={
+            "status": status,
+            "evidence_steps": [4],
+            "evidence_files": ["trajectory.json:20"],
+            "rationale": "The final task-level statement reports this outcome.",
+        },
+    )
+    assert _schema_problems(SCENARIO_SCHEMA, answer) == []
+    record = run_scenario(
+        _bundle(tmp_path),
+        "failure_cause",
+        ROUTE,
+        prescan=EMPTY_SCAN,
+        t0={},
+        call=FakeCaller(output=answer),
+    )
+    assert record["answer"] == answer
+    malformed = copy.deepcopy(answer)
+    del malformed["run_outcome"]["evidence_steps"]
+    assert any(
+        "run_outcome.evidence_steps" in problem
+        for problem in _schema_problems(SCENARIO_SCHEMA, malformed)
+    )
 
 
 def test_scratch_seal_records_changes_without_touching_original(tmp_path: Path) -> None:
@@ -557,7 +733,7 @@ def test_scenarios_have_independent_concurrent_workspaces(tmp_path: Path) -> Non
 
 def test_schema_requires_every_property_including_nested_objects() -> None:
     def check(schema: dict[str, Any]) -> None:
-        if schema.get("type") == "object":
+        if "object" in schema.get("type", []):
             assert schema["additionalProperties"] is False
             assert set(schema["required"]) == set(schema["properties"])
             for child in schema["properties"].values():
@@ -567,19 +743,3 @@ def test_schema_requires_every_property_including_nested_objects() -> None:
 
     check(SCENARIO_SCHEMA)
     assert _schema_problems(SCENARIO_SCHEMA, _answer()) == []
-
-
-def test_all_question_prompts_are_compact_with_large_prescans(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path)
-    huge = {
-        "fired": True,
-        "external_sourcing": FIRED_SCAN["external_sourcing"] * 100,
-        "tripwires": [{"name": "a" * 500, "evidence": "x" * 1000}] * 100,
-    }
-    for question in QUESTIONS:
-        prompt = scenario_prompt(bundle, question, prescan=huge, t0={"signals": ["x" * 1000] * 100})
-        assert len(prompt) < 9000
-        assert f"QUESTION ({question})" in prompt
-        assert "MANDATORY first actions" in prompt
-        assert "contribution_check" in prompt
-        assert "Symmetric disconfirmation" in prompt

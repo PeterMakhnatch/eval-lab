@@ -1,0 +1,4492 @@
+{
+  "accounting": {
+    "historical_extra_cost_field_usd": 0.3,
+    "historical_model_total_usd": null,
+    "historical_provider_total_usd": null,
+    "historical_replacement_modal_spend_field_usd": 0.0,
+    "historical_reservations": [
+      {
+        "approval": "qa-task:2026-10-17-v7:001948-ec0208624b8a-ed663141be",
+        "cap_usd": 0.6,
+        "executions": 6,
+        "reserved_usd": 0.3,
+        "task_id": "mimo-v2.6-rl/format-code-task-001948",
+        "trial_id": "0a88a240-cbb6-4064-9e46-3ba5e8272a11",
+        "usd_per_execution": 0.05
+      }
+    ],
+    "limit": "The recorded0.30 is a reservation/accounting field, not independently reconciled provider billing. Other native controls and subscription/model effort are not fully cost-reconciled. Do not report zero total cost.",
+    "new_publication_cost_usd": 0.0,
+    "reviewer_cost_field_scope": "Only newly incurred publication charge; not historical provider/model total. No new model, Docker, cloud, native/control execution."
+  },
+  "archives": {
+    "mimo-001948-check-20261017.tgz": {
+      "bytes": 133507,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-001948-check-20261017.tgz",
+      "sha256": "sha256:fb5670adf8c386bb6e4e884aa38f45f03738564b9e46579859ace44d49a5d4ee"
+    },
+    "mimo-v6-m3-20261017.tgz": {
+      "bytes": 6809711,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-v6-m3-20261017.tgz",
+      "sha256": "sha256:0648d7da96488e6ea9be2659d377f72afb982b270f111dc51384c136bbb3fdac"
+    },
+    "mimo-v7-heldout-verification-20261017.tgz": {
+      "bytes": 186723214,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-v7-heldout-verification-20261017.tgz",
+      "sha256": "sha256:d99b1c2ad60daa59317c60962e3c39d1e0318e4678533dab3f7c5fe9698ef76a"
+    },
+    "mimo-v7-phase1-20261017.tgz": {
+      "bytes": 848659,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-v7-phase1-20261017.tgz",
+      "sha256": "sha256:4ffa4e2ff805831cca68233bd91e1196e181f40fd8ba47b459ee37493b8c6ad1"
+    },
+    "replacement_candidates": {
+      "bytes": 666341,
+      "includes_qa_task_controls_dir": true,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-v7-replacement-candidates-000783-000371-20261017.tgz",
+      "sha256": "sha256:278e65d87d8f738559235b3c875616b2026c826fc2be1e85a98ee7c779c774f7",
+      "total_members": 435
+    },
+    "replacement_timing_candidate": {
+      "bytes": 296516,
+      "includes_qa_task_controls_dir": true,
+      "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/mimo-v7-replacement-candidate-000657-20261018.tgz",
+      "sha256": "sha256:8fec0c91472612c6da550e7111f76e23b5ceb0e6852673edc52997189f86dcdd",
+      "total_members": 186
+    }
+  },
+  "cohort": {
+    "original_manifest_sha256": "sha256:d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de",
+    "original_source_quality_complete_tasks": 23,
+    "original_split_sha256": "sha256:3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da",
+    "original_task_order": [
+      "format-code-task-001248",
+      "format-code-task-000161",
+      "format-code-task-000142",
+      "format-code-task-000783",
+      "format-code-task-001399",
+      "format-code-task-001914",
+      "format-code-task-002871",
+      "format-code-task-002335",
+      "format-code-task-001590",
+      "format-code-task-001480",
+      "format-code-task-001371",
+      "format-code-task-001246",
+      "format-code-task-001948",
+      "format-code-task-001425",
+      "format-code-task-002395",
+      "format-code-task-002092",
+      "format-code-task-000144",
+      "format-code-task-002915",
+      "format-code-task-000143",
+      "format-code-task-000149",
+      "format-code-task-002989",
+      "format-code-task-001199",
+      "format-code-task-000878",
+      "format-code-task-001220",
+      "format-code-task-000905",
+      "format-code-task-002371",
+      "format-code-task-001891",
+      "format-code-task-002451",
+      "format-code-task-002304",
+      "format-code-task-000582",
+      "format-code-task-000657",
+      "format-code-task-000371",
+      "format-code-task-001686"
+    ],
+    "original_v6_baselines_scored": 32,
+    "setup_fixed_original_semantics_baselines_scored": 1,
+    "split": "heldout",
+    "task_count": 33
+  },
+  "control_execution_limits": {
+    "failed_001948_role_path_count": {
+      "nop": 3,
+      "oracle": 3
+    },
+    "note": "QA oracle-1/2/3 and nop-1/2/3 are aliases of one successful session per role, not3 independent runs. Failed001948 paths do not establish successful grader runs. Native24 trials each retain3 RepeatVerifier executions;72 physical executions are historical source claims, not runs by this publisher. QA .qa-task-controls sibling artifacts were not included in the original33 tarball; V7-030 retains these as unbound path custody.",
+    "original_successful_physical_sessions_per_role": 1,
+    "original_successful_qa_role_session_count": 64,
+    "original_successful_report_slots_per_role": 3,
+    "original_successful_s0_task_count": 32,
+    "selected_native_repeatverifier_physical_grader_runs": 72,
+    "selected_native_repeatverifier_repaired_packages": 12,
+    "selected_native_repeatverifier_trials": 24,
+    "selected_qa_single_session_nop_tasks": 33,
+    "selected_qa_single_session_oracle_tasks": 33
+  },
+  "counts": {
+    "certified_clean_tasks": 0,
+    "items": 33,
+    "measured_scoped_decisions": 33,
+    "pairs": 0,
+    "representative_witnesses": 11,
+    "supported_exact_frozen_v6_tasks": 10,
+    "supported_setup_fixed_baseline_tasks": 1,
+    "supported_weak_tasks": 11,
+    "unknown_tasks": 22
+  },
+  "key_id": "mimo-heldout-v6-to-v7",
+  "reconciliation": [
+    "Original audit reports13 weak tasks and22 reproducers before semantic reconciliation; extra summary15/16-task and24/25-reproducer totals are historical, not current accepted counts.",
+    "The extra authoritative_genuinely_weak_heldout_tasks_12 list still includes002371. Sealed complete32 inventory instead has21 wrong candidates on11 task IDs,6 equivalent candidates,5 unspecified candidates;002371/ref-subset is unspecified, not an established weak positive.",
+    "001948 frozen v6 90fcc765e611 failed S0 healthcheck with Python3.6 future-annotations SyntaxError. Raw-package replay and setup-only v7 ec0208624b8a native replay are separate from that failed digest. Only ec0208624b8a carries this key's001948 fail label; original digest and failure are retained for custody.",
+    "Historical12 semantic-repair packages include unspecified002371; that repair count is not12 proven weak tasks. Strict published labels are11 (10 original-v6 +1 setup-fixed), not the stale12 allegation.",
+    "Original lower-level ref-subset package hashes can differ from the full QA task digest. Their raw outputs are retained as scoped sub-probe observations; accepted original witnesses use original task-report/full-digest bindings and recorded S3 replay, never an assumed hash equivalence.",
+    "001199 and001371 originally had unusable S2 baselines. The sealed selected-manifest re-audit completes their probes on identical unchanged-v6 digests; original failures remain visible."
+  ],
+  "schema": "qa-task.mimo-heldout-evidence/v1",
+  "scope": "Retrospective source-derived QA Task reconciliation of the original canonical33 task IDs:32 exact frozen-v6 packages plus001948 setup-only v7 baseline. No newly replayed trial, no independent detection claim, no scored v7 release.",
+  "source_cutoff": "2026-10-18",
+  "sources": {
+    "001686_instruction": {
+      "bytes": 577,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65/instruction.md",
+      "sha256": "sha256:065decf706dc468f9dd5f8ba70877429b1144cadb824271f6842ce2f42e9fc9c"
+    },
+    "extra": {
+      "bytes": 150894,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/reproducers-v7-extra.json",
+      "sha256": "sha256:dfbacfcb9c44b3a014d97dfb152d3007434cdfa7cc56aa699d35c25ce9c71bf7"
+    },
+    "original": {
+      "bytes": 46539,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/overnight-2026-10-17/qa-task-mimo-v6-reproducers-20261017.json",
+      "sha256": "sha256:2f085e317114c9d13dd75613c7f69224d59a2d4b99aef0c63ede59a4bc863910"
+    },
+    "original_manifest": {
+      "bytes": 1725,
+      "path": "research/experiments/mimo-training-20261016/heldout.json",
+      "sha256": "sha256:d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de"
+    },
+    "original_qa_task_note": {
+      "bytes": 8986,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/overnight-2026-10-17/qa-task.md",
+      "sha256": "sha256:7f03365b444a23ab9be93cf04ba76919a993cba163dcb5f3689e2a6bb10cf071"
+    },
+    "qa_task_note": {
+      "bytes": 23143,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/qa-task.md",
+      "sha256": "sha256:ceba3f05bb0f92525afd4e9ab9c41762efa0022fcf20ec0c9c59e8130fc3501c"
+    },
+    "replacements": {
+      "bytes": 145464,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/qa-task-v7-replacement-candidates-000783-000371.json",
+      "sha256": "sha256:1e2d063d9afd0be271b62f19c67fb99d3937b5d91105d666c2ee629c38ef817a"
+    },
+    "split": {
+      "bytes": 264957,
+      "path": "research/experiments/mimo-training-20261016/split.json",
+      "sha256": "sha256:3f6a82e2fa8abf86f3d67d63edc0ecd1c823e466171f1f1a6a85100cb27b37da"
+    },
+    "verification": {
+      "bytes": 330993,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/qa-task-v7-verification.json",
+      "sha256": "sha256:3347cb819a2ee46c419ea4b2c9a78d74fe92b6eacf43361b20fc471edd3c272e"
+    }
+  },
+  "suggested_score": {
+    "agent": "QA Task",
+    "notes": "33 scoped measured task decisions; 11 supported positives (10 frozen-v6 + 001948 setup-only v7), 22 unknown/no certified negatives; corrects stale 12-positive allegation (002371 unspecified). Historical selected-v7 c5de2064: 33/33 QA-complete and digest-bound, 12 semantic repairs + 21 unchanged-v6; 21/21 genuinely wrong candidate replays score 0, 6/6 equivalent QA controls score 1. Correct-preservation, timing, unspecified-negative and native-coverage gates remain separate. Three replacement sidecars: 12/12 wrong replays score 0, 2/2 correct alternates score 1; no native x3 qualification inferred. Source-derived rediscovery, not independent detector recall or full grader certification; historical candidate only, v7 scoring_allowed=false. FPR/root cause/pairs n/a; zero reviewer cost means publication-only, historical provider/model costs unreconciled.",
+    "split": "heldout",
+    "status": "retrospective source-derived reconciliation; v7 release HOLD",
+    "system": "qa-task/mimo-v7-audit"
+  },
+  "tasks": [
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 1,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 1,
+            "killed": 1,
+            "tried": 1,
+            "unscored": 0
+          },
+          "reason": "1 killed, 0 survived of 1 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 60273,
+        "member": "mimo-v6-m3-20261017/tasks/51e9c7d6aca388e36fda/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:4ae9c7a7278101d7f99a990a948436a79701b5f8615347f43b3f0f9848e9781d",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "1 killed, 0 survived of 1 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/8"
+      },
+      "scored_package": {
+        "digest": "sha256:ef1ef7b74f473d9f943b5a13ba1f54c646f0393292c28abddd321cc9fc3bad54",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001248/ef1ef7b74f47",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001248",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "equivalent",
+          "previous_verdict": "wrong",
+          "reason": "In CPython 3.8\u20133.13, `ast.Constant.s` is a property alias returning `ast.Constant.value` for string constants, and `ast.Str` is `ast.Constant`. Swapping the `if isinstance(node.func.value, ast.Constant)` branches between `.value` and `.s` produces identical runtime behavior on every string constant.",
+          "reproducer_id": "ref-mutants-3e58e1f99b",
+          "task_id": "mimo-v2.6-rl/format-code-task-000161"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-3e58e1f99b",
+          "role": "equivalent"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=fail; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 2,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 6,
+            "killed": 5,
+            "tried": 6,
+            "unscored": 0
+          },
+          "reason": "5 killed, 1 survived of 6 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 61866,
+        "member": "mimo-v6-m3-20261017/tasks/2e4d7fd979bbcc22204e/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:b819d84f595b02dd373aea3e0b1cab2caad2c96aca8a34f4c65362ac187e23f6",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+        "quality_complete": true,
+        "ref_mutants": "fail",
+        "ref_mutants_reason": "5 killed, 1 survived of 6 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/2"
+      },
+      "scored_package": {
+        "digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/b3cda310bff1",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000161",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 3,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 62133,
+        "member": "mimo-v6-m3-20261017/tasks/366dcd73b5206f7a0d7e/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:c4ebdec6d0384e67323407472a6d11a6b589523953f1520d84a95cea771abaf7",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/0"
+      },
+      "scored_package": {
+        "digest": "sha256:7d0add50180f8c0bde378219b27e660265ced9a01e713074e0b1378ab9d8afaf",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000142/7d0add50180f",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000142",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-9b3411fbf7",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-d3518ecd0d",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The edit leaves the temporary file empty instead of writing the context. This changes the input to `parse_file()` and violates the required behavior.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 4,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 38,
+            "killed": 4,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "4 killed, 4 survived of 8 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 66000,
+        "member": "mimo-v6-m3-20261017/tasks/2c5b438fbdcaefd1c86d/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:c9eb1922f21478dd337274a1e9f175e466359f64d548bf6c7bc0fb33a787dae1",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000783/e132670e4db5",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000783",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1510,
+          "member": "mimo-v6-m3-20261017/findings/ce499d74449945ea225c4fcbd58f901f8a2cdc4060041699ae35d1601823a6a6.json",
+          "sha256": "sha256:f6ac7ec21e85fc29a280cded4fd25280c0c2d448d69f130fea771e64f34fa720"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 5011,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000783/ref-mutants-9b3411fbf7.patch",
+          "sha256": "sha256:59205402f817fbc94c4e562e80b7124db517ac172f16110a086ee00d12e137c4"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-9b3411fbf7",
+        "original_source_pointer": "/verified_reproducers/12",
+        "package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000783/ref-mutants-9b3411fbf7.patch",
+        "reason": "The edit leaves the temporary file empty instead of writing the context. This changes the input to `parse_file()` and violates the required behavior.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:e132670e4db5bb049ad8c77b1865c343efa6dd7e064373297cfce64f1e3157c8",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "\"write it to a temporary `.txt` file under `temp_dir`\"",
+        "severity": "high",
+        "sha256": "sha256:59205402f817fbc94c4e562e80b7124db517ac172f16110a086ee00d12e137c4",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/12"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 5,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 3,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "3 killed, 0 survived of 3 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 61406,
+        "member": "mimo-v6-m3-20261017/tasks/233d93a3dad7bc7fcb07/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:8bfe916a01e6a56aba6b3fd876ab79c39cd579c5520df2be629e363340565f9e",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "3 killed, 0 survived of 3 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/10"
+      },
+      "scored_package": {
+        "digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001399/f1c5311477bb",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001399",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 6,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 48119,
+        "member": "mimo-v6-m3-20261017/tasks/11fcf30c467d3fc8cfec/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:6adf4b304ef93bb6053401b6ebd17d94f3ecca21511e4ed2dc0186b1821bbbf4",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/14"
+      },
+      "scored_package": {
+        "digest": "sha256:d29b9a87eaf6a56f40b76827055cda57aa56b22c55d8fcbea58bf116aa9cac20",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001914/d29b9a87eaf6",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001914",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 7,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 10,
+            "killed": 8,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "8 killed, 0 survived of 8 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 34863,
+        "member": "mimo-v6-m3-20261017/tasks/e8ac1c983701850b569b/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:653550147b0f3bd169e2db26c3e2d76a165cce9216ddff89672e7d575d3d33b4",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "8 killed, 0 survived of 8 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/19"
+      },
+      "scored_package": {
+        "digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002871/fb6766641661",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002871",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "equivalent",
+          "previous_verdict": "wrong",
+          "reason": "Line 35 `assert preds.shape == target.shape` dominates line 37 `if len(preds.shape) == len(target.shape) + 1:`, making the mutated branch (`assert preds.shape[2] == 2`) unreachable under normal assertions.",
+          "reproducer_id": "ref-mutants-3ed8480a0f",
+          "task_id": "mimo-v2.6-rl/format-code-task-002335"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-3ed8480a0f",
+          "role": "equivalent"
+        },
+        {
+          "finding_id": "ref-mutants-732d917ff9",
+          "role": "equivalent"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 8,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 132,
+            "killed": 6,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "6 killed, 2 survived of 8 one-edit mutants; 2 survivor(s) not adjudicated",
+          "status": "measured",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 32572,
+        "member": "mimo-v6-m3-20261017/tasks/aa0e9fffc3b454079301/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:43d226e5cf9eefa04fc48d247b74b690849d7a83ed826e5d1342ea65541e5fea",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "6 killed, 2 survived of 8 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/17"
+      },
+      "scored_package": {
+        "digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002335/bd7bc12ac8df",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002335",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 9,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 1,
+            "killed": 0,
+            "tried": 1,
+            "unscored": 0
+          },
+          "reason": "0 killed, 1 survived of 1 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 58289,
+        "member": "mimo-v6-m3-20261017/tasks/d43e80ddedf15037a5c5/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:826fd1168948e4b98b71d57e4dcf8c64def0163a70118244a5cdbcf9034aa647",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "0 killed, 1 survived of 1 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/12"
+      },
+      "scored_package": {
+        "digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/2aa5d14a1614",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001590",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 10,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 59563,
+        "member": "mimo-v6-m3-20261017/tasks/68bab63cc4d167d9119e/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:ee438ffb98f032e110696402a1050ab0a0ed61520ccdd22ab6124441f610336a",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/11"
+      },
+      "scored_package": {
+        "digest": "sha256:f7e0989e935682607e5bc5905251e2519239821b478f009520548aa9381470a4",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001480/f7e0989e9356",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001480",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: original S2 baselines were unusable; the later QA re-audit on the identical frozen-v6 digest records ref-subset=pass and ref-mutants=pass. No established wrong witness; not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 11,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {},
+          "reason": "baselines: full=0.0 (scored), nop=0.0 (scored)",
+          "status": "ran_without_usable_result",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "baselines: full=0.0 (scored), nop=0.0 (scored); expected 1 and 0",
+          "status": "ran_without_usable_result",
+          "verdict": "unknown"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 57593,
+        "member": "mimo-v6-m3-20261017/tasks/92116896b8bf57da7eb8/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:a545ce442f13221f47012e762db6971e1e13e46047665d6d319cfa683a8cbb0d",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "3 killed, 0 survived of 3 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/9"
+      },
+      "scored_package": {
+        "digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001371/814e6feb5ecb",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001371",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "equivalent",
+          "previous_verdict": "wrong",
+          "reason": "In `_ideal_activities_fct`, `endmember_noccupancies` is a 2D array of shape `(n_endmembers, n_sites)` (`ndim == 2`). For any 2D NumPy array, `.prod(-1)` and `.prod(1)` reduce along the exact same axis.",
+          "reproducer_id": "ref-mutants-323865e88f",
+          "task_id": "mimo-v2.6-rl/format-code-task-001246"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-323865e88f",
+          "role": "equivalent"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=fail; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 12,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 55,
+            "killed": 7,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "7 killed, 1 survived of 8 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 65516,
+        "member": "mimo-v6-m3-20261017/tasks/8b50c2e92991bd92d41a/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:ef93d33abb02824b6f7f47d5ac4b33bf395756abb07046d2132e36fde128f0ff",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+        "quality_complete": true,
+        "ref_mutants": "fail",
+        "ref_mutants_reason": "7 killed, 1 survived of 8 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/7"
+      },
+      "scored_package": {
+        "digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/c4d94db236a5",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001246",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "equivalent",
+          "previous_verdict": "wrong",
+          "reason": "Algebraic identity: for every integer n, `(n + 1) % 2 == (n - 1) % 2`. Must be preserved as an equivalent/positive control; only `001948/ed663141be` (`filter_length += ((1)) % 2`, turning odd `filter_length` e.g. `3 -> 4` even) is wrong.",
+          "reproducer_id": "ref-mutants-d0e158609c",
+          "task_id": "mimo-v2.6-rl/format-code-task-001948"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-d0e158609c",
+          "role": "equivalent"
+        },
+        {
+          "finding_id": "ref-mutants-ed663141be",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-ec5eb27b2e",
+          "role": "unspecified"
+        },
+        {
+          "finding_id": "ref-mutants-1e9a751af8",
+          "role": "unspecified"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: Replaces `filter_length += (filter_length - 1) % 2` with `filter_length += ((1)) % 2`, which adds `1 % 2 == 1` to every `filter_length`. For any already-odd `filter_length` (e.g. `3 -> 4`), the mutant turns the filter length even instead of keeping it odd (`3 -> 3`), violating the odd-length parity requirement for `firwin`. Native Harbor Modal replay on setup-repaired v7 candidate `ec0208624b8a` (`sha256:ec0208624b8ae606c83d7ecefdd404bb16b2bf4560dc276ac5f13bb8a3cca1df`, Harbor digest `sha256:7a69b7415d0eb6dd0b995d5aafde389c454606213b8f7345f518099ffe8386d9`) executed and scored `reward = 1.0`.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 13,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            null,
+            null,
+            null
+          ],
+          "statuses": [
+            "ran_without_usable_result",
+            "ran_without_usable_result",
+            "ran_without_usable_result"
+          ],
+          "unique_job_path_count": 3,
+          "verdicts": [
+            "unknown",
+            "unknown",
+            "unknown"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            null,
+            null,
+            null
+          ],
+          "statuses": [
+            "ran_without_usable_result",
+            "ran_without_usable_result",
+            "ran_without_usable_result"
+          ],
+          "unique_job_path_count": 3,
+          "verdicts": [
+            "unknown",
+            "unknown",
+            "unknown"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:90fcc765e6113eeadb806948f5cae2c3422d64c715d864e3e660a64b38694133",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/90fcc765e611"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls unmeasured",
+          "status": "ran_without_usable_result",
+          "verdict": "unknown"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 11,
+            "killed": 4,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "4 killed, 4 survived of 8 one-edit mutants; 4 survivor(s) not adjudicated",
+          "status": "measured",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 55447,
+        "member": "mimo-v6-m3-20261017/tasks/ea7e441ec2ecfdffc443/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:10262f414f838de292142f7c902611254497bc28d26706be18327b8336304a92",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:ec0208624b8ae606c83d7ecefdd404bb16b2bf4560dc276ac5f13bb8a3cca1df",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001948/ec0208624b8a",
+        "relationship": "setup-only-v7-original-test-semantics"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001948",
+      "witness": {
+        "controls_limit": "Raw-package controls do not certify native triplets on ec0208624b8a, and no successful replay is attributed to frozen v6 90fcc765e611.",
+        "expected_reward": 1.0,
+        "id": "ref-mutants-ed663141be",
+        "package_digest": "sha256:ec0208624b8ae606c83d7ecefdd404bb16b2bf4560dc276ac5f13bb8a3cca1df",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-001948/ref-mutants-ed663141be.patch",
+        "raw_package_only_controls": {
+          "nop_slots": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "note": "Evaluated on raw package because v6 setup.sh fails on Python 3.6 (purge-installed-copies@2 SyntaxError); tests/test.patch and tests/test_command.sh are byte-identical to v6.",
+          "oracle_slots": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "reward": 1.0
+        },
+        "reason": "Replaces `filter_length += (filter_length - 1) % 2` with `filter_length += ((1)) % 2`, which adds `1 % 2 == 1` to every `filter_length`. For any already-odd `filter_length` (e.g. `3 -> 4`), the mutant turns the filter length even instead of keeping it odd (`3 -> 3`), violating the odd-length parity requirement for `firwin`. Native Harbor Modal replay on setup-repaired v7 candidate `ec0208624b8a` (`sha256:ec0208624b8ae606c83d7ecefdd404bb16b2bf4560dc276ac5f13bb8a3cca1df`, Harbor digest `sha256:7a69b7415d0eb6dd0b995d5aafde389c454606213b8f7345f518099ffe8386d9`) executed and scored `reward = 1.0`.",
+        "recorded_replay": {
+          "harbor_digest": "sha256:7a69b7415d0eb6dd0b995d5aafde389c454606213b8f7345f518099ffe8386d9",
+          "lock": {
+            "bytes": 1699,
+            "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-001948/modal-v7-ec0208624b8a-ed663141be/trial/lock.json",
+            "sha256": "sha256:c1fc66ac54378b214f39efb7d9370ffed2f44e744d31bd5ff5a45bc7caf2d0d7"
+          },
+          "package_digest": "sha256:ec0208624b8ae606c83d7ecefdd404bb16b2bf4560dc276ac5f13bb8a3cca1df",
+          "result": {
+            "bytes": 4593,
+            "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-001948/modal-v7-ec0208624b8a-ed663141be/trial/result.json",
+            "sha256": "sha256:26c57ff2172ad3e01ace7bc0e296dcc70d4170dd16b3f24ed2be0a1fe7b04bd2"
+          },
+          "reward": 1.0,
+          "trial_id": "0a88a240-cbb6-4064-9e46-3ba5e8272a11",
+          "verified": true
+        },
+        "requirement": "`fir_design = 'firwin' seems to be breaking the filtering routine.` Odd filter lengths must remain odd.",
+        "severity": "high",
+        "sha256": "sha256:fb9ca3f52a26cebc350f9ba75df607c955801e3514f32ca837dda8919cbeecd3",
+        "source": "extra",
+        "source_pointer": "/format_code_task_001948_pre_setup_fix_audit/real_reproducers/0"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-54c499b73f",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The replacement `or` makes any non-`None` deletion response count as success, even when its status is not `canceled`. A correct verifier should reject that behavior.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 14,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/be536e940963"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 39,
+            "killed": 6,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "6 killed, 2 survived of 8 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 63561,
+        "member": "mimo-v6-m3-20261017/tasks/64d1f30afbded8e77b59/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:89457d17981e5c2096e4d87cfec61a1c48869f96e74384dc1549a8f2a325288d",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/be536e940963",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001425",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1645,
+          "member": "mimo-v6-m3-20261017/findings/8ad0999dfe7f85a488d5a51391f318cd7ee2f7f58d94e88c606d1dd9a3541fad.json",
+          "sha256": "sha256:9904f982ed0d751656436400e035eea29f3fbcc50a4db6977aceaf9ff8e765a2"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 8588,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-001425/ref-mutants-54c499b73f.patch",
+          "sha256": "sha256:e0cbe12ec14b58dc16342133ba736c69585563dcb647759d823e41bb3564b44f"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-54c499b73f",
+        "original_source_pointer": "/verified_reproducers/18",
+        "package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-001425/ref-mutants-54c499b73f.patch",
+        "reason": "The replacement `or` makes any non-`None` deletion response count as success, even when its status is not `canceled`. A correct verifier should reject that behavior.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:be536e94096326f3a2a31fbb0c7bf2b66349825298204c40570e8a7a8d62e015",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "`customer.cancel_subscription('sub_123')` should return `True` if the subscription is already canceled or if Stripe deletion returns a canceled subscription, and `False` when the subscription cannot be found.",
+        "severity": "high",
+        "sha256": "sha256:e0cbe12ec14b58dc16342133ba736c69585563dcb647759d823e41bb3564b44f",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/18"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 15,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 29250,
+        "member": "mimo-v6-m3-20261017/tasks/e6e61b90c1ebe6d4ca35/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:486bc7d736cdaff41f2907c916221fc54b4ec0428fbdf97fcf2e513ad5b84987",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/18"
+      },
+      "scored_package": {
+        "digest": "sha256:5c7a660005824fc653ed46e64da949dacacbbf2126d0397e2b12e9fa3f7974e5",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002395/5c7a66000582",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002395",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "unspecified",
+          "previous_verdict": "block_drop_actionable",
+          "reason": "`ref-subset.patch` adds `OrderingFilter` and `PatientCustomOrderingFilter` (which implements the `admission_date` ordering requested by `instruction.md`). Omitting the explicit `ordering_fields = ['id', 'name', 'created_date', 'modified_date']` allowlist does not violate `instruction.md`.",
+          "reproducer_id": "ref-subset",
+          "task_id": "mimo-v2.6-rl/format-code-task-002092"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-subset",
+          "role": "unspecified"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=fail and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 16,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 30188,
+        "member": "mimo-v6-m3-20261017/tasks/5003a60e5f0f4a2de4db/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:5c6b92168639e9897fc83b7875c50b3a6139af0d6a31512b2116790db0ef10a6",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "fail",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/15"
+      },
+      "scored_package": {
+        "digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002092/8a20cc19b836",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002092",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 17,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 4,
+            "killed": 4,
+            "tried": 4,
+            "unscored": 0
+          },
+          "reason": "4 killed, 0 survived of 4 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 56341,
+        "member": "mimo-v6-m3-20261017/tasks/cda8faa138ad86cb686a/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:345fa9fd1d5f8776e81177824187f2befd97c8c44b065ace0b6006fe91e6a055",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "4 killed, 0 survived of 4 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/1"
+      },
+      "scored_package": {
+        "digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000144/993039c0a8a7",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000144",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "unspecified",
+          "previous_verdict": "wrong",
+          "reason": "Dropping `circ.batch_remove(measurements)` while mutating `measurements[i][1].gate.key = ''` in-place still blanks all measurement keys in `circ` and duplicates each blank-key measurement symmetrically in both circuits via `circ.batch_insert(measurements)`. Replaced by `002915/168f29a29b` (`wrong`), which drops `circ.batch_insert(measurements)` after `circ.batch_remove(measurements)` and deletes all measurements.",
+          "reproducer_id": "ref-mutants-5716a823be",
+          "task_id": "mimo-v2.6-rl/format-code-task-002915"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-168f29a29b",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-5716a823be",
+          "role": "unspecified"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: Dropping `circ.batch_insert(measurements)` after `circ.batch_remove(measurements)` deletes all MeasurementGate operations from both circuits and never re-inserts them when `require_measurement_equality=False`. Concrete contract violation: `_equal(cirq.Circuit(cirq.H(q0), cirq.measure(q0, key='a')), cirq.Circuit(cirq.H(q0)))` returns `True` instead of `False`, and `_equal(cirq.Circuit(cirq.H(q0), cirq.H(q1), cirq.measure(q0, key='a')), cirq.Circuit(cirq.H(q0), cirq.H(q1), cirq.measure(q1, key='b')), require_qubit_equality=True)` returns `True` instead of `False`.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 18,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 6,
+            "killed": 4,
+            "tried": 6,
+            "unscored": 0
+          },
+          "reason": "4 killed, 2 survived of 6 one-edit mutants; 2 survivor(s) not adjudicated",
+          "status": "measured",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 33558,
+        "member": "mimo-v6-m3-20261017/tasks/225fc2b9b3e4e361101e/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:b745eaa819b6131717093f8999ed69a54102499cd4e4fde5feab9e32ec0dd2c0",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002915/94990615b32c",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002915",
+      "witness": {
+        "expected_reward": 1.0,
+        "id": "ref-mutants-168f29a29b",
+        "package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-002915/ref-mutants-168f29a29b.patch",
+        "reason": "Dropping `circ.batch_insert(measurements)` after `circ.batch_remove(measurements)` deletes all MeasurementGate operations from both circuits and never re-inserts them when `require_measurement_equality=False`. Concrete contract violation: `_equal(cirq.Circuit(cirq.H(q0), cirq.measure(q0, key='a')), cirq.Circuit(cirq.H(q0)))` returns `True` instead of `False`, and `_equal(cirq.Circuit(cirq.H(q0), cirq.H(q1), cirq.measure(q0, key='a')), cirq.Circuit(cirq.H(q0), cirq.H(q1), cirq.measure(q1, key='b')), require_qubit_equality=True)` returns `True` instead of `False`.",
+        "recorded_replay": {
+          "nop_slots": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "oracle_slots": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "package_digest": "sha256:94990615b32c9b07e7acd17a93f021ca5d8cb2af72ce5ffb223facebbfae6d01",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "Deletes all MeasurementGate operations via circ.batch_remove(measurements) without re-inserting them: _equal(Circuit(H(q0), measure(q0, key='a')), Circuit(H(q0))) returns True instead of False",
+        "retained_finding": {
+          "bytes": 1531,
+          "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-002915/evidence/ref-mutants-168f29a29b.finding.json",
+          "sha256": "sha256:14f41881da840404fade675a5e76cf039b33d34f4935282f8168930a9e4a1cdb"
+        },
+        "severity": "high",
+        "sha256": "sha256:d896c19ae410234f3f57482c6057bcac230ac391614c53ce01b9f34a9b03715d",
+        "source": "extra",
+        "source_pointer": "/real_reproducers/0"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-460857c212",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: Changing the default `shuffle` value to `True` makes datasets passed without an explicit shuffle setting use shuffled loading. The code disables shuffling for `IterableDataset`, but this mutation changes the default behavior for other datasets and is not required by the instruction.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 19,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 2,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "2 killed, 1 survived of 3 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 62169,
+        "member": "mimo-v6-m3-20261017/tasks/102d2752e6f83123c34c/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:0621a6366a6d1f88606d8d98c0f1746cf2b08a9cdd31198099a2a8e591183cb9",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000143/ea692d181680",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000143",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1524,
+          "member": "mimo-v6-m3-20261017/findings/fe5f483392816c3a13638f0fa94eb6527208c72f39576c9502548dc2a6d69b74.json",
+          "sha256": "sha256:ca16d3934ea2a6f5afe317f69a5526ecb66523d8ae96ebea7fc2ecff451ccbe5"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1727,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000143/ref-mutants-460857c212.patch",
+          "sha256": "sha256:510dc65a492d592b9aa7e9e6eb03325c4d40d5fb94adf35ee9d23ea88018cf31"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-460857c212",
+        "original_source_pointer": "/verified_reproducers/0",
+        "package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000143/ref-mutants-460857c212.patch",
+        "reason": "Changing the default `shuffle` value to `True` makes datasets passed without an explicit shuffle setting use shuffled loading. The code disables shuffling for `IterableDataset`, but this mutation changes the default behavior for other datasets and is not required by the instruction.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:ea692d18168051489e6cf2545ff521d0d24676a3fc167fb142e7fab09c784b6e",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "Allow `IterableDataset` to be passed to `LightningDataModule.from_datasets`",
+        "severity": "high",
+        "sha256": "sha256:510dc65a492d592b9aa7e9e6eb03325c4d40d5fb94adf35ee9d23ea88018cf31",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/0"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-902c407027",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The edit converts float targets to integers, truncating fractional relevance values such as `0.1` and `0.5`. That changes the required handling of float targets even if the mutant still passes the verifier.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 20,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 6,
+            "killed": 3,
+            "tried": 6,
+            "unscored": 0
+          },
+          "reason": "3 killed, 3 survived of 6 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 66943,
+        "member": "mimo-v6-m3-20261017/tasks/72ce43c2894c8388f5d0/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:412a8ce91a975922ee3a9f91648902dce7ac98defe23c002ca0944456ad0f30c",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000149/99ca42b40c16",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000149",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1495,
+          "member": "mimo-v6-m3-20261017/findings/47022babca362424715e70168c6b2fbbcf5a26e4ba0e9c14c48952df22689c4b.json",
+          "sha256": "sha256:372c86c28279cad73a901d5f93dd1366b4982a1fa32b3d7681c120b11cad48c2"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 4064,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000149/ref-mutants-902c407027.patch",
+          "sha256": "sha256:8c00c246100ec9d26b6e9220b9eb40211a5320804ab9bc0dd4f258507b9d10a5"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-902c407027",
+        "original_source_pointer": "/verified_reproducers/1",
+        "package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000149/ref-mutants-902c407027.patch",
+        "reason": "The edit converts float targets to integers, truncating fractional relevance values such as `0.1` and `0.5`. That changes the required handling of float targets even if the mutant still passes the verifier.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:99ca42b40c168be2bee52d761fea2a61cb313e0083e7440c98d488ea987f9273",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "Targets of type float are handled without errors",
+        "severity": "high",
+        "sha256": "sha256:8c00c246100ec9d26b6e9220b9eb40211a5320804ab9bc0dd4f258507b9d10a5",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/1"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 21,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 3,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "3 killed, 0 survived of 3 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 29176,
+        "member": "mimo-v6-m3-20261017/tasks/a3e3557de24b9cf83e78/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:b5a324908f9a2f00e7115487864ee38046dcf7f9402e65601ea8a25f45b3d003",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "3 killed, 0 survived of 3 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/20"
+      },
+      "scored_package": {
+        "digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002989/34922e282a72",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002989",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: original S2 baselines were unusable; the later QA re-audit on the identical frozen-v6 digest records ref-subset=pass and ref-mutants=unknown. No established wrong witness; not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 22,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {},
+          "reason": "baselines: full=0.0 (scored), nop=0.0 (scored)",
+          "status": "ran_without_usable_result",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "baselines: full=0.0 (scored), nop=0.0 (scored); expected 1 and 0",
+          "status": "ran_without_usable_result",
+          "verdict": "unknown"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 58268,
+        "member": "mimo-v6-m3-20261017/tasks/5d007a154428fdc09c47/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:43802e7fe622e92a60d7a7c908419c834a4dd34f65a9c39daaffd178c34b1b76",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/5"
+      },
+      "scored_package": {
+        "digest": "sha256:c01d4f9a7c0a4080bfaa7c54ffb453351d2f0d460a3f79258243dd97b7098d40",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001199/c01d4f9a7c0a",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001199",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-0b9f06d786",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-b501746f48",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: Dropping `matched_path` stops the mount prefix from being added to the child scope\u2019s `root_path`. Reverse URL generation inside a mounted sub-application can therefore omit that prefix.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 23,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 9,
+            "killed": 5,
+            "tried": 8,
+            "unscored": 0
+          },
+          "reason": "5 killed, 3 survived of 8 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 72414,
+        "member": "mimo-v6-m3-20261017/tasks/fb064cc110d51c418f1f/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:2bde1512b9d32aa6e723570d10e825aefa277313edb4d0804ea40035553629e3",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/41274c11492d",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000878",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1552,
+          "member": "mimo-v6-m3-20261017/findings/6b1739a052fd6951db7f59ed111b22094780ac9d1a4390ab3958a15b0ccda12a.json",
+          "sha256": "sha256:d6f6fb993d23c3d1cbbde191665a980d8787d63a1e819bbc2de15382be5cbf18"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 5117,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000878/ref-mutants-0b9f06d786.patch",
+          "sha256": "sha256:0afc7e5bf614857ba80d313ab4ccb4d29873ad68ca5b763897fa6fb434b27283"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-0b9f06d786",
+        "original_source_pointer": "/verified_reproducers/14",
+        "package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000878/ref-mutants-0b9f06d786.patch",
+        "reason": "Dropping `matched_path` stops the mount prefix from being added to the child scope\u2019s `root_path`. Reverse URL generation inside a mounted sub-application can therefore omit that prefix.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:41274c11492d3cd89513c903ec4b59002db7f312cdadea4a27e09b5b9f7694d8",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "Reverse URL generation should continue to work for routes both at the application root and inside mounted sub-applications.",
+        "severity": "high",
+        "sha256": "sha256:0afc7e5bf614857ba80d313ab4ccb4d29873ad68ca5b763897fa6fb434b27283",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/14"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 24,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 5,
+            "killed": 5,
+            "tried": 5,
+            "unscored": 0
+          },
+          "reason": "5 killed, 0 survived of 5 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 39920,
+        "member": "mimo-v6-m3-20261017/tasks/8fffef56b22b6e07e3b8/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:032ac5ecc0a0ff96ed95218e168b162a4f5bbcf86c42748e95b8b1977d2cb10d",
+        "verdict": "pass"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "5 killed, 0 survived of 5 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/6"
+      },
+      "scored_package": {
+        "digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001220/0a539cb6f159",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001220",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [
+        {
+          "authoritative_verdict": "equivalent",
+          "previous_verdict": "block_drop_actionable",
+          "reason": "`ref-subset.patch` retains both functional threshold condition fixes (`if total_weight <= level_one_threshold:` and `elif level_four_threshold < total_weight:`) and only leaves the unused local variable `level_five_threshold` and the unreachable `else: raise ValueError(...)` branch (unreachable because the five `<=` / `<` intervals partition all real numbers for non-decreasing thresholds).",
+          "reproducer_id": "ref-subset",
+          "task_id": "mimo-v2.6-rl/format-code-task-000905"
+        }
+      ],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-subset",
+          "role": "equivalent"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=fail and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 25,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 4,
+            "killed": 3,
+            "tried": 4,
+            "unscored": 0
+          },
+          "reason": "3 killed, 1 survived of 4 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 60887,
+        "member": "mimo-v6-m3-20261017/tasks/d8de08463a2fe55c9442/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:ea27d6d9a2c59cade682d78da71e55db474acc7e0c7d9852c3bc017faf61f503",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "3 killed, 1 survived of 4 one-edit mutants",
+        "ref_subset": "fail",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/4"
+      },
+      "scored_package": {
+        "digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000905/3a8a4b6d5dbd",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000905",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-subset",
+          "role": "unspecified"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: original ref-subset witness scored 1.0, but V7-016/V7-019 classify it as prompt-unspecified, not genuinely wrong; all 3 recorded line mutants were killed. No established weak label; not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 26,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 3,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "3 killed, 0 survived of 3 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 30847,
+        "member": "mimo-v6-m3-20261017/tasks/d33d94aeafd4fb468dc2/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:35e980d71e837cdf68014e429508b7248cc0294cf7f2719839b7829e98ab69b5",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:cf302b7d0daaf95ea993f61c3b6dedb594731714eb3549ab877a6a6cbf447f43",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002371/cf302b7d0daa",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002371",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=unknown; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 27,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 0,
+            "killed": 0,
+            "tried": 0,
+            "unscored": 0
+          },
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_run",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 62023,
+        "member": "mimo-v6-m3-20261017/tasks/eebf84d1dd07e428ecbb/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:5ba4f7b4f492dab4ef450dcb8bcb665c315946a90f91ad7cf6f1a7370402c814",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+        "quality_complete": true,
+        "ref_mutants": "unknown",
+        "ref_mutants_reason": "no mutable code on the lines the reference wrote",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/13"
+      },
+      "scored_package": {
+        "digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/75a6a40a98fd",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001891",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-e97f83ae41",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The edit changes the default `compute` value from `True` to `False`, altering writer behavior. The instruction explicitly says existing workflow should remain the default behavior; the verifier should reject this unrelated default change.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 28,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 2,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "2 killed, 1 survived of 3 one-edit mutants; 1 survivor(s) not adjudicated",
+          "status": "measured",
+          "verdict": "unknown"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 31269,
+        "member": "mimo-v6-m3-20261017/tasks/bf9e3a9f0dd57e2e8e0d/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:1c7d4794d901e0002a9ad14b8a9f8c1feb3848494cce9ea9d8819945b1c5e38d",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/f8842a295be3",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002451",
+      "witness": {
+        "expected_reward": 1.0,
+        "id": "ref-mutants-e97f83ae41",
+        "package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-002451/ref-mutants-e97f83ae41.patch",
+        "reason": "The edit changes the default `compute` value from `True` to `False`, altering writer behavior. The instruction explicitly says existing workflow should remain the default behavior; the verifier should reject this unrelated default change.",
+        "recorded_replay": {
+          "nop_slots": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "oracle_slots": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "package_digest": "sha256:f8842a295be347a09c4e9a57a9784355555d007dc2a329690ca80219d0be48dc",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "\"For example, a parameter `convert_temperature_units`, which defaults to True.\"",
+        "retained_finding": {
+          "bytes": 1435,
+          "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-extra/format-code-task-002451/evidence/ref-mutants-e97f83ae41.finding.json",
+          "sha256": "sha256:ec44c5047a0516259c490217ad81e63dff18c02070c93e45d2e02339ae0d0ced"
+        },
+        "severity": "high",
+        "sha256": "sha256:b1a9e9180bb13e667964149ebb1c12f20dbea986562acb09d83f060496b506bb",
+        "source": "extra",
+        "source_pointer": "/real_reproducers/1"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 29,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 2,
+            "killed": 2,
+            "tried": 2,
+            "unscored": 0
+          },
+          "reason": "2 killed, 0 survived of 2 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 29993,
+        "member": "mimo-v6-m3-20261017/tasks/e2f1e8f388cde5683a40/report.json",
+        "quality_complete": false,
+        "sha256": "sha256:cd57019484c636a4c0198b786490c59d94ce7a1713d2eaa42bc6100f2e9412b3",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "2 killed, 0 survived of 2 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/16"
+      },
+      "scored_package": {
+        "digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002304/ddf046a7c9cb",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-002304",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_scoped_probe",
+        "stage": "S2b.scoped-nonflag",
+        "summary": "Scoped nonflag: recorded ref-subset=pass and ref-mutants=pass; surviving candidates, if any, were equivalent, unspecified, or not established as prompt-wrong in sealed reconciliation. Unknown label, not a clean-task certificate.",
+        "verdict": "pass"
+      },
+      "expected_verdict": "unknown",
+      "ordinal": 30,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "baseline controls measured; no S2 candidate to replay",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 3,
+            "killed": 3,
+            "tried": 3,
+            "unscored": 0
+          },
+          "reason": "3 killed, 0 survived of 3 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "pass"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 60906,
+        "member": "mimo-v6-m3-20261017/tasks/667ea3b1124661221907/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:c98620db4c5e47f1a45013d80ec9d25d7bd25b6afedd9e1460d09021d3c242b8",
+        "verdict": "unknown"
+      },
+      "same_digest_reaudit": {
+        "package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+        "quality_complete": true,
+        "ref_mutants": "pass",
+        "ref_mutants_reason": "3 killed, 0 survived of 3 one-edit mutants",
+        "ref_subset": "pass",
+        "source": "verification",
+        "source_pointer": "/unchanged_v6_verifications/3"
+      },
+      "scored_package": {
+        "digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000582/df93013364a2",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000582",
+      "witness": null
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-3ebd1da863",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-80c23b9c42",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-dc29111598",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-subset",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The negated condition skips chaining each later exception to the previous one once `last_exception` exists, so earlier caught exceptions are lost from the final exception chain.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 31,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 6,
+            "killed": 3,
+            "tried": 6,
+            "unscored": 0
+          },
+          "reason": "3 killed, 3 survived of 6 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 65734,
+        "member": "mimo-v6-m3-20261017/tasks/ab59acf94b84252d5f9f/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:fc63ab077baae71ddf59db56f4a630453efae5229e43ff6adb0a028d628831a1",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000657/496f8005c8c6",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000657",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1592,
+          "member": "mimo-v6-m3-20261017/findings/3c18cabf60e452cf77648634b4226ada33a66b185fd21a30828bd60b84a5a3ef.json",
+          "sha256": "sha256:0c566bc99ea16619c8f218a77cc71627c77ab6b70722bebdccecf17e77af8e69"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1613,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000657/ref-mutants-80c23b9c42.patch",
+          "sha256": "sha256:12c1e355b54a1b4c61858b46b82fb2bb441dd409d895c3789dea7917ad7092e3"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-80c23b9c42",
+        "original_source_pointer": "/verified_reproducers/9",
+        "package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000657/ref-mutants-80c23b9c42.patch",
+        "reason": "The negated condition skips chaining each later exception to the previous one once `last_exception` exists, so earlier caught exceptions are lost from the final exception chain.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:496f8005c8c6e5e1147f96af4e3fc85dca8814124c9b382fe446e109a6dc0014",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "We lose any exceptions that were previously raised. This is especially problematic when the first caught exception is different from the second caught exception.",
+        "severity": "high",
+        "sha256": "sha256:12c1e355b54a1b4c61858b46b82fb2bb441dd409d895c3789dea7917ad7092e3",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/9"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-mutants-01ac60abd4",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-0594451fd9",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-4ff036a4ff",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-8276ae2289",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-mutants-aba776ad42",
+          "role": "wrong"
+        },
+        {
+          "finding_id": "ref-subset",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The edit reverses the check for valid order values, so lists and tuples now raise a TypeError while other values pass that check. This changes Ordinal behavior required to support the stated integration need.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 32,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 5,
+            "killed": 0,
+            "tried": 5,
+            "unscored": 0
+          },
+          "reason": "0 killed, 5 survived of 5 one-edit mutants",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 68047,
+        "member": "mimo-v6-m3-20261017/tasks/1f9db2d6bc88d06dec50/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:c1cfaf2723275e0b119cba499e760e61efd063b0b0c568f7312b12f5bfc8ffd2",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000371/f0ac39495232",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-000371",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1542,
+          "member": "mimo-v6-m3-20261017/findings/77dc695a66dba4a748321bf8c07969652e703a2c28869756e55e347b30459840.json",
+          "sha256": "sha256:9488f95ffe602e636dd8a41fb12815c04d920e3c508bf8a9d50ff60eb7674ec0"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 2067,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-000371/ref-mutants-0594451fd9.patch",
+          "sha256": "sha256:59d0c32dfdc4f1785ad4304f08867844378677d861eb2ee66e801ab80ff9c11d"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-mutants-0594451fd9",
+        "original_source_pointer": "/verified_reproducers/4",
+        "package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-000371/ref-mutants-0594451fd9.patch",
+        "reason": "The edit reverses the check for valid order values, so lists and tuples now raise a TypeError while other values pass that check. This changes Ordinal behavior required to support the stated integration need.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:f0ac394952325264641b5bd1944463665bc064441f18d93d5ba7801f6215b0a1",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "The ability to use a non-instantiated Ordinal logical type is needed/preferred for the Featuretools integration.",
+        "severity": "high",
+        "sha256": "sha256:59d0c32dfdc4f1785ad4304f08867844378677d861eb2ee66e801ab80ff9c11d",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/4"
+      }
+    },
+    {
+      "adjudication_corrections": [],
+      "candidate_roles": [
+        {
+          "finding_id": "ref-subset",
+          "role": "wrong"
+        }
+      ],
+      "decision": {
+        "measurement": "measured",
+        "measurement_basis": "recorded_wrong_witness",
+        "stage": "S3.wrong-witness",
+        "summary": "Source-derived supported weak finding: The retained subset keeps only the output-spec scalar conversion and drops keras/src/backend/torch/numpy.py scalar-to-tuple conversion. That omits the Torch backend fix for the prompt's documented scalar-integer keras.ops.tile(tensor, n) failure. The original fresh replay accepted the incomplete patch at reward 1.0; sealed candidate reconciliation retains it as wrong.",
+        "verdict": "fail"
+      },
+      "expected_verdict": "fail",
+      "ordinal": 33,
+      "original_controls": {
+        "nop": {
+          "reported_slots": 3,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        },
+        "oracle": {
+          "reported_slots": 3,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "statuses": [
+            "measured",
+            "measured",
+            "measured"
+          ],
+          "unique_job_path_count": 1,
+          "verdicts": [
+            "pass",
+            "pass",
+            "pass"
+          ]
+        }
+      },
+      "original_package": {
+        "digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65"
+      },
+      "original_probes": {
+        "fresh-replay": {
+          "reason": "fresh-container 3-control confirmation (shortcut==1, oracle==1, nop==0)",
+          "status": "measured",
+          "verdict": "fail"
+        },
+        "ref-mutants": {
+          "counts": {
+            "generated": 2,
+            "killed": 1,
+            "tried": 2,
+            "unscored": 0
+          },
+          "reason": "1 killed, 1 survived of 2 one-edit mutants",
+          "status": "measured",
+          "verdict": "pass"
+        },
+        "ref-subset": {
+          "reason": "measured",
+          "status": "measured",
+          "verdict": "fail"
+        }
+      },
+      "original_report": {
+        "archive": "mimo-v6-m3-20261017.tgz",
+        "bytes": 59122,
+        "member": "mimo-v6-m3-20261017/tasks/ea0c9461dc7de89be0b3/report.json",
+        "quality_complete": true,
+        "sha256": "sha256:c2905966d9de09396cb68a08f69c3dda8360611e472348d5a5787e36a98cf0c3",
+        "verdict": "fail"
+      },
+      "same_digest_reaudit": null,
+      "scored_package": {
+        "digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65",
+        "relationship": "original-frozen-v6"
+      },
+      "task_id": "mimo-v2.6-rl/format-code-task-001686",
+      "witness": {
+        "archive_finding": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 1305,
+          "member": "mimo-v6-m3-20261017/findings/752f6dec60ff7c18319b068999f70fe3b2258ee5b85079de4f4e9ca9922f1970.json",
+          "sha256": "sha256:07679f25378816e33247b8c8439cb1b6eabbf3079ca86bb07b73b5db0840bf46"
+        },
+        "archive_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 494,
+          "member": "mimo-v6-m3-20261017/exported_reproducers/format-code-task-001686/ref-subset.patch",
+          "sha256": "sha256:3a423a662a574d4250f50fde6ddcf1181cf8d42d039687f587dcaa80b9e96341"
+        },
+        "dropped_patch": {
+          "archive": "mimo-v6-m3-20261017.tgz",
+          "bytes": 472,
+          "member": "mimo-v6-m3-20261017/tasks/ea0c9461dc7de89be0b3/ref_subset/dropped.patch",
+          "sha256": "sha256:2836978cabbc796bf0e7150528b1b0d14780412526c8d8b57d7b94bd06f0cf15"
+        },
+        "expected_reward": 1.0,
+        "id": "ref-subset",
+        "original_source_pointer": "/verified_reproducers/19",
+        "package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+        "path": "/Users/petermakhnatch/Developer/lab-extras/data/qa-task-runs/reproducers-v7-all/format-code-task-001686/ref-subset.patch",
+        "prompt_binding": {
+          "bytes": 577,
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001686/4e051deaff65/instruction.md",
+          "sha256": "sha256:065decf706dc468f9dd5f8ba70877429b1144cadb824271f6842ce2f42e9fc9c"
+        },
+        "reason": "The retained subset keeps only the output-spec scalar conversion and drops keras/src/backend/torch/numpy.py scalar-to-tuple conversion. That omits the Torch backend fix for the prompt's documented scalar-integer keras.ops.tile(tensor, n) failure. The original fresh replay accepted the incomplete patch at reward 1.0; sealed candidate reconciliation retains it as wrong.",
+        "recorded_replay": {
+          "nop_ok": true,
+          "oracle_ok": true,
+          "package_digest": "sha256:4e051deaff650784c1a66974f61f2fbdafb39cd1ac121ca673c3ccea4fd0dfdf",
+          "reward": 1.0,
+          "verified": true
+        },
+        "requirement": "Keras 3 Torch backend must accept keras.ops.tile(tensor, n) with scalar integer n; instruction.md:3-11.",
+        "severity": "high",
+        "sha256": "sha256:3a423a662a574d4250f50fde6ddcf1181cf8d42d039687f587dcaa80b9e96341",
+        "source": "extra",
+        "source_pointer": "/m3_22_verified_reproducers_durable_paths/19"
+      }
+    }
+  ],
+  "v7_diagnostics": {
+    "candidate_inventory": [
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-460857c212",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:a7b0d467b0ffb8126fd8272ca60c3b8372b76b147be43dd57802531623e1b8e3",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000143"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-902c407027",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:4687eda8474dc908a5d11dae729eec6f8118713b892ae2facf43e20bacb3bdee",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000149"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-01ac60abd4",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-0594451fd9",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-4ff036a4ff",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-8276ae2289",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-aba776ad42",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-3ebd1da863",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000657"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-80c23b9c42",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000657"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-dc29111598",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000657"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000657"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-9b3411fbf7",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:df676d2dcc4264849472c75036548877d4d6d9206fce0d707250f7ea6a13fa05",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000783"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-d3518ecd0d",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:df676d2dcc4264849472c75036548877d4d6d9206fce0d707250f7ea6a13fa05",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000783"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-0b9f06d786",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:7dbf29fce7a0f23296ab3cff5c205e0260648c3a49bff6d7695e66f421175d83",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000878"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-b501746f48",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:7dbf29fce7a0f23296ab3cff5c205e0260648c3a49bff6d7695e66f421175d83",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-000878"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-54c499b73f",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:22779fd4cde78c475722070594158e7b39d6ffe6e049b7d84dff476b5296d740",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001425"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001686"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-mutants-d0e158609c",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified",
+        "selected_manifest_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001948"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-ed663141be",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001948"
+      },
+      {
+        "authoritative_role": "unspecified",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:aaffb9ae35c891cc2fec4ab67f5e0c5295cebb6b5205129ae66b46f6504fbfe7",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-002371"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-e97f83ae41",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:182be31d763ddd8607c64818e3660b0b6ca5e994079d4518e82ccde7bd4b1ddb",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-002451"
+      },
+      {
+        "authoritative_role": "wrong",
+        "finding_id": "ref-mutants-168f29a29b",
+        "s3_shortcut_reward_on_selected_package": 0.0,
+        "s3_status_on_selected_package": "refuted",
+        "selected_manifest_package_digest": "sha256:75e925407cbfc32bb6715348de523694edafc2033bf2e28cb33958693a49198d",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-002915"
+      },
+      {
+        "authoritative_role": "unspecified",
+        "finding_id": "ref-mutants-5716a823be",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified",
+        "selected_manifest_package_digest": "sha256:75e925407cbfc32bb6715348de523694edafc2033bf2e28cb33958693a49198d",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-002915"
+      },
+      {
+        "authoritative_role": "unspecified",
+        "finding_id": "ref-mutants-ec5eb27b2e",
+        "s3_shortcut_reward_on_selected_package": null,
+        "s3_status_on_selected_package": "parent_custodied_unspecified_not_reexecuted_on_v7",
+        "selected_manifest_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001948"
+      },
+      {
+        "authoritative_role": "unspecified",
+        "finding_id": "ref-mutants-1e9a751af8",
+        "s3_shortcut_reward_on_selected_package": null,
+        "s3_status_on_selected_package": "parent_custodied_unspecified_not_reexecuted_on_v7",
+        "selected_manifest_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+        "selected_manifest_selection": "semantic-repair",
+        "task_id": "mimo-v2.6-rl/format-code-task-001948"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-mutants-3e58e1f99b",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:b3cda310bff1c4f1c6d51a1187df77c9dbd8257fa47e4a22772187dac3746a46",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-000161"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-000905"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-mutants-323865e88f",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-001246"
+      },
+      {
+        "authoritative_role": "unspecified",
+        "finding_id": "ref-subset",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-002092"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-mutants-3ed8480a0f",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-002335"
+      },
+      {
+        "authoritative_role": "equivalent",
+        "finding_id": "ref-mutants-732d917ff9",
+        "s3_shortcut_reward_on_selected_package": 1.0,
+        "s3_status_on_selected_package": "verified_preserved_on_selected_unchanged_v6",
+        "selected_manifest_package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+        "selected_manifest_selection": "unchanged-v6",
+        "task_id": "mimo-v2.6-rl/format-code-task-002335"
+      }
+    ],
+    "final_manifest_scientific_pass": false,
+    "limit": "21/21 wrong grades0 and6/6 equivalent QA replays1 are exact selected-historical-digest diagnostics. Original weak labels are never scored against semantic-repair packages; replacement sidecars do not promote c5de2064 to a scientific release.",
+    "reconciliation": {
+      "v7_030_controls_reconciliation": "Rebound against refreshed heldout-v7.json (sha256:c5de206438d3e103aec4d8266d3cbe881ff5e03a96eb8dcac29047f80105d200), where all 12 repaired v7 packages and all 21 unchanged v6 packages match evaluation_target.package_digest (33/33). QA Task report slots oracle-1/2/3 and nop-1/2/3 alias 1 physical session per role; physical 3x RepeatVerifier triplet controls (24 native trials / 72 physical grader runs) are bound in repairs-v7.json and heldout-v7.json.",
+      "v7_031_reproducer_reconciliation": "Separates the 21 genuinely wrong reproducers (21/21 refuted at reward=0.0 on the exact selected v7 packages) from 002371/ref-subset (unspecified under V7-016/V7-019; reward=0.0 on aaffb9ae35c8, not counted as a genuinely wrong reproducer). Binds all 32 parent-inventory candidates (21 wrong + 6 equivalent + 5 unspecified) to the exact selected heldout-v7.json (c5de2064...) packages, and preserves the 5 supplemental candidate-package replays from v7-repairs-audit-15 separately without transferring their outcomes across grader digests."
+    },
+    "replacement_candidates": {
+      "packages": [
+        {
+          "all_wrong_reproducers_refuted": true,
+          "previous_selected_v7_package_digest": "sha256:df676d2dcc4264849472c75036548877d4d6d9206fce0d707250f7ea6a13fa05",
+          "quality_complete": true,
+          "replacement_package_digest": "sha256:bb1da511153da13ae9d7b16743c59737cd2435a1ee4d4d100a08bcb65392887b",
+          "task_id": "mimo-v2.6-rl/format-code-task-000783",
+          "verifier_correct_alternate_preserved": true
+        },
+        {
+          "all_wrong_reproducers_refuted": true,
+          "previous_selected_v7_package_digest": "sha256:cc1349da3c954280e30d8070e45049f92cb9ed190fef6b5fb4a651c59280e548",
+          "quality_complete": true,
+          "replacement_package_digest": "sha256:eaefb3cc164b09381ad5d85f76d396187114fb5eb71daa369d8fcb51db5c90d6",
+          "task_id": "mimo-v2.6-rl/format-code-task-000371",
+          "verifier_correct_alternate_preserved": true
+        },
+        {
+          "all_wrong_reproducers_refuted": true,
+          "previous_selected_v7_package_digest": "sha256:da34eb301f58347494e0a16a2ff178873b7024999e781792d074741f0960dd1f",
+          "quality_complete": true,
+          "replacement_package_digest": "sha256:302936515e852ffc3d0c7f9da2b4995d9fd6382c4d7a519f717448704a0c69ca",
+          "task_id": "mimo-v2.6-rl/format-code-task-000657",
+          "verifier_correct_alternate_preserved": null
+        }
+      ],
+      "scope": "Independent executed S0-S3 QA Task audit on all 3 of EnvCheck's prepared replacement packages: 000783/bb1da511153d (for Verifier V7-014), 000371/eaefb3cc164b (for Verifier V7-018), and 000657/302936515e85 (for Verifier V7-021 timing SOURCE HOLD, from envcheck-timing-controls-v7.json). Executed on local Docker (1 container via docker_slot); not a native Harbor Modal RepeatVerifier x3 qualification and does not modify canonical heldout-v7.json (c5de2064...) or the Verifier-sealed qa-task-v7-verification.json (3347cb81...).",
+      "source": "replacements",
+      "summary": {
+        "modal_repeat_verifier_3x_qualification_claimed": false,
+        "quality_complete": 3,
+        "replacement_packages_audited": 3,
+        "s0_leak_pass": 3,
+        "s0_single_session_nop_pass": 3,
+        "s0_single_session_oracle_pass": 3,
+        "s2b_ref_mutants_pass": 3,
+        "s2b_ref_subset_pass": 3,
+        "scoring_allowed": false,
+        "surviving_wrong_reproducers": 0,
+        "verifier_correct_alternates_preserved_at_1_0": 2,
+        "verifier_correct_alternates_tested": 2,
+        "wrong_reproducers_refuted_at_0_0": 12,
+        "wrong_reproducers_tested": 12
+      }
+    },
+    "scoring_allowed": false,
+    "selected_historical_manifest": {
+      "counts": {
+        "heldout": 33,
+        "heldout_training_overlap": 0,
+        "selected_semantic_repairs": 12,
+        "selected_setup_only": 0,
+        "selected_unchanged_v6": 21,
+        "training_exposure_unique_tasks": 42
+      },
+      "freeze_ready": false,
+      "path": "/Users/petermakhnatch/Developer/research-context/bridge/2026-10-17-v7/heldout-v7.json",
+      "pending_gates": [
+        "semantic_repairs",
+        "native_reference_1_1_1_and_nop_0_0_0_on_each_selected_digest",
+        "all_adjudicated_wrong_reproducer_outcomes_zero",
+        "no_rejected_adjudicated_correct_case",
+        "independent_verifier_pass"
+      ],
+      "previous_candidate_bytes": 2527724,
+      "previous_candidate_sha256": "sha256:a2decb639affc056c8676ecf9028b10b605c0923b9dcf58f3c573f4a3070c00d",
+      "scoring_allowed": false,
+      "selected_manifest_digest_matches_qa_audited_packages": 33,
+      "sha256": "sha256:c5de206438d3e103aec4d8266d3cbe881ff5e03a96eb8dcac29047f80105d200"
+    },
+    "summary": {
+      "001948_equivalent_positive_control_d0e158609c_accepted_on_selected_v7": true,
+      "all_12_repairs_ref_subset_pass": true,
+      "all_33_s0_leak_pass": true,
+      "equivalent_controls_preserved_on_selected_manifest": 6,
+      "final_manifest_scientific_pass": false,
+      "genuinely_wrong_reproducers_replayed_on_selected_v7": 21,
+      "native_repeat_verifier_triplet_physical_runs": 72,
+      "native_repeat_verifier_triplet_repaired_packages": 12,
+      "open_scientific_holds": [
+        "V7-014 (000783 df676d2dcc42): Verifier-authored supported-tokenizer alternate scores v6=1.0, v7=0.0 (correct-submission preservation HOLD).",
+        "V7-018 (000371 cc1349da3c95): Verifier-authored constructor-preserving alternate scores v6=1.0, v7=0.0 (correct-submission preservation HOLD).",
+        "V7-021 (000657 da34eb301f58): Static 1-second deadline timing sensitivity in added retry tests (SOURCE HOLD).",
+        "V7-016 / V7-019 (002371 aaffb9ae35c8): Recorded ref-subset candidate is unspecified under public issue #2718, not a certified genuinely-wrong reproducer."
+      ],
+      "parent_inventory_role_counts": {
+        "equivalent": 6,
+        "genuinely_wrong": 21,
+        "unspecified": 5
+      },
+      "parent_inventory_total_candidates": 32,
+      "qa_s0_single_session_nop_pass": 33,
+      "qa_s0_single_session_oracle_pass": 33,
+      "quality_complete_tasks": 33,
+      "repaired_v7_packages_audited": 12,
+      "scoring_allowed": false,
+      "selected_manifest_digest_matches": 33,
+      "selected_manifest_sha256": "sha256:c5de206438d3e103aec4d8266d3cbe881ff5e03a96eb8dcac29047f80105d200",
+      "surviving_genuinely_wrong_reproducers_on_selected_v7": 0,
+      "total_heldout_tasks": 33,
+      "unchanged_v6_packages_audited": 21,
+      "unspecified_002371_ref_subset_reward_on_selected_v7": 0.0,
+      "unspecified_002915_5716a823be_reward_on_selected_v7": 1.0,
+      "unspecified_reproducers_replayed_on_selected_v7": 2
+    }
+  }
+}

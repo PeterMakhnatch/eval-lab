@@ -197,6 +197,25 @@ def test_unmeasured_items_are_never_passes_or_misses() -> None:
     assert "unmeasured" in row.notes
 
 
+def test_unknown_labels_are_measured_without_becoming_clean_negatives() -> None:
+    items = [
+        _item("known-hit"),
+        _item("known-miss"),
+        _item("unknown-flagged", verdict="unknown", category=None),
+        _item("unknown-unflagged", verdict="unknown", category=None),
+    ]
+    findings = [
+        _finding("known-hit"),
+        _finding("known-miss", verdict="pass"),
+        _finding("unknown-flagged"),
+        _finding("unknown-unflagged", verdict="pass"),
+    ]
+    row = _row(score_findings(_key(items), findings, scored_at="t"))
+    assert row.n_measured == 4
+    assert row.recall == 0.5
+    assert row.false_alarm_rate is None
+
+
 def test_pair_needs_both_sides_measured() -> None:
     items = [
         _item("child", kind="trace", trial_id="c", category="reward_hacking"),

@@ -24,7 +24,7 @@ line is `json.dumps(item, sort_keys=True)`.
 {"schema": "qa.answer_key/v1", "key_id": "<key_id>", "item_id": "<task_id>",
  "subject": {"kind": "task", "task_id": "<task.toml [task].name if present else <benchmark>/<dir name>>", "task_digest": "<sha256:...>"},
  "package": {"pin": "<version/commit label>", "name": "<task dir name>", "root_hint": "<~-relative path of the tasks/ dir>"},
- "expected_verdict": "fail" | "pass",
+ "expected_verdict": "fail" | "pass" | "unknown",
  "expected_category": "<primary category or null>",
  "expected_categories": ["..."],
  "root_cause": [{"id": "<source finding/defect id>", "category": "...", "summary": "<one line>", "source_class": "<raw class/type from source>"}],
@@ -41,6 +41,11 @@ code in the verifier trust domain), `weak` (verifier accepts wrong work:
 insufficient checking, loopholes), `prompt_misaligned` (instruction and
 tests disagree / underspecified). Negatives have `expected_verdict: "pass"`,
 `expected_category: null`, `expected_categories: []`, `root_cause: []`.
+
+`expected_verdict: "unknown"` preserves an observed task without asserting that
+it is clean or defective. A measured finding on it contributes to coverage, but
+not to the shared scorer's recall or false-alarm denominators. Source-derived
+audits must not convert "no supported defect established" into a clean negative.
 
 ## Task-audit scoring (`evallab qa task-score`)
 
@@ -149,3 +154,13 @@ run `uv run python research/answer-keys/splits/guard.py`.
   - Selection is source-derived and circular for the selecting tool; existing
     split assignments and the historical v1 key are preserved.
   - See `mimo-weak-tests-v2/README.md` and its deterministic `summary.json`.
+- `mimo-heldout-v6-to-v7`: retrospective audit of the frozen 33 MiMo evaluation
+  task IDs, with original-audit package bindings and selected-v7 replay
+  diagnostics kept separate. Supported semantic weaknesses, unresolved claims,
+  equivalent submissions, and incomplete scientific qualification are distinct;
+  the key does not release v7 scoring.
+- `mimo-stratified-sample100`: seeded, language-stratified sample from the
+  previously measured non-held-out MiMo probe pool. The strict weak-test
+  fraction and historical atlas agreement are descriptive source
+  reconciliation, not an independent detector benchmark or an unbiased estimate
+  over all MiMo tasks. Nonpositive atlas entries remain unknown, not clean.

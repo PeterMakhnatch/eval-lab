@@ -432,7 +432,7 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False, task:
         controls.append(
             {
                 "grader_identity": grader.identity_json,
-                "engine": "qa-trace-counterfactual/3",
+                "engine": cf.ENGINE_VERSION,
                 "reference_sha256": hashlib.sha256(reference.encode()).hexdigest(),
                 "nop": 0.0,
                 "reference": 1.0,
@@ -444,7 +444,7 @@ def qualified_case(tmp_path: Path, monkeypatch, *, composed: bool = False, task:
         observations.append(
             {
                 **native_rows["source"],
-                "engine": "qa-trace-counterfactual/3",
+                "engine": cf.ENGINE_VERSION,
                 "execution_id": source.key[1],
                 "source_digest": cf.source_digest(trial),
                 "grader_source": grader.to_json(),

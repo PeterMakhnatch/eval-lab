@@ -157,10 +157,26 @@ Frozen wrappers marked `RUNNER=custom` can supply Python case evidence when the
 resolved command directly invokes `python -m nose` or `python -m unittest`.
 Admission also requires a completed, positive `Ran ... tests` summary and a named
 non-loader case outcome or failure diagnostic. Interleaved application logs do
-not erase a named `FAIL`/`ERROR` report. Bare exit codes or markers, zero-case or
-all-skipped runs, truncated summaries and loader-only import failures remain
-unmeasured. This recognizes execution; native identity, reward and exception
-gates still apply, and semantic correctness is not inferred.
+not erase a named `FAIL`/`ERROR` report.
+
+The census also recognizes explicit Django `python manage.py test` invocations
+(including `pipenv run python manage.py test`) and Twisted `trial` /
+`python -m twisted.trial` invocations. Each output must have its own adjacent
+resolved-command record; commands in another repeat do not establish provenance.
+Django requires a named non-loader test and its `ok`/`FAIL`/`ERROR` outcome, even
+when application logging separates them, followed by a positive counted
+`Ran ... tests` and completed `OK`/`FAILED` suite. Twisted requires a named test
+method under a non-loader class in its tree report, an `[OK]`/`[FAIL]`/`[ERROR]`
+outcome, and a positive counted `Ran ... tests` with a counted `PASSED`/`FAILED`
+completion. A nonfatal Python site startup warning does not erase those completed
+cases.
+
+Generic custom commands, bare exit codes or markers, arbitrary status words or
+file counts, zero-case or all-skipped runs, truncated or merely started suites,
+and loader-only import failures remain unmeasured. Pytest's zero-case collection
+errors remain excluded. This recognizes execution; native identity, complete-pair,
+reward, stability and exception gates still apply, and semantic correctness is
+not inferred.
 
 Native execution UUIDs deduplicate copied evidence only when every normalized
 qualification fact agrees; conflicting copies refuse.

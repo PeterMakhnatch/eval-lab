@@ -777,7 +777,7 @@ def build_command_wrapper(
     new_command: str,
     *,
     workdir: str,
-    interpreter: str = "/opt/test_venv/bin/python3",
+    interpreter: str | None = "/opt/test_venv/bin/python3",
 ) -> str:
     """Original command verbatim, then the new tests; original status kept.
 
@@ -786,20 +786,27 @@ def build_command_wrapper(
     new-test run exits 1, otherwise the original status is returned exactly.
     Bare ``python`` / ``python3`` in the new command use the task venv when
     that interpreter exists. The check runs in the grader, not on the host.
+    ``None`` reproduces historical wrappers without interpreter preference;
+    it does not change original-command or failure propagation.
     """
     base = original if original.endswith("\n") else original + "\n"
-    quoted = shlex.quote(interpreter)
-    bin_dir = shlex.quote(str(Path(interpreter).parent))
+    python_preference = ""
+    if interpreter is not None:
+        quoted = shlex.quote(interpreter)
+        bin_dir = shlex.quote(str(Path(interpreter).parent))
+        python_preference = (
+            f"if [ -x {quoted} ]; then\n"
+            f"  PATH={bin_dir}:$PATH\n"
+            "  export PATH\n"
+            f'  python() {{ {quoted} "$@"; }}\n'
+            f'  python3() {{ {quoted} "$@"; }}\n'
+            "fi\n"
+        )
     return (
         f"(\n{base})\n"
         "REPAIR_RC=$?\n"
         f"cd {shlex.quote(workdir)} || exit 1\n"
-        f"if [ -x {quoted} ]; then\n"
-        f"  PATH={bin_dir}:$PATH\n"
-        "  export PATH\n"
-        f'  python() {{ {quoted} "$@"; }}\n'
-        f'  python3() {{ {quoted} "$@"; }}\n'
-        "fi\n"
+        f"{python_preference}"
         f"{new_command}\n"
         "REPAIR_NEW_RC=$?\n"
         'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'

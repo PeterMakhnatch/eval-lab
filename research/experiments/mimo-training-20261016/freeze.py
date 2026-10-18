@@ -1062,12 +1062,17 @@ def _successor_repair(task_id: str, parent: dict[str, Any], row: dict[str, Any],
     elif lineage["records_newest_first"][1:] != parent["lineage"]["records_newest_first"]:
         raise ValueError("semantic repair does not extend the full exact-parent grader lineage")
     original_patch = (before / "tests/test.patch").read_bytes()
-    expected_command = build_command_wrapper(
-        (before / "tests/test_command.sh").read_text(), record.inputs["command"].strip(), workdir=read_task_workdir(before),
+    original_command = (before / "tests/test_command.sh").read_text()
+    command, workdir = record.inputs["command"].strip(), read_task_workdir(before)
+    actual_command = (after / "tests/test_command.sh").read_bytes()
+    command_preserved = actual_command == build_command_wrapper(
+        original_command, command, workdir=workdir,
+    ).encode() or actual_command == build_command_wrapper(
+        original_command, command, workdir=workdir, interpreter=None,
     ).encode()
     if (not (after / "tests/test.patch").read_bytes().startswith(original_patch)
             or (after / "tests/test.patch").read_bytes() == original_patch
-            or (after / "tests/test_command.sh").read_bytes() != expected_command):
+            or not command_preserved):
         raise ValueError("semantic repair removed original test bytes or bypassed the original test command")
     with tempfile.TemporaryDirectory(prefix="mimo-v7-repair-replay-") as scratch:
         replay = materialize(record, before, repo_root=repo_root, variants_root=Path(scratch))

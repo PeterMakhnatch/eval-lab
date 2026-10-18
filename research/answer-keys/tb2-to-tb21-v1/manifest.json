@@ -5,6 +5,8 @@
  "items_sha256": "sha256:76c4e615f3d19ad3ec198d7011de3a60e75c2a70061e4d94d632a749c2ff5d21",
  "key_id": "tb2-to-tb21-v1",
  "modified_tasks": 26,
+ "pairs": 52,
+ "pairs_sha256": "sha256:4b68f6a9d007e21f1a9e9fda3a6ca5878ddbe7489d5837422787aef9efcc3511",
  "source": "research/experiments/breaker-rediscovery-v1/tb2-diff.json",
  "tasks": 52
 }

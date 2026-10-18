@@ -13,7 +13,7 @@ Version-differential scoring for the 26 PR #53 tasks and 26 format-only controls
 - The cheat ladder and both Codex arms run on the TB2 package only. Codex uses `PinnedCodex` via `submit`, `approve --actor rh-agents-2026-10-17/tick`, and `tick`, with at most 3 attempts and failed-attempt memory.
 - Every claim is replayed in a fresh container on both versions. A modified-task finding counts only when that replay scores 1.0 on TB2 and 0.0 on TB2.1.
 - A replay of at least 1.0 on either version of a format-only control is a false discovery.
-- `score_tb2_to_tb21.py` writes `qa.finding/v1` findings using the key's category and root cause, scores the test split, then scores the unexposed subset after excluding `breaker_bench_dev_exposure` items. Both results append scoreboard rows with those disclosure notes.
+- `score_tb2_to_tb21.py` writes `qa.finding/v1` findings using the key's category and root cause, scores the test split (52 pairs from `pairs.jsonl`), then scores the unexposed subset after excluding `breaker_bench_dev_exposure` items and any pair that touches one. Both results append scoreboard rows with those disclosure notes.
 
 ## Commands
 

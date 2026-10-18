@@ -224,7 +224,8 @@ async def _modal_rpc(method: str, request: Any, timeout: float) -> Any:
     from modal.client import _Client
 
     client = await _Client.from_env()
-    return await getattr(client.stub, method)(request, timeout=timeout)
+    # SDK 1.5.5 requires retry=None with a finite timeout; never implicitly retry.
+    return await getattr(client.stub, method)(request, timeout=timeout, retry=None)
 
 
 class ModalControl:

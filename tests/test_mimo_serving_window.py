@@ -135,3 +135,43 @@ def test_readiness_refuses_unarmed_guard_before_model_or_metadata_request(window
     with pytest.raises(ValueError, match="guard is armed"):
         window.probe(journal, binding=True, timeout=30)
     control.assert_not_called()
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_bounded_metadata_reaches_real_sdk_transport_once(window, monkeypatch, unavailable):
+    """Keep the real SDK's timeout/retry admission, replacing only the network."""
+    modal = pytest.importorskip("modal")
+    from grpclib import GRPCError, Status
+    from modal._grpc_client import UnaryUnaryWrapper
+    from modal.client import _Client
+    from modal_proto import api_pb2
+
+    calls = []
+
+    class Transport:
+        _snapshotted = False
+
+        async def _get_channel(self, server_url):
+            return object()
+
+        async def _call_unary(self, method, request, *, timeout, metadata):
+            calls.append((request.environment_name, timeout))
+            if unavailable:
+                raise GRPCError(Status.UNAVAILABLE, "fixture transport unavailable")
+            return api_pb2.AppListResponse(apps=[{"app_id": "ap-metadata", "name": window.APP_NAME}])
+
+    client = Transport()
+    client.stub = SimpleNamespace(AppList=UnaryUnaryWrapper(
+        SimpleNamespace(name="/modal.client.ModalClient/AppList"), client, "https://metadata.invalid"))
+
+    async def from_env(cls):
+        return client
+
+    monkeypatch.setattr(_Client, "from_env", classmethod(from_env))
+    control = window.ModalControl("main")
+    if unavailable:
+        with pytest.raises(modal.exception.ServiceError):
+            control.apps()
+    else:
+        assert [row.app_id for row in control.apps()] == ["ap-metadata"]
+    assert calls == [("main", 10)]

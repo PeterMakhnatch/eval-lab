@@ -1,0 +1,238 @@
+{
+  "atlas_strict_binary_agreement": {
+    "agreement": 99,
+    "both_nonpositive": 76,
+    "both_positive": 23,
+    "meaning": "Frozen original-handoff reconciliation; nonpositive does not mean clean.",
+    "rate": 1.0,
+    "reviewed_overlap": 99
+  },
+  "by_language": {
+    "go": {
+      "confirmed_weak_strict_rate": {
+        "count": 3,
+        "n": 5,
+        "rate": 0.6,
+        "wilson_95_ci": [
+          0.2307,
+          0.8824
+        ]
+      },
+      "confirmed_weak_with_resolved_uncertain_rate": {
+        "count": 3,
+        "n": 5,
+        "rate": 0.6,
+        "wilson_95_ci": [
+          0.2307,
+          0.8824
+        ]
+      },
+      "n": 5,
+      "raw_s2b_candidate_rate": {
+        "count": 5,
+        "n": 5,
+        "rate": 1.0,
+        "wilson_95_ci": [
+          0.5655,
+          1.0
+        ]
+      }
+    },
+    "javascript": {
+      "confirmed_weak_strict_rate": {
+        "count": 3,
+        "n": 13,
+        "rate": 0.2308,
+        "wilson_95_ci": [
+          0.0818,
+          0.5026
+        ]
+      },
+      "confirmed_weak_with_resolved_uncertain_rate": {
+        "count": 3,
+        "n": 13,
+        "rate": 0.2308,
+        "wilson_95_ci": [
+          0.0818,
+          0.5026
+        ]
+      },
+      "n": 13,
+      "raw_s2b_candidate_rate": {
+        "count": 10,
+        "n": 13,
+        "rate": 0.7692,
+        "wilson_95_ci": [
+          0.4974,
+          0.9182
+        ]
+      }
+    },
+    "python": {
+      "confirmed_weak_strict_rate": {
+        "count": 15,
+        "n": 74,
+        "rate": 0.2027,
+        "wilson_95_ci": [
+          0.1269,
+          0.3079
+        ]
+      },
+      "confirmed_weak_with_resolved_uncertain_rate": {
+        "count": 17,
+        "n": 74,
+        "rate": 0.2297,
+        "wilson_95_ci": [
+          0.1487,
+          0.3375
+        ]
+      },
+      "n": 74,
+      "raw_s2b_candidate_rate": {
+        "count": 47,
+        "n": 74,
+        "rate": 0.6351,
+        "wilson_95_ci": [
+          0.5213,
+          0.7356
+        ]
+      }
+    },
+    "typescript": {
+      "confirmed_weak_strict_rate": {
+        "count": 3,
+        "n": 8,
+        "rate": 0.375,
+        "wilson_95_ci": [
+          0.1368,
+          0.6943
+        ]
+      },
+      "confirmed_weak_with_resolved_uncertain_rate": {
+        "count": 3,
+        "n": 8,
+        "rate": 0.375,
+        "wilson_95_ci": [
+          0.1368,
+          0.6943
+        ]
+      },
+      "n": 8,
+      "raw_s2b_candidate_rate": {
+        "count": 7,
+        "n": 8,
+        "rate": 0.875,
+        "wilson_95_ci": [
+          0.5291,
+          0.9776
+        ]
+      }
+    }
+  },
+  "confirmed_weak_strict_rate": {
+    "count": 24,
+    "n": 100,
+    "rate": 0.24,
+    "wilson_95_ci": [
+      0.1669,
+      0.3323
+    ]
+  },
+  "confirmed_weak_with_resolved_uncertain_rate": {
+    "count": 26,
+    "n": 100,
+    "rate": 0.26,
+    "wilson_95_ci": [
+      0.184,
+      0.3537
+    ]
+  },
+  "cost_accounting": {
+    "historical_actual_total_cost_usd": null,
+    "historical_modal_cap_usd": 2.0,
+    "historical_modal_reservation_usd": 1.8,
+    "historical_provider_model_cost_reconciled": false,
+    "historical_reserved_executions": 36,
+    "meaning": "Reviewer cost_usd=0 records no newly incurred publishing charge only; reservations are not actual full total cost.",
+    "new_publication_charge_usd": 0.0
+  },
+  "expected_verdict_counts": {
+    "fail": 23,
+    "pass": 0,
+    "unknown": 77
+  },
+  "finding_verdict_counts": {
+    "fail": 24,
+    "pass": 76
+  },
+  "historical_v6_s3_diagnostics": {
+    "bound_trial_archive_members": 274,
+    "by_environment": {
+      "docker": 3,
+      "modal": 6
+    },
+    "count": 9,
+    "not_additional_score_findings": true,
+    "reward_one": 9
+  },
+  "key_id": "mimo-stratified-sample100",
+  "n_items": 100,
+  "n_measured_decisions": 100,
+  "original_atlas_verdict_counts": {
+    "clean_pass": 31,
+    "confirmed_weak": 23,
+    "refuted_neutral_or_equivalent": 30,
+    "uncertain": 15,
+    "unreviewed_in_atlas": 1
+  },
+  "qa_task_verdict_counts": {
+    "clean_pass": 31,
+    "confirmed_weak": 24,
+    "confirmed_weak_from_uncertain": 2,
+    "refuted_neutral_or_equivalent": 43
+  },
+  "raw_s2b_candidate_rate": {
+    "count": 69,
+    "n": 100,
+    "rate": 0.69,
+    "wilson_95_ci": [
+      0.5937,
+      0.7722
+    ]
+  },
+  "release_gate": {
+    "final_manifest_scientific_pass": false,
+    "historical_selected_candidate_sha256": "sha256:c5de206438d3e103aec4d8266d3cbe881ff5e03a96eb8dcac29047f80105d200",
+    "meaning": "Historical context only: this source-derived raw-baseline reconciliation is not a v7 scientific release or admission certificate.",
+    "scoring_allowed": false
+  },
+  "source_handoff_sha256": "sha256:e0146b9068b7ef5146976efbdca1647034850e631ba4cfcdcf7eb570c1ba40ce",
+  "source_issues": [
+    "Every primary report measures raw_package_digest, not the different v6_package_digest. Both items and findings therefore bind the actual raw baseline; nine exact-v6 S3 replays remain separate diagnostics.",
+    "001244 was unreviewed in the original atlas handoff but is confirmed_weak in the current committed atlas. Its key label stays unknown; current supported witness custody is retained without retroactively changing the original key.",
+    "portable-witnesses-current.json and atlas-adjudicated-lines.json at their mutable source paths no longer match original handoff hashes. Original pins and current observed hashes are both retained; current bytes are not described as the original handoff bytes.",
+    "The original archive custody has cloud_spend_gate_member=null. The archive also contains cloud-spend.json, separately hashed here; it records the same historical reservation, not actual settled provider cost."
+  ],
+  "split_counts": {
+    "dev": 40,
+    "test": 60
+  },
+  "subject_digest_scope": {
+    "raw_primary_probe_packages": 100,
+    "v6_packages": 0
+  },
+  "suggested_scoreboard": {
+    "agent": "QA Task",
+    "notes": "Retrospective source-derived supported-positive reconciliation, not independent detector recall: 23/23 supported positives; 77 unknown key labels, no clean negatives, FPR n/a. Strict weak prevalence 24/100 (Wilson95 [0.1669,0.3323]); raw 69/100; sensitivity 26/100; frozen atlas strict binary agreement 99/99 (23 positive,76 nonpositive). Actual source probes bind 100 raw packages, not their v6 mappings; 9 historical exact-v6 S3 diagnostics (6 Modal,3 Docker) only. Sample eligible389 previously measured of frame534; same-source selection/adjudication bias. 001244 remains atlas-unknown despite later promotion. Reviewer cost zero means no new publishing charge; historical $1.80 reservations are not actual full total cost. Preserved test splits do not mean unseen; v7 scoring gate false.",
+    "split": "all",
+    "status": "source-derived supported-positive reconciliation; not independent detection",
+    "system": "qa-task/mimo-sample100-strict"
+  },
+  "supported_positive_reconciliation": {
+    "false_alarm_rate": null,
+    "meaning": "Supported-positive rediscovery only; no independent recall or clean-task FPR.",
+    "positive_key_items": 23,
+    "strict_flags_on_positive_key_items": 23,
+    "strict_flags_on_unknown_key_items": 1
+  }
+}

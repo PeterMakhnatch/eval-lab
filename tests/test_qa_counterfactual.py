@@ -73,6 +73,66 @@ def test_patch_script_applies_exactly_the_change_and_fails_on_the_wrong_base(
     assert target.read_text() == "new\n"
 
 
+def test_stored_patch_replay_preserves_mixed_line_endings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    subprocess.run(
+        ["git", "init", "--quiet", str(workspace)], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "core.autocrlf", "false"],
+        check=True,
+        capture_output=True,
+    )
+    target = workspace / "x.py"
+    target.write_bytes(b"old\n")
+    postimage = b"new\r\nstill LF\nlast\r\n"
+    patch = (
+        b"diff --git a/x.py b/x.py\n"
+        b"--- a/x.py\n+++ b/x.py\n@@ -1 +1,3 @@\n"
+        b"-old\n+new\r\n+still LF\n+last\r\n"
+    )
+    trial = _trial(tmp_path, diff=None)
+    stored = trial / "verifier/agent.diff"
+    stored.write_bytes(patch)
+    package = _package(tmp_path / "grader")
+    config = package / "task.toml"
+    config.write_text(config.read_text().replace('"/testbed"', json.dumps(str(workspace))))
+    grader = cf.Grader(TASK, cf.V6, cf._digest(package), package, "manifest.csv")
+
+    def execute(matrix, *, root):
+        applied = subprocess.run(
+            ["bash", str(root / matrix.runs[0].solution)], capture_output=True, text=True
+        )
+        assert applied.returncode == 0, applied.stderr
+        return SimpleNamespace(
+            results=[
+                {
+                    "status": "ok",
+                    "rewards": [float(target.read_bytes() == postimage)],
+                    "error": None,
+                }
+            ],
+            receipt_path=root / "receipt.json",
+        )
+
+    result = cf.replay(
+        trial,
+        grader,
+        tmp_path / "work",
+        repo_root=tmp_path,
+        matrix_runner=execute,
+    )
+    assert target.read_bytes() == postimage
+    assert result["outcome"] == "stays"
+    assert result["input_kind"] == "native_patch_replay"
+    assert stored.read_bytes() == patch
+
+
 @pytest.mark.parametrize(
     ("status", "rewards", "recorded", "outcome"),
     [

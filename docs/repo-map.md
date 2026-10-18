@@ -517,7 +517,7 @@ inputs:
   - path: src/evallab/qa/score.py
     digest: sha256:758ab9e81599ec489aa9d04db0feeb3d52609b7bfba0159d0950728356962bd8
   - path: src/evallab/qa/task.py
-    digest: sha256:926da11056d3a80525f34f17bea7201a71d4d58f0d5d3b22f70bb005f869bddf
+    digest: sha256:827501b7617aab0fe9e31c00ec563d46224fa87dee2d5796eb47b504d6ea99ee
   - path: src/evallab/qa/task_modal.py
     digest: sha256:3d5865174f749a07d8e45af24d174b1ba19d6bbe58adfb6afa6e2d0ccbdcf66b
   - path: src/evallab/qa/trace.py

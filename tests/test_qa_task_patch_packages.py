@@ -551,6 +551,8 @@ def test_mimo_v6_embedded_patch_extraction_and_probe_package_staging(
     try:
         staged_sh = (probe_pkg / "tests" / "test.sh").read_text(encoding="utf-8")
         assert "EOF_RESET_TEST_FILES" in staged_sh
+        assert "unset PIP_NO_CACHE_DIR" in staged_sh
+        assert "git clean -fd" not in staged_sh
         assert "tests/test_a.py" in staged_sh
         assert "pytest -q" in staged_sh
     finally:
@@ -582,3 +584,49 @@ def test_prebuilt_alexgshaw_image_uses_prebuilt_tag_instead_of_docker_build(
     assert any(
         c[:2] == ["docker", "run"] and "alexgshaw/qemu-startup:20251031" in c for c in fake.calls
     )
+
+
+def test_import_evidence_resolves_per_task_subdirectory(tmp_path: Path) -> None:
+    from evallab.qa.task import Finding, Refutation, Reproducer, Reviewer, Subject, import_evidence
+
+    subject = Subject(
+        kind="task",
+        task_id="mimo-v2.6-rl/format-code-task-000143",
+        task_digest="sha256:a7b0d467b0ff",
+    )
+    task_sub = tmp_path / "ev" / "format-code-task-000143"
+    task_sub.mkdir(parents=True)
+    other_sub = tmp_path / "ev" / "format-code-task-000149"
+    other_sub.mkdir(parents=True)
+
+    finding = Finding(
+        id="f1",
+        subject=subject,
+        stage="S2",
+        verdict="fail",
+        category="weak",
+        severity="high",
+        fault="eval",
+        evidence_refs=["patch"],
+        reproducer=Reproducer(kind="patch", path="/tmp/p.patch", expected_reward=1.0),
+        refutation=Refutation(status="verified", by="qa-task/S3", reason="old"),
+        reviewer=Reviewer(agent="qa-task"),
+    )
+    (task_sub / "f1.finding.json").write_text(finding.model_dump_json(indent=2), encoding="utf-8")
+    other_finding = finding.model_copy(
+        update={
+            "subject": Subject(
+                kind="task",
+                task_id="mimo-v2.6-rl/format-code-task-000149",
+                task_digest="sha256:4687eda8474d",
+            )
+        }
+    )
+    (other_sub / "f2.finding.json").write_text(
+        other_finding.model_dump_json(indent=2), encoding="utf-8"
+    )
+
+    loaded = import_evidence(tmp_path / "ev", subject)
+    assert len(loaded) == 1
+    assert loaded[0].subject == subject
+    assert loaded[0].refutation.status == "unverified"

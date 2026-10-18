@@ -52,6 +52,7 @@ from evallab.task_variants import harbor_task_digest, task_directory_digest
 WORKSPACE_SCHEMA = BUNDLE_SCHEMA
 MAX_FILE_BYTES = 256 * 1024
 MAX_TREE_BYTES = 4 * 1024 * 1024
+MAX_TRACE_EVIDENCE_BYTES = 24_000
 MIMO_STORE = "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6"
 
 
@@ -480,7 +481,7 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
         return None, f"snapshot unavailable: {type(exc).__name__}: {exc}"
 
 
-def recover_file_changes(trial_dir: Path, steps: list[dict[str, Any]]) -> FileChanges:
+def recover_file_changes(trial_dir: Path) -> FileChanges:
     """Recover the fullest retained change evidence, never equating writes with a diff."""
     kept = _nonempty(trial_dir / "verifier/agent.kept.diff")
     for rel in ("verifier/agent.full.diff", "verifier/agent.diff", "verifier/agent.kept.diff"):
@@ -511,19 +512,6 @@ def recover_file_changes(trial_dir: Path, steps: list[dict[str, Any]]) -> FileCh
             )
         return FileChanges(
             "\n".join(lines) + "\n", "state-journal/state-diff.json (change list)", kept
-        )
-    from evallab.tripwires import extract_content_files
-
-    writes = extract_content_files(steps)
-    if writes:
-        chunks = []
-        for path, content in writes:
-            body = "".join(f"+{line}\n" for line in content.splitlines())
-            chunks.append(f"--- /dev/null\n+++ b/{path}\n{body}")
-        return FileChanges(
-            "".join(chunks),
-            "reconstructed from trajectory writes (not a workspace snapshot)",
-            kept,
         )
     return FileChanges(None, "missing" + (" (" + "; ".join(reasons) + ")" if reasons else ""), kept)
 
@@ -653,6 +641,162 @@ def trajectory_summary(steps: list[dict[str, Any]], *, agent_logs: dict[str, str
                         f"{_one_line(attack.get('status', '?'))}; {_one_line(attack.get('detail', ''))}"
                     )
     return "\n".join(lines) + "\n"
+
+
+def trace_evidence(
+    steps: list[dict[str, Any]], *, max_bytes: int = MAX_TRACE_EVIDENCE_BYTES
+) -> dict[str, Any]:
+    """Bounded observations from already-blinded ATIF, never a recovered final state.
+
+    Keep chronology and source references, including delayed results and later undo
+    actions. Content-independent head/tail selection is explicit when the full
+    event stream cannot fit. Unknown/reused call ids are not guessed from position.
+    """
+    if max_bytes < 2048:
+        raise ValueError("trace evidence requires at least 2048 bytes")
+    calls: dict[str, list[tuple[int, str]]] = {}
+    for index, step in enumerate(steps):
+        for number, call in enumerate(step.get("tool_calls") or []):
+            identity = str(call.get("tool_call_id") or "")
+            if not identity or identity == "unknown":
+                continue
+            if call.get("function_name") == "unknown_tool" and not call.get("arguments"):
+                continue  # Import placeholders are not the originating command.
+            ref = f"trajectory.json#/steps/{index}/tool_calls/{number}"
+            calls.setdefault(identity, []).append((index, ref))
+
+    events: list[dict[str, Any]] = []
+    last_message: int | None = None
+    for index, step in enumerate(steps):
+        base = {"step_id": step.get("step_id")}
+        ref = f"trajectory.json#/steps/{index}"
+        message = _text(step.get("message"))
+        if step.get("source") == "agent" and message and message != "(tool calls only)":
+            last_message = len(events)
+            events.append(
+                {**base, "kind": "agent_message", "source_ref": ref + "/message", "text": message}
+            )
+        for number, call in enumerate(step.get("tool_calls") or []):
+            arguments = call.get("arguments")
+            events.append(
+                {
+                    **base,
+                    "kind": "tool_call",
+                    "source_ref": f"{ref}/tool_calls/{number}",
+                    "call_id": str(call.get("tool_call_id") or "")[:120] or None,
+                    "tool": str(call.get("function_name") or "")[:120],
+                    "text": arguments if isinstance(arguments, str) else _canonical(arguments),
+                }
+            )
+        for number, result in enumerate((step.get("observation") or {}).get("results") or []):
+            identity = str(result.get("source_call_id") or "")
+            matches = calls.get(identity, [])
+            unique = len(matches) == 1 and matches[0][0] <= index
+            events.append(
+                {
+                    **base,
+                    "kind": "tool_result",
+                    "source_ref": f"{ref}/observation/results/{number}",
+                    "call_id": identity[:120] or None,
+                    "call_ref": matches[0][1] if unique else None,
+                    "call_link": "unique_id"
+                    if unique
+                    else "ambiguous_id"
+                    if matches
+                    else "unlinked",
+                    "reported": {
+                        key: result[key]
+                        for key in ("is_error", "exit_code", "returncode")
+                        if isinstance(result.get(key), bool | int)
+                    },
+                    "text": _text(result.get("content")),
+                    "error": _text(result.get("error")),
+                }
+            )
+    if last_message is not None:
+        events[last_message]["last_agent_message"] = True
+
+    def excerpt(event: dict[str, Any], limit: int) -> dict[str, Any]:
+        projected = dict(event)
+        omitted = 0
+        for key in ("text", "error"):
+            text = event.get(key, "")
+            if len(text) > limit:
+                kept = max(2, limit - 64)
+                head = kept // 2
+                count = len(text) - kept
+                projected[key] = (
+                    text[:head]
+                    + f"\n...[{count} chars omitted; inspect source]...\n"
+                    + text[-(kept - head) :]
+                )
+                omitted += count
+        projected["omitted_chars"] = omitted
+        return projected
+
+    def payload(selected: list[dict[str, Any]]) -> dict[str, Any]:
+        truncated = sum(event["omitted_chars"] > 0 for event in selected)
+        return {
+            "schema": "qa.trace_evidence/v1",
+            "source": "trajectory.json",
+            "max_bytes": max_bytes,
+            "coverage": {
+                "source_steps": len(steps),
+                "total_events": len(events),
+                "shown_events": len(selected),
+                "omitted_events": len(events) - len(selected),
+                "truncated_events": truncated,
+                "complete": len(selected) == len(events) and not truncated,
+            },
+            "last_agent_message_ref": events[last_message]["source_ref"]
+            if last_message is not None
+            else None,
+            "limitations": [
+                "Observed calls, results and agent statements only; not a final workspace snapshot.",
+                "A command, echoed terminal input or completion claim alone does not prove its effect.",
+                "Check later failures, overwrites and reverts before inferring submitted contribution.",
+                "Omitted/truncated evidence is unknown, not evidence that an attempt was unused.",
+                "Source refs use blind trajectory indices; step_id is the workspace citation identity.",
+            ],
+            "events": selected,
+        }
+
+    limit = 2000
+    while True:
+        projected = [excerpt(event, limit) for event in events]
+        full = payload(projected)
+        if len(_json_bytes(full)) <= max_bytes:
+            return full
+        if limit == 256:
+            break
+        limit = max(256, limit // 2)
+    # Keep readable excerpts and whole events from both ends; pin the last statement.
+    selected = {last_message} if last_message is not None else set()
+    if (
+        last_message is not None
+        and len(_json_bytes(payload([projected[last_message]]))) > max_bytes
+    ):
+        projected[last_message] = excerpt(events[last_message], 32)
+    left, right = 0, len(projected) - 1
+    heads = tails = 0
+    while left <= right:
+        take_tail = tails <= 2 * heads
+        index = right if take_tail else left
+        if take_tail:
+            right -= 1
+        else:
+            left += 1
+        if index in selected:
+            continue
+        candidate = payload([projected[i] for i in sorted(selected | {index})])
+        if len(_json_bytes(candidate)) > max_bytes:
+            break
+        selected.add(index)
+        if take_tail:
+            tails += 1
+        else:
+            heads += 1
+    return payload([projected[i] for i in sorted(selected)])
 
 
 def _prior_archive_root() -> Path:
@@ -861,9 +1005,9 @@ def _readme(
             "",
             "## Mandatory first actions",
             "",
-            "1. List `task_codebase/` and read `prompt.md`, `task_codebase/task.toml`, and the grader tests.",
-            "2. Inspect `file_changes.diff` first: it is the primary evidence of the agent's changes.",
-            "3. Read `trajectory_summary.md`, then inspect cited commands/observations in `steps.txt`, `trajectory.json`, or `agent_logs/`.",
+            "1. List `task_codebase/` when present and read `prompt.md` and any retained task/grader context.",
+            "2. Inspect `file_changes.diff` when present: retained changes are the primary change evidence. Without it, inspect `trace_evidence.json` and its cited calls, results and final answer.",
+            "3. Read `trajectory_summary.md`, then inspect cited commands/observations in `steps.txt`, `trajectory.json`, or `agent_logs/`, including later failures, overwrites and reverts.",
             "4. Look for disconfirming evidence before judging the recorded reward; a pass is not proof of correctness.",
             "",
             "## Workspace map",
@@ -871,10 +1015,11 @@ def _readme(
             "- `metadata.json`: blind subject, recorded reward/source, agent model, counts and availability.",
             "- `prompt.md`: the instruction the agent saw (or a task-package/trajectory fallback).",
             "- `evaluation_result.json`: verifier reward and source only; no other result fields.",
-            "- `file_changes.diff`: MOST IMPORTANT; source-labelled full changes or an explicitly labelled reconstruction.",
+            "- `file_changes.diff`: source-labelled retained diff, snapshot recovery or state-journal change list; commands are never reconstructed as a submitted diff.",
             "- `file_changes.kept.diff`: optional grader-kept subset, not necessarily the full change.",
             "- `trajectory_summary.md`: per-step command, observation, error and token timeline.",
             "- `steps.txt`, `trajectory.json`: detailed ATIF evidence; grep rather than reading the entire trace.",
+            "- `trace_evidence.json`: bounded blind-ATIF calls, observations and agent messages with exact source refs, delayed-result links and explicit coverage; not a final-state snapshot.",
             "- `agent_logs/`: scripted-agent attempts, oracle/command logs and trial log, if retained.",
             "- `verifier/`: all retained text grader outputs, including nonstandard log names.",
             "- `environment/state-diff.json`: retained state-journal diff, when available.",
@@ -890,7 +1035,7 @@ def _readme(
             "## Bounds and omissions",
             "",
             "Copied package/log/verifier files are UTF-8 text only, at most 256 KiB per file and 4 MiB per tree; binaries and symlinks are skipped. Structured ATIF is retained intact so step identities remain usable.",
-            "A name-only package with matched=false is context, not proof of the original task version. State lists and trajectory-write reconstructions are not complete workspace diffs.",
+            "A name-only package with matched=false is context, not proof of the original task version. State lists are not complete workspace diffs. Trace evidence is capped at 24,000 serialized bytes, keeps both ends and the last agent message, and marks omitted events or clipped fields. Read the source before treating a coverage gap as evidence of absence.",
             *(
                 [f"- {note}" for note in notes]
                 or ["- No copied text was truncated or omitted by byte caps."]
@@ -1031,7 +1176,7 @@ def build_workspace(
         files["environment/state-diff.json"] = _bounded(
             redact(state), "environment/state-diff.json", notes
         )
-    changes = recover_file_changes(trial_dir, steps)
+    changes = recover_file_changes(trial_dir)
     if changes.text:
         files["file_changes.diff"] = _bounded(
             redact(f"# source: {changes.source}\n{changes.text}"),
@@ -1061,9 +1206,12 @@ def build_workspace(
     model = ((result.get("agent_info") or {}).get("model_info") or {}).get("name") or (
         trajectory.get("agent") or {}
     ).get("model_name")
+    trajectory_bytes = redact(_json_bytes(trajectory).decode()).encode()
+    evidence = trace_evidence(json.loads(trajectory_bytes)["steps"])
     availability = {
         "prompt": "present" if prompt.strip() else "missing",
         "trajectory": "present" if steps else "missing",
+        "trace_evidence": "present" if evidence["events"] else "missing",
         "verifier_output": "present" if verifier else "missing",
         "tests": "present"
         if any(rel.startswith("task_codebase/tests/") for rel in files)
@@ -1091,7 +1239,8 @@ def build_workspace(
     }
     files["metadata.json"] = redact(_json_bytes(metadata).decode()).encode()
     files["evaluation_result.json"] = redact(_json_bytes(reward).decode()).encode()
-    files["trajectory.json"] = redact(_json_bytes(trajectory).decode()).encode()
+    files["trajectory.json"] = trajectory_bytes
+    files["trace_evidence.json"] = _json_bytes(evidence)
     files["steps.txt"] = redact(render_steps(steps, field_limit=4000, budget=10**9) + "\n").encode()
     files["trajectory_summary.md"] = redact(
         trajectory_summary(
@@ -1147,6 +1296,7 @@ def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
         (
             "prompt",
             "trajectory",
+            "trace_evidence",
             "verifier_output",
             "tests",
             "diff",
@@ -1156,9 +1306,12 @@ def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
         ),
         "missing",
     )
+    trajectory_bytes = redact(_json_bytes(trajectory).decode()).encode()
+    evidence = trace_evidence(json.loads(trajectory_bytes)["steps"])
     availability.update(
         prompt="present" if row["goal"].strip() else "missing",
         trajectory="present" if steps else "missing",
+        trace_evidence="present" if evidence["events"] else "missing",
     )
     # trajectory-judge ids spell the label (``<instance>-<failure_type>``): even the
     # sealer's record carries only the opaque id (findings name the key item).
@@ -1171,7 +1324,8 @@ def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
     resolution = Resolution(None, "not_available (trajectory-judge)", None, None, None)
     files = {
         "prompt.md": row["goal"].encode(),
-        "trajectory.json": _json_bytes(trajectory),
+        "trajectory.json": trajectory_bytes,
+        "trace_evidence.json": _json_bytes(evidence),
         "steps.txt": (render_steps(steps, field_limit=4000, budget=10**9) + "\n").encode(),
         "trajectory_summary.md": trajectory_summary(steps, agent_logs={}).encode(),
         "README.md": _readme(availability, resolution, [], "missing").encode(),
@@ -1192,7 +1346,10 @@ def tj_workspace(row: dict[str, Any], out_dir: Path) -> Bundle:
     }
     return _seal(
         Path(out_dir),
-        {rel: redact(data.decode()).encode() for rel, data in files.items()},
+        {
+            rel: data if rel == "trace_evidence.json" else redact(data.decode()).encode()
+            for rel, data in files.items()
+        },
         subject=subject,
         reward=reward,
         availability=availability,

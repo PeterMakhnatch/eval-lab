@@ -1,4 +1,4 @@
-"""`evallab qa trace` (qa-trace/6): skip rule, stage precedence, resume, routes, scoring."""
+"""`evallab qa trace` (qa-trace/7): skip rules, outcome routing, refutation and scoring."""
 
 from __future__ import annotations
 
@@ -13,17 +13,21 @@ from evallab.qa.answer_key import AnswerKey
 from evallab.qa.models import AnswerKeyItem, KeyPair, load_findings_dir
 from evallab.qa.score import score_findings
 from evallab.qa.trace import (
+    NOT_ASKED,
     Bundle,
     CallResult,
     ModelRoute,
     QuotaGate,
     QuotaStop,
     TraceConfig,
+    _routed_questions,
     review_bundle,
+    runs_root,
     scenario_route,
     score_paired,
     skip_rule,
     source_step,
+    t4_verdict,
     verify_route,
 )
 from evallab.qa.trace_agents import SCENARIO_SCHEMA
@@ -89,6 +93,7 @@ def _answer(value: str, *, check: str | None = None) -> dict[str, Any]:
         "disconfirmation": [{"check": "read the diff", "result": "consistent"}],
         "contribution_check": check,
         "attempted_sourcing": [],
+        "run_outcome": None,
         "rationale": f"answered {value}",
     }
 
@@ -139,6 +144,320 @@ class FakeModels:
 
 def _review(bundle: Bundle, models: FakeModels, out: Path, **kwargs: Any) -> dict[str, Any]:
     return review_bundle(bundle, out, config=TraceConfig(), call=models, **kwargs)
+
+
+def _tool_bundle(tmp_path: Path, *, failed: bool = False) -> Bundle:
+    return tj_workspace(
+        {
+            "trajectory_id": "support-workflow",
+            "instance_id": "support-request",
+            "goal": "Look up the order, check its policy, issue an eligible refund, and reply.",
+            "final_answer": "I could not complete the refund."
+            if failed
+            else "The refund is complete.",
+            "steps": [
+                {
+                    "index": 0,
+                    "call": {"tool": "lookup_order", "args": {"id": 42}},
+                    "observation": {"ok": True, "amount": 70},
+                },
+                {
+                    "index": 1,
+                    "call": {"tool": "get_policy", "args": {"id": 42}},
+                    "observation": {"ok": True, "refundable": True},
+                },
+                {
+                    "index": 2,
+                    "call": {"tool": "cancel_order", "args": {"id": 42}},
+                    "observation": {"ok": False, "error": "order locked"}
+                    if failed
+                    else {"ok": True, "cancelled": True},
+                },
+            ],
+        },
+        tmp_path / "bundle",
+    )
+
+
+def _tool_reviews(
+    *, value: str = "yes", outcome: str = "success", fault: str = "agent"
+) -> dict[str, dict[str, Any]]:
+    reviews = {
+        question: {"answer": {**_answer("no"), "evidence_files": []}}
+        for question in ("reward_shortcut", "false_positive", "failure_cause")
+    }
+    reviews["failure_cause"]["answer"] = {
+        **_answer(value),
+        "fault": fault if value == "yes" else "none",
+        "failure_step": 3 if value == "yes" else None,
+        "evidence_steps": [1, 3] if value == "yes" else [],
+        "evidence_files": ["trajectory.json"],
+        "taxonomy": None,
+        "claims": [
+            {
+                "id": "causal-fault",
+                "text": "The requested refund was replaced by a cancellation at step 3.",
+                "check": "cat trajectory.json",
+            }
+        ]
+        if value == "yes"
+        else [],
+        "run_outcome": {
+            "status": outcome,
+            "evidence_steps": [4],
+            "evidence_files": [],
+            "rationale": "The terminal reply reports completion."
+            if outcome == "success"
+            else "The terminal reply reports noncompletion.",
+        },
+    }
+    return reviews
+
+
+def test_silent_tool_fault_routes_to_false_positive_with_its_original_provenance(
+    tmp_path: Path,
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    t0 = {"skips": skip_rule(bundle.reward, has_grader=bundle.has_grader)}
+    t1 = _tool_reviews()
+    findings, verdict = t4_verdict(
+        bundle,
+        t0,
+        t1,
+        {},
+        trial_dir=None,
+        subject={"kind": "trace", "task_id": "support", "trial_id": "run"},
+    )
+    causal = next(q for q in verdict["questions"] if q["question"] == "failure_cause")
+    finding = next(f for f in findings if f.id == causal["finding_id"])
+    assert (finding.category, finding.verdict, finding.fault) == ("false_positive", "fail", "agent")
+    assert causal["question"] == causal["routing"]["source_question"] == "failure_cause"
+    assert (verdict["failure_owner"], verdict["failure_step"]) == ("agent", 3)
+    assert verdict["recorded_reward"] is None
+    assert verdict["false_positive"] is True
+    assert verdict["task_defect"] is False
+    assert f"{bundle.root}/trajectory.json#step=3" in finding.evidence_refs
+    assert f"{bundle.root}/trajectory.json#step=4" in finding.evidence_refs
+    assert not any(".diff" in reference for reference in finding.evidence_refs)
+    assert t1["failure_cause"]["answer"]["evidence_steps"] == [1, 3]
+    assert len(t1["failure_cause"]["answer"]["claims"]) == 1
+    key = AnswerKey(key_id="k", items=(_item("run", "support", "fail"),), directory=tmp_path)
+    score = next(
+        row for row in score_findings(key, findings, split="test") if row.category == "all"
+    )
+    assert score.recall == 1.0
+    assert "category_match=1/1" in score.notes
+
+
+@pytest.mark.parametrize(
+    ("outcome", "fault", "failed"),
+    [("failure", "agent", True), ("unknown", "agent", False), ("success", "platform", True)],
+)
+def test_loud_unknown_and_platform_faults_keep_the_causal_category(
+    tmp_path: Path, outcome: str, fault: str, failed: bool
+) -> None:
+    bundle = _tool_bundle(tmp_path, failed=failed)
+    findings, verdict = t4_verdict(
+        bundle,
+        {"skips": skip_rule(bundle.reward, has_grader=bundle.has_grader)},
+        _tool_reviews(outcome=outcome, fault=fault),
+        {},
+        trial_dir=None,
+    )
+    assert [(f.category, f.fault) for f in findings if f.verdict == "fail"] == [
+        ("failure_cause", fault)
+    ]
+    assert verdict["flagged_any"] is True
+    assert verdict["false_positive"] is False
+    assert verdict["failure_step"] == 3
+
+
+@pytest.mark.parametrize(
+    "outcome_evidence",
+    [
+        None,
+        {"evidence_steps": [], "evidence_files": []},
+        {"evidence_steps": [0, 999], "evidence_files": ["prompt.md"]},
+        {"evidence_steps": [], "evidence_files": ["missing.txt", "trajectory.json:999999"]},
+    ],
+)
+def test_uncited_or_invalid_success_does_not_reclassify_a_valid_fault(
+    tmp_path: Path, outcome_evidence: dict[str, Any] | None
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    t1 = _tool_reviews()
+    answer = t1["failure_cause"]["answer"]
+    answer["run_outcome"] = (
+        {**answer["run_outcome"], **outcome_evidence} if outcome_evidence is not None else None
+    )
+    findings, verdict = t4_verdict(bundle, {"skips": {}}, t1, {}, trial_dir=None)
+    assert [(f.category, f.verdict) for f in findings if f.verdict == "fail"] == [
+        ("failure_cause", "fail")
+    ]
+    assert verdict["flagged_any"] is True
+    assert verdict["false_positive"] is False
+
+
+def test_retained_trace_file_can_supply_outcome_evidence_without_a_diff(tmp_path: Path) -> None:
+    bundle = _tool_bundle(tmp_path)
+    t1 = _tool_reviews()
+    t1["failure_cause"]["answer"]["run_outcome"].update(
+        evidence_steps=[], evidence_files=["steps.txt"]
+    )
+    findings, verdict = t4_verdict(bundle, {"skips": {}}, t1, {}, trial_dir=None)
+    finding = next(f for f in findings if f.verdict == "fail")
+    assert finding.category == "false_positive"
+    assert f"{bundle.root}/steps.txt" in finding.evidence_refs
+    assert verdict["false_positive"] is True
+
+
+@pytest.mark.parametrize(("answer", "expected"), [("no", "pass"), ("unsure", "unknown")])
+def test_successful_looking_outcome_does_not_invent_a_fault(
+    tmp_path: Path, answer: str, expected: str
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    findings, verdict = t4_verdict(
+        bundle, {"skips": {}}, _tool_reviews(value=answer), {}, trial_dir=None
+    )
+    causal = next(q for q in verdict["questions"] if q["question"] == "failure_cause")
+    assert (causal["category"], causal["verdict"], causal["routing"]) == (
+        "failure_cause",
+        expected,
+        None,
+    )
+    assert not any(f.verdict == "fail" for f in findings)
+    assert verdict["flagged_any"] is False
+
+
+def test_uncertain_answers_with_a_success_claim_still_abstain(tmp_path: Path) -> None:
+    bundle = _tool_bundle(tmp_path)
+    t1 = _tool_reviews(value="unsure")
+    for review in t1.values():
+        review["answer"]["answer"] = "unsure"
+    findings, verdict = t4_verdict(
+        bundle,
+        {"skips": skip_rule(bundle.reward, has_grader=bundle.has_grader)},
+        t1,
+        {},
+        trial_dir=None,
+    )
+    assert all(f.verdict == "unknown" for f in findings)
+    assert verdict["abstain"] is True
+    assert verdict["flagged_any"] is verdict["false_positive"] is None
+
+
+@pytest.mark.parametrize(
+    ("status", "revision", "category", "expected"),
+    [
+        ("refuted", None, "failure_cause", "pass"),
+        ("unverified", None, "failure_cause", "fail"),
+        (
+            "verified",
+            {
+                "answer": "yes",
+                "responses": [
+                    {
+                        "claim_id": "qa-trace-run-outcome",
+                        "action": "rebut",
+                        "evidence": "trajectory.json#step=4; cat trajectory.json confirms completion",
+                    }
+                ],
+            },
+            "false_positive",
+            "fail",
+        ),
+    ],
+)
+def test_outcome_refutation_withdraws_the_route_not_an_independent_causal_fault(
+    tmp_path: Path,
+    status: str,
+    revision: dict[str, Any] | None,
+    category: str,
+    expected: str,
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    t1 = _tool_reviews()
+    raised = _routed_questions(bundle, {"skips": {}}, t1, {})
+    claim_id = raised["failure_cause"]["routing"]["outcome_claim_id"]
+    assert raised["failure_cause"]["answer"]["claims"][-1]["id"] == claim_id
+    ruling = {
+        "status": status,
+        "by": "verification",
+        "reason": "independently checked",
+        "verification": {"claims": [{"id": claim_id, "status": "REFUTED"}]},
+        "revision": revision,
+    }
+    findings, verdict = t4_verdict(
+        bundle, {"skips": {}}, t1, {"failure_cause": ruling}, trial_dir=None
+    )
+    causal = next(q for q in verdict["questions"] if q["question"] == "failure_cause")
+    assert (causal["category"], causal["verdict"]) == (category, expected)
+    assert verdict["flagged_any"] is (expected == "fail")
+    assert verdict["false_positive"] is (category == "false_positive")
+    if expected == "fail":
+        assert verdict["failure_owner"] == "agent"
+        assert next(f for f in findings if f.verdict == "fail").fault == "agent"
+
+
+def test_recorded_rejection_keeps_false_positive_skip_and_does_not_erase_the_fault(
+    tmp_path: Path,
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    bundle.manifest["reward"]["value"] = 0.0
+    skips = skip_rule(bundle.reward, has_grader=bundle.has_grader)
+    findings, verdict = t4_verdict(bundle, {"skips": skips}, _tool_reviews(), {}, trial_dir=None)
+    direct = next(q for q in verdict["questions"] if q["question"] == "false_positive")
+    assert direct["verdict"] == "unknown"
+    assert next(f for f in findings if f.id == direct["finding_id"]).measurement == "not_run"
+    assert [(f.category, f.verdict) for f in findings if f.verdict == "fail"] == [
+        ("failure_cause", "fail")
+    ]
+    assert verdict["flagged_any"] is True
+    assert verdict["false_positive"] is None
+
+
+def test_routing_keeps_an_unasked_question_unmeasured_but_reports_the_observed_category(
+    tmp_path: Path,
+) -> None:
+    bundle = _tool_bundle(tmp_path)
+    skips = skip_rule(bundle.reward, has_grader=bundle.has_grader) | {"false_positive": NOT_ASKED}
+    findings, verdict = t4_verdict(bundle, {"skips": skips}, _tool_reviews(), {}, trial_dir=None)
+    direct = next(q for q in verdict["questions"] if q["question"] == "false_positive")
+    assert direct["verdict"] == "unknown"
+    assert next(f for f in findings if f.id == direct["finding_id"]).measurement == "not_run"
+    assert [(f.category, f.verdict) for f in findings if f.verdict == "fail"] == [
+        ("false_positive", "fail")
+    ]
+    assert verdict["false_positive"] is True
+
+
+@pytest.mark.parametrize("evidence_files", [[], ["trajectory.json"], ["steps.txt"]])
+def test_a_proposed_action_without_its_result_cannot_establish_success(
+    tmp_path: Path, evidence_files: list[str]
+) -> None:
+    trial = _trial(tmp_path, result={})
+    path = trial / "agent" / "trajectory.json"
+    trajectory = json.loads(path.read_text())
+    trajectory["steps"][1].pop("observation")
+    path.write_text(json.dumps(trajectory))
+    bundle = build_workspace(trial, tmp_path / "bundle", task_dir=tmp_path / "task")
+    t1 = _tool_reviews()
+    t1["failure_cause"]["answer"].update(failure_step=1, evidence_steps=[1])
+    t1["failure_cause"]["answer"]["run_outcome"]["evidence_steps"] = [1]
+    t1["failure_cause"]["answer"]["run_outcome"]["evidence_files"] = evidence_files
+    findings, verdict = t4_verdict(bundle, {"skips": {}}, t1, {}, trial_dir=None)
+    assert [(f.category, f.verdict) for f in findings if f.verdict == "fail"] == [
+        ("failure_cause", "fail")
+    ]
+    assert verdict["false_positive"] is False
+
+
+def test_pipeline_separates_v7_cache_root_and_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("evallab.storage.paths.shared_checkout_root", lambda root: tmp_path)
+    assert runs_root() == tmp_path / "derived" / "qa-trace" / "qa-trace-7"
+    assert TraceConfig().fingerprint()["pipeline"] == "qa-trace/7"
 
 
 @pytest.mark.parametrize(

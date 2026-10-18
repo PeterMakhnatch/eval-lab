@@ -465,6 +465,10 @@ def test_trajectory_judge_v2_marks_unavailable_context_missing(local_store: Path
     assert row["trajectory_id"] not in json.dumps(bundle.manifest)
     assert row["trajectory_id"] not in bundle.text("metadata.json")
     assert Bundle.load(bundle.root).verify() == []
+    index = json.loads(bundle.text("verifier_tests.json"))
+    assert index["status"] == "missing"
+    assert index["files"] == []
+    assert index["binding"]["matched"] is None
 
 
 def test_trace_only_workspace_keeps_failed_writes_and_reverts_as_observations(
@@ -754,3 +758,109 @@ def test_trace_projection_bounds_serialized_unicode_and_retains_last_message(
     assert evidence["events"][0]["last_agent_message"] is True
     assert evidence["events"][0]["omitted_chars"] > 0
     assert evidence["coverage"]["complete"] is False
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_verifier_patch_index_maps_assertions_without_inventing_a_postimage(
+    local_store: Path, newline: str
+) -> None:
+    package = _package(local_store / "package")
+    patch = newline.join(
+        [
+            "diff --git a/tests/test_hidden.py b/tests/test_hidden.py",
+            "new file mode 100644",
+            "--- /dev/null",
+            "+++ b/tests/test_hidden.py",
+            "@@ -0,0 +1,7 @@",
+            "+import pytest",
+            "+def test_value():",
+            '+    """assert False"""',
+            "+    assert transform(1) == 2",
+            "+    with pytest.raises(ValueError):",
+            "+        transform(None)",
+            "+    self.assertEqual(transform(2), 3)",
+            "diff --git a/tests/test_partial.py b/tests/test_partial.py",
+            "--- a/tests/test_partial.py",
+            "+++ b/tests/test_partial.py",
+            "@@ -1,2 +1,3 @@",
+            " def test_existing():",
+            "+    assert transform(3) == 4",
+            "     assert baseline()",
+            "@@ -10,1 +12,1 @@",
+            "-    old()",
+            "+    with pytest.raises(ValueError):",
+            "",
+        ]
+    )
+    _write(package / "tests/test.patch", patch)
+    trial = _trial(local_store / "runs/job/trial", package)
+    bundle = workspace.build_workspace(
+        trial, local_store / "workspace", task_dir=package, digests=("a" * 64,)
+    )
+    index = json.loads(bundle.text("verifier_tests.json"))
+    entry = next(row for row in index["files"] if row["file"].endswith("/test.patch"))
+    assert [(site["line"], site["kind"]) for site in entry["assertions"]] == [
+        (9, "assert"),
+        (10, "raises_call"),
+        (12, "assertion_like_call"),
+        (18, "assert"),
+    ]
+    assert entry["indexed_assertion_sites"] == 4
+    assert entry["unparsed_fragments"] == 1
+    assert entry["static_assertion_sites"] is None
+    assert entry["analysis_scope"] == "patch_additions_only"
+    assert index["binding"]["matched"] is False
+
+
+def test_unparseable_verifier_source_is_unknown_not_zero_assertions(local_store: Path) -> None:
+    package = _package(local_store / "package")
+    _write(package / "tests/test_parser.py", "def test_broken(:\n    assert False\n")
+    trial = _trial(local_store / "runs/job/trial", package)
+    bundle = workspace.build_workspace(trial, local_store / "workspace")
+    index = json.loads(bundle.text("verifier_tests.json"))
+    entry = next(row for row in index["files"] if row["file"].endswith("/test_parser.py"))
+    assert entry["index_status"] == "parse_error"
+    assert entry["static_assertion_sites"] is None
+    assert entry["indexed_assertion_sites"] is None
+
+
+def test_verifier_index_reports_site_and_source_omissions(
+    local_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workspace, "MAX_VERIFIER_ASSERTION_SITES", 2)
+    monkeypatch.setattr(workspace, "MAX_VERIFIER_TEST_FILES", 2)
+    package = _package(local_store / "package")
+    _write(
+        package / "tests/test_000.py",
+        "def test_many():\n" + "".join(f"    assert transform({i}) == {i}\n" for i in range(9)),
+    )
+    _write(package / "tests/test_001.py", "assert secondary()\n")
+    _write(package / "tests/test_002.py", "assert tertiary()\n")
+    trial = _trial(local_store / "runs/job/trial", package)
+    bundle = workspace.build_workspace(trial, local_store / "workspace")
+    raw = bundle.text("verifier_tests.json").encode()
+    index = json.loads(raw)
+    assert len(raw) <= workspace.MAX_VERIFIER_TEST_BYTES
+    assert index["status"] == "present"
+    assert index["omitted_files"] + len(index["files"]) == 4
+    first = next(row for row in index["files"] if row["file"].endswith("/test_000.py"))
+    assert first["indexed_assertion_sites"] == 9
+    assert [site["line"] for site in first["assertions"]] == [2, 3]
+    assert first["omitted_assertion_sites"] == 7
+
+
+def test_verifier_index_byte_cap_does_not_turn_omitted_sources_into_missing_tests(
+    local_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workspace, "MAX_VERIFIER_TEST_BYTES", 2000)
+    package = _package(local_store / "package")
+    for i in range(5):
+        _write(package / f"tests/test_{i:03}.py", f"assert transform({i}) == {i}\n")
+    trial = _trial(local_store / "runs/job/trial", package)
+    bundle = workspace.build_workspace(trial, local_store / "workspace")
+    raw = bundle.text("verifier_tests.json").encode()
+    index = json.loads(raw)
+    assert len(raw) <= 2000
+    assert index["status"] == "present"
+    assert index["omitted_files"] + len(index["files"]) == 6
+    assert index["omitted_files"] > 0

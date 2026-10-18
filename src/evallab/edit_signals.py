@@ -78,8 +78,8 @@ def blank_quoted_and_heredocs(command: str) -> str:
     return _QUOTED_SPAN_RE.sub(" ", text)
 
 
-#: Tools whose ``keystrokes`` (Terminus-2 ``bash_command``, Claude Code ``bash``)
-#: or Codex ``exec`` script carry the shell commands an agent step runs.
+#: Tools whose ``keystrokes`` (Terminus-2), ``command`` (MiMo), or Codex
+#: ``exec`` script carry the shell commands an agent step runs.
 SHELL_TOOL_NAMES = frozenset({"bash", "bash_command", "shell", "exec"})
 
 _SHELL_WRAPPER_RE = re.compile(r"^(?:(?:/usr)?/bin/)?(?:ba|z|da)?sh\s+-(?:l?c|cl)\s+")
@@ -139,12 +139,33 @@ def codex_apply_patches(script: str) -> list[str]:
     return out
 
 
+def tool_bash_commands(call: dict[str, Any]) -> list[str]:
+    """Decode shell text, preserving legacy keystrokes and Codex call attribution.
+
+    Only known shell tools interpret ``command`` as executable text. Legacy
+    ``keystrokes`` and scripted Codex input keep their existing extraction
+    semantics; a populated ``keystrokes`` always takes precedence.
+    """
+    args = call.get("arguments")
+    if not isinstance(args, dict):
+        return []
+    keystrokes = args.get("keystrokes")
+    if isinstance(keystrokes, str) and keystrokes.strip():
+        return [keystrokes]
+    name = str(call.get("function_name") or call.get("name") or "").lower()
+    command = args.get("command")
+    if name in SHELL_TOOL_NAMES and isinstance(command, str) and command.strip():
+        return [command]
+    script = args.get("input")
+    return codex_exec_commands(script) if isinstance(script, str) else []
+
+
 def step_bash_commands(step: dict[str, Any]) -> list[str]:
     """Shell command texts one ATIF step runs, in order.
 
-    ``keystrokes`` of the shell tools (verbatim, as the rules always read them)
-    plus the ``tools.exec_command({cmd: ...})`` calls inside a Codex ``exec``
-    script (``arguments.input``). Other argument shapes are not read.
+    ``keystrokes`` or ``command`` of the shell tools (verbatim), plus the
+    ``tools.exec_command({cmd: ...})`` calls inside a Codex ``exec`` script
+    (``arguments.input``). Other argument shapes are not read.
     """
     out: list[str] = []
     calls = step.get("tool_calls")
@@ -154,12 +175,6 @@ def step_bash_commands(step: dict[str, Any]) -> list[str]:
         if not isinstance(call, dict):
             continue
         name = str(call.get("function_name") or call.get("name") or "").lower()
-        args = call.get("arguments")
-        if name not in SHELL_TOOL_NAMES or not isinstance(args, dict):
-            continue
-        keystrokes = args.get("keystrokes")
-        if isinstance(keystrokes, str) and keystrokes.strip():
-            out.append(keystrokes)
-        elif isinstance(args.get("input"), str):
-            out.extend(codex_exec_commands(args["input"]))
+        if name in SHELL_TOOL_NAMES:
+            out.extend(tool_bash_commands(call))
     return out

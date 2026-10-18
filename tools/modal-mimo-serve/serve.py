@@ -129,7 +129,7 @@ if WINDOW is not None:
         min_containers=0,
         max_containers=1,
         buffer_containers=0,
-        scaledown_window=1,
+        scaledown_window=2,
         timeout=serving_window.MAX_SECONDS + 60,
         startup_timeout=60,
         retries=0,

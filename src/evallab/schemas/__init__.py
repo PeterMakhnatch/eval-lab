@@ -712,6 +712,17 @@ class ExperimentMatrix(ContractModel):
     modal_sandbox_create_max_attempts: Literal[1] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    docker_platform: str | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @field_validator("docker_platform")
+    @classmethod
+    def docker_platform_is_explicit(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not re.fullmatch(r"linux/[a-z0-9_]+", value):
+            raise ValueError("docker_platform must look like linux/amd64")
+        return value
+
     runs: list[MatrixRun] = Field(min_length=1)
 
     # `purpose` is deliberately NOT declared here, and the asymmetry is the

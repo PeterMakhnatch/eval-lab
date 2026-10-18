@@ -274,3 +274,39 @@ PASS remains mandatory.
 Exclusion compatibility is not grading admission. Historical byte-pinned
 partition inputs and frozen-v6 scoring analyzers remain historical consumers;
 pointing them at a new filename does not authorize a changed grader.
+
+### Source-bound 002486 training collection repair
+
+`collection_patch_002486` in `evallab.mimo_runtime_repair` addresses a
+different training-only collection defect. The frozen tests import the
+requested `build_install_plan` API before either suite can collect, although
+the pristine application does not implement that API. Supplying it during
+setup would install part of the answer. The retained nop's zero rewards
+therefore did not establish a real negative control.
+
+`mimo-002486-collection@1` accepts only the frozen test-patch SHA-256
+`d282c75c350571bdbe8cc1aea84d3f132eff0ec25e5d89de236c21742ee51839`.
+It moves that import into each of the nine existing pytest functions and
+the existing unittest method. Undoing only the import relocation must
+reproduce each entire original AST, including assertions, parameters,
+fixtures, subprocess checks and `subTest` bodies. The other patch entries,
+test command, setup, production workspace and zero-case/reward guards do
+not change. This does not extend the 001246 manifest selector.
+
+The verifier-only child is package
+`sha256:628a68c0f4cf0b6e1070d180332ce3adbbbc01986c7a1125a19079eb1aa146d9`,
+with verifier
+`sha256:08875e08fec5076124bf8b30b9c2bb5260ec572333cbaba50940c26a562242f5`.
+Local native Docker measurements on this grader returned reference
+`[1,1,1]`, nop `[0,0,0]`, and the existing recorded partial-a2 wrong
+submission `[0,0,0]`: three distinct physical native executions, each
+with three verifier runs, not nine independent sandboxes. The reference
+and wrong submission use solution-only native matrix overrides; nop uses
+the exact unimplemented child. Every nop repeat collects all nine pytest
+cases and fails their calls, then executes the real browser-opt-in
+unittest method rather than `_FailedTest`.
+
+These are package-specific control measurements, not semantic completeness,
+training/serving authorization or a change to the frozen forty-task split.
+Historical parent controls and the unadjudicated HAR161 submission retain
+their original, separately identified scope.

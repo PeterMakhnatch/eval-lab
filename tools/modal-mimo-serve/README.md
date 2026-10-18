@@ -140,6 +140,32 @@ irreversible even if the external deployment fails. A new fresh-source local
 watchdog must heartbeat before deployment, and remote/process guards remain
 mandatory before readiness.
 
+If the controller crashed **after** the deployment was created but before the
+journal recorded it, `adopt-existing` binds that already-deployed app to the
+same consumed claim. It is metadata-only and explicitly invoked: it never
+deploys, puts or rearms a reservation, spawns a guard, creates an app, resets
+accounting, rewrites the immutable config, or extends either deadline. It
+requires the caller-supplied immutable config SHA256 (the live watchdog keeps
+mutating the journal under flock, so no whole-journal SHA is bound), a
+journaling state with no recorded deployment, the unchanged admitted
+config/budget and unexpired original deadline, a remote reservation matching
+that exact config hash, the current named deployment carrying this window's
+ownership tags, and an already-armed same-app remote guard bound to that exact
+app/config/original expiry. It reads only `modal.Server.from_name(...).
+get_url()` metadata, records observed/adopted timestamps (never a fabricated
+original deploy-completion time), keeps the parent-reported deployed source
+revision distinct from the controller's own source hash, and moves the journal
+to `armed_not_ready` under the same flock as the watchdog. It is not automatic
+recovery inside health/binding, and `complete-startup` still refuses an
+already-created app.
+
+The same-app `stop_window` uses a 2-second scaledown window: Modal requires
+`2 <= scaledown_window <= 3600`, including for this scheduled CPU guard.
+The controller prints redacted Modal `InvalidError` validation messages so a
+rejected deployment's reason is visible; other SDK/HTTP exception details
+remain withheld. A rejected deployment does not authorize another reservation
+or deadline without a new explicit parent approval.
+
 ```bash
 # Free, provider-free quote; does not admit/deploy/probe anything.
 uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py quote \
@@ -161,6 +187,13 @@ keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-
 keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py complete-startup \
   --state <owned-durable-window-journal.json> --journal-sha256 <exact-frozen-journal-sha256>
 
+# Parent only, after a post-deployment controller crash left an owned,
+# already-armed app unrecorded. Metadata-only bind of the existing app to the
+# same consumed claim; never a redeploy, rearm, reset or deadline change.
+keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py adopt-existing \
+  --state <owned-durable-window-journal.json> --config-sha256 <immutable-config-sha256> \
+  --deployed-source-revision <original-deploy-source-revision>
+
 # Free metadata observation; never wakes the GPU. Without --once, watches to stop.
 keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py watch \
   --state <owned-durable-window-journal.json> --once
@@ -177,6 +210,12 @@ uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/s
 keys run -- uv run --project tools/modal-mimo-serve --locked python tools/modal-mimo-serve/serving_window.py stop \
   --state <owned-durable-window-journal.json>
 ```
+
+Upstream URLs are accepted only as actual HTTPS Modal-owned origins: one
+serving label under `*.modal.run` or one serving label under a documented
+routing region `*.modal.direct`, no credentials, no explicit port, no query or
+fragment, and a root path only. Fake domains, lookalike suffixes, non-region
+`*.modal.direct` hosts and multi-label regions are still rejected.
 
 `binding` authenticates `/v1/models` (only the exact BASE ID may appear) and one
 real `/v1/chat/completions` request (`max_tokens=1`, thinking enabled). It refuses

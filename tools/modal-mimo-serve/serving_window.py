@@ -1,9 +1,10 @@
 """One-use BASE serving reservation; no command grants spend or refunds a reservation.
 
 ``quote`` is provider-free. ``deploy``, ``health`` and ``binding`` are paid parent
-operations. ``watch``/``stop`` use control-plane metadata only. A detached local
-watchdog starts before deployment; a scheduled, same-app remote guard and an
-absolute in-container process deadline do not depend on that controller.
+operations. ``watch``/``stop``/``adopt-existing`` use control-plane metadata only.
+A detached local watchdog starts before deployment; a scheduled, same-app remote
+guard and an absolute in-container process deadline do not depend on that
+controller.
 """
 
 from __future__ import annotations
@@ -188,12 +189,15 @@ class Journal:
         require(value["reserved_usd"] == value["config"]["cap_usd"], "window reservation cannot be reset or refunded")
         return value
 
-    def update(self, *, expected_sha256: str | None = None, **changes: Any) -> dict[str, Any]:
+    def update(self, *, expected_sha256: str | None = None, expected_state: str | None = None,
+               **changes: Any) -> dict[str, Any]:
         require(not ({"config", "config_sha256", "reserved_usd"} & changes.keys()), "immutable journal fields cannot change")
         with self.locked():
             if expected_sha256 is not None:
                 require(sha256(self.path.read_bytes()) == expected_sha256, "owned journal changed before startup claim")
             value = self.read()
+            require(expected_state is None or value["state"] == expected_state,
+                    "owned window state changed before the locked claim")
             value.update(changes)
             config = value["config"]
             end = instant(value["stopped_at"]) if value.get("stopped_at") else time.time()
@@ -473,9 +477,92 @@ def complete_startup(args: argparse.Namespace) -> dict[str, Any]:
     return _deploy_reserved(journal, config, control)
 
 
+def deployed_server_url(environment: str) -> str | None:
+    """Control-plane metadata read of the named deployed server's URL."""
+    import modal
+
+    return modal.Server.from_name(APP_NAME, "MimoServer", environment_name=environment).get_url()
+
+
+def adopt_existing(args: argparse.Namespace) -> dict[str, Any]:
+    """Bind an already-deployed owned app to its existing claim; metadata only.
+
+    The live watchdog keeps mutating the journal under flock, so adoption binds
+    the immutable config SHA256, never a frozen whole-journal SHA. It never
+    deploys, puts or rearms a reservation, spawns a guard, creates an app,
+    resets accounting, or rewrites the immutable config.
+    """
+    journal = Journal(args.state)
+    value = journal.read()
+    require(value["config_sha256"] == args.config_sha256.removeprefix("sha256:"),
+            "caller-supplied immutable config SHA256 does not match this journal")
+    require(isinstance(args.deployed_source_revision, str) and bool(args.deployed_source_revision.strip()),
+            "the original deployed source revision is required")
+    require(value["state"] == "reserved_not_deployed" and value["upstream"] is None
+            and value["stop_guard"] == {"armed": False} and not value.get("deployment")
+            and not value.get("stopped_at"),
+            "only an owned window whose deployment was never recorded may adopt an existing app")
+    config = value["config"]
+    original = admitted_config(Path(config["budget_state"]["path"]),
+        config["budget_state"]["sha256"].removeprefix("sha256:"), config["owner"], config["stop_deadline"],
+        now=instant(config["starts_at"]))
+    original["environment"] = config["environment"]
+    require(original == config, "adoption cannot change budget, start, reservation or deadline")
+    require(time.time() < instant(config["expires_at"]), "original window expired; adoption cannot extend it")
+    control = ModalControl(config["environment"])
+    require(control.store.get("reservation:" + config["reservation_id"]) == value["config_sha256"],
+            "existing remote reservation does not match this immutable config")
+    deployment = control.rpc("AppGetByDeploymentName",
+        control.api.AppGetByDeploymentNameRequest(name=APP_NAME, environment_name=config["environment"]), 10)
+    named_app_id = deployment.app_id or None
+    require(named_app_id, "no current named deployment exists for the canonical app")
+    require(value["app_id"] in {None, named_app_id}, "journal recorded a different app before adoption")
+    require(control.owned_app(config, None) == named_app_id,
+            "current named deployment is not this window's unique owned app")
+    observation = control.observation(config, named_app_id)
+    require(not observation["stopped"], "existing owned app is already stopped; adoption cannot revive it")
+    upstream = deployed_server_url(config["environment"])
+    require(isinstance(upstream, str), "existing deployment did not return a server URL")
+    validate_upstream(upstream)
+    guard = control.store.get("guard:" + config["reservation_id"])
+    require(isinstance(guard, dict) and guard.get("armed") is True
+            and guard.get("app_id") == named_app_id
+            and guard.get("config_sha256") == value["config_sha256"]
+            and guard.get("deadline") == config["expires_at"],
+            "the already-armed remote guard does not bind this exact app/config/original expiry")
+    require(time.time() < instant(config["expires_at"]), "original window expired during adoption")
+    observed_at = utc()
+    record = {"adoption": "existing_owned_deployment", "observed_at": observed_at, "adopted_at": utc(),
+              "app_id": named_app_id, "app_name": APP_NAME, "upstream": upstream,
+              "config_sha256": value["config_sha256"], "observation": observation,
+              "named_deployment": {"app_id": named_app_id, "previous_app_id": deployment.previous_app_id or None},
+              "deployed_source": {"reported_revision": args.deployed_source_revision},
+              "controller_source": {"path": str(Path(__file__).resolve()),
+                                    "sha256": sha256(Path(__file__).read_bytes())}}
+    guard["evidence"] = journal.artifact("guard", guard)
+    return journal.update(expected_state="reserved_not_deployed", app_id=named_app_id, upstream=upstream,
+                          state="armed_not_ready", deployment=journal.artifact("deployment", record),
+                          stop_guard=guard)
+
+
+#: Admitted upstream hosts, matching the repository's self-hosted route pin:
+#: one serving label under ``*.modal.run`` (Web Functions) or one serving label
+#: under a documented routing region ``*.modal.direct`` (Servers, e.g.
+#: ``https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct``).
+#: ``modal.run.evil.com``, ``x.evil.modal.direct`` (not a routing region),
+#: ``modal.direct.evil.com`` and multi-label ``a.b.us-east.modal.direct``
+#: never match.
+MODAL_ORIGIN_RES = (
+    re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$"),
+    re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\."
+               r"(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct$"),
+)
+
+
 def validate_upstream(upstream: str) -> None:
     parsed = urllib.parse.urlsplit(upstream)
-    require(parsed.scheme == "https" and parsed.hostname is not None and parsed.hostname.endswith(".modal.run")
+    require(parsed.scheme == "https" and parsed.hostname is not None
+            and any(pattern.match(parsed.hostname) for pattern in MODAL_ORIGIN_RES)
             and parsed.username is None and parsed.password is None and parsed.port is None
             and parsed.path in {"", "/"} and not parsed.query and not parsed.fragment,
             "server URL must be an actual HTTPS Modal origin without credentials or /v1")
@@ -571,6 +658,29 @@ def receipt(value: dict[str, Any]) -> dict[str, Any]:
                                                "observation", "stop", "stopped_at", "cap_exceeded")}}
 
 
+def _error_detail(exc: Exception) -> str:
+    if isinstance(exc, WindowError):
+        return str(exc)
+    name = type(exc).__name__
+    if name != "InvalidError" or type(exc).__module__ != "modal.exception":
+        return name
+    detail = str(exc)
+    for key, value in os.environ.items():
+        if value and re.search(r"(?i)(?:key|token|password|secret)$", key):
+            detail = detail.replace(value, "<redacted>")
+    # Keep the standalone tool's Modal-only dependency boundary. These follow
+    # the repository's bearer, key-shaped token and credential-assignment rules.
+    detail = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+", "Bearer <redacted>", detail)
+    detail = re.sub(r"(?i)\b(?:sk|rk)-[A-Za-z0-9._-]+", "<redacted>", detail)
+    detail = re.sub(
+        r"""(?i)["']?\b(?:[A-Za-z][A-Za-z0-9_-]*_)?"""
+        r"""(?:api[_ -]?key|access[_ -]?token|oauth[_ -]?token|session[_ -]?token|token|password|secret)"""
+        r"""["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)""",
+        "<redacted>", detail,
+    )
+    return f"{name}: {detail}"
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -590,6 +700,12 @@ def main(argv: list[str] | None = None) -> None:
     complete = commands.add_parser("complete-startup", help="parent only: finish one already-claimed unstarted window")
     complete.add_argument("--state", type=Path, required=True)
     complete.add_argument("--journal-sha256", required=True, help="exact stopped-watchdog journal bytes; no new deadline")
+    adopt = commands.add_parser("adopt-existing", help="parent only: bind one already-deployed owned app; metadata only")
+    adopt.add_argument("--state", type=Path, required=True)
+    adopt.add_argument("--config-sha256", required=True,
+                       help="exact immutable journal config SHA256; the running watchdog keeps mutating the journal")
+    adopt.add_argument("--deployed-source-revision", required=True,
+                       help="parent-reported source revision that ran the original deployment")
     for name in ("watch", "health", "binding", "stop", "receipt"):
         command = commands.add_parser(name)
         command.add_argument("--state", type=Path, required=True)
@@ -614,6 +730,8 @@ def main(argv: list[str] | None = None) -> None:
             result = receipt(deploy(args))
         elif args.command == "complete-startup":
             result = receipt(complete_startup(args))
+        elif args.command == "adopt-existing":
+            result = receipt(adopt_existing(args))
         else:
             journal = Journal(args.state)
             if args.command in {"watch", "stop"}:
@@ -625,8 +743,8 @@ def main(argv: list[str] | None = None) -> None:
             result = receipt(value)
         print(json.dumps(result, indent=2, sort_keys=True))
     except Exception as exc:
-        # Never print HTTP bodies/headers or SDK exception strings.
-        detail = str(exc) if isinstance(exc, WindowError) else type(exc).__name__
+        # Only SDK validation diagnostics are shown, after credential redaction.
+        detail = _error_detail(exc)
         print(f"serving-window failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from None
 

@@ -129,3 +129,6 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-trace-7-dev-only | tuned | QA Trace (qa-trace/7*) | trajectory-judge-400 | 26 | 0 |
 | qa-task-mimo-v7-scoreboard-source-reconciliation | selected | QA Task (qa-task/mimo-v7-audit*) from 2026-10-18 | mimo-heldout-v6-to-v7 | 0 | 33 |
 | qa-task-mimo-sample100-atlas-reuse | selected | QA Task (qa-task/mimo-sample100-strict*) from 2026-10-18 | mimo-stratified-sample100 | 40 | 60 |
+| qa-trace-8-inherited-test-exclusions | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trace-paired-v1 | 0 | 2 |
+| qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trace-paired-v1 | 7 | 0 |
+| qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trajectory-judge-400 | 26 | 0 |

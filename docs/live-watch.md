@@ -34,6 +34,13 @@ patches, so `hidden_test_read`, `task_protected_read`, `history_mining`,
 `codeban_violation` and the tamper rules see Codex steps as they see
 Terminus-2 `keystrokes`.
 
+**MiMo / host-loop shell calls.** Shell rules also read
+`bash(arguments.command)` (including calls with a separate `timeout` argument).
+The shared decoder preserves legacy `keystrokes` precedence and carries the
+original tool-call id into upstream-fetch outcome checks. Merely attempting
+to fetch upstream code remains an attempt signal, not proof that content
+reached the submission. Non-shell tools' `command` fields are not executed text.
+
 ```bash
 uv run evallab watch --runs-dir runs/ovn-g5-000169-tuned --out state/watch-01 --once
 uv run evallab watch --runs-dir runs --out state/watch-01 --interval 60 \

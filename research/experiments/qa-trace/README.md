@@ -1,5 +1,143 @@
 # QA Agent - Trace (`evallab qa trace`), scored runs
 
+## qa-trace/8 (2026-10-18): explicit verifier-test review
+
+Task tests were already copied into B0 when a package resolved; this upgrade makes
+their inspection explicit rather than claiming a new source of hidden labels.
+
+- B0 seals `verifier_tests.json` alongside the retained tests: source hashes,
+  package-digest qualification, and bounded static assertion locations. The index
+  is at most 24,000 serialized bytes, 32 source files and 128 listed sites;
+  omitted files/sites and original source truncation remain explicit.
+- Python assertions and assertion-like calls are indexed without executing code.
+  MiMo `tests/test.patch` additions use the existing patch-section parser and map
+  parseable fragments back to **patch-file lines**. They are not a reconstructed
+  postimage or an inventory of unchanged repository tests. Unparsed fragments,
+  unsupported sections and source-only shell launchers do not become zero coverage.
+- T1's `false_positive` and core-outcome `failure_cause` reviews must inspect
+  relevant retained test bodies, not merely list filenames or read an index.
+  The existing one-retry inspection policy is retained. A remaining quality gap
+  does not force a verdict or automatically turn a usable answer into abstention.
+  The prompt separates the actual request from extra assumptions about general
+  repository behavior; passing tests are not complete semantic correctness.
+- T2 is deterministic, **not another model reviewer**. Its artifact now exposes
+  the same qualified test-source index and per-scenario source-inspection status,
+  while routing still uses the source-cited T1 outcome. No static-count threshold,
+  package-name heuristic or missing-test rule manufactures a flag or clears one.
+- Missing original tests remain missing. A name-only/mismatched package supplies
+  context, not authenticated original grading behavior. The index describes
+  retained, redacted syntax; it measures neither executed assertion coverage nor
+  completeness against the task's specification.
+
+### Executed dev behavior
+
+The actual bundle → verify → T0/T2 CLI on paired **dev** task `000792` resolved by
+digest crosswalk, sealed the new artifact and printed `bundle intact`. Its patch
+index located **57** assertion sites, with **one unparsed fragment and one
+source-only section**; the shell launchers remained source-only, not fabricated
+Python coverage.
+
+A real `google-antigravity/claude-sonnet-5-5:medium` T1 acceptance review then read
+the retained `tests/test.patch` and `tests/test.sh`, returned usable structured
+output, needed no inspection retry and left the seal unchanged. This is a behavior
+smoke, **not an accuracy result**. Recorded usage was 42,617 input, 87,074 cached
+input and 2,484 output tokens; `$0.118781` is API-equivalent metadata, not a paid
+invoice or independently reconciled provider cost.
+
+### Measurement boundaries
+
+Only designated dev material may select prompts or implementation. Freeze source,
+prompt/configuration digests and selected/excluded IDs before any new test output.
+The separate canonical MiMo diagnostic is not a tuning set.
+
+Trajectory Judge supplies **no executable verifier/test package** for any of its
+400 examples. Keep that absence explicit and retain its 15 legacy exclusions
+(173 eligible test items). Paired's retained qa6 manifests have tests in 81/81
+workspaces but digest-bound provenance in only 69/81; the other 12 are name-only
+context. Exclude the two inherited qa5-exposed `000169` test items for the primary
+paired comparison (25 eligible items / 17 pairs), while retaining the full
+registered denominator and historical exposure disclosure.
+
+The earlier qa6 paired run is shortcut-only, and the earlier qa7 TJ run used Codex.
+Neither is a matched full-pipeline control for a changed-model qa8 experiment.
+Compare unchanged qa7 code and qa8 with identical explicit routes, stages and
+selected IDs; report false flags, recall, abstentions and provenance separately.
+Earlier benchmark exposure means this is not a virgin-holdout claim, and the
+interface change alone is not evidence of a precision or recall gain.
+
+### Complete canonical MiMo comparison (70/70)
+
+The root canonical handoff now measures **64 accepted / 6 rejected / 0 unknown**
+on all 70 original v6 passes. Labels SHA-256:
+`7cff02af923805a03d86ab20b21319d85fed7f3c05f25e1f533c168a4907f8fe`.
+Both immutable prediction trees were seal-verified (355 qa6 / 568 qa7 files)
+and scored with **zero new model or native calls**.
+
+| Frozen predictor | Wrong passes caught, RNR | Accepted flags, RNR | Wrong passes caught, FP | Accepted flags, FP |
+|---|---:|---:|---:|---:|
+| qa-trace/6 | 4/6 | 14/64 | 3/6 | 9/64 |
+| qa-trace/7 | 4/6 | 13/64 | 3/6 | 9/64 |
+
+RNR is `reward_not_real`; FP is `false_positive`. Primary-cohort counts remain
+2/2 caught in both heads, accepted RNR flags 5/43 for both, and FP flags 3/43
+versus 4/43. The newly measured B/a2/001246 is accepted and flagged by qa6 only.
+These are grader-acceptance labels, not independent semantic correctness or
+sourcing/intent labels. No qa7 promotion is justified. Full reports:
+[qa6](results/qa-trace-6-mimo-v7-canonical-complete.json),
+[qa7](results/qa-trace-7-mimo-v7-canonical-complete.json). Older partial reports
+below remain historical, not overwritten. This is not a registered task-weakness
+key, so the correctness supplement is not inserted as a task-weakness CSV score.
+
+### Once-only matched attempt: quota-blocked, no accuracy result
+
+Feature PR [#1058](https://github.com/PeterMakhnatch/eval-lab/pull/1058) merged as
+`e05dea2d86bebb93fda756d949dd93675bbd0f27`; all 11 exact-head/base checks passed.
+The actual merged CLI bundle → verify → T0/T2 path printed `bundle intact`.
+The earlier real T1 behavior above exercised the same frozen treatment.
+
+Before test outputs, source `4e47eaf9f`, dependency lock, model routes and exact
+173 TJ / 25 paired selections were frozen and pushed in research-context
+`636ca76` (`bridge/2026-10-17-v7/qa-trace-8-freeze.json`). Both unchanged qa7 code
+and qa8 used Sonnet 5.5 analysts / Opus 5.5 refuters via Antigravity, with the
+same alternate routes, full T0/T1/T3 stages, and native execution disabled.
+Dev-only refuter probes remained INCONCLUSIVE under the unchanged strict
+command-custody checker; this limitation was disclosed before testing.
+
+The existing quota gate then refused **all test model calls at reported 61%
+weekly usage, above the 60% stop**. **0/188 TJ and 0/27 paired registered items
+are measured for either system.** No provider substitution, quota bypass or
+quality improvement is claimed. All unknowns remain unknown, not successes or
+misses. The CSV's explicitly `quota-blocked` rows preserve those denominators
+and `n/a` metrics; recorded zero cost is not a reconciled provider invoice.
+
+TJ wrote 173 abstaining verdicts per system, despite reporting
+`judged=173, quota_stop=null`: all 519 T1 records per system contain the quota
+refusal and no token usage. Paired wrote 11 qa7 / 10 qa8 abstaining verdicts
+before batch stop. Wrapper call counters include refused admissions, not actual
+provider inference. All common prepared inputs matched outside the treatment
+README/index: 173 TJ and 12 paired bundles. The prepared paired sources included
+three name-only packages in each system; they are context, not original-grader
+proof. Full [coverage/custody report](results/qa-trace-8-test-aware-quota-blocked.json).
+
+### What the post-freeze case audit actually found
+
+The isolated MiMo diagnostic was opened only after the source/configuration
+freeze; no rule or model changed from it. All **22** original FP scenarios for
+the requested 11 cells already read the actual verifier test patch. Missing
+access is not their measured root cause. Accepted flags concern uncovered
+contract/edge-case obligations; **15/17** historical raised FP records had
+inconclusive refutation and therefore remained active. The two misses passed
+old tests but failed appended repaired float64/custom-recursive-getter checks.
+The newly accepted 001246 adds a composition/state-contract disagreement.
+
+Acceptance does not independently disprove those edge-case objections. Clearing
+a flag merely because tests pass would overfit the grader. The qualified static
+index is not executed or semantic coverage, and its accuracy effect remains
+unmeasured. Full case-cited report is retained in research-context
+`bridge/2026-10-17-v7/qa-trace-8-canonical-diagnostic.md`.
+
+
+
 ## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
 
 Changes from qa-trace/6:

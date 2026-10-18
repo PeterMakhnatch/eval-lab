@@ -13,6 +13,7 @@ files carry CheatBench annotation text.
 
 from __future__ import annotations
 
+import ast
 import codecs
 import contextlib
 import difflib
@@ -22,6 +23,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
+import textwrap
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -35,6 +37,7 @@ from evallab.cheatbench_fidelity import (
     blind_atif_step_origins,
     find_forbidden_json,
 )
+from evallab.hidden_patch import patch_sections
 from evallab.qa.trace import (
     BUNDLE_SCHEMA,
     Bundle,
@@ -53,6 +56,9 @@ WORKSPACE_SCHEMA = BUNDLE_SCHEMA
 MAX_FILE_BYTES = 256 * 1024
 MAX_TREE_BYTES = 4 * 1024 * 1024
 MAX_TRACE_EVIDENCE_BYTES = 24_000
+MAX_VERIFIER_TEST_BYTES = 24_000
+MAX_VERIFIER_TEST_FILES = 32
+MAX_VERIFIER_ASSERTION_SITES = 128
 MIMO_STORE = "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6"
 
 
@@ -1013,6 +1019,162 @@ def _copy_texts(
     return files
 
 
+def _python_assertion_sites(source: str) -> list[dict[str, Any]]:
+    sites: list[dict[str, Any]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assert):
+            kind = "assert"
+        elif isinstance(node, ast.Call):
+            name = (
+                node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else node.func.id
+                if isinstance(node.func, ast.Name)
+                else ""
+            )
+            if name == "raises":
+                kind = "raises_call"
+            elif name.startswith("assert") or name == "fail":
+                kind = "assertion_like_call"
+            else:
+                continue
+        else:
+            continue
+        sites.append(
+            {"line": node.lineno, "end_line": node.end_lineno or node.lineno, "kind": kind}
+        )
+    sites.sort(key=lambda site: (site["line"], site["end_line"], site["kind"]))
+    return sites
+
+
+def _patch_assertion_sites(source: str) -> tuple[list[dict[str, Any]], int, int]:
+    """Map parseable contiguous additions back to patch lines, not a guessed postimage."""
+    source = "\n".join(source.splitlines())
+    sections = patch_sections(source)
+    if not sections:
+        raise ValueError("no supported diff --git sections")
+    sites: list[dict[str, Any]] = []
+    unparsed, source_only, offset = 0, 0, 0
+    for path, section in sections:
+        start = source.index(section, offset)
+        offset = start + len(section)
+        if not path.endswith(".py"):
+            source_only += 1
+            continue
+        first_line = source.count("\n", 0, start) + 1
+        fragments: list[tuple[int, list[str]]] = []
+        block: list[str] = []
+        block_start, in_hunk = 0, False
+        for line, text in enumerate(section.splitlines(), start=first_line):
+            if text.startswith("@@"):
+                in_hunk = True
+            if in_hunk and text.startswith("+") and not text.startswith("+++"):
+                if not block:
+                    block_start = line
+                block.append(text[1:])
+            elif block:
+                fragments.append((block_start, block))
+                block = []
+        if block:
+            fragments.append((block_start, block))
+        for line, added in fragments:
+            try:
+                found = _python_assertion_sites(textwrap.dedent("\n".join(added)))
+            except (SyntaxError, ValueError, RecursionError):
+                unparsed += 1
+                continue
+            sites.extend(
+                {
+                    **site,
+                    "line": line + site["line"] - 1,
+                    "end_line": line + site["end_line"] - 1,
+                    "patch_section": path,
+                }
+                for site in found
+            )
+    return sites, unparsed, source_only
+
+
+def _verifier_test_index(
+    files: dict[str, bytes], resolution: Resolution, notes: Sequence[str]
+) -> dict[str, Any]:
+    """Index retained test syntax, never execute it or infer semantic coverage."""
+    paths = sorted(rel for rel in files if rel.startswith("task_codebase/tests/"))
+    entries: list[dict[str, Any]] = []
+    remaining = MAX_VERIFIER_ASSERTION_SITES
+    for rel in paths[:MAX_VERIFIER_TEST_FILES]:
+        data = files[rel]
+        entry: dict[str, Any] = {
+            "file": rel,
+            "sha256": _sha256_bytes(data),
+            "bytes": len(data),
+            "source_truncated": any(
+                note.startswith(rel + ":") and "truncat" in note for note in notes
+            ),
+            "index_status": "source_only",
+            "static_assertion_sites": None,
+            "assertions": [],
+            "omitted_assertion_sites": None,
+            "analysis_scope": "source_only",
+            "indexed_assertion_sites": None,
+            "unparsed_fragments": 0,
+            "source_only_patch_sections": 0,
+        }
+        if rel.endswith((".py", ".patch", ".diff")):
+            patch = not rel.endswith(".py")
+            entry["analysis_scope"] = "patch_additions_only" if patch else "retained_python_source"
+            try:
+                if patch:
+                    sites, unparsed, source_only = _patch_assertion_sites(data.decode())
+                else:
+                    sites = _python_assertion_sites(data.decode())
+                    unparsed, source_only = 0, 0
+            except (SyntaxError, ValueError, RecursionError) as exc:
+                entry["index_status"] = "parse_error"
+                entry["parse_error"] = {
+                    "kind": type(exc).__name__,
+                    "line": getattr(exc, "lineno", None),
+                }
+            else:
+                kept = sites[:remaining]
+                remaining -= len(kept)
+                entry.update(
+                    index_status="partial" if unparsed or source_only else "indexed",
+                    static_assertion_sites=None if unparsed or source_only else len(sites),
+                    indexed_assertion_sites=len(sites),
+                    assertions=kept,
+                    omitted_assertion_sites=len(sites) - len(kept),
+                    unparsed_fragments=unparsed,
+                    source_only_patch_sections=source_only,
+                )
+        entries.append(entry)
+    index: dict[str, Any] = {
+        "schema": "qa.verifier_tests/v1",
+        "status": "present" if paths else "missing",
+        "scope": "Retained, redacted task_codebase/tests/ text only; copy omissions are in README.md.",
+        "coverage": "Static syntax only: sites may be conditional, unused or assertion-like calls. "
+        "Patch sites cover parseable added fragments, not unchanged tests or a reconstructed postimage. "
+        "No runtime coverage or semantic completeness was measured.",
+        "binding": {
+            "method": resolution.method,
+            "digest_expected": resolution.digest_expected,
+            "digest_found": resolution.digest_found,
+            "matched": resolution.matched,
+        },
+        "files": entries,
+        "omitted_files": len(paths) - len(entries),
+        "limits": {
+            "serialized_bytes": MAX_VERIFIER_TEST_BYTES,
+            "files": MAX_VERIFIER_TEST_FILES,
+            "assertion_sites": MAX_VERIFIER_ASSERTION_SITES,
+        },
+    }
+    while len(_json_bytes(index)) > MAX_VERIFIER_TEST_BYTES and entries:
+        entries.pop()
+        index["omitted_files"] = len(paths) - len(entries)
+    return index
+
+
 def _readme(
     availability: dict[str, str], resolution: Resolution, notes: list[str], diff_source: str
 ) -> str:
@@ -1037,6 +1199,7 @@ def _readme(
             "- `trajectory_summary.md`: per-step command, observation, error and token timeline.",
             "- `steps.txt`, `trajectory.json`: detailed ATIF evidence; grep rather than reading the entire trace.",
             "- `trace_evidence.json`: bounded blind-ATIF calls, observations and agent messages with exact source refs, delayed-result links and explicit coverage; not a final-state snapshot.",
+            "- `verifier_tests.json`: source-hashed verifier-test files and bounded static assertion locations, qualified by package binding; not runtime or complete semantic coverage.",
             "- `agent_logs/`: scripted-agent attempts, oracle/command logs and trial log, if retained.",
             "- `verifier/`: all retained text grader outputs, including nonstandard log names.",
             "- `environment/state-diff.json`: retained state-journal diff, when available.",
@@ -1092,6 +1255,9 @@ def _seal(
     ``step_origin[i]`` is the answer key's reference for workspace step ``i``:
     the source ATIF ``step_id``, or the upstream index for trajectory-judge rows.
     """
+    files["verifier_tests.json"] = _json_bytes(
+        _verifier_test_index(files, resolution, provenance.get("truncations") or ())
+    )
     leaks = _evaluator_leaks(files)
     if leaks:
         raise ValueError(f"refusing to seal a workspace with evaluator-only content: {leaks[:5]}")

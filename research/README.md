@@ -29,3 +29,12 @@ queries, and reviewed, immutable evidence bundles.
 - Do not store unreviewed, ephemeral execution scratch or raw Harbor runs here; use `runs/`.
 - Do not add unverified capability claims without backing evidence or control runs.
 - Do not store platform implementation code or task definitions here; use `src/` or `library/`.
+
+## Held-out v7 retained-submission replay
+
+`experiments/heldout-v7/regrade.py inventory --inputs <source-inputs.json> --out <inventory.json>`
+binds all four canonical arms, native job/trial identities, full frozen packages and exact kept-diff bytes without execution. Missing native trials and missing/empty diffs remain distinct; corrected canonical nulls never inherit a raw reward.
+
+Use `regrade.py run --help` for the native campaign. Execution requires a released original33 v7 manifest, its explicitly Verifier-accepted exact SHA, the independent receipt, and retained native cost calibration. The cumulative $3 journal and exclusive lease live alongside the bound source-input configuration, not in a new per-invocation work directory. Reservations survive failed calls and restarts; they are estimates, not provider bills or a native billing tag.
+
+Outputs are `report.json` and QA Trace's `regrade-v7.json`. Primary B–C, B–Base and C–Base use one identical qualified attempt-1 task cohort, exact sign tests and paired-task bootstrap difference intervals. Full B2 comparisons are secondary; diagnostics and quarantined canaries never enter primary rates. `real_pass`/`wrong_pass` describe original-v6-pass grading correctness, not shortcut behavior or intent.

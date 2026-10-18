@@ -430,14 +430,15 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
                 result = subprocess.run(
                     [*command, "diff", "--no-ext-diff", "--no-textconv", "HEAD", "--"],
                     capture_output=True,
-                    text=True,
-                    errors="replace",
                     timeout=30,
                     env=env,
                 )
                 if result.returncode:
-                    return None, "snapshot git diff failed: " + result.stderr.strip()[:160]
-                chunks.append(result.stdout)
+                    return None, (
+                        "snapshot git diff failed: "
+                        + result.stderr.decode("utf-8", errors="replace").strip()[:160]
+                    )
+                chunks.append(result.stdout.decode("utf-8", errors="replace"))
                 untracked = subprocess.run(
                     [*command, "ls-files", "--others", "--exclude-standard", "-z"],
                     capture_output=True,
@@ -458,8 +459,11 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
                         or not path.is_file()
                     ):
                         continue
-                    content = _nonempty(path)
-                    if content is not None:
+                    try:
+                        content = path.read_bytes().decode("utf-8")
+                    except (OSError, UnicodeError):
+                        continue
+                    if content.strip() and "\x00" not in content:
                         chunks.append(
                             "".join(
                                 difflib.unified_diff(
@@ -482,11 +486,20 @@ def _snapshot_diff(archive: Path) -> tuple[str | None, str]:
 
 def recover_file_changes(trial_dir: Path, steps: list[dict[str, Any]]) -> FileChanges:
     """Recover the fullest retained change evidence, never equating writes with a diff."""
-    kept = _nonempty(trial_dir / "verifier/agent.kept.diff")
-    for rel in ("verifier/agent.full.diff", "verifier/agent.diff", "verifier/agent.kept.diff"):
-        text = _nonempty(trial_dir / rel)
-        if text:
+    kept = None
+    for rel in ("verifier/agent.kept.diff", "verifier/agent.full.diff", "verifier/agent.diff"):
+        try:
+            text = (trial_dir / rel).read_bytes().decode("utf-8")
+        except (OSError, UnicodeError):
+            continue
+        if not text.strip() or "\x00" in text:
+            continue
+        if rel == "verifier/agent.kept.diff":
+            kept = text
+        else:
             return FileChanges(text, rel, kept)
+    if kept:
+        return FileChanges(kept, "verifier/agent.kept.diff", kept)
     reasons: list[str] = []
     artifacts = trial_dir / "artifacts"
     for archive in sorted(artifacts.rglob("workspace.tgz")):
@@ -496,7 +509,11 @@ def recover_file_changes(trial_dir: Path, steps: list[dict[str, Any]]) -> FileCh
         reasons.append(f"{archive.relative_to(trial_dir)}: {reason}")
     patches = sorted({*artifacts.rglob("*.diff"), *artifacts.rglob("*.patch")})
     for path in patches:
-        if text := _nonempty(path):
+        try:
+            text = path.read_bytes().decode("utf-8")
+        except (OSError, UnicodeError):
+            continue
+        if text.strip() and "\x00" not in text:
             return FileChanges(text, path.relative_to(trial_dir).as_posix(), kept)
     state = _json(trial_dir / "state-journal/state-diff.json")
     if state.get("changes"):

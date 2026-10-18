@@ -482,7 +482,8 @@ def minimal_grader_change(
     if package is None or not (package / "task.toml").is_file() or not (package / "tests").is_dir():
         return {**outcome, "reason": "resolved task package unavailable"}
     tests = bundle.files("task_codebase/tests/")
-    diff = bundle.text("file_changes.diff")
+    diff_path = bundle.root / "file_changes.diff"
+    diff = diff_path.read_bytes().decode("utf-8") if diff_path.is_file() else ""
     if not tests or not diff or bundle.manifest.get("availability", {}).get("diff") == "missing":
         return {**outcome, "reason": "task tests or recorded file changes unavailable"}
     try:

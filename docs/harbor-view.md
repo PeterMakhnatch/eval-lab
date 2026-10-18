@@ -312,6 +312,9 @@ and T3; `qa-trace/6` is `qa-trace/5` with the contribution-only cheat label and
     executor owns setup, isolation, collection and grading. Compiled-artifact
     stanzas are dropped as `@10` drops them. This is **patch replay**, not
     recovery of the original filesystem or trajectory.
+    Retained UTF-8 diff bytes are decoded without universal-newline conversion:
+    LF and CRLF inside added file content remain literal through bundle recovery
+    and script generation. Binary-stanza exclusions are unchanged.
   - Without a retained diff, an existing workspace snapshot uses native
     Harbor `trial regrade` against the immutable source trial. Missing source
     logs, capture manifests or other required artifacts remain refusals.
@@ -353,7 +356,7 @@ and T3; `qa-trace/6` is `qa-trace/5` with the contribution-only cheat label and
     receipts, including refusals, remain immutable.
     Content-addressed replay scripts are published atomically, so independent
     graders sharing the same script cannot truncate a sibling's executing input.
-  - **Counterfactual `/3` consumer contract.** Bind observations and controls by
+  - **Counterfactual `/4` consumer contract.** Bind observations and controls by
     `grader_identity.task_name` plus the **full**
     `grader_identity.variant_digest`, and cross-check the resolved package bytes
     and `grader_source`. Controls carry that identity, engine, reference checksum,
@@ -361,10 +364,13 @@ and T3; `qa-trace/6` is `qa-trace/5` with the contribution-only cheat label and
     keyed by a selection label. The representative `grader`/`transform` is not the
     only selected route: qualification must inspect `grader_source.aliases` and
     validate each selected route's manifest/repair ancestry. There is no separate
-    top-level `grader_digest` in `/3`. Two aliases of one package are one physical
+    top-level `grader_digest` in `/4`. Two aliases of one package are one physical
     observation, not two independently pinned v6/repair graders. Do not relax
     source custody, engine matching, or distinct-package scientific requirements
     when migrating a label-based consumer.
+    Engine `/4` invalidates `/3` observations and controls rather than reusing
+    caches that may have replayed newline-normalized input; retained evidence
+    is not rewritten.
   - `--environment docker` (default): each native execution holds the
     host-wide Docker FIFO lock (`docs/docker-lock.md`); executions are
     serialized, even with multiple queued workers. Harbor 0.24 (the `laminar`

@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import tarfile
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from evallab import runner
 from evallab.qa import counterfactual as cf
-from evallab.qa import trace
+from evallab.qa import trace, trace_workspace
 from evallab.qa import trace_verify as tv
 from evallab.qa.trace import Bundle, CallResult, ModelRoute
 
@@ -522,6 +527,125 @@ def test_minimal_grader_change_uses_same_variant_for_controls_and_recorded_diff(
     assert all(not path.exists() for path, _ in seen)
     assert source_before == {
         p.relative_to(package).as_posix(): p.read_bytes() for p in package.rglob("*") if p.is_file()
+    }
+
+
+@pytest.mark.parametrize(
+    "patch_source",
+    [
+        "verifier/agent.full.diff",
+        "verifier/agent.diff",
+        "verifier/agent.kept.diff",
+        "artifacts/submission.patch",
+        "snapshot",
+    ],
+)
+def test_minimal_grader_change_replays_literal_patch_bytes_from_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, patch_source: str
+) -> None:
+    import evallab.docker_lock
+
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setattr(evallab.docker_lock, "docker_slot", lambda **_: nullcontext())
+    workspace = tmp_path / "workspace with spaces"
+    workspace.mkdir()
+    subprocess.run(["git", "init", "--quiet", str(workspace)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(workspace), "config", "core.autocrlf", "false"],
+        check=True,
+        capture_output=True,
+    )
+    target = workspace / "app.py"
+    target.write_bytes(b"old\n")
+    subprocess.run(
+        ["git", "-C", str(workspace), "add", "app.py"], check=True, capture_output=True
+    )
+    subprocess.run(
+        [
+            "git", "-C", str(workspace), "-c", "user.name=Fixture",
+            "-c", "user.email=fixture@example.invalid", "-c", "core.hooksPath=/dev/null",
+            "commit", "--quiet", "-m", "base",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    postimage = b"new\r\nstill LF\nlast\r\n"
+    target.write_bytes(postimage)
+    patch = subprocess.run(
+        ["git", "-C", str(workspace), "diff", "--no-ext-diff", "--no-textconv", "HEAD", "--"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    trial = tmp_path / "trial"
+    trial.mkdir()
+    (trial / "result.json").write_text(
+        json.dumps({"task_name": TASK, "verifier_result": {"rewards": {"reward": 0.0}}})
+    )
+    untracked = workspace / "new.txt"
+    if patch_source == "snapshot":
+        untracked.write_bytes(b"untracked\r\n")
+        archive = trial / "artifacts/workspace.tgz"
+        archive.parent.mkdir()
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(workspace, arcname="workspace")
+    else:
+        retained = trial / patch_source
+        retained.parent.mkdir(parents=True)
+        retained.write_bytes(patch)
+    source_before = {
+        p.relative_to(trial): p.read_bytes() for p in trial.rglob("*") if p.is_file()
+    }
+    package = tmp_path / "package"
+    (package / "tests").mkdir(parents=True)
+    (package / "tests/test_case.py").write_text("assert value == 3\n")
+    (package / "instruction.md").write_text("Preserve the requested literal file bytes.\n")
+    (package / "task.toml").write_text(
+        f"[environment]\nworkdir = {json.dumps(str(workspace))}\n"
+    )
+    monkeypatch.setattr(trace_workspace, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(trace_workspace, "_prior_archive_root", lambda: tmp_path / "priors")
+    bundle = trace_workspace.build_workspace(
+        trial, tmp_path / "bundle", task_dir=package, task_name=TASK
+    )
+    if patch_source != "snapshot":
+        assert (bundle.root / "file_changes.diff").read_bytes() == (
+            f"# source: {patch_source}\n".encode() + patch
+        )
+    monkeypatch.setattr(cf, "reference_patch", lambda *_: patch.decode("utf-8"))
+    monkeypatch.setattr(trace, "counterfactual_root", lambda: tmp_path / "cache")
+    monkeypatch.setattr(trace, "_repo_root", lambda: tmp_path)
+    observed: list[bytes] = []
+
+    def execute(matrix, *, root):
+        target.write_bytes(b"old\n")
+        untracked.unlink(missing_ok=True)
+        applied = subprocess.run(
+            ["bash", str(root / matrix.runs[0].solution)], capture_output=True, text=True
+        )
+        assert applied.returncode == 0, applied.stderr
+        observed.append(target.read_bytes())
+        return SimpleNamespace(
+            results=[{"status": "ok", "rewards": [float(observed[-1] == postimage)], "error": None}],
+            receipt_path=root / f"{matrix.name}.json",
+        )
+
+    monkeypatch.setattr(runner, "run_matrix", execute)
+    result = tv.minimal_grader_change(
+        bundle,
+        trial,
+        {**_answer(), "question": "false_negative"},
+        VERIFY_ROUTE,
+        call=FakeCall(bundle, [({"patch": TEST_PATCH, "justification": "Correct the test."}, [])]),
+    )
+    assert result["verdict"] == "verified", result
+    assert result["controls"] == {"nop": 0.0, "reference": 1.0, "valid": True}
+    assert observed == [b"old\n", postimage, postimage]
+    if patch_source == "snapshot":
+        assert untracked.read_bytes() == b"untracked\r\n"
+    assert bundle.verify() == []
+    assert source_before == {
+        p.relative_to(trial): p.read_bytes() for p in trial.rglob("*") if p.is_file()
     }
 
 

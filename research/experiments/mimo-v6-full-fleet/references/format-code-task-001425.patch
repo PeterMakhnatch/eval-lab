@@ -1,0 +1,255 @@
+diff --git a/lib/stripe_lib/models.py b/lib/stripe_lib/models.py
+index d018588..069a13c 100644
+--- a/lib/stripe_lib/models.py
++++ b/lib/stripe_lib/models.py
+@@ -353,6 +353,139 @@ class BaseStripeCustomer(BaseStripeModel):
+         has_card = len(cards) > 0
+         return has_card
+ 
++    ##
++    # subscriptions
++
++    @property
++    def subscription_obj(self):
++        return self.make_subscription_obj()
++
++    def make_subscription_obj(self, subscription_id=None):
++        """Creates a subscription object to make it easier to handle this"""
++        return BaseStripeSubscription(
++            stripe_id=subscription_id,
++            live_mode=self.live_mode,
++            customer=self,
++        )
++
++    def create_subscription(self, price_or_plan, invoice=True):
++        """Creates a new Subscription for this Customer
++
++        https://stripe.com/docs/api/subscriptions/create
++        """
++        stripe_subscription = self.subscription_obj.create(
++            price_or_plan, invoice=invoice
++        )
++        return stripe_subscription
++
++    def retrieve_subscription(self, subscription_id):
++        """Retrieves a Subscription for this Customer
++
++        https://stripe.com/docs/api/subscriptions/retrieve
++        """
++        _initialize_stripe(live_mode=self.live_mode)
++
++        if subscription_id:
++            subscription = self.make_subscription_obj(
++                subscription_id
++            ).retrieve()
++        else:
++            # missing subscription id
++            subscription = None
++
++        return subscription
++
++    def change_subscription_plan(
++        self, subscription_id, new_price_or_plan, prorate=True, invoice=True
++    ):
++        """Changes the plan on a Subscription for this Customer
++
++        NOTE: This function/model only assumes one current active price per subscription
++
++        https://stripe.com/docs/api/subscriptions/retrieve
++        https://stripe.com/docs/api/subscriptions/update
++        https://stripe.com/docs/billing/migration/migrating-prices#subscriptions
++        """
++        stripe_subscription = self.retrieve_subscription(subscription_id)
++        if stripe_subscription:
++            item = {
++                'id': stripe_subscription['items']['data'][0]['id'],
++            }
++            if isinstance(new_price_or_plan, str) or isinstance(
++                new_price_or_plan, type(u'')
++            ):
++                item['price'] = new_price_or_plan
++            elif isinstance(new_price_or_plan, dict):
++                item['price_data'] = new_price_or_plan
++            else:
++                raise Exception(
++                    'Unsupported price_or_plan type: %s'
++                    % type(new_price_or_plan)
++                )
++
++            kwargs = {
++                'items': [
++                    # NOTE: currently only 1 subscription item is handled
++                    item,
++                ],
++                # https://stripe.com/docs/billing/subscriptions/billing-cycle#prorations
++                'proration_behavior': 'create_prorations'
++                if prorate
++                else 'none',
++            }
++            updated_subscription = self.make_subscription_obj(
++                subscription_id
++            ).modify(**kwargs)
++
++            if updated_subscription and invoice:
++                # Note on Prorations:
++                # If the new plan is more expensive, a payment will happen right away
++                # Create the invoice and trust that Stripe handles it correctly :)
++                #
++                # See: https://stripe.com/docs/billing/subscriptions/billing-cycle#prorations
++                self.create_invoice_and_pay()
++            else:
++                # do nothing, not invoicing :)
++                pass
++        else:
++            updated_subscription = None
++
++        return updated_subscription
++
++    def free_upgrade_or_downgrade(self, subscription_id, new_price_or_plan):
++        """Updates the plan on a Subscription for this Customer
++
++        Does an immediate upgrade or downgrade to the new plan, but does
++        not charge the Customer.
++        This can be used, for example, when providing a free upgrade as
++        a courtesy, or for admin-initiated subscription plan changes.
++
++        If intending to charge the customer immediately at time of change
++        or with proration, use `change_subscription_plan(prorate=True, invoice=True)` instead.
++
++        https://stripe.com/docs/billing/subscriptions/prorations#disable-prorations
++        https://stripe.com/docs/api#update_subscription
++        """
++        updated_subscription = self.change_subscription_plan(
++            subscription_id,
++            new_price_or_plan,
++            prorate=False,
++            invoice=False,
++        )
++        return updated_subscription
++
++    def cancel_subscription(self, subscription_id):
++        """Cancels a Subscription for this Customer
++
++        https://stripe.com/docs/api/subscriptions/cancel
++
++        Returns:
++        - True if `subscription_id` was canceled
++        - False if `subscription_id` was not found
++        """
++        was_deleted = self.make_subscription_obj(subscription_id).cancel()
++        return was_deleted
++
+     ##
+     # delete
+ 
+@@ -371,6 +504,110 @@ class BaseStripeCustomer(BaseStripeModel):
+         else:
+             pass
+ 
++
++class BaseStripeSubscription(BaseStripeModel):
++    """Django model for Stripe Subscription
++
++    NOTE: This class is just used for structural purposes for now, and not intended to be persisted
++
++    https://stripe.com/docs/api/subscriptions
++    """
++
++    # class attributes
++    STRIPE_API_CLASS = stripe.Subscription
++
++    # fields
++    # overrides `stripe_id`: unlike others, this will get set after creating
++    stripe_id = models.CharField(
++        max_length=255, unique=True, null=True, blank=True
++    )
++    customer = models.ForeignKey(
++        htk_setting('HTK_STRIPE_CUSTOMER_MODEL'),
++        related_name='subscriptions',
++        on_delete=models.DO_NOTHING,
++    )
++
++    def create(self, price_or_plan, invoice=True):
++        """Creates a new Subscription
++
++        https://stripe.com/docs/api/subscriptions/create
++        """
++        _initialize_stripe(live_mode=self.live_mode)
++
++        item = {}
++        if isinstance(price_or_plan, str) or isinstance(
++            price_or_plan, type(u'')
++        ):
++            item['price'] = price_or_plan
++        elif isinstance(price_or_plan, dict):
++            item['price_data'] = price_or_plan
++        else:
++            raise Exception(
++                'Unsupported price_or_plan type: %s' % type(price_or_plan)
++            )
++
++        kwargs = {
++            'customer': self.customer.stripe_id,
++            'items': [
++                item,
++            ],
++        }
++        stripe_subscription = safe_stripe_call(
++            self.STRIPE_API_CLASS.create,
++            **kwargs
++        )
++
++        if stripe_subscription:
++            self.stripe_id = stripe_subscription['id']
++            if invoice:
++                self.customer.create_invoice_and_pay()
++            else:
++                pass
++        else:
++            pass
++
++        return stripe_subscription
++
++    def modify(self, **kwargs):
++        """Modifies a Subscription plan
++
++        https://stripe.com/docs/api/subscriptions/update
++        """
++        args = (self.stripe_id,)
++        subscription = safe_stripe_call(
++            self.STRIPE_API_CLASS.modify,
++            *args,
++            **kwargs
++        )
++        return subscription
++
++    def cancel(self):
++        """Cancels a Subscription for this Customer
++
++        https://stripe.com/docs/api/subscriptions/cancel
++
++        Returns:
++        - True if subscription was canceled
++        - False if subscription was not found
++        """
++        subscription = self.retrieve()
++
++        if subscription:
++            # Subscription `status` set to `canceled` already
++            # may be due to `Stripe Payment Failure` or other reasons
++            was_deleted = subscription.get('status') == 'canceled'
++
++            # Subscription is `active` and should be deleted
++            if not was_deleted:
++                args = (subscription.get('id'),)
++                obj = safe_stripe_call(self.STRIPE_API_CLASS.delete, *args)
++                was_deleted = obj is not None and obj.get('status') == 'canceled'
++        else:
++            was_deleted = False
++
++        return was_deleted
++
++
+ class BaseStripeProduct(BaseStripeModel):
+     """Django model for Stripe Product
+ 

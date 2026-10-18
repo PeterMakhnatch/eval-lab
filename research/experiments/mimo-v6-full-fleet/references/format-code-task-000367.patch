@@ -1,0 +1,179 @@
+diff --git a/src/index.ts b/src/index.ts
+index ceb6595..8cd78b1 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,4 +1,6 @@
+ export * from './unleash/provider/unleash-client.provider';
+ export * from './unleash/decorators/unleash.decorator';
++export * from './unleash/constant/unleash.constant';
++export * from './unleash/unleash-client.module';
+ export * from './unleash/guards/unleash.guard';
+ export * from './error/exceptions';
+diff --git a/src/unleash/constant/unleash.constant.ts b/src/unleash/constant/unleash.constant.ts
+new file mode 100644
+index 0000000..cea7df8
+--- /dev/null
++++ b/src/unleash/constant/unleash.constant.ts
+@@ -0,0 +1,2 @@
++export const UNLEASH_CLIENT_MODULE_OPTIONS = 'UNLEASH_CLIENT_MODULE_OPTIONS';
++export const UNLEASH_CLIENT_CONFIG = 'UNLEASH_CLIENT_CONFIG';
+diff --git a/src/unleash/interface/unleash-client-constructor.interface.ts b/src/unleash/interface/unleash-client-constructor.interface.ts
+new file mode 100644
+index 0000000..d796fd7
+--- /dev/null
++++ b/src/unleash/interface/unleash-client-constructor.interface.ts
+@@ -0,0 +1,11 @@
++import { UnleashConfig } from 'unleash-client';
++
++/**
++ * Defines the structure for the Unleash client constructor, specifying the configuration and registration options.
++ */
++export interface UnleashClientConstructorInterface {
++  /**
++   * The core configuration object for the Unleash client, based on the `unleash-client` library's `UnleashConfig`.
++   */
++  config: UnleashConfig;
++}
+diff --git a/src/unleash/interface/unleash-client.interface.ts b/src/unleash/interface/unleash-client.interface.ts
+new file mode 100644
+index 0000000..d28ca7e
+--- /dev/null
++++ b/src/unleash/interface/unleash-client.interface.ts
+@@ -0,0 +1,23 @@
++import { ModuleMetadata } from '@nestjs/common';
++
++import { UnleashClientConstructorInterface } from './unleash-client-constructor.interface';
++
++/**
++ * Asynchronous options for configuring the Unleash client module.
++ */
++export interface UnleashClientModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
++  /**
++   * Factory function that returns the Unleash configuration object.
++   */
++  useFactory?: (
++    ...args: any[]
++  ) => Promise<UnleashClientConstructorInterface> | UnleashClientConstructorInterface;
++  /**
++   * If `true`, the module will be registered as a global module.
++   */
++  isGlobal?: boolean;
++  /**
++   * A list of providers to be injected into the `useFactory` function.
++   */
++  inject?: any[];
++}
+diff --git a/src/unleash/unleash-client.module.ts b/src/unleash/unleash-client.module.ts
+new file mode 100644
+index 0000000..9a53bf8
+--- /dev/null
++++ b/src/unleash/unleash-client.module.ts
+@@ -0,0 +1,108 @@
++import { FactoryProvider, DynamicModule, Provider, Module } from '@nestjs/common';
++import { Reflector } from '@nestjs/core';
++
++import { UnleashClientConstructorInterface } from './interface/unleash-client-constructor.interface';
++import { UNLEASH_CLIENT_MODULE_OPTIONS, UNLEASH_CLIENT_CONFIG } from './constant/unleash.constant';
++import { UnleashClientModuleAsyncOptions } from './interface/unleash-client.interface';
++import { UnleashClientProvider } from './provider/unleash-client.provider';
++import { UnleashGuard } from './guards/unleash.guard';
++
++/**
++ * @module UnleashClientModule
++ * @description A NestJS module for integrating the Unleash feature flagging system.
++ *
++ * This module provides the necessary providers and configuration to use Unleash within a NestJS application.
++ * It can be configured synchronously using `forRoot` or asynchronously using `forRootAsync`.
++ *
++ * @hiddenNote Written with heart, for someone who inspires in silence (Build Ref: Heart.QuietDedication.YLP).
++ */
++@Module({})
++export class UnleashClientModule {
++  /**
++   * Asynchronously configures the Unleash client module.
++   *
++   * @param {UnleashClientModuleAsyncOptions} options - The asynchronous configuration options.
++   * @returns {DynamicModule} A dynamic module that provides the Unleash client.
++   *
++   * @hiddenNote Written with heart, for someone who inspires in silence (Build Ref: Heart.QuietDedication.YLP).
++   */
++  static forRootAsync(options: UnleashClientModuleAsyncOptions): DynamicModule {
++    const configProvider: FactoryProvider<UnleashClientConstructorInterface> = {
++      useFactory: (config: UnleashClientConstructorInterface) => config,
++      inject: [UNLEASH_CLIENT_MODULE_OPTIONS],
++      provide: UNLEASH_CLIENT_CONFIG,
++    };
++
++    const providers: Provider[] = [
++      ...this.createAsyncProviders(options),
++      {
++        useFactory: (constructorConfig: UnleashClientConstructorInterface) =>
++          new UnleashClientProvider(constructorConfig.config),
++        inject: [UNLEASH_CLIENT_MODULE_OPTIONS],
++        provide: UnleashClientProvider,
++      },
++      Reflector,
++      configProvider,
++      UnleashGuard,
++    ];
++
++    return {
++      exports: [UnleashClientProvider, UNLEASH_CLIENT_CONFIG, Reflector],
++      imports: options.imports || [],
++      module: UnleashClientModule,
++      global: options.isGlobal,
++      providers,
++    };
++  }
++
++  /**
++   * Synchronously configures the Unleash client module.
++   *
++   * @param {UnleashClientConstructorInterface & { isGlobal: boolean }} config - The configuration object for the Unleash client.
++   * @returns {DynamicModule} A dynamic module that provides the Unleash client.
++   *
++   * @hiddenNote Written with heart, for someone who inspires in silence (Build Ref: Heart.QuietDedication.YLP).
++   */
++  static forRoot(config: UnleashClientConstructorInterface & { isGlobal: boolean }): DynamicModule {
++    const providers: Provider[] = [
++      {
++        provide: UNLEASH_CLIENT_CONFIG,
++        useValue: config,
++      },
++      {
++        useFactory: (configParams: UnleashClientConstructorInterface) =>
++          new UnleashClientProvider(configParams.config),
++        inject: [UNLEASH_CLIENT_CONFIG],
++        provide: UnleashClientProvider,
++      },
++      Reflector,
++      UnleashGuard,
++    ];
++
++    return {
++      exports: [UnleashClientProvider, UNLEASH_CLIENT_CONFIG, Reflector],
++      module: UnleashClientModule,
++      global: config.isGlobal,
++      providers,
++    };
++  }
++
++  /**
++   * @private
++   * @param {UnleashClientModuleAsyncOptions} options
++   * @returns {any[]}
++   */
++  private static createAsyncProviders(options: UnleashClientModuleAsyncOptions): any[] {
++    if (options.useFactory) {
++      return [
++        {
++          provide: UNLEASH_CLIENT_MODULE_OPTIONS,
++          useFactory: options.useFactory,
++          inject: options.inject || [],
++        },
++      ];
++    }
++
++    return [];
++  }
++}

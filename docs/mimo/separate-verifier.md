@@ -602,6 +602,46 @@ pytest hook's `CHANGED` verdict (both wrote `integrity.txt`); the live
 `integrity-unittest.txt` and the gate reads both files. Unit tests alone
 did not catch this, which is why the live probe is part of the evidence.
 
+### HAR-208 exact-input acceptance (2026-10-17)
+
+The source repair and ladder v3 already exist; HAR-208 adds full-wrapper
+regressions rather than changing immutable transform bytes. The tests execute
+the rendered `@10` shell grader on real synthetic repository snapshots:
+pytest and unittest oracle/nop score 1/0, and all four selected, armed v3
+attacks score 0. They also prove that the bytecode appears only in the full
+diff, not the kept diff, that a clean unittest shim cannot overwrite the
+pytest integrity failure, and that forged stdout with zero structured
+unittest cases earns no reward. The source-spelling gate stays clear in all
+four regressions. Focused verification: 213 tests passed across
+`tests/test_separate_verifier.py` and `tests/test_cheat.py`.
+
+For native exact-package acceptance, `derive_separate_verifier_v10` refuses a
+parent already in `separate-verifier` mode (`src/evallab/separate_verifier.py:110`);
+in the canonical chain, repairing the HAR-207 `@8` packages
+(`002139 = dd269adcb32c…`, `002866 = a811bab8c3fb…`) replaces
+`separate-verifier@8` with `separate-verifier@10` on their exact
+`mtime-normalize@2` parents (`548ba35556cd…` and `1273b89e8915…`), yielding
+`6d156eb8a8ce50b1bf11de06b8fbebf6de3205ee82451cd85e96d0fee39deca0` (`002139`)
+and `faf79fbb247cabed25d83ece356d763cb223e9bed828b2f85798ff2bc6c2a139` (`002866`).
+All seven non-verifier files in both packages are byte-for-byte identical to
+the `@8` originals; only `task.toml`, `tests/Dockerfile`, and `tests/test.sh`
+change.
+
+On those two exact `@10` packages, the reinspected 2026-10-15 native local
+Docker controls record `oracle-x3 = [1,1,1]`, `nop-x3 = [0,0,0]`, and reward `0`
+on all four HAR-207 `.solve.sh` probes (`noop_runtest`,
+`noop_runtest_obfuscated`, `pyc_shadow` on `002139`; `fake_unittest_output`
+on `002866`). Four fresh native `CheatAgent` (`--ladder-version 3.0.0`,
+Harbor `0.24.0`) local Docker controls coordinated through the host-wide
+shared Docker FIFO (`evallab.docker_lock.docker_slot`,
+`EVALLAB_STATE_JOURNAL=off`) also armed (`signal="armed"`) and scored `0.0`
+(`verdict="clean"`), published under
+`~/Developer/eval-lab-results/2026-10-17/HAR-208-v6-*` and SHA-256-bound in
+[`research/evidence/har208-verifier-controls-20261017.json`](../../research/evidence/har208-verifier-controls-20261017.json).
+Manifest `verify` remains `unverified:ladder-probe-pending` (full 22-attack
+ladder and fix-content census remain separate), and no fleet-wide repair claim
+is made.
+
 ### Repeat-idempotent pristine anchor (000245 + 000048 fold)
 
 `@10` also fixes the repeat-3 oracle failure measured on the

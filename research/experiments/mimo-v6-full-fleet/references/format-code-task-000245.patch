@@ -1,0 +1,413 @@
+diff --git a/.changeset/eighty-roses-roll.md b/.changeset/eighty-roses-roll.md
+new file mode 100644
+index 0000000000..5b25f708c5
+--- /dev/null
++++ b/.changeset/eighty-roses-roll.md
+@@ -0,0 +1,5 @@
++---
++'@shopify/polaris': minor
++---
++
++Introduce disableKeyboardShortcuts prop to IndexFilters
+diff --git a/polaris-react/locales/cs.json b/polaris-react/locales/cs.json
+index 82e6f19847..de9eb1662a 100644
+--- a/polaris-react/locales/cs.json
++++ b/polaris-react/locales/cs.json
+@@ -363,7 +363,7 @@
+       "clear": "Vymazat"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Hledejte a filtrujte (F)",
++      "searchFilterTooltip": "Hledat a filtrovat",
+       "searchFilterAccessibilityLabel": "Výsledky hledání a filtrování",
+       "sort": "Seřadit výsledky",
+       "addView": "Přidat nové zobrazení",
+@@ -391,7 +391,8 @@
+           "save": "Uložit",
+           "cancel": "Zrušit"
+         }
+-      }
++      },
++      "searchFilterTooltipWithShortcut": "Hledejte a filtrujte (F)"
+     }
+   }
+ }
+diff --git a/polaris-react/locales/da.json b/polaris-react/locales/da.json
+index 740d3c4f24..6ed913a424 100644
+--- a/polaris-react/locales/da.json
++++ b/polaris-react/locales/da.json
+@@ -361,7 +361,8 @@
+       "clear": "Ryd"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Søg og filtrer (F)",
++      "searchFilterTooltip": "Søg og filtrer",
++      "searchFilterTooltipWithShortcut": "Søg og filtrer (F)",
+       "searchFilterAccessibilityLabel": "Søg og filtrer resultater",
+       "sort": "Sortér dine resultater",
+       "addView": "Tilføj en ny visning",
+diff --git a/polaris-react/locales/de.json b/polaris-react/locales/de.json
+index 18571deef0..97576fc65e 100644
+--- a/polaris-react/locales/de.json
++++ b/polaris-react/locales/de.json
+@@ -361,7 +361,8 @@
+       "clear": "Löschen"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Suchen und filtern (F)",
++      "searchFilterTooltip": "Suchen und filtern",
++      "searchFilterTooltipWithShortcut": "Suchen und filtern (F)",
+       "searchFilterAccessibilityLabel": "Ergebnisse suchen und filtern",
+       "sort": "Ergebnisse sortieren",
+       "addView": "Eine neue Ansicht hinzufügen",
+diff --git a/polaris-react/locales/en.json b/polaris-react/locales/en.json
+index 243d83aaa4..75e21e7060 100644
+--- a/polaris-react/locales/en.json
++++ b/polaris-react/locales/en.json
+@@ -169,7 +169,8 @@
+       "clear": "Clear"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Search and filter (F)",
++      "searchFilterTooltip": "Search and filter",
++      "searchFilterTooltipWithShortcut": "Search and filter (F)",
+       "searchFilterAccessibilityLabel": "Search and filter results",
+       "sort": "Sort your results",
+       "addView": "Add a new view",
+diff --git a/polaris-react/locales/es.json b/polaris-react/locales/es.json
+index 6a3fb86ea3..e972c9a856 100644
+--- a/polaris-react/locales/es.json
++++ b/polaris-react/locales/es.json
+@@ -362,7 +362,8 @@
+       "clear": "Borrar"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Buscar y filtrar (F)",
++      "searchFilterTooltip": "Buscar y filtrar",
++      "searchFilterTooltipWithShortcut": "Buscar y filtrar (F)",
+       "searchFilterAccessibilityLabel": "Buscar y filtrar resultados",
+       "sort": "Ordenar los resultados",
+       "addView": "Agregar una vista nueva",
+diff --git a/polaris-react/locales/fi.json b/polaris-react/locales/fi.json
+index dc6f7cefd1..565800cfad 100644
+--- a/polaris-react/locales/fi.json
++++ b/polaris-react/locales/fi.json
+@@ -361,7 +361,7 @@
+       "clear": "Tyhjennä"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Hae ja suodata (F)",
++      "searchFilterTooltip": "Haku ja suodatus",
+       "searchFilterAccessibilityLabel": "Hae ja suodata tuloksia",
+       "sort": "Lajittele tuloksesi",
+       "addView": "Lisää uusi näkymä",
+@@ -389,7 +389,8 @@
+           "save": "Tallenna",
+           "cancel": "Peruuta"
+         }
+-      }
++      },
++      "searchFilterTooltipWithShortcut": "Hae ja suodata (F)"
+     }
+   }
+ }
+diff --git a/polaris-react/locales/fr.json b/polaris-react/locales/fr.json
+index ece733a202..4544bf7e43 100644
+--- a/polaris-react/locales/fr.json
++++ b/polaris-react/locales/fr.json
+@@ -362,7 +362,8 @@
+       "clear": "Effacer"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Rechercher et filtrer (F)",
++      "searchFilterTooltip": "Rechercher et filtrer",
++      "searchFilterTooltipWithShortcut": "Rechercher et filtrer (F)",
+       "searchFilterAccessibilityLabel": "Rechercher et filtrer les résultats",
+       "sort": "Trier vos résultats",
+       "addView": "Ajouter une nouvelle vue",
+diff --git a/polaris-react/locales/it.json b/polaris-react/locales/it.json
+index 8a778120c9..5055987bd7 100644
+--- a/polaris-react/locales/it.json
++++ b/polaris-react/locales/it.json
+@@ -362,7 +362,8 @@
+       "clear": "Cancella"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Cerca e filtra (F)",
++      "searchFilterTooltip": "Cerca e filtra",
++      "searchFilterTooltipWithShortcut": "Cerca e filtra (F)",
+       "searchFilterAccessibilityLabel": "Cerca e filtra risultati",
+       "sort": "Ordina i risultati",
+       "addView": "Aggiungi nuova vista",
+diff --git a/polaris-react/locales/ja.json b/polaris-react/locales/ja.json
+index f44a0e0385..94f36897ba 100644
+--- a/polaris-react/locales/ja.json
++++ b/polaris-react/locales/ja.json
+@@ -361,7 +361,8 @@
+       "clear": "クリア"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "検索と絞り込み (F)",
++      "searchFilterTooltip": "検索と絞り込み",
++      "searchFilterTooltipWithShortcut": "検索と絞り込み (F)",
+       "searchFilterAccessibilityLabel": "検索と絞り込みの結果",
+       "sort": "検索結果を並べ替える",
+       "addView": "新たなビューを追加",
+diff --git a/polaris-react/locales/ko.json b/polaris-react/locales/ko.json
+index 63a8fb3e19..0f359d35e9 100644
+--- a/polaris-react/locales/ko.json
++++ b/polaris-react/locales/ko.json
+@@ -361,7 +361,8 @@
+       "clear": "지우기"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "검색 및 필터링(F)",
++      "searchFilterTooltip": "검색 및 필터링",
++      "searchFilterTooltipWithShortcut": "검색 및 필터링(F)",
+       "searchFilterAccessibilityLabel": "결과 검색 및 필터링",
+       "sort": "결과 정렬",
+       "addView": "새 보기 추가",
+diff --git a/polaris-react/locales/nb.json b/polaris-react/locales/nb.json
+index 5eeca8c512..5e34e39ab4 100644
+--- a/polaris-react/locales/nb.json
++++ b/polaris-react/locales/nb.json
+@@ -361,7 +361,8 @@
+       "clear": "Fjern"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Søk og filtrer (F)",
++      "searchFilterTooltip": "Søk og filtrer",
++      "searchFilterTooltipWithShortcut": "Søk og filtrer (F)",
+       "searchFilterAccessibilityLabel": "Søk og filtrer resultater",
+       "sort": "Sorter resultatene",
+       "addView": "Legg til en ny visning",
+diff --git a/polaris-react/locales/nl.json b/polaris-react/locales/nl.json
+index 74159aeb19..147dabe55f 100644
+--- a/polaris-react/locales/nl.json
++++ b/polaris-react/locales/nl.json
+@@ -361,7 +361,8 @@
+       "clear": "Wissen"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Zoeken en filteren (F)",
++      "searchFilterTooltip": "Zoeken en filteren",
++      "searchFilterTooltipWithShortcut": "Zoeken en filteren (F)",
+       "searchFilterAccessibilityLabel": "Resultaten zoeken en filteren",
+       "sort": "Resultaten sorteren",
+       "addView": "Nieuwe weergave toevoegen",
+diff --git a/polaris-react/locales/pl.json b/polaris-react/locales/pl.json
+index b6684078ba..b62aad8ae6 100644
+--- a/polaris-react/locales/pl.json
++++ b/polaris-react/locales/pl.json
+@@ -363,7 +363,8 @@
+       "clear": "Wyczyść"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Wyszukaj i przefiltruj (F)",
++      "searchFilterTooltip": "Wyszukaj i przefiltruj",
++      "searchFilterTooltipWithShortcut": "Wyszukaj i przefiltruj (F)",
+       "searchFilterAccessibilityLabel": "Wyszukaj i przefiltruj wyniki",
+       "sort": "Sortuj wyniki",
+       "addView": "Dodaj nowy widok",
+diff --git a/polaris-react/locales/pt-BR.json b/polaris-react/locales/pt-BR.json
+index fabaa27d33..0fa87854f9 100644
+--- a/polaris-react/locales/pt-BR.json
++++ b/polaris-react/locales/pt-BR.json
+@@ -362,7 +362,8 @@
+       "clear": "Limpar"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Pesquisar e filtrar (F)",
++      "searchFilterTooltip": "Pesquisar e filtrar",
++      "searchFilterTooltipWithShortcut": "Pesquisar e filtrar (F)",
+       "searchFilterAccessibilityLabel": "Pesquisar e filtrar resultados",
+       "sort": "Ordenar os resultados",
+       "addView": "Adicionar uma nova visualização",
+diff --git a/polaris-react/locales/pt-PT.json b/polaris-react/locales/pt-PT.json
+index da9e4ab56a..a8f2caf1ef 100644
+--- a/polaris-react/locales/pt-PT.json
++++ b/polaris-react/locales/pt-PT.json
+@@ -362,7 +362,8 @@
+       "clear": "Limpar"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Pesquisar e filtrar (F)",
++      "searchFilterTooltip": "Pesquisar e filtrar",
++      "searchFilterTooltipWithShortcut": "Pesquisar e filtrar (F)",
+       "searchFilterAccessibilityLabel": "Resultados da pesquisa e do filtro",
+       "sort": "Ordenar os resultados",
+       "addView": "Adicionar uma nova visualização",
+diff --git a/polaris-react/locales/sv.json b/polaris-react/locales/sv.json
+index e9751373ba..c7344ca6b0 100644
+--- a/polaris-react/locales/sv.json
++++ b/polaris-react/locales/sv.json
+@@ -361,7 +361,8 @@
+       "clear": "Rensa"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Sök och filtrera (F)",
++      "searchFilterTooltip": "Sök och filtrera",
++      "searchFilterTooltipWithShortcut": "Sök och filtrera (F)",
+       "searchFilterAccessibilityLabel": "Sök och filtrera resultat",
+       "sort": "Sortera dina resultat",
+       "addView": "Lägg till en ny vy",
+diff --git a/polaris-react/locales/th.json b/polaris-react/locales/th.json
+index 9716db6d78..ede7dec9af 100644
+--- a/polaris-react/locales/th.json
++++ b/polaris-react/locales/th.json
+@@ -361,7 +361,8 @@
+       "clear": "ล้าง"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "ค้นหาและกรอง (F)",
++      "searchFilterTooltip": "ค้นหาและกรอง",
++      "searchFilterTooltipWithShortcut": "ค้นหาและกรอง (F)",
+       "searchFilterAccessibilityLabel": "ผลลัพธ์ของการค้นหาและกรอง",
+       "sort": "จัดเรียงผลลัพธ์ของคุณ",
+       "addView": "เพิ่มมุมมองใหม่",
+diff --git a/polaris-react/locales/tr.json b/polaris-react/locales/tr.json
+index b3f12daabf..f8298d3f55 100644
+--- a/polaris-react/locales/tr.json
++++ b/polaris-react/locales/tr.json
+@@ -361,7 +361,8 @@
+       "clear": "Temizle"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Arama ve filtreleme (F)",
++      "searchFilterTooltip": "Arama ve filtreleme",
++      "searchFilterTooltipWithShortcut": "Arama ve filtreleme (F)",
+       "searchFilterAccessibilityLabel": "Arama ve sonuçları filtreleme",
+       "sort": "Sonuçlarınızı sıralayın",
+       "addView": "Yeni bir görünüm ekle",
+diff --git a/polaris-react/locales/vi.json b/polaris-react/locales/vi.json
+index 8edffb8fa2..fc283a0507 100644
+--- a/polaris-react/locales/vi.json
++++ b/polaris-react/locales/vi.json
+@@ -361,7 +361,8 @@
+       "clear": "Xóa"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "Tìm kiếm và lọc (F)",
++      "searchFilterTooltip": "Tìm kiếm và lọc",
++      "searchFilterTooltipWithShortcut": "Tìm kiếm và lọc (F)",
+       "searchFilterAccessibilityLabel": "Tìm kiếm và lọc kết quả",
+       "sort": "Sắp xếp kết quả",
+       "addView": "Thêm chế độ xem mới",
+diff --git a/polaris-react/locales/zh-CN.json b/polaris-react/locales/zh-CN.json
+index d13a585934..17d5c1034d 100644
+--- a/polaris-react/locales/zh-CN.json
++++ b/polaris-react/locales/zh-CN.json
+@@ -361,7 +361,8 @@
+       "clear": "清除"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "搜索和筛选 (F)",
++      "searchFilterTooltip": "搜索和筛选",
++      "searchFilterTooltipWithShortcut": "搜索和筛选 (F)",
+       "searchFilterAccessibilityLabel": "搜索和筛选结果",
+       "sort": "对结果排序",
+       "addView": "添加新视图",
+diff --git a/polaris-react/locales/zh-TW.json b/polaris-react/locales/zh-TW.json
+index 045969ffbc..1de5abc5b8 100644
+--- a/polaris-react/locales/zh-TW.json
++++ b/polaris-react/locales/zh-TW.json
+@@ -361,7 +361,7 @@
+       "clear": "清除"
+     },
+     "IndexFilters": {
+-      "searchFilterTooltip": "搜尋及篩選 (F)",
++      "searchFilterTooltip": "搜尋及篩選",
+       "searchFilterAccessibilityLabel": "搜尋及篩選結果",
+       "sort": "排序搜尋結果",
+       "addView": "新增檢視畫面",
+@@ -389,7 +389,8 @@
+           "save": "儲存",
+           "cancel": "取消"
+         }
+-      }
++      },
++      "searchFilterTooltipWithShortcut": "搜尋和篩選 (F)"
+     }
+   }
+ }
+diff --git a/polaris-react/src/components/IndexFilters/IndexFilters.stories.tsx b/polaris-react/src/components/IndexFilters/IndexFilters.stories.tsx
+index f6518443f3..11f4d50da4 100644
+--- a/polaris-react/src/components/IndexFilters/IndexFilters.stories.tsx
++++ b/polaris-react/src/components/IndexFilters/IndexFilters.stories.tsx
+@@ -95,7 +95,7 @@ function Table() {
+   );
+ }
+ 
+-export function Default() {
++function BasicExample(props?: Partial<IndexFiltersProps>) {
+   const sleep = (ms: number) =>
+     new Promise((resolve) => setTimeout(resolve, ms));
+   const [itemStrings, setItemStrings] = useState([
+@@ -329,6 +329,7 @@ export function Default() {
+   return (
+     <Card padding="0">
+       <IndexFilters
++        {...props}
+         sortOptions={sortOptions}
+         sortSelected={sortSelected}
+         queryValue={queryValue}
+@@ -379,6 +380,14 @@ export function Default() {
+   }
+ }
+ 
++export function Default() {
++  return <BasicExample />;
++}
++
++export function WithoutKeyboardShortcuts() {
++  return <BasicExample disableKeyboardShortcuts />;
++}
++
+ export function WithPinnedFilters() {
+   const sleep = (ms: number) =>
+     new Promise((resolve) => setTimeout(resolve, ms));
+diff --git a/polaris-react/src/components/IndexFilters/IndexFilters.tsx b/polaris-react/src/components/IndexFilters/IndexFilters.tsx
+index 828cc85394..5802112697 100644
+--- a/polaris-react/src/components/IndexFilters/IndexFilters.tsx
++++ b/polaris-react/src/components/IndexFilters/IndexFilters.tsx
+@@ -93,6 +93,8 @@ export interface IndexFiltersProps
+   filteringAccessibilityLabel?: string;
+   /** Optional override to the default Tooltip message for the button that toggles the filtering mode */
+   filteringAccessibilityTooltip?: string;
++  /** Optional override to the default keyboard shortcuts available */
++  disableKeyboardShortcuts?: boolean;
+ }
+ 
+ export function IndexFilters({
+@@ -129,6 +131,7 @@ export function IndexFilters({
+   filteringAccessibilityLabel,
+   filteringAccessibilityTooltip,
+   hideQueryField,
++  disableKeyboardShortcuts,
+ }: IndexFiltersProps) {
+   const i18n = useI18n();
+   const {mdDown} = useBreakpoints();
+@@ -150,6 +153,8 @@ export function IndexFilters({
+   });
+ 
+   useEventListener('keydown', (event) => {
++    if (disableKeyboardShortcuts) return;
++
+     const {key} = event;
+     const tag = document?.activeElement?.tagName;
+     if (mode !== IndexFiltersMode.Default && event.key === 'Escape') {
+@@ -268,9 +273,12 @@ export function IndexFilters({
+     beginEdit();
+   }
+ 
++  const searchFilterTooltipLabelId = disableKeyboardShortcuts
++    ? 'Polaris.IndexFilters.searchFilterTooltip'
++    : 'Polaris.IndexFilters.searchFilterTooltipWithShortcut';
++
+   const searchFilterTooltip =
+-    filteringAccessibilityTooltip ||
+-    i18n.translate('Polaris.IndexFilters.searchFilterTooltip');
++    filteringAccessibilityTooltip || i18n.translate(searchFilterTooltipLabelId);
+   const searchFilterAriaLabel =
+     filteringAccessibilityLabel ||
+     i18n.translate('Polaris.IndexFilters.searchFilterAccessibilityLabel');

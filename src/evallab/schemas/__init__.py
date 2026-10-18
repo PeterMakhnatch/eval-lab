@@ -413,6 +413,15 @@ class ExperimentSpec(ContractModel):
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
     timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
+    modal_app_name: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    modal_resource_policy: Literal["limit"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    modal_sandbox_timeout_seconds: int | None = Field(
+        default=None, strict=True, ge=1, exclude_if=lambda value: value is None
+    )
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -683,6 +692,15 @@ class ExperimentMatrix(ContractModel):
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
     timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
+    modal_app_name: str | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    modal_resource_policy: Literal["limit"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    modal_sandbox_timeout_seconds: int | None = Field(
+        default=None, strict=True, ge=1, exclude_if=lambda value: value is None
+    )
     runs: list[MatrixRun] = Field(min_length=1)
 
     # `purpose` is deliberately NOT declared here, and the asymmetry is the
@@ -699,7 +717,8 @@ class ExperimentMatrix(ContractModel):
     #
     # It also could not be budgeted against: `execute_direct` refuses any agent
     # outside `CONTROL_AGENTS` (`queue.py:1405-1409`), so a matrix is
-    # structurally incapable of spending regardless of `MatrixRun.allow_billable`.
+    # structurally incapable of launching model agents. Cloud control runs still
+    # incur sandbox/image costs regardless of `MatrixRun.allow_billable`.
     # Requiring the field here would invalidate all five committed matrices to
     # record a value no reader consults.
 

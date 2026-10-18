@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import math
 import os
 import re
 import shlex
@@ -40,6 +41,7 @@ from evallab.interop import (
     KAROTTE_PIN,
     HarborTask,
     ScriptedPlan,
+    admit_local_task,
     load_harbor_task,
     parse_reward_bytes,
     scripted_agent_plan,
@@ -574,7 +576,8 @@ _TASK_INIT_TEMPLATE = '''"""Karotte task @@KAROTTE_ID@@ bridged from Harbor task
 Generic bridge (no per-task code): the student works at @@WORKDIR@@, the
 pre-scoring hook collects @@SUBMISSION_DOC@@ into root-only copies, and the
 judge restores those copies at their original absolute paths and runs the
-task's own tests/test.sh from @@WORKDIR@@, exactly like Harbor shared mode.
+task's own tests/test.sh from @@WORKDIR@@. This collected-copy boundary differs
+from Harbor shared mode, which grades the live agent filesystem.
 """
 from __future__ import annotations
 
@@ -647,9 +650,10 @@ argv: <grade_timeout> <workdir> [<orig> <saved>]... <output.json>
 (ExecutableJudge rewrites the last arg to a temp path.) Restores each
 collected submission copy at its original absolute path, stages the task's
 own tests/ tree at /tests, runs ``bash /tests/test.sh`` from the workdir
-(Harbor shared-mode grading), and converts /logs/verifier/reward.txt (or
+(collected-copy grading), and converts /logs/verifier/reward.txt (or
 reward.json) to karotte's {"score", "metadata"} with the embedded
-``evallab.interop.parse_reward_bytes`` (identical reward semantics).
+``evallab.interop.parse_reward_bytes``. This scalar, text-first conversion
+differs from Harbor's JSON-first keyed reward contract.
 Stale reward files are wiped first, so a planted reward can never be trusted.
 """
 from __future__ import annotations
@@ -669,13 +673,11 @@ LOG_DIR = Path("/logs/verifier")
 def read_reward() -> tuple[float | None, str | None]:
     txt_path = LOG_DIR / "reward.txt"
     js_path = LOG_DIR / "reward.json"
-    txt = txt_path.read_bytes() if txt_path.is_file() else None
-    js = js_path.read_bytes() if js_path.is_file() else None
     try:
+        txt = txt_path.read_bytes() if txt_path.is_file() else None
+        js = js_path.read_bytes() if js_path.is_file() else None
         return parse_reward_bytes(txt, js, source=str(LOG_DIR)), None
-    except FileNotFoundError as exc:
-        return None, str(exc)
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         return None, str(exc)
 
 
@@ -702,10 +704,7 @@ def main() -> int:
             else:
                 missing.append(f"{orig_s} (not a regular file or directory)")
         except OSError as exc:
-            # Read-only harness mounts (e.g. the oracle's /solution files)
-            # ride inside the submission scope but cannot change: the graded
-            # original is byte-identical to the copy. Anything else would
-            # have failed collection, not restoration.
+            # A partial restore cannot establish a valid grading environment.
             unrestored.append(f"{orig_s} ({exc.strerror or exc})")
     if TESTS_DST.exists():
         shutil.rmtree(TESTS_DST)
@@ -733,7 +732,8 @@ def main() -> int:
     if missing:
         metadata["missing_submissions"] = missing
     if unrestored:
-        metadata["unrestored_readonly"] = unrestored
+        metadata["unrestored_submissions"] = unrestored
+        metadata["error"] = f"submission restoration failed: {unrestored!r}"
     if completed is not None:
         metadata["exit"] = completed.returncode
         metadata["output_tail"] = ((completed.stdout or "") + (completed.stderr or ""))[-2000:]
@@ -741,7 +741,9 @@ def main() -> int:
         metadata["error"] = failed
     elif error is not None:
         metadata["error"] = error
-    if reward is None:
+    # ExecutableJudge requires a number; error metadata makes this placeholder
+    # distinguishable from an actual verifier rejection with reward zero.
+    if reward is None or "error" in metadata:
         payload = {"score": 0.0, "metadata": metadata}
     else:
         metadata["verdict"] = "pass" if reward >= 1.0 else "fail"
@@ -1153,11 +1155,11 @@ def resolved_karotte_version(env_dir: Path) -> str:
 
 
 def parse_transcript(payload: Any) -> dict[str, Any]:
-    """Reduce a karotte transcript to ``{reward, status, errors, misbehavior}``.
+    """Accept scores only from a completed run with a valid verifier result.
 
-    The final (last) ``scoring`` event carries the step score; ``error`` events
-    and a ``misbehavior`` scoring-metadata key are surfaced verbatim. Missing
-    or unparseable transcripts yield ``reward=None`` with an error string.
+    ExecutableJudge requires a numeric score even when grading fails, and
+    stringifies the scoring script's metadata. Its error placeholders are not
+    task rewards; student-misbehavior zeroes remain genuine task failures.
     """
     if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
         return {
@@ -1182,34 +1184,42 @@ def parse_transcript(payload: Any) -> dict[str, Any]:
         ),
         None,
     )
-    if not scoring:
-        return {
-            "reward": None,
-            "status": status,
-            "errors": errors or ["no scoring event in transcript"],
-            "misbehavior": None,
-            "scoring": None,
-        }
-    final = scoring[-1].get("scoring") if isinstance(scoring[-1], dict) else None
+    final = scoring[-1].get("scoring") if scoring else None
     reward = final.get("score") if isinstance(final, dict) else None
-    if isinstance(reward, bool) or not isinstance(reward, (int, float)):
-        return {
-            "reward": None,
-            "status": status,
-            "errors": errors + ["final scoring event has no numeric score"],
-            "misbehavior": None,
-            "scoring": final if isinstance(final, dict) else None,
-        }
+    if not scoring:
+        errors = errors or ["no scoring event in transcript"]
+    elif (
+        isinstance(reward, bool)
+        or not isinstance(reward, (int, float))
+        or not math.isfinite(reward)
+    ):
+        errors.append("final scoring event has no finite numeric score")
+    for event in scoring:
+        result = event.get("scoring")
+        metadata = result.get("metadata") if isinstance(result, dict) else None
+        if not isinstance(metadata, dict):
+            continue
+        for key in (
+            "error",
+            "tempdir_error",
+            "CalledProcessError",
+            "FileNotFoundError",
+            "json_read_error",
+        ):
+            if key in metadata:
+                errors.append(f"scoring {key}: {metadata[key]}")
+    if scoring and status not in ("passed", "failed"):
+        errors.append(f"task did not complete normally (status={status!r})")
     metadata = final.get("metadata") if isinstance(final, dict) else None
     misbehavior = None
     if isinstance(metadata, dict) and metadata.get("misbehavior"):
         misbehavior = str(metadata["misbehavior"])
     return {
-        "reward": float(reward),
+        "reward": float(reward) if not errors and isinstance(reward, (int, float)) else None,
         "status": status,
         "errors": errors,
         "misbehavior": misbehavior,
-        "scoring": final,
+        "scoring": final if isinstance(final, dict) else None,
     }
 
 
@@ -1301,7 +1311,7 @@ def _container_gone(name: str) -> bool:
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return name not in (found.stdout or "").split()
+    return found.returncode == 0 and name not in (found.stdout or "").split()
 
 
 def _remove_own_container(name: str) -> bool:
@@ -1359,12 +1369,10 @@ def run_cell(
 
     ``agent`` is oracle/nop/cheat; ``attacks`` is a cheat-only subset (empty
     means the full ladder). Returns the cross-platform cell dict: ``verdict``
-    is pass/fail by the karotte-collected reward (>= 1.0), ``skipped`` when
-    the Docker daemon is unreachable, ``error`` for infrastructure failures
-    (never a silent fail). The Docker daemon is probed directly; this runner
-    deliberately bypasses the campaign queue's dedicated-host admission gate
-    (which refuses whenever any unrelated container is unbounded) and instead
-    bounds only its own short-lived ``karotte_run_<id>`` container.
+    is pass/fail only for an admitted, resource-bounded run with a valid
+    karotte-collected reward (>= 1.0). An oracle without a reference solution
+    is ``skipped``; admission, daemon, and runtime failures are ``error``.
+    Fresh shared-daemon capacity admission precedes any image preparation.
     """
     attacks = tuple(attacks or ())
     if agent not in ("oracle", "nop", "cheat"):
@@ -1419,20 +1427,36 @@ def run_cell(
             evidence=None,
             task_id=task.task_id,
         )
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
+    try:
+        admit_local_task(task, work)
+    except ValueError as exc:
+        return _cell(
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=str(exc),
+            platform_version=KAROTTE_PIN,
+            evidence=str(work),
+            task_id=task.task_id,
+        )
     ok, daemon_detail = docker_daemon_ok()
+    (work / "daemon.json").write_text(
+        json.dumps({"available": ok, "detail": daemon_detail}, indent=2), encoding="utf-8"
+    )
     if not ok:
         return _cell(
             agent,
             attacks,
-            verdict="skipped",
+            verdict="error",
             reward=None,
             reason=f"docker daemon unreachable: {daemon_detail}",
             platform_version=KAROTTE_PIN,
-            evidence=None,
+            evidence=str(work),
             task_id=task.task_id,
         )
-    work = Path(workdir)
-    work.mkdir(parents=True, exist_ok=True)
     # Fresh env dir per cell: Docker Desktop keeps serving stale file-sharing
     # state for a bind path that was mounted, deleted, and recreated, which
     # breaks karotte's --dev bind-mount (rc=125). Prune predecessors first.
@@ -1448,6 +1472,34 @@ def run_cell(
     transcript_path = out_dir / f"{run_id}.json"
     evidence_path = out_dir / f"{run_id}.evidence.json"
     version = KAROTTE_PIN
+    bounds: dict[str, Any] = {"bounded": False}
+    run_evidence: dict[str, Any] = {
+        "run_id": run_id,
+        "task_id": task.task_id,
+        "container": container,
+        "admission": str(work / "admission.json"),
+        "daemon": daemon_detail,
+        "transcript": str(transcript_path),
+    }
+
+    def runtime_error(reason: str) -> dict[str, Any]:
+        run_evidence.update(
+            error=reason,
+            container_bounded=bounds.get("bounded", False),
+            bounds=bounds.get("bounds", [spec.cpus, spec.memory]),
+        )
+        evidence_path.write_text(json.dumps(run_evidence, indent=2), encoding="utf-8")
+        return _cell(
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=reason,
+            platform_version=version,
+            evidence=str(evidence_path),
+            task_id=task.task_id,
+        )
+
     try:
         base = ensure_harbor_base(task, spec, build_timeout=BUILD_TIMEOUT_SECONDS)
         assemble_env(task, spec, env_dir, base_tag=base["tag"])
@@ -1457,17 +1509,8 @@ def run_cell(
         (env_dir / "src" / "environment" / "fake_model.py").write_text(
             fake_model_source(plan, spec.workdir), encoding="utf-8"
         )
-    except (OSError, RuntimeError, ValueError) as exc:
-        return _cell(
-            agent,
-            attacks,
-            verdict="error",
-            reward=None,
-            reason=f"env setup failed: {exc}",
-            platform_version=version,
-            evidence=None,
-            task_id=task.task_id,
-        )
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        return runtime_error(f"env setup failed: {exc}")
     try:
         mounts_dir = work / "mounts" / run_id
         mounts_dir.mkdir(parents=True, exist_ok=True)
@@ -1511,7 +1554,6 @@ def run_cell(
         ]
         for mount_spec in mounts:
             command += ["--mount", mount_spec]
-        bounds: dict[str, Any] = {"bounded": False}
         stop = threading.Event()
         watcher = threading.Thread(
             target=_watch_bounds,
@@ -1538,105 +1580,67 @@ def run_cell(
             watcher.join(timeout=15)
         run_log = ((completed.stdout or "") + (completed.stderr or ""))[-4000:]
     except subprocess.TimeoutExpired:
-        _remove_own_container(container)
-        return _cell(
-            agent,
-            attacks,
-            verdict="error",
-            reward=None,
-            reason=f"karotte run timed out after {run_timeout}s; {container} stopped",
-            platform_version=version,
-            evidence=None,
-            task_id=task.task_id,
-        )
-    except (OSError, RuntimeError) as exc:
-        _remove_own_container(container)
-        return _cell(
-            agent,
-            attacks,
-            verdict="error",
-            reward=None,
-            reason=f"karotte run failed to launch: {exc}",
-            platform_version=version,
-            evidence=None,
-            task_id=task.task_id,
-        )
+        run_evidence["container_removed"] = _remove_own_container(container)
+        run_evidence["timeout_seconds"] = run_timeout
+        return runtime_error(f"karotte run timed out after {run_timeout}s")
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        run_evidence["container_removed"] = _remove_own_container(container)
+        return runtime_error(f"karotte run failed to launch: {exc}")
     removed = _remove_own_container(container)
+    run_evidence.update(
+        container_removed=removed,
+        run_exit=completed.returncode,
+        run_log_tail=run_log,
+    )
     try:
         payload = json.loads(transcript_path.read_text(encoding="utf-8"))
         summary = parse_transcript(payload)
     except (OSError, ValueError) as exc:
-        return _cell(
-            agent,
-            attacks,
-            verdict="error",
-            reward=None,
-            reason=f"no readable karotte transcript: {exc}; run rc={completed.returncode}",
-            platform_version=version,
-            evidence=None,
-            task_id=task.task_id,
+        return runtime_error(
+            f"no readable karotte transcript: {exc}; run rc={completed.returncode}"
         )
     reward = summary["reward"]
     records = ladder_records(payload) if agent == "cheat" else None
-    evidence_path.write_text(
-        json.dumps(
-            {
-                "run_id": run_id,
-                "container": container,
-                "container_removed": removed,
-                "container_bounded": bounds.get("bounded", False),
-                "bounds": bounds.get("bounds", [spec.cpus, spec.memory]),
-                "base": base,
-                "image": image,
-                "spec": {
-                    "task_key": spec.task_key,
-                    "karotte_id": spec.karotte_id,
-                    "workdir": spec.workdir,
-                    "submission_paths": list(spec.submission_paths),
-                    "has_solution": spec.has_solution,
-                    "grade_timeout": spec.grade_timeout,
-                },
-                "plan": {
-                    "files": sorted(plan.files),
-                    "command": plan.command,
-                },
-                "daemon": daemon_detail,
-                "transcript": str(transcript_path),
-                "status": summary["status"],
-                "errors": summary["errors"],
-                "misbehavior": summary["misbehavior"],
-                "scoring": summary["scoring"],
-                "ladder": records,
-                "run_exit": completed.returncode,
-                "run_log_tail": run_log,
+    run_evidence.update(
+        {
+            "container_bounded": bounds.get("bounded", False),
+            "bounds": bounds.get("bounds", [spec.cpus, spec.memory]),
+            "base": base,
+            "image": image,
+            "spec": {
+                "task_key": spec.task_key,
+                "karotte_id": spec.karotte_id,
+                "workdir": spec.workdir,
+                "submission_paths": list(spec.submission_paths),
+                "has_solution": spec.has_solution,
+                "grade_timeout": spec.grade_timeout,
             },
-            indent=2,
-        ),
-        encoding="utf-8",
+            "plan": {
+                "files": sorted(plan.files),
+                "command": plan.command,
+            },
+            "status": summary["status"],
+            "errors": summary["errors"],
+            "misbehavior": summary["misbehavior"],
+            "scoring": summary["scoring"],
+            "ladder": records,
+        }
     )
-    if reward is None:
-        detail = "; ".join(summary["errors"]) or "no reward"
-        return _cell(
-            agent,
-            attacks,
-            verdict="error",
-            reward=None,
-            reason=f"karotte produced no score ({detail}); run rc={completed.returncode}",
-            platform_version=version,
-            evidence=str(evidence_path),
-            task_id=task.task_id,
-        )
+    failures = list(summary["errors"])
+    if reward is None and not failures:
+        failures.append("karotte produced no score")
+    if completed.returncode != 0:
+        failures.append(f"karotte run exited with rc={completed.returncode}")
+    if not bounds.get("bounded", False):
+        failures.append("run-container bound watcher never applied limits")
+    if failures:
+        return runtime_error("; ".join(failures))
+    evidence_path.write_text(json.dumps(run_evidence, indent=2), encoding="utf-8")
     notes = []
     if summary["misbehavior"]:
         notes.append(f"misbehavior: {summary['misbehavior']}")
-    if summary["errors"]:
-        notes.append("errors: " + "; ".join(summary["errors"]))
-    if completed.returncode != 0:
-        notes.append(f"run rc={completed.returncode}")
     if not removed:
         notes.append(f"{container} left behind by --rm; manual removal needed")
-    if not bounds.get("bounded", False):
-        notes.append("run-container bound watcher never applied limits")
     reason = "; ".join(notes) or None
     return _cell(
         agent,

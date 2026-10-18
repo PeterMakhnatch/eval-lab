@@ -13,6 +13,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
 | mimo-weak-tests-v2 | 45 (45/0) | 66 (66/0) test | 0 / 0 | 111 | 0 |
+| tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
 
@@ -24,15 +25,20 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 
 | task | dev in | reported in |
 |---|---|---|
-| caffe-cifar-10 | breaker-bench-v1 | delphik-open-defect-tb2 |
-| compile-compcert | breaker-bench-v1 | delphik-open-defect-tb2 |
-| custom-memory-heap-crash | breaker-bench-v1 | breaker-bench-v1 |
-| filter-js-from-html | breaker-bench-v1 | delphik-open-defect-tb2 |
-| git-multibranch | breaker-bench-v1 | delphik-open-defect-tb2 |
-| make-doom-for-mips | breaker-bench-v1 | delphik-open-defect-tb2 |
-| mteb-leaderboard | breaker-bench-v1 | delphik-open-defect-tb2 |
+| caffe-cifar-10 | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| compile-compcert | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| constraints-scheduling | breaker-bench-v1 | tb2-to-tb21-v1 |
+| custom-memory-heap-crash | breaker-bench-v1 | breaker-bench-v1, tb2-to-tb21-v1 |
+| dna-insert | breaker-bench-v1 | tb2-to-tb21-v1 |
+| filter-js-from-html | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| financial-document-processor | breaker-bench-v1 | tb2-to-tb21-v1 |
+| fix-ocaml-gc | breaker-bench-v1 | tb2-to-tb21-v1 |
+| git-multibranch | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| make-doom-for-mips | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| mteb-leaderboard | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | path-tracing | breaker-bench-v1 | delphik-open-defect-tb2 |
 | qemu-startup | breaker-bench-v1 | delphik-open-defect-tb2 |
+| query-optimize | breaker-bench-v1, trace-paired-v1 | tb2-to-tb21-v1 |
 | regex-chess | breaker-bench-v1 | breaker-bench-v1, delphik-open-defect-tb2 |
 | sanitize-git-repo | breaker-bench-v1 | delphik-open-defect-tb2 |
 | sqlite-db-truncate | breaker-bench-v1 | delphik-open-defect-tb2 |
@@ -44,8 +50,18 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 
 | task | digest | verdicts |
 |---|---|---|
+| break-filter-js-from-html | sha256:6a5ba00b9c02 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
+| build-cython-ext | sha256:d4d36be3c0d4 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
+| caffe-cifar-10 | sha256:8f62884b1a00 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
+| compile-compcert | sha256:c81e199b27b9 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1; pass: envcheck-tb4-39 |
-| fix-git | sha256:f264d981302b | fail: executed-outcomes-v1; pass: delphik-open-defect-tb2 |
+| fix-git | sha256:f264d981302b | fail: executed-outcomes-v1, tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
+| fix-git | sha256:2f0e8d8e3c29 | fail: executed-outcomes-v1; pass: tb2-to-tb21-v1 |
+| git-multibranch | sha256:4512d76e39b6 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
+| mteb-leaderboard | sha256:0a60e5513574 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
+| polyglot-c-py | sha256:d04bb722a5a5 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
+| torch-pipeline-parallelism | sha256:0ee676b39d4a | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
+| train-fasttext | sha256:dd9463a06f82 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 
 ## Exposures (who was tuned on or read what)
 
@@ -57,6 +73,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | delphik-open-defect-tb2 | 0 | 1 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-tb4-39 | 1 | 5 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | executed-outcomes-v1 | 1 | 4 |
+| breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb2-to-tb21-v1 | 0 | 2 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | executed-outcomes-v1 | 2 | 1 |
@@ -85,3 +102,9 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | executed-outcomes-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2 | 0 | 3 |
+| qa-trace-5-t3-fusion-fix | tuned | QA Trace (qa-trace/5*) | trace-paired-v1 | 6 | 2 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | executed-outcomes-v1 | 0 | 7 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2 | 0 | 3 |
+| qa-task-mimo-v6-heldout-audit-33 | | | tasks in no key | 21 | |
+| qa-trace-6-label-rule | tuned | QA Trace (qa-trace/6*) | trace-paired-v1 | 3 | 0 |

@@ -1,0 +1,325 @@
+diff --git a/scoary/methods.py b/scoary/methods.py
+index 57c9ba9..929b9fb 100644
+--- a/scoary/methods.py
++++ b/scoary/methods.py
+@@ -27,6 +27,7 @@ from .__init__ import __version__
+ #import scoary
+ 
+ import os
++from pkg_resources import resource_string, resource_filename
+ 
+ #SCOARY_VERSION = scoary.__version__
+ SCOARY_VERSION = __version__
+@@ -44,12 +45,6 @@ log.setLevel(logging.DEBUG)
+ logformat = '%(asctime)s    %(message)s'
+ logdatefmt='%m/%d/%Y %I:%M:%S %p'
+ formatter = logging.Formatter(fmt=logformat,datefmt=logdatefmt)
+-
+-def binom_test(successes, trials):
+-    """Call SciPy's binomial test across its old and new APIs."""
+-    if hasattr(ss, "binom_test"):
+-        return ss.binom_test(successes, trials, 0.5)
+-    return ss.binomtest(successes, trials, 0.5).pvalue
+    
+ def main(**kwargs):
+     """
+@@ -75,7 +70,7 @@ def main(**kwargs):
+         args.correction = ['I','EPW']
+         args.delimiter = ','
+         args.genes = os.path.join(
+-            os.path.dirname(__file__), 'exampledata',
++            resource_filename(__name__, 'exampledata'), 
+             'Gene_presence_absence.csv')
+         args.grabcols = []
+         args.max_hits = None
+@@ -88,7 +83,7 @@ def main(**kwargs):
+         args.start_col = 15
+         args.threads = 4
+         args.traits = os.path.join(
+-            os.path.dirname(__file__), 'exampledata',
++            resource_filename(__name__, 'exampledata'),
+             'Tetracycline_resistance.csv')
+         args.upgma_tree = True
+         args.write_reduced = False
+@@ -186,15 +181,15 @@ def main(**kwargs):
+                 cutoffs.pop(m,None)
+             
+         # Start analysis
+-        with open(args.genes, "r") as genes, \
+-        open(args.traits, "r") as traits:
++        with open(args.genes, "rU") as genes, \
++        open(args.traits, "rU") as traits:
+     
+             if args.restrict_to is not None:
+                 # Note: Despite being a dictionary, the values of
+                 # allowed_isolates are not currently used, only the keys
+                 allowed_isolates = {isolate : "all"
+                                     for line in
+-                                    open(args.restrict_to,"r")
++                                    open(args.restrict_to,"rU")
+                                     for isolate in line.rstrip().split(",")}
+             else:
+                 # Despite the confusing name
+@@ -348,7 +343,7 @@ def Csv_to_dic_Roary(genefile, delimiter, grabcols, startcol=14,
+ 
+     if writereducedset:
+         file = open(ReduceSet(genefile,delimiter, grabcols, startcol,
+-                    allowed_isolates,time,outdir),"r")
++                    allowed_isolates,time,outdir),"rU")
+         csvfile = csv.reader(file, skipinitialspace=True, 
+                              delimiter=delimiter)
+     else:
+@@ -759,6 +754,233 @@ def StoreUPGMAtreeToFile(upgmatree, outdir, time=""):
+ #####################################
+ # FUNCTIONS FOR CALCULATING RESULTS #
+ #####################################
++def Setup_results(genedic, traitsdic, collapse):
++    """
++    This is the method that actually does all the counting of genes,
++    calculation of p-values and post-test adjustment of p-values.
++    The majority of running time is currently spent doing Fisher's exact
++    test. The running time is somewhat shortened by storing the p-values
++    of known 2x2 cell distributions, so that identical Fisher's tests 
++    will not have to be run.
++    """
++    # Need to create one results dictionary for each trait
++
++    all_traits = {}
++    gene_trait_combinations = {}
++    fisher_calculated_values = {}
++    for trait in traitsdic:
++        all_traits[trait] = {}
++        # Also need a list of all p-values to perform stepwise FDR corr
++        p_value_list = []
++        log.info("Gene-wise counting and Fisher's exact tests for trait: " 
++              "%s" % str(trait))
++
++        # We also need a number of tests variable for each genedic.
++        # (The number of tests may not be the same, depending on how 
++        # many genes are in 0 or all strains.)
++        number_of_tests = len(genedic)
++        # Need initial number of tests for status bar
++        initial_number_of_tests = number_of_tests
++
++        # Additionally, we need a dictionary to, for each gene
++        # hold the gene-trait status (e.g "AB" or "ab" of each strain)
++        gene_trait_combinations[trait] = {}
++        distributions = {}
++                
++        i = 0  # Progress
++        for gene in genedic:
++            # Status:
++            sys.stdout.write("\r{:.2%}".format(float(i) / 
++                                               initial_number_of_tests))
++            sys.stdout.flush()
++            i += 1  # Progress
++
++            stats = Perform_statistics(traitsdic[trait], genedic[gene])
++            stat_table = stats["statistics"]
++
++            num_pos = stat_table["tpgp"] + stat_table["tpgn"]
++            num_neg = stat_table["tngp"] + stat_table["tngn"]
++
++            if (stat_table["tpgp"] + stat_table["tngp"]) == 0:
++                # No included isolates have the gene
++                # Remove 1 from the number of tests
++                number_of_tests -= 1  
++                # proceed to the next gene
++                continue  
++
++            if (stat_table["tpgn"] + stat_table["tngn"]) == 0:
++                # All included isolates have the gene
++                number_of_tests -= 1
++                continue
++
++            # IF gene_trait_combination exists already, ie the current 
++            # gene is perfectly correlated with another gene, collapse
++            # the two into a single unit
++            
++            # Should consider adding a softer correlation required than 
++            # 100%, i.e. genes that are highly co-distributed should
++            #  perhaps be merged earlier?
++            if stats["hash"] in distributions and collapse:
++                # Find out which gene is correlated
++                corr_gene = distributions[stats["hash"]]
++                # Collapse the two genes
++                newgenename = corr_gene + "--" + gene
++                distributions[stats["hash"]] = newgenename
++                # Remove 1 from the number of tests
++                number_of_tests -= 1
++                mergedgenes = True
++                
++                del(gene_trait_combinations[trait][corr_gene])
++                gene_trait_combinations[trait][newgenename] = \
++                                                     stats["gene_trait"]
++            else:
++                distributions[stats["hash"]] = gene
++                mergedgenes = False
++                gene_trait_combinations[trait][gene] = \
++                                                     stats["gene_trait"]
++  
++            obs_table = [[stat_table["tpgp"],
++                          stat_table["tpgn"]],
++                         [stat_table["tngp"],
++                          stat_table["tngn"]]]
++            obs_tuple = (stat_table["tpgp"],
++                         stat_table["tpgn"],
++                         stat_table["tngp"],
++                         stat_table["tngn"])
++            if obs_tuple in fisher_calculated_values:
++                odds_ratio = fisher_calculated_values[obs_tuple][0]
++                p_value = fisher_calculated_values[obs_tuple][1]
++            else:
++                fisher = ss.fisher_exact(obs_table)
++                p_value = fisher[1]
++                odds_ratio = fisher[0]
++                fisher_calculated_values[obs_tuple] = fisher
++                 
++            if not mergedgenes:
++                all_traits[trait][gene] = {
++                "NUGN": genedic[gene]["Non-unique Gene name"],
++                "Annotation": genedic[gene]["Annotation"],
++                "tpgp": stat_table["tpgp"],
++                "tngp": stat_table["tngp"],
++                "tpgn": stat_table["tpgn"],
++                "tngn": stat_table["tngn"],
++                "sens": ((float(stat_table["tpgp"]) / num_pos * 100) if 
++                    num_pos > 0 else 0.0),
++                "spes": ((float(stat_table["tngn"]) / num_neg * 100) if 
++                    num_neg > 0 else 0.0),
++                "OR": odds_ratio,
++                "p_v": p_value}
++                p_value_list.append((gene, p_value))
++            else:
++                temp = all_traits[trait][corr_gene]
++                del(all_traits[trait][corr_gene])
++                all_traits[trait][newgenename] = {
++                "NUGN": temp["NUGN"] + "--" + 
++                        genedic[gene]["Non-unique Gene name"],
++                "Annotation": temp["Annotation"] + "--" + 
++                              genedic[gene]["Annotation"],
++                "tpgp": stat_table["tpgp"],
++                "tngp": stat_table["tngp"],
++                "tpgn": stat_table["tpgn"],
++                "tngn": stat_table["tngn"],
++                "sens": ((float(stat_table["tpgp"]) / num_pos * 100) if 
++                    num_pos > 0 else 0.0),
++                "spes": ((float(stat_table["tngn"]) / num_neg * 100) if
++                    num_neg > 0 else 0.0),
++                "OR": odds_ratio,
++                "p_v": p_value}
++                p_value_list.append((newgenename, p_value))
++                
++        
++        sys.stdout.write("\r100.00%")
++        sys.stdout.flush()
++        sys.stdout.write("\n")
++        log.info("Adding p-values adjusted for testing multiple hypotheses")
++        
++        # Now calculate Benjamini-Hochberg and Bonferroni p-values
++        # Sorted list of tuples: (gene, p-value)
++        # s_p_v = abbreviation for sorted_p_values
++        s_p_v = sorted(p_value_list, key=lambda x: x[1])  
++
++        # Find out which p-values are ties
++        # Note: Changed from step-down to step-up
++        # (from least significant to most significant)
++        tie = [s_p_v[i-1][1] == s_p_v[i][1] for i in
++            xrange(1, len(s_p_v))]
++        # Initialize dics of corrected p values
++        # bh_c_p_v = abbreviation for bh_corrected_p_values
++        bh_c_p_v = {}
++        # The least significant gene is entered into the dic
++        bh_c_p_v[s_p_v[len(s_p_v)-1][0]] = last_bh = s_p_v[len(s_p_v)-1][1]
++
++        for (ind, (gene, p)) in reversed(list(enumerate(s_p_v[:-1]))):
++            bh_c_p_v[gene] = min([last_bh, p*number_of_tests/(ind+1.0)]\
++                                ) if not tie[ind] else last_bh
++            last_bh = bh_c_p_v[gene]
++
++        # Now add values to dictionaries:
++        for gene in all_traits[trait]:
++            all_traits[trait][gene]["B_p"] = min(
++                all_traits[trait][gene]["p_v"] * number_of_tests , 1.0)
++            all_traits[trait][gene]["BH_p"] = min(bh_c_p_v[gene], 1.0)
++
++    return {"Results": all_traits,
++            "Gene_trait_combinations": gene_trait_combinations}
++
++def Perform_statistics(traits, genes):
++    """
++    Helper function for Setup_results.
++    The method that adds the presence/absence status for each 
++    trait-status combination.
++    """
++    r = {"tpgp": 0, "tpgn": 0, "tngp": 0, "tngn": 0}
++    # tpgn = trait positive, gene negative, etc
++    gene_trait = {}
++    distribution_hash = ""
++    for t in traits:  # For each strain
++        # If missing data, continue without including isolate
++        # Note, this should no longer be invoked, since missing-value
++        # isolates are not in the traits dic to begin with
++        if traits[t] in ["NA","-","."]:
++            gene_trait[t] = "NA"
++            distribution_hash += str(genes[t])
++            continue
++
++        try:
++            if int(traits[t]) == 1 and genes[t] == 1:
++                r["tpgp"] += 1
++                distribution_hash += "1"
++                gene_trait[t] = "AB"
++            elif int(traits[t]) == 1 and genes[t] == 0:
++                r["tpgn"] += 1
++                distribution_hash += "0"
++                gene_trait[t] = "aB"
++            elif int(traits[t]) == 0 and genes[t] == 1:
++                r["tngp"] += 1
++                distribution_hash += "1"
++                gene_trait[t] = "Ab"
++            elif int(traits[t]) == 0 and genes[t] == 0:
++                r["tngn"] += 1
++                distribution_hash += "0"
++                gene_trait[t] = "ab"
++            else:
++                sys.exit("There was a problem with comparing your "
++                "traits and gene presence/absence files. Make sure you "
++                "have formatted the traits file to specification and "
++                "only use 1s and 0s, as well as NA, - or . for missing "
++                "data. Also make sure the Roary file contains empty "
++                "cells for non-present genes and non-empty text cells "
++                "for present genes.")
++        except KeyError:
++            sys.stdout.write("\n")
++            log.critical("CRITICAL: Could not find %s in the genes "
++            "file." % str(t) )
++            #log.warning("CRITICAL: Could not find %s in the genes file" % str(t))
++            sys.exit("Make sure strains are named the same in your "
++            "traits file as in your gene presence/absence file")
++    return {"statistics": r, "hash": int(distribution_hash, 2),
++            "gene_trait": gene_trait}
++
+ #################################
+ # FUNCTIONS FOR CREATING OUTPUT #
+ #################################
+@@ -1042,13 +1264,15 @@ def PairWiseComparisons(nestedlist):
+             Pbest = "Pworst"
+             Pworst = "Pbest"
+         try:
+-            resultscontainer[currentgene][Pbest] = binom_test(
++            resultscontainer[currentgene][Pbest] = ss.binom_test(
+                 resultscontainer[currentgene]["max_propairs"],
+-                resultscontainer[currentgene]["max_total_pairs"])
+-            resultscontainer[currentgene][Pworst] = binom_test(
++                resultscontainer[currentgene]["max_total_pairs"],
++                0.5)
++            resultscontainer[currentgene][Pworst] = ss.binom_test(
+                 resultscontainer[currentgene]["max_total_pairs"] - 
+                 resultscontainer[currentgene]["max_antipairs"],
+-                resultscontainer[currentgene]["max_total_pairs"])
++                resultscontainer[currentgene]["max_total_pairs"],
++                0.5)
+             resultscontainer[currentgene]["Plowest"] = min(
+                 resultscontainer[currentgene]["Pbest"], 
+                 resultscontainer[currentgene]["Pworst"])

@@ -1,10 +1,7 @@
-"""xplat verifiers runner: plans, cells, and seams (no docker, no verifiers, $0).
+"""Deterministic verifier interop boundaries; Docker state is always injected.
 
-Live-Docker cells are proven by manual smoke runs, not committed tests: the
-deterministic-test rule forbids Docker-daemon, network, and host-state
-dependence. These tests cover the pure seams (plan building, harness config,
-workdir resolution, image choice, verdict mapping, run_cell guards) with
-synthetic task dirs and stubbed collaborators.
+Parser/admission cases use the real opt-in verifiers dependency when installed,
+without provisioning a runtime or calling a model.
 """
 
 from __future__ import annotations
@@ -22,7 +19,18 @@ from evallab import interop as _interop
 from evallab import interop_verifiers as vf
 
 
-def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str | None = None) -> Path:
+def make_task(
+    root: Path,
+    *,
+    name: str = "lab/synthetic",
+    workdir: str | None = None,
+    environment: str = "",
+    verifier: str = "",
+    agent: str = "",
+    network: str = "public",
+    artifacts: str = "[]",
+    preamble: str = "",
+) -> Path:
     task_dir = root / "task"
     (task_dir / "solution").mkdir(parents=True)
     (task_dir / "tests").mkdir(parents=True)
@@ -36,18 +44,23 @@ def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str | None = 
         "FROM python:3.12-slim-bookworm\n", encoding="utf-8"
     )
     lines = [
-        "artifacts = []\n",
+        f"artifacts = {artifacts}\n",
+        preamble + "\n",
         "\n[task]\n",
         f'name = "{name}"\n',
         "\n[metadata]\n",
         'difficulty = "easy"\n',
         "\n[verifier]\n",
         "timeout_sec = 120.0\n",
+        verifier + "\n",
         "\n[environment]\n",
-        'network_mode = "public"\n',
+        f'network_mode = "{network}"\n',
+        environment + "\n",
     ]
     if workdir is not None:
         lines.append(f'workdir = "{workdir}"\n')
+    if agent:
+        lines.extend(("\n[agent]\n", agent + "\n"))
     (task_dir / "task.toml").write_text("".join(lines), encoding="utf-8")
     return task_dir
 
@@ -84,17 +97,6 @@ def test_factory_nop_is_empty(tmp_path: Path) -> None:
     assert vf.materialize_files(task, "nop", plan) == {}
 
 
-def test_factory_cheat_stages_ladder_with_subset(tmp_path: Path) -> None:
-    task = _interop.load_harbor_task(make_task(tmp_path))
-    plan = _interop.scripted_agent_plan(task, "cheat", ("reward_plant", "skip_plant"))
-    assert set(plan.files) == {_interop.CHEAT_LADDER_CONTAINER_PATH}
-    assert b"CHEAT_LADDER_RESULT=" in plan.files[_interop.CHEAT_LADDER_CONTAINER_PATH]
-    assert "--attacks reward_plant,skip_plant" in (plan.command or "")
-    assert "--cwd ." in (plan.command or "")
-    full = _interop.scripted_agent_plan(task, "cheat", ())
-    assert "--attacks" not in (full.command or "")
-
-
 def test_factory_cheat_rejects_unknown_attack(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     with pytest.raises(ValueError, match="unknown cheat attack"):
@@ -116,16 +118,6 @@ def test_relaxed_load_allows_solution_less_tasks(tmp_path: Path) -> None:
     assert _interop.scripted_agent_plan(task, "nop", ()).command is None
     full = _interop.scripted_agent_plan(task, "cheat", ())
     assert "--attacks" not in (full.command or "")
-
-
-def test_harness_alias_registers_module() -> None:
-    pytest.importorskip("verifiers.v1.tasksets.harbor")
-    vf._ensure_harness_alias()
-    import sys
-
-    module = sys.modules[vf.VERIFIERS_HARNESS_ID]
-    assert module.HARNESS_PLUGIN_ID == vf.VERIFIERS_HARNESS_ID
-    assert "ScriptedHarness" in module.__all__
 
 
 # -- harness config / workdir / image ------------------------------------------
@@ -187,20 +179,6 @@ def test_resolve_task_image_default_without_dockerfile(tmp_path: Path) -> None:
     (task_dir / "environment" / "Dockerfile").unlink()
     task = _interop.load_harbor_task(task_dir)
     assert vf.resolve_task_image(task) == (None, "default")
-
-
-def test_resolve_task_image_builds_dockerfile(tmp_path: Path, monkeypatch) -> None:
-    task = _interop.load_harbor_task(make_task(tmp_path))
-    calls: list[list[str]] = []
-
-    def fake_run(argv, **kwargs):
-        calls.append(list(argv))
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    image, how = vf.resolve_task_image(task)
-    assert how == "built" and image == "evallab-vf/lab-synthetic:latest"
-    assert calls[0][:3] == ["docker", "build", "-t"]
 
 
 def test_resolve_task_image_failed_build_is_error(tmp_path: Path, monkeypatch) -> None:
@@ -288,68 +266,197 @@ def test_run_cell_rejects_unknown_isolation(tmp_path: Path) -> None:
         )
 
 
-def test_run_cell_passes_isolation_through(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("missing_parent", ["verifiers", "verifiers.v1"])
+def test_missing_nested_dependency_is_recorded_error(
+    tmp_path: Path, monkeypatch, missing_parent: str
+) -> None:
+    def absent(_name: str):
+        raise ModuleNotFoundError(f"No module named {missing_parent!r}", name=missing_parent)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("dependency absence must not contact Docker")
+
+    monkeypatch.setattr(vf.importlib.util, "find_spec", absent)
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(tmp_path, "nop", (), workdir=workdir, timeout_seconds=1)
+    assert (cell["verdict"], cell["reward"], cell["evidence"]) == ("error", None, str(workdir))
+    assert "not installed" in cell["reason"]
+    assert json.loads((workdir / "error.json").read_text())["reason"] == cell["reason"]
+
+
+@pytest.mark.parametrize(
+    ("task_options", "extra_file", "reason"),
+    [
+        ({"verifier": "user = 0"}, None, "[verifier].user"),
+        ({"agent": 'user = "student"'}, None, "[agent].user"),
+        ({}, "environment/docker-compose.yaml", "single-image"),
+        (
+            {"verifier": 'environment_mode = "separate"'},
+            "tests/Dockerfile",
+            "tests/Dockerfile",
+        ),
+        (
+            {"verifier": "[verifier.environment]\ncpus = 2"},
+            None,
+            "without docker_image",
+        ),
+        ({"environment": "storage_mb = 1024"}, None, "disk limits are not enforced"),
+        ({"environment": 'os = "windows"'}, None, "Linux containers only"),
+        ({"environment": 'gpu_types = ["A100"]'}, None, "gpu_types"),
+        ({"agent": 'network_mode = "no-network"'}, None, "shared verifier phase network"),
+        (
+            {"network": "allowlist", "environment": 'allowed_hosts = ["10.0.0.0/8"]'},
+            None,
+            "IP CIDR/IPv6",
+        ),
+        (
+            {"verifier": 'collect = [{command = "true", user = 0}]'},
+            None,
+            "[[verifier.collect]].user",
+        ),
+        (
+            {"artifacts": '[{source = "/db", service = "db"}]'},
+            None,
+            "artifact additional service",
+        ),
+        ({"preamble": 'steps = [{name = "one"}]'}, None, "multi-step"),
+    ],
+)
+def test_incompatible_contract_is_error_before_docker(
+    tmp_path: Path, monkeypatch, task_options: dict, extra_file: str | None, reason: str
+) -> None:
+    task_dir = make_task(tmp_path, **task_options)
+    if extra_file is not None:
+        (task_dir / extra_file).write_text("unsupported\n")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("an incompatible contract must not build, pull, or start Docker")
+
     monkeypatch.setattr(vf, "verifiers_available", lambda: True)
-    monkeypatch.setattr(vf, "_docker_reachable", lambda: (True, "docker x"))
-    seen: dict = {}
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(task_dir, "nop", (), workdir=workdir, timeout_seconds=1)
+    assert (cell["verdict"], cell["reward"], cell["evidence"]) == ("error", None, str(workdir))
+    assert reason in cell["reason"]
+    assert json.loads((workdir / "error.json").read_text())["verdict"] == "error"
+    assert not (workdir / "admission.json").exists()
 
-    async def fake_arun(*args, **kwargs):
-        seen.update(kwargs)
-        return {"verdict": "fail"}
 
-    monkeypatch.setattr(vf, "_arun_cell", fake_arun)
-    vf.run_cell(
-        tmp_path,
-        "nop",
-        (),
-        workdir=tmp_path / "cell",
-        timeout_seconds=1,
-        isolation="shared",
+@pytest.mark.parametrize("isolation", ["default", "shared"])
+def test_isolation_override_does_not_hide_verifier_user(
+    tmp_path: Path, monkeypatch, isolation: str
+) -> None:
+    task_dir = make_task(tmp_path, verifier='environment_mode = "separate"\nuser = 0')
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("an isolation override must not bypass unsupported verifier users")
+
+    monkeypatch.setattr(vf, "verifiers_available", lambda: True)
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(
+        task_dir, "nop", (), workdir=workdir, timeout_seconds=1, isolation=isolation
     )
-    assert seen.get("isolation") == "shared"
+    assert cell["verdict"] == "error" and cell["reward"] is None
+    assert "[verifier].user" in cell["reason"]
+    assert json.loads((workdir / "error.json").read_text())["isolation_requested"] == isolation
 
 
-def test_run_cell_without_verifiers_is_error(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(vf, "verifiers_available", lambda: False)
-    cell = vf.run_cell(tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1)
-    assert cell["verdict"] == "error"
-    assert "not installed" in (cell["reason"] or "")
+@pytest.mark.parametrize(
+    ("verifier", "isolation", "sandboxes", "cpus", "memory_mb"),
+    [
+        ("", "default", 1, 2, 2048),
+        ('environment_mode = "separate"', "default", 2, 4, 4096),
+        ('environment_mode = "separate"', "shared", 1, 2, 2048),
+        (
+            '[verifier.environment]\ndocker_image = "verifier:1"\ncpus = 6\nmemory_mb = 8192',
+            "default",
+            2,
+            12,
+            16384,
+        ),
+        (
+            '[verifier.environment]\ndocker_image = "verifier:1"\ncpus = 6\nmemory_mb = 8192',
+            "shared",
+            1,
+            2,
+            2048,
+        ),
+    ],
+)
+def test_real_parser_admission_refuses_before_image_build(
+    tmp_path: Path,
+    monkeypatch,
+    verifier: str,
+    isolation: str,
+    sandboxes: int,
+    cpus: int,
+    memory_mb: int,
+) -> None:
+    pytest.importorskip("verifiers.v1.tasksets.harbor")
+    from evallab import campaign_execution
+
+    task_dir = make_task(tmp_path, verifier=verifier)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("refused admission must not build, pull, or start Docker")
+
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (1.0, 1024))
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(
+        task_dir, "nop", (), workdir=workdir, timeout_seconds=1, isolation=isolation
+    )
+    assert (cell["verdict"], cell["reward"], cell["evidence"]) == ("error", None, str(workdir))
+    assert "admission refused" in cell["reason"]
+    admission = json.loads((workdir / "admission.json").read_text())
+    assert admission["admitted"] is False and admission["sandboxes"] == sandboxes
+    assert admission["requested"] == {"cpus": cpus, "memory_mb": memory_mb}
+    preflight = json.loads((workdir / "preflight.json").read_text())
+    assert preflight["isolation"] == ("separate" if sandboxes == 2 else "shared")
+    assert preflight["isolation_requested"] == isolation
+    assert bool(preflight["isolation_override"]) == (isolation == "shared")
 
 
-def test_run_cell_skipped_when_daemon_down(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(vf, "verifiers_available", lambda: True)
-    monkeypatch.setattr(vf, "_docker_reachable", lambda: (False, "docker unreachable: down"))
-    cell = vf.run_cell(tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1)
-    assert cell["verdict"] == "skipped"
-    assert cell["reason"] == "docker unreachable: down"
+def test_unreachable_daemon_is_admission_error_with_evidence(tmp_path: Path, monkeypatch) -> None:
+    pytest.importorskip("verifiers.v1.tasksets.harbor")
+    from evallab import campaign_execution
+
+    task_dir = make_task(tmp_path)
+
+    def unavailable():
+        raise ValueError("docker unreachable: down")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("unreachable Docker must not build, pull, or start")
+
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", unavailable)
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(task_dir, "nop", (), workdir=workdir, timeout_seconds=1)
+    assert (cell["verdict"], cell["reward"], cell["evidence"]) == ("error", None, str(workdir))
+    assert "docker unreachable: down" in cell["reason"]
+    admission = json.loads((workdir / "admission.json").read_text())
+    assert admission["admitted"] is False
+    assert "docker unreachable: down" in admission["reason"]
 
 
-def test_run_cell_surfaces_driver_failure_as_error(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(vf, "verifiers_available", lambda: True)
-    monkeypatch.setattr(vf, "_docker_reachable", lambda: (True, "docker x"))
+def test_admitted_supported_task_reports_image_build_failure(tmp_path: Path, monkeypatch) -> None:
+    pytest.importorskip("verifiers.v1.tasksets.harbor")
+    from evallab import campaign_execution
 
-    async def fake_arun(*args, **kwargs):
-        raise RuntimeError("nope")
+    task_dir = make_task(tmp_path, environment="cpus = 3\nmemory_mb = 3072")
 
-    monkeypatch.setattr(vf, "_arun_cell", fake_arun)
-    cell = vf.run_cell(tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1)
-    assert cell["verdict"] == "error"
-    assert "RuntimeError: nope" in (cell["reason"] or "")
+    def failed_build(*args, **kwargs):
+        raise OSError("synthetic image builder unavailable")
 
-
-def test_meta_json_shape(tmp_path: Path) -> None:
-    meta = {
-        "task_id": "t",
-        "agent": "oracle",
-        "attacks": [],
-        "image": "img",
-        "image_source": "built",
-        "isolation": "shared",
-        "command": "bash /tmp/oracle-solve/solve.sh",
-        "staged_files": ["/tmp/oracle-solve/solve.sh"],
-        "platform_version": "verifiers 0.3.1",
-        "tracked_rewards": ["solved"],
-    }
-    path = tmp_path / "meta.json"
-    path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    assert json.loads(path.read_text(encoding="utf-8"))["tracked_rewards"] == ["solved"]
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (8.0, 8192))
+    monkeypatch.setattr(subprocess, "run", failed_build)
+    workdir = tmp_path / "cell"
+    cell = vf.run_cell(task_dir, "oracle", (), workdir=workdir, timeout_seconds=1)
+    assert (cell["verdict"], cell["reward"], cell["evidence"]) == ("error", None, str(workdir))
+    assert "docker build failed" in cell["reason"]
+    admission = json.loads((workdir / "admission.json").read_text())
+    assert admission["admitted"] is True
+    assert admission["requested"] == {"cpus": 3, "memory_mb": 3072}

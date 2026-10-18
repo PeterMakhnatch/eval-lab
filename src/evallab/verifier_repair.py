@@ -1,12 +1,11 @@
-"""Automatic missing-test-assertion fixer for EnvCheck mutation survivors.
+"""Bounded semantic test repairs for EnvCheck verifier defects.
 
-Reads a ``evallab.verifier_mutation.report/v1`` report, ranks only survivors
-with ``executed=True`` from ``coverage='guided'`` coverage, asks a model for a
-bounded structured proposal of additional semantic Python tests (or an
-explicit not-repairable rationale), derives a test-only variant through the
-existing :func:`evallab.task_variants.derive_task` path, and validates it by
-running the actual reference / nop / previous-survivor scripts through
-``runner.run_matrix`` against the repaired package.
+Append-only proposals cover mutation survivors. Explicitly opted-in proposals
+may also replace a complete hidden Python test that over-constrains the prompt,
+bound to its exact preimage and an instruction quotation. All variants use
+``derive_task`` and retain ``verifier-repair@1`` lineage. Native validation
+replays the actual reference / nop / previous-survivor scripts through
+``runner.run_matrix``; accepting a prompt-valid alternate needs its own replay.
 
 Fails closed everywhere: missing reports, skips, infrastructure outcomes and
 partial rewards never certify a repair. No paid API is touched in preview
@@ -116,6 +115,21 @@ class RepairTest(ContractModel):
     code: str = Field(min_length=1)
 
 
+class RepairTestEdit(ContractModel):
+    """Replace one complete top-level test already added by ``tests/test.patch``.
+
+    No patch headers, context, removals, helpers, commands or other package
+    members are writable. ``before`` and ``after`` include the complete named
+    function (and its unchanged decorators), ending in a newline.
+    """
+
+    repo_path: str = Field(min_length=1, max_length=256)
+    before: str = Field(min_length=1)
+    after: str = Field(min_length=1)
+    prompt_requirement: str = Field(min_length=1, max_length=MAX_RATIONALE_CHARS)
+    rationale: str = Field(min_length=1, max_length=MAX_RATIONALE_CHARS)
+
+
 class RepairUnrepairable(ContractModel):
     """One ranked survivor the model declines to kill, with its reason.
 
@@ -131,7 +145,7 @@ class RepairUnrepairable(ContractModel):
 
 
 class RepairProposal(ContractModel):
-    """Bounded structured model output: new tests plus how to run them."""
+    """Bounded structured output; existing-test edits require caller opt-in."""
 
     schema_: Literal["evallab.verifier_repair.proposal/v1"] = Field(
         alias="schema", default=SCHEMA_PROPOSAL
@@ -143,6 +157,8 @@ class RepairProposal(ContractModel):
     model: str | None = None
     mutant_ids: list[str] = Field(default_factory=list)
     unrepairable: list[RepairUnrepairable] = Field(default_factory=list)
+    edits: list[RepairTestEdit] = Field(default_factory=list)
+    test_patch_sha256: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 class RepairCheck(ContractModel):
@@ -548,7 +564,41 @@ def build_repair_context(
         "test_command": hidden.get("tests/test_command.sh", ""),
         "patched_files": sorted(patched_paths(test_patch)),
         "reset_files": sorted(read_reset_list(test_sh)),
+        "test_patch_sha256": "sha256:" + hashlib.sha256(test_patch.encode()).hexdigest(),
     }
+
+
+def render_test_edit_rules(context: Mapping[str, Any]) -> list[str]:
+    """Share the explicit edit contract between both repair proposers."""
+    if not context.get("allow_test_edits"):
+        return [
+            "- Existing hidden-test edits are NOT authorized. Omit edits (or use []);",
+            "  test_patch_sha256 must be null. Only append new test files.",
+        ]
+    return [
+        "- Existing-test repair is explicitly enabled, only to relax a concrete",
+        "  prompt overconstraint while retaining the required semantic checks.",
+        "- edits entries are {repo_path, before, after, prompt_requirement, rationale}.",
+        "  before/after are complete top-level test_ functions, with unchanged",
+        "  names, signatures and decorators, ending in a newline. before must",
+        "  exactly match a complete function wholly ADDED by tests/test.patch.",
+        "  Only test_*.py files under a test/ or tests/ directory are editable.",
+        "- prompt_requirement is a verbatim nonempty quotation from instruction.md;",
+        "  rationale explains which implementation restriction it relaxes and",
+        "  which required behavior the replacement still tests.",
+        "- Preserve unrelated tests, helpers, fixtures, patch context/removals and",
+        "  every command. Never skip/xfail, swallow failures or replace checks",
+        "  with vacuous assertions. Put any needed imports inside the edited test.",
+        "- For an edit-only proposal, tests is [] and command is null: the FULL",
+        "  original command runs unchanged. New files still need their own command.",
+        f"- At most {MAX_TESTS} new files plus edits; each before/after is at most",
+        f"  {MAX_TEST_BYTES} bytes, combined proposed code at most {MAX_TOTAL_TEST_BYTES}.",
+        f"- When edits is nonempty, test_patch_sha256 is exactly {context.get('test_patch_sha256')}.",
+        "  Otherwise test_patch_sha256 is null.",
+        "- Reference/nop controls alone do not demonstrate an overconstraint",
+        "  repair: a prompt-valid alternate and an actually wrong implementation",
+        "  must also be graded on the real derived verifier before acceptance.",
+    ]
 
 
 def render_repair_prompt(context: Mapping[str, Any]) -> str:
@@ -558,12 +608,13 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "tests that pass on the reference solution and fail on each surviving",
         "mutant below. Reply with exactly one JSON object matching the repair",
         "proposal schema: {schema, repairable, rationale, tests, command, model,",
-        "mutant_ids, unrepairable}. Each test: {id, repo_path, code}. Each",
+        "mutant_ids, unrepairable, edits, test_patch_sha256}. Each test: {id, repo_path, code}. Each",
         "unrepairable entry: {mutant_id, kind, reason} with kind equivalent or",
         "out-of-scope.",
         f"The schema field is exactly {SCHEMA_PROPOSAL!r}; no markdown fences.",
         "The model field may be null; execution records the caller-selected model.",
-        "Command may be null only when repairable is false and no tests will run.",
+        "Command may be null when no NEW test files are proposed; existing tests",
+        "continue to run under the original command, never a replacement command.",
         "All code runs only inside the task's isolated verifier, not on the host.",
         "Rules:",
         "- Test observable behaviour of the task artifacts only.",
@@ -593,6 +644,7 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "  unrepairable with a per-ID reason instead of pinning implementation",
         "  behaviour. Genuine holes keep their tests even when other survivors",
         "  are unrepairable; do not abandon useful assertions wholesale.",
+        *render_test_edit_rules(context),
         "",
         f"Task: {context.get('task')}",
         f"Targets: {context.get('targets')}",
@@ -725,7 +777,7 @@ def build_command_wrapper(
     new_command: str,
     *,
     workdir: str,
-    interpreter: str = "/opt/test_venv/bin/python3",
+    interpreter: str | None = "/opt/test_venv/bin/python3",
 ) -> str:
     """Original command verbatim, then the new tests; original status kept.
 
@@ -734,20 +786,27 @@ def build_command_wrapper(
     new-test run exits 1, otherwise the original status is returned exactly.
     Bare ``python`` / ``python3`` in the new command use the task venv when
     that interpreter exists. The check runs in the grader, not on the host.
+    ``None`` reproduces historical wrappers without interpreter preference;
+    it does not change original-command or failure propagation.
     """
     base = original if original.endswith("\n") else original + "\n"
-    quoted = shlex.quote(interpreter)
-    bin_dir = shlex.quote(str(Path(interpreter).parent))
+    python_preference = ""
+    if interpreter is not None:
+        quoted = shlex.quote(interpreter)
+        bin_dir = shlex.quote(str(Path(interpreter).parent))
+        python_preference = (
+            f"if [ -x {quoted} ]; then\n"
+            f"  PATH={bin_dir}:$PATH\n"
+            "  export PATH\n"
+            f'  python() {{ {quoted} "$@"; }}\n'
+            f'  python3() {{ {quoted} "$@"; }}\n'
+            "fi\n"
+        )
     return (
         f"(\n{base})\n"
         "REPAIR_RC=$?\n"
         f"cd {shlex.quote(workdir)} || exit 1\n"
-        f"if [ -x {quoted} ]; then\n"
-        f"  PATH={bin_dir}:$PATH\n"
-        "  export PATH\n"
-        f'  python() {{ {quoted} "$@"; }}\n'
-        f'  python3() {{ {quoted} "$@"; }}\n'
-        "fi\n"
+        f"{python_preference}"
         f"{new_command}\n"
         "REPAIR_NEW_RC=$?\n"
         'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'
@@ -755,8 +814,257 @@ def build_command_wrapper(
     )
 
 
+def _validate_test_code(name: str, code: str) -> ast.Module:
+    if not code.endswith("\n"):
+        raise RepairError(f"{name}: code must end with a newline")
+    if len(code.encode("utf-8")) > MAX_TEST_BYTES:
+        raise RepairError(f"{name} exceeds {MAX_TEST_BYTES} bytes")
+    lowered = code.lower()
+    for marker in _DISALLOWED_TEST_FEATURES:
+        prefix = r"(?<!\w)" if marker[0].isalnum() or marker[0] == "_" else ""
+        suffix = r"(?!\w)" if marker[-1].isalnum() or marker[-1] == "_" else ""
+        if re.search(prefix + re.escape(marker) + suffix, lowered):
+            raise RepairError(f"{name} uses a disallowed test feature ({marker})")
+    try:
+        tree = ast.parse(code, filename=name)
+    except (SyntaxError, ValueError) as exc:
+        raise RepairError(f"{name} does not parse: {exc}") from exc
+    if _has_hardcoded_reference(tree):
+        raise RepairError(f"{name} hardcodes reference bytes")
+    return tree
+
+
+def _test_function(code: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError) as exc:
+        raise RepairError(f"test edit must contain a complete Python function: {exc}") from exc
+    if (
+        len(tree.body) != 1
+        or not isinstance(tree.body[0], ast.FunctionDef | ast.AsyncFunctionDef)
+        or not tree.body[0].name.startswith("test_")
+    ):
+        raise RepairError("test edit must contain exactly one top-level test_ function")
+    return tree.body[0]
+
+
+def _check_count(function: ast.AST) -> int:
+    """A structural no-coverage-deletion guard, not semantic certification."""
+    count = 0
+    for node in ast.walk(function):
+        if isinstance(node, ast.Assert):
+            count += 1
+        elif isinstance(node, ast.Call):
+            name = (
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else ""
+            )
+            if name.startswith("assert") or name in {"raises", "fail"}:
+                count += 1
+    return count
+
+
+def _validate_test_edit(edit: RepairTestEdit, instruction: str) -> None:
+    name = edit.repo_path
+    path = Path(name)
+    if (
+        path.is_absolute()
+        or path.as_posix() != name
+        or any(part in {"..", ".git"} for part in path.parts)
+        or not re.fullmatch(r"[A-Za-z0-9_./-]+", name)
+        or not path.name.startswith("test_")
+        or path.suffix != ".py"
+        or not {"test", "tests"}.intersection(path.parts[:-1])
+    ):
+        raise RepairError(f"existing-test edit is not a repository test path: {name!r}")
+    if not edit.prompt_requirement.strip() or edit.prompt_requirement not in instruction:
+        raise RepairError(f"{name}: prompt_requirement must quote instruction.md verbatim")
+    if not edit.rationale.strip():
+        raise RepairError(f"{name}: test edit needs an explicit rationale")
+    if not edit.before.endswith("\n") or len(edit.before.encode()) > MAX_TEST_BYTES:
+        raise RepairError(f"{name}: before must be bounded and end with a newline")
+    _validate_test_code(name, edit.after)
+    before, after = _test_function(edit.before), _test_function(edit.after)
+    if edit.before == edit.after:
+        raise RepairError(f"{name}: test edit is a no-op")
+    if (
+        type(before) is not type(after)
+        or before.name != after.name
+        or ast.dump(before.args) != ast.dump(after.args)
+        or [ast.dump(d) for d in before.decorator_list]
+        != [ast.dump(d) for d in after.decorator_list]
+        or (ast.dump(before.returns) if before.returns is not None else None)
+        != (ast.dump(after.returns) if after.returns is not None else None)
+        or before.type_comment != after.type_comment
+        or [ast.dump(p) for p in getattr(before, "type_params", [])]
+        != [ast.dump(p) for p in getattr(after, "type_params", [])]
+    ):
+        raise RepairError(f"{name}: test edits must preserve collection name/signature/decorators")
+    if _check_count(after) < max(1, _check_count(before)):
+        raise RepairError(f"{name}: test edit removes semantic checks")
+    for node in ast.walk(after):
+        if isinstance(node, ast.Assert):
+            try:
+                ast.literal_eval(node.test)
+            except (ValueError, TypeError):
+                pass
+            else:
+                raise RepairError(f"{name}: test edit contains a vacuous literal assertion")
+            if not any(
+                isinstance(child, ast.Name | ast.Attribute | ast.Call)
+                for child in ast.walk(node.test)
+            ):
+                raise RepairError(f"{name}: test edit assertion never observes task behavior")
+        if isinstance(node, ast.Try | ast.TryStar) and node.handlers:
+            raise RepairError(f"{name}: test edits may not catch or suppress failures")
+        if isinstance(node, ast.Call):
+            called = (
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else ""
+            )
+            if called in {
+                "skip", "skipif", "skipTest", "SkipTest", "xfail", "exit", "quit", "suppress"
+            }:
+                raise RepairError(f"{name}: test edits may not skip checks or terminate the suite")
+    pending: list[ast.AST] = list(after.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, ast.Return | ast.Yield | ast.YieldFrom):
+            raise RepairError(f"{name}: test edit may not return/yield instead of running checks")
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            pending.extend(ast.iter_child_nodes(node))
+
+
+_EDIT_HUNK = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@([^\n]*)\n")
+
+
+def _rewrite_test_section(section: str, edits: Sequence[RepairTestEdit]) -> str:
+    """Rewrite only complete added test functions; recount/rebase affected hunks."""
+    path = edits[0].repo_path
+    lines = section.splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if line.startswith("@@ ")]
+    if not starts or lines[0] != f"diff --git a/{path} b/{path}\n":
+        raise RepairError(f"{path}: unsupported hidden-test patch entry")
+    headers = lines[1 : starts[0]]
+    if (
+        sum(line in {f"--- a/{path}\n", "--- /dev/null\n"} for line in headers) != 1
+        or headers.count(f"+++ b/{path}\n") != 1
+        or any(
+            line not in {
+                f"--- a/{path}\n", "--- /dev/null\n", f"+++ b/{path}\n",
+                "new file mode 100644\n",
+            }
+            and re.fullmatch(r"index [0-9a-f]+\.\.[0-9a-f]+(?: 100644)?\n", line) is None
+            for line in headers
+        )
+    ):
+        raise RepairError(f"{path}: mode, rename, binary or unsupported patch metadata")
+    matched = [0] * len(edits)
+    result = lines[: starts[0]]
+    shift = 0
+    for start, end in zip(starts, [*starts[1:], len(lines)], strict=True):
+        header = _EDIT_HUNK.fullmatch(lines[start])
+        body = lines[start + 1 : end]
+        if header is None or any(not line.endswith("\n") or line[0] not in " +-" for line in body):
+            raise RepairError(f"{path}: unsupported hidden-test hunk")
+        old_start, old_count = int(header[1]), int(header[2] or 1)
+        new_start, new_count = int(header[3]), int(header[4] or 1)
+        if (
+            sum(line[0] in " -" for line in body) != old_count
+            or sum(line[0] in " +" for line in body) != new_count
+        ):
+            raise RepairError(f"{path}: hidden-test hunk counts do not match its preimage")
+        rewritten: list[str] = []
+        i = 0
+        while i < len(body):
+            if not body[i].startswith("+"):
+                rewritten.append(body[i])
+                i += 1
+                continue
+            j = i + 1
+            while j < len(body) and body[j].startswith("+"):
+                j += 1
+            added = [line[1:] for line in body[i:j]]
+            try:
+                tree = ast.parse("".join(added))
+            except (SyntaxError, ValueError):
+                tree = ast.Module(body=[], type_ignores=[])
+            replacements: list[tuple[int, int, str]] = []
+            for node in tree.body:
+                if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                first = min([node.lineno, *(d.lineno for d in node.decorator_list)]) - 1
+                last = node.end_lineno
+                if last is None:
+                    raise RepairError("parsed test function has no source end position")
+                preimage = "".join(added[first:last])
+                for index, edit in enumerate(edits):
+                    if preimage == edit.before:
+                        matched[index] += 1
+                        replacements.append((first, last, edit.after))
+            for first, last, replacement in sorted(replacements, reverse=True):
+                added[first:last] = replacement.splitlines(keepends=True)
+            rewritten.extend("+" + line for line in added)
+            i = j
+        count = sum(line[0] in " +" for line in rewritten)
+        result.append(
+            lines[start]
+            if count == new_count and shift == 0
+            else f"@@ -{old_start},{old_count} +{new_start + shift},{count} @@{header[5]}\n"
+        )
+        result.extend(rewritten)
+        shift += count - new_count
+    if any(count != 1 for count in matched):
+        raise RepairError(f"{path}: before must match exactly one complete added test function")
+    return "".join(result)
+
+
+def _edited_test_patch(
+    original: str, proposal: RepairProposal, *, instruction: str, allow_test_edits: bool
+) -> str:
+    if not proposal.edits:
+        if proposal.test_patch_sha256 is not None:
+            raise RepairError("test_patch_sha256 is only valid with explicit test edits")
+        return original
+    if not allow_test_edits:
+        raise RepairError("existing-test edits require explicit allow_test_edits opt-in")
+    digest = "sha256:" + hashlib.sha256(original.encode("utf-8")).hexdigest()
+    if proposal.test_patch_sha256 != digest:
+        raise RepairError("test edits do not match the original tests/test.patch SHA-256")
+    by_path: dict[str, list[RepairTestEdit]] = {}
+    seen: set[tuple[str, str]] = set()
+    for edit in proposal.edits:
+        _validate_test_edit(edit, instruction)
+        key = (edit.repo_path, _test_function(edit.before).name)
+        if key in seen:
+            raise RepairError("proposal edits the same hidden test more than once")
+        seen.add(key)
+        by_path.setdefault(edit.repo_path, []).append(edit)
+    sections = re.split(r"(?m)(?=^diff --git )", original)
+    for path, edits in by_path.items():
+        matches = [
+            i for i, section in enumerate(sections)
+            if section.startswith(f"diff --git a/{path} b/{path}\n")
+        ]
+        if len(matches) != 1:
+            raise RepairError(f"{path}: edit must target exactly one existing hidden-test entry")
+        index = matches[0]
+        sections[index] = _rewrite_test_section(sections[index], edits)
+    return "".join(sections)
+
+
 def validate_proposal(
-    proposal: RepairProposal, *, mutant_ids: Sequence[str], package_dir: Path | str
+    proposal: RepairProposal,
+    *,
+    mutant_ids: Sequence[str],
+    package_dir: Path | str,
+    allow_test_edits: bool = False,
 ) -> None:
     """Reject fingerprint tests, hardcoded bytes, collisions, bound violations.
 
@@ -764,9 +1072,13 @@ def validate_proposal(
     tests (``mutant_ids``) or declared unrepairable with a per-ID reason
     (``unrepairable``); undeclared survivors fail the proposal.
     """
+    if proposal.edits and not allow_test_edits:
+        raise RepairError("existing-test edits require explicit allow_test_edits opt-in")
     if not proposal.repairable:
         if not proposal.rationale.strip():
             raise RepairError("not-repairable proposal needs an explicit rationale")
+        if proposal.tests or proposal.edits or proposal.command is not None:
+            raise RepairError("not-repairable proposal must not carry executable repairs")
         return
     wanted = set(mutant_ids)
     tested = set(proposal.mutant_ids)
@@ -787,22 +1099,26 @@ def validate_proposal(
     for entry in proposal.unrepairable:
         if not entry.reason.strip():
             raise RepairError(f"unrepairable {entry.mutant_id} needs an explicit reason")
-    if not proposal.tests:
-        raise RepairError("repairable proposal carries no tests")
-    if len(proposal.tests) > MAX_TESTS:
-        raise RepairError(f"proposal has {len(proposal.tests)} tests; max {MAX_TESTS}")
+    if not proposal.tests and not proposal.edits:
+        raise RepairError("repairable proposal carries no tests or test edits")
+    if len(proposal.tests) + len(proposal.edits) > MAX_TESTS:
+        raise RepairError(f"proposal exceeds {MAX_TESTS} new files plus test edits")
     parent = Path(package_dir)
     try:
-        original_patch = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        original_patch = (parent / "tests" / "test.patch").read_bytes().decode("utf-8")
         original_command = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
         test_sh = (parent / "tests" / "test.sh").read_text(encoding="utf-8")
+        instruction = (parent / "instruction.md").read_text(encoding="utf-8") if proposal.edits else ""
     except OSError as exc:
         raise RepairError(f"parent lacks the v5 test harness: {exc}") from exc
     if not original_command.strip():
         raise RepairError("parent tests/test_command.sh is empty")
     reset = read_reset_list(test_sh)
     taken = patched_paths(original_patch)
-    total = 0
+    _edited_test_patch(
+        original_patch, proposal, instruction=instruction, allow_test_edits=allow_test_edits
+    )
+    total = sum(len(e.before.encode()) + len(e.after.encode()) for e in proposal.edits)
     seen: set[str] = set()
     for test in proposal.tests:
         name = test.repo_path
@@ -823,26 +1139,14 @@ def validate_proposal(
             raise RepairError(f"{name!r} is reset by tests/test.sh; pick a new file")
         if name in taken:
             raise RepairError(f"{name!r} is already carried by tests/test.patch")
-        if not test.code.endswith("\n"):
-            raise RepairError(f"{name}: code must end with a newline")
-        raw = test.code.encode("utf-8")
-        total += len(raw)
-        if len(raw) > MAX_TEST_BYTES:
-            raise RepairError(f"{name} exceeds {MAX_TEST_BYTES} bytes")
-        lowered = test.code.lower()
-        for marker in _DISALLOWED_TEST_FEATURES:
-            prefix = r"(?<!\w)" if marker[0].isalnum() or marker[0] == "_" else ""
-            suffix = r"(?!\w)" if marker[-1].isalnum() or marker[-1] == "_" else ""
-            if re.search(prefix + re.escape(marker) + suffix, lowered):
-                raise RepairError(f"{name} uses a disallowed test feature ({marker})")
-        try:
-            tree = ast.parse(test.code, filename=name)
-        except SyntaxError as exc:
-            raise RepairError(f"{name} does not parse: {exc}") from exc
-        if _has_hardcoded_reference(tree):
-            raise RepairError(f"{name} hardcodes reference bytes")
+        _validate_test_code(name, test.code)
+        total += len(test.code.encode("utf-8"))
     if total > MAX_TOTAL_TEST_BYTES:
         raise RepairError(f"proposal totals {total} bytes; max {MAX_TOTAL_TEST_BYTES}")
+    if not proposal.tests:
+        if proposal.command is not None:
+            raise RepairError("edit-only repair must preserve the original command; use command=null")
+        return
     if proposal.command is None:
         raise RepairError("repairable proposal needs a test command")
     command = proposal.command.strip()
@@ -890,36 +1194,61 @@ def derive_repair_variant(
     created_by: str = "verifier-repair",
     rationale: str = "Add semantic assertions covering EnvCheck survivors.",
     derive_fn: DeriveFn | None = None,
+    allow_test_edits: bool = False,
 ) -> Any:
-    """Derive a test-only variant: patch appendix plus command wrapper.
+    """Derive a test-only variant, rechecking opt-in edits at the write boundary.
 
-    Only ``tests/test.patch`` (appended new-file diffs; existing bytes are a
-    strict prefix of the new content) and ``tests/test_command.sh`` (original
-    command verbatim first, then the new tests) change. Solution, existing
-    tests, and harness semantics stay untouched.
+    Append-only consumers retain their patch prefix and original-command
+    wrapper. Opt-in edits can change only complete added tests; an edit-only
+    proposal leaves ``tests/test_command.sh`` byte-for-byte untouched. The
+    parent bytes, exact test preimages and scope rationales remain in lineage.
     """
     if not proposal.repairable:
         raise RepairError("cannot derive a variant from a not-repairable proposal")
-    if proposal.command is None:
-        raise RepairError("repairable proposal needs a test command")
     parent = Path(parent_dir)
+    if proposal.edits:
+        validate_proposal(
+            proposal,
+            mutant_ids=[*proposal.mutant_ids, *(e.mutant_id for e in proposal.unrepairable)],
+            package_dir=parent,
+            allow_test_edits=allow_test_edits,
+        )
+    if proposal.tests and proposal.command is None:
+        raise RepairError("new test files need a test command")
     try:
-        original_patch = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        original_patch = (parent / "tests" / "test.patch").read_bytes().decode("utf-8")
         original_command = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
     except OSError as exc:
         raise RepairError(f"parent lacks the v5 test harness: {exc}") from exc
-    workdir = read_task_workdir(parent)
+    instruction = (parent / "instruction.md").read_text(encoding="utf-8") if proposal.edits else ""
+    new_patch = _edited_test_patch(
+        original_patch, proposal, instruction=instruction, allow_test_edits=allow_test_edits
+    )
     appendix = build_patch_appendix(proposal.tests)
-    if not appendix:
-        raise RepairError("repair adds no files; refusing no-op derivation")
-    new_patch = original_patch + ("" if original_patch.endswith("\n") else "\n") + appendix
-    if not new_patch.startswith(original_patch):
-        raise RepairError("repair must only append to tests/test.patch")
-    wrapper = build_command_wrapper(original_command, proposal.command.strip(), workdir=workdir)
-    changes: dict[str, bytes | None] = {
-        "tests/test.patch": new_patch.encode("utf-8"),
-        "tests/test_command.sh": wrapper.encode("utf-8"),
+    if appendix:
+        new_patch += ("" if new_patch.endswith("\n") else "\n") + appendix
+    if not proposal.edits and not new_patch.startswith(original_patch):
+        raise RepairError("append-only repair must preserve the tests/test.patch prefix")
+    if new_patch == original_patch:
+        raise RepairError("repair changes no tests; refusing no-op derivation")
+    changes: dict[str, bytes | None] = {"tests/test.patch": new_patch.encode("utf-8")}
+    if proposal.tests:
+        assert proposal.command is not None  # Checked before reading the parent harness.
+        changes["tests/test_command.sh"] = build_command_wrapper(
+            original_command, proposal.command.strip(), workdir=read_task_workdir(parent)
+        ).encode("utf-8")
+    inputs: dict[str, Any] = {
+        "mutant_ids": list(proposal.mutant_ids),
+        "unrepairable": [entry.model_dump(mode="json") for entry in proposal.unrepairable],
+        "command": proposal.command,
+        "repo_paths": [test.repo_path for test in proposal.tests],
     }
+    if proposal.edits:
+        inputs.update(
+            test_patch_sha256=proposal.test_patch_sha256,
+            edits=[edit.model_dump(mode="json") for edit in proposal.edits],
+            proposal_rationale=proposal.rationale,
+        )
     derive = derive_fn if derive_fn is not None else _default_derive
     from evallab.registry import compute_task_digests
 
@@ -942,12 +1271,7 @@ def derive_repair_variant(
         transform=TRANSFORM_ID,
         rationale=rationale,
         created_by=created_by,
-        inputs={
-            "mutant_ids": list(proposal.mutant_ids),
-            "unrepairable": [entry.model_dump(mode="json") for entry in proposal.unrepairable],
-            "command": proposal.command,
-            "repo_paths": [test.repo_path for test in proposal.tests],
-        },
+        inputs=inputs,
         parent_source=source,
         repo_root=repo_root,
     )
@@ -1164,6 +1488,7 @@ class RepairPlan:
     ranked_ids: list[str]
     context: dict[str, Any]
     prompt: str
+    allow_test_edits: bool = False
 
 
 def _report_run_dir(report: Mapping[str, Any], report_path: Path) -> Path:
@@ -1180,6 +1505,7 @@ def plan_repair(
     package_dir: Path | str | None = None,
     feedback: Path | None = None,
     repo_root: Path | None = None,
+    allow_test_edits: bool = False,
 ) -> RepairPlan:
     """Prepare the repair context and prompt without calling any model."""
     path = Path(report_path)
@@ -1192,6 +1518,7 @@ def plan_repair(
     if reason:
         raise RepairError(reason)
     context = build_repair_context(report, ranked, package_dir=package, mutation_run_dir=run_dir)
+    context["allow_test_edits"] = allow_test_edits
     if repo_root is not None:
         oracle = next(run for run in report["runs"] if run["role"] == "capture-oracle")
         job = (repo_root / str(oracle.get("job_dir") or "")).resolve()
@@ -1209,6 +1536,7 @@ def plan_repair(
         ranked_ids=[str(e["mutant"]["id"]) for e in ranked],
         context=context,
         prompt=render_repair_prompt(context),
+        allow_test_edits=allow_test_edits,
     )
     if feedback is not None:
         if repo_root is None:
@@ -1378,7 +1706,12 @@ def execute_repair(
         return result, out
     proposal.model = model
     try:
-        validate_proposal(proposal, mutant_ids=plan.ranked_ids, package_dir=plan.package_dir)
+        validate_proposal(
+            proposal,
+            mutant_ids=plan.ranked_ids,
+            package_dir=plan.package_dir,
+            allow_test_edits=plan.allow_test_edits,
+        )
     except RepairError as exc:
         result = RepairResult(
             task=str(plan.report.get("task", "")),
@@ -1399,7 +1732,11 @@ def execute_repair(
         return result, out
     try:
         record = derive_repair_variant(
-            plan.package_dir, proposal, repo_root=repo, derive_fn=derive_fn
+            plan.package_dir,
+            proposal,
+            repo_root=repo,
+            derive_fn=derive_fn,
+            allow_test_edits=plan.allow_test_edits,
         )
     except (RepairError, ValueError) as exc:
         result = RepairResult(
@@ -1496,7 +1833,11 @@ def _repair_command(args: argparse.Namespace, root: Path, *, harbor: Any | None 
         output_dir = root / output_dir
     try:
         plan = plan_repair(
-            args.report, package_dir=args.package, feedback=args.feedback, repo_root=root
+            args.report,
+            package_dir=args.package,
+            feedback=args.feedback,
+            repo_root=root,
+            allow_test_edits=args.allow_test_edits,
         )
     except RepairError as exc:
         print(f"hack repair: {exc}", file=sys.stderr)
@@ -1568,6 +1909,11 @@ def add_repair_parser(hack_commands: Any) -> None:
     repair.add_argument(
         "--feedback", type=Path, help="Prior repair-result.json and retained verifier errors"
     )
+    repair.add_argument(
+        "--allow-test-edits",
+        action="store_true",
+        help="Opt in to preimage-bound replacement of prompt-overconstrained hidden tests",
+    )
     repair.add_argument("--model", default="gpt-6.1-sol", help="Repair proposer model")
     repair.add_argument("--execute", action="store_true", help="Call the model and validate")
     repair.add_argument("--timeout-seconds", type=int, default=1_800)
@@ -1590,6 +1936,7 @@ __all__ = [
     "RepairProposal",
     "RepairResult",
     "RepairTest",
+    "RepairTestEdit",
     "RepairUnrepairable",
     "SCHEMA_PROPOSAL",
     "SCHEMA_RESULT",
@@ -1613,5 +1960,6 @@ __all__ = [
     "read_reset_list",
     "read_task_workdir",
     "render_repair_prompt",
+    "render_test_edit_rules",
     "validate_proposal",
 ]

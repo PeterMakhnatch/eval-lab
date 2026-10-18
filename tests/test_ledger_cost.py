@@ -352,6 +352,19 @@ def _event_shaped_calls(n: int = 23) -> list[dict]:
     return rows
 
 
+@pytest.mark.parametrize("state", [{}, []])
+@pytest.mark.parametrize("event_shaped", [False, True])
+def test_invalid_lifecycle_types_raise_accounting_refusal(
+    state: object, event_shaped: bool
+) -> None:
+    from evallab.ledger import split_calls
+
+    calls = _event_shaped_calls(1) if event_shaped else _v1_ledger()["calls"]
+    calls[0]["state"] = state
+    with pytest.raises(ValueError):
+        split_calls(calls)
+
+
 def test_event_shaped_calls_aggregate_by_distinct_call_id() -> None:
     """46 event rows are 23 calls: a reserved row is not a completed call."""
     from evallab.ledger import split_calls
@@ -523,6 +536,41 @@ def test_finalize_cost_equals_reconciled_sum_at_pinned_rates() -> None:
     assert block["reason"] is None
     # Per-call ceiling rounding is preserved: the sum of rounded calls.
     assert block["cost_usd"] == _ceil_micros(1000, 500) / 1_000_000
+    assert block["attempted_cost_usd"] == _ceil_micros(4000, 4096) / 1_000_000
+
+
+@pytest.mark.parametrize(
+    "pricing",
+    [
+        {},
+        {"input_cost_micros_per_million": FLASH_RATES[0]},
+        {"output_cost_micros_per_million": FLASH_RATES[1]},
+        {**FLASH_PRICING, "input_cost_micros_per_million": -1},
+        {**FLASH_PRICING, "output_cost_micros_per_million": True},
+        {**FLASH_PRICING, "output_cost_micros_per_million": "500000"},
+    ],
+)
+def test_incomplete_or_invalid_pinned_pricing_keeps_cost_unknown(pricing: dict) -> None:
+    ledger = _v1_ledger()
+    ledger["pricing"] = pricing
+    block = build_cost_block(ledger)
+    assert block["cost_usd"] is None
+    assert block["reason"]
+    assert block["attempted_cost_usd"] == _ceil_micros(4000, 4096) / 1_000_000
+
+
+def test_settled_zero_usage_on_a_priced_route_has_known_zero_cost() -> None:
+    ledger = _v1_ledger()
+    ledger["calls"][0].update(input_tokens=0, output_tokens=0, cost_micros=0)
+    ledger["totals"].update(
+        input_tokens=4000,
+        output_tokens=4096,
+        total_tokens=8096,
+        cost_micros=_ceil_micros(4000, 4096),
+    )
+    block = build_cost_block(ledger)
+    assert block["cost_usd"] == 0.0
+    assert block["reason"] is None
     assert block["attempted_cost_usd"] == _ceil_micros(4000, 4096) / 1_000_000
 
 

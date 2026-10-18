@@ -1,0 +1,128 @@
+diff --git a/API.md b/API.md
+index ed77306..3e94da5 100644
+--- a/API.md
++++ b/API.md
+@@ -2379,6 +2379,7 @@ const amiBuilderProps: AmiBuilderProps = { ... }
+ | **Name** | **Type** | **Description** |
+ | --- | --- | --- |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.architecture">architecture</a></code> | <code><a href="#@cloudsnorkel/cdk-github-runners.Architecture">Architecture</a></code> | Image architecture. |
++| <code><a href="#@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.installDocker">installDocker</a></code> | <code>boolean</code> | Install Docker inside the image, so it can be used by the runner. |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.instanceType">instanceType</a></code> | <code>aws-cdk-lib.aws_ec2.InstanceType</code> | The instance type used to build the image. |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.logRemovalPolicy">logRemovalPolicy</a></code> | <code>aws-cdk-lib.RemovalPolicy</code> | Removal policy for logs of image builds. |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.logRetention">logRetention</a></code> | <code>aws-cdk-lib.aws_logs.RetentionDays</code> | The number of days log events are kept in CloudWatch Logs. |
+@@ -2405,6 +2406,21 @@ Image architecture.
+ 
+ ---
+ 
++##### `installDocker`<sup>Optional</sup> <a name="installDocker" id="@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.installDocker"></a>
++
++```typescript
++public readonly installDocker: boolean;
++```
++
++- *Type:* boolean
++- *Default:* true
++
++Install Docker inside the image, so it can be used by the runner.
++
++You may want to disable this if you are building a Windows image and don't have a Docker Desktop license.
++
++---
++
+ ##### `instanceType`<sup>Optional</sup> <a name="instanceType" id="@cloudsnorkel/cdk-github-runners.AmiBuilderProps.property.instanceType"></a>
+ 
+ ```typescript
+@@ -5691,7 +5707,7 @@ Log group name for the image builder where history of image builds can be analyz
+ 
+ ### IRunnerProvider <a name="IRunnerProvider" id="@cloudsnorkel/cdk-github-runners.IRunnerProvider"></a>
+ 
+-- *Extends:* aws-cdk-lib.aws_ec2.IConnectable, aws-cdk-lib.aws_iam.IGrantable
++- *Extends:* aws-cdk-lib.aws_ec2.IConnectable, aws-cdk-lib.aws_iam.IGrantable, constructs.IConstruct
+ 
+ - *Implemented By:* <a href="#@cloudsnorkel/cdk-github-runners.CodeBuildRunner">CodeBuildRunner</a>, <a href="#@cloudsnorkel/cdk-github-runners.Ec2Runner">Ec2Runner</a>, <a href="#@cloudsnorkel/cdk-github-runners.FargateRunner">FargateRunner</a>, <a href="#@cloudsnorkel/cdk-github-runners.LambdaRunner">LambdaRunner</a>, <a href="#@cloudsnorkel/cdk-github-runners.IRunnerProvider">IRunnerProvider</a>
+ 
+@@ -5770,6 +5786,7 @@ grantable for the status function.
+ | --- | --- | --- |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.connections">connections</a></code> | <code>aws-cdk-lib.aws_ec2.Connections</code> | The network connections associated with this resource. |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.grantPrincipal">grantPrincipal</a></code> | <code>aws-cdk-lib.aws_iam.IPrincipal</code> | The principal to grant permissions to. |
++| <code><a href="#@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.node">node</a></code> | <code>constructs.Node</code> | The tree node. |
+ | <code><a href="#@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.labels">labels</a></code> | <code>string[]</code> | GitHub Actions labels used for this provider. |
+ 
+ ---
+@@ -5798,6 +5815,18 @@ The principal to grant permissions to.
+ 
+ ---
+ 
++##### `node`<sup>Required</sup> <a name="node" id="@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.node"></a>
++
++```typescript
++public readonly node: Node;
++```
++
++- *Type:* constructs.Node
++
++The tree node.
++
++---
++
+ ##### `labels`<sup>Required</sup> <a name="labels" id="@cloudsnorkel/cdk-github-runners.IRunnerProvider.property.labels"></a>
+ 
+ ```typescript
+diff --git a/src/providers/image-builders/ami.ts b/src/providers/image-builders/ami.ts
+index 9a8140c..3f5e7a5 100644
+--- a/src/providers/image-builders/ami.ts
++++ b/src/providers/image-builders/ami.ts
+@@ -106,6 +106,13 @@ export interface AmiBuilderProps {
+    * @default RemovalPolicy.DESTROY
+    */
+   readonly logRemovalPolicy?: RemovalPolicy;
++
++  /**
++   * Install Docker inside the image, so it can be used by the runner. You may want to disable this if you are building a Windows image and don't have a Docker Desktop license.
++   *
++   * @default true
++   */
++  readonly installDocker?: boolean;
+ }
+ 
+ /**
+@@ -239,29 +246,33 @@ export class AmiBuilder extends ImageBuilderBase implements IAmiBuilder {
+ 
+     // add all basic components
+     if (this.os.is(Os.WINDOWS)) {
+-      this.addBaseWindowsComponents();
++      this.addBaseWindowsComponents(props?.installDocker ?? true);
+     } else if (this.os.is(Os.LINUX)) {
+-      this.addBaseLinuxComponents();
++      this.addBaseLinuxComponents(props?.installDocker ?? true);
+     }
+   }
+ 
+-  private addBaseWindowsComponents() {
++  private addBaseWindowsComponents(installDocker: boolean) {
+     this.addComponent(WindowsComponents.cloudwatchAgent(this, 'CloudWatch agent'));
+     this.addComponent(WindowsComponents.awsCli(this, 'AWS CLI'));
+     this.addComponent(WindowsComponents.githubCli(this, 'GitHub CLI'));
+     this.addComponent(WindowsComponents.git(this, 'git'));
+     this.addComponent(WindowsComponents.githubRunner(this, 'GitHub Actions Runner', this.runnerVersion));
+-    this.addComponent(WindowsComponents.docker(this, 'Docker'));
++    if (installDocker) {
++      this.addComponent(WindowsComponents.docker(this, 'Docker'));
++    }
+   }
+ 
+-  private addBaseLinuxComponents() {
++  private addBaseLinuxComponents(installDocker: boolean) {
+     this.addComponent(LinuxUbuntuComponents.requiredPackages(this, 'Upgrade packages and install basics', this.architecture));
+     this.addComponent(LinuxUbuntuComponents.runnerUser(this, 'User', this.architecture));
+     this.addComponent(LinuxUbuntuComponents.awsCli(this, 'AWS CLI', this.architecture));
+     this.addComponent(LinuxUbuntuComponents.githubCli(this, 'GitHub CLI', this.architecture));
+     this.addComponent(LinuxUbuntuComponents.git(this, 'git', this.architecture));
+     this.addComponent(LinuxUbuntuComponents.githubRunner(this, 'GitHub Actions Runner', this.runnerVersion, this.architecture));
+-    this.addComponent(LinuxUbuntuComponents.docker(this, 'Docker', this.architecture));
++    if (installDocker) {
++      this.addComponent(LinuxUbuntuComponents.docker(this, 'Docker', this.architecture));
++    }
+   }
+ 
+   /**

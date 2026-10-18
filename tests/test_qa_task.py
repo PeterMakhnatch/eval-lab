@@ -49,6 +49,7 @@ from evallab.qa.task import (
     validate_triplet,
 )
 from evallab.registry import task_directory_digest
+from evallab.regrade import MODAL_USD_PER_ALLOCATION_UNIT, CloudSpendGate, SpendCapReached
 
 RUBRIC = """\
 [[criteria]]
@@ -1574,3 +1575,115 @@ def test_root_parser_exposes_qa_commands_and_task_score_scoreboard_behavior(
     assert row["key_id"] == "k1"
     assert row["system"] == "qa-task@verified"
     assert row["root_cause_match"] == shared_score.NOT_AVAILABLE
+
+
+def test_modal_plan_is_zero_execution_without_native_or_model_constructors(
+    tmp_path, monkeypatch, capsys
+):
+    import sys
+
+    from evallab.qa import task as qa
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a zero-execution plan constructed or executed a runtime")
+
+    packages = [_package(tmp_path, name) for name in ("one", "two")]
+    monkeypatch.setitem(
+        sys.modules, "evallab.qa.task_modal", SimpleNamespace(ModalBackend=forbidden)
+    )
+    monkeypatch.setattr(HarborBackend, "__init__", forbidden)
+    monkeypatch.setattr(CodexLane, "__init__", forbidden)
+    monkeypatch.setattr(qa, "CloudSpendGate", forbidden)
+    monkeypatch.setattr(qa, "docker_slot", forbidden)
+    monkeypatch.setattr(qa.subprocess, "run", forbidden)
+    run_dir = tmp_path / "must-not-exist"
+    args = build_root_parser().parse_args(
+        [
+            "qa",
+            "task",
+            "--environment",
+            "modal",
+            "--plan",
+            "--concurrency",
+            "16",
+            "--run-dir",
+            str(run_dir),
+            "--max-usd",
+            str(MODAL_USD_PER_ALLOCATION_UNIT),
+            "--task",
+            str(packages[0]),
+            "--task",
+            str(packages[1]),
+        ]
+    )
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["environment"] == "modal" and plan["concurrency"] == 16
+    assert [entry["package"] for entry in plan["tasks"]] == [str(p) for p in packages]
+    assert plan["execution_upper_bound"] > 0 and plan["estimated_usd"] > 0
+    assert plan["fits_cap"] is False and plan["runnable"] is False
+    assert plan["reserved_usd"] == 0 and plan["executed"] is False and plan["model_calls"] == 0
+    assert not run_dir.exists()
+
+
+@pytest.mark.parametrize("bind_reference", [False, True])
+def test_modal_plan_caps_only_applicable_reference_work(tmp_path, bind_reference):
+    from evallab.qa.task import plan_task_run
+
+    package = _package(tmp_path)
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text("{}")
+    reference = tmp_path / "reference.patch"
+    reference.write_text("separately supplied raw-package reference")
+    plan = plan_task_run(
+        [package],
+        config=QATaskConfig(stages=("S2", "S3"), mutants=0),
+        environment="modal",
+        concurrency=16,
+        no_model=True,
+        max_usd=0.45,
+        usd_per_execution=0.05,
+        approval="bounded native negative-submission confirmation",
+        evidence=candidate,
+        ref_patch=reference if bind_reference else None,
+    )
+    # Without a reference, only two fresh controls and one imported replay can run.
+    # Binding a raw reference adds its own probe and possible confirmation.
+    assert plan["execution_upper_bound"] == (63 if bind_reference else 9)
+    assert plan["fits_cap"] is not bind_reference
+    assert plan["runnable"] is not bind_reference
+
+
+@pytest.mark.parametrize(
+    ("rate", "cap_delta"), [(0.00000213, 0.0), (0.00000211, -2e-8)]
+)
+def test_modal_plan_subcent_cap_matches_unrounded_gate_across_packages(
+    tmp_path: Path, rate: float, cap_delta: float
+) -> None:
+    from evallab.qa.task import plan_task_run
+
+    packages = [_package(tmp_path, name) for name in ("one", "two")]
+    units = 42  # Each raw package: six three-unit controls and one three-unit leak check.
+    exposure = units * rate
+    cap = exposure + cap_delta
+    plan = plan_task_run(
+        packages,
+        config=QATaskConfig(stages=("S0",), mutants=0),
+        environment="modal",
+        concurrency=1,
+        no_model=True,
+        max_usd=cap,
+        usd_per_execution=rate,
+        approval="inert sub-cent boundary",
+    )
+    fits = cap_delta == 0
+    assert plan["execution_upper_bound"] == units
+    assert 0 < plan["estimated_usd"] < 0.01
+    assert plan["estimated_usd"] == exposure
+    assert [task["estimated_usd"] for task in plan["tasks"]] == [21 * rate, 21 * rate]
+    assert plan["fits_cap"] is fits and plan["runnable"] is fits
+    gate = CloudSpendGate("inert sub-cent boundary", cap, rate)
+    for _ in range(units if fits else units - 1):
+        gate.charge()
+    with pytest.raises(SpendCapReached):
+        gate.charge()

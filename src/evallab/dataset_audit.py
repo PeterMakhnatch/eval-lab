@@ -171,9 +171,13 @@ def _action(
                            estimated_cost_usd=estimated_cost_usd if paid else 0,
                            disposition="unavailable", reason="selected package is unavailable")
     if stage == "oracle" and not _reference_available(task):
-        return AuditAction(stage=stage, task_id=task.task_id, paid=paid,
-                           estimated_cost_usd=estimated_cost_usd if paid else 0,
-                           disposition="unavailable", reason="no materialized reference oracle")
+        from evallab.dataset_audit_oracle import history_oracle_available
+
+        if paid or not history_oracle_available(task):
+            return AuditAction(stage=stage, task_id=task.task_id, paid=paid,
+                               estimated_cost_usd=estimated_cost_usd if paid else 0,
+                               disposition="unavailable",
+                               reason="no provided solution or local original-image history input")
     if paid and (estimated_cost_usd is None or estimated_cost_usd <= 0 or (stage == "exploit" and not model)):
         return AuditAction(stage=stage, task_id=task.task_id, agent=agent,
                            environment=environment, model=model, paid=True,
@@ -189,20 +193,31 @@ def _execute_stage(
     task: AuditTask, stage: AuditStage, *, root: Path, reports: Path,
     allow_paid: bool, environment: str, model: str | None, estimate: float | None,
     cost_limit: float | None, timeout: int | None, card: str | None,
-    approved_spec_id: str | None,
+    approved_spec_id: str | None, history_git_paths: tuple[str, ...] = (),
 ) -> AuditObservation:
     from evallab.dataset_audit_checks import leak_observation, prepare_leak_probe
     from evallab.dataset_audit_execution import (
         audit_job_name,
         control_observation,
         exploit_observation,
+        run_history_oracle,
         run_local_control,
         run_or_stage_paid,
     )
 
     subject = task
+    if stage == "oracle" and not _reference_available(task):
+        if environment != "docker" or approved_spec_id is not None:
+            raise ValueError("fresh history extraction is a local-only control, not a paid approval")
+        return run_history_oracle(
+            task, repo_root=root, output_dir=reports / "history-oracle",
+            git_paths=history_git_paths, timeout_seconds=timeout, linear_card=card,
+        )
     if stage == "leak":
-        subject = prepare_leak_probe(task, repo_root=root, records_dir=reports / "probe-records")
+        subject = prepare_leak_probe(
+            task, repo_root=root, records_dir=reports / "probe-records",
+            variants_root=reports / "probe-variants",
+        )
     if stage == "exploit" or environment != "docker" or approved_spec_id is not None:
         job, receipt = run_or_stage_paid(
             subject, stage, repo_root=root, allow_paid=allow_paid, environment=environment,
@@ -319,6 +334,7 @@ def audit_dataset(
                     model=spec.model if spec else model, estimate=spec.est_cost_usd if spec else est_cost_usd,
                     cost_limit=cost_limit_usd, timeout=timeout_seconds, card=linear_card,
                     approved_spec_id=spec.spec_id if spec else None,
+                    history_git_paths=plugin.history_git_paths(record.task) if plugin is not None else (),
                 )
             except (OSError, ValueError, RuntimeError) as exc:
                 observations[stage] = AuditObservation(

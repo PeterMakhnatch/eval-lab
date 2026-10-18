@@ -1,18 +1,17 @@
 {
  "cost_usd": 0.0,
  "detector": "qa_trace",
- "explanation": "reward_real=None false_positive=None stages=T0,T1,T2",
+ "explanation": "reward_real=None false_positive=None attempted_sourcing=False stages=T0,T1",
  "flagged": false,
  "id": "ca-gepa-zai-opencode-event-summary__dzaPvcL",
- "model": "codex/gpt-6-luna:low",
- "pipeline": "qa-trace/3",
+ "model": "codex/gpt-6.1-sol:medium",
+ "pipeline": "qa-trace/6",
  "schema": "evallab.detector_verdict/v1",
  "score": null,
  "tokens": {
-  "cache_write_input_tokens": 0,
-  "cached_input_tokens": 73344,
-  "input_tokens": 95299,
-  "output_tokens": 878,
-  "reasoning_output_tokens": 0
+  "cacheRead": 75520,
+  "cacheWrite": 0,
+  "input": 14556,
+  "output": 1597
  }
 }

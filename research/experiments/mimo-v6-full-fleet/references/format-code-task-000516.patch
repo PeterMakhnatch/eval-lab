@@ -1,0 +1,36 @@
+diff --git a/index.d.cts b/index.d.cts
+index 787f7384..31267037 100644
+--- a/index.d.cts
++++ b/index.d.cts
+@@ -461,11 +461,11 @@ declare namespace axios {
+     headers?: RawAxiosRequestHeaders | AxiosHeaders | Partial<HeadersDefaults>;
+   }
+ 
+-  interface AxiosResponse<T = any, D = any>  {
++  interface AxiosResponse<T = any, D = any, H = {}>  {
+     data: T;
+     status: number;
+     statusText: string;
+-    headers: RawAxiosResponseHeaders | AxiosResponseHeaders;
++    headers: H & RawAxiosResponseHeaders | AxiosResponseHeaders;
+     config: InternalAxiosRequestConfig<D>;
+     request?: any;
+   }
+diff --git a/index.d.ts b/index.d.ts
+index aa27f335..a0796c46 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -393,11 +393,11 @@ export interface CreateAxiosDefaults<D = any> extends Omit<AxiosRequestConfig<D>
+   headers?: RawAxiosRequestHeaders | AxiosHeaders | Partial<HeadersDefaults>;
+ }
+ 
+-export interface AxiosResponse<T = any, D = any> {
++export interface AxiosResponse<T = any, D = any, H = {}> {
+   data: T;
+   status: number;
+   statusText: string;
+-  headers: RawAxiosResponseHeaders | AxiosResponseHeaders;
++  headers: H & RawAxiosResponseHeaders | AxiosResponseHeaders;
+   config: InternalAxiosRequestConfig<D>;
+   request?: any;
+ }

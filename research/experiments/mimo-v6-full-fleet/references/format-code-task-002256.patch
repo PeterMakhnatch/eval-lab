@@ -1,0 +1,26 @@
+diff --git a/persistqueue/async_queue.py b/persistqueue/async_queue.py
+index bc21f3f..c0158b4 100644
+--- a/persistqueue/async_queue.py
++++ b/persistqueue/async_queue.py
+@@ -138,7 +138,7 @@ class AsyncQueue:
+ 
+     async def full(self) -> bool:
+         """Check if queue is full."""
+-        return await self.qsize() == self.maxsize
++        return self.maxsize > 0 and await self.qsize() == self.maxsize
+ 
+     async def put(self, item: Any, block: bool = True,
+                   timeout: Optional[float] = None) -> None:
+diff --git a/persistqueue/queue.py b/persistqueue/queue.py
+index 20e5c5e..3e9774d 100644
+--- a/persistqueue/queue.py
++++ b/persistqueue/queue.py
+@@ -124,7 +124,7 @@ class Queue:
+         return self.qsize() == 0
+ 
+     def full(self) -> bool:
+-        return self.qsize() == self.maxsize
++        return self.maxsize > 0 and self.qsize() == self.maxsize
+ 
+     def put(self, item: Any, block: bool = True,
+             timeout: Optional[float] = None) -> None:

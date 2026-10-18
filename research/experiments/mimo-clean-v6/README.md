@@ -14,6 +14,13 @@ exercised plain-v6 rows; no row is promoted to full clean-set `pass`.
 Selection: `selection.json` (flagged traces + flagged envcheck + seeded
 `sample_50`, seed `20261015`).
 
+**Current reference-bearing release (2026-10-17):**
+[`mimo-v6-full-fleet`](../mimo-v6-full-fleet/README.md) is the canonical
+567-task source/package build, with recovered reference custody and complete
+real VariantRecord lineage. Its census distinguishes rebuilt packages from
+exact-package native qualification. This page preserves the historical
+2,698-task inventory, build and experiment receipts.
+
 ## Measured build wall-clock (local CPU, `--workers 8`, $0)
 
 | build | tasks | wall |

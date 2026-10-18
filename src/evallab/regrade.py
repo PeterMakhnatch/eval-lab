@@ -88,6 +88,7 @@ __all__ = [
     "default_regrade_job_name",
     "expand_task_dirs",
     "lab_harbor_problem",
+    "modal_resource_blocker",
     "plan_regrade_job",
     "read_reward_observation",
     "regrade_job",
@@ -113,8 +114,8 @@ LOCAL_REGRADE_ENVIRONMENTS = frozenset({"docker"})
 
 #: Paid verifier environments a *trial* regrade may use, mapped to Harbor's
 #: `--env` value. `harbor trial regrade` takes no `--environment-kwarg`, so the
-#: class fixes the settings every lab Modal run carries (PATH pin, bounded
-#: sandbox lifetime). Admitted only under a :class:`CloudSpendGate`.
+#: class fixes the shared setup/task interpreter boundary and bounded sandbox
+#: lifetime. Admitted only under a :class:`CloudSpendGate`.
 CLOUD_REGRADE_ENVIRONMENTS: Mapping[str, str] = {
     "modal": "evallab.harbor_modal:RegradeModalEnvironment",
 }
@@ -177,6 +178,37 @@ class RegradeRefusalCode(StrEnum):
     SPEND_CAP_REACHED = "spend_cap_reached"
 
 
+def modal_resource_blocker(package: Path) -> str | None:
+    """Provider-free admission; an unpriced accelerator is never treated as a CPU."""
+    config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+    environments = [
+        config.get("environment") or {},
+        (config.get("verifier") or {}).get("environment") or {},
+    ]
+    if any(env.get("gpus") or env.get("gpu") or env.get("tpu") for env in environments):
+        return "Modal GPU/TPU resources have no approved price estimate"
+    if any(str(env.get("os", "linux")).lower() != "linux" for env in environments):
+        return "Modal script controls require Linux environments"
+    if config.get("steps"):
+        return "Modal script controls do not support declared task steps"
+    if any(
+        (package / directory / name).is_file()
+        for directory in ("environment", "tests")
+        for name in ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
+    ):
+        return "Modal does not support Compose services; no Docker fallback is permitted"
+    return None
+
+
+#: Estimate for short Modal CPU controls, not a provider price or billing hard kill.
+#: October 17, 2026: 338 native allocations at 2 CPUs/8 GiB averaged $0.003223
+#: in resource/lifecycle estimates cross-checked against the app's metered usage.
+#: Two snapshot-create reservations give $0.005: >50% above that observed mean;
+#: ordinary starts also reserve image preparation. Long tails/larger resources
+#: need an explicit higher estimate. Logical replays have a separate authority.
+MODAL_USD_PER_ALLOCATION_UNIT = 0.0025
+
+
 class SpendCapReached(RuntimeError):
     """A paid execution would take the run past its approved USD cap."""
 
@@ -217,12 +249,14 @@ class CloudSpendGate:
             self.executions += 1
 
     def to_json(self) -> dict[str, Any]:
+        with self._lock:
+            executions = self.executions
         return {
             "approval": self.approval,
             "cap_usd": self.cap_usd,
             "usd_per_execution": self.usd_per_execution,
-            "executions": self.executions,
-            "reserved_usd": round(self.executions * self.usd_per_execution, 4),
+            "executions": executions,
+            "reserved_usd": round(executions * self.usd_per_execution, 4),
         }
 
 

@@ -1,0 +1,27 @@
+diff --git a/autobahn/wamp/protocol.py b/autobahn/wamp/protocol.py
+index 682839ac..ab621fe7 100644
+--- a/autobahn/wamp/protocol.py
++++ b/autobahn/wamp/protocol.py
+@@ -1163,7 +1163,9 @@ class ApplicationSession(BaseSession):
+                 request_id=request.request_id,
+                 request_type=request.__class__.__name__,
+             )
+-            txaio.reject(request.on_reply, exc)
++            if not txaio.is_called(request.on_reply):
++                txaio.reject(request.on_reply, exc)
++
+             # wait for any async-ness in the error handlers for on_reply
+             txaio.add_callbacks(d, lambda _: request.on_reply, lambda _: request.on_reply)
+         return d
+diff --git a/docs/changelog.rst b/docs/changelog.rst
+index 946d06e2..bf5a26aa 100644
+--- a/docs/changelog.rst
++++ b/docs/changelog.rst
+@@ -8,6 +8,7 @@ Changelog
+ master (unreleased)
+ -------------------
+ 
++* fix: don't try to reject cancelled futures within pending requests when closing the session
+ 
+ 
+ 17.9.3

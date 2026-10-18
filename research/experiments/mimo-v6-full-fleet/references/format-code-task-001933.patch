@@ -1,0 +1,13 @@
+diff --git a/lib/compress.js b/lib/compress.js
+index 4c967074..7ea1e533 100644
+--- a/lib/compress.js
++++ b/lib/compress.js
+@@ -3646,6 +3646,8 @@ merge(Compressor.prototype, {
+         var block;
+         stat.walk(new TreeWalker(function(node, descend) {
+             if (node instanceof AST_DefClass) {
++                node.extends = null;
++                node.properties = [];
+                 push(node);
+                 return true;
+             }

@@ -1,0 +1,30 @@
+diff --git a/environ/environ.py b/environ/environ.py
+index 9a9f906..a1febab 100644
+--- a/environ/environ.py
++++ b/environ/environ.py
+@@ -422,8 +422,11 @@ class Env(object):
+ 
+         if engine:
+             config['ENGINE'] = engine
+-        if url.scheme in Env.DB_SCHEMES:
+-            config['ENGINE'] = Env.DB_SCHEMES[url.scheme]
++        else:
++            config['ENGINE'] = url.scheme
++
++        if config['ENGINE'] in Env.DB_SCHEMES:
++            config['ENGINE'] = Env.DB_SCHEMES[config['ENGINE']]
+ 
+         if not config.get('ENGINE', False):
+             warnings.warn("Engine not recognized from url: {0}".format(config))
+diff --git a/environ/test_env.txt b/environ/test_env.txt
+index c0112c3..a891138 100644
+--- a/environ/test_env.txt
++++ b/environ/test_env.txt
+@@ -28,4 +28,5 @@ INT_TUPLE=(42,33)
+ DATABASE_ORACLE_TNS_URL=oracle://user:password@sid
+ DATABASE_ORACLE_URL=oracle://user:password@host:1521/sid
+ DATABASE_REDSHIFT_URL=redshift://user:password@examplecluster.abc123xyz789.us-west-2.redshift.amazonaws.com:5439/dev
+-export EXPORTED_VAR="exported var"
+\ No newline at end of file
++DATABASE_CUSTOM_BACKEND_URL=custom.backend://user:password@example.com:5430/database
++export EXPORTED_VAR="exported var"

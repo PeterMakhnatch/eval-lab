@@ -1,0 +1,336 @@
+diff --git a/src/components/Toc/Toc.scss b/src/components/Toc/Toc.scss
+deleted file mode 100644
+index 14b59f6d..00000000
+--- a/src/components/Toc/Toc.scss
++++ /dev/null
+@@ -1,23 +0,0 @@
+-@use '../variables';
+-@use '../../../styles/mixins.scss';
+-
+-$block: '.#{variables.$ns}toc';
+-
+-#{$block} {
+-    &__title {
+-        @include mixins.text-body-2();
+-
+-        color: var(--g-color-text-primary);
+-        margin-block-end: 12px;
+-    }
+-
+-    &__sections,
+-    &__subsections {
+-        padding: 0;
+-        margin: 0;
+-
+-        overflow: hidden auto;
+-
+-        list-style: none;
+-    }
+-}
+diff --git a/src/components/Toc/Toc.tsx b/src/components/Toc/Toc.tsx
+index 50aba8a8..c47f6f06 100644
+--- a/src/components/Toc/Toc.tsx
++++ b/src/components/Toc/Toc.tsx
+@@ -1,17 +1,14 @@
+ import * as React from 'react';
+ 
+-import type {AriaLabelingProps, QAProps} from '../types';
++import type {QAProps} from '../types';
+ import {block} from '../utils/cn';
+-import {filterDOMProps} from '../utils/filterDOMProps';
+ 
+-import {TocItem} from './TocItem/TocItem';
++import {TocSections} from './TocSections';
+ import type {TocItem as TocItemType} from './types';
+ 
+-import './Toc.scss';
+-
+ const b = block('toc');
+ 
+-export interface TocProps extends AriaLabelingProps, QAProps {
++export interface TocProps extends QAProps {
+     className?: string;
+     items: TocItemType[];
+     value?: string;
+@@ -20,55 +17,17 @@ export interface TocProps extends AriaLabelingProps, QAProps {
+ }
+ 
+ export const Toc = React.forwardRef<HTMLElement, TocProps>(function Toc(props, ref) {
+-    const {value: activeValue, items, className, onUpdate, onItemClick, qa, ...restProps} = props;
++    const {value: activeValue, items, className, onUpdate, qa, onItemClick} = props;
+ 
+     return (
+-        <nav
+-            {...filterDOMProps(restProps, {labelable: true})}
+-            className={b(null, className)}
+-            ref={ref}
+-            data-qa={qa}
+-        >
+-            <ul className={b('sections')}>
+-                {items.map(({value, content, href, items: childrenItems}) => (
+-                    <li key={value ?? href} aria-current={activeValue === value}>
+-                        <TocItem
+-                            content={content}
+-                            value={value}
+-                            href={href}
+-                            active={activeValue === value}
+-                            onClick={onUpdate}
+-                            onItemClick={onItemClick}
+-                        />
+-                        {childrenItems && childrenItems.length > 0 && (
+-                            <ul className={b('subsections')}>
+-                                {childrenItems?.map(
+-                                    ({
+-                                        value: childrenValue,
+-                                        content: childrenContent,
+-                                        href: childrenHref,
+-                                    }) => (
+-                                        <li
+-                                            key={childrenValue ?? childrenHref}
+-                                            aria-current={activeValue === childrenValue}
+-                                        >
+-                                            <TocItem
+-                                                content={childrenContent}
+-                                                value={childrenValue}
+-                                                href={childrenHref}
+-                                                childItem={true}
+-                                                active={activeValue === childrenValue}
+-                                                onClick={onUpdate}
+-                                                onItemClick={onItemClick}
+-                                            />
+-                                        </li>
+-                                    ),
+-                                )}
+-                            </ul>
+-                        )}
+-                    </li>
+-                ))}
+-            </ul>
++        <nav className={b(null, className)} ref={ref} data-qa={qa}>
++            <TocSections
++                items={items}
++                value={activeValue}
++                onUpdate={onUpdate}
++                depth={1}
++                onItemClick={onItemClick}
++            />
+         </nav>
+     );
+ });
+diff --git a/src/components/Toc/TocItem/TocItem.scss b/src/components/Toc/TocItem/TocItem.scss
+index eeda96d7..f123b395 100644
+--- a/src/components/Toc/TocItem/TocItem.scss
++++ b/src/components/Toc/TocItem/TocItem.scss
+@@ -33,9 +33,13 @@ $block: '.#{variables.$ns}toc-item';
+             }
+         }
+ 
+-        &_child {
+-            #{$class}__section-link {
+-                padding-inline-start: 25px;
++        @for $i from 1 through 6 {
++            $item-padding: 12px * $i;
++
++            &_depth_#{$i} {
++                #{$class}__section-link {
++                    padding-inline-start: $item-padding;
++                }
+             }
+         }
+ 
+diff --git a/src/components/Toc/TocItem/TocItem.tsx b/src/components/Toc/TocItem/TocItem.tsx
+index 0d8308e3..54e2a65b 100644
+--- a/src/components/Toc/TocItem/TocItem.tsx
++++ b/src/components/Toc/TocItem/TocItem.tsx
+@@ -1,6 +1,6 @@
+ 'use client';
+ 
+-import * as React from 'react';
++import type * as React from 'react';
+ 
+ import {useActionHandlers} from '../../../hooks';
+ import {block} from '../../utils/cn';
+@@ -13,26 +13,14 @@ const b = block('toc-item');
+ export interface TocItemProps extends TocItemType {
+     childItem?: boolean;
+     active?: boolean;
+-    onClick?: (value: string) => void;
+-    onItemClick?: (event: React.MouseEvent) => void;
++    onClick?: (event: React.MouseEvent) => void;
++    depth: number;
+ }
+ 
+ export const TocItem = (props: TocItemProps) => {
+-    const {active = false, childItem = false, content, href, value, onClick, onItemClick} = props;
++    const {active = false, childItem = false, content, href, onClick, depth} = props;
+ 
+-    const handleClick = React.useCallback(
+-        (event: React.MouseEvent) => {
+-            onItemClick?.(event);
+-            if (value === undefined || !onClick) {
+-                return;
+-            }
+-
+-            onClick(value);
+-        },
+-        [onClick, onItemClick, value],
+-    );
+-
+-    const {onKeyDown} = useActionHandlers(handleClick);
++    const {onKeyDown} = useActionHandlers(onClick);
+ 
+     const item =
+         href === undefined ? (
+@@ -40,16 +28,16 @@ export const TocItem = (props: TocItemProps) => {
+                 role="button"
+                 tabIndex={0}
+                 className={b('section-link')}
+-                onClick={handleClick}
++                onClick={onClick}
+                 onKeyDown={onKeyDown}
+             >
+                 {content}
+             </div>
+         ) : (
+-            <a href={href} onClick={handleClick} className={b('section-link')}>
++            <a href={href} onClick={onClick} className={b('section-link')}>
+                 {content}
+             </a>
+         );
+ 
+-    return <div className={b('section', {child: childItem, active})}>{item}</div>;
++    return <div className={b('section', {child: childItem, depth, active})}>{item}</div>;
+ };
+diff --git a/src/components/Toc/TocItem/index.ts b/src/components/Toc/TocItem/index.ts
+new file mode 100644
+index 00000000..74cdc8aa
+--- /dev/null
++++ b/src/components/Toc/TocItem/index.ts
+@@ -0,0 +1 @@
++export * from './TocItem';
+diff --git a/src/components/Toc/TocSections/TocSections.scss b/src/components/Toc/TocSections/TocSections.scss
+new file mode 100644
+index 00000000..7db9c784
+--- /dev/null
++++ b/src/components/Toc/TocSections/TocSections.scss
+@@ -0,0 +1,13 @@
++@use '../../variables';
++@use '../../../../styles/mixins.scss';
++
++$block: '.#{variables.$ns}toc';
++
++#{$block}__sections {
++    padding: 0;
++    margin: 0;
++
++    overflow: hidden auto;
++
++    list-style: none;
++}
+diff --git a/src/components/Toc/TocSections/TocSections.tsx b/src/components/Toc/TocSections/TocSections.tsx
+new file mode 100644
+index 00000000..f8ebf884
+--- /dev/null
++++ b/src/components/Toc/TocSections/TocSections.tsx
+@@ -0,0 +1,62 @@
++import * as React from 'react';
++
++import {block} from '../../utils/cn';
++import {TocItem} from '../TocItem';
++import type {TocItem as TocItemType} from '../types';
++
++import './TocSections.scss';
++
++const b = block('toc');
++
++export interface TocSectionsProps {
++    items: TocItemType[];
++    value?: string;
++    onUpdate?: (value: string) => void;
++    depth?: number;
++    childItem?: boolean;
++    onItemClick?: (event: React.MouseEvent) => void;
++}
++
++export const TocSections = React.forwardRef<HTMLElement, TocSectionsProps>(
++    function TocSections(props) {
++        const {value: activeValue, items, onUpdate, childItem, depth = 1, onItemClick} = props;
++
++        if (depth > 6) {
++            return null;
++        }
++
++        return (
++            <ul className={b('sections')}>
++                {items.map(({value, content, href, items: childrenItems}) => (
++                    <li key={value ?? href} aria-current={activeValue === value}>
++                        <TocItem
++                            content={content}
++                            href={href}
++                            active={activeValue === value}
++                            onClick={(event: React.MouseEvent) => {
++                                onItemClick?.(event);
++
++                                if (value === undefined || !onUpdate) {
++                                    return;
++                                }
++
++                                onUpdate?.(value);
++                            }}
++                            childItem={childItem}
++                            depth={depth}
++                        />
++                        {childrenItems && childrenItems.length > 0 && (
++                            <TocSections
++                                items={childrenItems}
++                                onUpdate={onUpdate}
++                                childItem
++                                depth={depth + 1}
++                                value={activeValue}
++                            />
++                        )}
++                    </li>
++                ))}
++            </ul>
++        );
++    },
++);
+diff --git a/src/components/Toc/TocSections/index.ts b/src/components/Toc/TocSections/index.ts
+new file mode 100644
+index 00000000..b1600b6f
+--- /dev/null
++++ b/src/components/Toc/TocSections/index.ts
+@@ -0,0 +1 @@
++export * from './TocSections';
+diff --git a/src/components/Toc/__stories__/Toc.stories.tsx b/src/components/Toc/__stories__/Toc.stories.tsx
+index 21081b2c..ab8d9b6b 100644
+--- a/src/components/Toc/__stories__/Toc.stories.tsx
++++ b/src/components/Toc/__stories__/Toc.stories.tsx
+@@ -53,10 +53,27 @@ Default.args = {
+                 {
+                     value: 'control',
+                     content: 'Disk controls',
++                    items: [
++                        {
++                            value: 'floppy',
++                            content: 'Floppy',
++                        },
++                        {
++                            value: 'hard',
++                            content: 'Hard',
++                            items: [],
++                        },
++                    ],
+                 },
+                 {
+                     value: 'snapshots',
+                     content: 'Disk snapshots',
++                    items: [
++                        {
++                            value: 'standard',
++                            content: 'Standard',
++                        },
++                    ],
+                 },
+             ],
+         },

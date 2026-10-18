@@ -1,0 +1,56 @@
+{
+  "schema": "repaired-data-sft-v2.m1-cohort/v1",
+  "accepted_report": {
+    "research_commit": "e399c41",
+    "report_path": "bridge/overnight-2026-10-16/classifiers-b2-c1-report.json",
+    "report_sha256": "bd16fb9a89d91e894525e1351e3eb5b0dc6dd3877446817c44669a7da6186a3c",
+    "verifier_acceptance_commit": "9d1fb40fa9985b43494db9c0228c9ce141708e24"
+  },
+  "baseline_arms": ["base", "A"],
+  "authorized_attempt_ids": [1],
+  "task_ids": [
+    "format-code-task-000142",
+    "format-code-task-000143",
+    "format-code-task-000144",
+    "format-code-task-000149",
+    "format-code-task-000161",
+    "format-code-task-000371",
+    "format-code-task-000582",
+    "format-code-task-000657",
+    "format-code-task-000783",
+    "format-code-task-000878",
+    "format-code-task-000905",
+    "format-code-task-001199",
+    "format-code-task-001220",
+    "format-code-task-001246",
+    "format-code-task-001248",
+    "format-code-task-001371",
+    "format-code-task-001399",
+    "format-code-task-001425",
+    "format-code-task-001590",
+    "format-code-task-001686",
+    "format-code-task-001891",
+    "format-code-task-001914",
+    "format-code-task-002092",
+    "format-code-task-002304",
+    "format-code-task-002395",
+    "format-code-task-002451"
+  ],
+  "training_exclusion": {
+    "scope": "ALL 33 held-out parent tasks, including every descendant variant/repair; not just the 26 evaluation IDs above",
+    "heldout_manifest_sha256": "d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de",
+    "parent_task_ids": [
+      "format-code-task-000142", "format-code-task-000143", "format-code-task-000144",
+      "format-code-task-000149", "format-code-task-000161", "format-code-task-000371",
+      "format-code-task-000582", "format-code-task-000657", "format-code-task-000783",
+      "format-code-task-000878", "format-code-task-000905", "format-code-task-001199",
+      "format-code-task-001220", "format-code-task-001246", "format-code-task-001248",
+      "format-code-task-001371", "format-code-task-001399", "format-code-task-001425",
+      "format-code-task-001480", "format-code-task-001590", "format-code-task-001686",
+      "format-code-task-001891", "format-code-task-001914", "format-code-task-001948",
+      "format-code-task-002092", "format-code-task-002304", "format-code-task-002335",
+      "format-code-task-002371", "format-code-task-002395", "format-code-task-002451",
+      "format-code-task-002871", "format-code-task-002915", "format-code-task-002989"
+    ]
+  }
+}

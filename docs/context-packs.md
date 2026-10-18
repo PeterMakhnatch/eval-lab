@@ -39,8 +39,8 @@ This solves context pollution structurally:
    environment reproducibility requirements.
 4. **Token budget & truncation priority**: Enforces a documented token budget
    (default 12,000 tokens per v2 §6) with deterministic, priority-ordered
-   truncation that preserves mission briefs and task facets while shedding
-   expendable documentation.
+   truncation that protects mission briefs and prioritizes task facets while
+   shedding expendable documentation.
 5. **Deterministic**: Compiling the same repository state always produces
    byte-for-byte identical output and identical content SHA-256 hashes.
 ---
@@ -69,8 +69,10 @@ audience:
 
 ### Audience Taxonomy
 
-- **`builder`**: Task authoring, task-quality workbench, task registry, rubric
-  design, benchmark synthesis, and CRAFT task-corpus patterns.
+- **`builder`**: Assigned Eval Lab implementation work, including task authoring,
+  task-quality workbench, task registry, rubric design, benchmark synthesis, and
+  CRAFT task-corpus patterns. Task-authoring controls apply to task changes, not
+  unrelated code or documentation work.
 - **`analyst`**: Evidence extraction, ATIF trajectory analysis, failure mode
   classification, judge calibration, and statistical reporting.
 - **`runner`**: Trial execution, queue management, agent profiles, subscription
@@ -139,6 +141,20 @@ Every compiled context pack contains:
 5. **Mission Brief & Execution Guide**: Step-by-step role-specific instructions
    and acceptance criteria.
 
+### Scope, authority, and omitted material
+
+The assignment and applicable `AGENTS.md` files remain authoritative. A pack is
+bounded context, not execution permission or a substitute for required rules,
+checks, or task-specific evidence. Use included excerpts first; reopen a cited
+source path/heading only for an omitted requirement or dependency needed by the
+assignment. Do not turn a dropped-item list into a default full-document crawl.
+
+Builder delivery follows `agents/CHECKS.md` and `agents/WORKFLOW.md`: PR, required
+CI, protected merge, and merged-revision verification. A separate reviewer or
+human `review-wanted` handoff is not a routine prerequisite. Native workers return
+scoped changes to their parent and skip verification unless explicitly assigned.
+
+
 ---
 
 ## Token Budget & Truncation Priority (v2 §6)
@@ -146,6 +162,11 @@ Every compiled context pack contains:
 To prevent context pollution and avoid silently exceeding LLM context windows,
 the compiler enforces a **12,000 token budget** by default (configurable via
 `--budget <tokens>` or Python API `token_budget`).
+
+The protected brief and audit metadata can themselves exceed an extremely small
+budget. They are not silently cut to satisfy the ceiling: `estimated_tokens`
+continues to report the actual character-based estimate. Consumers needing a
+hard input limit must compare this estimate with their budget before use.
 
 ### Token Counting Method
 
@@ -165,18 +186,16 @@ When a compiled pack exceeds the token budget, sections are shed in a declared,
 deterministic order from **most expendable to most essential**:
 
 1. **Tier 1 (Inviolable — NEVER Shed)**:
-   - **Mission Brief & Execution Guide**: Objective, standard workflows,
-     handoff contracts, and task references. The brief is the core reason the
-     pack exists.
+   - **Mission Brief & Execution Guide**: Objective, applicable workflows,
+     authority/reopening instructions, delivery contract, and task references.
+     The brief is the core reason the pack exists.
    - **Header Marker & Truncation Notice**: Metadata and audit trail.
 2. **Tier 2 (High Priority — Retained Before General Docs)**:
    - **Task Design Facets & CRAFT Patterns**: When `--task` is supplied, task
      facets and verifier patterns are preserved before general living docs.
-   - Under extreme budget pressure where all docs are already shed:
-     1. Reproducibility / Environment Pinning pattern is shed first.
-     2. Anti-Cheat / Isolation pattern is shed second.
-     3. Verifier pattern is shed third.
-     4. Task Facets summary table is shed fourth.
+   - If all docs have been shed and the pack still exceeds the budget, the
+     task-facets section is shed as a whole. The target task reference remains
+     in the protected mission brief.
 3. **Tier 3 (Living Documentation — Shed First by Priority Tier)**:
    - **Category 0 (Lowest Priority / Most Expendable)**: Supplemental research
      notes (`docs/research/*.md`) and broad catalog maps (`docs/INDEX.md`,
@@ -191,6 +210,8 @@ deterministic order from **most expendable to most essential**:
      core mission workbenches and operating manuals (`len(audience) == 1`, e.g.
      `docs/task-workbench.md` for builder, `docs/analysis-loop.md` for analyst,
      `docs/operating-manual.md` for operator).
+   - **Category 4 (Drop Last)**: Current-state router `docs/NOW.md`, including
+     its execution-approval, immutable-evidence, and scoped-reading boundaries.
 
 **Tie-Breaking**: Within the same category, documents are dropped by audience
 count descending, then document size descending (shedding larger documents first
@@ -217,16 +238,20 @@ When `--path` is supplied (repeatable for multiple files or directories):
    `module` matching `module-x` or `<module>.py` matching `<module>.py.bak`).
 4. **Relevance Scoring & Filtering**: Each doc receives a deterministic score
    equal to the total occurrences of all reference tokens found in its body. Docs with
-   score `0` are excluded, except `docs/NOW.md`, which is always retained as the
-   current-state anchor.
+   score `0` are excluded, except `docs/NOW.md`, which is always selected as the
+   current-state anchor and shed last if the budget binds.
 5. **Section Extraction**: In path mode, only the matching sections of each doc
    are rendered (split at headings; pre-heading preamble counts as a section).
    Each kept section is emitted under the doc title with a `*Source: path#heading*`
-   line. `docs/NOW.md` remains included in full.
+   line. When retained, `docs/NOW.md` is included in full.
 6. **Ordering & Truncation**: Retained docs are ordered by `(score desc, path)`.
-   When budget binds on a path-scoped pack, truncation sheds lowest occurrence
-   count first, then largest rendered section size descending, then path — never
-   the audience category in path mode.
+   When budget binds on a path-scoped pack, generated lookup inventories
+   (`docs/INDEX.md`, `docs/repo-map.md`) are shed first, and the current-state
+   router `docs/NOW.md` is shed last. Between those boundaries, the existing
+   relevance policy is unchanged: lowest occurrence count first, then largest
+   rendered section size descending, then path — never the audience category.
+   A frequent path mention in a generated inventory cannot evict the current-state
+   safety/router document before ordinary semantic documentation.
 7. **Audit & Traceability**: The pack metadata header includes a `Scope` field
    listing the target paths. In `--json` mode, the output records the `paths`
    list, a `doc_scores` mapping of document paths to scores, and an individual

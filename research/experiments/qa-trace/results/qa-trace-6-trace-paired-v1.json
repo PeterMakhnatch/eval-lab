@@ -1,0 +1,159 @@
+{
+ "key": "trace-paired-v1",
+ "method": "evallab.qa.trace.score_paired over verdict.json reward_hacking flags; qa-trace/6 asked only reward_shortcut (TraceConfig(questions=('reward_shortcut',))); qa-trace/5 view re-derived from its stored full runs; bootstrap 2000",
+ "pipeline": "qa-trace/6",
+ "post_hoc": "The contribution-only label rule was chosen after reading qa-trace/5's flagged parents on this key (all four items it turned on are in the dev split).",
+ "questions": [
+  "reward_shortcut"
+ ],
+ "usage": {
+  "calls_per_item": 1.67,
+  "cost_usd": 0.0,
+  "judged": 81,
+  "seconds_per_item": 72.4,
+  "tokens_per_item": {
+   "cacheRead": 163145,
+   "cacheWrite": 0,
+   "input": 39089,
+   "output": 2637
+  }
+ },
+ "views": {
+  "qa-trace/5 re-derived | all": {
+   "abstained": 3,
+   "flag_rate": {
+    "clean": {
+     "flagged": 4,
+     "n": 18,
+     "rate": 0.222
+    },
+    "loud": {
+     "flagged": 55,
+     "n": 60,
+     "rate": 0.917
+    }
+   },
+   "n_items": 81,
+   "paired": {
+    "all_faults": {
+     "ci95": [
+      0.247,
+      0.907
+     ],
+     "delta": 0.529,
+     "n": 51
+    },
+    "loud": {
+     "ci95": [
+      0.233,
+      0.9
+     ],
+     "delta": 0.529,
+     "n": 51
+    }
+   }
+  },
+  "qa-trace/5 re-derived | test": {
+   "abstained": 1,
+   "flag_rate": {
+    "clean": {
+     "flagged": 0,
+     "n": 8,
+     "rate": 0.0
+    },
+    "loud": {
+     "flagged": 18,
+     "n": 18,
+     "rate": 1.0
+    }
+   },
+   "n_items": 27,
+   "paired": {
+    "all_faults": {
+     "ci95": [
+      1.0,
+      1.0
+     ],
+     "delta": 1.0,
+     "n": 13
+    },
+    "loud": {
+     "ci95": [
+      1.0,
+      1.0
+     ],
+     "delta": 1.0,
+     "n": 13
+    }
+   }
+  },
+  "qa-trace/6 | all": {
+   "abstained": 3,
+   "flag_rate": {
+    "clean": {
+     "flagged": 1,
+     "n": 19,
+     "rate": 0.053
+    },
+    "loud": {
+     "flagged": 53,
+     "n": 59,
+     "rate": 0.898
+    }
+   },
+   "n_items": 81,
+   "paired": {
+    "all_faults": {
+     "ci95": [
+      0.388,
+      0.921
+     ],
+     "delta": 0.623,
+     "n": 53
+    },
+    "loud": {
+     "ci95": [
+      0.394,
+      0.923
+     ],
+     "delta": 0.623,
+     "n": 53
+    }
+   }
+  },
+  "qa-trace/6 | test": {
+   "abstained": 2,
+   "flag_rate": {
+    "clean": {
+     "flagged": 0,
+     "n": 8,
+     "rate": 0.0
+    },
+    "loud": {
+     "flagged": 17,
+     "n": 17,
+     "rate": 1.0
+    }
+   },
+   "n_items": 27,
+   "paired": {
+    "all_faults": {
+     "ci95": [
+      1.0,
+      1.0
+     ],
+     "delta": 1.0,
+     "n": 13
+    },
+    "loud": {
+     "ci95": [
+      1.0,
+      1.0
+     ],
+     "delta": 1.0,
+     "n": 13
+    }
+   }
+  }
+ }
+}

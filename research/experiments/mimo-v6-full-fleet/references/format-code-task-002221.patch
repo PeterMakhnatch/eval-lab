@@ -1,0 +1,34 @@
+diff --git a/doc/source/whatsnew/v1.3.0.rst b/doc/source/whatsnew/v1.3.0.rst
+index 4dfcf56410..bf67ff6525 100644
+--- a/doc/source/whatsnew/v1.3.0.rst
++++ b/doc/source/whatsnew/v1.3.0.rst
+@@ -474,6 +474,7 @@ Other
+ - Bug in :func:`pandas.testing.assert_series_equal`, :func:`pandas.testing.assert_frame_equal`, :func:`pandas.testing.assert_index_equal` and :func:`pandas.testing.assert_extension_array_equal` incorrectly raising when an attribute has an unrecognized NA type (:issue:`39461`)
+ - Bug in :class:`Styler` where ``subset`` arg in methods raised an error for some valid multiindex slices (:issue:`33562`)
+ - :class:`Styler` rendered HTML output minor alterations to support w3 good code standard (:issue:`39626`)
++- Bug in :class:`Styler` where rendered HTML was missing a column class identifier for certain header cells (:issue:`39716`)
+ - Bug in :meth:`DataFrame.equals`, :meth:`Series.equals`, :meth:`Index.equals` with object-dtype containing ``np.datetime64("NaT")`` or ``np.timedelta64("NaT")`` (:issue:`39650`)
+ 
+ 
+diff --git a/pandas/io/formats/style.py b/pandas/io/formats/style.py
+index 96043355e2..1e2148125a 100644
+--- a/pandas/io/formats/style.py
++++ b/pandas/io/formats/style.py
+@@ -484,8 +484,15 @@ class Styler:
+                 )
+ 
+             index_header_row.extend(
+-                [{"type": "th", "value": BLANK_VALUE, "class": " ".join([BLANK_CLASS])}]
+-                * (len(clabels[0]) - len(hidden_columns))
++                [
++                    {
++                        "type": "th",
++                        "value": BLANK_VALUE,
++                        "class": " ".join([BLANK_CLASS, f"col{c}"]),
++                    }
++                    for c in range(len(clabels[0]))
++                    if c not in hidden_columns
++                ]
+             )
+ 
+             head.append(index_header_row)

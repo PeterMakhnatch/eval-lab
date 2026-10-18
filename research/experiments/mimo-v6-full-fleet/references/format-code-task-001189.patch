@@ -1,0 +1,19 @@
+diff --git a/sdk/python/packages/flet-core/src/flet_core/navigation_bar.py b/sdk/python/packages/flet-core/src/flet_core/navigation_bar.py
+index 12cc0839..d7a39560 100644
+--- a/sdk/python/packages/flet-core/src/flet_core/navigation_bar.py
++++ b/sdk/python/packages/flet-core/src/flet_core/navigation_bar.py
+@@ -269,12 +269,12 @@ class NavigationBar(ConstrainedControl):
+     def label_behavior(self, value: Optional[NavigationBarLabelBehavior]):
+         self.__label_behavior = value
+         if isinstance(value, NavigationBarLabelBehavior):
+-            self._set_attr("labelType", value.value)
++            self._set_attr("labelBehavior", value.value)
+         else:
+             self.__set_label_behavior(value)
+ 
+     def __set_label_behavior(self, value: NavigationBarLabelBehaviorString):
+-        self._set_attr("labelType", value)
++        self._set_attr("labelBehavior", value)
+ 
+     # bgcolor
+     @property

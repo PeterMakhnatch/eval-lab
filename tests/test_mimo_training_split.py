@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import copy
 import csv
 import hashlib
 import json
 import runpy
+import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -480,3 +482,781 @@ def test_scoring_release_still_refuses_unbound_or_changed_packages(driver, make_
         manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError):
         driver["check_frozen"](output)
+
+
+def native_control_fixture(
+    job: Path, package: Path, task_id: str, agent: str, reward: float, *,
+    repeats: int = 1, failed: bool = False, case_evidence: bool = True,
+) -> dict[str, Any]:
+    """Persist native-shaped evidence; caller flags deliberately cannot prove case execution."""
+    from evallab.registry import compute_task_digests
+    from evallab.task_variants import harbor_task_digest
+
+    identity, harbor = compute_task_digests(package), harbor_task_digest(package)
+    raw = job / "trial"
+    raw.mkdir(parents=True)
+    config = {"task": {"path": str(package)}, "agent": {"name": agent}}
+    finished = "2026-10-17T22:00:00+00:00"
+    payloads = {
+        job / "lab-metadata.json": {
+            "exit_code": 1 if failed else 0, "timed_out": False,
+            "task_staging": {
+                "declared_task_name": PREFIX + task_id, "staged_task_name": package.name,
+                "source_package_digest": identity.package, "source_harbor_digest": harbor,
+                "staged_harbor_digest": harbor,
+            },
+        },
+        job / "result.json": {"n_total_trials": 1, "stats": {}, "finished_at": finished},
+        job / "config.json": {}, job / "lock.json": {},
+        raw / "result.json": {
+            "id": job.name, "task_name": PREFIX + task_id, "trial_name": "trial",
+            "config": config, "task_id": {"path": str(package)}, "finished_at": finished,
+            "agent_execution": {"started_at": finished, "finished_at": finished},
+            "verifier_result": {"rewards": {"reward": reward}},
+            "exception_info": {"exception_type": "SetupError"} if failed else None,
+        },
+        raw / "config.json": config,
+        raw / "lock.json": {
+            "task": {"path": str(package), "name": package.name, "type": "local", "digest": harbor},
+        },
+    }
+    for path, payload in payloads.items():
+        path.write_text(json.dumps(payload))
+    if agent == "oracle":
+        (raw / "agent").mkdir()
+        (raw / "agent/oracle.txt").write_text("oracle submission completed\n")
+    verifier = raw / "verifier"
+    verifier.mkdir()
+    for index in range(repeats):
+        target = verifier if repeats == 1 else verifier / "repeat" / str(index)
+        target.mkdir(parents=True, exist_ok=True)
+        if not failed and case_evidence:
+            (target / "runner.txt").write_text("RUNNER=pytest\n")
+            (target / "test_output.log").write_text(
+                "1 passed in 0.01s\n" if reward == 1.0 else "1 failed in 0.01s\n"
+            )
+    if repeats > 1:
+        (verifier / "stability.json").write_text(json.dumps({
+            "schema": "evallab.verifier_stability/v1", "repeat_n_requested": repeats,
+            "n_runs": repeats, "first_reward": reward,
+            "runs": [{"index": index, "reward": reward, "error": None} for index in range(repeats)],
+        }))
+    binding = {
+        "source_package_digest": identity.package, "task_digest": harbor,
+        "verified": True, "error": None, "via": "trial-lock",
+    }
+    observation = {
+        "agent": agent, "execution_id": job.name, "task_id": task_id,
+        "source_package_digest": identity.package, "source_harbor_digest": harbor,
+        "staged_harbor_digest": harbor, "executed_harbor_digest": harbor, "native_identity_verified": True,
+        "returncode": 1 if failed else 0, "timed_out": False,
+        "process_ok": not failed, "process_failed": failed, "exception_present": failed,
+        "scored": not failed, "rewards": [reward] * repeats, "repeat_scored": [not failed] * repeats,
+        "test_execution": [not failed] * repeats, "run_error_present": [failed] * repeats,
+        "run_errors": ["setup error" if failed else None] * repeats, "task_binding": binding,
+    }
+    for owner, names in ((observation, ("metadata", "result")), (binding, ("config", "lock"))):
+        for name in names:
+            path = job / "lab-metadata.json" if name == "metadata" else raw / f"{name}.json"
+            owner[f"{name}_path"] = str(path)
+            owner[f"{name}_sha256"] = sha(path.read_bytes())
+    return observation
+
+
+@pytest.fixture
+def successor_case(driver, tmp_path: Path):
+    """Real scratch packages/variant records; no runner, mocks, or shared store."""
+    from evallab.registry import compute_task_digests
+    from evallab.task_variants import derive_task
+
+    repo, packages, frozen = tmp_path / "repo", tmp_path / "packages", tmp_path / "frozen33"
+    variants = packages / "variants"
+    frozen.mkdir()
+    membership = json.loads(DRIVER.with_name("heldout.json").read_text())["heldout"]
+    exposure = [f"historical-training-{index:03d}" for index in range(42)]
+    split = {
+        "schema": "mimo.training-split/v1", "heldout": membership,
+        "train": exposure[:40], "training_exposure": exposure,
+        "config": {"package_root": str(packages)}, "heldout_task_metadata": [],
+    }
+    manifest = {
+        "schema": "mimo.training-manifest/v1", "heldout": membership,
+        "train": split["train"], "training_exposure": exposure, "tasks": [],
+    }
+    controls = {
+        "schema": "mimo.native-controls/v1", "backend": "modal", "scoring_allowed": False,
+        "qualification_scope": "Retained exact-v6 oracle x1 and nop x1; not repeat3 qualification",
+        "observations": [], "selected_pairs": [],
+    }
+    registration = {
+        "schema": "mimo.frozen-lineage-registration/v1", "endpoints": [], "frozen_sources": [],
+    }
+    rows, records, package_paths = [], {}, {}
+    for task_id in membership:
+        base = tmp_path / "sources" / task_id
+        for relative, content in {
+            "task.toml": f'schema_version = "1.4"\n[task]\nname = "{PREFIX}{task_id}"\n',
+            "instruction.md": f"Implement the requested behavior for {task_id}.\n",
+            "environment/Dockerfile": "FROM ubuntu:24.04\n",
+            "environment/setup/setup.sh": "#!/bin/sh\npython -V\n",
+            "solution/solve.sh": "#!/bin/sh\nprintf 'reference implementation\\n'\n",
+            "tests/test.sh": "#!/bin/sh\npython -c 'assert 2 + 2 == 4'\n",
+            "tests/test.patch": (
+                "diff --git a/test_existing.py b/test_existing.py\nnew file mode 100644\n"
+                "--- /dev/null\n+++ b/test_existing.py\n@@ -0,0 +1,2 @@\n"
+                "+def test_existing():\n+    assert 2 + 2 == 4\n"
+            ),
+            "tests/test_command.sh": "#!/bin/sh\npython -m pytest test_existing.py\n",
+        }.items():
+            path = base / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+        original = derive_task(
+            base, changes={"environment/setup/setup.sh": b"#!/bin/sh\npython3 -V\n"},
+            transform="leak-close-pypi@1", rationale="scratch ancestry", created_by="pytest",
+            repo_root=repo, variants_root=variants,
+        )
+        original_path = variants / original.task_slug / original.digest12
+        record = derive_task(
+            original_path,
+            changes={"task.toml": (original_path / "task.toml").read_bytes() + b"\n[environment]\nallow_network = false\nworkdir = '/testbed'\n"},
+            transform="agent-network-none@1", rationale="scratch frozen endpoint", created_by="pytest",
+            parent_source={"kind": "variant", "record": str(original.record_relpath())},
+            repo_root=repo, variants_root=variants,
+        )
+        package = variants / record.task_slug / record.digest12
+        records[task_id], package_paths[task_id] = record, package
+        row = dict.fromkeys(driver["PAIR_COLUMNS"], "")
+        row.update(
+            task_id=task_id, original_package_digest=original.variant_digest,
+            original_package_path=str(original_path), v6_package_digest=record.variant_digest,
+            v6_package_path=str(package), repair_disposition="missing",
+        )
+        rows.append(row)
+        split["heldout_task_metadata"].append({
+            "task_id": task_id, "v6_package_digest": record.variant_digest,
+            "v6_package_path": str(package.relative_to(packages)),
+        })
+        manifest["tasks"].append(row | {
+            "split": "heldout", "exclusion_reason": None,
+            "source_controls": {
+                version: {"status": "unproven", "package_digest": row[f"{version}_package_digest"], "evidence": []}
+                for version in ("original", "v6")
+            },
+            "evaluation_target": {
+                "package_digest": record.variant_digest, "package_path": str(package),
+                "version_column": "v6", "repair_scope": "global-v6-hardening-only", "test_repair_claim": False,
+            },
+        })
+        pair = {"task_id": task_id, "package_digest": record.variant_digest}
+        for agent, reward in (("oracle", 1.0), ("nop", 0.0)):
+            metadata = tmp_path / "raw" / task_id / agent / "lab-metadata.json"
+            metadata.parent.mkdir(parents=True)
+            metadata.write_text(json.dumps({"task_id": task_id, "agent": agent, "package_digest": record.variant_digest}))
+            pair[f"{agent}_observation"] = len(controls["observations"])
+            controls["observations"].append({
+                "source_package_digest": record.variant_digest, "source_harbor_digest": record.variant_harbor_digest,
+                "staged_harbor_digest": record.variant_harbor_digest,
+                "native_metadata": driver["fingerprint"](metadata),
+                "native_exit_code": 0, "timed_out": False,
+                "receipt": {"task_id": task_id, "agent": agent, "package": str(package), "reward": reward, "error": None},
+                "receipt_source": str(metadata.parent / "controls.jsonl"), "receipt_line": 1,
+                "runner_repository": {"commit": "f" * 40, "dirty": True, "uncommitted_diff_sha256": "sha256:" + "e" * 64},
+            })
+        controls["selected_pairs"].append(pair)
+        registration["endpoints"].append({
+            "task_id": task_id, "role": "headline", "package_digest": record.variant_digest,
+            "package_path": str(package), "harbor_digest": record.variant_harbor_digest,
+            "record_path": str(record.record_relpath()),
+            "record_sha256": driver["fingerprint"](repo / record.record_relpath())["sha256"],
+            "full_transform_chain_newest_first": ["agent-network-none@1", "leak-close-pypi@1"],
+        })
+    write_csv(frozen / "package-pairs.csv", list(driver["PAIR_COLUMNS"]), rows)
+
+    def refresh() -> None:
+        (frozen / "split.json").write_text(json.dumps(split))
+        heldout = {
+            "schema": "mimo.heldout/v1", "heldout": split["heldout"],
+            "split": driver["fingerprint"](frozen / "split.json"), "scoring_allowed": True,
+        }
+        (frozen / "heldout.json").write_text(json.dumps(heldout))
+        manifest.update(
+            split=heldout["split"], heldout_manifest=driver["fingerprint"](frozen / "heldout.json"),
+            package_pairs=driver["fingerprint"](frozen / "package-pairs.csv"),
+        )
+        (frozen / "manifest.json").write_text(json.dumps(manifest))
+        (frozen / "native-controls.json").write_text(json.dumps(controls))
+        for endpoint in registration["endpoints"]:
+            endpoint["control_source"] = driver["fingerprint"](frozen / "native-controls.json")
+            pair = next(pair for pair in controls["selected_pairs"] if pair["task_id"] == endpoint["task_id"])
+            endpoint["controls"] = {}
+            for agent in ("oracle", "nop"):
+                index = pair[f"{agent}_observation"]
+                observation = controls["observations"][index]
+                endpoint["controls"][agent] = {
+                    "observation_index": index, "reward": observation["receipt"]["reward"],
+                    "native_metadata": observation["native_metadata"],
+                    "receipt_source": observation["receipt_source"], "receipt_line": observation["receipt_line"],
+                }
+        registration["frozen_sources"] = [
+            driver["fingerprint"](frozen / name) for name in ("heldout.json", "manifest.json", "native-controls.json")
+        ]
+        (frozen / "lineage-registration.json").write_text(json.dumps(registration))
+
+    refresh()
+    inventory = tmp_path / "qa-adjudications.json"
+    inventory.write_text(json.dumps({"adjudications": [{"task_id": membership[0], "verdict": "unspecified"}]}))
+    repairs = tmp_path / "repairs-v7.json"
+    repairs.write_text(json.dumps({
+        "schema": "envcheck.repairs-v7/v1", "status": "in_progress", "repairs": [], "complete_count": 0,
+        "required_task_count": 16, "recorded_reproducer_count": 25, "training_allowed": False,
+        "source_inputs": [driver["fingerprint"](inventory)],
+    }))
+
+    def setup(extra_changes: dict[str, bytes] | None = None) -> Path:
+        task_id = "format-code-task-001948"
+        parent = package_paths[task_id]
+        changes = {
+            "environment/setup/setup.sh": b"#!/bin/sh\nPATH=/usr/bin:/bin python3 -V\n",
+            "task.toml": (parent / "task.toml").read_bytes() + b"\n# Repacked setup payload\n",
+        } | (extra_changes or {})
+        record = derive_task(
+            parent, changes=changes, transform="setup-python-path@1", rationale="scratch setup-only child",
+            created_by="pytest", parent_source={"kind": "variant", "record": str(records[task_id].record_relpath())},
+            repo_root=repo, variants_root=variants,
+        )
+        package = variants / record.task_slug / record.digest12
+        handoff = tmp_path / "setup-001948-v7.json"
+        handoff.write_text(json.dumps({
+            "schema": "mimo-v7-setup-derivation/v1", "task_id": PREFIX + task_id, "scoring_allowed": False,
+            "parent_package": str(parent), "parent_package_digest": records[task_id].variant_digest,
+            "package": str(package), "package_digest": record.variant_digest, "harbor_digest": record.variant_harbor_digest,
+            "record": str(record.record_relpath()),
+            "record_sha256": driver["fingerprint"](repo / record.record_relpath())["sha256"],
+            "transform": "setup-python-path@1", "changed_files": sorted(changes),
+            "tests_byte_identical": True, "tests_digest": compute_task_digests(package).verifier,
+            "controls": {"status": "pending", "evidence_path": str(tmp_path / "setup-001948-v7-controls.json")},
+            "unchanged_files": {
+                str(path.relative_to(parent)): sha(path.read_bytes())
+                for path in parent.rglob("*") if path.is_file() and str(path.relative_to(parent)) not in changes
+            },
+        }))
+        return handoff
+
+    return {
+        "frozen": frozen, "repo": repo, "membership": membership, "split": split, "manifest": manifest,
+        "registration": registration, "controls": controls, "records": records, "packages": package_paths,
+        "refresh": refresh, "setup": setup, "repairs": repairs, "inventory": inventory,
+    }
+
+
+def test_successor_retains_frozen33_packages_lineage_and_exact_v6_controls(driver, successor_case, tmp_path: Path) -> None:
+    case = successor_case
+    before = {path.name: path.read_bytes() for path in case["frozen"].iterdir()}
+    destination = tmp_path / "successor" / "heldout-v7.json"
+    payload = driver["assemble_successor"](
+        case["frozen"], destination, repairs_handoff=case["repairs"], repo_root=case["repo"],
+    )
+    assert payload["schema"] == "mimo.heldout/v1"
+    assert payload["heldout"] == case["membership"]
+    assert len(payload["heldout"]) == len(set(payload["heldout"])) == 33
+    assert payload["training_exposure"] == case["split"]["training_exposure"]
+    assert not set(payload["heldout"]) & set(payload["training_exposure"])
+    assert payload["scoring_allowed"] is False and payload["freeze_ready"] is False
+    assert payload["independent_verifier"] == {"status": "pending", "evidence": None}
+    for row, frozen_row, pair in zip(payload["tasks"], case["manifest"]["tasks"], case["controls"]["selected_pairs"], strict=True):
+        assert row["task_id"] == frozen_row["task_id"]
+        assert row["source_controls"] == frozen_row["source_controls"]
+        assert row["evaluation_target"]["package_digest"] == frozen_row["v6_package_digest"]
+        assert row["evaluation_target"]["package_path"] == frozen_row["v6_package_path"]
+        assert row["successor_selection"] == "unchanged-v6"
+        evidence = row["native_controls"]
+        assert evidence["retained_frozen_v6"]["selected_pair"] == pair
+        assert [item["observation"] for item in evidence["retained_frozen_v6"]["observations"]] == [
+            case["controls"]["observations"][pair[f"{agent}_observation"]] for agent in ("oracle", "nop")
+        ]
+        selected = evidence["selected_package"]
+        assert selected["measured_reference_rewards"] == [1.0] and selected["measured_nop_rewards"] == [0.0]
+        assert "native_reference_1_1_1" in selected["missing"] and "native_nop_0_0_0" in selected["missing"]
+        lineage = row["evaluation_target"]["lineage"]
+        assert lineage["full_transform_chain_newest_first"] == ["agent-network-none@1", "leak-close-pypi@1"]
+        assert len(lineage["records_newest_first"]) == 2
+        for record in lineage["records_newest_first"]:
+            assert record["record"] == driver["fingerprint"](case["repo"] / record["record_path"])
+    assert payload["semantic_repairs"]["status"] == "pending"
+    assert payload["semantic_repairs"]["source"] == driver["fingerprint"](case["repairs"])
+    assert payload["counts"]["selected_semantic_repairs"] == 0
+    assert destination.read_text() == driver["encoded"](payload)
+    driver["validate_successor"](payload, case["frozen"], repairs_handoff=case["repairs"], repo_root=case["repo"])
+    with pytest.raises(FileExistsError):
+        driver["assemble_successor"](case["frozen"], destination, repairs_handoff=case["repairs"], repo_root=case["repo"])
+    with pytest.raises(ValueError, match="outside the frozen"):
+        driver["assemble_successor"](case["frozen"], case["frozen"] / "heldout-v7.json", repo_root=case["repo"])
+    assert {path.name: path.read_bytes() for path in case["frozen"].iterdir()} == before
+
+
+@pytest.mark.parametrize("change", ["duplicate", "substitute", "drop", "reorder", "rich_row", "open_gate", "numeric_gate"])
+def test_successor_validator_refuses_membership_target_or_scoring_mutation(driver, successor_case, change) -> None:
+    case = successor_case
+    payload = driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+    if change == "duplicate":
+        payload["heldout"][0] = payload["heldout"][1]
+    elif change == "substitute":
+        payload["heldout"][0] = "format-code-task-009998"
+    elif change == "drop":
+        payload["heldout"].pop()
+    elif change == "reorder":
+        payload["heldout"][0], payload["heldout"][1] = payload["heldout"][1], payload["heldout"][0]
+    elif change == "rich_row":
+        payload["tasks"][0]["evaluation_target"]["package_digest"] = "sha256:" + "0" * 64
+    else:
+        payload["scoring_allowed"] = True if change == "open_gate" else 0
+    with pytest.raises(ValueError, match="successor manifest differs"):
+        driver["validate_successor"](payload, case["frozen"], repo_root=case["repo"])
+
+
+@pytest.mark.parametrize("change", ["substitute", "reorder"])
+def test_successor_refuses_a_consistently_rebound_but_different_source_cohort(driver, successor_case, change) -> None:
+    case = successor_case
+    if change == "substitute":
+        case["split"]["heldout"][0] = "format-code-task-009998"
+    else:
+        case["split"]["heldout"][:2] = list(reversed(case["split"]["heldout"][:2]))
+    case["refresh"]()
+    with pytest.raises(ValueError, match="exact frozen33"):
+        driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+
+
+def test_successor_refuses_any_historical_training_exposure_overlap(driver, successor_case) -> None:
+    case = successor_case
+    case["split"]["training_exposure"].append(case["membership"][0])
+    case["refresh"]()
+    with pytest.raises(ValueError, match="training leakage"):
+        driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+
+
+@pytest.mark.parametrize("change", ["package_bytes", "record_hash", "lineage_harbor", "frozen_parent", "native_digest"])
+def test_successor_refuses_package_lineage_and_control_identity_mismatch(driver, successor_case, change) -> None:
+    case = successor_case
+    task_id = case["membership"][0]
+    record = case["records"][task_id]
+    path = case["repo"] / record.record_relpath()
+    if change == "package_bytes":
+        (case["packages"][task_id] / "tests/test.sh").write_text("assertions removed\n")
+    elif change in {"record_hash", "lineage_harbor"}:
+        payload = json.loads(path.read_text())
+        if change == "record_hash":
+            payload["rationale"] += " altered after custody"
+        else:
+            payload["parent"]["harbor_digest"] = "sha256:" + "0" * 64
+        path.write_text(json.dumps(payload))
+        if change == "lineage_harbor":
+            case["registration"]["endpoints"][0]["record_sha256"] = driver["fingerprint"](path)["sha256"]
+            case["refresh"]()
+    elif change == "frozen_parent":
+        case["split"]["heldout_task_metadata"][0]["v6_package_digest"] = "sha256:" + "0" * 64
+        case["refresh"]()
+    else:
+        case["controls"]["observations"][0]["source_package_digest"] = "sha256:" + "0" * 64
+        case["refresh"]()
+    with pytest.raises(ValueError, match="digest mismatch|identity mismatch"):
+        driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+
+
+def test_successor_setup_child_is_not_a_test_repair_or_an_inheritor_of_parent_controls(driver, successor_case) -> None:
+    case = successor_case
+    handoff = case["setup"]()
+    payload = driver["successor_payload"](
+        case["frozen"], setup_handoff=handoff, repairs_handoff=case["repairs"], repo_root=case["repo"],
+    )
+    row = next(row for row in payload["tasks"] if row["task_id"] == "format-code-task-001948")
+    selected, parent = row["evaluation_target"], row["frozen_parent"]
+    assert row["successor_selection"] == "setup-only" and selected["version_column"] == "setup_only"
+    assert selected["test_repair_claim"] is False and selected["setup_only"] is True
+    assert selected["package_digest"] != parent["package_digest"] == row["v6_package_digest"]
+    assert selected["harbor_digest"] != parent["harbor_digest"]
+    assert selected["verifier_digest"] == parent["verifier_digest"]
+    assert row["test_repaired_package_digest"] == ""
+    assert selected["lineage"]["records_newest_first"][1:] == parent["lineage"]["records_newest_first"]
+    evidence = row["native_controls"]
+    assert evidence["retained_frozen_v6"]["status"] == "retained"
+    assert evidence["selected_package"]["observation_indexes"] == []
+    assert evidence["selected_package"]["measured_reference_rewards"] == []
+    assert evidence["selected_package"]["measured_nop_rewards"] == []
+    assert evidence["reported_setup_controls"]["status"] == "pending"
+    assert "semantic_repairs" in payload["pending_gates"] and "independent_verifier_pass" in payload["pending_gates"]
+    assert payload["scoring_allowed"] is False
+
+
+@pytest.mark.parametrize("change", ["wrong_parent", "false_verifier_digest", "changed_tests"])
+def test_successor_setup_requires_exact_frozen_parent_and_byte_unchanged_tests(driver, successor_case, change) -> None:
+    case = successor_case
+    path = case["setup"]({"tests/test.sh": b"#!/bin/sh\nexit 0\n"} if change == "changed_tests" else None)
+    handoff = json.loads(path.read_text())
+    if change == "wrong_parent":
+        handoff["parent_package_digest"] = "sha256:" + "0" * 64
+    elif change == "false_verifier_digest":
+        handoff["tests_digest"] = "sha256:" + "0" * 64
+    path.write_text(json.dumps(handoff))
+    with pytest.raises(ValueError, match="exact frozen|setup-only"):
+        driver["successor_payload"](case["frozen"], setup_handoff=path, repo_root=case["repo"])
+
+
+@pytest.mark.parametrize("reward", [None, 0.0])
+def test_successor_preserves_setup_error_and_null_as_unmeasured_not_nop_rejection(driver, successor_case, reward) -> None:
+    case = successor_case
+    nop = case["controls"]["observations"][1]
+    nop["native_exit_code"] = 1
+    nop["receipt"].update(reward=reward, error="setup failed before verifier")
+    Path(nop["native_metadata"]["path"]).unlink()
+    case["refresh"]()
+    payload = driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+    evidence = payload["tasks"][0]["native_controls"]
+    retained = evidence["retained_frozen_v6"]["observations"][1]
+    assert retained["observation"]["receipt"]["reward"] == reward
+    assert retained["measured"] is False
+    assert retained["raw_metadata_custody"]["status"] == "raw_metadata_unavailable"
+    assert evidence["selected_package"]["measured_nop_rewards"] == []
+    assert "native_nop_0_0_0" in evidence["selected_package"]["missing"]
+    assert "adjudicated_wrong_inventory_and_exact_digest_zero_outcomes" in evidence["selected_package"]["missing"]
+    assert "admitted_correct_inventory_and_exact_digest_accepted_outcomes" in evidence["selected_package"]["missing"]
+    assert payload["scoring_allowed"] is False
+
+
+@pytest.mark.parametrize("change", ["source_drift", "unbound_repair"])
+def test_successor_does_not_guess_repairs_or_ignore_changed_adjudication_custody(driver, successor_case, change) -> None:
+    case = successor_case
+    if change == "source_drift":
+        case["inventory"].write_text(json.dumps({"adjudications": [{"verdict": "wrong"}]}))
+    else:
+        handoff = json.loads(case["repairs"].read_text())
+        handoff.update(repairs=[{"task_id": case["membership"][0]}], complete_count=1)
+        case["repairs"].write_text(json.dumps(handoff))
+    with pytest.raises(ValueError, match="source hash/digest mismatch|unrecognized nonempty EnvCheck"):
+        driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=case["repo"])
+
+
+def test_successor_does_not_promote_a_partial_envcheck_repair(driver, successor_case) -> None:
+    case = successor_case
+    handoff = json.loads(case["repairs"].read_text())
+    handoff["repairs"] = [{
+        "task_id": case["membership"][0], "status": "partial", "qualified_for_v7": False,
+    }]
+    case["repairs"].write_text(json.dumps(handoff))
+    payload = driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=case["repo"])
+    assert payload["tasks"][0]["evaluation_target"]["package_digest"] == case["records"][case["membership"][0]].variant_digest
+    assert payload["counts"]["selected_semantic_repairs"] == 0
+    assert payload["scoring_allowed"] is False
+
+
+@pytest.mark.parametrize("change", [
+    None, "remove_assertions", "skip_original", "missing_wrong", "false_negative",
+    "no_case_evidence", "repeat_alias", "unbound_submission",
+    "historical_wrapper", "historical_original_status", "historical_addition_status",
+])
+def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_submission_controls(
+    driver, successor_case, tmp_path: Path, change,
+) -> None:
+    from evallab.registry import compute_task_digests
+    from evallab.runner import load_matrix, staged_matrix_request
+    from evallab.task_variants import derive_task
+    from evallab.verifier_repair import build_command_wrapper
+
+    case = successor_case
+    repo = case["repo"]
+    (repo / "pyproject.toml").write_text("[project]\nname = 'fixture'\nversion = '0.0.0'\n")
+    task_id = case["membership"][0]
+    parent, parent_record = case["packages"][task_id], case["records"][task_id]
+    command = "python -m pytest test_extra.py"
+    extra = (
+        b"diff --git a/test_extra.py b/test_extra.py\nnew file mode 100644\n"
+        b"--- /dev/null\n+++ b/test_extra.py\n@@ -0,0 +1,2 @@\n"
+        b"+def test_extra():\n+    assert 3 + 3 == 6\n"
+    )
+    original = (parent / "tests/test.patch").read_bytes()
+    wrapper = build_command_wrapper(
+        (parent / "tests/test_command.sh").read_text(), command, workdir="/testbed",
+    ).encode()
+    if change in {"historical_wrapper", "historical_original_status", "historical_addition_status"}:
+        base = (parent / "tests/test_command.sh").read_text()
+        base = base if base.endswith("\n") else base + "\n"
+        wrapper = (
+            f"(\n{base})\n"
+            "REPAIR_RC=$?\n"
+            "cd /testbed || exit 1\n"
+            f"{command}\n"
+            "REPAIR_NEW_RC=$?\n"
+            'if [ "$REPAIR_NEW_RC" -ne 0 ]; then exit 1; fi\n'
+            'exit "$REPAIR_RC"\n'
+        ).encode()
+        if change == "historical_original_status":
+            wrapper = wrapper.replace(b"REPAIR_RC=$?", b"REPAIR_RC=0")
+        elif change == "historical_addition_status":
+            wrapper = wrapper.replace(b"REPAIR_NEW_RC=$?", b"REPAIR_NEW_RC=0")
+    record = derive_task(
+        parent, transform="verifier-repair@1", rationale="scratch append-only repair",
+        created_by="pytest", parent_source={"kind": "variant", "record": str(parent_record.record_relpath())},
+        changes={
+            "tests/test.patch": extra if change == "remove_assertions" else original + extra,
+            "tests/test_command.sh": b"#!/bin/sh\nexit 0\n" if change == "skip_original" else wrapper,
+        },
+        inputs={"command": command}, repo_root=repo, variants_root=parent.parent.parent,
+    )
+    package = parent.parent.parent / record.task_slug / record.digest12
+    controls_dir = repo / "controls"
+    controls_dir.mkdir()
+    wrong_patch, wrong_script, alternate_script = (controls_dir / name for name in (
+        "wrong.patch", "wrong.sh", "alternate.sh",
+    ))
+    wrong_patch.write_text("diff --git a/code.py b/code.py\n--- a/code.py\n+++ b/code.py\n@@ -1 +1 @@\n-1\n+0\n")
+    wrong_script.write_text("#!/bin/sh\nprintf 'wrong submission\\n'\n")
+    alternate_script.write_text("#!/bin/sh\nprintf 'adjudicated-correct alternate\\n'\n")
+    wrong = {
+        "run": "wrong", "finding_id": "wrong-finding", "patch": str(wrong_patch),
+        "patch_sha256": sha(wrong_patch.read_bytes()), "script": str(wrong_script),
+        "script_sha256": sha(wrong_script.read_bytes()),
+    }
+    alternate = {"run": "alternate", "finding_id": "correct-finding", "script": str(alternate_script)}
+    admitted = repo / "admitted.json"
+    admitted.write_text(json.dumps({"rows": [{
+        "task_id": task_id, "finding_id": wrong["finding_id"], "reproducer_sha256": wrong["patch_sha256"],
+    }]}))
+    identity = {
+        "task_id": task_id, "package_path": str(package), "package_digest": record.variant_digest,
+        "harbor_digest": record.variant_harbor_digest, "verifier_digest": compute_task_digests(package).verifier,
+        "native_record": str(repo / record.record_relpath()),
+        "native_record_sha256": sha((repo / record.record_relpath()).read_bytes()),
+        "parent_digest": parent_record.variant_digest, "parent_package": str(parent),
+    }
+    matrix_path = repo / "matrix.json"
+    matrix_path.write_text(json.dumps({
+        "schema_version": 2, "matrix_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "name": "v7-native-custody",
+        "hypothesis": "append-only controls", "benchmark_family": "mimo-clean-v7", "task_id": task_id,
+        "task": str(package), "task_package_digest": record.variant_digest,
+        "verifier_digest": identity["verifier_digest"], "jobs_dir": "runs",
+        "environment": "modal", "concurrency": 1, "timeout_seconds": 600,
+        "runs": [
+            {"name": "reference", "agent": "oracle", "attempts": 1, "expect_reward": 1.0},
+            {"name": "nop", "agent": "nop", "attempts": 1, "expect_reward": 0.0},
+            {"name": "wrong", "agent": "oracle", "attempts": 1, "expect_reward": 0.0, "solution": "controls/wrong.sh"},
+            {"name": "alternate", "agent": "oracle", "attempts": 1, "expect_reward": 1.0, "solution": "controls/alternate.sh"},
+        ],
+    }))
+    matrix_sha = sha(matrix_path.read_bytes())
+    matrix = load_matrix(matrix_path)
+    checks = []
+    for index, run in enumerate(matrix.runs):
+        job = tmp_path / "repair-native" / run.name
+        repeated = run.name != "wrong"
+        actual_reward = 0.0 if change == "false_negative" and run.name == "alternate" else run.expect_reward
+        with staged_matrix_request(matrix, run, repo_root=repo) as (request, provenance):
+            native_control_fixture(
+                job, request.task, task_id, run.agent, actual_reward, repeats=3 if repeated else 1,
+                case_evidence=not (change == "no_case_evidence" and run.name == "wrong"),
+            )
+        if change == "repeat_alias" and run.name == "reference":
+            stability_path = job / "trial/verifier/stability.json"
+            stability = json.loads(stability_path.read_text())
+            for item in stability["runs"]:
+                item["index"] = 0
+            stability_path.write_text(json.dumps(stability))
+        checks.append({
+            "run": run.name, "role": ("reference", "nop", "known-wrong", "prompt-valid-alternate")[index],
+            "expected_reward": run.expect_reward, "matrix_sha256": matrix_sha, "status": "ok",
+            "repeats": [run.expect_reward] * 3 if repeated else None, "job_dir": str(job),
+            **provenance,
+        })
+    if change == "unbound_submission":
+        checks[2]["solution_sha256"] = "0" * 64
+    qualification_path = repo / "qualification.json"
+    qualification_path.write_text(json.dumps(identity | {
+        "qualified": True, "matrix_sha256": matrix_sha, "checks": checks,
+    }))
+    candidate_path = repo / "candidate.json"
+    candidate_path.write_text(json.dumps(identity | {
+        "schema": "envcheck.v7.candidate/v1", "matrix": str(matrix_path), "matrix_sha256": matrix_sha,
+        "source_manifest": str(admitted), "source_sha256": sha(admitted.read_bytes()),
+        "known_wrong_reproducers": [] if change == "missing_wrong" else [wrong],
+        "adjudicated_correct_controls": [alternate],
+    }))
+    row = identity | {
+        "status": "complete", "qualified_for_v7": True, "reference": [1, 1, 1], "do_nothing": [0, 0, 0],
+        "task_control_bindings_unchanged": True, "no_original_assertion_weakened": True,
+        "training_allowed": False, "unrepairable": [], "reproducers": [wrong],
+        "recorded_reproducer_count": 1, "reproducers_killed": 1, "adjudicated_correct_controls": [alternate],
+        "candidate": str(candidate_path.relative_to(repo)), "candidate_sha256": sha(candidate_path.read_bytes()),
+        "qualification": str(qualification_path), "qualification_sha256": sha(qualification_path.read_bytes()),
+    }
+    handoff = json.loads(case["repairs"].read_text())
+    handoff.update(repairs=[row], complete_count=1)
+    case["repairs"].write_text(json.dumps(handoff))
+    if change not in {None, "historical_wrapper"}:
+        with pytest.raises(ValueError):
+            driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+        return
+    payload = driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+    selected = payload["tasks"][0]["evaluation_target"]
+    assert selected["package_digest"] == record.variant_digest != parent_record.variant_digest
+    assert selected["lineage"]["full_transform_chain_newest_first"] == [
+        "verifier-repair@1", "agent-network-none@1", "leak-close-pypi@1",
+    ]
+    controls = payload["tasks"][0]["native_controls"]["selected_package"]
+    assert controls["measured_reference_rewards"] == [1, 1, 1]
+    assert controls["measured_nop_rewards"] == [0, 0, 0]
+    assert "native_reference_1_1_1" not in controls["missing"]
+    assert "native_nop_0_0_0" not in controls["missing"]
+    assert payload["counts"]["selected_semantic_repairs"] == 1
+    assert payload["independent_verifier"]["status"] == "pending" and payload["scoring_allowed"] is False
+    driver["validate_successor"](payload, case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+
+
+@pytest.mark.parametrize("native_change", [
+    None, "setup_error", "missing_case_evidence", "relabelled_execution", "false_reward", "wrong_config",
+])
+def test_setup_native_triad_is_separate_from_wrong_correct_and_independent_verifier_gates(
+    driver, successor_case, tmp_path: Path, native_change,
+):
+    case = successor_case
+    handoff_path = case["setup"]()
+    handoff = json.loads(handoff_path.read_text())
+    observations = []
+    for agent, reward in (("oracle", 1.0), ("nop", 0.0)):
+        for index in range(3):
+            execution_id = f"{agent}-{index}"
+            observations.append(native_control_fixture(
+                tmp_path / "setup-native" / execution_id, Path(handoff["package"]),
+                "format-code-task-001948", agent, reward,
+                failed=native_change == "setup_error" and agent == "nop" and index == 2,
+                case_evidence=not (native_change == "missing_case_evidence" and agent == "nop" and index == 2),
+            ))
+    if native_change == "relabelled_execution":
+        observations[2] = copy.deepcopy(observations[0])
+        observations[2]["execution_id"] = "oracle-2"
+    elif native_change == "false_reward":
+        observations[-1]["rewards"] = [1.0]
+    elif native_change == "wrong_config":
+        for key in ("config_path", "config_sha256"):
+            observations[-1]["task_binding"][key] = observations[0]["task_binding"][key]
+    evidence_path = Path(handoff["controls"]["evidence_path"])
+    evidence_path.write_text(json.dumps({
+        "schema": "mimo-v7-native-controls/v1", "task_id": handoff["task_id"],
+        "package_digest": handoff["package_digest"], "harbor_digest": handoff["harbor_digest"],
+        "scoring_allowed": False, "controls_complete": True,
+        # Deliberately optimistic aggregates must not hide the failed cell.
+        "oracle_rewards": [1, 1, 1], "nop_rewards": [0, 0, 0], "observations": observations,
+        "wrong_and_valid_alternate_gate": "pending_comprehensive_QA_inventory",
+    }))
+    handoff["controls"]["evidence_sha256"] = sha(evidence_path.read_bytes())
+    handoff_path.write_text(json.dumps(handoff))
+    if native_change in {"relabelled_execution", "false_reward", "wrong_config"}:
+        with pytest.raises(ValueError, match="actual physical execution identity or score"):
+            driver["successor_payload"](case["frozen"], setup_handoff=handoff_path, repo_root=case["repo"])
+        return
+    payload = driver["successor_payload"](case["frozen"], setup_handoff=handoff_path, repo_root=case["repo"])
+    row = next(row for row in payload["tasks"] if row["task_id"] == "format-code-task-001948")
+    evidence = row["native_controls"]
+    selected = evidence["selected_package"]
+    assert evidence["reported_setup_controls"]["source"] == driver["fingerprint"](evidence_path)
+    assert evidence["reported_setup_controls"]["handoff_hash_bound"] is True
+    assert selected["measured_reference_rewards"] == [1, 1, 1]
+    incomplete = native_change in {"setup_error", "missing_case_evidence"}
+    assert selected["measured_nop_rewards"] == ([0, 0] if incomplete else [0, 0, 0])
+    assert ("native_nop_0_0_0" in selected["missing"]) is incomplete
+    assert selected["status"] == "pending"
+    assert "adjudicated_wrong_inventory_and_exact_digest_zero_outcomes" in selected["missing"]
+    assert "admitted_correct_inventory_and_exact_digest_accepted_outcomes" in selected["missing"]
+    assert "independent_verifier_pass" in selected["missing"]
+    assert payload["scoring_allowed"] is False and payload["independent_verifier"]["status"] == "pending"
+    if native_change is None:
+        case_log = Path(observations[0]["result_path"]).parent / "verifier/test_output.log"
+        case_log.write_text("2 passed in 0.01s\n")
+        with pytest.raises(ValueError, match="successor manifest differs"):
+            driver["validate_successor"](
+                payload, case["frozen"], setup_handoff=handoff_path, repo_root=case["repo"],
+            )
+
+
+@pytest.mark.parametrize("fault", [
+    None, "single_run", "missing_cases", "oracle_exit", "unfinished_agent", "failed_process",
+    "conflicting_primary_reward", "repeat_index", "partial_pair", "duplicate_uuid", "duplicate_role",
+    "unselected_package", "outside_cohort", "repaired_selection",
+])
+def test_successor_fresh_baseline_pairs_require_native_repeat3_and_selected_frozen_identity(
+    driver, successor_case, tmp_path: Path, fault,
+) -> None:
+    case = successor_case
+    task_id = "format-code-task-001948" if fault == "repaired_selection" else case["membership"][0]
+    package = case["packages"][task_id]
+    if fault == "outside_cohort":
+        task_id = "format-code-task-999999"
+    elif fault == "unselected_package":
+        package = Path(shutil.copytree(package, tmp_path / "different-submission"))
+        (package / "solution/solve.sh").write_text("printf 'not the frozen reference submission\\n'\n")
+    observations = [
+        native_control_fixture(
+            tmp_path / "baseline-native" / agent, package, task_id, agent, reward,
+            repeats=1 if fault == "single_run" and agent == "oracle" else 3,
+            failed=fault == "failed_process" and agent == "oracle",
+            case_evidence=not (fault == "missing_cases" and agent == "oracle"),
+        )
+        for agent, reward in (("oracle", 1.0), ("nop", 0.0))
+    ]
+    oracle = Path(observations[0]["result_path"])
+    if fault == "oracle_exit":
+        (oracle.parent / "agent/exit-code.txt").write_text("1\n")
+    elif fault in {"unfinished_agent", "conflicting_primary_reward"}:
+        result = json.loads(oracle.read_text())
+        if fault == "unfinished_agent":
+            result["agent_execution"]["finished_at"] = None
+        else:
+            result["verifier_result"]["rewards"]["reward"] = 0.0
+        oracle.write_text(json.dumps(result))
+    elif fault == "repeat_index":
+        path = oracle.parent / "verifier/stability.json"
+        stability = json.loads(path.read_text())
+        stability["runs"][2]["index"] = 1
+        path.write_text(json.dumps(stability))
+    elif fault == "partial_pair":
+        observations.pop()
+    elif fault == "duplicate_uuid":
+        path = Path(observations[1]["result_path"])
+        result = json.loads(path.read_text())
+        result["id"] = observations[0]["execution_id"]
+        path.write_text(json.dumps(result))
+    elif fault == "duplicate_role":
+        observations.append(native_control_fixture(
+            tmp_path / "baseline-native/extra-oracle", package, task_id, "oracle", 1.0, repeats=3,
+        ))
+    metadata = tuple(Path(observation["metadata_path"]) for observation in observations)
+    options = {"repo_root": case["repo"], "native_control_metadata": metadata}
+    if fault == "repaired_selection":
+        options["setup_handoff"] = case["setup"]()
+    if fault is not None:
+        with pytest.raises(ValueError):
+            driver["successor_payload"](case["frozen"], **options)
+        return
+    original = driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+    before = {path.name: path.read_bytes() for path in case["frozen"].iterdir()}
+    payload = driver["successor_payload"](case["frozen"], **options)
+    row = next(row for row in payload["tasks"] if row["task_id"] == task_id)
+    previous = next(row for row in original["tasks"] if row["task_id"] == task_id)
+    evidence, selected = row["native_controls"], row["native_controls"]["selected_package"]
+    assert row["evaluation_target"] == previous["evaluation_target"]
+    assert evidence["retained_frozen_v6"] == previous["native_controls"]["retained_frozen_v6"]
+    assert selected["observation_indexes"] == []
+    assert selected["measurement_source"] == "reported_baseline_controls"
+    assert selected["measured_reference_rewards"] == [1.0, 1.0, 1.0]
+    assert selected["measured_nop_rewards"] == [0.0, 0.0, 0.0]
+    assert selected["missing"] == [
+        "adjudicated_wrong_inventory_and_exact_digest_zero_outcomes",
+        "admitted_correct_inventory_and_exact_digest_accepted_outcomes",
+        "independent_verifier_pass",
+    ]
+    assert payload["heldout"] == original["heldout"] and payload["scoring_allowed"] is False
+    assert payload["freeze_ready"] is False and payload["independent_verifier"]["status"] == "pending"
+    assert {path.name: path.read_bytes() for path in case["frozen"].iterdir()} == before
+    driver["validate_successor"](payload, case["frozen"], **options)
+    case_log = oracle.parent / "verifier/repeat/0/test_output.log"
+    case_log.write_text("2 passed in 0.01s\n")
+    with pytest.raises(ValueError, match="successor manifest differs"):
+        driver["validate_successor"](payload, case["frozen"], **options)

@@ -1,16 +1,16 @@
-"""Modal environments for the lab.
+"""Native Modal environments with separate setup and task interpreter scopes.
 
-``RegradeModalEnvironment`` serves paid snapshot regrades (``harbor
-trial regrade``): that path takes ``--env`` but no
-``--environment-kwarg``, so the two settings every lab Modal run passes
-as kwargs (:func:`evallab.execution_contracts.build_command`) are fixed
-by the class — the ``persistent_env`` PATH pin
-(:data:`evallab.execution_contracts.MODAL_PATH_PIN`), so the verifier's
-setup runs under the image's /usr/bin interpreter, as on Docker, and a
-bounded sandbox lifetime (Harbor's default is a billable 24 hours,
-which a dead controller would otherwise leave running). Import through
-``evallab.harbor_modal:RegradeModalEnvironment``; the regrade path
-admits it only under a :class:`evallab.regrade.CloudSpendGate`.
+``TaskModalEnvironment`` leaves the image/task PATH intact for agent commands
+and tests. Only the benign environment setup healthcheck uses the helper PATH.
+For a bundled separate verifier, startup runs the unchanged clean setup before
+Harbor seeds agent artifacts. Its ready marker makes the verifier's later
+setup call a no-op, so tests can use their original interpreter/dependencies.
+No hidden tests are uploaded to the agent environment.
+
+``RegradeModalEnvironment`` inherits that startup boundary and bounds sandbox
+lifetime. ``harbor trial regrade`` has no ``--environment-kwarg`` option, so
+the class supplies the bound; the lab admits it only under a
+:class:`evallab.regrade.CloudSpendGate`.
 
 ``LockedModalEnvironment`` records the applied agent-phase egress lock:
 Harbor's ``ModalEnvironment`` enforces per-phase outbound policies at
@@ -30,13 +30,15 @@ says ``applied: false``. Nothing is fabricated from spec intent.
 from __future__ import annotations
 
 import json
+import shlex
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from harbor.environments.modal import ModalEnvironment  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import MODAL_PATH_PIN
+from evallab.separate_verifier import MIMO_STATE_DIR, V2_GRADE_DIR, V2_SETUP_SUBDIR
 
 #: Longest a regrade's verifier sandbox may live: the MiMo verifier timeout
 #: (2,100 s) plus artifact upload and teardown margin.
@@ -51,15 +53,88 @@ MODAL_LOCK_MECHANISM = "modal-agent-phase-outbound-allowlist"
 _RESTRICTIVE_MODES = frozenset({"no-network", "allowlist"})
 
 
-class RegradeModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
-    """Harbor's native Modal environment with the lab's PATH pin and lifetime bound."""
+_TESTS_DIR = "/tests"
+_SETUP_BUNDLE_NAME = PurePosixPath(V2_SETUP_SUBDIR).name
+
+
+def _verifier_setup_command() -> str:
+    """Run the existing setup bundle, restoring tests even when setup fails.
+
+    The bundle wipes /tests and /logs. This runs during native environment
+    startup, before Harbor restores any submitted files or artifacts. Its
+    backup stays in the verifier-only grade directory, never in the agent.
+    """
+    return f"""set -eu
+tests={shlex.quote(_TESTS_DIR)}
+state={shlex.quote(MIMO_STATE_DIR)}
+grade={shlex.quote(V2_GRADE_DIR)}
+mkdir -p "$state" "$grade"
+backup=$(mktemp -d "$grade/modal-tests.XXXXXX")
+cp -a "$tests/." "$backup/"
+trap 'status=$?; rm -rf "$tests"; cp -a "$backup/." "$tests" || exit 1; rm -rf "$backup"; exit "$status"' EXIT
+cp -a "$backup/{_SETUP_BUNDLE_NAME}/." "$state/"
+bash "$state/setup.sh"
+test -f "$state/ready"
+echo "modal setup: ready marker observed"
+"""
+
+
+class TaskModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
+    """Harbor Modal with a modern setup interpreter, not a global PATH pin."""
+
+    async def run_healthcheck(self, healthcheck: Any = None) -> None:
+        # The readable environment setup is benign; do not inspect or stage
+        # sibling tests/ to prepare an agent sandbox. Per-step overrides and
+        # ordinary healthchecks without this setup contract keep task PATH.
+        if healthcheck is not None or not (
+            self.environment_dir / "setup" / "setup.sh"
+        ).is_file():
+            await super().run_healthcheck(healthcheck)
+            return
+        with self.scoped_exec_env({"PATH": MODAL_PATH_PIN}):
+            await super().run_healthcheck(healthcheck)
+
+    async def start(self, force_build: bool) -> None:
+        await super().start(force_build)
+        # Harbor 0.24 disables environment-dir upload for dedicated verifier
+        # images. Only that environment may consume the bundled clean setup;
+        # the primary environment never reads/uploads the hidden tests.
+        if self._enable_environment_dir_upload or not (
+            self.environment_dir / _SETUP_BUNDLE_NAME / "setup.sh"
+        ).is_file():
+            return
+        with self.scoped_exec_env({"PATH": MODAL_PATH_PIN}):
+            result = await self.exec(
+                _verifier_setup_command(),
+                timeout_sec=self._sandbox_timeout,
+                user="root",
+            )
+        # test.sh reopens its own setup.log on each repeat. Keep the actual
+        # bootstrap stdout/stderr outside verifier/ so those reruns cannot
+        # erase the cleanup and ready-marker evidence.
+        setup_log = (
+            Path(self.trial_paths.trial_dir) / f"modal-setup-{self.session_id}.log"
+        )
+        setup_log.parent.mkdir(parents=True, exist_ok=True)
+        setup_log.write_text(
+            (result.stdout or "")
+            + (result.stderr or "")
+            + f"\nmodal setup: return_code={result.return_code}\n"
+        )
+        if result.return_code != 0:
+            raise RuntimeError(
+                f"Modal verifier setup failed (exit {result.return_code}); see {setup_log}"
+            )
+
+
+class RegradeModalEnvironment(TaskModalEnvironment):
+    """Native setup/task interpreter separation with a bounded regrade lifetime."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["sandbox_timeout_secs"] = min(
             int(kwargs.get("sandbox_timeout_secs", REGRADE_SANDBOX_TIMEOUT_SECS)),
             REGRADE_SANDBOX_TIMEOUT_SECS,
         )
-        kwargs["persistent_env"] = {**(kwargs.get("persistent_env") or {}), "PATH": MODAL_PATH_PIN}
         super().__init__(*args, **kwargs)
 
 
@@ -80,7 +155,7 @@ def _parse_lock_flag(value: Any) -> bool:
     return bool(value)
 
 
-class LockedModalEnvironment(ModalEnvironment):  # ty: ignore[unresolved-import]
+class LockedModalEnvironment(TaskModalEnvironment):
     """Modal environment that records the applied egress policy."""
 
     def __init__(

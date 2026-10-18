@@ -1072,6 +1072,11 @@ def static_observation(task: AuditTask) -> AuditObservation:
     )
 
 
+def history_git_paths(task: AuditTask) -> tuple[str, ...]:
+    """The upstream image may already retain Git outside its worktree."""
+    return ("/var/lib/mimo/git-hidden",)
+
+
 def _fresh_routing_label(task: AuditTask, observation: AuditObservation) -> str | None:
     facts = observation.facts
     if (
@@ -1140,4 +1145,5 @@ def finalize_record(record: AuditRecord) -> AuditRecord:
 __all__ = [
     "recognizes_dataset", "recognizes_task", "normalize_task_id", "task_aliases",
     "task_page_name", "task_evidence", "read_stored_audit", "finalize_record", "static_observation",
+    "history_git_paths",
 ]

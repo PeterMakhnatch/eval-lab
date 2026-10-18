@@ -23,13 +23,12 @@ defensive branch the instruction never asks for, so read ``dropped.patch``.
 Blocks are the smallest unit: a single block that the tests only half need is
 ``hack mutate``'s job.
 
-Grading uses local Docker, no model and no network. Each grade starts a fresh
-container from a snapshot taken right after the task's own setup, so build
-output never carries from one grade to the next, and setup runs once per task
-instead of once per subset (a Harbor trial per subset, as ``hack mutate`` runs,
-repeats image build and setup every time). Supported packages are raw MiMo
-code tasks: ``environment/setup/setup.sh`` plus ``tests/test.sh`` grading the
-working tree in place.
+Grading defaults to local Docker; Modal is explicit and spend-gated. Each grade
+starts fresh from a snapshot taken after task setup, so build output never
+carries between grades and setup runs once per task. Raw MiMo code packages
+grade their working tree in place. Separate-verifier Harbor packages derive
+the reference from their oracle and upload only artifacts into fresh verifiers.
+``--plan`` inspects local package bytes without constructing either backend.
 
 QA Agent - Trace, T0: ``trace`` compares a passing trial's
 ``verifier/agent.diff`` with the task report. A pass whose diff leaves every
@@ -46,6 +45,7 @@ import difflib
 import hashlib
 import io
 import json
+import math
 import re
 import subprocess
 import sys
@@ -62,6 +62,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from evallab.execution_contracts import MODAL_PATH_PIN
+from evallab.regrade import (
+    MODAL_USD_PER_ALLOCATION_UNIT,
+    CloudSpendGate,
+    SpendCapReached,
+    lab_harbor_problem,
+    modal_resource_blocker,
+)
 from evallab.verifier_mutation import Mutant, generate_mutants, select_mutants
 
 SCHEMA_REPORT = "evallab.ref_subset.report/v1"
@@ -371,7 +378,9 @@ class Package:
         image = environment.get("docker_image")
         setup = path / "environment" / "setup" / "setup.sh"
         if not image or not test_sh.is_file() or not setup.is_file():
-            if verifier.get("environment_mode") == "separate":
+            if verifier.get("environment_mode") == "separate" or (
+                verifier.get("environment_mode") is None and verifier.get("environment") is not None
+            ):
                 return cls._load_separate(path, config, environment, verifier)
             raise ValueError(
                 f"{path}: neither a raw MiMo code package ([environment].docker_image, "
@@ -429,6 +438,36 @@ class Package:
             # Host-templated values (``${VAR}``) are secrets Harbor resolves on the host: skipped.
             tuple((str(k), str(v)) for k, v in sorted(env.items()) if "${" not in str(v)),
         )  # fmt: skip
+
+
+def modal_execution_bound(
+    *, max_grades: int = DEFAULT_MAX_GRADES, mutants: int = 0, separate: bool = True
+) -> int:
+    """Conservative reservation count, including image preparation and reads.
+
+    Native creation retains its two-attempt retry: both attempts reserve before
+    entering the provider boundary, even when the second attempt is unused.
+    Raw MiMo uses one preparation sandbox; separate tasks use an oracle and a
+    pristine verifier template. Each preparation also reserves image work.
+    Reads share those sandboxes, and each grade clones the native snapshot.
+    """
+    return (6 if separate else 3) + 2 * (max(4, max_grades) + max(0, mutants))
+
+
+def _check_environment(
+    environment: str, spend_gate: CloudSpendGate | None, *, lanes: int = 1
+) -> None:
+    if environment not in {"docker", "modal"}:
+        raise ValueError("ref-subset environment must be docker or modal")
+    maximum = 16 if environment == "modal" else 2
+    if not 1 <= lanes <= maximum:
+        raise ValueError(f"{environment} ref-subset lanes must be between 1 and {maximum}")
+    if environment == "modal":
+        if spend_gate is None:
+            raise ValueError("Modal ref-subset requires recorded approval and a USD spend gate")
+        problem = lab_harbor_problem()
+        if problem is not None:
+            raise ValueError(f"Refusing Modal ref-subset: {problem}")
 
 
 @dataclass
@@ -506,7 +545,9 @@ class Sandbox:
             setup = self.package.path / "environment" / "setup"
             _check(_docker("exec", self.name, "mkdir", "-p", "/var/lib/mimo"), "mkdir")
             _check(_docker("cp", f"{setup}/.", f"{self.name}:/var/lib/mimo/"), "copy setup")
-            result = _docker("exec", *_PATH_PIN, self.name, "bash", "/var/lib/mimo/setup.sh", timeout=timeout)
+            result = _docker(
+                "exec", *_PATH_PIN, self.name, "bash", "/var/lib/mimo/setup.sh", timeout=timeout
+            )
             _check(result, "task setup")
             _check(
                 _docker("cp", f"{self.package.path / 'tests'}/.", f"{self.name}:/tests/"),
@@ -612,7 +653,9 @@ def _verify(
 ) -> Grade:
     """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
-        result = _docker("exec", *_PATH_PIN, *exec_options, name, "bash", "/tests/test.sh", timeout=timeout)
+        result = _docker(
+            "exec", *_PATH_PIN, *exec_options, name, "bash", "/tests/test.sh", timeout=timeout
+        )
     except subprocess.TimeoutExpired:
         return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
     raw = _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
@@ -1141,6 +1184,8 @@ def probe_task(
     grade_timeout: float = 1_800,
     oracle_timeout: float = 3_600,
     mutants: int = 0,
+    environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
     """Probe one task and write report.json, finding.json and the patches to ``out_dir``.
@@ -1150,12 +1195,23 @@ def probe_task(
     ``mutants`` > 0 adds the line-level pass (:func:`mutation_pass`): ``report["mutants"]``,
     ``finding-mutants.json`` and one reproducer per survivor in ``mutants/``.
     """
+    _check_environment(environment, spend_gate)
+    if environment == "modal" and mutants < 0:
+        raise ValueError("Modal mutant count must be nonnegative")
     out_dir.mkdir(parents=True, exist_ok=True)
     started = _now()
     try:
         package = Package.load(package_dir)
     except UnsupportedTask as exc:
-        return _write_skipped(package_dir.name, package_dir, out_dir, "not_applicable", str(exc))
+        return _write_skipped(
+            package_dir.name,
+            package_dir,
+            out_dir,
+            "not_applicable",
+            str(exc),
+            environment=environment,
+            spend_gate=spend_gate,
+        )
     if package.separate == (patch_path is not None):
         raise ValueError(
             f"{package_dir}: a separate-verifier task derives its reference from its oracle (no --patch)"
@@ -1163,18 +1219,18 @@ def probe_task(
             else f"{package_dir}: a MiMo package needs its reference --patch"
         )
     patch = patch_path.read_text() if patch_path is not None else ""
-    sandbox: Sandbox | SeparateSandbox = (
-        SeparateSandbox(package, memory=memory, oracle_timeout=oracle_timeout)
-        if package.separate
-        else Sandbox(package, memory=memory)
-    )
+    sandbox: Any | None = None
+    modal_sandbox = None
+    separate_sandbox: SeparateSandbox | None = None
+    raw_sandbox: Sandbox | None = None
     if package.verifier_timeout:
         grade_timeout = min(grade_timeout, package.verifier_timeout)
     head: dict[str, Any] = {
         "schema": SCHEMA_REPORT,
+        "backend": environment,
         "package": str(package_dir),
         "package_digest": _package_digest(package_dir),
-        "image": sandbox.image if isinstance(sandbox, SeparateSandbox) else package.image,
+        "image": package.image,
         "reference": (
             {"oracle": "solution/solve.sh", "patch": str(out_dir / "reference.patch")}
             if package.separate
@@ -1198,19 +1254,51 @@ def probe_task(
     }
     grades: list[Grade] = []
     try:
-        if package.gpus:
+        if environment == "modal":
+            assert spend_gate is not None
+            problem = modal_resource_blocker(package_dir)
+            if problem is not None:
+                raise RuntimeError(problem)
+            from evallab.ref_subset_modal import ModalSandbox
+
+            modal_sandbox = ModalSandbox(
+                package,
+                spend_gate=spend_gate,
+                out_dir=out_dir / "native",
+                memory=memory,
+                oracle_timeout=oracle_timeout,
+                grade_timeout=grade_timeout,
+                build_timeout=min(1_800, oracle_timeout),
+            )
+            sandbox = modal_sandbox
+        elif package.separate:
+            separate_sandbox = SeparateSandbox(
+                package, memory=memory, oracle_timeout=oracle_timeout
+            )
+            sandbox = separate_sandbox
+            head["image"] = separate_sandbox.image
+        else:
+            raw_sandbox = Sandbox(package, memory=memory)
+            sandbox = raw_sandbox
+        if environment == "docker" and package.gpus:
             raise RuntimeError(f"the task needs {package.gpus} GPU(s); local Docker has none")
         try:
             sandbox.prepare()
-            if isinstance(sandbox, SeparateSandbox):
-                base, fixed = sandbox.reference()
+            if package.separate:
+                if modal_sandbox is not None:
+                    base, fixed = modal_sandbox.reference()
+                else:
+                    assert separate_sandbox is not None
+                    base, fixed = separate_sandbox.reference()
                 paths = list(base)
                 patch = unified_patch(base, fixed)
                 (out_dir / "reference.patch").write_text(patch)
                 head["reference"]["sha256"] = hashlib.sha256(patch.encode()).hexdigest()
             else:
                 paths = patch_paths(patch)
-                base = sandbox.read(paths)
+                reader = modal_sandbox if modal_sandbox is not None else raw_sandbox
+                assert reader is not None
+                base = reader.read(paths)
                 fixed = apply_reference(patch, base)
             changes = [
                 file_change(path, base[path], fixed[path], set(package.tests)) for path in paths
@@ -1227,6 +1315,11 @@ def probe_task(
                 log(
                     f"  {package.task_id} {label}: reward={result.reward} {result.status} {result.seconds:.0f}s"
                 )
+                if environment == "modal" and result.status != "scored":
+                    grades.append(result)
+                    raise RuntimeError(
+                        f"{label}: {result.status}; no measured reward: {result.tail[-500:]}"
+                    )
                 return result
 
             def grade(label: str, keep: set[str]) -> Grade:
@@ -1240,6 +1333,8 @@ def probe_task(
             probe = Probe(changes, grade, max_grades=max_grades, grades=grades)
             status, keep, reason = probe.run()
             report = head | summarize(package.task_id, changes, status, keep, reason, grades)
+            if environment == "modal" and status == "budget_exhausted":
+                report.update(verdict="unknown", severity=None)
             base_files = {change.path: change.base for change in changes}
             full_files = {change.path: change.fixed for change in changes}
             if report["verdict"] == "fail":
@@ -1258,15 +1353,42 @@ def probe_task(
                     target.parent.mkdir(exist_ok=True)
                     target.write_text(unified_patch(base_files, mutated))
         finally:
-            sandbox.close()
-    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:
+            if sandbox is not None:
+                sandbox.close()
+    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError, ImportError) as exc:
         report = head | {
-            "task_id": package.task_id, "status": "unavailable", "reason": str(exc)[-1_000:], "verdict": "unknown",
+            "task_id": package.task_id,
+            "status": "budget_exhausted" if isinstance(exc, SpendCapReached) else "unavailable",
+            "reason": str(exc)[-1_000:], "verdict": "unknown",
             "severity": None, "grades": [
                 {"label": g.label, "reward": g.reward, "status": g.status, "seconds": round(g.seconds, 1)} for g in grades
             ],
         }  # fmt: skip
     report["finished_at"] = _now()
+    if environment == "modal":
+        assert spend_gate is not None
+        report["execution"] = (
+            modal_sandbox.evidence() if modal_sandbox is not None else {"events": []}
+        )
+        report["spend"] = spend_gate.to_json()
+        report["reservation_bound"] = modal_execution_bound(
+            max_grades=max_grades, mutants=mutants, separate=package.separate
+        )
+        (out_dir / "run-receipt.json").write_text(
+            json.dumps(
+                {
+                    "schema": "evallab.ref_subset.run/v1",
+                    "backend": environment,
+                    "tasks": [package.task_id],
+                    "spend": report["spend"],
+                    "reservation_policy": "estimates include unused native retry attempts; not a provider billing hard kill",
+                    "finished_at": report["finished_at"],
+                },
+                indent=1,
+                sort_keys=True,
+            )
+            + "\n"
+        )
     (out_dir / "grades.log").write_text(
         "".join(
             f"== {g.label} reward={g.reward} rc={g.rc} {g.status} {g.seconds:.1f}s\n{g.tail}\n"
@@ -1301,21 +1423,24 @@ def _package_digest(path: Path) -> str | None:
 class Job:
     task_id: str
     package: Path
-    patch: Path
+    patch: Path | None
     image: str
 
 
 def load_jobs(index: Path, tasks_root: Path, order: Sequence[str] = ()) -> list[Job]:
     jobs: list[Job] = []
     for row in csv.DictReader(index.open()):
-        if row.get("label") != "oracle:pass+nop:fail" or not row.get("patch_path"):
+        if row.get("label") != "oracle:pass+nop:fail":
             continue
         package = tasks_root / row["task_id"]
         try:
-            image = Package.load(package).image
+            loaded = Package.load(package)
+            image, separate = loaded.image, loaded.separate
         except (OSError, ValueError, tomllib.TOMLDecodeError):
-            image = ""
-        jobs.append(Job(row["task_id"], package, Path(row["patch_path"]), image))
+            image, separate = "", False
+        patch = Path(row["patch_path"]) if row.get("patch_path") else None
+        if patch is not None or separate:
+            jobs.append(Job(row["task_id"], package, None if separate else patch, image))
     rank = {task: i for i, task in enumerate(order)}
     return sorted(jobs, key=lambda job: (rank.get(job.task_id, len(rank)), job.task_id))
 
@@ -1399,41 +1524,71 @@ def sweep(
     max_grades: int,
     memory: str,
     mutants: int = 0,
+    environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
     log: Callable[[str], None] = print,
 ) -> list[dict[str, Any]]:
     """Probe each job (resumable). Without the line-level pass, tasks with fewer than two code
     blocks skip Docker; with it, a one-block fix is exactly where it looks."""
+    _check_environment(environment, spend_gate, lanes=lanes)
+    if environment == "modal" and mutants < 0:
+        raise ValueError("Modal mutant count must be nonnegative")
     todo = [job for job in jobs if not (out_root / job.task_id / "report.json").is_file()]
     log(
         f"ref-subset sweep: {len(jobs)} tasks, {len(jobs) - len(todo)} already reported, {len(todo)} to run"
     )
-    docker_jobs: list[Job] = []
+    execution_jobs: list[Job] = []
     reports: list[dict[str, Any]] = []
     for job in todo:
         out_dir = out_root / job.task_id
-        if not job.image:
+        try:
+            package = Package.load(job.package)
+            if not package.separate and job.patch is None:
+                raise ValueError("a raw MiMo package needs a reference patch")
+            blocks = (
+                patch_code_blocks(job.patch.read_text(errors="replace"), package.tests)
+                if job.patch is not None and not package.separate
+                else None
+            )
+        except (OSError, ValueError) as exc:
             reports.append(
                 _write_skipped(
-                    job.task_id, job.package, out_dir, "unavailable", "package has no docker_image"
+                    job.task_id,
+                    job.package,
+                    out_dir,
+                    "unavailable",
+                    str(exc),
+                    environment=environment,
+                    spend_gate=spend_gate,
                 )
             )
             continue
-        tests = Package.load(job.package).tests
-        blocks = patch_code_blocks(job.patch.read_text(errors="replace"), tests)
-        if blocks < 2 and not mutants:
+        if blocks is not None and blocks < 2 and not mutants:
             reason = f"{blocks} code change run(s) in the reference patch: no proper subset to try"
             reports.append(
-                _write_skipped(job.task_id, job.package, out_dir, "not_applicable", reason)
+                _write_skipped(
+                    job.task_id,
+                    job.package,
+                    out_dir,
+                    "not_applicable",
+                    reason,
+                    environment=environment,
+                    spend_gate=spend_gate,
+                )
             )
         else:
-            docker_jobs.append(job)
-    log(f"ref-subset sweep: {len(docker_jobs)} need Docker, {len(reports)} recorded without it")
-    cache = ImageCache(docker_jobs, lanes + ahead)
-    threading.Thread(target=cache.prefetch, daemon=True).start()
+            execution_jobs.append(job)
+    log(
+        f"ref-subset sweep: {len(execution_jobs)} need {environment}, {len(reports)} recorded without it"
+    )
+    cache = None
+    if environment == "docker":
+        cache = ImageCache([job for job in execution_jobs if job.image], lanes + ahead)
+        threading.Thread(target=cache.prefetch, daemon=True).start()
 
     def one(job: Job) -> dict[str, Any]:
         out_dir = out_root / job.task_id
-        error = cache.wait(job.image)
+        error = cache.wait(job.image) if cache is not None and job.image else None
         try:
             if error:
                 return _write_skipped(
@@ -1441,27 +1596,58 @@ def sweep(
                 )
             report = probe_task(
                 job.package, job.patch, out_dir, max_grades=max_grades, memory=memory,
-                mutants=mutants, log=log,
+                mutants=mutants, environment=environment, spend_gate=spend_gate, log=log,
             )  # fmt: skip
             log(
                 f"{job.task_id}: {report['status']} verdict={report['verdict']} kept={report.get('kept_fraction')}"
             )
             return report
         finally:
-            cache.release(job.image)
+            if cache is not None and job.image:
+                cache.release(job.image)
 
     with ThreadPoolExecutor(max_workers=lanes) as pool:
-        return reports + list(pool.map(one, docker_jobs))
+        reports += list(pool.map(one, execution_jobs))
+    if environment == "modal":
+        assert spend_gate is not None
+        out_root.mkdir(parents=True, exist_ok=True)
+        (out_root / "run-receipt.json").write_text(
+            json.dumps(
+                {
+                    "schema": "evallab.ref_subset.run/v1",
+                    "backend": environment,
+                    "tasks": [job.task_id for job in jobs],
+                    "lanes": lanes,
+                    "spend": spend_gate.to_json(),
+                    "reservation_policy": "estimates include unused native retry attempts; not a provider billing hard kill",
+                    "finished_at": _now(),
+                },
+                indent=1,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+    return reports
 
 
 def _write_skipped(
-    task_id: str, package: Path, out_dir: Path, status: Status, reason: str
+    task_id: str,
+    package: Path,
+    out_dir: Path,
+    status: Status,
+    reason: str,
+    *,
+    environment: str = "docker",
+    spend_gate: CloudSpendGate | None = None,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     report = {
         "schema": SCHEMA_REPORT, "task_id": task_id, "package": str(package), "status": status,
         "reason": reason, "verdict": "unknown", "severity": None, "finished_at": _now(),
+        "backend": environment, "package_digest": _package_digest(package),
     }  # fmt: skip
+    if spend_gate is not None:
+        report["spend"] = spend_gate.to_json()
     (out_dir / "report.json").write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")
     (out_dir / "finding.json").write_text(
         json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
@@ -1653,8 +1839,150 @@ def trace_check(trial_dir: Path, report: dict[str, Any] | None) -> dict[str, Any
 # CLI
 
 
+def _reservation_estimate(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("reservation estimate must be positive and finite")
+    return number
+
+
+def _spend_cap(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError("USD cap must be nonnegative and finite")
+    return number
+
+
+def _add_environment_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--environment", choices=("docker", "modal"), default="docker")
+    parser.add_argument("--plan", action="store_true", help="$0 local plan; construct no backend")
+    parser.add_argument(
+        "--max-usd", type=_spend_cap, help="Modal reservation cap, not a provider billing hard kill"
+    )
+    parser.add_argument(
+        "--approve", help="Recorded approval text; required for real Modal execution"
+    )
+    parser.add_argument(
+        "--usd-per-execution",
+        type=_reservation_estimate,
+        default=MODAL_USD_PER_ALLOCATION_UNIT,
+        help="Positive finite reservation estimate per image work/native creation attempt "
+        "(default: %(default)s)",
+    )
+
+
+def _command_spend_gate(args: argparse.Namespace) -> CloudSpendGate | None:
+    maximum = 16 if args.environment == "modal" else 2
+    if not 1 <= getattr(args, "lanes", 1) <= maximum:
+        raise ValueError(f"{args.environment} ref-subset lanes must be between 1 and {maximum}")
+    if args.environment == "docker":
+        return None
+    if args.mutants < 0:
+        raise ValueError("Modal mutant count must be nonnegative")
+    if not args.approve or not args.approve.strip() or args.max_usd is None:
+        raise ValueError("real Modal execution requires --approve TEXT and --max-usd USD")
+    return CloudSpendGate(args.approve, args.max_usd, args.usd_per_execution)
+
+
+def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool) -> int:
+    """Read only local package/index/report bytes. No runtime/backend imports."""
+    tasks: list[dict[str, Any]] = []
+    refusals: list[str] = []
+    maximum = 16 if args.environment == "modal" else 2
+    lanes = getattr(args, "lanes", 1)
+    if not 1 <= lanes <= maximum:
+        refusals.append(f"{args.environment} lanes must be between 1 and {maximum}")
+    if args.environment == "modal" and args.mutants < 0:
+        refusals.append("Modal mutant count must be nonnegative")
+    for job in jobs:
+        item: dict[str, Any] = {
+            "task_id": job.task_id,
+            "package": str(job.package),
+            "package_digest": _package_digest(job.package),
+            "reservation_units_upper_bound": 0,
+        }
+        try:
+            package = Package.load(job.package)
+            item["package_type"] = "separate-verifier" if package.separate else "raw-mimo"
+            if package.separate == (job.patch is not None):
+                raise ValueError(
+                    "separate-verifier reference comes from its oracle, not --patch"
+                    if package.separate
+                    else "raw MiMo package requires --patch"
+                )
+            if job.patch is not None:
+                raw = job.patch.read_bytes()
+                item["reference"] = {
+                    "path": str(job.patch),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                }
+            else:
+                item["reference"] = {"oracle": "solution/solve.sh"}
+            if args.environment == "modal":
+                problem = modal_resource_blocker(job.package)
+                if problem is not None:
+                    raise ValueError(problem)
+            resumed = sweep_mode and (args.output_dir / job.task_id / "report.json").is_file()
+            blocks = (
+                patch_code_blocks(raw.decode(errors="replace"), package.tests)
+                if sweep_mode and job.patch is not None
+                else None
+            )
+            skip = resumed or (blocks is not None and blocks < 2 and not args.mutants)
+            item["action"] = "resume_skip" if resumed else "not_applicable" if skip else "probe"
+            if not skip and args.environment == "modal":
+                item["reservation_units_upper_bound"] = modal_execution_bound(
+                    max_grades=args.max_grades, mutants=args.mutants, separate=package.separate
+                )
+        except (OSError, ValueError) as exc:
+            item.update(action="refused", reason=str(exc))
+            refusals.append(f"{job.task_id}: {exc}")
+        tasks.append(item)
+    units = sum(item["reservation_units_upper_bound"] for item in tasks)
+    estimate = units * args.usd_per_execution
+    fits = args.max_usd is None or estimate <= args.max_usd + 1e-9
+    if args.environment == "modal":
+        if args.max_usd is None:
+            refusals.append("real Modal execution requires --max-usd")
+        elif not fits:
+            refusals.append(
+                "conservative reservation estimate exceeds --max-usd; execution would stop at the gate"
+            )
+        if not args.approve or not args.approve.strip():
+            refusals.append("real Modal execution requires recorded --approve text")
+    plan = {
+        "schema": "evallab.ref_subset.plan/v1",
+        "backend": args.environment,
+        "plan_only": True,
+        "plan_cost_usd": 0.0,
+        "executed": False,
+        "lanes": lanes,
+        "tasks": tasks,
+        "reservation_units_upper_bound": units,
+        "usd_per_execution": args.usd_per_execution,
+        "estimated_reservation_usd": estimate,
+        "max_usd": args.max_usd,
+        "fits_cap": fits if args.max_usd is not None else None,
+        "approval": args.approve,
+        "execution_refused": bool(refusals),
+        "refusals": refusals,
+        "reservation_policy": "includes image work and both potential native creation attempts; estimates, not a provider billing hard kill",
+    }
+    print(json.dumps(plan, indent=1, sort_keys=True))
+    return 0
+
+
 def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
     del root, harbor
+    if args.plan:
+        return _plan_command(
+            args, [Job(args.package.name, args.package, args.patch, "")], sweep_mode=False
+        )
+    try:
+        spend_gate = _command_spend_gate(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     report = probe_task(
         args.package,
         args.patch,
@@ -1663,6 +1991,8 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
         memory=args.memory,
         oracle_timeout=args.oracle_timeout,
         mutants=args.mutants,
+        environment=args.environment,
+        spend_gate=spend_gate,
     )
     print(
         json.dumps(
@@ -1672,7 +2002,10 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
             }
         )
     )
-    return 0 if report["status"] != "unavailable" else 1
+    return int(
+        report["status"] == "unavailable"
+        or (args.environment == "modal" and report["status"] == "budget_exhausted")
+    )
 
 
 def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
@@ -1683,7 +2016,14 @@ def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         jobs = [job for job in jobs if job.task_id in set(args.task)]
     if args.limit:
         jobs = jobs[: args.limit]
-    sweep(
+    if args.plan:
+        return _plan_command(args, jobs, sweep_mode=True)
+    try:
+        spend_gate = _command_spend_gate(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    reports = sweep(
         jobs,
         args.output_dir,
         lanes=args.lanes,
@@ -1691,9 +2031,14 @@ def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         max_grades=args.max_grades,
         memory=args.memory,
         mutants=args.mutants,
+        environment=args.environment,
+        spend_gate=spend_gate,
     )
     print(json.dumps(collect(args.output_dir), indent=1))
-    return 0
+    return int(
+        args.environment == "modal"
+        and any(report["status"] in {"unavailable", "budget_exhausted"} for report in reports)
+    )
 
 
 def _trace_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
@@ -1721,7 +2066,7 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
     parser = hack_commands.add_parser(
         "ref-subset",
         help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
-        "tests (local Docker, free)",
+        "tests (Docker by default; explicitly approved Modal)",
     )
     commands = parser.add_subparsers(dest="ref_subset_command", required=True)
     run = commands.add_parser(
@@ -1741,8 +2086,12 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
         help="Line-level pass: grade up to N one-edit mutants of the lines the reference wrote",
     )
     run.add_argument(
-        "--oracle-timeout", type=float, default=3_600, help="Seconds for solution/solve.sh"
+        "--oracle-timeout",
+        type=float,
+        default=3_600,
+        help="Seconds for solution/solve.sh; also lowers Modal image/setup timeout below 1800s",
     )
+    _add_environment_options(run)
     run.set_defaults(func=_run_command)
     many = commands.add_parser(
         "sweep", help="Probe every oracle:pass+nop:fail row of a reference-fix index"
@@ -1760,11 +2109,14 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
     many.add_argument("--order", type=Path, help="JSON list of task ids to run first, in order")
     many.add_argument("--task", action="append", default=[])
     many.add_argument("--limit", type=int)
-    many.add_argument("--lanes", type=int, default=1, choices=(1, 2))
+    many.add_argument(
+        "--lanes", type=int, default=1, choices=range(1, 17), help="Docker: 1-2; Modal: 1-16"
+    )
     many.add_argument("--ahead", type=int, default=1, help="Images pulled ahead of the lanes")
     many.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
     many.add_argument("--memory", default="4g")
     many.add_argument("--mutants", type=int, default=0, help="Line-level pass per task (see run)")
+    _add_environment_options(many)
     many.set_defaults(func=_sweep_command)
     trace = commands.add_parser(
         "trace", help="QA Trace T0: flag passes that skip the untested reference blocks"

@@ -49,6 +49,30 @@ eval-lab commit, proxy version) is written only after the bind succeeds; a
 `ProvenanceMetadata`-compatible digest (`provenance.json`) is written at
 close — stop with SIGINT/SIGTERM, not SIGKILL, so the close path runs.
 
+Normalized `usage` is a complete
+`{"prompt_tokens": int, "completion_tokens": int}` pair or `null`, not a
+quota or billing record. `prompt_tokens` includes all observed input:
+
+- OpenAI Chat/Responses totals already include cached input; cache-detail
+  counters are subsets and are not added again.
+- Anthropic totals are `input_tokens + cache_read_input_tokens +
+  cache_creation_input_tokens`. Nested cache-creation TTL counters are
+  subsets, not additional input.
+
+Counters must be explicit nonnegative integers, not booleans. Missing or
+invalid Anthropic cache counters leave the normalized pair unknown; absence
+is not zero. For Anthropic SSE, a `message_delta` output counter must be
+observed: the provisional `message_start` output does not establish final
+usage. Cumulative updates replace earlier values rather than being summed;
+an explicit final zero remains a valid zero. The retained response body
+preserves the original provider breakdown.
+
+This normalization applies to newly extracted responses. Existing capture
+records are immutable: `link` projects their stored `usage` and does not
+re-extract it. Correcting historical metrics requires a separately identified
+derived extraction from the retained source bodies, not overwriting capture
+records or simply rerunning `link`.
+
 Ports: concurrent servers each bind their own free port by default
 (`--port 0`). An explicit `--port` pins one port and fails with `EADDRINUSE`
 before any round dispatch when taken, writing no manifest and no `calls.jsonl`.

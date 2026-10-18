@@ -21,7 +21,7 @@ inputs:
   - path: docs/WHERE-DOES-THIS-GO.md
     digest: sha256:f8c26556e4f54b6a10c85ac1c40243ecfe58da776e4da6561b197ac9d28782a1
   - path: docs/agent-analysis.md
-    digest: sha256:e490de090539722b445fb03f342254afe39f6109a39f5d6cb73fce3146ea8b89
+    digest: sha256:99c451170f28362141ded90e689f8a28bf4605b7bf49f75c0c100a7c6bde25e3
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
@@ -43,7 +43,7 @@ inputs:
   - path: docs/catalog-tables.md
     digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
   - path: docs/context-packs.md
-    digest: sha256:d509838f870be51f616190cd2bfa754b30cf0fc0d9882913d6c081f8e6b8cd6e
+    digest: sha256:a5d8abe608dc3f0060230eda8d041ce021ce4aa38cf144c04a5aa0fc2e515905
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:aef1041ec83125a0fa45b8f9a65f3d3b33dbfcd70ce21369168f6f15c93895ca
+    digest: sha256:7c3834d4a0d5ddffeedf75bef8557a2d4fcf10f329613281239bfd0bd7c5d616
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -71,7 +71,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:980c624b20169ec8018f96feee54560a55d6df46972257f9d89ee10edd0a720f
+    digest: sha256:c4f9565e949b3023bac928912df2d5171572d7ece4e0999e8da2a57604813a7b
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -83,11 +83,11 @@ inputs:
   - path: docs/live-watch.md
     digest: sha256:69ae54ed1300d0266bbf5d5191e9ebc3dd59097e1ad93520c769fb32e28a0bf6
   - path: docs/lora-sft-runbook.md
-    digest: sha256:87ceb1f12903e146aab6453375445f403aef93fbe0ef5fbdefc652d3684c490d
+    digest: sha256:bba903af259ce884eec34123692962b7006defd14d054e5caec6e6b826cc3f7f
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
-    digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
+    digest: sha256:4266e7a61de35f666b8ded9a2510d3c694786583b5c61d1cf17f46c12b5d3bb2
   - path: docs/model-defaults.md
     digest: sha256:405093d29c78f0f422e895abe055988952fb14f297d8c75fc0a2b46f3ab10adf
   - path: docs/monitor-investigations.md
@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:cd9ad31ea0d0386172edbf9bb765f8467648948d1a3060ac5d67e812a1753109
   - path: docs/qa-task.md
-    digest: sha256:dbf506cba0d2a9dd99a26c50213bb6a0c13b561fc9d3522e33d9be67b4e6ca48
+    digest: sha256:9e342e858ef409c658f5d251eccaaba7bc158d2383b2a19d06ce248f651fc161
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -125,7 +125,7 @@ inputs:
   - path: docs/research/trajectory-intelligence.md
     digest: sha256:bb52ffc71923ab06175dbe300d266ba22574796dc14d5a547971b0b4654a3a34
   - path: docs/rollout.md
-    digest: sha256:3f1d7e1d419cce64add4750b28c8801a53f14c4dd2c9272dcfd1bd610bdc9dba
+    digest: sha256:478b97b1ff840eb80549057203e5626209a4475c14c69aac9caf04fcf6298daf
   - path: docs/run-explorer.md
     digest: sha256:b4c7af92923d44df2db79f5c92fd8b47d451a8f048bb4b98a3132da2e2ebbfb1
   - path: docs/scaling.md
@@ -139,13 +139,13 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:623833b7cf628a5f9ee23bc452a35ac228a654af450ba7f38728258f81f8e6f6
+    digest: sha256:7a34828fa7a2747b1686f12d68ae9b1f8b10d64df720854a84907ad909b5dc89
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
     digest: sha256:66ce5bd404a04d6ce58b4dd034ab549e5abcff50d94239abf8876cedfbf59bab
   - path: docs/task-variants.md
-    digest: sha256:5ea28f4117b0165490d4afad50526027dcb452fb0a89a162de30527eeae17d3f
+    digest: sha256:f330876569c151ebb69f11a5fa1e2050f0eb62027f7b46a5f474c4166d99ae48
   - path: docs/task-workbench.md
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md

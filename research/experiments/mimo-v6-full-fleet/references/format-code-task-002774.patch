@@ -1,0 +1,93 @@
+diff --git a/funcy/colls.py b/funcy/colls.py
+index 08fce08..4c466fb 100644
+--- a/funcy/colls.py
++++ b/funcy/colls.py
+@@ -1,4 +1,5 @@
+ from builtins import all as _all, any as _any
++from copy import copy
+ from operator import itemgetter, methodcaller, attrgetter
+ from itertools import chain, tee
+ from collections import defaultdict
+@@ -16,7 +17,8 @@ __all__ = ['empty', 'iteritems', 'itervalues',
+            'split_keys', 'compact',
+            'is_distinct', 'all', 'any', 'none', 'one', 'some',
+            'zipdict', 'flip', 'project', 'omit', 'zip_values', 'zip_dicts',
+-           'where', 'pluck', 'pluck_attr', 'invoke', 'lwhere', 'lpluck', 'lpluck_attr', 'linvoke']
++           'where', 'pluck', 'pluck_attr', 'invoke', 'lwhere', 'lpluck', 'lpluck_attr', 'linvoke',
++           'get_in', 'get_lax', 'set_in', 'update_in', 'del_in', 'has_path']
+ 
+ 
+ ### Generic ops
+@@ -266,6 +268,72 @@ def zip_dicts(*dicts):
+     for key in keys:
+         yield key, tuple(d[key] for d in dicts)
+ 
++def get_in(coll, path, default=None):
++    """Returns a value at path in the given nested collection."""
++    for key in path:
++        try:
++            coll = coll[key]
++        except (KeyError, IndexError):
++            return default
++    return coll
++
++def get_lax(coll, path, default=None):
++    """Returns a value at path in the given nested collection.
++       Does not raise on a wrong collection type along the way, returns default instead.
++    """
++    for key in path:
++        try:
++            coll = coll[key]
++        except (KeyError, IndexError, TypeError):
++            return default
++    return coll
++
++def set_in(coll, path, value):
++    """Creates a copy of coll with the value set at path."""
++    return update_in(coll, path, lambda _: value)
++
++def update_in(coll, path, update, default=None):
++    """Creates a copy of coll with a value updated at path."""
++    if not path:
++        return update(coll)
++    elif isinstance(coll, list):
++        copy = coll[:]
++        # NOTE: there is no auto-vivication for lists
++        copy[path[0]] = update_in(copy[path[0]], path[1:], update, default)
++        return copy
++    else:
++        copy = coll.copy()
++        current_default = {} if len(path) > 1 else default
++        copy[path[0]] = update_in(copy.get(path[0], current_default), path[1:], update, default)
++        return copy
++
++
++def del_in(coll, path):
++    """Creates a copy of coll with a nested key or index deleted."""
++    if not path:
++        return coll
++    try:
++        next_coll = coll[path[0]]
++    except (KeyError, IndexError):
++        return coll
++
++    coll_copy = copy(coll)
++    if len(path) == 1:
++        del coll_copy[path[0]]
++    else:
++        coll_copy[path[0]] = del_in(next_coll, path[1:])
++    return coll_copy
++
++
++def has_path(coll, path):
++    """Checks if path exists in the given nested collection."""
++    for p in path:
++        try:
++            coll = coll[p]
++        except (KeyError, IndexError):
++            return False
++    return True
++
+ def lwhere(mappings, **cond):
+     """Selects mappings containing all pairs in cond."""
+     return list(where(mappings, **cond))

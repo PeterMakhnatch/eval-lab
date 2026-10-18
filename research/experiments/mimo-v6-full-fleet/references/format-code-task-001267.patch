@@ -1,0 +1,43 @@
+diff --git a/redash/controllers.py b/redash/controllers.py
+index aa668fa3..955257f3 100644
+--- a/redash/controllers.py
++++ b/redash/controllers.py
+@@ -276,6 +276,14 @@ api.add_resource(WidgetListAPI, '/api/widgets', endpoint='widgets')
+ api.add_resource(WidgetAPI, '/api/widgets/<int:widget_id>', endpoint='widget')
+ 
+ 
++class QuerySearchAPI(BaseResource):
++    @require_permission('view_query')
++    def get(self):
++        term = request.args.get('q', '')
++
++        return [q.to_dict() for q in models.Query.search(term)]
++
++
+ class QueryListAPI(BaseResource):
+     @require_permission('create_query')
+     def post(self):
+@@ -324,6 +332,7 @@ class QueryAPI(BaseResource):
+         else:
+             abort(404, message="Query not found.")
+ 
++api.add_resource(QuerySearchAPI, '/api/queries/search', endpoint='queries_search')
+ api.add_resource(QueryListAPI, '/api/queries', endpoint='queries')
+ api.add_resource(QueryAPI, '/api/queries/<query_id>', endpoint='query')
+ 
+diff --git a/redash/models.py b/redash/models.py
+index edc952fa..4969c17d 100644
+--- a/redash/models.py
++++ b/redash/models.py
+@@ -348,6 +348,11 @@ class Query(BaseModel):
+ 
+         return queries
+ 
++    @classmethod
++    def search(cls, term):
++        # This is very naive implementation of search, to be replaced with PostgreSQL full-text-search solution.
++        return cls.select().where((cls.name**"%{}%".format(term)) | (cls.description**"%{}%".format(term)))
++
+     @classmethod
+     def update_instance(cls, query_id, **kwargs):
+         if 'query' in kwargs:

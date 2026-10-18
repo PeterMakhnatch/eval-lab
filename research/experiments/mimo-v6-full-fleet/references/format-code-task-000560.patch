@@ -1,0 +1,209 @@
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index 0f6f64a..c86d18e 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -54,7 +54,7 @@ jobs:
+           pip install -r requirements.txt -r requirements-test.txt
+       - name: Test with flake8
+         run: |
+-          ruff --config=pyproject.toml bimmer_connected
++          ruff check --config=pyproject.toml bimmer_connected
+ 
+   black:
+     runs-on: ubuntu-latest
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 1646abc..c5d827e 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -1,12 +1,12 @@
+ repos:
+   - repo: https://github.com/charliermarsh/ruff-pre-commit
+-    rev: v0.1.14
++    rev: v0.4.5
+     hooks:
+       - id: ruff
+         args:
+           - --fix
+   - repo: https://github.com/psf/black
+-    rev: 23.12.1
++    rev: 24.4.2
+     hooks:
+       - id: black
+         args:
+@@ -14,7 +14,7 @@ repos:
+           - --quiet
+         files: ^(bimmer_connected/.+)?[^/]+\.py$
+   - repo: https://github.com/codespell-project/codespell
+-    rev: v2.2.6
++    rev: v2.3.0
+     hooks:
+       - id: codespell
+         args:
+@@ -24,7 +24,7 @@ repos:
+         exclude_types: [csv, json]
+         exclude: ^test/responses/
+   - repo: https://github.com/pre-commit/mirrors-mypy
+-    rev: v1.8.0
++    rev: v1.10.0
+     hooks: 
+       - id: mypy
+         name: mypy
+diff --git a/bimmer_connected/utils.py b/bimmer_connected/utils.py
+index 454c72a..3db1439 100644
+--- a/bimmer_connected/utils.py
++++ b/bimmer_connected/utils.py
+@@ -5,7 +5,6 @@ import inspect
+ import json
+ import logging
+ import pathlib
+-import time
+ from enum import Enum
+ from typing import TYPE_CHECKING, Dict, List, Optional, Union
+ 
+@@ -37,13 +36,8 @@ def parse_datetime(date_str: str) -> Optional[datetime.datetime]:
+     date_formats = ["%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"]
+     for date_format in date_formats:
+         try:
+-            # Parse datetimes using `time.strptime` to allow running in some embedded python interpreters.
+-            # https://bugs.python.org/issue27400
+-            time_struct = time.strptime(date_str, date_format)
+-            parsed = datetime.datetime(*(time_struct[0:6]))
+-            if time_struct.tm_gmtoff and time_struct.tm_gmtoff != 0:
+-                parsed = parsed - datetime.timedelta(seconds=time_struct.tm_gmtoff)
+-            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
++            parsed = datetime.datetime.strptime(date_str, date_format)
++            parsed = parsed.replace(microsecond=0)
+             return parsed
+         except ValueError:
+             pass
+@@ -51,6 +45,19 @@ def parse_datetime(date_str: str) -> Optional[datetime.datetime]:
+     return None
+ 
+ 
++def get_next_occurrence(now: datetime.datetime, time: datetime.time) -> datetime.datetime:
++    """Get the next occurrence of a given time."""
++
++    # If current time is past the given time, add one day to the current date
++    if now.time() > time:
++        next_date = now.date() + datetime.timedelta(days=1)
++    # If current time is before the given time, use the current date
++    else:
++        next_date = now.date()
++    next_occurrence = datetime.datetime.combine(next_date, time)
++    return next_occurrence
++
++
+ class MyBMWJSONEncoder(json.JSONEncoder):
+     """JSON Encoder that handles data classes, properties and additional data types."""
+ 
+diff --git a/bimmer_connected/vehicle/climate.py b/bimmer_connected/vehicle/climate.py
+index fd09feb..7ef76e3 100644
+--- a/bimmer_connected/vehicle/climate.py
++++ b/bimmer_connected/vehicle/climate.py
+@@ -44,7 +44,7 @@ class Climate(VehicleDataBase):
+             retval["activity"] = ClimateActivityState(climate_control_state["activity"])
+             retval["activity_end_time"] = (
+                 (
+-                    datetime.datetime.now(datetime.timezone.utc)
++                    vehicle_data["fetched_at"]
+                     + datetime.timedelta(seconds=int(climate_control_state["remainingSeconds"]))
+                 )
+                 if "remainingSeconds" in climate_control_state
+diff --git a/bimmer_connected/vehicle/fuel_and_battery.py b/bimmer_connected/vehicle/fuel_and_battery.py
+index 629cb69..dbcc382 100644
+--- a/bimmer_connected/vehicle/fuel_and_battery.py
++++ b/bimmer_connected/vehicle/fuel_and_battery.py
+@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
+ 
+ from bimmer_connected.const import ATTR_ATTRIBUTES, ATTR_STATE
+ from bimmer_connected.models import StrEnum, ValueWithUnit, VehicleDataBase
++from bimmer_connected.utils import get_next_occurrence
+ from bimmer_connected.vehicle.const import COMBUSTION_ENGINE_DRIVE_TRAINS, HV_BATTERY_DRIVE_TRAINS, DriveTrainType
+ 
+ _LOGGER = logging.getLogger(__name__)
+@@ -56,7 +57,7 @@ class FuelAndBattery(VehicleDataBase):
+     """Charging state of the vehicle."""
+ 
+     charging_start_time: Optional[datetime.datetime] = None
+-    """The planned time the vehicle will start charging in UTC."""
++    """The planned time the vehicle will start charging in local time."""
+ 
+     charging_end_time: Optional[datetime.datetime] = None
+     """The estimated time the vehicle will have finished charging."""
+@@ -165,10 +166,9 @@ class FuelAndBattery(VehicleDataBase):
+             retval["charging_target"] = int(electric_data["chargingTarget"])
+ 
+         if retval["charging_status"] == ChargingState.WAITING_FOR_CHARGING and isinstance(charging_window, Dict):
+-            retval["charging_start_time"] = datetime.datetime.combine(
+-                datetime.datetime.now(datetime.timezone.utc).date(),
++            retval["charging_start_time"] = get_next_occurrence(
++                datetime.datetime.now(),
+                 datetime.time(int(charging_window["start"]["hour"]), int(charging_window["start"]["minute"])),
+-                tzinfo=datetime.timezone.utc,
+             )
+ 
+         return retval
+diff --git a/bimmer_connected/vehicle/vehicle.py b/bimmer_connected/vehicle/vehicle.py
+index f5aea2e..62841c3 100644
+--- a/bimmer_connected/vehicle/vehicle.py
++++ b/bimmer_connected/vehicle/vehicle.py
+@@ -146,7 +146,7 @@ class MyBMWVehicle:
+         vehicle_data = self.combine_data(data, fetched_at)
+         self.data = vehicle_data
+ 
+-        update_entities: List[Tuple[Type["VehicleDataBase"], str]] = [
++        update_entities: List[Tuple[Type[VehicleDataBase], str]] = [
+             (FuelAndBattery, "fuel_and_battery"),
+             (VehicleLocation, "vehicle_location"),
+             (DoorsAndWindows, "doors_and_windows"),
+@@ -162,7 +162,7 @@ class MyBMWVehicle:
+                 if getattr(self, vehicle_attribute) is None:
+                     setattr(self, vehicle_attribute, cls.from_vehicle_data(vehicle_data))
+                 else:
+-                    curr_attr: "VehicleDataBase" = getattr(self, vehicle_attribute)
++                    curr_attr: VehicleDataBase = getattr(self, vehicle_attribute)
+                     curr_attr.update_from_vehicle_data(vehicle_data)
+             except (KeyError, TypeError) as ex:
+                 _LOGGER.warning("Unable to update %s - (%s) %s", vehicle_attribute, type(ex).__name__, ex)
+diff --git a/pyproject.toml b/pyproject.toml
+index 7cc304d..e3f411e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -16,6 +16,11 @@ enable_error_code = "ignore-without-code"
+ target-version = "py38"
+ line-length = 120
+ 
++exclude = [
++    "bimmer_connected/coord_convert.py",
++]
++
++[tool.ruff.lint]
+ select = [
+     "C",  # complexity
+     "D",  # docstrings
+@@ -37,13 +42,9 @@ ignore = [
+     "D107", # Missing docstring in `__init__`
+ ]
+ 
+-exclude = [
+-    "bimmer_connected/coord_convert.py",
+-]
+-
+ [tool.ruff.lint.per-file-ignores]
+ "docs/source/conf.py" = ["D100"]
+ "bimmer_connected/api/authentication.py" = ["D102", "D107"]
+ 
+-[tool.ruff.mccabe]
++[tool.ruff.lint.mccabe]
+ max-complexity = 25
+\ No newline at end of file
+diff --git a/setup.py b/setup.py
+index 481f098..98e7aff 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1,4 +1,5 @@
+ """Python package description."""
++
+ from setuptools import setup
+ 
+ setup(

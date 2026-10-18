@@ -1,0 +1,93 @@
+diff --git a/packages/jobs/lib/processor/processor.ts b/packages/jobs/lib/processor/processor.ts
+index 2a2255dbf..ce029af9b 100644
+--- a/packages/jobs/lib/processor/processor.ts
++++ b/packages/jobs/lib/processor/processor.ts
+@@ -17,28 +17,28 @@ export class Processor {
+         try {
+             const syncWorker = new ProcessorWorker({
+                 orchestratorUrl: this.orchestratorServiceUrl,
+-                groupKey: 'sync',
++                groupKey: 'sync*',
+                 maxConcurrency: 200
+             });
+             syncWorker.start();
+ 
+             const actionWorker = new ProcessorWorker({
+                 orchestratorUrl: this.orchestratorServiceUrl,
+-                groupKey: 'action',
++                groupKey: 'action*',
+                 maxConcurrency: 200
+             });
+             actionWorker.start();
+ 
+             const webhookWorker = new ProcessorWorker({
+                 orchestratorUrl: this.orchestratorServiceUrl,
+-                groupKey: 'webhook',
++                groupKey: 'webhook*',
+                 maxConcurrency: 50
+             });
+             webhookWorker.start();
+ 
+             const onEventWorker = new ProcessorWorker({
+                 orchestratorUrl: this.orchestratorServiceUrl,
+-                groupKey: 'on-event',
++                groupKey: 'on-event*',
+                 maxConcurrency: 50
+             });
+             onEventWorker.start();
+diff --git a/packages/jobs/lib/processor/processor.worker.ts b/packages/jobs/lib/processor/processor.worker.ts
+index 2ecc20518..825d354dc 100644
+--- a/packages/jobs/lib/processor/processor.worker.ts
++++ b/packages/jobs/lib/processor/processor.worker.ts
+@@ -3,7 +3,6 @@ import type { MessagePort } from 'node:worker_threads';
+ import { Worker, isMainThread } from 'node:worker_threads';
+ import { getLogger, stringifyError } from '@nangohq/utils';
+ import { OrchestratorClient, OrchestratorProcessor } from '@nangohq/nango-orchestrator';
+-import type { TaskType } from '@nangohq/nango-orchestrator';
+ import { handler } from './handler.js';
+ import tracer from 'dd-trace';
+ 
+@@ -11,7 +10,7 @@ const logger = getLogger('jobs.processor.worker');
+ 
+ export class ProcessorWorker {
+     private worker: Worker | null;
+-    constructor({ orchestratorUrl, groupKey, maxConcurrency }: { orchestratorUrl: string; groupKey: TaskType; maxConcurrency: number }) {
++    constructor({ orchestratorUrl, groupKey, maxConcurrency }: { orchestratorUrl: string; groupKey: string; maxConcurrency: number }) {
+         if (isMainThread) {
+             const url = new URL('../../dist/processor/processor.worker.boot.js', import.meta.url);
+             if (!fs.existsSync(url)) {
+diff --git a/packages/scheduler/lib/models/tasks.ts b/packages/scheduler/lib/models/tasks.ts
+index 1035118d3..3b34a5202 100644
+--- a/packages/scheduler/lib/models/tasks.ts
++++ b/packages/scheduler/lib/models/tasks.ts
+@@ -231,6 +231,7 @@ export async function transitionState(
+ 
+ export async function dequeue(db: knex.Knex, { groupKey, limit }: { groupKey: string; limit: number }): Promise<Result<Task[]>> {
+     try {
++        const groupKeyPattern = groupKey.replace(/\*/g, '%');
+         const tasks = await db
+             .update({
+                 state: 'STARTED',
+@@ -242,7 +243,8 @@ export async function dequeue(db: knex.Knex, { groupKey, limit }: { groupKey: st
+                 db
+                     .select('id')
+                     .from<DbTask>(TASKS_TABLE)
+-                    .where({ group_key: groupKey, state: 'CREATED' })
++                    .where('state', 'CREATED')
++                    .whereLike('group_key', groupKeyPattern)
+                     .where('starts_after', '<=', db.fn.now())
+                     .orderBy('id')
+                     .limit(limit)
+diff --git a/packages/scheduler/lib/scheduler.ts b/packages/scheduler/lib/scheduler.ts
+index 42d62beb7..796882c7d 100644
+--- a/packages/scheduler/lib/scheduler.ts
++++ b/packages/scheduler/lib/scheduler.ts
+@@ -218,7 +218,7 @@ export class Scheduler {
+ 
+     /**
+      * Dequeue tasks
+-     * @param groupKey - Group key
++     * @param groupKey - Group key or group key pattern (e.g. 'myGroupKey*')
+      * @param limit - Limit
+      * @returns Task[]
+      * @example

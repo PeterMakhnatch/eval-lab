@@ -11,6 +11,9 @@ from __future__ import annotations
 import base64
 import csv
 import hashlib
+import json
+import os
+import shutil
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -846,6 +849,32 @@ def test_run_cli_build_v6_writes_manifest(
     loaded = load_manifest(tmp_path / "out" / "manifest-v6.csv")
     assert loaded[0]["status"] == STATUS_BUILT
     assert loaded[0]["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
+    sidecar = tmp_path / "out" / "manifest-v6.lineage.json"
+    before = sidecar.read_bytes()
+    index = json.loads(before)
+    assert index["schema"] == "evallab.mimo_clean_lineage/v1"
+    assert index["manifest_sha256"] == (
+        "sha256:" + hashlib.sha256((tmp_path / "out" / "manifest-v6.csv").read_bytes()).hexdigest()
+    )
+    assert [entry["task_id"] for entry in index["tasks"]] == [TASK_ID]
+    entry = index["tasks"][0]
+    assert entry["root"]["digest"] == task_directory_digest(package)
+    assert entry["final_digest"] == loaded[0]["final_digest"]
+    assert len(entry["canonical_records"]) == len(entry["records"]) == 6
+    for proof in entry["records"]:
+        assert "files" not in proof
+        assert proof["record_sha256"] == (
+            "sha256:" + hashlib.sha256((tmp_path / proof["record"]).read_bytes()).hexdigest()
+        )
+    assert run_cli(
+        [
+            "mimo-clean", "build", "--clean-version", "mimo-clean-v6",
+            "--tasks", TASK_ID, "--ledger", "ledger.csv", "--sweep", "sweep.csv",
+            "--manifest", "out/manifest-v6.csv", "--workers", "1",
+        ],
+        workspace=tmp_path,
+    ) == 0
+    assert sidecar.read_bytes() == before
 
 
 def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -865,6 +894,28 @@ def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     ]
     row = result.manifest_row()
     assert row["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
+    from evallab.registry import harbor_task_digest
+    from evallab.task_variants import materialize, resolve_record
+
+    assert result.lineage["canonical_records"] == [
+        proof["record"] for proof in result.lineage["records"]
+    ]
+    current = package
+    for transform, proof in zip(result.chain, result.lineage["records"], strict=True):
+        record = resolve_record(proof["record"], repo_root=tmp_path)
+        assert record.transform == transform
+        assert record.parent.digest == task_directory_digest(current)
+        assert record.parent.harbor_digest == harbor_task_digest(current)
+        assert record.status == "candidate" and record.evidence == []
+        assert proof["record_sha256"] == (
+            "sha256:" + hashlib.sha256((tmp_path / proof["record"]).read_bytes()).hexdigest()
+        )
+        current = materialize(
+            record, current, repo_root=tmp_path, variants_root=tmp_path / "replayed"
+        )
+        assert task_directory_digest(current) == record.variant_digest
+        assert harbor_task_digest(current) == record.variant_harbor_digest
+    assert task_directory_digest(current) == result.final_digest
 
 
 def test_build_v6_snapshot_chain_end_to_end(tmp_path: Path) -> None:
@@ -883,6 +934,8 @@ def test_build_v6_snapshot_chain_end_to_end(tmp_path: Path) -> None:
         SEPARATE_V10_ID,
         AGENT_NETWORK_NONE_ID,
     ]
+    assert len(result.lineage["canonical_records"]) == len(result.lineage["records"]) == 5
+    assert PURGE_V2_ID not in [proof["transform"] for proof in result.lineage["records"]]
 
 
 def test_build_v6_node_fold_task_keeps_cache_v5(tmp_path: Path) -> None:
@@ -902,6 +955,287 @@ def test_build_v6_node_fold_task_keeps_cache_v5(tmp_path: Path) -> None:
         SEPARATE_V10_ID,
         AGENT_NETWORK_NONE_ID,
     ]
+
+
+def _shared_store_state(store: Path) -> dict[str, tuple[int, int, int, bytes | None]]:
+    return {
+        path.relative_to(store).as_posix(): (
+            path.stat().st_ino,
+            path.stat().st_mtime_ns,
+            path.stat().st_ctime_ns,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in [store, *sorted(store.rglob("*"))]
+    }
+
+
+def test_v6_missing_records_adopt_cached_bytes_without_shared_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.task_variants import append_status_evidence, resolve_record
+
+    package = _write_run_package(tmp_path, TASK_ID)
+    row = _row(package, TASK_ID)
+    first = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert first.status == STATUS_BUILT
+    kept = tmp_path / first.lineage["canonical_records"][-1]
+    append_status_evidence(
+        kept, "validated", by="unit-test", evidence="temp-owned exact-digest control fixture",
+        repo_root=tmp_path,
+    )
+    kept_bytes = kept.read_bytes()
+    for reference in first.lineage["canonical_records"][:-1]:
+        (tmp_path / reference).unlink()
+    store = tmp_path / "store"
+    state = _shared_store_state(store)
+    rename = os.rename
+
+    def forbid_shared_rename(source, destination, *args, **kwargs):
+        if Path(source).is_relative_to(store) or Path(destination).is_relative_to(store):
+            raise AssertionError("shared cached packages must not be renamed")
+        return rename(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rename", forbid_shared_rename)
+    rebuilt = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert rebuilt.status == STATUS_BUILT
+    assert rebuilt.final_digest == first.final_digest
+    assert _shared_store_state(store) == state
+    assert kept.read_bytes() == kept_bytes
+    assert rebuilt.verify == VERIFY_UNVERIFIED
+    for reference in rebuilt.lineage["canonical_records"][:-1]:
+        record = resolve_record(reference, repo_root=tmp_path)
+        assert record.status == "candidate" and record.evidence == []
+
+
+def test_v6_wrong_input_record_cannot_win_cached_orphan_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.task_variants import resolve_record
+
+    package = _write_run_package(tmp_path, TASK_ID)
+    row = _row(package, TASK_ID)
+    first = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert first.status == STATUS_BUILT
+    correct_path = tmp_path / first.lineage["canonical_records"][-2]
+    correct = resolve_record(correct_path, repo_root=tmp_path)
+    parent = tmp_path / "store" / correct.task_slug / correct.parent.digest.removeprefix("sha256:")[:12]
+    wrong = mimo_clean.derive_separate_verifier_v10(
+        parent, marker="wrong_hidden_test_marker",
+        parent_source=correct.parent.source.model_dump(exclude_none=True),
+        repo_root=tmp_path, variants_root=tmp_path / "store",
+    )
+    wrong_path = tmp_path / wrong.record_relpath()
+    wrong_bytes = wrong_path.read_bytes()
+    correct_path.unlink()  # Correct package remains; only a wrong-input record is available.
+    state = _shared_store_state(tmp_path / "store")
+    rebuilt = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert rebuilt.status == STATUS_BUILT
+    assert rebuilt.final_digest == first.final_digest
+    assert correct_path.as_posix() == (tmp_path / rebuilt.lineage["canonical_records"][-2]).as_posix()
+    assert _shared_store_state(tmp_path / "store") == state
+    assert wrong_path.read_bytes() == wrong_bytes
+
+    def unexpected_derive(*args, **kwargs):
+        raise AssertionError("the matching cached variant should be selected among both input variants")
+
+    monkeypatch.setattr(mimo_clean, "derive_separate_verifier_v10", unexpected_derive)
+    cached = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert cached.status == STATUS_BUILT
+    assert cached.final_digest == first.final_digest
+
+
+def test_v6_unchanged_nonpython_legacy_record_requires_real_rederivation(
+    tmp_path: Path,
+) -> None:
+    from evallab.task_variants import append_status_evidence, resolve_record
+
+    task_id = "format-code-task-000045"
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    first = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(task_id)
+    assert first.status == STATUS_BUILT
+    path = tmp_path / first.lineage["canonical_records"][-2]
+    payload = json.loads(path.read_bytes())
+    del payload["inputs"]["setup_python_path"]
+    del payload["inputs"]["wrapper_sha256"]
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    append_status_evidence(
+        path, "validated", by="unit-test", evidence="temp-owned unchanged-endpoint control fixture",
+        repo_root=tmp_path,
+    )
+    original = path.read_bytes()
+    state = _shared_store_state(tmp_path / "store")
+    rebuilt = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(task_id)
+    assert rebuilt.status == STATUS_BUILT
+    assert rebuilt.final_digest == first.final_digest
+    assert path.read_bytes() == original
+    assert _shared_store_state(tmp_path / "store") == state
+    record = resolve_record(path, repo_root=tmp_path)
+    assert "setup_python_path" not in record.inputs and "wrapper_sha256" not in record.inputs
+    assert record.status == "validated" and len(record.evidence) == 1
+    proof = next(proof for proof in rebuilt.lineage["records"] if proof["transform"] == SEPARATE_V10_ID)
+    assert proof["rederivation"]["setup_python_path"] == ""
+    assert proof["rederivation"]["wrapper_sha256"].removeprefix("sha256:") == hashlib.sha256(
+        (_final(tmp_path, rebuilt) / "tests" / "test.sh").read_bytes()
+    ).hexdigest()
+    assert rebuilt.verify == VERIFY_UNVERIFIED
+
+
+def test_v6_wrong_wrapper_diagnostic_is_not_metadata_only_equivalence(tmp_path: Path) -> None:
+    task_id = "format-code-task-000045"
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    first = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(task_id)
+    assert first.status == STATUS_BUILT
+    path = tmp_path / first.lineage["canonical_records"][-2]
+    payload = json.loads(path.read_bytes())
+    payload["inputs"]["wrapper_sha256"] = "sha256:" + "0" * 64
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    original = path.read_bytes()
+    rebuilt = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(task_id)
+    assert rebuilt.status == STATUS_SKIPPED
+    assert "different inputs or provenance" in rebuilt.reason
+    assert rebuilt.final_digest == "" and rebuilt.lineage == {}
+    assert path.read_bytes() == original
+
+
+def _write_repaired_stripped_root(tmp_path: Path, *, prestrip_repair: bool = False):
+    from evallab.task_variants import derive_task
+
+    original = _write_run_package(tmp_path, TASK_ID)
+    source = {**mimo_clean.HF_SOURCE, "path": f"tasks/{TASK_ID}"}
+    if prestrip_repair:
+        prerequisite = derive_task(
+            original, changes={"instruction.md": b"baseline repaired instructions\n"},
+            transform="synthetic-base-repair@1",
+            rationale="temp-owned prerequisite repair fixture", created_by="unit-test",
+            parent_source=source, repo_root=tmp_path, variants_root=tmp_path / "store",
+        )
+        original = tmp_path / "store" / prerequisite.task_slug / prerequisite.digest12
+        source = {"kind": "variant", "record": prerequisite.record_relpath().as_posix()}
+    stripped = mimo_clean.derive_strip_future_history(
+        original, repo_root=tmp_path, variants_root=tmp_path / "store",
+        parent_source=source,
+    )
+    stripped_package = tmp_path / "store" / stripped.task_slug / stripped.digest12
+    repaired = derive_task(
+        stripped_package, changes={"instruction.md": b"repaired instructions\n"},
+        transform="synthetic-repair@1", rationale="temp-owned repair fixture", created_by="unit-test",
+        parent_source={"kind": "variant", "record": stripped.record_relpath().as_posix()},
+        repo_root=tmp_path, variants_root=tmp_path / mimo_clean.VARIANTS_REL,
+    )
+    package = tmp_path / mimo_clean.VARIANTS_REL / repaired.task_slug / repaired.digest12
+    return stripped, repaired, package, _row(
+        package, TASK_ID, run="repair", run_transform=repaired.transform,
+    )
+
+
+@pytest.mark.parametrize("remove_canonical_record", [False, True])
+def test_v6_preserves_root_ancestry_and_restores_missing_canonical_edge(
+    tmp_path: Path, remove_canonical_record: bool
+) -> None:
+    from evallab.registry import harbor_task_digest
+    from evallab.task_variants import resolve_record
+
+    stripped, repaired, package, row = _write_repaired_stripped_root(tmp_path)
+    if remove_canonical_record:
+        (tmp_path / stripped.record_relpath()).unlink()
+    state = _shared_store_state(tmp_path / mimo_clean.VARIANTS_REL)
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert result.status == STATUS_BUILT
+    assert result.chain == list(mimo_clean.PYTHON_CHAIN_V6)
+    assert result.lineage["canonical_records"][0] == stripped.record_relpath().as_posix()
+    assert len(result.lineage["canonical_records"]) == 6
+    assert len(result.lineage["records"]) == 7  # Includes the actual intervening repair.
+    assert result.lineage["records"][1]["record"] == repaired.record_relpath().as_posix()
+    assert result.lineage["root"] == {
+        "digest": row["run_digest"], "harbor_digest": harbor_task_digest(package),
+        "source": {"kind": "variant", "record": repaired.record_relpath().as_posix()},
+        "package_path": package.relative_to(tmp_path).as_posix(),
+    }
+    purge = resolve_record(result.lineage["canonical_records"][1], repo_root=tmp_path)
+    assert purge.parent.digest == repaired.variant_digest
+    assert purge.parent.source.record == repaired.record_relpath().as_posix()
+    assert _shared_store_state(tmp_path / mimo_clean.VARIANTS_REL) == state
+
+
+def test_v6_missing_canonical_ancestor_replays_a_missing_parent_cache(tmp_path: Path) -> None:
+    stripped, _repaired, _package, row = _write_repaired_stripped_root(
+        tmp_path, prestrip_repair=True
+    )
+    parent = tmp_path / "store" / stripped.task_slug / stripped.parent.digest.removeprefix("sha256:")[:12]
+    shutil.rmtree(parent)
+    (tmp_path / stripped.record_relpath()).unlink()
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert result.status == STATUS_BUILT
+    assert result.chain == list(mimo_clean.PYTHON_CHAIN_V6)
+    assert task_directory_digest(parent) == stripped.parent.digest
+    assert result.lineage["canonical_records"][0] == stripped.record_relpath().as_posix()
+    assert len(result.lineage["records"]) == 8
+
+
+def test_v6_missing_noncanonical_root_is_explicitly_skipped(tmp_path: Path) -> None:
+    _stripped, repaired, package, row = _write_repaired_stripped_root(tmp_path)
+    (tmp_path / repaired.record_relpath()).unlink()
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert result.status == STATUS_SKIPPED
+    assert "missing ancestor" in result.reason and "0 matching identities" in result.reason
+    assert result.final_digest == "" and result.lineage == {}
+    assert task_directory_digest(package) == row["run_digest"]
+
+
+def test_v6_invalid_ancestor_harbor_binding_cannot_be_declared_built(tmp_path: Path) -> None:
+    stripped, _repaired, _package, row = _write_repaired_stripped_root(tmp_path)
+    path = tmp_path / stripped.record_relpath()
+    payload = json.loads(path.read_bytes())
+    payload["parent"]["harbor_digest"] = "sha256:" + "f" * 64
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    original = path.read_bytes()
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(TASK_ID, row)
+    assert result.status == STATUS_SKIPPED
+    assert "parent Harbor digest mismatch" in result.reason
+    assert result.final_digest == "" and path.read_bytes() == original
+
+
+def test_v6_carry_marker_without_actual_edge_is_not_built(tmp_path: Path) -> None:
+    original = _write_run_package(tmp_path, TASK_ID)
+    isolated = tmp_path / "isolated"
+    stripped = mimo_clean.derive_strip_future_history(
+        original, repo_root=isolated, variants_root=isolated / "store",
+        parent_source={**mimo_clean.HF_SOURCE, "path": f"tasks/{TASK_ID}"},
+    )
+    shutil.rmtree(original)
+    shutil.copytree(isolated / "store" / stripped.task_slug / stripped.digest12, original)
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(
+        TASK_ID, _row(original, TASK_ID)
+    )
+    assert result.status == STATUS_SKIPPED
+    assert "carries the step without" in result.reason
+    assert result.chain == [] and result.final_digest == "" and result.lineage == {}
+
+
+@pytest.mark.parametrize(
+    ("derive_name", "transform"),
+    [
+        ("derive_purge_installed_copies_v2", PURGE_V2_ID),
+        ("derive_purge_build_caches_v4", CACHE_ACTIVE_ID),
+        ("_derive_mtime_active", MTIME_ACTIVE_ID),
+    ],
+)
+def test_v6_canonical_step_failure_cannot_build_a_shortened_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, derive_name: str, transform: str
+) -> None:
+    package = _write_run_package(tmp_path, TASK_ID)
+
+    def fail_step(*args, **kwargs):
+        raise VariantInvalid("synthetic canonical-step failure")
+
+    monkeypatch.setattr(mimo_clean, derive_name, fail_step)
+    result = _builder(tmp_path, clean_version=mimo_clean.CLEAN_SET_VERSION_V6).build_task(
+        TASK_ID, _row(package, TASK_ID)
+    )
+    assert result.status == STATUS_SKIPPED
+    assert transform not in result.chain
+    assert f"{transform} failed: synthetic canonical-step failure" == result.reason
+    assert result.final_digest == "" and result.package_path == "" and result.lineage == {}
 
 
 def test_pre848_snapshot_package_is_stale(tmp_path: Path) -> None:

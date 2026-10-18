@@ -1,0 +1,56 @@
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 482d0426c..862b4adf9 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -11,6 +11,10 @@ https://github.com/zopefoundation/Zope/blob/4.x/CHANGES.rst
+ 5.7.3 (unreleased)
+ ------------------
+ 
++- Explicitly serve ``App.Dialogs.MessageDialog`` and exception views as HTML
++  due to the changed default content type from `#1075
++  <https://github.com/zopefoundation/Zope/pull/1075>`_.
++
+ 
+ 5.7.2 (2022-12-17)
+ ------------------
+diff --git a/src/App/Dialogs.py b/src/App/Dialogs.py
+index 500d9b0ed..b5d440562 100644
+--- a/src/App/Dialogs.py
++++ b/src/App/Dialogs.py
+@@ -34,7 +34,19 @@
+ from App.special_dtml import HTML
+ 
+ 
+-MessageDialog = HTML("""
++class MessageDialogHTML(HTML):
++    """A special version of HTML which is always published as text/html
++    """
++    def __call__(self, *args, **kw):
++        class _HTMLString(str):
++            """A special string that will be published as text/html
++            """
++            def asHTML(self):
++                return self
++        return _HTMLString(super().__call__(*args, **kw))
++
++
++MessageDialog = MessageDialogHTML("""
+ <HTML>
+ <HEAD>
+ <TITLE>&dtml-title;</TITLE>
+diff --git a/src/ZPublisher/WSGIPublisher.py b/src/ZPublisher/WSGIPublisher.py
+index 7a0236c71..98cdb40ac 100644
+--- a/src/ZPublisher/WSGIPublisher.py
++++ b/src/ZPublisher/WSGIPublisher.py
+@@ -149,6 +149,11 @@ def _exc_view_created_response(exc, request, response):
+             for key, value in exc.headers.items():
+                 response.setHeader(key, value)
+ 
++        # Explicitly set the content type header if it's not there yet so
++        # the response doesn't get served with the text/plain default
++        if not response.getHeader('Content-Type'):
++            response.setHeader('Content-Type', 'text/html')
++
+         # Set the response body to the result of calling the view.
+         response.setBody(view())
+         return True

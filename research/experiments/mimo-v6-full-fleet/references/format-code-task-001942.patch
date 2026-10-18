@@ -1,0 +1,81 @@
+diff --git a/mlrun/common/schemas/api_gateway.py b/mlrun/common/schemas/api_gateway.py
+index 91bc057e4..23c7ec117 100644
+--- a/mlrun/common/schemas/api_gateway.py
++++ b/mlrun/common/schemas/api_gateway.py
+@@ -107,7 +107,7 @@ class APIGateway(_APIGatewayBaseModel):
+             self.spec.host + self.spec.path
+             if self.spec.path and self.spec.host
+             else self.spec.host
+-        )
++        ).rstrip("/")
+ 
+     def enrich_mlrun_names(self):
+         self._enrich_api_gateway_mlrun_name()
+diff --git a/mlrun/runtimes/nuclio/api_gateway.py b/mlrun/runtimes/nuclio/api_gateway.py
+index 25576c1a4..127e36d46 100644
+--- a/mlrun/runtimes/nuclio/api_gateway.py
++++ b/mlrun/runtimes/nuclio/api_gateway.py
+@@ -657,7 +657,7 @@ class APIGateway(ModelObj):
+         host = self.spec.host
+         if not self.spec.host.startswith("http"):
+             host = f"https://{self.spec.host}"
+-        return urljoin(host, self.spec.path)
++        return urljoin(host, self.spec.path).rstrip("/")
+ 
+     @staticmethod
+     def _generate_basic_auth(username: str, password: str):
+diff --git a/server/api/db/sqldb/db.py b/server/api/db/sqldb/db.py
+index 122950748..670383886 100644
+--- a/server/api/db/sqldb/db.py
++++ b/server/api/db/sqldb/db.py
+@@ -1923,29 +1923,42 @@ class SQLDB(DBInterface):
+             )
+             return
+ 
++        # remove trailing slashes from the URL
++        url = url.rstrip("/")
++
+         struct = function.struct
+         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
+-        if operation == mlrun.common.types.Operation.ADD:
++        updated = False
++        if (
++            operation == mlrun.common.types.Operation.ADD
++            and url not in existing_invocation_urls
++        ):
+             logger.debug(
+                 "Adding new external invocation url to function",
+                 project=project,
+                 name=name,
+                 url=url,
+             )
+-            if url not in existing_invocation_urls:
+-                existing_invocation_urls.append(url)
++            updated = True
++            existing_invocation_urls.append(url)
+             struct["status"]["external_invocation_urls"] = existing_invocation_urls
+-        elif operation == mlrun.common.types.Operation.REMOVE:
++        elif (
++            operation == mlrun.common.types.Operation.REMOVE
++            and url in existing_invocation_urls
++        ):
+             logger.debug(
+                 "Removing an external invocation url from function",
+                 project=project,
+                 name=name,
+                 url=url,
+             )
+-            if url in existing_invocation_urls:
+-                struct["status"]["external_invocation_urls"].remove(url)
+-        function.struct = struct
+-        self._upsert(session, [function])
++            updated = True
++            struct["status"]["external_invocation_urls"].remove(url)
++
++        # update the function record only if the external invocation URLs were updated
++        if updated:
++            function.struct = struct
++            self._upsert(session, [function])
+ 
+     def _get_function(
+         self,

@@ -1,0 +1,44 @@
+diff --git a/lib/compress.js b/lib/compress.js
+index 5879b93b..bbd3659d 100644
+--- a/lib/compress.js
++++ b/lib/compress.js
+@@ -970,6 +970,11 @@ merge(Compressor.prototype, {
+         node.DEFMETHOD("is_string", func);
+     });
+ 
++    function isLHS(node, parent) {
++        return parent instanceof AST_Unary && (parent.operator === "++" || parent.operator === "--")
++            || parent instanceof AST_Assign && parent.left === node;
++    }
++
+     function best_of(ast1, ast2) {
+         return ast1.print_to_string().length >
+             ast2.print_to_string().length
+@@ -2608,14 +2613,6 @@ merge(Compressor.prototype, {
+     });
+ 
+     OPT(AST_SymbolRef, function(self, compressor){
+-        function isLHS(symbol, parent) {
+-            return (
+-                parent instanceof AST_Binary &&
+-                parent.operator === '=' &&
+-                parent.left === symbol
+-            );
+-        }
+-
+         if (self.undeclared() && !isLHS(self, compressor.parent())) {
+             var defines = compressor.option("global_defs");
+             if (defines && HOP(defines, self.name)) {
+diff --git a/lib/scope.js b/lib/scope.js
+index 4943b568..bc5db90d 100644
+--- a/lib/scope.js
++++ b/lib/scope.js
+@@ -220,7 +220,7 @@ AST_Toplevel.DEFMETHOD("figure_out_scope", function(options){
+                 sym = g;
+             }
+             node.thedef = sym;
+-            if (parent instanceof AST_Unary && (parent.operator === '++' || parent.operator === '--')
++            if (parent instanceof AST_Unary && (parent.operator === "++" || parent.operator === "--")
+              || parent instanceof AST_Assign && parent.left === node) {
+                 sym.modified = true;
+             }

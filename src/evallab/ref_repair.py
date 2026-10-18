@@ -182,6 +182,169 @@ def load_partial_fixes(partial_fixes: Sequence[tuple[str, Path]]) -> list[Shortc
     return shortcuts
 
 
+def _supported_shortcuts(
+    report: Mapping[str, Any],
+    *,
+    report_dir: Path,
+    findings_path: Path,
+    findings_root: Path,
+) -> tuple[list[Shortcut], dict[str, Any]]:
+    """Bind canonical adjudications to recorded complete submissions, not edits."""
+    from evallab.qa.models import Finding
+
+    root = Path(findings_root).resolve()
+    report_dir = Path(report_dir).resolve()
+    findings_path = Path(findings_path).resolve()
+    try:
+        findings_bytes = findings_path.read_bytes()
+        findings = [
+            Finding.model_validate_json(line)
+            for line in findings_bytes.splitlines()
+            if line.strip()
+        ]
+    except (OSError, ValueError) as exc:
+        raise RefRepairError(f"cannot load supported findings: {exc}") from exc
+
+    def usable(grade: Mapping[str, Any], expected: float) -> bool:
+        reward = grade.get("reward")
+        return (
+            grade.get("status") == "scored"
+            and type(grade.get("rc")) is int
+            and grade["rc"] == 0
+            and not isinstance(reward, bool)
+            and isinstance(reward, int | float)
+            and reward == expected
+        )
+
+    recorded = report.get("grades")
+    if not isinstance(recorded, list):
+        raise RefRepairError("original report has no recorded controls")
+    mutants = report.get("mutants") or {}
+    if not isinstance(mutants, Mapping):
+        raise RefRepairError("invalid original line-level mutation summary")
+    survivors = mutants.get("survivors") or []
+    originals: dict[tuple[str, str], list[tuple[Path, str]]] = {}
+    survivor_hashes: dict[str, str] = {}
+    minimal = report_dir / "minimal.patch"
+    if minimal.is_file():
+        digest = hashlib.sha256(minimal.read_bytes()).hexdigest()
+        originals.setdefault(("S2.ref_subset", digest), []).append((minimal, "confirm"))
+    for survivor in survivors:
+        identifier = str(survivor["id"])
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", identifier):
+            raise RefRepairError("invalid original survivor identifier")
+        path = report_dir / "mutants" / f"{identifier}.patch"
+        if not path.is_file():
+            raise RefRepairError(f"original complete survivor patch is missing: {identifier}")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        survivor_hashes[identifier] = digest
+        originals.setdefault(("S2.ref_mutants", digest), []).append((path, f"mutant:{identifier}"))
+
+    log_path = report_dir / "grades.log"
+    log_bytes = log_path.read_bytes() if log_path.is_file() else b""
+    log_grades: dict[str, list[dict[str, Any]]] = {}
+    for match in re.finditer(
+        rb"^== (full|nop|confirm|mutant:[A-Za-z0-9_-]+) reward=(\S+) rc=(-?\d+) (\S+) \S+s$",
+        log_bytes,
+        re.MULTILINE,
+    ):
+        label, reward, rc, status = (part.decode("ascii") for part in match.groups())
+        try:
+            observation = {"label": label, "reward": float(reward), "rc": int(rc), "status": status}
+        except ValueError:
+            continue
+        log_grades.setdefault(label, []).append(observation)
+
+    def observations(label: str) -> Sequence[Mapping[str, Any]]:
+        summary = [g for g in recorded if isinstance(g, Mapping) and g.get("label") == label]
+        native = log_grades.get(label, [])
+        if len(summary) > 1 or len(native) > 1:
+            raise RefRepairError(f"ambiguous recorded observation: {label}")
+        if summary and native and any(
+            summary[0].get(field) != native[0].get(field)
+            for field in ("reward", "rc", "status")
+        ):
+            raise RefRepairError(f"report and native grade log disagree: {label}")
+        return summary or native
+
+    controls: dict[str, Mapping[str, Any]] = {}
+    for label, expected in (("full", 1.0), ("nop", 0.0)):
+        matches = observations(label)
+        if len(matches) != 1 or not usable(matches[0], expected):
+            raise RefRepairError(f"original {label} control is not a usable recorded observation")
+        controls[label] = matches[0]
+
+    task = str(report.get("task_id") or "")
+    shortcuts: dict[str, Shortcut] = {}
+    admitted_hashes: set[str] = set()
+    bindings: list[dict[str, Any]] = []
+    for finding in findings:
+        name = finding.subject.task_id.split("@", 1)[0].rsplit("/", 1)[-1]
+        if name != task:
+            continue
+        if (
+            finding.subject.kind != "task"
+            or finding.subject.task_digest != report.get("package_digest")
+            or finding.stage not in {"S2.ref_subset", "S2.ref_mutants"}
+            or finding.verdict != "fail"
+            or finding.category != "weak"
+            or finding.fault != "eval"
+            or finding.measurement != "measured"
+            or finding.refutation.status != "verified"
+            or finding.reproducer is None
+            or finding.reproducer.kind != "patch"
+            or finding.reproducer.expected_reward != 1.0
+        ):
+            raise RefRepairError("finding is not a verified passing prompt-level witness for this package")
+        supplied = Path(finding.reproducer.path)
+        if ".." in supplied.parts:
+            raise RefRepairError("supported reproducer escapes its evidence root")
+        path = (supplied if supplied.is_absolute() else root / supplied).resolve()
+        if not path.is_relative_to(root) and not path.is_relative_to(report_dir):
+            raise RefRepairError("supported reproducer escapes its evidence root")
+        try:
+            data = path.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+            patch = data.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise RefRepairError(f"cannot load supported witness patch: {exc}") from exc
+        matches = originals.get((finding.stage, digest), [])
+        if len(matches) != 1:
+            raise RefRepairError("supported witness differs from its original complete submission")
+        original, label = matches[0]
+        grades = observations(label)
+        if len(grades) != 1 or not usable(grades[0], 1.0):
+            raise RefRepairError("supported witness has no unambiguous scored passing observation")
+        if finding.id is None:
+            raise RefRepairError("supported witness has no explicit finding identity")
+        _checked_patch_paths(patch)
+        identifier = f"finding-{digest[:16]}"
+        shortcuts.setdefault(identifier, Shortcut(identifier, finding.id, patch=patch))
+        bindings.append({
+            "finding_id": finding.id, "reproducer": str(path), "original_patch": str(original),
+            "sha256": "sha256:" + digest, "recorded_grade": grades[0],
+        })
+        if finding.stage == "S2.ref_mutants":
+            admitted_hashes.add(digest)
+    if not shortcuts:
+        raise RefRepairError("no supported witnesses for this report's task")
+    provenance = {
+        "path": str(findings_path),
+        "sha256": "sha256:" + hashlib.sha256(findings_bytes).hexdigest(),
+        "repository": str(root),
+        "finding_ids": sorted({binding["finding_id"] for binding in bindings}),
+        "controls": controls,
+        "witnesses": bindings,
+        "grades_log": str(log_path) if log_bytes else None,
+        "grades_log_sha256": "sha256:" + hashlib.sha256(log_bytes).hexdigest() if log_bytes else None,
+        "unadmitted_line_survivors": sorted(
+            identifier for identifier, digest in survivor_hashes.items() if digest not in admitted_hashes
+        ),
+        "scope": "Only accepted complete witnesses are graded; the full original report is retained.",
+    }
+    return list(shortcuts.values()), provenance
+
+
 def load_ref_report(
     report_dir: Path,
     *,
@@ -256,6 +419,7 @@ class RefRepairPlan:
     shortcuts: list[Shortcut]
     context: dict[str, Any]
     prompt: str
+    allow_test_edits: bool = False
 
 
 def _bounded(text: str, limit: int) -> str:
@@ -269,13 +433,30 @@ def plan_ref_repair(
     partial_fixes: Sequence[tuple[str, Path]] = (),
     package: Path | None = None,
     reference_patch: Path | None = None,
+    allow_test_edits: bool = False,
+    supported_findings: Path | None = None,
+    findings_root: Path | None = None,
 ) -> RefRepairPlan:
     """Prepare the proposer context for one flagged task without calling a model."""
-    from evallab.verifier_repair import read_task_workdir
+    from evallab.verifier_repair import MAX_HIDDEN_TEST_BYTES, read_task_workdir
 
     report = load_ref_report(report_dir, package=package, reference_patch=reference_patch)
     package = Path(str(report["package"]))
-    shortcuts = load_shortcuts(report) + load_partial_fixes(partial_fixes)
+    if supported_findings is None:
+        if findings_root is not None:
+            raise RefRepairError("--findings-root requires --supported-findings")
+        shortcuts = load_shortcuts(report)
+        admission = None
+    else:
+        if findings_root is None:
+            raise RefRepairError("--supported-findings requires its --findings-root repository")
+        shortcuts, admission = _supported_shortcuts(
+            report,
+            report_dir=Path(report_dir),
+            findings_path=supported_findings,
+            findings_root=findings_root,
+        )
+    shortcuts += load_partial_fixes(partial_fixes)
     if not shortcuts:
         raise RefRepairError(
             f"nothing to repair: ref-subset verdict is {report.get('verdict')!r} with no "
@@ -285,10 +466,12 @@ def plan_ref_repair(
         raise RefRepairError("shortcut labels resolve to duplicate IDs; use distinct labels")
     try:
         instruction = (package / "instruction.md").read_text(encoding="utf-8")
-        test_patch = (package / "tests" / "test.patch").read_text(encoding="utf-8")
+        test_patch = (package / "tests" / "test.patch").read_bytes().decode("utf-8")
         test_command = (package / "tests" / "test_command.sh").read_text(encoding="utf-8")
     except OSError as exc:
         raise RefRepairError(f"parent package is incomplete: {exc}") from exc
+    if allow_test_edits and len(test_patch.encode()) > MAX_HIDDEN_TEST_BYTES:
+        raise RefRepairError("hidden-test patch exceeds the existing-test edit context bound")
     dropped = ""
     dropped_path = Path(report_dir) / "dropped.patch"
     if dropped_path.is_file():
@@ -305,7 +488,9 @@ def plan_ref_repair(
         "workdir": read_task_workdir(package),
         "instruction": instruction,
         "test_command": test_command.strip(),
-        "hidden_test_patch": _bounded(test_patch, 32_768),
+        "hidden_test_patch": test_patch if allow_test_edits else _bounded(test_patch, 32_768),
+        "test_patch_sha256": "sha256:" + hashlib.sha256(test_patch.encode()).hexdigest(),
+        "allow_test_edits": allow_test_edits,
         "dropped_patch": _bounded(dropped, 16_384),
         "reference_patch": _bounded(reference_text, 16_384),
         "shortcuts": [
@@ -319,6 +504,8 @@ def plan_ref_repair(
         ],
         "dropped_blocks": list(report.get("dropped_code") or []),
     }
+    if admission is not None:
+        context["supported_findings"] = admission
     if feedback is not None:
         try:
             prior = json.loads(Path(feedback).read_text(encoding="utf-8"))
@@ -338,6 +525,7 @@ def plan_ref_repair(
         shortcuts=shortcuts,
         context=context,
         prompt=render_ref_repair_prompt(context),
+        allow_test_edits=allow_test_edits,
     )
 
 
@@ -368,6 +556,7 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
         MAX_TESTS,
         MAX_TOTAL_TEST_BYTES,
         SCHEMA_PROPOSAL,
+        render_test_edit_rules,
     )
 
     lines = [
@@ -383,13 +572,13 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
         "",
         "Output exactly one JSON object, no markdown fences, with the",
         "proposal schema: {schema, repairable, rationale, tests, command,",
-        "model, mutant_ids, unrepairable}. Each test: {id, repo_path, code}.",
+        "model, mutant_ids, unrepairable, edits, test_patch_sha256}. Each test: {id, repo_path, code}.",
         "Each unrepairable entry: {mutant_id, kind, reason} with kind",
         "equivalent or out-of-scope. Here mutant_ids / mutant_id refer to the",
         "SHORTCUT ids listed below: every shortcut needs a disposition.",
         f"The schema field is exactly {SCHEMA_PROPOSAL!r}.",
-        "The model field may be null. Command may be null only when",
-        "repairable is false and no tests will run.",
+        "The model field may be null. Command is null when no NEW files run;",
+        "existing tests always run under the unchanged original command.",
         "Rules:",
         "- Test observable behaviour required by the instruction only.",
         "- Return text only; do not call tools, including MCP resource discovery.",
@@ -413,6 +602,7 @@ def render_ref_repair_prompt(context: Mapping[str, Any]) -> str:
         "  runs pytest, write unittest.TestCase tests and use -m unittest. If",
         "  the project needs framework setup (e.g. Django settings), do it",
         "  inside the test module (os.environ.setdefault + django.setup()).",
+        *render_test_edit_rules(context),
         "",
         f"Task: {context.get('task')}",
         f"Testbed working directory: {context.get('workdir')}",
@@ -636,8 +826,9 @@ def classify_ref_validation(
     shortcut_ids: Sequence[str],
     repetitions: int = CONTROL_REPETITIONS,
     declared: Mapping[str, str] | None = None,
+    unadmitted: Sequence[str] = (),
 ) -> tuple[RefRepairVerdict, str]:
-    """Accept only full xN = 1, nop xN = 0, and every shortcut = 0."""
+    """Require x3 controls and every admitted shortcut dead; preserve unknown scope."""
     if repetitions < CONTROL_REPETITIONS:
         return "blocked", "at least three reference and nop grades are required"
     expected = set(shortcut_ids)
@@ -672,6 +863,12 @@ def classify_ref_validation(
             "partial",
             f"controls {repetitions}/{repetitions} pass; declared survivors require scope review: "
             + ", ".join(f"{name} ({reasons[name]})" for name in escaped),
+        )
+    if unadmitted:
+        return (
+            "partial",
+            "admitted witnesses rejected; original line survivors remain unmeasured, "
+            "not refuted or equivalent: " + ", ".join(unadmitted),
         )
     return (
         "repaired",
@@ -755,6 +952,12 @@ def execute_ref_repair(
         (out / "proposal.json").write_text(
             proposal.model_dump_json(by_alias=True, indent=1) + "\n", encoding="utf-8"
         )
+        validate_proposal(
+            proposal,
+            mutant_ids=[s.id for s in plan.shortcuts],
+            package_dir=plan.package_dir,
+            allow_test_edits=plan.allow_test_edits,
+        )
         if not proposal.repairable:
             result = RefRepairResult(
                 task=task,
@@ -763,11 +966,6 @@ def execute_ref_repair(
             )
             _write_result(out, result)
             return result
-        validate_proposal(
-            proposal,
-            mutant_ids=[s.id for s in plan.shortcuts],
-            package_dir=plan.package_dir,
-        )
         derived = derive_repair_variant(
             plan.package_dir,
             proposal,
@@ -777,6 +975,7 @@ def execute_ref_repair(
                 f"Add semantic assertions so ref-subset shortcut submissions fail on {task}."
             ),
             derive_fn=derive_fn,
+            allow_test_edits=plan.allow_test_edits,
         )
     except (RepairError, ValueError) as exc:
         result = RefRepairResult(task=task, verdict="blocked", reason=str(exc))
@@ -811,11 +1010,13 @@ def execute_ref_repair(
         _write_result(out, result)
         return result
     declared = {entry.mutant_id: entry.reason for entry in proposal.unrepairable}
+    admission = plan.context.get("supported_findings") or {}
     verdict, reason = classify_ref_validation(
         checks,
         shortcut_ids=[s.id for s in plan.shortcuts],
         repetitions=repetitions,
         declared=declared,
+        unadmitted=admission.get("unadmitted_line_survivors") or (),
     )
     result = RefRepairResult(
         task=task,
@@ -881,6 +1082,9 @@ def _ref_repair_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
             partial_fixes=partial_fixes,
             package=args.package,
             reference_patch=args.reference_patch,
+            allow_test_edits=args.allow_test_edits,
+            supported_findings=args.supported_findings,
+            findings_root=args.findings_root,
         )
     except RefRepairError as exc:
         print(f"hack ref-repair: {exc}", file=sys.stderr)
@@ -965,6 +1169,21 @@ def add_ref_repair_parser(hack_commands: Any) -> None:
     )
     parser.add_argument(
         "--feedback", type=Path, help="Prior ref-repair repair-result.json to refine from"
+    )
+    parser.add_argument(
+        "--allow-test-edits",
+        action="store_true",
+        help="Opt in to preimage-bound replacement of prompt-overconstrained hidden tests",
+    )
+    parser.add_argument(
+        "--supported-findings",
+        type=Path,
+        help="Canonical verified qa.finding/v1 JSONL with sibling atlas.jsonl; original report retained",
+    )
+    parser.add_argument(
+        "--findings-root",
+        type=Path,
+        help="Repository root for the supported findings' relative witness paths",
     )
     parser.add_argument("--model", default="gpt-6.1-sol", help="Repair proposer model")
     parser.add_argument(

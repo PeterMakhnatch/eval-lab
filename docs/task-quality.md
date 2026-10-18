@@ -37,7 +37,7 @@ evallab audit hello-world --execute --stages oracle,nop,leak,static,history \
 | Stage | Evidence and limits |
 | --- | --- |
 | `leak` | HAR-177 future-ref/unreachable-commit semantics; a solution-only native probe inspects discovered image repositories. Missing Git, absent repositories, failed commands, or incomplete output are unknown, not clean. |
-| `oracle` | Recorded HAR-191 history-oracle findings or a native provided-solution control. Missing reference evidence stays unavailable; patch applicability is not a passing grade. |
+| `oracle` | Recorded HAR-191 findings, a provided-solution control, or fresh local history extraction followed by a native oracle grade. The merged extractor selects source-only patches from the selected image's original Git; selection/applicability is never a passing grade. |
 | `nop` | The existing no-agent/output checks, bound to the executed package. Infrastructure failures are not scored failures. |
 | `static` | Lexical flags, task lint, and the joined offline V1–V8 hack-scan ledger (schema, digests, recon, findings, limits), with input hashes and coverage. These describe files only and never predict quality or decide the verdict; absent scan findings are not a certificate. |
 | `history` | One read-only native trial census, including controls and probes; recorded model-history summaries retain their original scope. |
@@ -54,6 +54,22 @@ Paid preparation submits a pinned spec but does not approve it. After separate
 exact-spec approval, `--approved-spec ID` resumes only that bound task/stage;
 opt-in never authorizes a queue drain or a direct paid run.
 
+For a task without `solution/solve.sh`, local execution can recover a reference
+when `tests/test.patch`, an immutable `environment.docker_image`, and an absolute
+`environment.workdir` are present. A never-started, networkless container copies
+Git from that exact image **before setup**; a missing original repository is
+unavailable, not a setup-created baseline or proof that no fix exists.
+Dataset plugins supply any nonstandard Git locations (including MiMo's hidden
+Git directory). The core extractor and orchestration contain no corpus names.
+The original package remains unchanged: only a derived reference solution is
+added, then the existing guarded local oracle runs the selected environment and
+verifier. Audit evidence retains the selected and native-control variant digests,
+image identity, original base, extractor source hash, patch, and lineage record.
+Operational extraction failures remain failures; an unselected or inapplicable
+patch remains ungraded. Failed native grading retains the extraction evidence
+without claiming a completed or passing oracle. This path neither imports
+HAR-191's Modal runner nor inherits its historical paid-execution approval.
+
 Execution emits three rebuildable projections, not a new evidence store:
 
 - `audit.parquet` in the existing derived root, queryable as the `audit` relation
@@ -63,6 +79,9 @@ Execution emits three rebuildable projections, not a new evidence store:
   `verdict:keep`, `verdict:fix`, `verdict:discard`, or `verdict:unknown`. Pass the
   manifest to `evallab view --task-health ... --tag verdict:keep`; include the
   report's `records` and `probe-records` with `--task-variants` for lineage.
+  For recovered references, also include that extraction invocation's
+  `variant-records` directory (the `history_oracle.oracle_record` source identifies
+  it); native controls bind to this solution-only child, not directly to its parent.
 - `dossiers.json`, indexing one HAR-186 dossier per package. `evallab task <id>`
   and its read-only Python tool automatically consult the existing audit
   projection; use `--derived-root`, `--audit-path`, and `--dataset` to select
@@ -74,6 +93,23 @@ Generic keep requires digest-bound, completed oracle=1 and sound nop=0 controls;
 a no-agent pass or observed future history routes to fix. Missing evidence stays
 unknown. MiMo preserves its committed ledger routing, including discard
 precedence. None of these control/probe trials measures model capability.
+
+The historical MiMo acceptance is source-pinned, not a permanent verdict count.
+The ledger at `9ed0e33495daa75d7f0dff6d45f15a7da79fe468` has SHA-256
+`85d71a98cca748d49a41d75b77a520bb69f7d429dc36fa9cdee21e5f5d97223d`
+and routes 1,180 unique tasks as **1,146 keep / 2 fix / 32 discard**.
+The later committed ledger has SHA-256
+`47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020`
+and routes the same cohort as **1,147 keep / 1 fix / 32 discard**.
+A dry-run reports the selected source revision honestly; never edit verdicts to
+force the historical count.
+
+The $0 integration receipt is
+[`research/evidence/har195-audit-integration-20261017.json`](../research/evidence/har195-audit-integration-20261017.json):
+both full CLI replays, a fresh original-image/native-grade smoke, the real
+`hello-world@1.0` oracle/nop/leak/static/history audit, SQL and dossier reads, and
+the native viewer filtered by `verdict:keep`. Its local archive retains failures
+as well as the successful final controls.
 
 ## Reward-hacking audit (`evallab hack`)
 
@@ -166,17 +202,60 @@ separate `--stages exploit` probe is requested.
   evidence, rather than rerunning the model blindly.
   Optional model metadata may be null: recorded identity comes from the
   caller-selected subscription route, not the proposal's self-description.
-  A null command is allowed only for an explicit not-repairable response.
+  A null command is allowed for an explicit not-repairable response or an
+  opted-in edit-only proposal; new test files always need a command.
   Malformed or unsafe proposals are `blocked`, not proof that the task is
   unrepairable. A CLI reconnect notice can be followed by one valid completed
   text-only turn; its original transcript and usage remain authoritative.
   Failed, incomplete, rerouted, or multiple turns still fail closed.
 
-  The proposal appends new test-file diffs to `tests/test.patch` and wraps
-  `tests/test_command.sh`, preserving the original suite's exit status.
-  MiMo v5's pristine and candidate phases both receive the additional tests.
-  Variants use the existing `tasks derive` implementation and lineage store;
-  original task packages, production source and solutions remain unchanged.
+  By default the proposal appends new test-file diffs to `tests/test.patch`
+  and wraps `tests/test_command.sh`, preserving the original suite's exit
+  status. MiMo v5's pristine and candidate phases both receive the additional
+  tests. Variants use the existing `tasks derive` implementation and lineage
+  store; original task packages, production source and solutions remain
+  unchanged.
+
+  **2026-10-17 contract update — explicit overconstraint repair.**
+  `--allow-test-edits` (also on `hack ref-repair`) enables optional `edits`
+  in the same `evallab.verifier_repair.proposal/v1` schema. Without this
+  caller opt-in, existing-test edits are blocked at both validation and
+  derivation. Ordinary append-only proposals are unchanged.
+  - Every edit has `repo_path`, `before`, `after`, `prompt_requirement` and
+    `rationale`. `prompt_requirement` must quote `instruction.md` verbatim;
+    rationale explains the overconstraint and retained required behavior.
+    The proposal's `test_patch_sha256` must be the SHA-256 of the **original
+    complete** `tests/test.patch`, formatted `sha256:<64 lowercase hex>`.
+  - `before` must match exactly one complete top-level Python `test_`
+    function wholly **added** by that patch, in a `test_*.py` file under
+    `test/` or `tests/`. `after` replaces just that function, with unchanged
+    name, signature and decorators. Both end in a newline. Imports needed
+    by a replacement belong inside the test, not in shared helpers.
+  - Patch context/removals, unrelated tests, helpers, command-selection
+    artifacts, production, environment, instruction and solution are not
+    writable. The rewriter adjusts hunk counts and later destination offsets.
+    Unsupported patch modes/metadata, ambiguous preimages, skips/xfails,
+    caught failures, early returns/yields, deleted checks and vacuous literal
+    assertions are blocked. Structural checks are not semantic certification.
+  - At most eight new files plus edits; each new file and each edit's
+    before/after is at most 8 KiB, with a combined 32 KiB code bound.
+    An edit-only proposal uses `tests: []` and `command: null`, leaving
+    `tests/test_command.sh` **byte-for-byte unchanged**. Mixed proposals
+    still run the entire original command before every newly added test.
+  - `derive_repair_variant(..., allow_test_edits=True)` uses the existing
+    `derive_task` / `verifier-repair@1` lineage, retaining the immutable
+    parent digest, original patch SHA-256, exact test preimages, replacements
+    and requirement/rationale. Direct derivation creates a **candidate**,
+    not a measured repair; it does not require inventing a mutation survivor.
+  - Scope-review every edit and grade the actual separate verifier on the
+    reference, nop, a prompt-valid alternate and an actually wrong submission,
+    plus all known incorrect survivors. For 001269, cover both permitted
+    strict-decorator designs, missing/fired requests and state restoration;
+    do not merely ignore the unexpected-keyword error. Reference/nop alone,
+    or a local synchronous fixture, does **not** establish 001269 repaired.
+    Report-based CLI admission and survivor-disposition requirements still
+    apply; the opt-in does not admit unadjudicated mutation survivors.
+
   Native matrix validation replays digest-checked reference and nop first;
   failed controls stop before spending time on survivors. Task admission needs
   an executed, full-reward survivor, but validation then replays **every**
@@ -193,30 +272,88 @@ separate `--stages exploit` probe is requested.
   variant for training; unrelated API tests cannot turn a survivor into a defect.
 - `evallab hack ref-subset run <package> --patch <reference.patch> --output-dir DIR`
   and `... sweep --index research/experiments/mimo-reference-fixes/index.csv
-  --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes 1|2]` — the
+  --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes N]` — the
   reference-subset weak-test probe (`src/evallab/ref_subset.py`, QA Task S2).
   - **Blocks.** The reference fix is split into change blocks: contiguous edited
     lines per file, computed on the base and fixed contents. Docs, comment-only
     blocks and Python blocks that leave the docstring-free AST unchanged do not
     count as code.
   - **Grading.** Each grade puts a subset of the blocks on the base checkout and
-    runs the task's own `tests/test.sh`. Grades use local Docker with no network,
-    one fresh container per grade from a snapshot taken after the task's setup.
+    runs the task's own `tests/test.sh`. Docker is the default, with no network
+    for raw MiMo: one fresh container per grade from a post-setup snapshot.
   - **Separate-verifier tasks.** `run <harbor task>` without `--patch` probes a
     Harbor task whose `[verifier] environment_mode = "separate"` grades
     `artifacts`, e.g. Terminal-Bench 4. The task's own oracle (`solution/solve.sh`)
     runs once in the environment image; its artifact diff becomes the reference
-    (`reference.patch`, paths relative to `/`). Each grade is a fresh container
-    of the `tests/` image that receives only the artifacts, as Harbor uploads them.
-    These containers keep Docker's default network, because oracles and verifiers
-    install packages. GPU tasks are `unavailable`, and the built images are
-    removed afterwards.
+    (`reference.patch`, paths relative to `/`). Each grade is a fresh verifier
+    environment that receives the artifacts, including unchanged reference
+    files and file modes, but no state from earlier grades. Docker containers
+    retain the task's network settings; local GPU tasks are `unavailable`.
+  - **Modal and a $0 plan.** Both commands accept `--environment modal --plan`.
+    Planning reads only local package/index/report bytes: it constructs no
+    backend, calls neither Docker nor Modal, and needs no credentials or spend
+    approval. Its JSON lists **every selected task**, resume/not-applicable
+    skips, package/reference digests, conservative reservation counts, estimated
+    USD, cap fit and reasons real execution would be refused. For example:
+
+    ```bash
+    uv run evallab hack ref-subset run <package> --patch <reference.patch> \
+      --output-dir runs/ref-subset-modal --environment modal --plan \
+      --max-usd 1 --usd-per-execution 0.01
+    ```
+
+    A real Modal run drops `--plan` and requires both `--max-usd USD` and
+    `--approve 'recorded approval text'`. `--usd-per-execution` must be positive
+    and finite (default `$0.0025` per allocation/preparation unit); it is the
+    operator's **reservation estimate**, not provider pricing. One thread-safe
+    `CloudSpendGate` is shared across the
+    entire sweep. `--lanes` permits **1–16 on Modal**, **1–2 on Docker**;
+    Modal never instantiates the local image cache or pulls host Docker images.
+  - **Cloud reservation and isolation.** Native Harbor
+    `LockedModalEnvironment` prepares the task/oracle; bounded
+    `RegradeModalEnvironment` runs verifier-only operations. Image preparation
+    reserves before native start. Every sandbox creation reserves both possible
+    native retry attempts **before** entering the provider boundary; unused
+    attempt reservations remain charged estimates. At the default 24-grade
+    limit the conservative bound is **51 reservation units for raw MiMo** and
+    **54 for separate verifiers**, plus **two per requested mutant**. Reads
+    share preparation sandboxes. Declared native setup healthchecks run before
+    reference reads or snapshots, with uploaded loose environment inputs and a
+    bounded deadline. Immutable native filesystem snapshots avoid repeating
+    setup or healthchecks on grade clones and have an explicit **24-hour
+    retention**, never indefinite or the SDK's month-long default. Every grade
+    clones that pristine snapshot, clears old rewards, preserves submitted
+    bytes/modes, and tears down its sandbox even on errors. CPU/memory and
+    sandbox lifetimes are bounded. GPU/TPU requests, Windows, declared multi-step
+    tasks and Compose packages are refused before provider work; this backend
+    prices and executes only supported single-environment Linux tasks.
+    A failed healthcheck, stopped verifier, missing reward or cloud budget
+    exhaustion is **unmeasured/unknown**, never a pass.
+    Reservations are **not a provider billing hard kill**: actual charges can
+    differ. `report.json` includes native commands, sandbox/snapshot identities,
+    command stdout/stderr paths, actual lock records when present and the spend
+    receipt; a requested policy alone is never claimed as applied-lock evidence.
+    The October 17, 2026 calibration uses native identity/resource/lifecycle
+    evidence, cross-checked against the shared app's actual metered CPU/memory
+    cost, not old reservations divided by job count. The 338 short 2-CPU/8-GiB
+    control allocations (169 proven agent/verifier pairs) averaged an estimated
+    `$0.003223` per physical allocation. Two clone units reserve `$0.005`
+    (**55.1% above that mean**); an ordinary three-unit start reserves `$0.0075`
+    (**132.7% above the mean**). This is a mean-based safety margin, not a
+    worst-case bound: long tails, cold image work, larger resources, GPU/serving
+    workloads, storage and other providers need their own explicit estimate.
+    Lifecycle × resource price is not a per-sandbox invoice; shared-app billing
+    cannot isolate each lane's charge. Cap comparisons use unrounded exposure
+    with the gate's `1e-9` tolerance, including sub-cent estimates.
+    The final `run-receipt.json` records the shared gate's totals and approval.
   - **Minimisation.** A greedy pass first checks the baselines (full reference 1,
     base 0). It then drops the docs and comment blocks, then each file, then
     each block, largest first. It ends with a confirmation grade.
   - **Outputs** in `DIR/<task>/`:
     - `report.json` (`evallab.ref_subset.report/v1`);
     - `finding.json` (`qa.finding/v1`, category `weak`);
+    - `run-receipt.json` on Modal: backend, selected tasks, approval, cap and reservations;
+    - `native/` on Modal: isolated operation directories and raw command stdout/stderr;
     - `minimal.patch`, the reproducer: `git apply` it on base and grade, expected reward 1;
     - `dropped.patch`, the reference behaviour no hidden test needs.
   - **Statuses:** `measured`, `budget_exhausted`, `baseline_mismatch`, `flaky`,
@@ -256,8 +393,10 @@ separate `--stages exploit` probe is requested.
     proposals with **no model call**. Its receipt hashes the input proposal;
     it does not manufacture a quota reading or repeat token usage.
   - Test-only variants append new tests and preserve the original command's
-    exit status. Bare `python`/`python3` use `/opt/test_venv/bin/python3` when
-    available; explicit interpreter paths remain explicit.
+    exit status. `--allow-test-edits` additionally permits the preimage-bound
+    function replacements described above; it does not weaken report intake
+    or remove any expected shortcut. Bare `python`/`python3` use
+    `/opt/test_venv/bin/python3` when available; explicit paths stay explicit.
   - Acceptance requires full reference **3/3**, nop **0/3**, and every
     expected shortcut exactly once with reward 0. Missing, duplicate,
     substituted or unscored checks cannot certify a repair.
@@ -266,8 +405,18 @@ separate `--stages exploit` probe is requested.
     never `repaired`. Other outcomes are `rejected`, `unrepairable`, `blocked`.
     Unsupported patch paths, file-mode changes and symlinks are blocked,
     not silently converted into a weaker submission.
-    Reports with surviving line-level mutations are refused: this block-replay
-    stage must not silently omit those additional passing submissions.
+    By default, reports with surviving line-level mutations are refused rather
+    than silently dropping those additional passing submissions.
+  - `--supported-findings findings.jsonl --findings-root ROOT` explicitly admits
+    digest-bound, verified `qa.finding/v1` prompt-level block or line witnesses.
+    Intake binds each **complete** reproducer patch to the original report's
+    minimal/full-mutant artifact and scored full/nop/witness observations. Real
+    native `grades.log` observations may supply controls absent from a
+    line-backfill JSON summary; conflicting or duplicate observations are
+    blocked. No sibling atlas is required. Absolute original evidence paths
+    and root-relative portable copies are accepted only inside their bound
+    evidence roots. The full original report is retained, every input is
+    hash-pinned, and any unadmitted line scope keeps the result `partial`.
   - Receipts (result, expected shortcut IDs, proposal, quota when a model is
     called, usage/proposal provenance) land in `--output-dir`. Attempts are
     not overwritten; failed lineage updates remain explicit in the result.
@@ -289,6 +438,75 @@ are `survivors_found` / `no_survivors` / `no_mutants` / `task_broken` / `unscore
 The authoring procedure — legitimacy rules, channel order, honesty requirements —
 is `.omp/skills/reward-hacking-audit/SKILL.md`. Only the replay adapter is
 Harbor-specific; the ledger and rules port to other harnesses unchanged.
+
+## Repaired-test trajectories and selection studies
+
+The October 17 intervention is implemented under
+`research/experiments/test-repair-performance-20261017/`; these scripts use
+native Eval Lab execution, queueing, replay and ingestion rather than another
+provider lane. Their default plans do not dispatch models or sandboxes. Paid
+execution additionally requires the parent's cumulative native gate and
+separately attributed, independently stopped serving window inside its total
+approval. Reservations and delayed billing are not settled spend.
+
+- `partition.py inventory` binds immutable native trial UUIDs and original
+  model/reward, deduplicates byte-identical aliases and reports every manifest
+  task's coverage. `join` consumes real exact-package replay receipts. Only
+  observed original/repaired `1/1` and `1/0` become true/false passes; missing,
+  conflicting or infrastructure observations stay unmeasured. A semantic
+  `repaired` label cannot replace native reference/nop control custody.
+  Mechanically admitted `partial` variants retain their unresolved scope.
+- `correction_data.py requests` excludes **all 33 frozen parent IDs before
+  generation**, plus source and manifest contamination holds. It binds the
+  actual incomplete patch, original task text and finite-vocabulary failing
+  diagnostics; no hidden test source, expected value, exception message,
+  reference patch or historical assistant response is forwarded. Task text is
+  read with Harbor's universal-newline boundary while the raw file hash is
+  preserved; added historical instructions still fail the fidelity check.
+- `run_corrections.py` prepares the real native MiMo spec and only dispatches
+  explicitly selected, same-checkpoint requests under an authenticated owned
+  server receipt. The training endpoint uses the exact repaired package.
+  Its real native grade is a direct repaired observation, not a fabricated
+  counterfactual receipt or a reason to pay for the same grading twice.
+  Runtime ceilings and prompt additions remain explicit setup deviations.
+  Xiaomi's native protocol omits per-request `max_tokens`; the proxy reserves
+  the full served context before upstream. Cumulative trial token ceilings
+  must accommodate that reservation without introducing a response-token clamp.
+  Request, time and independent CPU/GPU spend fences remain in force. A parent
+  may explicitly close only a SHA-bound first-request proxy 429 with zero native
+  usage, no assistant turn and no candidate patch. Its dispatch stays charged;
+  sampled answers can never be discarded or rerolled through that closure.
+- `correction_data.py export --execution <executions.jsonl>` consumes untouched
+  native output: actual UUID, request/spec/lock/fingerprint, model, conversation,
+  tool calls, reasoning and retained patch custody. Only clean observed repaired
+  successes become source-faithful `evallab.sft_terminus/1` targets, rendered with
+  the pinned tokenizer and verified last-assistant loss mask. Failed, copied,
+  teacher, ambiguous, non-Idle and budget-stop outputs retain exclusion reasons.
+  An empty export is a prerequisite report, not successful training delivery.
+- `evaluation_corrections.py` is a separate fixed-plan **evaluation-only**
+  path, never a weakened training exclusion set. It generates on the original
+  frozen package; `postgrade_evaluation.py` then executes one real corrected
+  patch replay on its pinned repaired grader, explicitly reusing only
+  artifact-validated prior controls. Original-grader success is not repaired
+  success, and the new student's UUID never replaces the original a1 UUID.
+  Legacy `agent.diff` or genuinely proven pre-hidden `agent.kept.diff` is
+  required; no patch or historical workspace is synthesized.
+- `analyze.py` retains fixed attempt order, coverage and unmeasured tasks.
+  Repaired Best-of-N selection and self-correction must disclose reuse of the
+  repaired grader as their evaluation endpoint. Report the actual sample,
+  runtime/protocol confounds and uncertainty; neither a control pass nor an
+  unexecuted pass-through establishes downstream model lift.
+
+Native model admission also requires a genuine owned VariantRecord chain and
+its exact named-profile scope. Replay authentic recorded deltas through
+`derive_task` into a private package store when restoring missing records; bind
+retained real controls through append-only status evidence. Do not rewrite an
+archival local-parent record, widen the global transform allowlist, omit
+behavioral reference fields, or promote package hashes into Harbor lock hashes.
+The study-only `xiaomi-mimo-envcheck-feedback-20261017` profile does not alter
+the standing Xiaomi profile or designate its repaired endpoint as a frozen
+scoring package.
+
 
 
 ## Stage 0: read the files (free, no Docker)

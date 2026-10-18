@@ -1,0 +1,86 @@
+diff --git a/packages/core/src/storages/sitemap_request_list.ts b/packages/core/src/storages/sitemap_request_list.ts
+index a02e9e0fd..0805837fa 100644
+--- a/packages/core/src/storages/sitemap_request_list.ts
++++ b/packages/core/src/storages/sitemap_request_list.ts
+@@ -137,7 +137,7 @@ export class SitemapRequestList implements IRequestList {
+          */
+         inProgressEntries: new Set<string>(),
+         /**
+-         * Set of sitemap URLs that have not been fully parsed yet. If the set is empty and `inProgressSitemapUrl` is `null`, the sitemap loading is finished.
++         * Set of sitemap URLs that have not been parsed yet. If the set is empty and `inProgressSitemapUrl` is `null`, the sitemap loading is finished.
+          */
+         pendingSitemapUrls: new Set<string>(),
+     };
+@@ -225,15 +225,23 @@ export class SitemapRequestList implements IRequestList {
+         this.persistStateKey = options.persistStateKey;
+         this.proxyUrl = options.proxyUrl;
+ 
+-        this.urlQueueStream = new Transform({
+-            objectMode: true,
+-            highWaterMark: options.maxBufferSize ?? 200,
+-        });
+-        this.urlQueueStream.pause();
++        this.urlQueueStream = this.createNewStream(options.maxBufferSize ?? 200);
+ 
+         this.sitemapParsingProgress.pendingSitemapUrls = new Set(options.sitemapUrls);
+     }
+ 
++    /**
++     * Creates a new object stream with the specified highWaterMark.
++     * @param highWaterMark High water mark for the stream (the maximum number of objects the stream will buffer).
++     * @returns A new object stream.
++     */
++    private createNewStream(highWaterMark: number): Transform {
++        return new Transform({
++            objectMode: true,
++            highWaterMark,
++        }).pause();
++    }
++
+     /**
+      * Returns a function that checks whether the provided pattern matches the closure URL.
+      * @param url URL to be checked.
+@@ -361,7 +369,7 @@ export class SitemapRequestList implements IRequestList {
+             this.sitemapParsingProgress.inProgressSitemapUrl = null;
+         }
+ 
+-        await this.pushNextUrl(null);
++        this.urlQueueStream.end();
+     }
+ 
+     /**
+@@ -442,10 +450,20 @@ export class SitemapRequestList implements IRequestList {
+             urlQueue.push(url);
+         }
+ 
++        // Create a new stream, as we have read all the URLs from the current one.
++        // Pushing the urls back to the original stream might not be possible if it has been ended.
++        const newStream = this.createNewStream(this.urlQueueStream.readableHighWaterMark);
++
+         for (const url of urlQueue) {
+-            this.urlQueueStream.push(url);
++            newStream.push(url);
+         }
+ 
++        if (this.urlQueueStream.writableEnded) {
++            newStream.end();
++        }
++
++        this.urlQueueStream = newStream;
++
+         await this.store.setValue(this.persistStateKey, {
+             sitemapParsingProgress: {
+                 pendingSitemapUrls: Array.from(this.sitemapParsingProgress.pendingSitemapUrls),
+diff --git a/packages/utils/src/internals/general.ts b/packages/utils/src/internals/general.ts
+index af748a333..3234a9830 100644
+--- a/packages/utils/src/internals/general.ts
++++ b/packages/utils/src/internals/general.ts
+@@ -77,7 +77,7 @@ export function weightedAvg(arrValues: number[], arrWeights: number[]): number {
+  * @param millis Period of time to sleep, in milliseconds. If not a positive number, the returned promise resolves immediately.
+  */
+ export async function sleep(millis?: number): Promise<void> {
+-    return setTimeout(millis);
++    return setTimeout(millis ?? undefined);
+ }
+ 
+ /**

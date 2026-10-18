@@ -1,0 +1,204 @@
+diff --git a/docs/envvars.md b/docs/envvars.md
+index a0e66b97..d354ddd2 100644
+--- a/docs/envvars.md
++++ b/docs/envvars.md
+@@ -33,6 +33,12 @@ export DYNACONF_STRING_NUM="'76'"                            # str: "76"
+ export DYNACONF_PERSON__IS_ADMIN=true                        # bool: True (nested)
+ ```
+ 
++!!! info 
++    For envvars Dynaconf will automatically transform `True` and `False` to `true` and `false` respectively,
++    this transformation allows TOML to parse the value as a boolean.  
++    If you want to keep the original value in this case use `@str` or wrap it in quotes twice like `FOO='"True"'`
++    Note that this applies only for strictly string equal to `True|False` doesn't apply to same string found
++    inside toml data structures.
+ 
+ With the above it is now possible to read the settings in your `program.py` using:
+ 
+diff --git a/dynaconf/base.py b/dynaconf/base.py
+index 268124dd..121a4a57 100644
+--- a/dynaconf/base.py
++++ b/dynaconf/base.py
+@@ -36,6 +36,7 @@ from dynaconf.utils.files import find_file
+ from dynaconf.utils.functional import empty
+ from dynaconf.utils.functional import LazyObject
+ from dynaconf.utils.parse_conf import apply_converter
++from dynaconf.utils.parse_conf import boolean_fix
+ from dynaconf.utils.parse_conf import converters
+ from dynaconf.utils.parse_conf import Lazy
+ from dynaconf.utils.parse_conf import parse_conf_data
+@@ -157,7 +158,8 @@ class LazySettings(LazyObject):
+         """Chicken and egg problem, we must manually check envvar
+         before deciding if we are loading envvars :)"""
+         _environ_load_dotenv = parse_conf_data(
+-            os.environ.get("LOAD_DOTENV_FOR_DYNACONF"), tomlfy=True
++            boolean_fix(os.environ.get("LOAD_DOTENV_FOR_DYNACONF")),
++            tomlfy=True,
+         )
+         return self._kwargs.get("load_dotenv", _environ_load_dotenv)
+ 
+@@ -498,7 +500,7 @@ class Settings:
+                 sysenv_fallback, list
+             ) and key in [upperfy(k) for k in sysenv_fallback]
+             if sysenv_fallback is True or key_in_sysenv_fallback_list:
+-                default = self.environ.get(key)
++                default = self.get_environ(key, cast=True)
+ 
+         # default values should behave exactly Dynaconf parsed values
+         if default is not None:
+@@ -561,7 +563,9 @@ class Settings:
+             if cast in converters:
+                 data = apply_converter(cast, data, box_settings=self)
+             elif cast is True:
+-                data = parse_conf_data(data, tomlfy=True, box_settings=self)
++                data = parse_conf_data(
++                    boolean_fix(data), tomlfy=True, box_settings=self
++                )
+         return data
+ 
+     def exists_in_environ(self, key):
+diff --git a/dynaconf/default_settings.py b/dynaconf/default_settings.py
+index ffc4d8e8..7e8c2229 100644
+--- a/dynaconf/default_settings.py
++++ b/dynaconf/default_settings.py
+@@ -9,6 +9,7 @@ from dynaconf.utils import RENAMED_VARS
+ from dynaconf.utils import upperfy
+ from dynaconf.utils import warn_deprecations
+ from dynaconf.utils.files import find_file
++from dynaconf.utils.parse_conf import boolean_fix
+ from dynaconf.utils.parse_conf import parse_conf_data
+ from dynaconf.vendor.dotenv import load_dotenv
+ 
+@@ -33,7 +34,7 @@ def get(key, default=None):
+         value = try_renamed(key, value, old, new)
+ 
+     return (
+-        parse_conf_data(value, tomlfy=True, box_settings={})
++        parse_conf_data(boolean_fix(value), tomlfy=True, box_settings={})
+         if value is not None
+         else default
+     )
+diff --git a/dynaconf/loaders/env_loader.py b/dynaconf/loaders/env_loader.py
+index 060d5da2..a563b4e2 100644
+--- a/dynaconf/loaders/env_loader.py
++++ b/dynaconf/loaders/env_loader.py
+@@ -6,6 +6,7 @@ from os import environ
+ from dynaconf.loaders.base import SourceMetadata
+ from dynaconf.utils import missing
+ from dynaconf.utils import upperfy
++from dynaconf.utils.parse_conf import boolean_fix
+ from dynaconf.utils.parse_conf import parse_conf_data
+ 
+ DOTENV_IMPORTED = False
+@@ -75,14 +76,14 @@ def load_from_env(
+             try:  # obj is a Settings
+                 obj.set(
+                     key,
+-                    value,
++                    boolean_fix(value),
+                     loader_identifier=source_metadata,
+                     tomlfy=True,
+                     validate=validate,
+                 )
+             except AttributeError:  # obj is a dict
+                 obj[key] = parse_conf_data(
+-                    value, tomlfy=True, box_settings=obj
++                    boolean_fix(value), tomlfy=True, box_settings=obj
+                 )
+ 
+     # Load environment variables in bulk (when matching).
+@@ -94,9 +95,9 @@ def load_from_env(
+         trim_len = len(env_)
+         data = {
+             key[trim_len:]: parse_conf_data(
+-                data, tomlfy=True, box_settings=obj
++                boolean_fix(value), tomlfy=True, box_settings=obj
+             )
+-            for key, data in environ.items()
++            for key, value in environ.items()
+             if key.startswith(env_)
+             and not (
+                 # Ignore environment variables that haven't been
+diff --git a/dynaconf/utils/parse_conf.py b/dynaconf/utils/parse_conf.py
+index d68d2c7f..882110e5 100644
+--- a/dynaconf/utils/parse_conf.py
++++ b/dynaconf/utils/parse_conf.py
+@@ -445,3 +445,17 @@ def unparse_conf_data(value):
+         return "@none "
+ 
+     return value
++
++
++def boolean_fix(value: str | None):
++    """Gets a value like `True/False` and turns to `true/false`
++    This function exists because of issue #976
++    Toml parser casts booleans from true/false lower case
++    however envvars are usually exportes as True/False capitalized
++    by mistake, this helper fixes it for envvars only.
++
++    Assume envvars are always str.
++    """
++    if value and value.strip() in ("True", "False"):
++        return value.lower()
++    return value
+diff --git a/netlify.toml b/netlify.toml
+index d69fdacf..9b9ee518 100644
+--- a/netlify.toml
++++ b/netlify.toml
+@@ -1,6 +1,6 @@
+ [build]
+ # if commit is not tagged don't build
+-# ignore = "git describe --exact-match && exit 1 || exit 0"
++ignore = "git describe --exact-match --tags HEAD && exit 1 || exit 0"
+ publish = "site"
+ command = "pip install -r requirements.txt && mkdocs build --clean"
+ 
+diff --git a/tests_functional/issues/976_True_False/.env b/tests_functional/issues/976_True_False/.env
+new file mode 100644
+index 00000000..87ee495d
+--- /dev/null
++++ b/tests_functional/issues/976_True_False/.env
+@@ -0,0 +1,4 @@
++DYNACONF_UPPERTRUE=True
++DYNACONF_UPPERFALSE=False
++DYNACONF_LOWERTRUE=true
++DYNACONF_LOWERFALSE=false
+diff --git a/tests_functional/issues/976_True_False/app.py b/tests_functional/issues/976_True_False/app.py
+new file mode 100644
+index 00000000..518a93be
+--- /dev/null
++++ b/tests_functional/issues/976_True_False/app.py
+@@ -0,0 +1,23 @@
++from __future__ import annotations
++
++from dynaconf import Dynaconf
++
++settings = Dynaconf(
++    settings_file="settings.toml",
++    load_dotenv=True,
++)
++
++
++# TOML must rely on its own type system
++assert settings.TOMLUPPERTRUE == "True"
++assert settings.TOMLUPPERFALSE == "False"
++assert settings.TOMLLOWERTRUE is True
++assert settings.TOMLLOWERFALSE is False
++
++# ENV vars must transform `True` to `true` and `False` to `false`
++assert settings.UPPERTRUE is True, settings.UPPERTRUE
++assert settings.UPPERFALSE is False, settings.UPPERFALSE
++assert settings.LOWERTRUE is True, settings.LOWERTRUE
++assert settings.LOWERFALSE is False, settings.LOWERFALSE
++
++print("BOOLEAN FIX FOR ENV VARS WORKS")
+diff --git a/tests_functional/issues/976_True_False/settings.toml b/tests_functional/issues/976_True_False/settings.toml
+new file mode 100644
+index 00000000..396134e9
+--- /dev/null
++++ b/tests_functional/issues/976_True_False/settings.toml
+@@ -0,0 +1,4 @@
++tomllowertrue = true
++tomllowerfalse = false
++tomluppertrue = "True"
++tomlupperfalse = "False"

@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import pyarrow.parquet as pq
 import pytest
 
 from evallab import model_capture
@@ -301,6 +302,108 @@ def test_sse_reassembly_unit() -> None:
         {"content": "b"},
     ]
     assert extract_from_sse("chat", raw).assistant_texts == ["ab"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "usage"),
+    [
+        (
+            "chat",
+            {
+                "prompt_tokens": 30,
+                "completion_tokens": 7,
+                "prompt_tokens_details": {"cached_tokens": 20},
+            },
+        ),
+        (
+            "responses",
+            {
+                "input_tokens": 30,
+                "output_tokens": 7,
+                "input_tokens_details": {"cached_tokens": 20},
+            },
+        ),
+    ],
+)
+def test_openai_usage_does_not_add_cached_subset(kind: str, usage: dict[str, Any]) -> None:
+    turns = extract_from_payload(kind, {"usage": usage})
+    assert turns.usage == {"prompt_tokens": 30, "completion_tokens": 7}
+
+
+def test_anthropic_explicit_zero_usage_is_known() -> None:
+    turns = extract_from_payload(
+        "anthropic_messages",
+        {
+            "usage": {
+                "input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+                "output_tokens": 0,
+            }
+        },
+    )
+    assert turns.usage == {"prompt_tokens": 0, "completion_tokens": 0}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"cache_read_input_tokens": None},
+        {"cache_read_input_tokens": True},
+        {"cache_creation_input_tokens": -1},
+        {"cache_creation_input_tokens": 2.5},
+        {"input_tokens": None},
+        {"output_tokens": "20"},
+    ],
+)
+def test_anthropic_unknown_or_invalid_usage_is_not_zero(changes: dict[str, Any]) -> None:
+    usage = {
+        "input_tokens": 1000,
+        "cache_read_input_tokens": 600,
+        "cache_creation_input_tokens": 200,
+        "output_tokens": 20,
+        **changes,
+    }
+    assert extract_from_payload("anthropic_messages", {"usage": usage}).usage is None
+
+
+def test_anthropic_absent_cache_counters_leave_usage_unknown() -> None:
+    payload = {"usage": {"input_tokens": 1000, "output_tokens": 20}}
+    assert extract_from_payload("anthropic_messages", payload).usage is None
+
+
+@pytest.mark.parametrize(
+    ("updates", "expected"),
+    [
+        ([], None),
+        ([{"output_tokens": 0}], {"prompt_tokens": 1800, "completion_tokens": 0}),
+        (
+            [{"output_tokens": 3}, {"output_tokens": 7}],
+            {"prompt_tokens": 1800, "completion_tokens": 7},
+        ),
+        ([{"output_tokens": 7, "cache_read_input_tokens": None}], None),
+    ],
+    ids=["interrupted", "explicit-zero", "cumulative-not-additive", "unknown-cache-update"],
+)
+def test_anthropic_sse_usage_requires_observed_output(
+    updates: list[dict[str, Any]], expected: dict[str, int] | None
+) -> None:
+    events = [
+        {
+            "type": "message_start",
+            "message": {
+                "usage": {
+                    "input_tokens": 1000,
+                    "cache_read_input_tokens": 600,
+                    "cache_creation_input_tokens": 200,
+                    "output_tokens": 2,
+                }
+            },
+        },
+        *({"type": "message_delta", "usage": update} for update in updates),
+    ]
+    raw = b"".join(b"data: " + json.dumps(event).encode() + b"\n\n" for event in events)
+    assert extract_from_sse("anthropic_messages", raw).usage == expected
 
 
 def test_header_selection_and_key_redaction() -> None:
@@ -603,7 +706,7 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
                 "started_at": "2026-01-01T00:10:00Z",
                 "ended_at": "2026-01-01T00:10:02Z",
                 "method": "POST",
-                "path": "/v1/chat/completions",
+                "path": "/v1/messages",
                 "route_token": "trial-a",
                 "session_id": None,
                 "request_body": {"messages": [{"role": "user", "content": "do the thing"}]},
@@ -611,7 +714,21 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
                 "response_sse": False,
                 "assistant_texts": ["all done"],
                 "tool_calls": [],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+                "usage": extract_from_payload(
+                    "anthropic_messages",
+                    {
+                        "usage": {
+                            "input_tokens": 2,
+                            "cache_read_input_tokens": 5,
+                            "cache_creation_input_tokens": 3,
+                            "cache_creation": {
+                                "ephemeral_5m_input_tokens": 1,
+                                "ephemeral_1h_input_tokens": 2,
+                            },
+                            "output_tokens": 2,
+                        }
+                    },
+                ).usage,
                 "model": "stub",
                 "upstream_latency_s": 0.01,
                 "error": None,
@@ -643,7 +760,10 @@ def test_link_end_to_end_and_report_lookup(tmp_path: Path, monkeypatch: pytest.M
     by_name = {t["trial_name"]: t for t in receipt["trials"]}
     assert by_name["trial-a"]["verdict"] == "complete"
     assert by_name["trial-b"]["verdict"] == "capture_missing"
-    assert (derived / "job_id=job-job1" / "model_calls.parquet").is_file()
+    call_table = pq.ParquetFile(derived / "job_id=job-job1" / "model_calls.parquet").read(
+        columns=["prompt_tokens", "completion_tokens"]
+    )
+    assert call_table.to_pylist() == [{"prompt_tokens": 10, "completion_tokens": 2}]
     assert (derived / "job_id=job-job1" / "trial_capture.parquet").is_file()
     assert (derived / "job_id=job-job1" / "capture_link.json").is_file()
     monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived / "parquet"))
@@ -1550,14 +1670,16 @@ def test_capture_smoke_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s2")
 
 
+@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
 def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
 ) -> None:
-    """The :har129 leg smokes through the same proxy/capture chain."""
+    """Every admitted arm retains its native identity through the capture chain."""
     from evallab.model_capture import run_capture_smoke
 
     _RecordingStub.received = []
-    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    native = f"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}"
+    _RecordingStub.echo_model = native
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     try:
@@ -1565,18 +1687,19 @@ def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
         summary = run_capture_smoke(
             upstream=f"http://127.0.0.1:{stub.server_address[1]}",
             out_dir=tmp_path / "smoke-adapter",
-            model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+            model=f"selfhosted/{native}",
         )
     finally:
         stub.shutdown()
         _RecordingStub.echo_model = None
     assert summary["status"] == 200
-    assert summary["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    assert summary["model"] == native
     assert "smoke-fake-key-002" not in json.dumps(summary)
 
 
+@pytest.mark.parametrize("adapter", ["har129", "rds2-b", "rds2-c", "rds2-d"])
 def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, adapter: str
 ) -> None:
     """An adapter request echoing the base id fails the runner identity rule."""
     import pytest as _pytest
@@ -1593,7 +1716,7 @@ def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
             run_capture_smoke(
                 upstream=f"http://127.0.0.1:{stub.server_address[1]}",
                 out_dir=tmp_path / "smoke-mismatch",
-                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+                model=f"selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:{adapter}",
             )
     finally:
         stub.shutdown()

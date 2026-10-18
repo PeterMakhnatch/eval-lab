@@ -18,13 +18,14 @@ Builds one clean package per code task:
   ``purge-installed-copies`` is a Python pip mechanism and never applies;
   it is noted, not derived.
 
-Deterministic and idempotent: every step reuses the existing lineage record
-for ``(task, transform, parent digest)`` and derives (content-addressed via
-:func:`evallab.task_variants.derive_task`) only what is missing, so
-re-running yields the same digests and never duplicates records. Derived
-packages materialize into the shared variants store (ignored); lineage
-records land in ``library/task-variants/`` (tracked but not committed by
-this slice: only the manifest is committed).
+Deterministic and idempotent: reuse is bound to the parent digest and transform
+inputs. Missing records are rederived in isolated scratch storage; matching
+shared packages are adopted without moving or rewriting their bytes. Records
+use the existing ``library/task-variants/`` schema and materialization APIs.
+The v6 builder requires all six Python (five non-Python) canonical edges,
+preserves the ledger root's real ancestry, and writes a ``.lineage.json``
+sidecar beside the manifest with ordered record references and digest bindings.
+New records remain candidates; only identical existing records retain evidence.
 
 Reference fixes prefer ``research/experiments/mimo-reference-fixes/index.csv``
 when it exists, else the HAR-191 ``oracle_sweep.csv``. The manifest's
@@ -38,7 +39,9 @@ import base64
 import csv
 import hashlib
 import json
+import os
 import re
+import tempfile
 import tomllib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
@@ -59,19 +62,23 @@ from evallab.purge_build_caches import TRANSFORM_ID_V5 as CACHE_V5_ID
 from evallab.purge_build_caches import derive_purge_build_caches_v4, derive_purge_build_caches_v5
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import MARKER_V2 as PURGE_V2_MARKER
-from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
-from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
-from evallab.purge_installed_copies import V1_BLOCK_START as PURGE_V1_BLOCK_START
 from evallab.purge_installed_copies import (
+    SETUP_PYTHON_PATH,
+    build_setup_sh_v2,
     derive_purge_installed_copies,
     derive_purge_installed_copies_v2,
 )
+from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
+from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
+from evallab.purge_installed_copies import V1_BLOCK_START as PURGE_V1_BLOCK_START
+from evallab.registry import harbor_task_digest
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
 from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
 from evallab.separate_verifier import TRANSFORM_ID_V9 as SEPARATE_V9_ID
 from evallab.separate_verifier import TRANSFORM_ID_V10 as SEPARATE_V10_ID
 from evallab.separate_verifier import (
+    build_changes_v10,
     derive_separate_verifier_v6,
     derive_separate_verifier_v7,
     derive_separate_verifier_v8,
@@ -83,9 +90,10 @@ from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
     MAX_INLINE_FILE_BYTES,
     RECORDS_DIRNAME,
-    VariantExistsError,
     VariantInvalid,
     VariantRecord,
+    lineage_chain,
+    materialize,
     resolve_record,
     task_directory_digest,
 )
@@ -641,6 +649,7 @@ class ChainResult:
     language: str = ""
     verify: str = VERIFY_UNVERIFIED
     reused: bool = True
+    lineage: dict[str, Any] = field(default_factory=dict)
 
     def manifest_row(self) -> dict[str, str]:
         return {
@@ -679,13 +688,15 @@ class ChainBuilder:
         self.created_by = created_by
         self.snapshot_root = snapshot_root or primary / SNAPSHOT_REL / "tasks"
         self._purge_skip = set(purge_skip) if purge_skip is not None else set(purge_inapplicable())
-        self._records: dict[tuple[str, str, str], VariantRecord] = {}
+        self._records: dict[str, dict[tuple[str, str], dict[str, VariantRecord]]] = {}
+        self._rederivation_proofs: dict[str, dict[str, str]] = {}
         self.clean_version = clean_version
         self._chains = chains_for_version(clean_version)
 
     # -- record reuse -------------------------------------------------- #
 
     def _slug_records(self, task_id: str) -> None:
+        self._records[task_id] = {}
         slug = f"mimo-v2.6-rl__{task_id}"
         records_dir = self.repo_root / RECORDS_DIRNAME / slug
         if not records_dir.is_dir():
@@ -695,26 +706,51 @@ class ChainBuilder:
                 record = resolve_record(path, repo_root=self.repo_root)
             except ValueError:
                 continue
-            # Never reuse a pre-#848 record for a hook-bearing step: its
-            # package snapshots bytes the current grader never sees. A
-            # refreshed record for the same (transform, parent) wins.
             if self._is_stale_snapshot(task_id, record):
                 continue
-            key = (task_id, record.transform, record.parent.digest)
-            existing = self._records.get(key)
-            if existing is None or self._is_stale_snapshot(task_id, existing):
-                self._records[key] = record
+            self._remember(task_id, record)
 
-    def _lookup(self, task_id: str, transform: str, parent_digest: str) -> VariantRecord | None:
-        key = (task_id, transform, parent_digest)
-        record = self._records.get(key)
-        if record is None:
-            self._slug_records(task_id)
-            record = self._records.get(key)
-        return record
+    @staticmethod
+    def _matches(
+        record: VariantRecord,
+        expected_inputs: Mapping[str, Any] | None,
+        parent_source: Mapping[str, Any] | None,
+    ) -> bool:
+        return (
+            expected_inputs is None
+            or all(key in record.inputs and record.inputs[key] == value for key, value in expected_inputs.items())
+        ) and (
+            parent_source is None
+            or record.parent.source.model_dump(exclude_none=True)
+            == {key: value for key, value in parent_source.items() if value is not None}
+        )
+
+    def _lookup(
+        self,
+        task_id: str,
+        transform: str,
+        parent_digest: str,
+        *,
+        expected_inputs: Mapping[str, Any] | None = None,
+        parent_source: Mapping[str, Any] | None = None,
+    ) -> VariantRecord | None:
+        self._slug_records(task_id)
+        records = self._records.get(task_id, {}).get((transform, parent_digest), {})
+        matching = [
+            record
+            for record in records.values()
+            if self._matches(record, expected_inputs, parent_source)
+            and not self._is_stale_snapshot(task_id, record)
+        ]
+        # Multiple matching records are not ordered by digest filename.
+        # Re-run the actual transform to select its exact output instead.
+        return matching[0] if len(matching) == 1 else None
 
     def _remember(self, task_id: str, record: VariantRecord) -> None:
-        self._records.setdefault((task_id, record.transform, record.parent.digest), record)
+        records = self._records.setdefault(task_id, {}).setdefault(
+            (record.transform, record.parent.digest), {}
+        )
+        records[record.variant_digest] = record
 
     def _derive_kwargs(self) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
@@ -791,6 +827,121 @@ class ChainBuilder:
             return package
         return None
 
+    @staticmethod
+    def _identity(record: VariantRecord) -> dict[str, Any]:
+        identity = record.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude={"created_at", "created_by", "rationale", "status", "evidence"},
+        )
+        identity["files"] = sorted(identity["files"], key=lambda change: change["path"])
+        identity["components_changed"] = sorted(identity["components_changed"])
+        return identity
+
+    def _rederived_equivalent(self, existing: VariantRecord, derived: VariantRecord) -> bool:
+        """Allow absent v10 diagnostics only after real, byte-identical rederivation."""
+        if (
+            derived.transform != SEPARATE_V10_ID
+            or derived.inputs.get("setup_python_path") != ""
+            or set(derived.inputs).difference(existing.inputs)
+            - {"setup_python_path", "wrapper_sha256"}
+            or any(
+                existing.inputs[key] != derived.inputs[key]
+                for key in existing.inputs.keys() & derived.inputs.keys()
+            )
+        ):
+            return False
+        old_identity = self._identity(existing)
+        new_identity = self._identity(derived)
+        old_identity.pop("inputs")
+        new_identity.pop("inputs")
+        return old_identity == new_identity
+
+    def _validate_edge(self, record: VariantRecord, parent: Path) -> None:
+        """Prove replay and both digest namespaces without touching shared bytes."""
+        if task_directory_digest(parent) != record.parent.digest:
+            raise VariantInvalid(f"{record.transform}: parent package digest mismatch")
+        if harbor_task_digest(parent) != record.parent.harbor_digest:
+            raise VariantInvalid(f"{record.transform}: parent Harbor digest mismatch")
+        with tempfile.TemporaryDirectory(prefix="evallab-mimo-replay-") as scratch:
+            package = materialize(
+                record,
+                parent,
+                repo_root=self.repo_root,
+                variants_root=Path(scratch),
+            )
+            if harbor_task_digest(package) != record.variant_harbor_digest:
+                raise VariantInvalid(f"{record.transform}: child Harbor digest mismatch")
+
+    def _derive_isolated(
+        self,
+        parent: Path,
+        derive,
+        parent_source: Mapping[str, Any],
+        derive_kwargs: Mapping[str, Any],
+    ) -> VariantRecord:
+        with tempfile.TemporaryDirectory(prefix="evallab-mimo-derive-") as scratch:
+            kwargs = self._derive_kwargs()
+            kwargs.update(derive_kwargs)
+            kwargs.update(repo_root=Path(scratch), variants_root=Path(scratch) / "variants")
+            return derive(parent, parent_source=dict(parent_source), **kwargs)
+
+    def _adopt_record(self, task_id: str, record: VariantRecord, parent: Path) -> VariantRecord:
+        """Publish a real derivation, never replace an existing record or package."""
+        path = self.repo_root / record.record_relpath()
+
+        def existing() -> VariantRecord:
+            found = resolve_record(path, repo_root=self.repo_root)
+            if self._identity(found) != self._identity(record):
+                if not self._rederived_equivalent(found, record):
+                    raise VariantInvalid(
+                        f"{record.transform}: existing record has different inputs or provenance: "
+                        f"{record.record_relpath()}"
+                    )
+                self._rederivation_proofs[found.record_relpath().as_posix()] = {
+                    "identity_sha256": f"sha256:{hashlib.sha256(json.dumps(self._identity(record), sort_keys=True, separators=(',', ':')).encode()).hexdigest()}",
+                    "setup_python_path": record.inputs["setup_python_path"],
+                    "wrapper_sha256": record.inputs["wrapper_sha256"],
+                }
+            return found
+
+        if path.exists():
+            record = existing()
+        self._validate_edge(record, parent)
+        package = materialize(
+            record, parent, repo_root=self.repo_root, variants_root=self.variants_root
+        )
+        if harbor_task_digest(package) != record.variant_harbor_digest:
+            raise VariantInvalid(f"{record.transform}: cached child Harbor digest mismatch")
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary: Path | None = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=path.parent,
+                    prefix=f".{path.name}.",
+                    suffix=".tmp",
+                    delete=False,
+                ) as handle:
+                    temporary = Path(handle.name)
+                    json.dump(record.model_dump(mode="json", by_alias=True), handle, indent=2, ensure_ascii=False)
+                    handle.write("\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                try:
+                    os.link(temporary, path)
+                except FileExistsError:
+                    record = existing()
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+        else:
+            record = existing()
+        self._remember(task_id, record)
+        return record
+
     def find_or_derive(
         self,
         task_id: str,
@@ -803,126 +954,32 @@ class ChainBuilder:
         expected_inputs: Mapping[str, Any] | None = None,
         **derive_kwargs: Any,
     ) -> tuple[VariantRecord, bool]:
-        """Reuse the record for ``(task, transform, parent)`` or derive it.
+        """Select matching inputs before reuse; derive missing edges in isolation.
 
-        ``expected_inputs`` guards parameterized transforms (``@2`` marker /
-        solution): a same-parent record with different inputs is a different
-        package, so derive fresh instead of reusing it.
+        In particular, a shared orphan package cannot force a wrong-input
+        record through a ``VariantExistsError`` fallback. ``materialize``
+        adopts digest-identical cached bytes without moving or rewriting them.
         """
-        record = self._lookup(task_id, transform, parent_digest)
-        if record is not None and expected_inputs is not None:
-            for key, value in expected_inputs.items():
-                if record.inputs.get(key) != value:
-                    record = None
-                    break
-        if record is not None and self._is_stale_snapshot(task_id, record):
-            # Pre-#848 record: ignore it so the step re-derives with
-            # current code (the stale package dir is left on disk).
-            self._records.pop((task_id, transform, parent_digest), None)
-            record = None
+        if task_directory_digest(parent) != parent_digest:
+            raise VariantInvalid(f"{transform}: requested parent digest does not match package")
+        record = self._lookup(
+            task_id,
+            transform,
+            parent_digest,
+            expected_inputs=expected_inputs,
+            parent_source=parent_source,
+        )
         if record is not None:
-            package = self._materialized(task_id, record)
-            if package is not None:
-                return record, True
-        kwargs = self._derive_kwargs()
-        kwargs.update(derive_kwargs)
-        try:
-            record = derive(
-                parent,
-                parent_source=dict(parent_source),
-                **kwargs,
-            )
-        except VariantExistsError as exc:
-            record = self._lookup(task_id, transform, parent_digest)
-            if record is None:
-                self._slug_records(task_id)
-                record = self._records.get((task_id, transform, parent_digest))
-            if record is None:
-                # No lineage record, but a package blocks derivation (an orphan
-                # from a partial run or store cleanup): move it aside and
-                # re-derive deterministically, then reconcile by digest.
-                return self._recover_orphan(
-                    task_id,
-                    transform,
-                    parent,
-                    parent_digest,
-                    derive,
-                    parent_source=parent_source,
-                    expected_inputs=expected_inputs,
-                    derive_kwargs=derive_kwargs,
-                    clash=str(exc),
-                )
-            if self._materialized(task_id, record) is None:
-                from evallab.task_variants import materialize
-
-                materialize(
-                    record,
-                    parent,
-                    repo_root=self.repo_root,
-                    variants_root=self.variants_root,
-                )
-                if self._materialized(task_id, record) is None:
-                    raise VariantExistsError(
-                        f"record exists but the package cannot be materialized: "
-                        f"{task_id} {transform}"
-                    ) from None
-            return record, True
-        self._remember(task_id, record)
-        return record, False
-
-    def _recover_orphan(
-        self,
-        task_id: str,
-        transform: str,
-        parent: Path,
-        parent_digest: str,
-        derive,
-        *,
-        parent_source: Mapping[str, Any],
-        expected_inputs: Mapping[str, Any] | None,
-        derive_kwargs: Mapping[str, Any],
-        clash: str,
-    ) -> tuple[VariantRecord, bool]:
-        """Re-derive past an orphan package, reconciling by digest."""
-        import shutil
-
-        slug_dir = self._variants_dir() / f"mimo-v2.6-rl__{task_id}"
-        candidates = [
-            path
-            for path in sorted(slug_dir.iterdir())
-            if path.is_dir() and path.as_posix() in clash
-        ]
-        if len(candidates) != 1:
-            raise VariantExistsError(f"cannot derive {task_id} {transform}: {clash}") from None
-        orphan = candidates[0]
-        backup = orphan.with_name(orphan.name + ".orphan")
-        if backup.exists():
-            raise VariantExistsError(
-                f"cannot derive {task_id} {transform}: orphan backup exists: {backup}"
-            ) from None
-        orphan.rename(backup)
-        try:
-            record, _ = self.find_or_derive(
-                task_id,
-                transform,
-                parent,
-                parent_digest,
-                derive,
-                parent_source=parent_source,
-                expected_inputs=expected_inputs,
-                **derive_kwargs,
-            )
-        except BaseException:
-            backup.rename(orphan)
-            raise
-        if task_directory_digest(backup) == record.variant_digest:
-            shutil.rmtree(backup)
-        else:
-            print(
-                f"warning {task_id}: orphan {orphan.name} differs from "
-                f"re-derived {record.variant_digest[:19]}; kept as {backup.name}"
-            )
-        return record, False
+            return self._adopt_record(task_id, record, parent), True
+        record = self._derive_isolated(parent, derive, parent_source, derive_kwargs)
+        if (
+            record.task_name != f"mimo-v2.6-rl/{task_id}"
+            or record.transform != transform
+            or record.parent.digest != parent_digest
+            or not self._matches(record, expected_inputs, parent_source)
+        ):
+            raise VariantInvalid(f"{transform}: derivation did not bind requested task, parent and inputs")
+        return self._adopt_record(task_id, record, parent), False
 
     # -- chain ---------------------------------------------------------- #
 
@@ -961,6 +1018,355 @@ class ChainBuilder:
             / current_digest.removeprefix("sha256:")[:12]
         )
         return current, current_digest, source
+
+    @staticmethod
+    def _carries_v6(package: Path, transform: str) -> bool:
+        marker = {
+            STRIP_ID: STRIP_MARKER,
+            PURGE_V2_ID: PURGE_V2_MARKER,
+            CACHE_ACTIVE_ID: CACHE_ACTIVE_MARKER,
+            CACHE_V5_ID: CACHE_V5_MARKER,
+            MTIME_ACTIVE_ID: MTIME_ACTIVE_MARKER,
+        }.get(transform)
+        if marker is not None:
+            return setup_carries(package, marker)
+        config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+        if transform == SEPARATE_V10_ID:
+            return config.get("verifier", {}).get("environment_mode") == "separate"
+        return config.get("agent", {}).get("network_mode") == "no-network"
+
+    def _v6_parameters(
+        self,
+        task_id: str,
+        transform: str,
+        parent: Path,
+        row: Mapping[str, str] | None,
+        oracle: OracleInfo | None,
+    ) -> tuple[Any, Mapping[str, Any] | None, dict[str, Any]]:
+        if transform == PURGE_V2_ID:
+            if row is None:
+                raise VariantInvalid("purge-installed-copies@2 requires a Python ledger root")
+            setup, _ = build_setup_sh_v2(
+                (parent / "environment/setup/setup.sh").read_text(encoding="utf-8")
+            )
+            return (
+                derive_purge_installed_copies_v2,
+                {
+                    "setup_python_path": SETUP_PYTHON_PATH,
+                    "repairs_digest": row["run_digest"],
+                    "setup_after_sha256": f"sha256:{hashlib.sha256(setup.encode()).hexdigest()}",
+                },
+                {"repairs_digest": row["run_digest"]},
+            )
+        if transform == SEPARATE_V10_ID:
+            patch = parent / "tests" / "test.patch"
+            marker = derive_marker(patch.read_text(errors="replace") if patch.is_file() else "", task_id)
+            solution = (
+                build_solution_sh(
+                    task_id=task_id,
+                    label=oracle.label,
+                    fix_commit=oracle.fix_commit,
+                    patch_bytes=oracle.patch_bytes,
+                )
+                if oracle is not None and not (parent / "solution" / "solve.sh").is_file()
+                else None
+            )
+            # The transform itself detects the bundled setup and renders the
+            # actual wrapper, including the Python pin only for purge@2.
+            _changes, inputs = build_changes_v10(parent, marker=marker, solution_sh=solution)
+            return derive_separate_verifier_v10, inputs, {"marker": marker, "solution_sh": solution}
+        return (
+            {
+                STRIP_ID: derive_strip_future_history,
+                CACHE_ACTIVE_ID: derive_purge_build_caches_v4,
+                CACHE_V5_ID: derive_purge_build_caches_v5,
+                MTIME_ACTIVE_ID: _derive_mtime_active,
+                AGENT_NETWORK_NONE_ID: derive_agent_network_none,
+            }[transform],
+            None,
+            {},
+        )
+
+    def _snapshot_package(self, task_id: str, row: Mapping[str, str] | None) -> Path:
+        return (
+            self.primary / SNAPSHOT_REL / "tasks" / task_id
+            if row is not None
+            else self.snapshot_root / task_id
+        )
+
+    def _restore_canonical_ancestor(
+        self,
+        task_id: str,
+        digest: str,
+        record_path: str,
+        chain: tuple[str, ...],
+        row: Mapping[str, str] | None,
+        oracle: OracleInfo | None,
+    ) -> None:
+        """Recover only an exact actual transform, never infer an edge from a marker."""
+        expected_path = RECORDS_DIRNAME / f"mimo-v2.6-rl__{task_id}" / f"{digest.removeprefix('sha256:')[:12]}.json"
+        if Path(record_path) != expected_path:
+            raise VariantInvalid(f"noncanonical missing ancestor record path: {record_path}")
+        if (self.repo_root / expected_path).exists():
+            raise VariantInvalid(f"invalid ancestor record cannot be replaced: {record_path}")
+        candidates: dict[str, tuple[Path, dict[str, Any]]] = {}
+        original = self._snapshot_package(task_id, row)
+        if original.is_dir():
+            candidates[task_directory_digest(original)] = (
+                original, {**HF_SOURCE, "path": f"tasks/{task_id}"}
+            )
+        records_dir = self.repo_root / RECORDS_DIRNAME / f"mimo-v2.6-rl__{task_id}"
+        for path in sorted(records_dir.glob("*.json")):
+            try:
+                record = resolve_record(path, repo_root=self.repo_root)
+            except ValueError:
+                continue
+            package = self._materialized(task_id, record)
+            if package is None and all(
+                step.parent_found for step in lineage_chain(record, repo_root=self.repo_root)
+            ):
+                try:
+                    self._root_records(
+                        task_id, record.variant_digest,
+                        {"kind": "variant", "record": record.record_relpath().as_posix()},
+                        chain, row, oracle,
+                    )
+                except (OSError, ValueError):
+                    continue
+                package = self._materialized(task_id, record)
+            if package is not None and record.variant_digest != digest:
+                candidates[record.variant_digest] = (
+                    package, {"kind": "variant", "record": record.record_relpath().as_posix()}
+                )
+        matches: dict[str, tuple[VariantRecord, Path]] = {}
+        for _parent_digest, (parent, source) in sorted(candidates.items()):
+            for index, transform in enumerate(chain):
+                if self._carries_v6(parent, transform) or not all(
+                    self._carries_v6(parent, previous) for previous in chain[:index]
+                ):
+                    continue
+                try:
+                    derive, inputs, kwargs = self._v6_parameters(task_id, transform, parent, row, oracle)
+                    record = self._derive_isolated(parent, derive, source, kwargs)
+                except ValueError:
+                    continue
+                if (
+                    record.variant_digest == digest
+                    and record.record_relpath() == expected_path
+                    and record.task_name == f"mimo-v2.6-rl/{task_id}"
+                    and record.transform == transform
+                    and self._matches(record, inputs, source)
+                ):
+                    identity = json.dumps(self._identity(record), sort_keys=True)
+                    matches[identity] = (record, parent)
+        if len(matches) != 1:
+            raise VariantInvalid(
+                f"missing ancestor {record_path}: exact canonical rederivation "
+                f"found {len(matches)} matching identities"
+            )
+        record, parent = next(iter(matches.values()))
+        self._adopt_record(task_id, record, parent)
+
+    def _root_records(
+        self,
+        task_id: str,
+        root_digest: str,
+        source: Mapping[str, Any],
+        chain: tuple[str, ...],
+        row: Mapping[str, str] | None,
+        oracle: OracleInfo | None,
+    ) -> tuple[list[VariantRecord], dict[str, Path]]:
+        if source["kind"] != "variant":
+            return [], {}
+        root_path = str(source["record"])
+        for _attempt in range(64):
+            if not (self.repo_root / root_path).is_file():
+                self._restore_canonical_ancestor(task_id, root_digest, root_path, chain, row, oracle)
+            root_record = resolve_record(root_path, repo_root=self.repo_root)
+            if root_record.variant_digest != root_digest:
+                raise VariantInvalid(f"ledger root record digest mismatch: {root_path}")
+            steps = lineage_chain(root_record, repo_root=self.repo_root)
+            broken = next((step for step in steps if not step.parent_found), None)
+            if broken is None:
+                break
+            missing = broken.record.parent.source
+            if missing.kind != "variant" or missing.record is None:
+                raise VariantInvalid(broken.parent_error or "invalid root ancestry")
+            self._restore_canonical_ancestor(
+                task_id, broken.record.parent.digest, missing.record, chain, row, oracle
+            )
+        else:
+            raise VariantInvalid("root ancestry exceeds 64 records")
+        records = [step.record for step in reversed(steps)]
+        first_source = records[0].parent.source
+        if first_source.kind == "hf":
+            if first_source.model_dump(exclude_none=True) != {**HF_SOURCE, "path": f"tasks/{task_id}"}:
+                raise VariantInvalid("root ancestry does not terminate at the pinned MiMo snapshot")
+            current = self._snapshot_package(task_id, row)
+        elif first_source.kind == "local" and first_source.path:
+            current = _resolve(self.repo_root, Path(first_source.path))
+        else:
+            raise VariantInvalid("root ancestry has no resolvable original package")
+        parents: dict[str, Path] = {}
+        previous: VariantRecord | None = None
+        for record in records:
+            if record.task_name != f"mimo-v2.6-rl/{task_id}":
+                raise VariantInvalid("root ancestry crosses task identities")
+            if previous is not None and (
+                record.parent.source.record != previous.record_relpath().as_posix()
+                or record.parent.digest != previous.variant_digest
+                or record.parent.harbor_digest != previous.variant_harbor_digest
+            ):
+                raise VariantInvalid(f"root ancestry parent binding mismatch: {record.record_relpath()}")
+            self._validate_edge(record, current)
+            parents[record.variant_digest] = current
+            current = materialize(
+                record, current, repo_root=self.repo_root, variants_root=self.variants_root
+            )
+            if harbor_task_digest(current) != record.variant_harbor_digest:
+                raise VariantInvalid(f"root ancestry child Harbor digest mismatch: {record.record_relpath()}")
+            previous = record
+        return records, parents
+
+    def _record_proof(self, record: VariantRecord) -> dict[str, Any]:
+        path = record.record_relpath()
+        proof: dict[str, Any] = {
+            "record": path.as_posix(),
+            "record_sha256": f"sha256:{hashlib.sha256((self.repo_root / path).read_bytes()).hexdigest()}",
+            "transform": record.transform,
+            "parent_digest": record.parent.digest,
+            "parent_harbor_digest": record.parent.harbor_digest,
+            "variant_digest": record.variant_digest,
+            "variant_harbor_digest": record.variant_harbor_digest,
+            "variant_status": record.status,
+        }
+        if path.as_posix() in self._rederivation_proofs:
+            proof["rederivation"] = self._rederivation_proofs[path.as_posix()]
+        return proof
+
+    def _build_v6_chain(
+        self,
+        result: ChainResult,
+        package: Path,
+        root_digest: str,
+        root_source: Mapping[str, Any],
+        chain: tuple[str, ...],
+        row: Mapping[str, str] | None,
+        oracle: OracleInfo | None,
+    ) -> ChainResult:
+        if result.language == "python" and row is None:
+            result.reason = "python snapshot task without a ledger row"
+            return result
+        chain = tuple(
+            CACHE_V5_ID if transform == CACHE_ACTIVE_ID and result.task_id in NODE_FOLD_TASKS else transform
+            for transform in chain
+        )
+        current = package
+        current_digest = root_digest
+        source = dict(root_source)
+        transform = "root ancestry"
+        canonical: list[VariantRecord] = []
+        try:
+            if task_directory_digest(package) != root_digest:
+                raise VariantInvalid("ledger run digest does not match root package bytes")
+            root_harbor_digest = harbor_task_digest(package)
+            records, parents = self._root_records(
+                result.task_id, root_digest, source, chain, row, oracle
+            )
+            previous_position = -1
+            for transform in chain:
+                if self._carries_v6(current, transform):
+                    matched = None
+                    for position, candidate in enumerate(records):
+                        if position <= previous_position or candidate.transform != transform:
+                            continue
+                        parameter_row = row
+                        if transform == PURGE_V2_ID and row is not None:
+                            # A carried edge retains its actual original
+                            # repairs input, not a newly invented provenance.
+                            parameter_row = {
+                                **row, "run_digest": candidate.inputs.get("repairs_digest", ""),
+                            }
+                        derive, inputs, kwargs = self._v6_parameters(
+                            result.task_id, transform, parents[candidate.variant_digest], parameter_row, oracle
+                        )
+                        matches = self._matches(candidate, inputs, None)
+                        if not matches and transform == SEPARATE_V10_ID:
+                            derived = self._derive_isolated(
+                                parents[candidate.variant_digest],
+                                derive,
+                                candidate.parent.source.model_dump(exclude_none=True),
+                                kwargs,
+                            )
+                            if self._rederived_equivalent(candidate, derived):
+                                self._adopt_record(
+                                    result.task_id, derived, parents[candidate.variant_digest]
+                                )
+                                matches = True
+                        if matches:
+                            matched = (position, candidate)
+                    if matched is None:
+                        raise VariantInvalid(
+                            "setup/config carries the step without an ordered, input-matching "
+                            "canonical ancestor record"
+                        )
+                    previous_position, record = matched
+                else:
+                    derive, inputs, kwargs = self._v6_parameters(
+                        result.task_id, transform, current, row, oracle
+                    )
+                    record, reused = self.find_or_derive(
+                        result.task_id, transform, current, current_digest, derive,
+                        parent_source=source, expected_inputs=inputs, **kwargs,
+                    )
+                    result.reused = result.reused and reused
+                    parents[record.variant_digest] = current
+                    records.append(record)
+                    previous_position = len(records) - 1
+                    current = self._variants_dir() / record.task_slug / record.digest12
+                    current_digest = record.variant_digest
+                    source = {"kind": "variant", "record": record.record_relpath().as_posix()}
+                canonical.append(record)
+                result.chain.append(transform)
+            transform = "complete lineage"
+            steps = lineage_chain(records[-1], repo_root=self.repo_root)
+            if any(not step.parent_found for step in steps) or [
+                step.record.variant_digest for step in reversed(steps)
+            ] != [record.variant_digest for record in records]:
+                raise VariantInvalid("final record does not replay through the declared root ancestry")
+            bindings = {records[0].parent.digest: records[0].parent.harbor_digest}
+            bindings.update((record.variant_digest, record.variant_harbor_digest) for record in records)
+            if bindings.get(root_digest) != root_harbor_digest or result.chain != list(chain):
+                raise VariantInvalid("canonical chain is incomplete or not bound to the ledger/snapshot root")
+            if task_directory_digest(current) != current_digest or harbor_task_digest(current) != records[-1].variant_harbor_digest:
+                raise VariantInvalid("final package digest binding changed during build")
+            result.lineage = {
+                "task_id": result.task_id,
+                "root": {
+                    "digest": root_digest,
+                    "harbor_digest": root_harbor_digest,
+                    "source": dict(root_source),
+                    "package_path": (
+                        package.relative_to(self.primary) if package.is_relative_to(self.primary) else package
+                    ).as_posix(),
+                },
+                "final_digest": current_digest,
+                "final_harbor_digest": records[-1].variant_harbor_digest,
+                "canonical_records": [record.record_relpath().as_posix() for record in canonical],
+                "records": [self._record_proof(record) for record in records],
+            }
+        except (OSError, ValueError) as exc:
+            result.reason = f"{transform} failed: {exc}"
+            return result
+        result.status = STATUS_BUILT
+        result.final_digest = current_digest
+        result.package_path = (VARIANTS_REL / records[-1].task_slug / records[-1].digest12).as_posix()
+        result.reason = "clean chain complete; canonical records bound to ledger/snapshot root"
+        if row is None:
+            result.reason += f"; purge-installed-copies n/a to {result.language}: Python pip mechanism"
+        if result.task_id in EXCLUDED_FROM_TRAINING:
+            result.reason += f"; excluded-from-training: {EXCLUDED_FROM_TRAINING[result.task_id]}"
+        return result
 
     def build_task(
         self,
@@ -1033,6 +1439,10 @@ class ChainBuilder:
             result.run_digest = current_digest
         start_digest = current_digest
         source = self._source(task_id, current_digest, start_digest, row)
+        if self.clean_version == CLEAN_SET_VERSION_V6:
+            return self._build_v6_chain(
+                result, current, current_digest, source, chain, row, oracle
+            )
 
         # strip-future-history@1 (fatal: the foundation of the chain).
         if setup_carries(current, STRIP_MARKER):
@@ -1078,6 +1488,10 @@ class ChainBuilder:
                         current_digest,
                         derive_purge_installed_copies_v2,
                         parent_source=source,
+                        expected_inputs={
+                            "setup_python_path": SETUP_PYTHON_PATH,
+                            "repairs_digest": row["run_digest"],
+                        },
                         repairs_digest=row["run_digest"],
                     )
                 except VariantInvalid as exc:
@@ -1225,6 +1639,11 @@ class ChainBuilder:
             )
         )
         try:
+            expected_inputs: Mapping[str, Any] = {"marker": marker, "solution": solution_tag}
+            if separate_id == SEPARATE_V10_ID:
+                _changes, expected_inputs = build_changes_v10(
+                    current, marker=marker, solution_sh=solution_sh
+                )
             record, _ = self.find_or_derive(
                 task_id,
                 separate_id,
@@ -1232,7 +1651,7 @@ class ChainBuilder:
                 current_digest,
                 separate_derive,
                 parent_source=source,
-                expected_inputs={"marker": marker, "solution": solution_tag},
+                expected_inputs=expected_inputs,
                 marker=marker,
                 solution_sh=solution_sh,
             )
@@ -1278,6 +1697,26 @@ def write_manifest(rows: Collection[Mapping[str, str]], path: Path) -> Path:
         writer.writeheader()
         for row in ordered:
             writer.writerow({key: row.get(key, "") for key in MANIFEST_COLUMNS})
+    return path
+
+
+def write_lineage_index(results: Collection[ChainResult], manifest_path: Path) -> Path:
+    """Emit v6 record references, not another copy of the variant ledger."""
+    built = sorted(
+        (result for result in results if result.status == STATUS_BUILT),
+        key=lambda result: result.task_id,
+    )
+    if any(not result.lineage for result in built):
+        raise VariantInvalid("built v6 task is missing its canonical lineage binding")
+    path = manifest_path.with_suffix(".lineage.json")
+    payload = {
+        "schema": "evallab.mimo_clean_lineage/v1",
+        "clean_version": CLEAN_SET_VERSION_V6,
+        "manifest": manifest_path.name,
+        "manifest_sha256": f"sha256:{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}",
+        "tasks": [result.lineage for result in built],
+    }
+    path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -1378,7 +1817,12 @@ def build_mimo_clean_parser(commands) -> None:
         default=None,
         help="HAR-191 oracle-sweep results dir holding per-task solution patches",
     )
-    build.add_argument("--manifest", type=Path, default=None, help="manifest CSV to write")
+    build.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="manifest CSV to write (v6 also emits manifest.with_suffix('.lineage.json'))",
+    )
     build.add_argument(
         "--clean-version",
         choices=[CLEAN_SET_VERSION, CLEAN_SET_VERSION_V5, CLEAN_SET_VERSION_V6],
@@ -1560,6 +2004,8 @@ def _build_command(args, root: Path) -> int:
             if row["status"] == STATUS_BUILT and key in preserved:
                 row["verify"] = preserved[key]
     write_manifest(manifest_rows, manifest_path)
+    if clean_version == CLEAN_SET_VERSION_V6:
+        write_lineage_index(results, manifest_path)
     built = sum(1 for result in results if result.status == STATUS_BUILT)
     print(f"built {built}/{len(results)} -> {manifest_path}")
     for result in sorted(results, key=lambda item: item.task_id):

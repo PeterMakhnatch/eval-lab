@@ -1,0 +1,377 @@
+{
+  "delivery_source_sha256": {
+    "src/evallab/interop.py": "27444da192a7227724705b91665f8796b5a20c585f61313a8f3a255d9e800dcd",
+    "src/evallab/interop_karotte.py": "ef80c2f6c2dcdddd9a852b923c2bd6e023c5ef78cc9d836448005a4f746b6cdc",
+    "src/evallab/interop_verifiers.py": "02843a37c8ec4e8fbb2c948ece46f83bf5d173d3fcc705f3988ae09f14b087cb"
+  },
+  "actual_export_smoke": {
+    "task": "library/tasks/event-summary",
+    "task_version": "1.0.0",
+    "inspect_export_exit": 0,
+    "karotte_export_exit": 0,
+    "docker_compose_config_exit": 0,
+    "resolved_inspect_compose": {
+      "cpus": 1,
+      "memory_bytes": 536870912,
+      "workdir": "/app",
+      "build_context": "environment/",
+      "command": null
+    },
+    "inspect_mapping_sha256": "59d13291e0e93e2bf1561daf02cb5d4ca15ebc8320f95a598e4bfc14e60518f7",
+    "karotte_mapping_sha256": "62ef739cb4bda29fadb28ab894c01708e8ddbb7f964af2206105732443a15dc9",
+    "inspect_task_sha256": "29cea6dbd48d1db61c65e6c1c180966090dae657e8fd22c13e07a69d3764b027",
+    "inspect_compose_sha256": "44a43c0240c7f85ab586dcfe34f7aa40d065db2169cf4d0c8a046e42848f1460",
+    "raw": "runs/interop/har204-resume-20261017/export-smoke.json",
+    "observed": "Both real-task MAPPING.md outputs carry the source-qualified boundary and additional field-specific losses; read back after actual CLI generation.",
+    "scope": "Export generation and Compose config only, not image build, task execution or destination grading.",
+    "task_containers_started": 0,
+    "model_calls": 0
+  },
+  "agentenv": {
+    "base_nop": {
+      "bench_verdict": "FAIL",
+      "score": 0,
+      "upstream_verdict": "FAIL"
+    },
+    "base_oracle": {
+      "bench_verdict": "PASS",
+      "score": 1,
+      "upstream_verdict": "PASS"
+    },
+    "fresh_sha256": "d7895097027f96d36c202ba3d77441c1078137f32bbbff1d633116e1a511dc90",
+    "historical_controls": 11,
+    "historical_model_calls": 0,
+    "independent_retained_sqlite_observation": {
+      "nop": {
+        "approver": "Manager",
+        "case_status": "Returned to Manager",
+        "target_events": 0,
+        "version": 8
+      },
+      "oracle": {
+        "approver": "Compensation",
+        "case_status": "Compensation Audit Review",
+        "target_events": 1,
+        "version": 9
+      }
+    },
+    "limits": [
+      "No Harbor converter exists.",
+      "Model-call zero is a scripted declaration supported by absent SDK/guarded sockets and zero-token usage, not universal metering.",
+      "Extra trajectory/database data planes remained reachable.",
+      "Report grading was a deterministic lexical proxy, not the paid upstream report judge."
+    ],
+    "matches": true,
+    "published_sha256": "d7895097027f96d36c202ba3d77441c1078137f32bbbff1d633116e1a511dc90",
+    "receipt": "/Users/petermakhnatch/Developer/eval-lab/runs/agentenv-bench/aenv-final/receipt.json",
+    "supporting_artifacts": [
+      "base/oracle/task-dag.json:145-163",
+      "base/oracle/grade.json:1-43",
+      "base/nop/grade.json:1-43",
+      "receipt.json:133-145,325-337,2116-2129,2268-2284"
+    ]
+  },
+  "audited_behavior_revision": "2adb082aa7eb2ea19db51b85b154d6b778409f6e",
+  "card": "HAR-204",
+  "kind": "pinned-source-compatibility-audit-not-live-destination-parity",
+  "limits": [
+    {
+      "adapter_symbols": [
+        "interop.parse_reward_bytes",
+        "interop.INSPECT_TASK_TEMPLATE",
+        "interop_karotte._render_scoring",
+        "interop_karotte.parse_transcript"
+      ],
+      "id": "reward-contract",
+      "observed_loss": "Text precedes JSON and only scalar score/reward JSON keys are supported. Harbor is JSON-first and retains keyed rewards; pure Inspect lacks the native finiteness guard. Karotte rejects a nonfinite final score later. Inspect-Harbor matrix scoring is separate.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/verifier/verifier.py:72-122,257-268",
+        "inspect_harbor/_harbor/scorer.py:252-320"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop.karotte_flags",
+        "interop_karotte._HARNESS_CONTAINERFILE"
+      ],
+      "id": "identity-env-policy",
+      "observed_loss": "User overrides, verifier.env and verifier-phase network policy are not replayed; raw truthy-field detectors can miss UID 0 and legacy allow_internet policies. Baseline/agent policy, MCP and solution/environment overrides are already flagged but not enforced.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:219-269,340-345,873-920",
+        "harbor/verifier/verifier.py:189-205",
+        "karotte/container.py:48-67"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.INSPECT_TASK_TEMPLATE",
+        "interop_karotte._GENERIC_SCORING",
+        "interop_karotte._VENDOR_SUBMISSIONS_PY"
+      ],
+      "id": "separate-verifier-and-custody",
+      "observed_loss": "A separate verifier image and declared-artifact transfer are not reproduced. Inspect grades the live agent image. Karotte kills student processes, wipes the workdir, restores root-collected submission copies and grades those in the same container; a matching grade is not equivalent isolation.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:640-757",
+        "karotte/run_helpers.py:322-410"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop_karotte.write_env_tree"
+      ],
+      "id": "startup-healthcheck",
+      "observed_loss": "Harbor healthchecks/readiness are not replayed. Karotte bakes discovered setup scripts into the image instead of running them at each startup. The real retained MiMo format-code-task-002552 declares healthcheck setup.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:429-470"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop_karotte.write_env_tree"
+      ],
+      "id": "prebuilt-overlay",
+      "observed_loss": "Native Harbor uploads non-build-spec environment/ files into the prebuilt-image workdir. Pure Inspect merely copies them beside the export; Karotte maps tests and special setup, not the general overlay.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/environments/definition.py:39-53",
+        "harbor/environments/base.py:940-956"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.task_workdir"
+      ],
+      "id": "image-workdir",
+      "observed_loss": "Without an explicit or local Dockerfile WORKDIR the helper chooses /. Native Harbor omits -w when unspecified and preserves the prebuilt image default; the defaults need not agree.",
+      "targets": [
+        "scripted-destinations"
+      ],
+      "upstream_evidence": [
+        "harbor/environments/docker/docker.py:1350-1365,1399-1412"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop_karotte.ensure_harbor_base",
+        "interop_karotte.resolve_spec",
+        "interop_karotte.fake_model_source",
+        "interop_karotte.run_cell"
+      ],
+      "id": "budgets",
+      "observed_loss": "Build and agent phase budgets are not preserved. Karotte base-build budgets clamp to 300-3600s, oracle tool calls to 300s, cheat tool calls to 1500s and verifier budget to 300-2100s, independent of the whole-run watchdog. The real event-summary verifier budget is 60s but resolves to 300s in Karotte.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "karotte/tools/bash.py:810-818,851-852"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop.admit_local_task",
+        "interop_karotte._bound_container"
+      ],
+      "id": "resources-and-platform",
+      "observed_loss": "Only CPU/RAM map; Karotte applies bounds after startup. Storage/GPU/TPU, gpu_types, OS, skills_dir and legacy memory/storage fields have no faithful mapping. A GPU live cell is refused by admission, not converted into a supported run.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:429-470,505-551"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop_karotte._HARNESS_CONTAINERFILE"
+      ],
+      "id": "harness-drift",
+      "observed_loss": "The harness requires Debian apt/account utilities, adds its own Python and packages, replaces PATH and uses a fixed student identity. It is not a neutral layer compatible with every Harbor image.",
+      "targets": [
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "karotte/container.py:48-67"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.INSPECT_TASK_TEMPLATE",
+        "interop_karotte._artifact_sources",
+        "interop_karotte._GENERIC_SCORING"
+      ],
+      "id": "collect-artifacts",
+      "observed_loss": "Verifier collect hooks are not executed. Inspect does not publish Harbor artifacts; Karotte consumes absolute source paths only, dropping relative sources, service/exclude/host-destination details and grading collected copies.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:640-757"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.load_harbor_task",
+        "interop.export_karotte",
+        "interop_karotte._karotte_slug",
+        "interop_karotte._TASK_INIT_TEMPLATE",
+        "interop_karotte.run_cell"
+      ],
+      "id": "task-structure",
+      "observed_loss": "Multi-step hooks, environments and reward aggregation are not mapped. Karotte normalizes/truncates IDs and does not replay version/authors/metadata. Its export fake model is nop, while the live runner separately materializes oracle mounts.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:760-826"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.INSPECT_TASK_TEMPLATE",
+        "interop._collect_solution_files",
+        "interop_karotte.run_cell",
+        "interop_karotte._GENERIC_SCORING"
+      ],
+      "id": "files-and-interpreters",
+      "observed_loss": "Inspect stages file bytes, not mode/link/empty-directory identity. Karotte oracle skips symlinks and mounts byte copies read-only. Both force bash /tests/test.sh rather than honoring the native executable script interpreter. The Inspect-Harbor matrix upload path separately refuses symlink/oversize helpers.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/utils/scripts.py:121-160"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect",
+        "interop.karotte_flags",
+        "interop_karotte.resolve_spec"
+      ],
+      "id": "compose-mcp",
+      "observed_loss": "Multi-service Compose is refused rather than successfully converted; MCP sidecar lifecycle is not mapped.",
+      "targets": [
+        "pure-inspect",
+        "karotte"
+      ],
+      "upstream_evidence": [
+        "harbor/models/task/config.py:451"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop.export_inspect"
+      ],
+      "id": "keepalive",
+      "observed_loss": "The generated Compose service does not override CMD with a keepalive, unlike Harbor and Inspect-Harbor. [INFERENCE] An image whose CMD exits may prevent a live control from starting. No admitted run was available to resolve this.",
+      "targets": [
+        "pure-inspect"
+      ],
+      "upstream_evidence": [
+        "inspect_harbor/_harbor/converters.py:144-150"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop_verifiers._arun_cell"
+      ],
+      "id": "verifiers-reward-fallback",
+      "observed_loss": "Upstream _graded tries JSON then text and returns 0.0 on missing/malformed outputs. The current adapter accepts a recorded reward, so that fallback is indistinguishable from a genuine task zero; it is not proven fail-closed infrastructure grading.",
+      "targets": [
+        "verifiers"
+      ],
+      "upstream_evidence": [
+        "verifiers/v1/tasksets/harbor/taskset.py:300-338"
+      ]
+    },
+    {
+      "adapter_symbols": [
+        "interop_verifiers._validate_task_contract",
+        "interop_verifiers.harness_config",
+        "vf_scripted_harness.py"
+      ],
+      "id": "verifiers-contract",
+      "observed_loss": "The actual source/parser evidence supports refusal of users/services, unsupported environment fields, multi-step, Compose, advisory disk, unbuilt separate images and incompatible phase/CIDR networks. The scripted oracle does not apply solution.env. The adapter also needs the optional Harbor runtime.",
+      "targets": [
+        "verifiers"
+      ],
+      "upstream_evidence": [
+        "verifiers/v1/tasksets/harbor/taskset.py:507-718",
+        "verifiers/v1/runtimes/docker/__init__.py:33-47",
+        "verifiers/v1/configs/runtime.py:11-29"
+      ]
+    }
+  ],
+  "observed_at": "2026-10-17T14:54:52.387761+00:00",
+  "retention_limit": "Former worktree paths named by research/evidence/har204-interop-20261017.json are absent; its recorded raw-probe digests are historical references, not freshly inspected bytes. The present source hashes and fresh admission snapshot are retained independently.",
+  "runtime_scope": "No sandbox build/start, solver, judge, model API, cloud run, RL training or price probe was executed. Normal local admission remained refused. Export mapping disclosures are source completion, not new compatibility implementation.",
+  "schema": "evallab.interop.source-limits/v1",
+  "source_hash_method": "shasum -a 256 on the listed cached wheel members; native sources were read directly. Wheel hashes for locked dependencies come from uv.lock.",
+  "upstream_sources": {
+    "harbor": {
+      "files": {
+        "harbor/environments/base.py": "b677e2376b0e4ee2a9c63220ea1108e4e4917797da2ee48c4177dc1aa3efe1d0",
+        "harbor/environments/definition.py": "6bb4a9bb5747fd3c8dcc92dfa57f4637749fef1dbf3adf932e7400dbe6b0e3ff",
+        "harbor/environments/docker/docker.py": "77911f4df7fe29850d006ec969786a920302668fa7cdf35ff7c31cc96337bf65",
+        "harbor/models/task/config.py": "f9cd1d01960de82f1ec025c285a7367cec5eb8e3a2bb0b8e6313e7bce3283e5e",
+        "harbor/utils/scripts.py": "494313097da228db23d81e267b537894f8aa61bf500f7c6ef96552322ec87660",
+        "harbor/verifier/verifier.py": "6d3d9ed8882c5e07bae4aa6449732b096166fb9bbabc685b39c0e25f57b20aa9"
+      },
+      "version": "0.24.0",
+      "wheel_sha256": "23b7ba616a3aae4eff561ced5e2c51c7186f2981e53a770dea9c689d3969877c"
+    },
+    "inspect-harbor": {
+      "files": {
+        "inspect_harbor/_harbor/converters.py": "3a13efcb95934745ffa69b5432b50a84606706258cdedadf6c969c77579306f3",
+        "inspect_harbor/_harbor/scorer.py": "0a6aee76eccfa1a60ad7dce41ada88b42c4b0af811965792ff4eb78e0465725b"
+      },
+      "version": "1.0.0",
+      "wheel_sha256": "669deb618c5e8dff13a66f08bfc25c3d3104e6741e56c52c471ea80a8b82abf3"
+    },
+    "karotte": {
+      "files": {
+        "karotte/container.py": "a7fea3e597501ce79473e744270e9472424b2bd7df90c4bad20417747fe49b21",
+        "karotte/run_helpers.py": "25355e75faae01473e0b0a6971b027bddfb15e001d821f27f23cb8e9b3e93994",
+        "karotte/tools/bash.py": "9cc5d714535b4a686aaea772174d8d0489c4e90366dc5c1c3a4dc8d1d15b376b"
+      },
+      "version": "3.0.59"
+    },
+    "verifiers": {
+      "files": {
+        "verifiers/v1/configs/runtime.py": "2015f7171889d9125a897d9a2a0850d79725147bc9a4f517cbc19640ea4d8583",
+        "verifiers/v1/runtimes/docker/__init__.py": "2bac5b2404f5177f8fb603f91ae9b6509290f117b5633f7404ff1473b36979ce",
+        "verifiers/v1/tasksets/harbor/taskset.py": "89d478628d542472f005d025a00674d0123e49a271afafada35c312af420aaf4"
+      },
+      "version": "0.3.1",
+      "wheel_sha256": "105cd114184625895b3d1a07ddc418f08a0ddadcd9cb20dad5acb763ccb01725"
+    }
+  }
+}

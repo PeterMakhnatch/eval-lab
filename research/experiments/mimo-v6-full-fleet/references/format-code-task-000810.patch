@@ -1,0 +1,54 @@
+diff --git a/docs/changelog.rst b/docs/changelog.rst
+index ace32b90..154974fa 100644
+--- a/docs/changelog.rst
++++ b/docs/changelog.rst
+@@ -10,6 +10,12 @@ Breaking changes
+ This release makes the following changes to the API.  You may need to update your implementation to
+ accommodate these changes.
+ 
++- Check value of ManyToManyField in skip_row() (#1271)
++   - This fixes an issue where ManyToMany fields are not checked correctly in `skip_row()`.
++     This means that `skip_row()` now takes `row` as a mandatory arg.
++     If you have overridden `skip_row()` in your own implementation, you will need to add `row`
++     as an arg.
++
+ - Use 'create' flag instead of instance.pk (#1362)
+    - ``import_export.resources.save_instance()`` now takes an additional mandatory argument: `is_create`.
+      If you have over-ridden `save_instance()` in your own code, you will need to add this new argument.
+diff --git a/import_export/resources.py b/import_export/resources.py
+index 6fb574ab..29618b8a 100644
+--- a/import_export/resources.py
++++ b/import_export/resources.py
+@@ -577,7 +577,7 @@ class Resource(metaclass=DeclarativeMetaclass):
+         """
+         return False
+ 
+-    def skip_row(self, instance, original):
++    def skip_row(self, instance, original, row):
+         """
+         Returns ``True`` if ``row`` importing should be skipped.
+ 
+@@ -607,7 +607,13 @@ class Resource(metaclass=DeclarativeMetaclass):
+             try:
+                 # For fields that are models.fields.related.ManyRelatedManager
+                 # we need to compare the results
+-                if list(field.get_value(instance).all()) != list(field.get_value(original).all()):
++                if isinstance(field.widget, widgets.ManyToManyWidget):
++                    # compare with the future value to detect changes
++                    instance_value = list(field.clean(row))
++                else:
++                    instance_value = list(field.get_value(instance).all())
++
++                if instance_value != list(field.get_value(original).all()):
+                     return False
+             except AttributeError:
+                 if field.get_value(instance) != field.get_value(original):
+@@ -700,7 +706,7 @@ class Resource(metaclass=DeclarativeMetaclass):
+                     # validate_instance(), where they can be combined with model
+                     # instance validation errors if necessary
+                     import_validation_errors = e.update_error_dict(import_validation_errors)
+-                if self.skip_row(instance, original):
++                if self.skip_row(instance, original, row):
+                     row_result.import_type = RowResult.IMPORT_TYPE_SKIP
+                 else:
+                     self.validate_instance(instance, import_validation_errors)

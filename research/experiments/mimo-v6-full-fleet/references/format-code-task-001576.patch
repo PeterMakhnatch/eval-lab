@@ -1,0 +1,164 @@
+diff --git a/packages/database/lib/modular/index.d.ts b/packages/database/lib/modular/index.d.ts
+index a5c601cf3..1f3c86f96 100644
+--- a/packages/database/lib/modular/index.d.ts
++++ b/packages/database/lib/modular/index.d.ts
+@@ -220,5 +220,13 @@ export function getServerTime(db: Database): Promise<number>;
+  */
+ export function increment(delta: number): object;
+ 
++/**
++ * Logs debugging information to the console. Not implemented on native.
++ *
++ * @param enabled
++ * @param persistent
++ */
++export declare function enableLogging(enabled: boolean, persistent?: boolean): any;
++
+ export * from './query';
+ export * from './transaction';
+diff --git a/packages/database/lib/modular/index.js b/packages/database/lib/modular/index.js
+index a5826c5ae..19921f9da 100644
+--- a/packages/database/lib/modular/index.js
++++ b/packages/database/lib/modular/index.js
+@@ -123,5 +123,9 @@ export function increment(delta) {
+   return ServerValue.increment(delta);
+ }
+ 
++export function enableLogging(_enabled, _persistent) {
++  throw new Error('enableLogging() is not implemented');
++}
++
+ export * from './query';
+ export * from './transaction';
+diff --git a/packages/database/lib/modular/query.d.ts b/packages/database/lib/modular/query.d.ts
+index 1ae003ca3..3c185fda7 100644
+--- a/packages/database/lib/modular/query.d.ts
++++ b/packages/database/lib/modular/query.d.ts
+@@ -124,28 +124,6 @@ export declare function equalTo(
+   key?: string,
+ ): QueryConstraint;
+ 
+-/**
+- * Creates a `QueryConstraint` that includes children that match the specified
+- * value.
+- *
+- * Using `startAt()`, `startAfter()`, `endBefore()`, `endAt()` and `equalTo()`
+- * allows you to choose arbitrary starting and ending points for your queries.
+- *
+- * The optional key argument can be used to further limit the range of the
+- * query. If it is specified, then children that have exactly the specified
+- * value must also have exactly the specified key as their key name. This can be
+- * used to filter result sets with many matches for the same value.
+- *
+- * @param value - The value to match for. The argument type depends on which
+- * `orderBy*()` function was used in this query. Specify a value that matches
+- * the `orderBy*()` type. When used in combination with `orderByKey()`, the
+- * value must be a string.
+- * @param key - The child key to start at, among the children with the
+- * previously specified priority. This argument is only allowed if ordering by
+- * child, value, or priority.
+- */
+-export function equalTo(value: number | string | boolean | null, key?: string): QueryConstraint;
+-
+ /**
+  * Creates a QueryConstraint with the specified starting point.
+  *
+@@ -170,30 +148,6 @@ export declare function startAt(
+   key?: string,
+ ): QueryConstraint;
+ 
+-/**
+- * Creates a `QueryConstraint` with the specified starting point.
+- *
+- * Using `startAt()`, `startAfter()`, `endBefore()`, `endAt()` and `equalTo()`
+- * allows you to choose arbitrary starting and ending points for your queries.
+- *
+- * The starting point is inclusive, so children with exactly the specified value
+- * will be included in the query. The optional key argument can be used to
+- * further limit the range of the query. If it is specified, then children that
+- * have exactly the specified value must also have a key name greater than or
+- * equal to the specified key.
+- *
+- * @param value - The value to start at. The argument type depends on which
+- * `orderBy*()` function was used in this query. Specify a value that matches
+- * the `orderBy*()` type. When used in combination with `orderByKey()`, the
+- * value must be a string.
+- * @param key - The child key to start at. This argument is only allowed if
+- * ordering by child, value, or priority.
+- */
+-export function startAt(
+-  value: number | string | boolean | null = null,
+-  key?: string,
+-): QueryConstraint;
+-
+ /**
+  * Creates a `QueryConstraint` with the specified starting point (exclusive).
+  *
+@@ -214,26 +168,6 @@ export function startAt(
+  */
+ export function startAfter(value: number | string | boolean | null, key?: string): QueryConstraint;
+ 
+-/**
+- * Creates a `QueryConstraint` with the specified starting point (exclusive).
+- *
+- * Using `startAt()`, `startAfter()`, `endBefore()`, `endAt()` and `equalTo()`
+- * allows you to choose arbitrary starting and ending points for your queries.
+- *
+- * The starting point is exclusive. If only a value is provided, children
+- * with a value greater than the specified value will be included in the query.
+- * If a key is specified, then children must have a value greater than or equal
+- * to the specified value and a key name greater than the specified key.
+- *
+- * @param value - The value to start after. The argument type depends on which
+- * `orderBy*()` function was used in this query. Specify a value that matches
+- * the `orderBy*()` type. When used in combination with `orderByKey()`, the
+- * value must be a string.
+- * @param key - The child key to start after. This argument is only allowed if
+- * ordering by child, value, or priority.
+- */
+-export function startAfter(value: number | string | boolean | null, key?: string): QueryConstraint;
+-
+ /**
+  * Creates a new `QueryConstraint` that if limited to the first specific number
+  * of children.
+@@ -903,6 +837,25 @@ export function setWithPriority(
+  */
+ export function get(query: Query): Promise<DataSnapshot>;
+ 
++/**
++ * Detaches a callback previously attached with the corresponding on*() (onValue, onChildAdded) listener.
++ * Note: This is not the recommended way to remove a listener. Instead, please use the returned callback function from the respective on* callbacks.
++ * Detach a callback previously attached with on*(). Calling off() on a parent listener will not automatically remove listeners registered on child nodes, off() must also be called on any child listeners to remove the callback.
++ * If a callback is not specified, all callbacks for the specified eventType will be removed.
++ * Similarly, if no eventType is specified, all callbacks for the Reference will be removed.
++ * Individual listeners can also be removed by invoking their unsubscribe callbacks.
++ * Note: Not implemented on native
++ *
++ * @param query - The query to run
++ * @param eventType One of the following strings: "value", "child_added", "child_changed", "child_removed", or "child_moved.
++ * @param callback
++ */
++export declare function off(
++  query: Query,
++  eventType?: EventType,
++  callback?: (snapshot: DataSnapshot, previousChildName?: string | null) => unknown,
++): void;
++
+ /**
+  * Gets a `Reference` for the location at the specified relative path.
+  *
+diff --git a/packages/database/lib/modular/query.js b/packages/database/lib/modular/query.js
+index 22e924da2..192573dab 100644
+--- a/packages/database/lib/modular/query.js
++++ b/packages/database/lib/modular/query.js
+@@ -239,6 +239,10 @@ export function get(query) {
+   return query.once('value');
+ }
+ 
++export function off(_query, _eventType, _callback) {
++  throw new Error('off() is not implemented');
++}
++
+ /**
+  * @param {DatabaseReference} parent
+  * @param {string} path

@@ -1,0 +1,277 @@
+diff --git a/README.md b/README.md
+index 5cde27a..65fe771 100644
+--- a/README.md
++++ b/README.md
+@@ -72,7 +72,7 @@ router = Router()
+ 
+ 
+ class DepartmentViewSet(viewsets.ModelViewSet):
+-    model_class = Department
++    model = Department
+     default_input_schema = DepartmentIn
+     default_output_schema = DepartmentOut
+ 
+@@ -82,9 +82,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
+     update_view = views.UpdateModelView()
+     delete_view = views.DeleteModelView()
+ 
++
+ # The register_routes method must be called to register the routes with the router
+ DepartmentViewSet.register_routes(router)
+ 
++
+ # The router can then be used as normal
+ @router.get("/{name}", response=DepartmentOut)
+ def get_department_by_name(request: HttpRequest, name: str):
+diff --git a/docs/guides/04-Examples.md b/docs/guides/04-Examples.md
+index b89cacb..0de6164 100644
+--- a/docs/guides/04-Examples.md
++++ b/docs/guides/04-Examples.md
+@@ -42,7 +42,7 @@ router = Router()
+ 
+ 
+ class DepartmentViewSet(viewsets.ModelViewSet):
+-    model_class = Department
++    model = Department
+     default_input_schema = DepartmentIn
+     default_output_schema = DepartmentOut
+ 
+@@ -52,9 +52,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
+     update_view = views.UpdateModelView()
+     delete_view = views.DeleteModelView()
+ 
++
+ # The register_routes method must be called to register the routes with the router
+ DepartmentViewSet.register_routes(router)
+ 
++
+ # The router can then be used as normal
+ @router.get("/{name}", response=DepartmentOut)
+ def get_department_by_name(request: HttpRequest, name: str):
+diff --git a/examples/views/department_views.py b/examples/views/department_views.py
+index 1a1a1ec..0c80c4c 100644
+--- a/examples/views/department_views.py
++++ b/examples/views/department_views.py
+@@ -8,7 +8,7 @@ router = Router()
+ 
+ 
+ class DepartmentViewSet(viewsets.BaseModelViewSet):
+-    model_class = Department
++    model = Department
+     default_input_schema = DepartmentIn
+     default_output_schema = DepartmentOut
+ 
+diff --git a/examples/views/employee_views.py b/examples/views/employee_views.py
+index f757ce1..b3457ad 100644
+--- a/examples/views/employee_views.py
++++ b/examples/views/employee_views.py
+@@ -8,7 +8,7 @@ router = Router()
+ 
+ 
+ class EmployeeViewSet(viewsets.ModelViewSet):
+-    model_class = Employee
++    model = Employee
+     default_input_schema = EmployeeIn
+     default_output_schema = EmployeeOut
+ 
+diff --git a/ninja_crud/views/abstract_model_view.py b/ninja_crud/views/abstract_model_view.py
+index 1d0f8f2..48c0aa5 100644
+--- a/ninja_crud/views/abstract_model_view.py
++++ b/ninja_crud/views/abstract_model_view.py
+@@ -64,6 +64,10 @@ class AbstractModelView(ABC):
+ 
+         Raises:
+             NotImplementedError: This method must be implemented by a subclass.
++
++        Note:
++            This method should be called by the `register_routes` method of the `ModelViewSet` subclass.
++            It should not be called directly.
+         """
+         pass
+ 
+diff --git a/ninja_crud/views/create_model_view.py b/ninja_crud/views/create_model_view.py
+index 948d06d..ef62bb2 100644
+--- a/ninja_crud/views/create_model_view.py
++++ b/ninja_crud/views/create_model_view.py
+@@ -34,7 +34,7 @@ class CreateModelView(AbstractModelView):
+     from examples.schemas import DepartmentIn, DepartmentOut, EmployeeIn, EmployeeOut
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         # Basic usage: Create a department
+         # POST /departments/
+@@ -84,7 +84,7 @@ class CreateModelView(AbstractModelView):
+                 - For `detail=False`: () -> Model
+                 - For `detail=True`: (id: Any) -> Model
+ 
+-                If not provided, the `model_class` specified in the `ModelViewSet` will be used.
++                If not provided, the `model` specified in the `ModelViewSet` will be used.
+             pre_save (Union[CreateDetailSaveHook, CreateCollectionSaveHook, None], optional): A function that
+                 is called before saving the instance. Defaults to None.
+ 
+diff --git a/ninja_crud/views/delete_model_view.py b/ninja_crud/views/delete_model_view.py
+index 513e445..486c0bf 100644
+--- a/ninja_crud/views/delete_model_view.py
++++ b/ninja_crud/views/delete_model_view.py
+@@ -23,7 +23,7 @@ class DeleteModelView(AbstractModelView):
+     from examples.schemas import DepartmentOut, EmployeeOut
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         # Usage: Delete a department by id
+         # DELETE /departments/{id}/
+diff --git a/ninja_crud/views/list_model_view.py b/ninja_crud/views/list_model_view.py
+index f629703..19c84be 100644
+--- a/ninja_crud/views/list_model_view.py
++++ b/ninja_crud/views/list_model_view.py
+@@ -34,7 +34,7 @@ class ListModelView(AbstractModelView):
+     from examples.schemas import DepartmentOut, EmployeeOut
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         # Basic usage: List all departments
+         # GET /departments/
+@@ -79,8 +79,7 @@ class ListModelView(AbstractModelView):
+                 - For `detail=False`: () -> QuerySet[Model]
+                 - For `detail=True`: (id: Any) -> QuerySet[Model]
+ 
+-                If not provided, the default manager of the `model_class` specified in the
+-                `ModelViewSet` will be used.
++                If not provided, the default manager of the `model` specified in the `ModelViewSet` will be used.
+             pagination_class (Optional[Type[PaginationBase]], optional): The pagination class to use for the view.
+                 Defaults to LimitOffsetPagination.
+             path (Optional[str], optional): The path to use for the view. Defaults to:
+diff --git a/ninja_crud/views/retrieve_model_view.py b/ninja_crud/views/retrieve_model_view.py
+index ac59f98..163ee68 100644
+--- a/ninja_crud/views/retrieve_model_view.py
++++ b/ninja_crud/views/retrieve_model_view.py
+@@ -29,7 +29,7 @@ class RetrieveModelView(AbstractModelView):
+     from examples.schemas import DepartmentOut
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         # Usage: Retrieve a department by id
+         # GET /departments/{id}/
+@@ -54,8 +54,7 @@ class RetrieveModelView(AbstractModelView):
+             queryset_getter (Optional[DetailQuerySetGetter], optional): A function to customize the queryset used
+                 for retrieving the object. Defaults to None. Should have the signature (id: Any) -> QuerySet[Model].
+ 
+-                If not provided, the default manager of the `model_class` specified in the
+-                `ModelViewSet` will be used.
++                If not provided, the default manager of the `model` specified in the `ModelViewSet` will be used.
+             path (Optional[str], optional): The path to use for the view. Defaults to "/{id}".
+             decorators (Optional[List[Callable]], optional): A list of decorators to apply to the view. Defaults to [].
+             router_kwargs (Optional[dict], optional): Additional arguments to pass to the router. Defaults to {}.
+diff --git a/ninja_crud/views/update_model_view.py b/ninja_crud/views/update_model_view.py
+index c60f8d3..0885168 100644
+--- a/ninja_crud/views/update_model_view.py
++++ b/ninja_crud/views/update_model_view.py
+@@ -27,7 +27,7 @@ class UpdateModelView(AbstractModelView):
+     from examples.schemas import DepartmentIn, DepartmentOut
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         # Usage: Update a department by id
+         # PUT /departments/{id}/
+diff --git a/ninja_crud/viewsets/base_model_viewset.py b/ninja_crud/viewsets/base_model_viewset.py
+index 193326d..83a08e7 100644
+--- a/ninja_crud/viewsets/base_model_viewset.py
++++ b/ninja_crud/viewsets/base_model_viewset.py
+@@ -22,7 +22,7 @@ class BaseModelViewSet(ModelViewSet):
+     for serialization and deserialization of data.
+ 
+     Attributes:
+-        - model_class (Type[Model]): The Django model class for CRUD operations.
++        - model (Type[Model]): The Django model class for CRUD operations.
+         - default_input_schema (Type[Schema]): The default schema to use for
+             deserializing the request payload.
+         - default_output_schema (Type[Schema]): The default schema to use for
+@@ -44,7 +44,7 @@ class BaseModelViewSet(ModelViewSet):
+     router = Router()
+ 
+     class DepartmentViewSet(BaseModelViewSet):
+-        model_class = Department
++        model = Department
+         default_input_schema = DepartmentIn
+         default_output_schema = DepartmentOut
+ 
+diff --git a/ninja_crud/viewsets/model_viewset.py b/ninja_crud/viewsets/model_viewset.py
+index 284919b..5e1cf9d 100644
+--- a/ninja_crud/viewsets/model_viewset.py
++++ b/ninja_crud/viewsets/model_viewset.py
+@@ -12,12 +12,12 @@ class ModelViewSet:
+     """
+     A viewset offering CRUD operations for a Django model.
+ 
+-    Subclasses should specify the Django model via the `model_class` class attribute. You
++    Subclasses should specify the Django model via the `model` class attribute. You
+     can then attach various views (subclasses of `AbstractModelView`) to the subclass to
+     define the CRUD behavior.
+ 
+     Attributes:
+-        - model_class (Type[Model]): The Django model class for CRUD operations.
++        - model (Type[Model]): The Django model class for CRUD operations.
+         - default_input_schema (Optional[Type[Schema]], optional): The default schema to use for
+             deserializing the request payload. Defaults to None.
+         - default_output_schema (Optional[Type[Schema]], optional): The default schema to use for
+@@ -37,7 +37,7 @@ class ModelViewSet:
+     router = Router()
+ 
+     class DepartmentViewSet(ModelViewSet):
+-        model_class = Department
++        model = Department
+ 
+         list = views.ListModelView(output_schema=DepartmentOut)
+         create = views.CreateModelView(input_schema=DepartmentIn, output_schema=DepartmentOut)
+@@ -65,7 +65,7 @@ class ModelViewSet:
+     ```
+     """
+ 
+-    model_class: Type[Model]
++    model: Type[Model]
+     default_input_schema: Optional[Type[Schema]]
+     default_output_schema: Optional[Type[Schema]]
+ 
+@@ -78,7 +78,7 @@ class ModelViewSet:
+         """
+         super().__init_subclass__(**kwargs)
+ 
+-        if hasattr(cls, "model_class"):
++        if hasattr(cls, "model"):
+             cls._validate_model_class()
+             cls._validate_input_schema_class(optional=True)
+             cls._validate_output_schema_class(optional=True)
+@@ -114,20 +114,18 @@ class ModelViewSet:
+         """
+         for attr_name, attr_value in inspect.getmembers(cls):
+             if isinstance(attr_value, AbstractModelView):
+-                attr_value.register_route(router, cls.model_class)
++                attr_value.register_route(router, cls.model)
+ 
+     @classmethod
+     def _validate_model_class(cls) -> None:
+         """
+-        Validates that the `model_class` attribute is a subclass of `Model`.
++        Validates that the `model` attribute is a subclass of `Model`.
+ 
+         Raises:
+             - ValueError: If the attribute is not set.
+             - TypeError: If the attribute is not a subclass of `Model`.
+         """
+-        utils.validate_class_attribute_type(
+-            cls, "model_class", expected_type=Type[Model]
+-        )
++        utils.validate_class_attribute_type(cls, "model", expected_type=Type[Model])
+ 
+     @classmethod
+     def _validate_input_schema_class(cls, optional: bool = True) -> None:

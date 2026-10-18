@@ -1,0 +1,136 @@
+{
+  "schema": "evallab.interop.admission-recheck/v1",
+  "card": "HAR-204",
+  "acceptance": "blocked",
+  "source_baseline": "1c4fd06ecaedb7ffc998c1055885d73fe26671ad",
+  "prior_source_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/1014",
+  "admission": {
+    "command": ".venv/bin/python -c 'from pathlib import Path; import json, evallab; from evallab.interop import load_harbor_task, admit_local_task; print(\"evallab_import=\" + str(evallab.__file__)); print(json.dumps(admit_local_task(load_harbor_task(\"library/tasks/event-summary\"), Path(\"runs/interop/har204-third-resume/admission\"), sandboxes=2), indent=2))'",
+    "exit": 1,
+    "observed_at": "2026-10-17T15:17:43.625515+00:00",
+    "task_id": "local-lab/event-summary",
+    "task_version": "1.0.0",
+    "admitted": false,
+    "sandboxes": 2,
+    "requested": {"cpus": 2, "memory_mb": 1024},
+    "reason": "local Docker admission refused: an existing Docker container has unbounded CPU or memory",
+    "raw": "runs/interop/har204-third-resume/admission/admission.json",
+    "raw_sha256": "42600d1e1ade9d44ce0127475a7e353e0a8377e6b150eca3731f5517934ae29b"
+  },
+  "runtime_inventory": {
+    "daemon_system_time": "2026-10-17T15:16:49.900888179Z",
+    "daemon": {"name": "docker-desktop", "cpus": 16, "memory_bytes": 8318709760},
+    "unbounded_shared_services": [
+      {"name": "eval-lab-postgres-1", "NanoCpus": 0, "CpuPeriod": 0, "CpuQuota": 0, "Memory": 0},
+      {"name": "fxtr-postgres", "NanoCpus": 0, "CpuPeriod": 0, "CpuQuota": 0, "Memory": 0},
+      {"name": "evallab-state-8969a67a6204493f9aa8ac23", "NanoCpus": 0, "CpuPeriod": 0, "CpuQuota": 0, "Memory": 0}
+    ],
+    "source_commands": ["docker info --format '{{json .}}'", "docker inspect --format '{{.Id}} {{.Name}} NanoCpus={{.HostConfig.NanoCpus}} CpuPeriod={{.HostConfig.CpuPeriod}} CpuQuota={{.HostConfig.CpuQuota}} Memory={{.HostConfig.Memory}}' ffaebab177dc d93b308a2755 e1f9c4f980e3"],
+    "mutations": [],
+    "later_inventory_attempt": "A subsequent read-only docker info timed out after 15 seconds. No retry of task execution followed admission refusal.",
+    "scope": "Point-in-time subset inventory, not a resource reservation. Current bounded-task occupancy/headroom is not inferred from the older snapshot.",
+    "raw": "runs/interop/har204-third-resume/inventory.json",
+    "raw_sha256": "fa7f18ea8fd3bf1f2f318014cb0a246c262c79f9ca818edb181ca7246b742d0a"
+  },
+  "integrated_verification": {
+    "command": ".venv/bin/python -m pytest tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py -n 4 -rs --junitxml=runs/interop/har204-third-resume/integration/pytest.junit.xml",
+    "exit": 0,
+    "passed": 239,
+    "skipped": 1,
+    "reported_seconds": 126.98,
+    "skip_reason": "Live grid Docker smoke requires EVALLAB_GRID_DOCKER_SMOKE=1; not enabled after admission refusal.",
+    "runtime": {"python": "3.12.11", "harbor": "0.24.0", "inspect_ai": "0.3.276", "verifiers": "0.3.1"},
+    "scope": "Optional-runtime unit/fixture integration at the source baseline, before the documentation-only wording corrections. No native sandbox control or live destination parity.",
+    "raw": "runs/interop/har204-third-resume/integration/summary.json",
+    "raw_sha256": "07089371ebe5bf7ec5c3f444c04c89fc4cca2c7ffafba8c99d2483fc1eec3c0c",
+    "pytest_stdout_sha256": "f9a5e6cb851c73ceda1b25a16d4467f87f57548a355c905ccfa67d5aaed29604"
+  },
+  "cli_smokes": {
+    "commands": [
+      ".venv/bin/evallab grid compare research/evidence/runs/event-summary-oracle-evidence research/evidence/runs/event-summary-nop-evidence",
+      ".venv/bin/evallab hack-queue research/evidence/runs/event-summary-oracle-evidence --json",
+      ".venv/bin/evallab hack-queue research/evidence/runs/event-summary-nop-evidence --json"
+    ],
+    "exits": [0, 0, 0],
+    "grid_compare": {"oracle_pass_rate": 1.0, "nop_pass_rate": 0.0, "trials_each": 1, "unscored": 0, "historical_harbor_version": "0.21.0"},
+    "hack_queue": {"trials_each": 1, "rewards": [1.0, 0.0], "signals": "All five unknown, not a clean-cheating finding; absent trajectory/scan/watch/regrade inputs."},
+    "scope": "Actual read-only CLI consumption of historical evidence, not current-runtime parity. Suggested regrade commands were not executed."
+  },
+  "application_smoke": {
+    "command": ".venv/bin/python -m evallab.smoke --docker-free",
+    "exit": 0,
+    "job": "smoke-oracle-rf0tzkw7keee",
+    "observed": ["doctor", "submit->tick", "catalog", "parquet", "digest", "analysis validation", "status snapshot", "both-stores-agree"],
+    "scope": "Actual Docker-free application path using historical fixtures, not sandbox execution.",
+    "raw": "runs/interop/har204-third-resume/application-smoke.json",
+    "raw_sha256": "197693f2639c0331afa1f9b00059b3198567ebeeab4ac43cb17f256fc1320c98"
+  },
+  "compatibility_audit": {
+    "exclusions_reconciled": 16,
+    "boundary_receipt": "research/evidence/har204-conversion-limits-20261017.json",
+    "baseline_adapter_hashes_matching": 3,
+    "native_source_hashes_matching": {"harbor": 6, "inspect_harbor": 2, "verifiers": 3, "karotte": 3},
+    "karotte_version": "3.0.59",
+    "karotte_source_command": "uv run --no-project --python 3.12 --with karotte==3.0.59 python -c 'import hashlib, importlib.metadata, json; d=importlib.metadata.distribution(\"karotte\"); names=[\"karotte/container.py\", \"karotte/run_helpers.py\", \"karotte/tools/bash.py\"]; print(json.dumps({\"version\":d.version,\"files\":{name:{\"path\":str(d.locate_file(name)),\"sha256\":hashlib.sha256(d.locate_file(name).read_bytes()).hexdigest()} for name in names}},indent=2))'",
+    "karotte_fresh_source_sha256": {
+      "karotte/container.py": "a7fea3e597501ce79473e744270e9472424b2bd7df90c4bad20417747fe49b21",
+      "karotte/run_helpers.py": "25355e75faae01473e0b0a6971b027bddfb15e001d821f27f23cb8e9b3e93994",
+      "karotte/tools/bash.py": "9cc5d714535b4a686aaea772174d8d0489c4e90366dc5c1c3a4dc8d1d15b376b"
+    },
+    "agentenv_historical": {
+      "receipt_sha256": "d7895097027f96d36c202ba3d77441c1078137f32bbbff1d633116e1a511dc90",
+      "digest_matches": true,
+      "controls": 11,
+      "scores_match_expectations": true,
+      "oracle_score": 1.0,
+      "nop_score": 0.0,
+      "declared_model_calls": 0,
+      "limitations": ["No Harbor converter exists.", "Declared zero model calls and empty client/network lists are not universal traffic metering.", "Trajectory and four full-database data planes remained reachable despite successful tool RBAC probes.", "Report grading used a deterministic lexical proxy, not the upstream paid LLM judge.", "vp_claim bench_verdict PASS is not the final report-inclusive AgentEnv score, which is 0."]
+    },
+    "raw": "runs/interop/har204-third-resume/compatibility/audit.json",
+    "raw_sha256": "547fb78dfb8ff13d7dfc164f4c6a9dc1fc88cd609badad47832ff3cd71ab2756",
+    "karotte_supplement": "runs/interop/har204-third-resume/compatibility/karotte-native-source.json",
+    "karotte_supplement_sha256": "8d31f7a6c77b7cd10784f01d8cea4358063f228e2c66388e23df80e8f94fb01b",
+    "scope": "The restricted worker read set lacked native Karotte bytes; the parent subsequently resolved the pinned distribution and verified all three. Source and historical evidence establish exclusions, not live destination execution."
+  },
+  "source_disclosure_corrections": {
+    "interop_module": "Qualifies the error-not-score statement: verifiers' upstream missing/malformed-reward fallback remains indistinguishable from a task zero (actual verifiers/v1/tasksets/harbor/taskset.py:300-338).",
+    "karotte_task_template": "Removes 'exactly like Harbor shared mode': the adapter's actual collect_submission implementation kills student processes, saves copies and wipes student files, unlike grading Harbor's live shared filesystem (src/evallab/interop_karotte.py:512-529).",
+    "actual_export_commands": [".venv/bin/evallab interop export-harbor library/tasks/event-summary --to inspect --out runs/interop/har204-third-resume/export-inspect", ".venv/bin/evallab interop export-harbor library/tasks/event-summary --to karotte --out runs/interop/har204-third-resume/export-karotte"],
+    "actual_export_exits": [0, 0],
+    "generated_karotte_task_read_back": true,
+    "scope": "Real task exports exercise the changed generated disclosure. No new test pins incidental wording; no solver, judge, image build or sandbox ran.",
+    "delivery_source_sha256": {
+      "src/evallab/interop.py": "ccd28df47e519a6bc73e1123f5ff96d50ebec113bd98bee92ffb2f488ad4134c",
+      "src/evallab/interop_karotte.py": "bbcf69eab20294cdea131ff427791534e1d33187ac392c420ce70320d6ab2ea7",
+      "src/evallab/interop_verifiers.py": "02843a37c8ec4e8fbb2c948ece46f83bf5d173d3fcc705f3988ae09f14b087cb"
+    }
+  },
+  "focused_delivery_checkpoint": {
+    "command": "env PATH=\"/private/tmp/har204-tools-20261017T151449/bin:$PATH\" scripts/premerge.sh --focused tests/test_interop.py tests/test_interop_karotte.py tests/test_interop_verifiers.py tests/test_grid.py tests/test_hack_queue.py tests/test_cheat.py::test_fixture_pyc_shadow_passes_without_source_edit -n 4 -rs",
+    "exit": 0,
+    "uv": "0.9.24",
+    "python": "3.12",
+    "ty": "0.0.71",
+    "type_diagnostics": 0,
+    "static_gates": ["locked install", "ruff", "docindex", "repomap", "governance", "registry audit", "lessons", "ty"],
+    "passed": 170,
+    "skipped": 8,
+    "skip_reasons": {"grid": "one opt-in live Docker smoke", "verifiers": "seven real-parser cases need optional verifiers dependencies removed by the required base-profile sync"},
+    "optional_runtime_coverage": "The separate 239-pass integrated run above exercised the real verifiers parser cases with its locked optional runtime installed.",
+    "initial_checkpoint": {"exit": 1, "reason": "repomap inputs stale after the source docstring changes", "resolution": "Authoritative make docs regenerated the map; the subsequent complete checkpoint above passed."},
+    "scope": "Passing focused local checkpoint, not full hosted CI or live destination parity."
+  },
+  "execution_limits": {
+    "spend_usd": 0,
+    "model_calls": 0,
+    "cloud_runs": 0,
+    "price_probes": 0,
+    "rl_training_started": false,
+    "shared_services_modified": false,
+    "task_containers_started": 0,
+    "admission_bypassed": false,
+    "task_execution_retried_after_refusal": false
+  },
+  "remaining_dependency": "An authorized shared-runtime owner must restore finite CPU/RAM bounds and sufficient headroom on the selected daemon. Then rerun fresh admitted native Harbor and converted Inspect/Karotte oracle/nop controls at pinned task/framework versions. Closed dependency cards, constructors, exports, successful skips and historical grades do not satisfy live parity."
+}

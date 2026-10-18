@@ -96,3 +96,81 @@ their hashes and the original execution paths are recorded in the registration
 receipt. The canonical record files retain every parent package/Harbor digest
 and every before/after file change. No new model, container or paid execution
 was used for this registration.
+
+## Held-out v7 successor
+
+The evening 2026-10-17 campaign creates a **new** `heldout-v7.json`; it does
+not rewrite this freeze, rerank membership, replace a historical v6 column,
+or inherit the old scoring authorization. Its `mimo.heldout/v1` envelope
+retains exactly the same 33 bare IDs in the same order, so the existing
+held-out exclusion consumers continue to exclude the whole cohort.
+
+From an installed repository root, assemble the successor explicitly:
+
+```sh
+BRIDGE="$HOME/Developer/research-context/bridge/2026-10-17-v7"
+uv run --no-sync python research/experiments/mimo-training-20261016/freeze.py \
+  --assemble-successor \
+  --frozen-source-dir research/experiments/mimo-training-20261016 \
+  --repairs-handoff "$BRIDGE/repairs-v7.json" \
+  --setup-handoff "$BRIDGE/setup-001948-v7.json" \
+  --successor-destination "$BRIDGE/heldout-v7.json" \
+  --repo-root .
+```
+
+Each rich selected-grader row binds its exact frozen parent, selected package
+and Harbor identities, canonical lineage records, and control evidence.
+Unchanged selections keep their exact v6 package and historical controls;
+an old x1 pair is not three observations. EnvCheck's actual hash-bound
+`repairs-v7.json` supplies semantic repairs. The separately owned 001948
+`setup-python-path@1` child changes setup and its embedded healthcheck only,
+not tests or assertions, and must not be labelled a test repair.
+
+Fresh controls for an unchanged v6 selection are explicit, optional inputs:
+add `--native-control-metadata /absolute/job/lab-metadata.json` once for each
+reference and nop job. Each supplied task must have one distinct, model-free
+oracle execution and one nop execution, with actual repeat3 case evidence
+and rewards `[1,1,1]` / `[0,0,0]`. Partial pairs, duplicate roles or UUIDs,
+uncompleted or nonzero-exit oracle submissions, conflicting primary rewards,
+and observations for another package or a repaired selection are rejected.
+The native job/config/lock, agent, verifier and stability artifacts are
+hash-bound; three stability rows without case execution do not qualify.
+These are three grader invocations on each final state, not three independent
+agent trials. `reported_baseline_controls` records the new native environment
+type/import path separately from the retained historical controls. The frozen
+v6 files, packages and x1 evidence are not rewritten; every semantic and independent gate
+below remains closed.
+Selected metrics identify that measurement source instead of reusing the
+historical observation indices. The enclosing `backend` continues to describe
+the frozen source, not the fresh native environment.
+
+Only complete EnvCheck rows are selectable. The assembler binds their
+candidate, qualification, matrix, native-record and source-inventory hashes,
+replays the variant independently, checks that the original test patch is
+retained as a byte prefix, and requires the exact original-command wrapper:
+either the current task-interpreter preference or its immutable historical
+form without that preference. Both retain the complete original command
+and propagate failures from both suites; skipping or masking either is
+rejected. Partial rows leave the exact v6 parent selected; changed source
+hashes are rejected rather than silently reinterpreted. This compatibility
+check does not waive semantic acceptance or qualify a known false negative.
+
+Native control labels and aggregate qualification flags are not execution
+evidence. Each selected observation is re-read from its actual Harbor UUID,
+config, lock, results and positive case-execution artifacts. Repeated controls
+also require the three requested runs and distinct indices in `stability.json`.
+Wrong and correct-alternative oracle scripts are re-staged through the native
+matrix API, so their private solution-package digests are checked without
+mistaking them for the unchanged source package or grader digest.
+
+The assembler always emits `scoring_allowed=false`. Pending repair entries,
+missing native repeats, wrong-reproducer replays, correct-alternative
+controls, or unresolved adjudications stay explicit; publishing a candidate
+is not acceptance. V7 acceptance requires reference `[1,1,1]`, do-nothing
+`[0,0,0]`, rejection of every recorded adjudicated-wrong submission, no
+rejected adjudicated-correct submission, and an independent Verifier PASS
+bound to the final manifest and grader bytes.
+
+Exclusion compatibility is not grading admission. Historical byte-pinned
+partition inputs and frozen-v6 scoring analyzers remain historical consumers;
+pointing them at a new filename does not authorize a changed grader.

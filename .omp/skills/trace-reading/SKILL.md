@@ -12,6 +12,28 @@ Every claim you make about a run cites `head#<step_id>` or a file path plus a sh
 1. `research/explorations/trace-lab/QUIRKS.md`: known detector bugs, leaky tasks and harness behaviour. Check the status of every quirk you rely on.
 2. The task: `~/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-<id>/` (instruction.md, tests). This is the primary checkout's ignored `derived/`, so it is present in no worktree.
 
+## Start bounded, reopen by source
+
+From the current checkout, choose the smallest readout that answers the question:
+
+- Full-run metrics or navigation: `uv run evallab traj outline <trial> --summary --json`.
+- A known inclusive logical range: `uv run evallab traj outline <trial> --steps START:END --json`.
+- The first error-marked action and its command: `uv run evallab traj outline <trial> --first-error --json`.
+  This returns no steps when none is error-marked; that is not evidence of task success
+  or of the first causal failure.
+
+Each selected step retains `source_path`, `source_sha256`, and `source_step_id`;
+cite those original coordinates, not a logical ID as if it belonged to the head
+file. Metrics always describe the whole run, not the selected range.
+`step_selection` accounts for omitted steps.
+
+A summary is navigation, not proof that an omitted action never happened. Reopen
+the relevant command/observation in the immutable source before assigning cause,
+copying, recovery, or intent; expand the range when context changes the conclusion.
+Use full `--json` or `--verbose` when the actual question needs the whole history,
+not by default. Strip reasoning before sending excerpts to an external reviewer.
+
+
 ## What a trial folder contains
 
 | file | use it for |

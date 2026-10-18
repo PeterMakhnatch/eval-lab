@@ -1,0 +1,305 @@
+diff --git a/starfish/image/_filter/bandpass.py b/starfish/image/_filter/bandpass.py
+index e56268d5..aeee8387 100644
+--- a/starfish/image/_filter/bandpass.py
++++ b/starfish/image/_filter/bandpass.py
+@@ -7,6 +7,7 @@ from trackpy import bandpass
+ from starfish.imagestack.imagestack import ImageStack
+ from starfish.types import Number
+ from ._base import FilterAlgorithmBase
++from .util import determine_axes_to_split_by
+ 
+ 
+ class Bandpass(FilterAlgorithmBase):
+@@ -110,8 +111,13 @@ class Bandpass(FilterAlgorithmBase):
+             self._bandpass,
+             lshort=self.lshort, llong=self.llong, threshold=self.threshold, truncate=self.truncate
+         )
++
++        split_by = determine_axes_to_split_by(self.is_volume)
++
+         result = stack.apply(
+             bandpass_,
+-            verbose=verbose, in_place=in_place, is_volume=self.is_volume, n_processes=n_processes
++            split_by=split_by,
++            in_place=in_place,
++            n_processes=n_processes,
+         )
+         return result
+diff --git a/starfish/image/_filter/clip.py b/starfish/image/_filter/clip.py
+index d875506a..1b81782e 100644
+--- a/starfish/image/_filter/clip.py
++++ b/starfish/image/_filter/clip.py
+@@ -5,6 +5,7 @@ import numpy as np
+ 
+ from starfish.imagestack.imagestack import ImageStack
+ from ._base import FilterAlgorithmBase
++from .util import determine_axes_to_split_by
+ 
+ 
+ class Clip(FilterAlgorithmBase):
+@@ -88,9 +89,10 @@ class Clip(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         clip = partial(self._clip, p_min=self.p_min, p_max=self.p_max)
+         result = stack.apply(
+             clip,
+-            is_volume=self.is_volume, verbose=verbose, in_place=in_place, n_processes=n_processes
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/image/_filter/gaussian_high_pass.py b/starfish/image/_filter/gaussian_high_pass.py
+index ca514fb8..a1835f57 100644
+--- a/starfish/image/_filter/gaussian_high_pass.py
++++ b/starfish/image/_filter/gaussian_high_pass.py
+@@ -9,7 +9,11 @@ from starfish.image._filter.gaussian_low_pass import GaussianLowPass
+ from starfish.imagestack.imagestack import ImageStack
+ from starfish.types import Number
+ from ._base import FilterAlgorithmBase
+-from .util import preserve_float_range, validate_and_broadcast_kernel_size
++from .util import (
++    determine_axes_to_split_by,
++    preserve_float_range,
++    validate_and_broadcast_kernel_size,
++)
+ 
+ 
+ class GaussianHighPass(FilterAlgorithmBase):
+@@ -95,9 +99,10 @@ class GaussianHighPass(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         high_pass: Callable = partial(self._high_pass, sigma=self.sigma)
+         result = stack.apply(
+-            high_pass, is_volume=self.is_volume, verbose=verbose, in_place=in_place,
+-            n_processes=n_processes
++            high_pass,
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/image/_filter/gaussian_low_pass.py b/starfish/image/_filter/gaussian_low_pass.py
+index f0e2392e..eaa94c24 100644
+--- a/starfish/image/_filter/gaussian_low_pass.py
++++ b/starfish/image/_filter/gaussian_low_pass.py
+@@ -8,7 +8,11 @@ from skimage.filters import gaussian
+ from starfish.imagestack.imagestack import ImageStack
+ from starfish.types import Number
+ from ._base import FilterAlgorithmBase
+-from .util import preserve_float_range, validate_and_broadcast_kernel_size
++from .util import (
++    determine_axes_to_split_by,
++    preserve_float_range,
++    validate_and_broadcast_kernel_size,
++)
+ 
+ 
+ class GaussianLowPass(FilterAlgorithmBase):
+@@ -98,9 +102,10 @@ class GaussianLowPass(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         low_pass: Callable = partial(self._low_pass, sigma=self.sigma)
+         result = stack.apply(
+-            low_pass, is_volume=self.is_volume, verbose=verbose, in_place=in_place,
+-            n_processes=n_processes
++            low_pass,
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/image/_filter/mean_high_pass.py b/starfish/image/_filter/mean_high_pass.py
+index 882c5eed..f48644bf 100644
+--- a/starfish/image/_filter/mean_high_pass.py
++++ b/starfish/image/_filter/mean_high_pass.py
+@@ -8,7 +8,9 @@ from scipy.ndimage.filters import uniform_filter
+ from starfish.imagestack.imagestack import ImageStack
+ from starfish.types import Number
+ from ._base import FilterAlgorithmBase
+-from .util import preserve_float_range, validate_and_broadcast_kernel_size
++from .util import (
++    determine_axes_to_split_by, preserve_float_range, validate_and_broadcast_kernel_size
++)
+ 
+ 
+ class MeanHighPass(FilterAlgorithmBase):
+@@ -100,9 +102,10 @@ class MeanHighPass(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         high_pass: Callable = partial(self._high_pass, size=self.size)
+         result = stack.apply(
+             high_pass,
+-            is_volume=self.is_volume, verbose=verbose, in_place=in_place, n_processes=n_processes
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/image/_filter/richardson_lucy_deconvolution.py b/starfish/image/_filter/richardson_lucy_deconvolution.py
+index 6acf9d3d..f665b254 100644
+--- a/starfish/image/_filter/richardson_lucy_deconvolution.py
++++ b/starfish/image/_filter/richardson_lucy_deconvolution.py
+@@ -6,7 +6,7 @@ import numpy as np
+ from scipy.signal import convolve, fftconvolve
+ 
+ from starfish.imagestack.imagestack import ImageStack
+-from starfish.types import Number
++from starfish.types import Indices, Number
+ from ._base import FilterAlgorithmBase
+ from .util import gaussian_kernel, preserve_float_range
+ 
+@@ -168,6 +168,7 @@ class DeconvolvePSF(FilterAlgorithmBase):
+         )
+         result = stack.apply(
+             func,
+-            in_place=in_place, verbose=verbose, n_processes=n_processes
++            split_by={Indices.Y.value, Indices.X.value}, verbose=verbose, n_processes=n_processes,
++            in_place=in_place
+         )
+         return result
+diff --git a/starfish/image/_filter/scale_by_percentile.py b/starfish/image/_filter/scale_by_percentile.py
+index 1c49f792..ef2363fd 100644
+--- a/starfish/image/_filter/scale_by_percentile.py
++++ b/starfish/image/_filter/scale_by_percentile.py
+@@ -5,7 +5,7 @@ import numpy as np
+ 
+ from starfish.imagestack.imagestack import ImageStack
+ from ._base import FilterAlgorithmBase
+-from .util import preserve_float_range
++from .util import determine_axes_to_split_by, preserve_float_range
+ 
+ 
+ class ScaleByPercentile(FilterAlgorithmBase):
+@@ -86,9 +86,10 @@ class ScaleByPercentile(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         clip = partial(self._scale, p=self.p)
+         result = stack.apply(
+             clip,
+-            is_volume=self.is_volume, verbose=verbose, in_place=in_place, n_processes=n_processes
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/image/_filter/util.py b/starfish/image/_filter/util.py
+index 63f1082f..db427576 100644
+--- a/starfish/image/_filter/util.py
++++ b/starfish/image/_filter/util.py
+@@ -4,7 +4,7 @@ import numpy as np
+ import xarray as xr
+ from skimage.morphology import binary_opening, disk
+ 
+-from starfish.types import Number
++from starfish.types import Indices, Number
+ 
+ 
+ def bin_thresh(img: np.ndarray, thresh: int) -> np.ndarray:
+@@ -148,3 +148,10 @@ def preserve_float_range(
+             else:
+                 array[array > 1] = 1
+     return array.astype(np.float32)
++
++def determine_axes_to_split_by(is_volume: bool):
++    """map is_volume to axes to split by when applying a function over an ImageStack"""
++    if is_volume:
++        return {Indices.Z.value, Indices.Y.value, Indices.X.value}
++    else:
++        return {Indices.Y.value, Indices.X.value}
+diff --git a/starfish/image/_filter/white_tophat.py b/starfish/image/_filter/white_tophat.py
+index 0e5d627b..53fba89a 100644
+--- a/starfish/image/_filter/white_tophat.py
++++ b/starfish/image/_filter/white_tophat.py
+@@ -5,6 +5,7 @@ from skimage.morphology import ball, disk, white_tophat
+ 
+ from starfish.imagestack.imagestack import ImageStack
+ from ._base import FilterAlgorithmBase
++from .util import determine_axes_to_split_by
+ 
+ 
+ class WhiteTophat(FilterAlgorithmBase):
+@@ -73,8 +74,9 @@ class WhiteTophat(FilterAlgorithmBase):
+             original stack.
+ 
+         """
++        split_by = determine_axes_to_split_by(self.is_volume)
+         result = stack.apply(
+             self._white_tophat,
+-            is_volume=self.is_volume, verbose=verbose, in_place=in_place, n_processes=n_processes
++            split_by=split_by, verbose=verbose, in_place=in_place, n_processes=n_processes
+         )
+         return result
+diff --git a/starfish/imagestack/imagestack.py b/starfish/imagestack/imagestack.py
+index 1b8b8e86..8303ff2d 100644
+--- a/starfish/imagestack/imagestack.py
++++ b/starfish/imagestack/imagestack.py
+@@ -6,8 +6,8 @@ from copy import deepcopy
+ from functools import partial
+ from itertools import product
+ from typing import (
+-    Any, Callable, Iterable, Iterator, List, Mapping, MutableSequence, Optional, Sequence, Tuple,
+-    Union
++    Any, Callable, Iterable, Iterator, List, Mapping, MutableSequence,
++    Optional, Sequence, Set, Tuple, Union
+ )
+ 
+ import matplotlib.pyplot as plt
+@@ -618,7 +618,7 @@ class ImageStack:
+     def apply(
+             self,
+             func,
+-            is_volume=False,
++            split_by: Set[Indices]={Indices.X, Indices.Y},
+             in_place=False,
+             verbose: bool=False,
+             n_processes: Optional[int]=None,
+@@ -632,10 +632,11 @@ class ImageStack:
+             Function to apply. must expect a first argument which is a 2d or 3d numpy array
+             (see is_volume) and return a
+             np.ndarray. If inplace is True, must return an array of the same shape.
+-        is_volume : bool
+-            (default False) If True, pass 3d volumes (x, y, z) to func
++        apply_over: Set[Indices, ...]
++            (default {Indices.X, Indices.Y}) By default, apply over X and Y (tiles). Alternatively,
++            One could pass {Indices.X, Indices.Y, Indices.Z} to apply over volumes.
+         in_place : bool
+-            (default False) If True, function is executed in place. If n_proc is not 1, the tile or
++            (default True) If True, function is executed in place. If n_proc is not 1, the tile or
+             volume will be copied once during execution. If false, a new ImageStack object will be
+             produced.
+         verbose : bool
+@@ -656,17 +657,13 @@ class ImageStack:
+             image_stack = deepcopy(self)
+             return image_stack.apply(
+                 func,
+-                is_volume=is_volume, in_place=True, verbose=verbose, n_processes=n_processes,
+-                **kwargs
++                split_by=split_by, in_place=True, verbose=verbose, n_processes=n_processes, **kwargs
+             )
+ 
+-        if is_volume:
+-            self._data = self._data.stack(tiles=[Indices.ROUND.value,
+-                                                 Indices.CH.value])
+-        else:
+-            self._data = self._data.stack(tiles=[Indices.ROUND.value,
+-                                                 Indices.CH.value,
+-                                                 Indices.Z.value])
++        axes = set(ind.value for ind in Indices)
++        stack_axes = list(axes - set(split_by))
++
++        self._data = self._data.stack(tiles=stack_axes)
+         tile_indices = self._data.tiles
+ 
+         # set the keyword arguments in the apply function
+@@ -694,8 +691,8 @@ class ImageStack:
+             Indices.ROUND.value,
+             Indices.CH.value,
+             Indices.Z.value,
+-            'y',
+-            'x'
++            Indices.Y.value,
++            Indices.X.value
+         )
+ 
+         return self

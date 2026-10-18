@@ -23,6 +23,7 @@ from evallab.labels import (
     persist_behavior_label,
     select_review_queue,
 )
+from evallab.storage.paths import DERIVED_ROOT_ENV
 from evallab.traj import (
     TRAJ_FEATURES_PARQUET_SCHEMA,
     LoopSuspicion,
@@ -39,6 +40,14 @@ from evallab.traj import (
 def _persist_after_barrier(label, repo_root: Path, derived_root: Path, barrier) -> None:
     barrier.wait()
     persist_behavior_label(label, repo_root=repo_root, derived_root=derived_root)
+
+
+@pytest.fixture(autouse=True)
+def isolated_derived_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Isolate implicit label reads/locks and writes; explicit roots still win."""
+    derived = tmp_path / "derived" / "parquet"
+    monkeypatch.setenv(DERIVED_ROOT_ENV, str(derived))
+    return derived
 
 
 @pytest.fixture
@@ -759,40 +768,30 @@ def test_sql_traj_views_with_data() -> None:
         assert summary[9] == 1  # human_labels_count
 
 
-def test_cli_traj_commands(real_canary_trial: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Test CLI dispatch for evallab traj subcommands."""
-    # 1. outline
-    rc = cli.run_cli(["traj", "outline", str(real_canary_trial)])
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "TRAJECTORY OUTLINE: event-summary__h2D9f6f" in out
+def test_cli_label_uses_isolated_derived_store(
+    real_canary_trial: Path,
+    repo_root: Path,
+    isolated_derived_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.run_cli(["traj", "outline", str(real_canary_trial), "--json"]) == 0
+    outline = json.loads(capsys.readouterr().out)
 
-    # outline --json
-    rc_json = cli.run_cli(["traj", "outline", str(real_canary_trial), "--json"])
-    assert rc_json == 0
-    out_json = capsys.readouterr().out
-    data = json.loads(out_json)
-    assert data["trial_name"] == "event-summary__h2D9f6f"
-
-    # 2. queue
-    rc_q = cli.run_cli(["traj", "queue", "--limit", "2"])
-    assert rc_q == 0
-    out_q = capsys.readouterr().out
-    assert "TRAJECTORY REVIEW QUEUE" in out_q
-
-    # 3. label
-    rc_lbl = cli.run_cli(
-        ["traj", "label", str(real_canary_trial), "test_label", "--note", "CLI label test"]
+    assert (
+        cli.run_cli(
+            ["traj", "label", str(real_canary_trial), "test_label", "--note", "CLI label test"]
+        )
+        == 0
     )
-    assert rc_lbl == 0
-    out_lbl = capsys.readouterr().out
-    assert "Recorded label: event-summary__h2D9f6f -> test_label by peter [human]" in out_lbl
-
-    # 5. report
-    rc_rep = cli.run_cli(["traj", "report"])
-    assert rc_rep == 0
-    out_rep = capsys.readouterr().out
-    assert "HEURISTIC PRECISION REPORT" in out_rep
+    labels_root = isolated_derived_root / "behavior_labels"
+    assert (labels_root / "behavior_labels.parquet").is_file()
+    persisted = load_behavior_labels(repo_root=repo_root, derived_root=labels_root)
+    assert len(persisted) == 1
+    assert persisted[0].label == "test_label"
+    assert persisted[0].rationale == "CLI label test"
+    assert persisted[0].provenance == "human"
+    assert persisted[0].trial_id == outline["trial_id"]
+    assert persisted[0].source_sha256 == f"sha256:{outline['source_sha256']}"
 
 
 def test_invalid_trajectory_shape_is_accounted(repo_root: Path) -> None:

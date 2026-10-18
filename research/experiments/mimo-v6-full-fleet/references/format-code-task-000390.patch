@@ -1,0 +1,60 @@
+diff --git a/ansible_rulebook/job_template_runner.py b/ansible_rulebook/job_template_runner.py
+index 02816c4..a7fb1ae 100644
+--- a/ansible_rulebook/job_template_runner.py
++++ b/ansible_rulebook/job_template_runner.py
+@@ -24,6 +24,7 @@ from urllib.parse import urljoin
+ import aiohttp
+ import dpath
+ 
++from ansible_rulebook import util
+ from ansible_rulebook.exception import (
+     ControllerApiException,
+     JobTemplateNotFoundException,
+@@ -34,8 +35,8 @@ logger = logging.getLogger(__name__)
+ 
+ 
+ class JobTemplateRunner:
+-    UNIFIED_TEMPLATE_SLUG = "/api/v2/unified_job_templates/"
+-    CONFIG_SLUG = "/api/v2/config/"
++    UNIFIED_TEMPLATE_SLUG = "api/v2/unified_job_templates/"
++    CONFIG_SLUG = "api/v2/config/"
+     JOB_COMPLETION_STATUSES = ["successful", "failed", "error", "canceled"]
+ 
+     def __init__(
+@@ -47,6 +48,7 @@ class JobTemplateRunner:
+         verify_ssl: str = "yes",
+     ):
+         self.token = token
++        self._host = ""
+         self.host = host
+         self.username = username
+         self.password = password
+@@ -56,6 +58,14 @@ class JobTemplateRunner:
+         )
+         self._session = None
+ 
++    @property
++    def host(self):
++        return self._host
++
++    @host.setter
++    def host(self, value: str):
++        self._host = util.ensure_trailing_slash(value)
++
+     async def close_session(self):
+         if self._session and not self._session.closed:
+             await self._session.close()
+diff --git a/ansible_rulebook/util.py b/ansible_rulebook/util.py
+index d2ff691..9b5660e 100644
+--- a/ansible_rulebook/util.py
++++ b/ansible_rulebook/util.py
+@@ -273,3 +273,9 @@ def process_controller_host_limit(
+             return ",".join(job_args["limit"])
+         return str(job_args["limit"])
+     return ",".join(parent_hosts)
++
++
++def ensure_trailing_slash(url: str) -> str:
++    if not url.endswith("/"):
++        return url + "/"
++    return url

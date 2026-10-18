@@ -1,0 +1,46 @@
+diff --git a/.gitignore b/.gitignore
+index 2278a34..415657e 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -225,6 +225,7 @@ __pycache__/
+ .Python
+ env/
+ venv/
++venv*/
+ build/
+ develop-eggs/
+ dist/
+diff --git a/enforce/nodes.py b/enforce/nodes.py
+index a91473f..131f78d 100644
+--- a/enforce/nodes.py
++++ b/enforce/nodes.py
+@@ -319,7 +319,10 @@ class CallableNode(BaseNode):
+         from .enforcers import Enforcer, apply_enforcer
+ 
+         if not inspect.isfunction(data):
+-            return data
++            if hasattr(data, '__call__'): # handle case where data is a callable object
++                data = data.__call__
++            else:
++                return data
+ 
+         try:
+             enforcer = data.__enforcer__
+@@ -379,7 +382,7 @@ class GenericNode(BaseNode):
+ 
+     def __init__(self, data_type, **kwargs):
+         from .enforcers import Enforcer, GenericProxy
+-        print(data_type)
++        #print(data_type)
+         try:
+             enforcer = data_type.__enforcer__
+         except AttributeError:
+@@ -391,7 +394,7 @@ class GenericNode(BaseNode):
+             if not is_type_of_type(type(enforcer), Enforcer, covariant=covariant, contravariant=contravariant):
+                 enforcer =  GenericProxy(data_type).__enforcer__
+ 
+-        print(enforcer.signature)
++        #print(enforcer.signature)
+ 
+         super().__init__(enforcer, is_sequence=True, type_var=False, **kwargs)
+ 

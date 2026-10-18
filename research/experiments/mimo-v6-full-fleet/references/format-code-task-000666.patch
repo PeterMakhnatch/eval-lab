@@ -1,0 +1,113 @@
+diff --git a/src/pyromat/__init__.py b/src/pyromat/__init__.py
+index f7a8497..bba4587 100644
+--- a/src/pyromat/__init__.py
++++ b/src/pyromat/__init__.py
+@@ -8,6 +8,24 @@ Chris Martin (c) 2015-2022
+ Released under the GNU General Publice License v3.0
+   http://www.gnu.org/licenses/gpl-3.0.en.html
+ 
++*** Retrieving data ***
++
++To get started, retrieve a substance that is of interest
++and commit it to a variable that you will use later. The
++command below retrieves an object for Argon.
++  >>> import pyromat as pm
++  >>> Ar = pm.get('ig.Ar')
++
++Once created, these objects can be called on to recover
++thermodynamic properties given a temperature in K and
++a pressure in bar.  The command below returns the 
++enthalpy of argon at 325K and atmospheric pressure.
++  >>> h = Ar.h(T=325, p=1.013)
++
++To see what properties are supported, check the in-line
++help for each species.
++  >>> help(Ar)
++
+ *** What's available? ***
+ 
+ For a complete list of all available species, use the info()
+@@ -22,7 +40,7 @@ To search for species, see the info() funciton's other features
+ # utility.load_config() checks this value to establish the read-only version
+ # setup.py looks for this line to establish the version
+ # MUST be unindented
+-__version__ = "2.2.6"
++__version__ = "2.2.5"
+ 
+ 
+ # loading the PYroMat utility functions
+@@ -50,6 +68,21 @@ dat.load()
+ 
+ 
+ 
++def get( idstr ):
++    """Return an object for a substance
++    get( 'name' )
++
++Returns a substance data class for the substance named.
++"""
++    # If accessing by the id string
++    out = dat.data.get(idstr)
++    if out is None:
++        utility.print_error('No substanced named "' + str(idstr) + '" was found in the loaded data.')
++        raise utility.PMParamError('Invalid substance ID string')
++    return out
++    
++
++
+ def search(name=None, contains=None, collection=None, pmclass=None, cas=None, inchi=None, members=None):
+     """Returns a set of substance instances that match a set of search criteria
+     members = search( ... )
+diff --git a/src/pyromat/reg.py b/src/pyromat/reg.py
+index 5b771fd..c59453b 100644
+--- a/src/pyromat/reg.py
++++ b/src/pyromat/reg.py
+@@ -246,32 +246,29 @@ to build the string.  Otherwise, hill() uses the substance ID string.
+             # The free electron is a special case
+             if contents == ['e']:
+                 return 'e-'
+-            # Deal with carbon and hydrogen explicitly
++            contents.sort()
++            # Deal with carbon and hydrogen
+             for this in ['C', 'H']:
+                 if this in contents:
+                     out += this
+                     if aa[this] != 1:
+-                        out += f"{aa[this]}"
+-                    contents.remove(this)
+-            # If there is charge, stash it for later
+-            charge = 0
+-            if 'e' in contents:
+-                charge = -aa['e']
+-                contents.remove('e')
++                        out += f'{aa[this]}'
+             # all others in alphabetical order
+-            contents.sort()
+             for this in contents:
+-                out += this
+-                if aa[this] != 1:
+-                    out += f'{aa[this]}'
++                if this != 'C' and this != 'H' and this != 'e':
++                    out += this
++                    if aa[this] != 1:
++                        out += f'{aa[this]}'
+             # Finally, add on any ionization
+-            if charge < 0:
+-                out += '-'
+-                charge = -charge
+-            elif charge > 0:
+-                out += '+'
+-            if charge > 1:
+-                out += f'{qty}'
++            if 'e' in contents:
++                qty = aa[this]
++                if qty < 0:
++                    out += '+'
++                    qty = -qty
++                else:
++                    out += '-'
++                if qty != 1:
++                    out += f'{qty}'
+         else:
+             out = self.data['id'].split('.')[1]
+             out = out.split('_')[0]

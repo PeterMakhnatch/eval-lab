@@ -1,0 +1,142 @@
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+new file mode 100644
+index 0000000..3f8ae3c
+--- /dev/null
++++ b/.pre-commit-config.yaml
+@@ -0,0 +1,29 @@
++repos:
++-   repo: https://github.com/pre-commit/pre-commit-hooks
++    rev: v5.0.0
++    hooks:
++    -   id: check-ast
++    -   id: check-added-large-files
++        args: ['--maxkb=25000']
++    -   id: check-merge-conflict
++    -   id: check-yaml
++    -   id: debug-statements
++    -   id: end-of-file-fixer
++    -   id: requirements-txt-fixer
++    -   id: trailing-whitespace
++        args: [--markdown-linebreak-ext=md]
++    -   id: no-commit-to-branch
++        args: ['--branch', 'master']
++
++-   repo: https://github.com/asottile/pyupgrade
++    rev: v3.17.0
++    hooks:
++    -   id: pyupgrade
++        args: [--py38-plus]
++
++-   repo: https://github.com/astral-sh/ruff-pre-commit
++    rev: v0.6.9
++    hooks:
++    -   id: ruff
++        args: [--fix]
++    -   id: ruff-format
+diff --git a/mathruler/grader.py b/mathruler/grader.py
+index e87ca84..cad7d8a 100644
+--- a/mathruler/grader.py
++++ b/mathruler/grader.py
+@@ -8,7 +8,6 @@ This code is largely borrowed from: https://github.com/openai/prm800k/blob/main/
+ 
+ import json
+ import re
+-import sys
+ 
+ import sympy
+ from pylatexenc import latex2text
+@@ -320,7 +319,7 @@ def evaluate(json_path: str, verbose: bool = False):
+     with open(json_path, encoding="utf-8") as f:
+         lines = f.readlines()
+ 
+-    for line in tqdm(lines, desc="Processing samples", disable=verbose, file=sys.stdout):
++    for line in tqdm(lines, desc="Processing samples", disable=verbose):
+         sample = json.loads(line)
+         if "predicts" in sample:
+             is_correct = False
+diff --git a/mathruler/interface.py b/mathruler/interface.py
+index e007ea6..f9710ed 100644
+--- a/mathruler/interface.py
++++ b/mathruler/interface.py
+@@ -3,6 +3,7 @@ from enum import Enum, unique
+ 
+ import fire
+ 
++from .generate import vllm_generate
+ from .grader import evaluate
+ 
+ 
+@@ -17,8 +18,6 @@ def main():
+     if command == Command.EVAL:
+         fire.Fire(evaluate)
+     elif command == Command.GEN:
+-        from .generate import vllm_generate
+-
+         fire.Fire(vllm_generate)
+     else:
+         print("Please use `mathruler eval` or `mathruler gen`.")
+diff --git a/scripts/gsm8k_to_math.py b/scripts/gsm8k_to_math.py
+new file mode 100644
+index 0000000..e0d200f
+--- /dev/null
++++ b/scripts/gsm8k_to_math.py
+@@ -0,0 +1,59 @@
++"""
++This code is partially borrowed from: https://github.com/openai/grade-school-math/blob/master/grade_school_math/dataset.py
++"""
++
++import json
++import os
++import re
++from typing import Tuple
++
++import fire
++
++
++ANS_RE = re.compile(r"#### (\-?[0-9\.\,]+)")
++
++
++def extract_answer(completion: str) -> Tuple[str, str]:
++    match = ANS_RE.search(completion)
++    if match:
++        match_str = match.group(1).strip()
++        completion = completion.replace(f"#### {match_str}", "").strip()
++        match_str = match_str.replace(",", "").strip()
++        return completion, match_str
++    else:
++        raise ValueError(f"Cannot extract answer in {completion}.")
++
++
++def convert_gsm8k_to_math(data_folder: str):
++    """
++    Convert the GSM8K dataset to the MATH dataset format.
++
++    Args:
++        data_folder (str): Path to https://github.com/openai/grade-school-math/tree/master/grade_school_math/data
++    """
++    os.makedirs(os.path.join("data", "gsm8k_splits"), exist_ok=True)
++    for filename in ["train.jsonl", "test.jsonl"]:
++        samples = []
++        with open(os.path.join(data_folder, filename), encoding="utf-8") as f:
++            for line in f:
++                sample = json.loads(line)
++                solution, answer = extract_answer(sample["answer"])
++                if solution[-1] != ".":
++                    solution = f"{solution}."
++
++                solution = rf"{solution} The answer is $\boxed{{{answer}}}$."
++                samples.append(
++                    {
++                        "problem": sample["question"],
++                        "solution": solution,
++                        "answer": answer,
++                    }
++                )
++
++        with open(os.path.join("data", "gsm8k_splits", filename), "w", encoding="utf-8") as f:
++            for sample in samples:
++                f.write(json.dumps(sample, ensure_ascii=False) + "\n")
++
++
++if __name__ == "__main__":
++    fire.Fire(convert_gsm8k_to_math)

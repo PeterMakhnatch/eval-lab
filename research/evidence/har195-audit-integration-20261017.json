@@ -1,0 +1,286 @@
+{
+  "actual_paid_execution_usd": 0,
+  "captured_at_utc": "2026-10-17T14:07:48.713908+00:00",
+  "card": "HAR-195",
+  "consumers": {
+    "dossier_tags": [
+      "health:sound",
+      "verdict:keep"
+    ],
+    "dossier_verdict": "keep",
+    "exported_dossier_verdict": "keep",
+    "headless_browser_errors": [],
+    "receipt": "audit/hello-verified/consumer-receipt.json",
+    "screenshots": [
+      "audit/hello-verified/viewer-jobs.png",
+      "audit/hello-verified/viewer-trial.png"
+    ],
+    "sql": "SELECT dataset_id, task_id, verdict, oracle_status, nop_status, leak_status, static_status, history_status FROM audit",
+    "sql_rows": [
+      [
+        "hello-world@1.0",
+        "harbor/hello-world",
+        "keep",
+        "executed",
+        "executed",
+        "executed",
+        "recorded",
+        "recorded"
+      ]
+    ],
+    "viewer_digest_mismatch": 0,
+    "viewer_filter": "verdict:keep",
+    "viewer_included_trials": 3,
+    "viewer_receipt": "audit/hello-verified/viewer-receipt.json"
+  },
+  "limits": [
+    "Stored MiMo routing is not task certification or a full MiMo corpus audit.",
+    "Only the ledger is historical in the pinned replay; other evidence remains current.",
+    "hello-world@1.0 contains one real registry task; its missing Git is unknown, not clean.",
+    "The fresh original-image smoke uses a synthetic Git history and is not a model capability result.",
+    "Earlier fixture-validation and Docker metadata timeout attempts are retained; the final native controls and full second-collection audit completed successfully.",
+    "No paid/model runs, deployments, or inherited HAR-191 spending approval."
+  ],
+  "mimo": {
+    "captures": {
+      "current": {
+        "code_changed_during_capture": false,
+        "counts": {
+          "discard": 32,
+          "fix": 1,
+          "keep": 1147
+        },
+        "dry_run": true,
+        "estimated_cost_usd": 0,
+        "executed_stage_observations": 0,
+        "exit_code": 0,
+        "facet_error_count": 0,
+        "native_trial_count_in_selected_records": 2846,
+        "paid_run_actions": 0,
+        "raw_stdout_sha256": "259f1fdbcec0f48b19264214d6abc73a9f024ccc7faf58dc6e128f336a918208",
+        "selected_ids_equal_ledger_ids": true,
+        "task_count": 1180,
+        "unique_selected_task_count": 1180
+      },
+      "pinned": {
+        "code_changed_during_capture": true,
+        "counts": {
+          "discard": 32,
+          "fix": 2,
+          "keep": 1146
+        },
+        "dry_run": true,
+        "estimated_cost_usd": 0,
+        "executed_stage_observations": 0,
+        "exit_code": 0,
+        "facet_error_count": 0,
+        "native_trial_count_in_selected_records": 2846,
+        "paid_run_actions": 0,
+        "raw_stdout_sha256": "2f723d523b2a3d87251f831858e67283cacae17f2d1769cf4544427d747469b1",
+        "selected_ids_equal_ledger_ids": true,
+        "task_count": 1180,
+        "unique_selected_task_count": 1180
+      }
+    },
+    "current_ledger": {
+      "last_change_revision": "1c477ab6c6110fee6b27756c75abea8a7f8a5027",
+      "sha256": "47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020"
+    },
+    "parent_verified_compressed_stdout_hashes_and_record_counts": true,
+    "pinned_ledger": {
+      "revision": "9ed0e33495daa75d7f0dff6d45f15a7da79fe468",
+      "sha256": "85d71a98cca748d49a41d75b77a520bb69f7d429dc36fa9cdee21e5f5d97223d"
+    },
+    "reconstruction": "Only audit_mimo.LEDGER points to verified read-only historical Git bytes for the pinned replay; other stored evidence remains current. No result-producing function is replaced. Before/after code hashes and Python side-effect guards are retained in audit/mimo/completed/offline-acceptance-receipt.json."
+  },
+  "original_image_runtime": {
+    "extraction_status": "ok",
+    "extractor_source_sha256": "sha256:a0595b1af41c50c8c957f666388ee83002afb01fbf937ca182eafb5a3e859356",
+    "image_id": "sha256:5b96674d97b8087486e7d58067fc84df1bd1f290d2cf45e2293413bcab796e24",
+    "inputs_unchanged": true,
+    "limits": "Synthetic local original-image and native grading smoke; not a MiMo capability or full-collection result. Source task/container build context was throwaway.",
+    "native_control_variant_digest": "sha256:bde434d9cdb9cc8cca891975b24bf00e333491f1160738e5d456aa894bff94d8",
+    "never_started_original_container": true,
+    "nop_reward": 0.0,
+    "oracle_reward": 1.0,
+    "original_base": "c4a6e6a018cb6800c243e90262853dbae557f65f",
+    "original_container_removed": true,
+    "patch_sha256": "sha256:3338a86aaccb1d8d75341bf2fef7c18210ca679f99fbb69165a5eb917eeede83",
+    "receipt": "audit/history-runtime-valid/receipt.json",
+    "selected_fix": "ae1b70310b41332c9428e000101b98d114a76254",
+    "selected_package_digest": "sha256:310e32565b8173860ca70aaa65832e559d541223db4e7d158be45694f2648017",
+    "source_only_patch_files": [
+      "value.py"
+    ]
+  },
+  "paid_dry_run": {
+    "command": [
+      "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131203334494Z-729119cfcbde4ea8acd63649735ae23f/.venv/bin/evallab",
+      "audit",
+      "hello-world",
+      "--dry-run",
+      "--stages",
+      "oracle,nop,exploit",
+      "--environment",
+      "modal",
+      "--allow-paid",
+      "--model",
+      "zai/glm-5.3-flash",
+      "--est-cost-usd",
+      "0.4",
+      "--json"
+    ],
+    "dry_run": true,
+    "estimated_cost_usd": 1.2000000000000002,
+    "execution_roots_created": false,
+    "limits": "Opt-in plan only; no spec approval, provider/model execution, or deployment.",
+    "outputs": {},
+    "paid_actions_planned": 3
+  },
+  "published_control_jobs": [
+    {
+      "job": "audit-leak-harbor-hello-world-01m552bjtx4qkmb48vbn0epnz3",
+      "native_result_sha256": "83ed9895e486b8b1e8b177515140266f276d36acdca6b61cb9efbe39778e7e69",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-leak-harbor-hello-world-01m552bjtx4qkmb48vbn0epnz3"
+    },
+    {
+      "job": "audit-nop-harbor-hello-world-01m5529hhtvj6kgjc714e0rnyp",
+      "native_result_sha256": "398c64abe4f518b1806ac9b67f73fe2c5d179b1d7f186652c52549c353296a90",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-nop-harbor-hello-world-01m5529hhtvj6kgjc714e0rnyp"
+    },
+    {
+      "job": "audit-oracle-harbor-hello-world-01m55268ncsmxkpbv239cvkjw6",
+      "native_result_sha256": "f3a29801220856f49667fdad40e4315946556021d1597b567254c1d8feab1623",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-oracle-harbor-hello-world-01m55268ncsmxkpbv239cvkjw6"
+    },
+    {
+      "job": "audit-nop-har195-history-example-01m552059jb4wdpte0jbx6ym8z",
+      "native_result_sha256": "dd7b418073d1ea53877e1f8ed553dd88383e10695c2fc635708e920bcd3574e1",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-nop-har195-history-example-01m552059jb4wdpte0jbx6ym8z"
+    },
+    {
+      "job": "audit-oracle-har195-history-example-01m551wc78fkgfcpaca1bjeejz",
+      "native_result_sha256": "4686d6030f9df18722235abea5b119e03914829e9beb6914c9cb7f2d2c924546",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-oracle-har195-history-example-01m551wc78fkgfcpaca1bjeejz"
+    },
+    {
+      "job": "audit-leak-harbor-hello-world-01m551mps5pp3n911kqp7e5pja",
+      "native_result_sha256": "87cd1f68575f184163461d3a12d69af691af59bbf7452915920b1f86e9ea2a56",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-leak-harbor-hello-world-01m551mps5pp3n911kqp7e5pja"
+    },
+    {
+      "job": "audit-nop-harbor-hello-world-01m551gf0nr56epmayy3r50ckh",
+      "native_result_sha256": "037ea3b81870a09371c030b4003082f032fcdabff2b0a30b65daa52ed18b347f",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-nop-harbor-hello-world-01m551gf0nr56epmayy3r50ckh"
+    },
+    {
+      "job": "audit-oracle-harbor-hello-world-01m5519dtj1b89sm42t7age4x0",
+      "native_result_sha256": "3034494d6b84d20028b4a4bd3377f6f1a64bc370cce34db5696d620460a3f093",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-oracle-harbor-hello-world-01m5519dtj1b89sm42t7age4x0"
+    },
+    {
+      "job": "audit-leak-harbor-hello-world-01m551012gk95f5c9y6z01jr27",
+      "native_result_sha256": "662856dae8e2512403bd465c589288e6cba8f803a96419134d1492b8b4889007",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-leak-harbor-hello-world-01m551012gk95f5c9y6z01jr27"
+    },
+    {
+      "job": "audit-nop-harbor-hello-world-01m550vzavaremyh3ckec579n1",
+      "native_result_sha256": "156af9566c27f9591652c11505b29bcc65485e677262ef89f39ab03c73bff4a5",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-nop-harbor-hello-world-01m550vzavaremyh3ckec579n1"
+    },
+    {
+      "job": "audit-oracle-harbor-hello-world-01m550n0ec8jekmv8th5nxep2m",
+      "native_result_sha256": "b7dc4bc388c874f5b1bf7c8f507c267752318a5b50e97bbd078a58d46c867dd9",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-oracle-harbor-hello-world-01m550n0ec8jekmv8th5nxep2m"
+    },
+    {
+      "job": "audit-nop-harbor-hello-world-01m550acfn0cpq2ar70mxcwnks",
+      "native_result_sha256": "de7858671de281868712185704b9be652f28885e20e2e120bc02dd63c69119c6",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-nop-harbor-hello-world-01m550acfn0cpq2ar70mxcwnks"
+    },
+    {
+      "job": "audit-oracle-harbor-hello-world-01m5504s7w536fsxwmnz6dcy92",
+      "native_result_sha256": "dfc91cf3ca8bdd9e8886d61db629b97597a771cfeb283a9fa12af01ccb4e39ac",
+      "native_result_unchanged": true,
+      "published": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-oracle-harbor-hello-world-01m5504s7w536fsxwmnz6dcy92"
+    }
+  ],
+  "retained_evidence_root": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-17/HAR-195-audit-integration-evidence-20261017T131203334494Z-729119cfcbde4ea8acd63649735ae23f",
+  "schema": "har195.audit-integration-evidence/v1",
+  "second_collection": {
+    "counts": {
+      "keep": 1
+    },
+    "dataset": {
+      "dataset_id": "hello-world@1.0",
+      "license": "See upstream Harbor dataset card; lab-internal eval use.",
+      "plugin": "harbor",
+      "revision": "1.0",
+      "source_uri": "harbor:hello-world@1.0",
+      "sources": [
+        {
+          "available": true,
+          "binding": "material-digest-matched",
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261017T131203334494Z-729119cfcbde4ea8acd63649735ae23f/library/benchmarks/hello-world/.fetch.json",
+          "sha256": "sha256:13bbe7243c0549abc21fe61dc5369fcc9e40aacae4a3065524a60b8e79c39de1"
+        }
+      ]
+    },
+    "estimated_cost_usd": 0,
+    "harbor_digest": "sha256:b7dd55d010e49dd9d57df1c09291178b56c64d17afe5e7d0c39fb487ae5dc544",
+    "limits": "One real Harbor hello-world@1.0 collection task. No model capability claim; no-repository leak inspection is unknown, not proof of a clean image.",
+    "package_digest": "sha256:5a872445c3b97eaeff167a7bac114500b1f9886b1eca490f17153637f96b65af",
+    "paid_opt_in": false,
+    "returncode": 0,
+    "source_unchanged": true,
+    "stages": {
+      "history": {
+        "coverage": null,
+        "reward": null,
+        "status": "recorded"
+      },
+      "leak": {
+        "coverage": "missing-git",
+        "reward": null,
+        "status": "executed"
+      },
+      "nop": {
+        "coverage": null,
+        "reward": 0.0,
+        "status": "executed"
+      },
+      "oracle": {
+        "coverage": null,
+        "reward": 1.0,
+        "status": "executed"
+      },
+      "static": {
+        "coverage": "harbor-test-source",
+        "reward": null,
+        "status": "recorded"
+      }
+    },
+    "task_count": 1
+  },
+  "source_base_revision": "cc68bb8a2da499dd6f87345491da14f2142165b9",
+  "source_file_sha256": {
+    "research/experiments/leak-oracle/extract.py": "a0595b1af41c50c8c957f666388ee83002afb01fbf937ca182eafb5a3e859356",
+    "src/evallab/audit_mimo.py": "5b42add5c27ddd0541ad72cbb8d571dfd6529e233dfdc819e346081da9ee851f",
+    "src/evallab/dataset_audit.py": "05f3bc569b283ce0b548810e820ec057d5eae4ae9aac14f40a3e3d56a80fd8f9",
+    "src/evallab/dataset_audit_execution.py": "4333602d973bc0a418021cb388915b0d41bc541e53908353ff9e1a61e9949338",
+    "src/evallab/dataset_audit_oracle.py": "d7499daf0cbe43f9a8a3c40157785c3f0bfb39c68e1581e08024ea9848f37f67",
+    "src/evallab/dataset_audit_plugins.py": "59f42633e036622c6792ea0881c8b24c74ac1fadefc9cd6eca04652bc1386cf3"
+  }
+}

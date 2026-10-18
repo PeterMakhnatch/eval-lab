@@ -802,9 +802,75 @@ def _successor_setup_controls(selected: dict[str, Any], sources: dict[str, dict[
     }
 
 
+def _successor_baseline_controls(
+    metadata_paths: tuple[Path, ...], sources: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Read complete native repeat3 pairs without rewriting frozen x1 evidence."""
+    if not metadata_paths:
+        return {}
+    from evallab.runner import load_job, matrix_run_outcome
+    from evallab.schemas import MatrixRun
+
+    paths = {path.resolve() for path in metadata_paths}
+    if len(paths) != len(metadata_paths) or any(path.name != "lab-metadata.json" for path in paths):
+        raise ValueError("baseline controls require distinct native lab-metadata.json paths")
+    for path in sorted(paths):
+        _successor_json(path, sources)
+    native_reader = runpy.run_path(str(ROOT / "research/experiments/mimo-v6-full-fleet/census.py"))["native_observations"]
+    observations = native_reader(paths)
+    if len(observations) != len(paths):
+        raise ValueError("baseline controls require one distinct physical execution per metadata file")
+    controls: dict[str, dict[str, Any]] = {}
+    for native in observations:
+        task_id, agent = canonical_id(native["task_id"]), native["agent"]
+        expected = 1.0 if agent == "oracle" else 0.0
+        job = Path(native["metadata_path"]).parent
+        loaded = load_job(job)
+        outcome = matrix_run_outcome(loaded, MatrixRun(
+            name=f"baseline-{agent}", agent=agent, attempts=1, expect_reward=expected,
+        ))
+        if (native["scored"] is not True or native["rewards"] != [expected] * 3
+                or not _successor_repeat_proof(native, sources)
+                or outcome["status"] != "ok"
+                or any((trial.result.get("config", {}).get("agent") or {}).get("model_name") is not None
+                       for trial in loaded.trials)):
+            raise ValueError(f"baseline control has absent, errored or conflicting native outcomes: {task_id} {agent}")
+        control = controls.setdefault(task_id, {
+            "status": "native_custody_verified_not_semantically_certified",
+            "observations": {}, "measured_rewards": {},
+            "scope": "Exact unchanged-v6 reference/nop repeat3 only; not wrong/correct qualification or an independent Verifier PASS.",
+        })
+        if agent in control["observations"]:
+            raise ValueError(f"baseline controls contain multiple physical executions for one role: {task_id} {agent}")
+        binding = native["task_binding"]
+        raw_paths = {
+            Path(native["metadata_path"]), Path(native["result_path"]),
+            Path(binding["config_path"]), Path(binding["lock_path"]),
+        }
+        for owner, name in ((native, "metadata"), (native, "result"), (binding, "config"), (binding, "lock")):
+            _successor_binding(Path(owner[f"{name}_path"]), {"sha256": owner[f"{name}_sha256"]}, sources)
+        raw_paths.update(path for name in ("result.json", "config.json", "lock.json")
+                         if (path := job / name).is_file())
+        trial = Path(native["result_path"]).parent
+        raw_paths.update(path for directory in ("agent", "verifier")
+                         for path in (trial / directory).rglob("*") if path.is_file())
+        for path in sorted(raw_paths):
+            source_bytes(path, sources)
+        control["observations"][agent] = {
+            "native": native, "matrix_outcome": outcome,
+            "environment": loaded.trials[0].result.get("config", {}).get("environment"),
+            "raw_sources": [dict(sources[str(path.resolve())]) for path in sorted(raw_paths)],
+        }
+        control["measured_rewards"][agent] = native["rewards"]
+    if any(set(control["observations"]) != {"oracle", "nop"} for control in controls.values()):
+        raise ValueError("baseline controls require a complete reference/nop repeat3 pair per task")
+    return controls
+
+
 def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str, Any],
                         controls: dict[str, Any], pairs: dict[str, Any], source: dict[str, Any],
-                        sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+                        sources: dict[str, dict[str, Any]],
+                        baseline_controls: dict[str, Any] | None = None) -> dict[str, Any]:
     pair = pairs.get(task_id)
     retained = []
     rewards: dict[str, list[float]] = {"oracle": [], "nop": []}
@@ -850,6 +916,16 @@ def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str
                 indexes.append(index)
                 if measured:
                     rewards[agent].append(reward)
+    if baseline_controls is not None:
+        if selected["package_digest"] != parent["package_digest"] or any(
+            observation["native"]["source_package_digest"] != selected["package_digest"]
+            or any(observation["native"][key] != selected["harbor_digest"] for key in (
+                "source_harbor_digest", "staged_harbor_digest", "executed_harbor_digest"))
+            for observation in baseline_controls["observations"].values()
+        ):
+            raise ValueError(f"baseline controls do not bind the selected unchanged-v6 package: {task_id}")
+        rewards = baseline_controls["measured_rewards"]
+        indexes = []
     setup_controls = _successor_setup_controls(selected, sources)
     if setup_controls is not None and "measured_rewards" in setup_controls:
         rewards = setup_controls["measured_rewards"]
@@ -864,8 +940,10 @@ def _successor_controls(task_id: str, parent: dict[str, Any], selected: dict[str
             "scope": controls["qualification_scope"],
         },
         "reported_setup_controls": setup_controls,
+        **({"reported_baseline_controls": baseline_controls} if baseline_controls is not None else {}),
         "selected_package": {
             "package_digest": selected["package_digest"], "harbor_digest": selected["harbor_digest"],
+            **({"measurement_source": "reported_baseline_controls"} if baseline_controls is not None else {}),
             "observation_indexes": indexes, "measured_reference_rewards": rewards["oracle"],
             "measured_nop_rewards": rewards["nop"], "status": "pending",
             "missing": [
@@ -1145,7 +1223,8 @@ def _successor_setup(path: Path, parent: dict[str, Any], repo_root: Path,
 
 
 def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None = None,
-                      setup_handoff: Path | None = None, repo_root: Path = ROOT) -> dict[str, Any]:
+                      setup_handoff: Path | None = None, repo_root: Path = ROOT,
+                      native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
     """Assemble the frozen33 candidate; no ranking, execution, or scoring release."""
     frozen_source_dir, repo_root = frozen_source_dir.resolve(), repo_root.resolve()
     sources: dict[str, dict[str, Any]] = {}
@@ -1193,6 +1272,9 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
     repairs = _successor_repairs(repairs_handoff, sources)
     if any(canonical_id(row["task_id"]) not in membership for row in (repairs["handoff"] or {}).get("repairs", [])):
         raise ValueError("EnvCheck repair handoff includes a task outside the frozen33")
+    baseline_controls = _successor_baseline_controls(native_control_metadata, sources)
+    if set(baseline_controls) - set(membership):
+        raise ValueError("baseline controls include a task outside the frozen33")
     tasks = []
     package_root = Path(split["config"]["package_root"])
     for task_id in membership:
@@ -1228,7 +1310,7 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
             "frozen_parent": parent, "evaluation_target": selected, "successor_selection": kind,
             "native_controls": _successor_controls(
                 task_id, parent, selected, controls, control_pairs,
-                dict(sources[str(files["native-controls.json"])]), sources,
+                dict(sources[str(files["native-controls.json"])]), sources, baseline_controls.get(task_id),
             ),
         })
     # Recheck every consumed source before returning a deterministically encoded
@@ -1273,23 +1355,26 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
 
 def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
-                       repo_root: Path = ROOT) -> None:
+                       repo_root: Path = ROOT, native_control_metadata: tuple[Path, ...] = ()) -> None:
     """Validate candidate contents and current source/package/record custody."""
     expected = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
-                                 setup_handoff=setup_handoff, repo_root=repo_root)
+                                 setup_handoff=setup_handoff, repo_root=repo_root,
+                                 native_control_metadata=native_control_metadata)
     if encoded(payload) != encoded(expected):
         raise ValueError("successor manifest differs from its exact frozen inputs, selected identities, or closed gates")
 
 
 def assemble_successor(frozen_source_dir: Path, destination: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
-                       repo_root: Path = ROOT) -> dict[str, Any]:
+                       repo_root: Path = ROOT,
+                       native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
     """Atomically publish a new candidate without replacing any existing file."""
     destination = destination.resolve()
     if destination.is_relative_to(frozen_source_dir.resolve()):
         raise ValueError("successor destination must be outside the frozen source directory")
     payload = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
-                                setup_handoff=setup_handoff, repo_root=repo_root)
+                                setup_handoff=setup_handoff, repo_root=repo_root,
+                                native_control_metadata=native_control_metadata)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=destination.parent, suffix=".tmp", delete=False) as handle:
         temporary = Path(handle.name)
@@ -1314,6 +1399,7 @@ def main() -> None:
     parser.add_argument("--frozen-source-dir", type=Path)
     parser.add_argument("--repairs-handoff", type=Path)
     parser.add_argument("--setup-handoff", type=Path)
+    parser.add_argument("--native-control-metadata", type=Path, action="append", default=[])
     parser.add_argument("--successor-destination", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
@@ -1337,6 +1423,7 @@ def main() -> None:
             payload = assemble_successor(
                 args.frozen_source_dir, args.successor_destination,
                 repairs_handoff=args.repairs_handoff, setup_handoff=args.setup_handoff, repo_root=args.repo_root,
+                native_control_metadata=tuple(args.native_control_metadata),
             )
             print(json.dumps({
                 "counts": payload["counts"], "manifest": fingerprint(args.successor_destination),
@@ -1344,7 +1431,8 @@ def main() -> None:
             }, sort_keys=True))
             return
         if any(value is not None for value in (
-                args.frozen_source_dir, args.repairs_handoff, args.setup_handoff, args.successor_destination)):
+                args.frozen_source_dir, args.repairs_handoff, args.setup_handoff, args.successor_destination,
+                *args.native_control_metadata)):
             raise ValueError("successor input/destination arguments require --assemble-successor")
         if args.release_scoring:
             split = release_scoring(output_dir, args.actor, args.approval)

@@ -5,6 +5,7 @@ import csv
 import hashlib
 import json
 import runpy
+import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -1173,3 +1174,89 @@ def test_setup_native_triad_is_separate_from_wrong_correct_and_independent_verif
             driver["validate_successor"](
                 payload, case["frozen"], setup_handoff=handoff_path, repo_root=case["repo"],
             )
+
+
+@pytest.mark.parametrize("fault", [
+    None, "single_run", "missing_cases", "oracle_exit", "unfinished_agent", "failed_process",
+    "conflicting_primary_reward", "repeat_index", "partial_pair", "duplicate_uuid", "duplicate_role",
+    "unselected_package", "outside_cohort", "repaired_selection",
+])
+def test_successor_fresh_baseline_pairs_require_native_repeat3_and_selected_frozen_identity(
+    driver, successor_case, tmp_path: Path, fault,
+) -> None:
+    case = successor_case
+    task_id = "format-code-task-001948" if fault == "repaired_selection" else case["membership"][0]
+    package = case["packages"][task_id]
+    if fault == "outside_cohort":
+        task_id = "format-code-task-999999"
+    elif fault == "unselected_package":
+        package = Path(shutil.copytree(package, tmp_path / "different-submission"))
+        (package / "solution/solve.sh").write_text("printf 'not the frozen reference submission\\n'\n")
+    observations = [
+        native_control_fixture(
+            tmp_path / "baseline-native" / agent, package, task_id, agent, reward,
+            repeats=1 if fault == "single_run" and agent == "oracle" else 3,
+            failed=fault == "failed_process" and agent == "oracle",
+            case_evidence=not (fault == "missing_cases" and agent == "oracle"),
+        )
+        for agent, reward in (("oracle", 1.0), ("nop", 0.0))
+    ]
+    oracle = Path(observations[0]["result_path"])
+    if fault == "oracle_exit":
+        (oracle.parent / "agent/exit-code.txt").write_text("1\n")
+    elif fault in {"unfinished_agent", "conflicting_primary_reward"}:
+        result = json.loads(oracle.read_text())
+        if fault == "unfinished_agent":
+            result["agent_execution"]["finished_at"] = None
+        else:
+            result["verifier_result"]["rewards"]["reward"] = 0.0
+        oracle.write_text(json.dumps(result))
+    elif fault == "repeat_index":
+        path = oracle.parent / "verifier/stability.json"
+        stability = json.loads(path.read_text())
+        stability["runs"][2]["index"] = 1
+        path.write_text(json.dumps(stability))
+    elif fault == "partial_pair":
+        observations.pop()
+    elif fault == "duplicate_uuid":
+        path = Path(observations[1]["result_path"])
+        result = json.loads(path.read_text())
+        result["id"] = observations[0]["execution_id"]
+        path.write_text(json.dumps(result))
+    elif fault == "duplicate_role":
+        observations.append(native_control_fixture(
+            tmp_path / "baseline-native/extra-oracle", package, task_id, "oracle", 1.0, repeats=3,
+        ))
+    metadata = tuple(Path(observation["metadata_path"]) for observation in observations)
+    options = {"repo_root": case["repo"], "native_control_metadata": metadata}
+    if fault == "repaired_selection":
+        options["setup_handoff"] = case["setup"]()
+    if fault is not None:
+        with pytest.raises(ValueError):
+            driver["successor_payload"](case["frozen"], **options)
+        return
+    original = driver["successor_payload"](case["frozen"], repo_root=case["repo"])
+    before = {path.name: path.read_bytes() for path in case["frozen"].iterdir()}
+    payload = driver["successor_payload"](case["frozen"], **options)
+    row = next(row for row in payload["tasks"] if row["task_id"] == task_id)
+    previous = next(row for row in original["tasks"] if row["task_id"] == task_id)
+    evidence, selected = row["native_controls"], row["native_controls"]["selected_package"]
+    assert row["evaluation_target"] == previous["evaluation_target"]
+    assert evidence["retained_frozen_v6"] == previous["native_controls"]["retained_frozen_v6"]
+    assert selected["observation_indexes"] == []
+    assert selected["measurement_source"] == "reported_baseline_controls"
+    assert selected["measured_reference_rewards"] == [1.0, 1.0, 1.0]
+    assert selected["measured_nop_rewards"] == [0.0, 0.0, 0.0]
+    assert selected["missing"] == [
+        "adjudicated_wrong_inventory_and_exact_digest_zero_outcomes",
+        "admitted_correct_inventory_and_exact_digest_accepted_outcomes",
+        "independent_verifier_pass",
+    ]
+    assert payload["heldout"] == original["heldout"] and payload["scoring_allowed"] is False
+    assert payload["freeze_ready"] is False and payload["independent_verifier"]["status"] == "pending"
+    assert {path.name: path.read_bytes() for path in case["frozen"].iterdir()} == before
+    driver["validate_successor"](payload, case["frozen"], **options)
+    case_log = oracle.parent / "verifier/repeat/0/test_output.log"
+    case_log.write_text("2 passed in 0.01s\n")
+    with pytest.raises(ValueError, match="successor manifest differs"):
+        driver["validate_successor"](payload, case["frozen"], **options)

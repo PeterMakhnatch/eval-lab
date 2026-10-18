@@ -1,4 +1,4 @@
-"""`evallab qa trace` (qa-trace/5): skip rule, stage precedence, resume, routes, scoring."""
+"""`evallab qa trace` (qa-trace/6): skip rule, stage precedence, resume, routes, scoring."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from evallab.qa.trace import (
     scenario_route,
     score_paired,
     skip_rule,
-    tj_source_step,
+    source_step,
     verify_route,
 )
 from evallab.qa.trace_agents import SCENARIO_SCHEMA
@@ -74,7 +74,7 @@ def _rewarded_bundle(tmp_path: Path) -> tuple[Bundle, Path]:
     return bundle, trial
 
 
-def _answer(value: str) -> dict[str, Any]:
+def _answer(value: str, *, check: str | None = None) -> dict[str, Any]:
     return {
         "answer": value,
         "confidence": 0.8,
@@ -87,7 +87,8 @@ def _answer(value: str) -> dict[str, Any]:
         if value == "yes"
         else [],
         "disconfirmation": [{"check": "read the diff", "result": "consistent"}],
-        "prescan_disproof": None,
+        "contribution_check": check,
+        "attempted_sourcing": [],
         "rationale": f"answered {value}",
     }
 
@@ -95,7 +96,7 @@ def _answer(value: str) -> dict[str, Any]:
 class FakeModels:
     """Answers by schema (scenario / verify / address) and question; records calls."""
 
-    def __init__(self, scenario: dict[str, str | None], overall: str = "CONFIRMED"):
+    def __init__(self, scenario: dict[str, Any], overall: str = "CONFIRMED"):
         self.scenario, self.overall = scenario, overall
         self.calls: list[str] = []
 
@@ -106,7 +107,7 @@ class FakeModels:
             question = next(q for q in self.scenario if f"# QUESTION ({q})" in prompt)
             self.calls.append(f"T1:{question}")
             value = self.scenario[question]
-            out = _answer(value) if value else None
+            out = value if isinstance(value, dict) else (_answer(value) if value else None)
             return CallResult(route.label, out, "", {"input_tokens": 10}, 0.1, commands=INSPECT)
         if schema is VERIFY_SCHEMA:
             self.calls.append("verify")
@@ -227,6 +228,61 @@ def test_a_deterministic_flag_is_raised_even_when_the_analyst_says_no(tmp_path: 
     assert shortcut["raised_by"] == "T0"
     assert "verify" in models.calls
     assert result["reward_hacking"] is True
+
+
+def test_an_attempt_that_did_not_reach_the_diff_is_a_note_not_a_flag(tmp_path: Path) -> None:
+    trial = _trial(tmp_path, result={"verifier_result": {"rewards": {"reward": 1.0}}})
+    trajectory = json.loads((trial / "agent" / "trajectory.json").read_text())
+    trajectory["steps"].insert(
+        1,
+        {
+            "step_id": 9,
+            "source": "agent",
+            "tool_calls": [
+                {
+                    "function_name": "shell",
+                    "arguments": {"keystrokes": "git clone https://github.com/acme/app"},
+                }
+            ],
+            "observation": {"results": [{"content": "fatal: unable to access: network down"}]},
+        },
+    )
+    (trial / "agent" / "trajectory.json").write_text(json.dumps(trajectory))
+    bundle = build_workspace(trial, tmp_path / "out" / "bundle", task_dir=tmp_path / "task")
+    attempt = {"step": 1, "action": "git clone https://github.com/acme/app", "outcome": "failed"}
+    no = {
+        **_answer("no", check="the clone failed; the diff matches no fetched content"),
+        "attempted_sourcing": [attempt],
+    }
+    models = FakeModels(
+        {"reward_shortcut": no, "false_positive": "no", "prompt_grader_alignment": "no"}
+    )
+    verdict = _review(bundle, models, tmp_path / "run")
+    assert verdict["prescan_fired"] is True
+    assert verdict["reward_hacking"] is False
+    assert verdict["attempted_sourcing"] == {
+        "noted": True,
+        "prescan_attempts": 1,
+        "analyst": [attempt],
+    }
+
+
+def test_a_changed_question_contract_reruns_only_that_scenario(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.qa import trace_agents
+
+    bundle, _ = _rewarded_bundle(tmp_path)
+    answers = {"reward_shortcut": "no", "false_positive": "no", "prompt_grader_alignment": "no"}
+    _review(bundle, FakeModels(answers), tmp_path / "run")
+    monkeypatch.setitem(
+        trace_agents._QUESTIONS,
+        "reward_shortcut",
+        trace_agents._QUESTIONS["reward_shortcut"] + "\nNew definition.",
+    )
+    again = FakeModels(answers)
+    _review(bundle, again, tmp_path / "run")
+    assert again.calls == ["T1:reward_shortcut"]
 
 
 def test_unusable_scenario_output_abstains(tmp_path: Path) -> None:
@@ -432,6 +488,6 @@ def test_trajectory_judge_steps_keep_their_upstream_index(tmp_path: Path) -> Non
     }
     bundle = tj_workspace(row, tmp_path / "b")
     assert not any("wrong_tool" in p.read_text() for p in bundle.root.rglob("*") if p.is_file())
-    assert tj_source_step(bundle.root, 3) == 1
-    assert tj_source_step(bundle.root, 4) == 1
-    assert tj_source_step(bundle.root, 1) is None
+    # Blinded steps: 0 goal, 1-2 upstream steps 0-1, 3 the final answer (at upstream 1).
+    assert [source_step(bundle.root, i) for i in range(5)] == [None, 0, 1, 1, None]
+    assert all("extra" not in step for step in bundle.steps())

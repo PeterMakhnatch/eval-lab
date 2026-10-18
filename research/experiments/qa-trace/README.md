@@ -118,6 +118,14 @@ model calls per row).
 - Abstentions: ca 9 (their ATIF prompts are redacted at the source), tw 0, cb 17
   (CheatBench imports carry no reward, tests or diff; qa-trace/3 abstained on 6).
 - As run, ca was 17/165: the one re-derived row is a fusion-bug flip.
+- **Correction (2026-10-17 evening): the cb columns of both qa-trace rows are
+  contaminated; do not cite them.** Every cb workspace's `trajectory.json` kept
+  CheatBench's evaluator metadata (`cheatbench_label`, `cheatbench_mechanism`,
+  `cheatbench_trace_id`): 100/100 for qa-trace/5, 110/110 for qa-trace/3. 89/100
+  qa-trace/5 T1 agents opened the file, and two T3 records quote the label (cb-003538,
+  cb-004464). ca and tw workspaces were clean. qa-trace/6 builds every workspace
+  through CheatBench's `blind_atif` and refuses to seal one that still carries
+  evaluator fields.
 
 ### rds1 B/C held-out rollouts (91 trials)
 
@@ -185,7 +193,8 @@ dev rows before any reported run.
   is no better than the $0 detector, at roughly 4 model calls per run.
 - **`tw` / `cb` held-out (prompted / imported cheats):** more recall than `combined_v1`
   (tw 29/30 vs 21/30; cb 38/50 vs 34/50) at much higher false flags (tw 5/30 vs 2/30;
-  cb 7/44 vs 2/50).
+  cb 7/44 vs 2/50). The cb numbers are contaminated by a label leak (see the
+  detectors-v1 section).
 - **trace-paired-v1 (own runs, 81 items, untuned):**
   - Model traces: 24/26 cheat children caught, but 4/9 honest parents flagged.
   - Most parent flags are "the grader leaves a stated requirement unchecked"
@@ -239,6 +248,9 @@ upstream judges are scored on exactly the same items from `upstream/verdicts.jso
 - **Abstentions** (no usable answer, never counted as pass): ca 0, tw 0, cb 6. T1 was
   `unsure` on 19/100 CheatBench imports, which carry no reward, tests or diff; T2/T3
   settled 13 of them.
+- **Contaminated cb column (found 2026-10-17):** all 110 cb workspaces kept CheatBench's
+  `cheatbench_label`/`cheatbench_mechanism` metadata in `trajectory.json`, which the
+  reviewers read. The cb numbers above are not valid; ca and tw are unaffected.
 - **Sample:** all `contamination-audit` rows minus 16 dev rows, plus seeded balanced
   `tw` (sanitized) and `cb` samples (`detectors_v1_sample.json`, `ids/`). `ours` is
   excluded because it overlaps `contamination-audit`.

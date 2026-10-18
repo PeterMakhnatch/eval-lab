@@ -49,6 +49,7 @@ from evallab.qa.task import (
     validate_triplet,
 )
 from evallab.registry import task_directory_digest
+from evallab.regrade import MODAL_USD_PER_ALLOCATION_UNIT, CloudSpendGate, SpendCapReached
 
 RUBRIC = """\
 [[criteria]]
@@ -1608,7 +1609,7 @@ def test_modal_plan_is_zero_execution_without_native_or_model_constructors(
             "--run-dir",
             str(run_dir),
             "--max-usd",
-            "0.01",
+            str(MODAL_USD_PER_ALLOCATION_UNIT),
             "--task",
             str(packages[0]),
             "--task",
@@ -1651,3 +1652,38 @@ def test_modal_plan_caps_only_applicable_reference_work(tmp_path, bind_reference
     assert plan["execution_upper_bound"] == (63 if bind_reference else 9)
     assert plan["fits_cap"] is not bind_reference
     assert plan["runnable"] is not bind_reference
+
+
+@pytest.mark.parametrize(
+    ("rate", "cap_delta"), [(0.00000213, 0.0), (0.00000211, -2e-8)]
+)
+def test_modal_plan_subcent_cap_matches_unrounded_gate_across_packages(
+    tmp_path: Path, rate: float, cap_delta: float
+) -> None:
+    from evallab.qa.task import plan_task_run
+
+    packages = [_package(tmp_path, name) for name in ("one", "two")]
+    units = 42  # Each raw package: six three-unit controls and one three-unit leak check.
+    exposure = units * rate
+    cap = exposure + cap_delta
+    plan = plan_task_run(
+        packages,
+        config=QATaskConfig(stages=("S0",), mutants=0),
+        environment="modal",
+        concurrency=1,
+        no_model=True,
+        max_usd=cap,
+        usd_per_execution=rate,
+        approval="inert sub-cent boundary",
+    )
+    fits = cap_delta == 0
+    assert plan["execution_upper_bound"] == units
+    assert 0 < plan["estimated_usd"] < 0.01
+    assert plan["estimated_usd"] == exposure
+    assert [task["estimated_usd"] for task in plan["tasks"]] == [21 * rate, 21 * rate]
+    assert plan["fits_cap"] is fits and plan["runnable"] is fits
+    gate = CloudSpendGate("inert sub-cent boundary", cap, rate)
+    for _ in range(units if fits else units - 1):
+        gate.charge()
+    with pytest.raises(SpendCapReached):
+        gate.charge()

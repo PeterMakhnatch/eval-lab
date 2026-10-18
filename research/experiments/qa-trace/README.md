@@ -208,6 +208,13 @@ and empty cohorts, and supplies only the verified ATIF plus an explicitly suppli
 final diff. It never hydrates raw trial refs, generation conditions, task packages
 or labels; missing diffs and authoritative context stay missing.
 
+The generated `input-manifest.json` uses `qa.cheat_set_inputs/v2`. Both the
+per-index input directory and trial directory are opaque hashes: frozen B0
+redacts both names as run identities, so a literal `inputs/` parent would
+rewrite the ordinary word and code identifier `inputs`. Version 1 prepared
+manifests are rejected before label access; use a fresh projection root.
+This fixes evidence fidelity without changing either frozen classifier.
+
 The existing frozen predictor batch CLI consumes `$OUT/subjects.jsonl`. Actual
 fresh judging must preserve its frozen source/configuration and current route,
 quota and spend admission. This **model-free protocol smoke only** runs from the
@@ -238,7 +245,7 @@ model/prompt groups remain separate. Grade disagreement is not behavioral cheati
 shortcut rates are descriptive only. Reports remain staged and non-citable.
 Seal integrity alone does not establish prediction chronology or runtime provenance.
 
-**Executed CPU protocol:** two retained real ATIF projections, one with a supplied
+**Executed CPU protocol (inputs/v2):** two retained real ATIF projections, one with a supplied
 diff and one without, passed prepare → frozen qa6/qa7 T0/T4 batch → 41/44-file
 seals → 2/2 label joins each. The protocol sidecar is explicitly unmeasured, so
 accuracy is undefined. There were no new solver/judge model calls, fresh solver

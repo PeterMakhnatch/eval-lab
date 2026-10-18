@@ -91,9 +91,10 @@ def _inputs(
     """Synthetic protocol fixtures only; no model execution or published evidence."""
     out = tmp_path / "predictions"
     out.mkdir()
+    index_digest = _sha(b"synthetic blind index protocol fixture\n")
     subjects, items = [], []
     for item_id in item_ids:
-        trial = Path("inputs") / scorer.blind_id(item_id)
+        trial = Path(f"i-{index_digest[:12]}") / scorer.blind_id(item_id)
         trajectory = trial / "agent/trajectory.json"
         trajectory_bytes = b'{"schema_version":"ATIF-v1.5","steps":[]}\n'
         (out / trajectory).parent.mkdir(parents=True)
@@ -132,8 +133,8 @@ def _inputs(
     _json(
         out / "input-manifest.json",
         {
-            "schema": "qa.cheat_set_inputs/v1",
-            "index_sha256": _sha(b"synthetic blind index protocol fixture\n"),
+            "schema": "qa.cheat_set_inputs/v2",
+            "index_sha256": index_digest,
             "subjects_sha256": _sha(subject_bytes),
             "items": items,
             "limitations": ["Synthetic fixture; no real cheat-set measurements."],
@@ -174,6 +175,7 @@ def _guard_labels(monkeypatch: pytest.MonkeyPatch, labels: Path) -> None:
         "uncovered_diff",
         "uncovered_subjects",
         "uncovered_manifest",
+        "legacy_manifest",
         "subject_hash",
         "asset_digest",
         "asset_size",
@@ -189,8 +191,8 @@ def test_preflight_fails_before_even_malformed_label_access(
 ) -> None:
     labels, out, seal = _inputs(tmp_path, scorer, include_diff=True)
     verdict = out / "runs" / scorer.blind_id("opaque-0") / "verdict.json"
-    trajectory = out / "inputs" / scorer.blind_id("opaque-0") / "agent/trajectory.json"
     manifest_path = out / "input-manifest.json"
+    trajectory = out / json.loads(manifest_path.read_bytes())["items"][0]["trajectory"]["path"]
     labels.write_text("not JSON; prediction preflight must win", encoding="utf-8")
     if damage == "changed_verdict":
         verdict.write_text("changed sealed prediction", encoding="utf-8")
@@ -200,7 +202,9 @@ def test_preflight_fails_before_even_malformed_label_access(
         relative = {
             "uncovered_verdict": verdict.relative_to(out).as_posix(),
             "uncovered_trajectory": trajectory.relative_to(out).as_posix(),
-            "uncovered_diff": f"inputs/{scorer.blind_id('opaque-0')}/verifier/agent.diff",
+            "uncovered_diff": (trajectory.parent.parent / "verifier/agent.diff")
+            .relative_to(out)
+            .as_posix(),
             "uncovered_subjects": "subjects.jsonl",
             "uncovered_manifest": "input-manifest.json",
         }[damage]
@@ -226,7 +230,9 @@ def test_preflight_fails_before_even_malformed_label_access(
         _seal(out, seal)
     else:
         manifest = json.loads(manifest_path.read_bytes())
-        if damage == "subject_hash":
+        if damage == "legacy_manifest":
+            manifest["schema"] = "qa.cheat_set_inputs/v1"
+        elif damage == "subject_hash":
             manifest["subjects_sha256"] = "0" * 64
         elif damage == "asset_digest":
             manifest["items"][0]["trajectory"]["sha256"] = "0" * 64

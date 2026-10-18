@@ -27,7 +27,7 @@ from score_v7 import DETECTORS, _detector_view, _flags, _rate, verify_seal
 from evallab.qa.trace import blind_id
 
 LABELS_SCHEMA = "mimo-cheat-set/label/v1"
-INPUTS_SCHEMA = "qa.cheat_set_inputs/v1"
+INPUTS_SCHEMA = "qa.cheat_set_inputs/v2"
 PIPELINES = ("qa-trace/6", "qa-trace/7")
 DISPOSITIONS = ("real_pass", "wrong_pass", "not_a_pass", "partial", "unmeasured")
 BINARY_LABELS = ("real_pass", "wrong_pass")
@@ -119,7 +119,8 @@ def _prepared(
     manifest = _object(manifest_bytes, "input-manifest.json")
     if manifest.get("schema") != INPUTS_SCHEMA:
         raise ValueError(f"input manifest schema is not {INPUTS_SCHEMA}")
-    _digest(manifest.get("index_sha256"), "input manifest index_sha256")
+    index_digest = _digest(manifest.get("index_sha256"), "input manifest index_sha256")
+    input_directory = f"i-{index_digest[:12]}"
     subject_digest = _digest(manifest.get("subjects_sha256"), "input manifest subjects_sha256")
     if subject_digest != _sha256(subjects_bytes):
         raise ValueError("input manifest subjects_sha256 disagrees with subjects.jsonl")
@@ -136,7 +137,7 @@ def _prepared(
         if set(subject) != {"item_id", "trial_path"}:
             raise ValueError("subjects.jsonl rows must contain only item_id and trial_path")
         item_id = _item_id(subject["item_id"], "subjects.jsonl")
-        trial = str(out / "inputs" / blind_id(item_id))
+        trial = str(out / input_directory / blind_id(item_id))
         if item_id in subject_ids:
             raise ValueError(f"duplicate subject item_id: {item_id!r}")
         if subject["trial_path"] != trial or trial in trial_paths:
@@ -155,7 +156,7 @@ def _prepared(
         if item_id in manifest_ids:
             raise ValueError(f"duplicate manifest item_id: {item_id!r}")
         manifest_ids.add(item_id)
-        trial = f"inputs/{blind_id(item_id)}"
+        trial = f"{input_directory}/{blind_id(item_id)}"
         if item.get("trial_path") != trial:
             raise ValueError(f"invalid manifest trial_path for {item_id!r}")
         if "diff" not in item:
@@ -180,7 +181,7 @@ def _prepared(
     if manifest_ids != subject_ids:
         raise ValueError("input manifest item_ids disagree with subjects.jsonl")
     actual_assets = set()
-    for path in (out / "inputs").rglob("*"):
+    for path in (out / input_directory).rglob("*"):
         if path.is_file() or path.is_symlink():
             relative = path.relative_to(out).as_posix()
             _relative_path(out, relative)

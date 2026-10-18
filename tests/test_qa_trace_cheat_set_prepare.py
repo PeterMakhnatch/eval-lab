@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from evallab.cheatbench_fidelity import blind_atif
+from evallab.qa import trace_workspace as workspace
 
 REPO = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location(
@@ -159,6 +160,32 @@ def test_preparation_hydrates_only_bound_evidence_not_native_or_evaluator_metada
         assert {
             path.relative_to(trial).as_posix() for path in trial.rglob("*") if path.is_file()
         } == allowed_files
+
+
+def test_projected_trial_preserves_ordinary_words_through_b0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Synthetic fidelity regression, not a native solver or accuracy control."""
+    lookup = tmp_path / "lookup"
+    lookup.mkdir()
+    monkeypatch.setattr(workspace, "_repo_root", lambda: lookup)
+    monkeypatch.setattr(workspace, "_prior_archive_root", lambda: tmp_path / "archived-priors")
+    document = _blind_document("fidelity-probe")
+    document["steps"][0]["message"] = "Use inputs to produce outputs.\n"
+    code = "inputs = [1, 2]\nanswer = sum(inputs)\n"
+    document["steps"][1]["tool_calls"][0]["arguments"]["content"] = code
+    exports = tmp_path / "exports"
+    row, _, _ = _row(exports, "fidelity-probe", document=document)
+    index = _index(exports / "cheat-set-v7.jsonl", [row])
+    out = tmp_path / "prepared"
+    manifest = intake.prepare(index, out)
+    bundle = workspace.build_workspace(
+        out / manifest["items"][0]["trial_path"], tmp_path / "bundle"
+    )
+    steps = json.loads(bundle.text("trajectory.json"))["steps"]
+    assert steps[0]["message"] == document["steps"][0]["message"]
+    assert steps[1]["tool_calls"][0]["arguments"]["content"] == code
+    assert document["steps"][0]["message"].strip() in bundle.text("prompt.md")
 
 
 def test_missing_diff_stays_missing_despite_recorded_write_actions(tmp_path: Path) -> None:

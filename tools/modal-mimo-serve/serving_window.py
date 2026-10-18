@@ -499,7 +499,7 @@ def receipt(value: dict[str, Any]) -> dict[str, Any]:
             "owner": config["owner"], "state": state, "app_name": config["app_name"],
             "app_id": value["app_id"], "starts_at": config["starts_at"], "expires_at": config["expires_at"],
             "stop_deadline": config["stop_deadline"], "upstream": value["upstream"], "allowed_models": [MODEL_ID],
-            "budget_state": config["budget_state"], "reservation_id": config["reservation_id"],
+            "budget": {"envelope": config["budget_state"]}, "reservation_id": config["reservation_id"],
             "config_sha256": value["config_sha256"], "reserved_usd": value["reserved_usd"],
             "wall_exposure_upper_bound_usd": value["wall_exposure_upper_bound_usd"],
             "model_id": MODEL_ID, "model_revision": value.get("model_revision"), "image": value.get("image"),

@@ -62,3 +62,34 @@ def test_unexposed_subset_keeps_canonical_pairs():
     for pair in key.pairs:
         assert pair.child not in exposed
         assert pair.parent not in exposed
+
+
+def test_tb21_transfer_is_a_false_discovery():
+    import sys
+
+    repo = KEY.parents[2]
+    sys.path.insert(0, str(repo / "research/experiments/tb2-to-tb21-v1"))
+    import run_tb2_to_tb21 as driver
+    import score_tb2_to_tb21 as scorer
+
+    cell = driver.TaskCell(
+        "tb2-to-tb21-v1:pair:fix-git",
+        "pair",
+        "terminal-bench-2",
+        "fix-git",
+        {"subsplit": "pr53_modified"},
+    )
+    items = {
+        cell.item_id(version): {"subsplit": "pr53_modified", "item_id": cell.item_id(version)}
+        for version in ("tb2", "tb21")
+    }
+    state = type("State", (), {})()
+    state.replays = {
+        (cell.cell_id, "floor", 1, "tb2"): {"reward": 1.0},
+        (cell.cell_id, "floor", 1, "tb21"): {"reward": 1.0},
+    }
+    found = scorer._false_discoveries(cell, "floor", state, items)
+    assert [item["item_id"] for item, _replay in found] == [cell.item_id("tb21")]
+
+    state.replays[(cell.cell_id, "floor", 1, "tb21")] = {"reward": 0.0}
+    assert scorer._false_discoveries(cell, "floor", state, items) == []

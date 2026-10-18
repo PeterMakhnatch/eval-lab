@@ -872,6 +872,14 @@ def grade_submission(
     repo_root: str | Path,
     run_dir: str | Path,
     timeout_seconds: int = 1_800,
+    environment: str = "docker",
+    docker_platform: str | None = None,
+    spend_gate: Any = None,
+    prelude: str = "",
+    modal_app_name: str | None = None,
+    modal_resource_policy: Literal["limit"] | None = None,
+    modal_sandbox_timeout_seconds: int | None = None,
+    modal_sandbox_create_max_attempts: Literal[1] | None = None,
 ) -> GradeResult:
     """Grade one vcheck submission with the task's own verifier.
 
@@ -883,12 +891,27 @@ def grade_submission(
     untouched environment respectively. ``base="environment"`` skips the
     reference entirely.
 
-    One ``oracle``-channel trial through ``run_matrix``: free local Docker, no
-    model. ``status`` mirrors the trial outcome (``ok``/``mismatch`` scored,
+    One ``oracle``-channel trial through ``run_matrix``. The default is free
+    local Docker and no model. ``environment="modal"`` is paid: it requires a
+    :class:`evallab.regrade.CloudSpendGate` and reserves one execution before
+    Harbor starts. ``docker_platform`` and ``prelude`` affect only the staged
+    execution copy, never the answer-key package.
+    ``status`` mirrors the trial outcome (``ok``/``mismatch`` scored,
     ``infra`` otherwise). Raises ``ValueError`` for non-task packages, missing
     reference solutions, relative target paths, non-UTF-8 patches, and invalid
     JSON payloads.
     """
+    if environment not in {"docker", "modal"}:
+        raise ValueError(f"unsupported grade environment: {environment!r}")
+    if environment == "modal":
+        if spend_gate is None:
+            raise ValueError("modal grades are paid: pass a CloudSpendGate")
+        if docker_platform:
+            raise ValueError("docker_platform applies only to environment='docker'")
+    elif docker_platform and not re.fullmatch(r"linux/[a-z0-9_]+", docker_platform):
+        raise ValueError(f"unsupported docker platform {docker_platform!r}")
+    if prelude and not prelude.endswith("\n"):
+        prelude += "\n"
     import base64
 
     from evallab.vcheck import GradeResult  # lazy: vcheck re-exports this helper
@@ -928,6 +951,8 @@ def grade_submission(
         except (UnicodeDecodeError, ValueError) as exc:
             raise ValueError(f"submission to {target or '<unknown>'} is not valid JSON") from exc
     script = _header(f"vcheck {kind} {target or 'no-op'}", 0)
+    if prelude:
+        script += prelude
     if base == "oracle":
         script += _wrap_reference(solve_path.read_text(encoding="utf-8"))
     if content:
@@ -955,6 +980,9 @@ def grade_submission(
                 target.encode("utf-8"),
                 content,
                 base.encode("utf-8"),
+                environment.encode("utf-8"),
+                (docker_platform or "").encode("utf-8"),
+                prelude.encode("utf-8"),
             ]
         )
     ).hexdigest()[:12]
@@ -972,7 +1000,12 @@ def grade_submission(
         task=str(root),
         task_package_digest=digests.package,
         verifier_digest=digests.verifier,
-        environment="docker",
+        environment=environment,
+        docker_platform=docker_platform if environment == "docker" else None,
+        modal_app_name=modal_app_name,
+        modal_resource_policy=modal_resource_policy,
+        modal_sandbox_timeout_seconds=modal_sandbox_timeout_seconds,
+        modal_sandbox_create_max_attempts=modal_sandbox_create_max_attempts,
         concurrency=1,
         timeout_seconds=timeout_seconds,
         runs=[
@@ -988,6 +1021,13 @@ def grade_submission(
     (work / "matrices" / f"{matrix.name}.json").write_text(
         json.dumps(matrix.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
     )
+    if environment == "modal":
+        from evallab.regrade import lab_harbor_problem
+
+        problem = lab_harbor_problem()
+        if problem is not None:
+            raise ValueError(f"refusing modal grade: {problem}")
+        spend_gate.charge()
     results = _default_runner(matrix, repo)
     result = next(
         (entry for entry in results if entry.get("name") == run_name),

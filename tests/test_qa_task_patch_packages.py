@@ -7,6 +7,7 @@ and the generated patch script runs for real against a throwaway git repository.
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ from evallab.qa.task import (
     HarborBackend,
     QATaskConfig,
     Reproducer,
+    mimo_semantic_patch_script,
     run_task,
     workdir_patch_script,
 )
@@ -630,3 +632,183 @@ def test_import_evidence_resolves_per_task_subdirectory(tmp_path: Path) -> None:
     assert len(loaded) == 1
     assert loaded[0].subject == subject
     assert loaded[0].refutation.status == "unverified"
+
+
+def _semantic_package(root: Path, workdir: Path) -> Path:
+    package = _write_package(
+        root,
+        "semantic-package",
+        '[task]\nname = "mimo/semantic"\n[environment]\n'
+        f"workdir = {json.dumps(str(workdir.resolve()))}\n"
+        "[environment.healthcheck]\ncommand = 'true'\n",
+        solution=False,
+    )
+    setup = package / "environment/setup"
+    setup.mkdir()
+    (setup / "setup.sh").write_text("#!/bin/sh\ntrue\n", encoding="utf-8")
+    return package
+
+
+def _semantic_diff(path: str = "a.py") -> str:
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        f"--- a/{path}\n+++ b/{path}\n"
+        "@@ -1,2 +1,2 @@\n x = 1\n-y = 2\n+y = 3\n"
+    )
+
+
+def test_semantic_patch_changes_only_declared_source_and_mismatch_is_atomic(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    package = _semantic_package(tmp_path, repo)
+    unrelated = tmp_path / "a.py"
+    unrelated.write_text("unrelated\n", encoding="utf-8")
+    script, paths, workdir = mimo_semantic_patch_script(package, _semantic_diff())
+    first = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
+    assert first.returncode == 0, first.stderr
+    assert paths == ["a.py"]
+    assert workdir == str(repo.resolve())
+    assert (repo / "a.py").read_text(encoding="utf-8") == "x = 1\ny = 3\n"
+    assert unrelated.read_text(encoding="utf-8") == "unrelated\n"
+
+    again = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
+    assert again.returncode != 0
+    assert (repo / "a.py").read_text(encoding="utf-8") == "x = 1\ny = 3\n"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "../outside.py", "/outside.py", ".git/config.py", "tests/helper.py",
+        "pkg/test_runner.py", "pkg/conftest.py", "grader.py", "reward.py",
+        "pkg/security.py", "auth/permissions.py", "pkg/sitecustomize.py",
+        "solution/main.py", "pkg/pytest.ini", "pkg/setup.py",
+    ],
+)
+def test_semantic_patch_refuses_protected_or_traversal_targets(
+    tmp_path: Path, target: str
+) -> None:
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    with pytest.raises(ValueError):
+        mimo_semantic_patch_script(package, _semantic_diff(target))
+
+
+def test_semantic_patch_protects_every_path_in_the_verifier_patch(tmp_path: Path) -> None:
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    (package / "tests/test.patch").write_text(
+        _semantic_diff("pkg/ordinary.py"), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="protected"):
+        mimo_semantic_patch_script(package, _semantic_diff("pkg/ordinary.py"))
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        _semantic_diff().replace("--- a/a.py", "--- a/other.py"),
+        _semantic_diff().replace("+++ b/a.py", "+++ b/other.py"),
+        _semantic_diff().replace("@@ -1,2 +1,2 @@", "@@ -1,200 +1,200 @@"),
+        _semantic_diff().replace("--- a/a.py", "new file mode 120000\n--- a/a.py"),
+        _semantic_diff().replace("+y = 3", "+y = vars()"),
+    ],
+)
+def test_semantic_patch_refuses_malformed_file_types_and_introspection(
+    tmp_path: Path, patch: str
+) -> None:
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    with pytest.raises(ValueError):
+        mimo_semantic_patch_script(package, patch)
+
+
+@pytest.mark.parametrize("link", ["symlink", "hardlink", "parent-symlink"])
+def test_semantic_apply_never_writes_through_linked_source(
+    tmp_path: Path, link: str
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text("x = 1\ny = 2\n", encoding="utf-8")
+    target = source / "a.py"
+    path = "a.py"
+    if link == "symlink":
+        target.symlink_to(outside)
+    elif link == "hardlink":
+        target.hardlink_to(outside)
+    else:
+        (source / "pkg").symlink_to(tmp_path, target_is_directory=True)
+        path = "pkg/outside.py"
+    package = _semantic_package(tmp_path, source)
+    script, _, _ = mimo_semantic_patch_script(package, _semantic_diff(path))
+    applied = subprocess.run(["bash", "-c", script], capture_output=True, check=False)
+    assert applied.returncode != 0
+    assert outside.read_text(encoding="utf-8") == "x = 1\ny = 2\n"
+
+
+def test_semantic_replay_refuses_changed_candidate_bytes_before_docker(
+    tmp_path: Path, backend: HarborBackend
+) -> None:
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    candidate = tmp_path / "semantic.patch"
+    original = _semantic_diff()
+    candidate.write_text(original.replace("+y = 3", "+y = 4"), encoding="utf-8")
+    (tmp_path / "semantic-candidate.json").write_text(
+        json.dumps({
+            "source_task_digest": task_directory_digest(package),
+            "candidate_sha256": hashlib.sha256(original.encode("utf-8")).hexdigest(),
+        }),
+        encoding="utf-8",
+    )
+    observation = backend.replay_reproducer(
+        package,
+        Reproducer(kind="patch", path=str(candidate), expected_reward=1.0),
+        digest=task_directory_digest(package),
+        run_dir=tmp_path / "replay",
+        timeout_seconds=1,
+    )
+    assert observation.status == "failed"
+    assert observation.facts["reward"] is None
+    assert "digest changed" in str(observation.reason)
+    assert not (tmp_path / "replay").exists()
+
+
+@pytest.mark.parametrize("kind", ["command", "file", "json", "patch"])
+def test_mimo_s2a_rejects_generic_submission_channels_before_docker(
+    tmp_path: Path, backend: HarborBackend, kind: str
+) -> None:
+    package = _semantic_package(tmp_path, tmp_path / "source")
+    observation, reproducer = backend.grade_shortcut(
+        package, {"kind": kind, "path": "/app/out.py", "content": "x = 1\n"},
+        digest=task_directory_digest(package), run_dir=tmp_path / "candidate",
+        timeout_seconds=1,
+    )
+    assert observation.status == "failed"
+    assert observation.facts["reward"] is None
+    assert reproducer is None
+    assert not (tmp_path / "candidate").exists()
+
+
+def test_repeated_controls_keep_six_independent_outcomes_and_trial_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, backend: HarborBackend
+) -> None:
+    package = _mimo(tmp_path)
+    backend.bind_reference_patch(package, _reference(tmp_path))
+    task = SimpleNamespace(
+        task_id="mimo/format-code-task-000001", path=str(package),
+        package_digest=task_directory_digest(package),
+    )
+    fake = _install(monkeypatch, FakeDocker())
+    ticks = iter(range(10_000))
+    monkeypatch.setattr("evallab.qa.task.time.monotonic", lambda: float(next(ticks)))
+    outcomes = []
+    for agent, reward in [
+        ("oracle", 1.0), ("oracle", 0.0), ("oracle", 1.0),
+        ("nop", 0.0), ("nop", 1.0), ("nop", 0.0),
+    ]:
+        fake._reward = f"{reward}\n"
+        outcomes.append(backend.control(task, agent, timeout_seconds=1, run_dir=tmp_path / "controls"))
+    assert [obs.facts["reward"] for obs in outcomes] == [1.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+    assert all(obs.status == "executed" for obs in outcomes)
+    jobs = [Path(obs.facts["job_path"]) for obs in outcomes]
+    assert len(set(jobs)) == 6
+    assert [json.loads((job / "result.json").read_text())["reward"] for job in jobs] == [
+        1.0, 0.0, 1.0, 0.0, 1.0, 0.0,
+    ]

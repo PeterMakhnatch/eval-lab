@@ -20,6 +20,7 @@ from evallab.qa import models as shared_models
 from evallab.qa import score as shared_score
 from evallab.qa.answer_key import load_answer_key as load_shared_answer_key
 from evallab.qa.task import (
+    MIMO_SEMANTIC_REVIEWER,
     AnswerKeyItem,
     Check,
     CodexLane,
@@ -45,6 +46,7 @@ from evallab.qa.task import (
     score_command,
     score_findings,
     scoreboard_row,
+    stage_s3,
     submission_to_script,
     validate_triplet,
 )
@@ -918,6 +920,7 @@ def test_mutation_survivors_without_lane_or_after_quota_stop_stay_unadjudicated(
     )
     assert quota.checks["mutation-hunt"].verdict == "unknown"
     assert quota.verdict == "unknown"
+    assert quota.quality_complete is False
     assert load_findings(tmp_path / "run-b")[0] == []
 
 
@@ -1155,6 +1158,28 @@ def test_bundle_verifier_aware_excludes_solution_cheat_and_golden_contents(tmp_p
     assert "SECRET_CHEAT" not in blob
     assert "tests/test_outputs.py" in bundle["files"]
     assert any("golden-files/answer.csv" in item for item in bundle["omitted"])
+
+
+def test_semantic_bundle_excludes_control_plane_and_embedded_static_answers(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    (package / "task.toml").write_text('embedded = "CONTROL_PAYLOAD"\n', encoding="utf-8")
+    (package / "tests/test.sh").write_text("GRADER_PAYLOAD", encoding="utf-8")
+    (package / "README.md").write_text("ORACLE_PAYLOAD", encoding="utf-8")
+    (package / "tests/test.patch").write_text(
+        "diff --git a/tests/test_behavior.py b/tests/test_behavior.py\n"
+        "--- a/tests/test_behavior.py\n+++ b/tests/test_behavior.py\n"
+        "@@ -1 +1 @@\n-assert f(0) == 1\n+assert f(0) == 2\n"
+        "diff --git a/tests/fixtures/answers.py b/tests/fixtures/answers.py\n"
+        "--- a/tests/fixtures/answers.py\n+++ b/tests/fixtures/answers.py\n"
+        "@@ -1 +1 @@\n-OLD_GOLDEN\n+NEW_GOLDEN\n",
+        encoding="utf-8",
+    )
+    bundle = bundle_verifier_aware(package, semantic_only=True)
+    text = json.dumps(bundle["files"])
+    assert "assert f(0) == 2" in text
+    for private in ("CONTROL_PAYLOAD", "GRADER_PAYLOAD", "ORACLE_PAYLOAD", "NEW_GOLDEN"):
+        assert private not in text
+    assert "tests/test.patch:tests/fixtures/answers.py" in bundle["omitted"]
 
 
 def test_submission_to_script_converts_kinds_and_rejects_bad_json(tmp_path: Path) -> None:
@@ -1414,6 +1439,46 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and
     assert rescored["verified_root_cause_match"] == pytest.approx(1 / 2)
     row = scoreboard_row(rescored, level="verified")
     assert row.root_cause_match == pytest.approx(1 / 2)
+
+
+@pytest.mark.parametrize(
+    ("reward", "status", "verdict", "refutation"),
+    [
+        (1.0, "measured", "unknown", "unverified"),
+        (0.0, "measured", "pass", "refuted"),
+        (None, "ran_without_usable_result", "unknown", "unverified"),
+    ],
+)
+def test_semantic_s3_measures_rewards_without_certifying_program_incorrectness(
+    tmp_path: Path, reward: float | None, status: str, verdict: str, refutation: str
+) -> None:
+    package = _package(tmp_path)
+    subject = Subject(
+        kind="task", task_id="bench/fake-task", task_digest=task_directory_digest(package)
+    )
+    report = TaskReport(
+        subject=subject, package=str(package), requested_stages=["S3"], started_at="t"
+    )
+    candidate = _make_finding(
+        finding_id="semantic-a1", task_id=subject.task_id,
+        task_digest=subject.task_digest, status="unverified",
+    )
+    candidate.reviewer = Reviewer(agent=MIMO_SEMANTIC_REVIEWER)
+    findings = [candidate]
+    stage_s3(
+        report, findings, FakeBackend(replay_reward=reward),
+        QATaskConfig(stages=("S3",)), run_dir=tmp_path / "replays",
+    )
+    check = report.checks["fresh-replay"]
+    assert check.status == status
+    assert check.verdict == verdict
+    assert candidate.refutation.status == refutation
+    if reward == 1.0:
+        assert candidate.verdict == "unknown"
+        assert check.facts["semantic_review_pending"] is True
+        assert not any(finding.refutation.status == "verified" for finding in findings)
+        finalize(report, findings)
+        assert report.quality_complete is False
 
 
 def test_run_task_findings_load_and_score_through_shared_qa_contract(tmp_path: Path) -> None:
@@ -1687,3 +1752,33 @@ def test_modal_plan_subcent_cap_matches_unrounded_gate_across_packages(
         gate.charge()
     with pytest.raises(SpendCapReached):
         gate.charge()
+
+
+@pytest.mark.parametrize("check_name", ["ref-mutants", "mutation-hunt"])
+@pytest.mark.parametrize("decision", [None, "equivalent"])
+def test_requested_survivor_adjudication_must_be_complete_even_when_unscored(
+    tmp_path: Path, check_name: str, decision: str | None
+) -> None:
+    report = TaskReport(
+        subject=Subject(kind="task", task_id="bench/fake-task", task_digest="sha256:source"),
+        package=str(tmp_path), requested_stages=["S2", "S3"], started_at="t",
+        checks={
+            "shortcut-agent": Check(stage="S2", status="measured", verdict="pass"),
+            "fresh-replay": Check(stage="S3", status="measured", verdict="pass"),
+            check_name: Check(
+                stage="S2", status="measured", scored=False,
+                verdict="pass" if decision else "unknown",
+                facts={
+                    "survivors": ["m1", "m2"],
+                    "adjudications": [
+                        {"id": "m1", "verdict": "equivalent"},
+                        {"id": "m2", "verdict": decision,
+                         "reason": "equivalent" if decision else "quota stopped"},
+                    ],
+                },
+            ),
+        },
+    )
+    finalize(report, [])
+    assert report.quality_complete is (decision is not None)
+    assert report.verdict == ("pass" if decision else "unknown")

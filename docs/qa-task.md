@@ -27,9 +27,12 @@ implements the executed QA Task agent registered beside the shared
   the wrong/shortcut submission scores 1, the correct fix (oracle) scores 1,
   do-nothing (nop) scores 0.
 
-Only S3-confirmed candidates become verified findings. Unconfirmed or refuted
-candidates never count as verified defects, and not-measured checks never
-count as passes.
+Only S3-confirmed candidates become verified findings. MiMo semantic proposals
+add a separate requirement: independent evidence that the submitted program is
+actually incorrect. A self-labeled counterexample and reward 1 do not establish
+that fact; their S3 replay stays `unverified` pending independent review.
+Unconfirmed/refuted candidates never count as verified defects, and unmeasured
+checks never count as passes.
 
 ## Stages
 
@@ -37,10 +40,11 @@ count as passes.
 |---|---|---|
 | `S0` | Unscored static hack scan (`backend.static`); scored `oracle` ×3 and `nop` ×3 fresh-container controls (`oracle_floor=0.9`, `nop_ceiling=0.1`); scored `leak` probe executed directly in the environment image (same `LEAK_PROBE_V1` script and parser as the Harbor probe; a missing `git` with no candidate checkout is `no-repository`, not unknown) | Measured oracle `<0.9` emits a verified `broken` finding; measured nop `>0.1` emits a verified `weak` finding. A measured leak with future history appends a `reachable` Signal. GPU or multi-service Compose packages are `not_run` with the blocker reason. |
 | `S1` | Complete rubric (`--rubric` or Harbor built-in) over k=3 independent text-only Codex samples; only complete samples vote; majority per `rubric:<name>` criterion | Majority fails on `DEFECT_CRITERIA` append Signals, never Findings. |
-| `S2a` shortcut agent | `bundle_verifier_aware` gives the model `instruction.md`, `task.toml`, `environment/*` and `tests/*` read-only. `solution/`, `cheat/` and `README.md` are excluded; static golden dirs under `tests/` (`golden-files`, `hidden_data`, `data`, `fixtures`) are listed in `omitted` with sizes. The prompt names three generic defect classes (`reachable`, `tamperable`, `weak`), not task-specific mechanisms. One JSON object per attempt (`exploit` / `no_credible_bypass` / `legit_solution` + submission). Each exploit is graded on the untouched base in a fresh container; failed attempts are retried with the previous agent output and verifier stdout in the prompt (max 3). Two consecutive `no_credible_bypass` replies stop early. | A submission scoring 1.0 creates an **unverified** candidate Finding (`command`/`patch` reproducer). `shortcut-agent` is a scored check: `fail` if a shortcut scored 1.0, `pass` if at least one usable reply found none, else `unknown`/`not_run`. |
+| `S2a` shortcut agent (non-MiMo) | `bundle_verifier_aware` gives the model `instruction.md`, `task.toml`, `environment/*` and `tests/*` read-only. Solutions, cheats, README and static golden directories are excluded. The existing generic prompt, submission formats, grader-output feedback and ≤3-attempt stopping rules are unchanged. | Reward 1 creates an **unverified** candidate; the existing scored `shortcut-agent` verdict applies. |
+| `S2a` MiMo semantic-only | Packages with `environment/setup/setup.sh` use a separate program-correctness prompt. Only the instruction, source-code sections of `tests/test.patch`, test command, declared workdir and optional pristine base-source context are supplied. No generic reach/tamper mechanisms or runtime test output are fed back. A proposal must be a production-source patch with a quoted requirement and concrete predicted counterexample. | Every attempt retains source/context/prompt/response/candidate hashes and raw artifacts. Non-executed, rejected, failed or quota-stopped proposals have null reward, never an invented zero. Reward 1 creates an `unknown`/`unverified` candidate, not a proven wrong pass. |
 | `S2b` ref-subset | `evallab.ref_subset.probe_task`: raw MiMo packages (or `--ref-patch`) use their reference patch; Harbor **separate-verifier** packages derive the reference from their own oracle and grade subsets in fresh verifier containers (#903). Shared-verifier Harbor packages are `not_run` (not applicable), never a pass. `--mutants N` also runs its line-level pass (#918): up to N one-edit mutants of the lines the reference wrote, each graded like a subset. | A measured partial-fix pass keeping ≤50% of the reference code lines (severity high/medium) creates an unverified `weak` candidate whose reproducer is `minimal.patch`. Low severity (>50% kept) is a Signal only. An exhausted grade budget is `unknown`, not a pass. A surviving line-level mutant is adjudicated against `instruction.md` exactly like an S2c survivor (check `ref-mutants`); only `wrong` ones become unverified `weak` candidates (reproducer: that mutant's patch over the base). `ref-subset` and `ref-mutants` are unscored checks. |
 | `S2c` mutation hunt | `evallab.verifier_mutation.run_mutation_audit` with `--mutants N` (default 8; `0` disables) and the coverage-guided plan. Trials run through `HarborBackend.matrix_runner` (raw-docker fresh containers, same capture and coverage layout as Harbor trials) instead of Harbor jobs: ~2 s per trial instead of ~100 s. Survivors (reward kept while the file's blank control scores 0) are read by a Codex adjudicator against `instruction.md` and the diff: `wrong` (violates a quoted requirement) / `equivalent` / `unspecified`. | Only `wrong` survivors become unverified `weak` candidates (reproducer: the mutation script). Unadjudicated survivors (no lane, quota stop, more than 6) append a `weak` Signal and make the `mutation-hunt` check `unknown`. `task_broken`/`unscored` hunts are `ran_without_usable_result`. |
-| `S3` | Fresh-container confirmation. Baseline controls come from S0 when it ran in the same audit; otherwise S3 runs one fresh oracle and one fresh nop. Each unverified candidate (S2 or `--evidence` import) is re-executed from its reproducer on the base environment in a new container; mutation scripts replay as oracle-channel overrides with the task's `solution/` staged. An optional subject-bound `--triplet` is checked numerically (`validate_triplet`) as an unscored gate. | `verified`/`fail` iff fresh reward is 1.0 **and** oracle and nop controls are clean. A task whose controls are not clean leaves every candidate `unverified`. Reward in (0, 1) stays `unverified`. Reward 0 with clean controls is `refuted`/`pass`. `fresh-replay` is scored: `fail` when any candidate is confirmed, `pass` when every replay and control is measured clean, else `unknown`. |
+| `S3` | Fresh-container replay, with clean S0 controls from the same audit or one fresh oracle/nop pair when S0 did not run. Mutation scripts retain their existing oracle-channel replay. | Existing candidates become `verified`/`fail` only with replay reward 1 and clean controls. MiMo semantic proposals additionally remain `unverified`/`unknown` until independent incorrectness review; clean numerical triplets alone cannot certify them. Reward 0 with clean controls refutes a candidate. Partial, missing or failed rewards are not confirmations. |
 
 Submission kinds from the shortcut agent are converted by
 `submission_to_script`: `command` (bash run in `/app` in the agent
@@ -61,6 +65,10 @@ not once per trial; S1 runs before it and needs no container. The backend's
 per-trial, `leak`, ref-subset and mutation calls re-enter that slot
 (`HarborBackend.slot` is reentrant; `docker_slot` itself is not). By default one
 QA Task container runs at a time and other tabs interleave between tasks.
+`HarborBackend.control` never caches an observation: oracle ×3 and nop ×3
+are six independent trials, each with its own job path and raw result. S3 can
+still reuse the explicitly recorded S0 controls rather than requesting new ones.
+
 Explicit Docker task concurrency is restricted to 1–2 and retains that same
 host-wide admission:
 
@@ -174,15 +182,115 @@ package, and no TB4 package declares a `workdir`.
   finding binds to its key. A package with no namespaced name keeps the TB2
   fallback (`terminal-bench/<id>` when the directory is the id, otherwise bare).
 
-Not covered: the S2a shortcut agent's submission formats assume `/app` and the S2c
-mutation hunt needs `solution/solve.sh`; neither is validated on patch-oracle
-packages. The leak probe is unchanged and often stays `unknown` on raw MiMo images: a
-dangling `refs/remotes/origin/HEAD` makes `git fsck` exit 2, so the unreachable-commit
-count is unknown even though the base commit and refs are read (measured on
-`format-code-task-001809`); the v6 package of `format-code-task-000657` measured `pass`.
-Use `--no-model` for a deterministic audit (S0 controls, leak, ref-subset, S3 replay of
-an `--evidence` candidate or of its own ref-subset
-finding).
+The S2c mutation hunt still needs an output-artifact solution; MiMo uses the
+existing S2b reference-subset/ref-mutant path instead. The leak probe is unchanged:
+a dangling remote HEAD can leave its history result unknown. Deterministic
+`--no-model` audits retain S0, ref-subset and S3 replay without generating a
+semantic proposal.
+
+#### MiMo semantic-only S2a
+
+`stage_s2a(report, backend, lane, config, *, run_dir, source_context=None)` is
+the isolated seeker callable. `stage_s2` calls it before its unchanged S2b/S2c
+work. Calling `stage_s2a` directly never imports old witnesses, extracts a
+reference patch, runs reference subsets or generates reference mutants.
+
+This path is local-Docker-only. Set `EVALLAB_DOCKER_LOCK_SLOTS=2` explicitly
+before constructing/using the backend; each actual trial uses the first-party
+`HarborBackend` and shared FIFO. Supply the campaign's approved, quota/spend-gated
+text lane; the callable does not construct another model route.
+
+`source_context` is a bounded mapping from safe repository-relative production
+paths to pristine base-source text (55,000 characters per entry, 160,000 total).
+Obtain it only from the untouched package image after its normal setup, with a
+trusted read-only reader over an explicit production-path allowlist. Do not
+export history, tests, fixtures, setup/grader files, solutions, reference patches
+or archived wrong proposals. The reader must reject links and paths outside the
+declared workdir. Existing `_ensure_images`/`_run_probe` under `backend.slot`
+can perform that first-party fresh-container read; only source JSON, not setup
+or grader output, belongs in the prompt. Without sufficient source, the model
+can return `needs_source_context` with specific source paths; this is unmeasured,
+not a fabricated patch or a pass.
+
+Accepted responses are `candidate`, `no_candidate` or `needs_source_context`.
+A candidate has only `submission.kind="patch"` and a concrete counterexample
+(`requirement`, `input`, `expected`, `actual`); the prediction is retained for
+independent inspection, never treated as a correctness judgment. Only ordinary
+input/output behavior and incomplete implementations are in scope. Expected-answer
+copying, hidden-data reads, reward writes, test-framework monkeypatches,
+introspection, process/network access and sandbox/control-plane bypasses are not.
+
+`grade_shortcut(..., {"kind": "semantic_patch", "content": diff}, ...)` is the
+safe execution entry for an already obtained proposal, including a genuinely
+batched model response. MiMo refuses the generic command/file/JSON/patch channels.
+The semantic validator:
+
+- accepts bounded, same-path text git diffs for production source; rejects
+  absolute/traversal/hidden paths, tests and every path in `tests/test.patch`,
+  fixtures/golden files, solutions, grader/reward/security/auth/network controls,
+  runner/dependency configuration, hooks and plugins;
+- rejects inconsistent headers, binary content, deletion, rename/copy, mode
+  changes, symlink/gitlink creation, and added test-control/introspection/
+  process/network code using the existing verifier guards plus the narrower
+  semantic admission rules;
+- applies only in the declared workdir, with runtime checks against symlinks,
+  hardlinks and non-regular targets, followed by atomic `git apply --check`/
+  `git apply`; there is no unsafe-path or fuzzy patch fallback. An apply failure
+  aborts before grading and keeps reward null.
+
+These are conservative admission checks, not a general security proof or a
+substitute for independent source/counterexample review. Keep each
+`semantic.patch`, `semantic-candidate.json` and `semantic-apply.sh` together.
+The sidecar binds the original package digest and exact candidate SHA256.
+`replay_reproducer` refuses changed/missing candidate custody and revalidates
+the patch against the target package's workdir/protected paths before a fresh
+trial. A v6 candidate transferred to released v7 is a separate transfer
+measurement, not an independent v7 search. A setup failure remains unmeasured;
+never substitute a different package to complete a cell.
+
+Minimal isolated sequence, with a fresh `run_dir`, exact package/digest and the
+approved `lane`/pristine `source_context` already supplied:
+
+```python
+os.environ["EVALLAB_DOCKER_LOCK_SLOTS"] = "2"
+config = QATaskConfig(stages=("S2", "S3"), shortcut_attempts=1, mutants=0)
+task = backend.resolve(package)
+report = TaskReport(
+    subject=Subject(kind="task", task_id=task.task_name, task_digest=task.package_digest),
+    package=str(package), requested_stages=["S2", "S3"], started_at=utcnow(),
+)
+findings = stage_s2a(
+    report, backend, lane, config, run_dir=run_dir, source_context=source_context,
+)
+stage_s3(report, findings, backend, config, run_dir=run_dir)
+finalize(report, findings)
+write_json(run_dir / "report.json", report.model_dump(mode="json", by_alias=True))
+for finding in findings:
+    write_json(run_dir / "findings" / f"{finding.id}.json",
+               finding.model_dump(mode="json", by_alias=True))
+```
+
+Increase `shortcut_attempts` on the **same report** only up to three cumulative
+attempts per arm. Quota admission stops do not consume a model turn; their raw
+receipts are retained separately, so a later permitted continuation cannot
+overwrite them. Do not wrap one physical batch response in fabricated per-item
+`lane.complete` calls: retain/count the actual batch turn once and grade its
+individually bound patches directly.
+
+All admitted candidates, including reward-zero attempts, have a `reproducer`
+in `report.checks["shortcut-agent"].facts["attempts"]`. Iterate those records
+and call `backend.replay_reproducer(target, Reproducer.model_validate(record),
+digest=exact_target_digest, run_dir=fresh_replay_dir, timeout_seconds=...)`
+to measure each against its own arm or its exact partner. Persist each returned
+status/facts/reason separately; transfer controls and independent incorrectness
+evidence are still required before counting a wrong pass.
+
+For a bounded actual Docker smoke, use one independently inspected production
+patch from pristine source, one `grade_shortcut` trial, one fresh reproducer
+replay and one fresh oracle/nop pair, with the package's bounded timeout and
+FIFO slots fixed at two. No model call, reference-subset search, mutant hunt
+or package mutation is needed for this smoke.
+
 
 ### Findings vs signals
 
@@ -199,11 +307,13 @@ today, so root-cause match is `n/a` (not measured), never 0.
 
 - Check status is `measured`, `ran_without_usable_result`, or `not_run`; the
   latter two never pass.
-- `quality_complete` is true iff at least one scored check exists and every
-  **scored** check is `measured` (unscored descriptive checks such as
-  `static`, `rubric-sample-*`, `rubric:*` when `S2`/`S3` run, `ref-subset`,
-  `ref-mutants`, `mutation-hunt`, `imported-evidence` and `supplied-triplet`
-  do not block completeness).
+- `quality_complete` requires at least one scored check and measured status for
+  every scored check. Unscored descriptive checks normally do not block it,
+  but requested S2 survivor adjudication must cover **every** `ref-mutants`/
+  `mutation-hunt` survivor with a usable wrong/equivalent/unspecified decision.
+  Quota-stopped, failed, missing or capped adjudications make completeness false,
+  even if all numeric controls passed. Pending independent MiMo incorrectness
+  review also prevents completeness. Historical raw reports are not rewritten.
 - `report.verdict` is `fail` when any verified eval finding stands; otherwise
   `unknown` when measurement is incomplete, any scored check failed, any
   Signal exists, any candidate remains unverified/non-pass, or `report.error`

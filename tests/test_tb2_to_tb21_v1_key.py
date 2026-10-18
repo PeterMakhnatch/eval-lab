@@ -31,3 +31,34 @@ def test_verdict_shape():
         else:
             assert r["expected_verdict"] == "pass"
         assert r["split"] == "test"
+
+
+def test_pairs_load_for_scorer():
+    from evallab.qa.answer_key import load_answer_key
+
+    key = load_answer_key(KEY)
+    assert len(key.pairs) == 52
+    for pair in key.pairs:
+        assert pair.child.startswith("tb2-to-tb21-v1:tb2:")
+        assert pair.parent.startswith("tb2-to-tb21-v1:tb21:")
+
+
+def test_unexposed_subset_keeps_canonical_pairs():
+    import sys
+
+    from evallab.qa.answer_key import load_answer_key
+
+    repo = KEY.parents[2]
+    sys.path.insert(0, str(repo / "research/experiments/tb2-to-tb21-v1"))
+    import score_tb2_to_tb21 as scorer
+
+    items = _items()
+    root, excluded = scorer._subset_key(items)
+    assert excluded == 24
+    key = load_answer_key(root)
+    assert len(key.items) == 80
+    assert len(key.pairs) == 40
+    exposed = {row["item_id"] for row in items if row["breaker_bench_dev_exposure"]}
+    for pair in key.pairs:
+        assert pair.child not in exposed
+        assert pair.parent not in exposed

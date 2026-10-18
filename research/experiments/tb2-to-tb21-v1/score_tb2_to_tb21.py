@@ -21,10 +21,13 @@ from typing import Any
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EXPERIMENT_DIR.parents[2]
-if str(REPO_ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "src"))
-if str(EXPERIMENT_DIR) not in sys.path:
-    sys.path.insert(0, str(EXPERIMENT_DIR))
+for path in (
+    REPO_ROOT / "src",
+    EXPERIMENT_DIR,
+    EXPERIMENT_DIR.parent / "breaker-bench-heldout-v1",
+):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 import run_heldout as rh  # noqa: E402
 import run_tb2_to_tb21 as driver  # noqa: E402
@@ -289,12 +292,29 @@ def write_findings(findings: Sequence[Finding], out_dir: Path) -> None:
 
 
 def _subset_key(items: Sequence[Mapping[str, Any]]) -> tuple[Path, int]:
+    """Unexposed key: drop exposed items and any pair touching one.
+
+    The scorer loads canonical pairs only from ``pairs.jsonl``. Copying
+    items alone makes the unexposed score report 0 pairs (Verifier A043).
+    """
     selected = [item for item in items if not item["breaker_bench_dev_exposure"]]
+    selected_ids = {item["item_id"] for item in selected}
     root = Path(tempfile.mkdtemp(prefix="tb2-to-tb21-unexposed-")) / driver.KEY_ID
     root.mkdir()
     shutil.copyfile(KEY_DIR / "README.md", root / "README.md")
     root.joinpath("items.jsonl").write_text(
         "".join(json.dumps(item, sort_keys=True) + "\n" for item in selected),
+        encoding="utf-8",
+    )
+    kept = []
+    for line in (KEY_DIR / "pairs.jsonl").read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row["child"] in selected_ids and row["parent"] in selected_ids:
+            kept.append(row)
+    root.joinpath("pairs.jsonl").write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in kept),
         encoding="utf-8",
     )
     return root, len(items) - len(selected)

@@ -12,7 +12,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | envcheck-tb4-39 | 13 (7/6) | 26 (18/8) heldout | 0 / 0 | 39 | 0 |
 | executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
-| tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 0 | 52 | 0 |
+| tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
 

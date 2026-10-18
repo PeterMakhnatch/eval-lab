@@ -208,11 +208,8 @@ def test_faithful_native_projection_preserves_reasoning_and_tools(tmp_path, chan
         assert proof["projection_normalizations"]["antihack_blocks"] == "actual_worker_verdict_list_to_finished_event_count"
 
 
-def test_actual_serving_receipt_custody_is_usable_and_rejects_artifact_drift(tmp_path, monkeypatch):
-    window = load(
-        "phase2_native_serving_receipt_contract",
-        str(ROOT / "tools/modal-mimo-serve/serving_window.py"),
-    )
+def serving_receipt(tmp_path, monkeypatch, upstream, name):
+    window = load(name, str(ROOT / "tools/modal-mimo-serve/serving_window.py"))
     envelope_path, _, value, plan = envelope(tmp_path)
     controls = tmp_path / "controls.json"
     controls.write_text('{"strict_tasks":19}')
@@ -232,7 +229,6 @@ def test_actual_serving_receipt_custody_is_usable_and_rejects_artifact_drift(tmp
     )
     journal = window.Journal(tmp_path / "owned-window.json")
     journal.create(config)
-    upstream = "https://fixture-owned-base.modal.run"
     app_id = "ap-fixture-owned"
     models = journal.artifact("models", {"data": [{"id": g.RETURNED_MODEL}]})
     guard = {"armed": True, "app_id": app_id, "deadline": config["expires_at"]}
@@ -250,7 +246,41 @@ def test_actual_serving_receipt_custody_is_usable_and_rejects_artifact_drift(tmp
     receipt_path = tmp_path / "fixed-ready-receipt.json"
     g.write_json(receipt_path, record)
     plan["config"] = {"sandbox_timeout_seconds": 300}
+    return receipt_path, envelope_path, plan, models
+
+
+def test_actual_serving_receipt_custody_is_usable_and_rejects_artifact_drift(tmp_path, monkeypatch):
+    receipt_path, envelope_path, plan, models = serving_receipt(
+        tmp_path, monkeypatch, "https://fixture-owned-base.modal.run",
+        "phase2_native_serving_receipt_contract")
     g.checked_window(receipt_path, envelope_path, plan)
     Path(models["path"]).write_text('{"data":[{"id":"different-model"}]}')
     with pytest.raises(g.Refusal):
         g.checked_window(receipt_path, envelope_path, plan)
+
+
+@pytest.mark.parametrize("upstream,accepted", [
+    ("https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct", True),
+    ("https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.modal.run", True),
+    ("http://x.us-east.modal.direct", False),
+    ("https://modal.direct", False),
+    ("https://x.modal.direct", False),
+    ("https://x.notmodal.direct", False),
+    ("https://x.evil.modal.direct", False),
+    ("https://a.b.us-east.modal.direct", False),
+    ("https://x.modal.direct.evil.example", False),
+    ("https://x.modal.run.evil.example", False),
+    ("https://user:pw@x.us-east.modal.direct", False),
+    ("https://x.us-east.modal.direct:8443", False),
+    ("https://x.us-east.modal.direct/v1", False),
+    ("https://x.us-east.modal.direct/?q=1", False),
+    ("https://x.us-east.modal.direct#frag", False),
+])
+def test_checked_window_accepts_only_modal_owned_origins(tmp_path, monkeypatch, upstream, accepted):
+    receipt_path, envelope_path, plan, _ = serving_receipt(
+        tmp_path, monkeypatch, upstream, "phase2_native_serving_origin_contract")
+    if accepted:
+        g.checked_window(receipt_path, envelope_path, plan)
+    else:
+        with pytest.raises(g.Refusal, match="fake endpoint"):
+            g.checked_window(receipt_path, envelope_path, plan)

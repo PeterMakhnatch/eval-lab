@@ -31,12 +31,19 @@ def _step(command: str, content: str | None = None, *, sid: int = 1, call_id: st
     }
 
 
+@pytest.mark.parametrize("argument", ["keystrokes", "command"])
 @pytest.mark.parametrize("task,verdict,reasons", [
     ("001870", "counted_pass", []),
     ("000341", "excluded", ["copied_fix", "pass_tainted"]),
 ])
-def test_native_g2_producer_to_counts_and_decision(tmp_path: Path, task: str, verdict: str, reasons: list[str]) -> None:
+def test_native_g2_producer_to_counts_and_decision(tmp_path: Path, task: str, verdict: str, reasons: list[str], argument: str) -> None:
     native = _native(task)
+    if argument == "command":
+        for step in native["steps"]:
+            for call in step.get("tool_calls") or []:
+                call["function_name"] = "bash"
+                args = call["arguments"]
+                args["command"] = args.pop("keystrokes")
     result = native["result"]
     reward = result["verifier_result"]["rewards"]["reward"]
     assert reward == 1.0

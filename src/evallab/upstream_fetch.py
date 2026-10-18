@@ -37,7 +37,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from evallab.edit_signals import codex_exec_commands
+from evallab.edit_signals import tool_bash_commands
 
 __all__ = [
     "KNOWN_SCORE_RULES",
@@ -718,13 +718,8 @@ def _executed_calls(step: dict, layer: dict | None) -> list[tuple[str | None, st
     for call in calls if isinstance(calls, list) else []:
         if not isinstance(call, dict):
             continue
-        args = call.get("arguments")
-        command = args.get("keystrokes") if isinstance(args, dict) else None
-        if isinstance(command, str) and command.strip():
+        for command in tool_bash_commands(call):
             extracted.append((call.get("tool_call_id"), command))
-        elif isinstance(args, dict):
-            for codex_command in codex_exec_commands(str(args.get("input") or "")):
-                extracted.append((call.get("tool_call_id"), codex_command))
     if extracted:
         return extracted
     # Recorded/replayed attempts may lack raw calls. Preserve them as unknown,
@@ -1061,14 +1056,7 @@ def commands_from_trial(trial_dir: str | Path) -> list[tuple[int, str]]:
             for call in calls:
                 if not isinstance(call, dict):
                     continue
-                args = call.get("arguments")
-                commands: list[str] = []
-                keystrokes = args.get("keystrokes") if isinstance(args, dict) else None
-                if isinstance(keystrokes, str) and keystrokes.strip():
-                    commands.append(keystrokes)
-                elif isinstance(args, dict):
-                    commands.extend(codex_exec_commands(str(args.get("input") or "")))
-                for command in commands:
+                for command in tool_bash_commands(call):
                     key = (int(step_id) if isinstance(step_id, int) else -1, command)
                     if key not in seen:
                         seen.add(key)

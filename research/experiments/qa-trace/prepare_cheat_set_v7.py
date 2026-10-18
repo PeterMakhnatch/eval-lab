@@ -19,7 +19,7 @@ from evallab.cheatbench_fidelity import blind_atif, find_forbidden_json
 from evallab.qa.trace import blind_id
 
 INDEX_SCHEMA = "mimo-cheat-set/blind-index/v1"
-MANIFEST_SCHEMA = "qa.cheat_set_inputs/v1"
+MANIFEST_SCHEMA = "qa.cheat_set_inputs/v2"
 LIMITATIONS = (
     "These are projected attempts, not a pass-filtered or released benchmark population.",
     "Only supplied blind ATIF and explicitly hash-bound diffs are present; raw trials, "
@@ -224,6 +224,9 @@ def prepare(
     _check_out(out)
     out = out.resolve()
     index_bytes = _read_bytes(index, "index")
+    index_digest = _sha256(index_bytes)
+    # Frozen B0 redacts trial and parent names; neither may be an ordinary word.
+    input_directory = Path(f"i-{index_digest[:12]}")
     try:
         lines = index_bytes.decode("utf-8").splitlines()
     except UnicodeError as exc:
@@ -272,7 +275,7 @@ def prepare(
         diff_digest = trial_ref.get("agent_diff_sha256")
         diff_bytes = None
         diff = None
-        trial_path = Path("inputs") / opaque
+        trial_path = input_directory / opaque
         if diff_ref is None:
             if diff_digest is not None:
                 raise SystemExit("diff: digest supplied without an agent_diff_path")
@@ -310,7 +313,7 @@ def prepare(
     subjects_bytes = "".join(json.dumps(row, sort_keys=True) + "\n" for row in subjects).encode()
     manifest = {
         "schema": MANIFEST_SCHEMA,
-        "index_sha256": _sha256(index_bytes),
+        "index_sha256": index_digest,
         "subjects_sha256": _sha256(subjects_bytes),
         "items": [item for item, _, _ in prepared],
         "limitations": list(LIMITATIONS),
@@ -319,7 +322,7 @@ def prepare(
     # previous prediction root nor another writer's files may be overwritten.
     _check_out(out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "inputs").mkdir()
+    (out / input_directory).mkdir()
     for item, trajectory_bytes, diff_bytes in prepared:
         trajectory_path = out / item["trajectory"]["path"]
         trajectory_path.parent.mkdir(parents=True)

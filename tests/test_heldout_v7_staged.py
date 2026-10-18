@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from test_heldout_v7_campaign import (
     HERE,
+    JOURNAL_APPROVAL,
 )
 from test_heldout_v7_campaign import (
     inventory_module as inventory_module,
@@ -150,6 +151,32 @@ def test_staged_selects_exact_original33_and_twelve_actual_endpoints(staged_inpu
     assert plan["budget"]["modal_sandbox_create_max_attempts"] == 1
 
 
+def test_staged_preparation_retains_prior_spend_and_the_historical_cap(staged_inputs, staged):
+    inputs, inventory, _, _ = staged_inputs
+    campaign = runpy.run_path(str(HERE / "campaign.py"))
+    journal = Path(inventory["sources"]["configuration"]["path"]).parent / "classifiers-v7-reservations.jsonl"
+    gate = campaign["JournalGate"](journal, 0.0666, cap_usd=3.30, approval=JOURNAL_APPROVAL)
+    for index in range(45):
+        gate.context.source_uid = (f"historic-job-{index}", f"historic-trial-{index}")
+        gate.charge()
+    prefix = journal.read_bytes()
+
+    plan = staged["prepare"](**inputs)
+    assert plan["budget"]["prior"]["executions"] == 45
+    assert plan["budget"]["prior"]["reserved_usd"] == pytest.approx(2.997)
+    assert plan["budget"]["fits_remaining_subcap"] is False
+    assert plan["counts"]["new_cost_reservation_count"] == 12
+    assert journal.read_bytes() == prefix
+
+    gate.context.source_uid = ("historic-job-45", "historic-trial-45")
+    gate.charge()
+    over_historical_cap = journal.read_bytes()
+    with pytest.raises(ValueError):
+        staged["prepare"](**inputs)
+    assert journal.read_bytes() == over_historical_cap
+    assert over_historical_cap.startswith(prefix)
+
+
 @pytest.mark.parametrize("change", ["omit_repair", "wrong_prefix", "duplicate_repair"])
 def test_staged_never_silently_narrows_or_changes_selected_endpoints(staged_inputs, staged, change):
     inputs, _, _, _ = staged_inputs
@@ -257,12 +284,12 @@ def test_staged_report_keeps_every_attempt_pass_nonpass_and_null(staged):
 def test_staged_and_final_changed_grader_share_one_cumulative_journal(staged, tmp_path):
     campaign = runpy.run_path(str(HERE / "campaign.py"))
     journal = tmp_path / "classifiers-v7-reservations.jsonl"
-    gate = campaign["JournalGate"](journal, 1)
+    gate = campaign["JournalGate"](journal, 1, cap_usd=3.0, approval=JOURNAL_APPROVAL)
     uid = ("job", "trial")
     gate.context.source_uid = uid
     gate.context.grader_digest = "sha256:" + "a" * 64
     gate.charge()
-    restarted = campaign["JournalGate"](journal, 1)
+    restarted = campaign["JournalGate"](journal, 1, cap_usd=3.0, approval=JOURNAL_APPROVAL)
     assert restarted.is_reserved(uid, "sha256:" + "a" * 64)
     restarted.context.source_uid, restarted.context.grader_digest = uid, "sha256:" + "a" * 64
     with pytest.raises(SpendCapReached, match="already reserved"):
@@ -353,10 +380,10 @@ def test_measured_original_reward_and_agent_exception_remain_distinct(staged_inp
 def test_legacy_reservation_cannot_be_reassigned_to_a_new_grader(tmp_path):
     campaign = runpy.run_path(str(HERE / "campaign.py"))
     path = tmp_path / "journal.jsonl"
-    legacy = campaign["JournalGate"](path, 1)
+    legacy = campaign["JournalGate"](path, 1, cap_usd=3.0, approval=JOURNAL_APPROVAL)
     legacy.context.source_uid = ["job", "trial"]
     legacy.charge()
-    current = campaign["JournalGate"](path, 1)
+    current = campaign["JournalGate"](path, 1, cap_usd=3.0, approval=JOURNAL_APPROVAL)
     current.context.source_uid = ["job", "trial"]
     current.context.grader_digest = "sha256:" + "a" * 64
     with pytest.raises(SpendCapReached, match="already reserved"):

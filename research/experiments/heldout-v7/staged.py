@@ -1,4 +1,9 @@
-"""Explicit pre-release measurement, never a substitute for canonical admission."""
+"""Explicit pre-release measurement, never a substitute for canonical admission.
+
+Staged plans retain their exact historical $3 cap and approval on the cumulative
+journal. Only canonical execution accepts a new heldout allocation from Trainer's
+combined-$12 parent envelope; neither path resets or refunds prior reservations.
+"""
 from __future__ import annotations
 
 import json
@@ -25,6 +30,7 @@ REPAIRS = {"000143", "000149", "000371", "000657", "000783", "000878", "001425",
            "001948", "002371", "002451", "002915"}
 FLAGS = {"measurement_mode": "staged", "release_status": "pre_release", "measurement_allowed": True,
          "scoring_allowed": False, "canonical_scoring_allowed": False, "citable": False}
+STAGED_APPROVAL = "Peter-approved 2026-10-18 focused sprint; cumulative heldout regrade $3 inside Trainer $12 (native $6.50, serving $2.50); ledger 2026-10-17-v7"
 
 
 def load_inventory(path: Path) -> dict[str, Any]:
@@ -195,7 +201,7 @@ def prepare(
         raise ValueError("reservation rate must be finite and positive")
     campaign = runpy.run_path(str(HERE / "campaign.py"))
     journal = Path(inventory["sources"]["configuration"]["path"]).parent / "classifiers-v7-reservations.jsonl"
-    gate = campaign["JournalGate"](journal, usd_per_execution)
+    gate = campaign["JournalGate"](journal, usd_per_execution, cap_usd=3.0, approval=STAGED_APPROVAL)
     changed_rows = [row for row in inventory["rows"] if bindings[row["task_id"]]["changed_from_v6"]]
     executions = sum(row["diff"] is not None for row in changed_rows)
     new_reservations = sum(row["diff"] is not None and not gate.is_reserved(tuple(row["source_uid"]), bindings[row["task_id"]]["package_digest"]) for row in changed_rows)
@@ -273,6 +279,9 @@ def load_plan(path: Path, inventory: dict) -> tuple[dict, dict[str, cf.Grader]]:
     plan = json.loads(path.read_bytes())
     if plan.get("schema") != "heldout-v7.staged-plan/v1" or any(plan.get(k) != v for k, v in FLAGS.items()):
         raise ValueError("expected an explicit pre-release noncitable staged plan")
+    if (plan["budget"].get("cap_usd") != 3.0 or plan["budget"]["prior"].get("cap_usd") != 3.0
+            or plan["budget"]["prior"].get("approval") != STAGED_APPROVAL):
+        raise ValueError("staged execution must retain its exact historical $3 cap and recorded approval")
     for reference in plan["sources"].values():
         bound_bytes(reference)
     if inventory != load_inventory(Path(plan["sources"]["inventory"]["path"])):

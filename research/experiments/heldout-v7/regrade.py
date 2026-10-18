@@ -1,4 +1,11 @@
-"""Hash-bound, all-attempt heldout-v7 campaign; native execution is never discovery."""
+"""Hash-bound, all-attempt heldout-v7 campaign; native execution is never discovery.
+
+Canonical ``run`` needs both the independently accepted release and a parent
+budget envelope within Trainer's combined $12 approval. Its heldout allocation
+continues the existing cumulative journal, including every prior reservation;
+it does not authorize a reset or implicit retry. ``run-staged`` instead retains
+the exact historical $3 cap and approval frozen in its pre-release plan.
+"""
 
 from __future__ import annotations
 
@@ -346,12 +353,13 @@ def main(argv: list[str] | None = None) -> int:
     prepare = commands.add_parser("inventory", help="Bind all canonical/native source attempts without cloud work")
     prepare.add_argument("--inputs", type=Path, required=True)
     prepare.add_argument("--out", type=Path, required=True)
-    run = commands.add_parser("run", help="Replay all retained attempts on an independently accepted exact v7 release")
+    run = commands.add_parser("run", help="Replay an independently accepted v7 release within the admitted combined-$12 parent envelope")
     run.add_argument("--inventory", type=Path, required=True)
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--accepted-sha", required=True, help="Exact manifest SHA independently accepted by the Verifier")
     run.add_argument("--verifier-receipt", type=Path, required=True)
     run.add_argument("--rate-evidence", type=Path, required=True)
+    run.add_argument("--budget-envelope", type=Path, required=True, help="Admitted hash-bound parent budget; its heldout cap continues all reservations on the same journal within the combined $12 approval")
     run.add_argument("--usd-per-execution", type=float, required=True, help="Explicit native reservation bound from the retained calibration evidence")
     run.add_argument("--work", type=Path, required=True)
     run.add_argument("--out", type=Path, required=True, help="New report/labels output directory")
@@ -367,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--usd-per-execution", type=float, required=True)
     plan.add_argument("--sandbox-timeout-seconds", type=int, required=True)
     plan.add_argument("--out", type=Path, required=True)
-    staged_run = commands.add_parser("run-staged", help="Measure the explicit staged plan, never open canonical release")
+    staged_run = commands.add_parser("run-staged", help="Measure the staged plan under its frozen historical $3 cap/approval; never open canonical release")
     staged_run.add_argument("--plan", type=Path, required=True)
     staged_run.add_argument("--work", type=Path, required=True)
     staged_run.add_argument("--out", type=Path, required=True, help="New output directory, or exact regrade-v7-staged.json path")
@@ -422,6 +430,7 @@ def main(argv: list[str] | None = None) -> int:
             result = campaign["execute"](
                 inventory_path=args.inventory, manifest_path=args.manifest, accepted_sha=args.accepted_sha,
                 verifier_receipt=args.verifier_receipt, rate_evidence=args.rate_evidence,
+                budget_envelope=args.budget_envelope,
                 usd_per_execution=args.usd_per_execution, work=args.work, output=args.out,
                 workers=args.workers, repo_root=Path(__file__).resolve().parents[3],
                 reuse_work=args.reuse_work, sandbox_timeout_seconds=args.sandbox_timeout_seconds,

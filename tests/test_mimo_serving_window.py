@@ -279,3 +279,46 @@ def test_startup_refuses_unsafe_claims_before_any_deployment(window, claimed_sta
         window.complete_startup(args)
     deployment.assert_not_called()
     assert journal.read()["reserved_usd"] == "2.50"
+
+
+def test_cli_retains_modal_validation_reason_without_credentials(window, monkeypatch, capsys):
+    modal = pytest.importorskip("modal")
+    secret = "fixture-private-value"
+    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", secret)
+    message = (
+        "scaledown_window must be between 2 and 3600 (inclusive); "
+        f"credential {secret}; Bearer fixture-bearer; "
+        """api_key="fixture-quoted"; MODAL_TOKEN_SECRET='fixture-token'"""
+    )
+
+    def invalid_rate(*args):
+        raise modal.exception.InvalidError(message)
+
+    monkeypatch.setattr(window, "resource_rate", invalid_rate)
+    monkeypatch.setattr("sys.argv", ["serving_window.py", "quote", "--gpu", "A100-80GB",
+        "--cpu-limit", "4", "--memory-mib-limit", "32768", "--cap-usd", "4.50",
+        "--shutdown-reserve-seconds", "120"])
+    with pytest.raises(SystemExit) as stopped:
+        window.main()
+    output = capsys.readouterr()
+    assert stopped.value.code == 1
+    assert output.out == ""
+    assert "InvalidError: scaledown_window must be between 2 and 3600 (inclusive)" in output.err
+    for value in (secret, "fixture-bearer", "fixture-quoted", "fixture-token"):
+        assert value not in output.err
+
+
+def test_cli_does_not_disclose_arbitrary_sdk_or_http_exception_bodies(window, monkeypatch, capsys):
+    def failed_rate(*args):
+        raise RuntimeError("response body contains private fixture-value")
+
+    monkeypatch.setattr(window, "resource_rate", failed_rate)
+    monkeypatch.setattr("sys.argv", ["serving_window.py", "quote", "--gpu", "A100-80GB",
+        "--cpu-limit", "4", "--memory-mib-limit", "32768", "--cap-usd", "4.50",
+        "--shutdown-reserve-seconds", "120"])
+    with pytest.raises(SystemExit) as stopped:
+        window.main()
+    output = capsys.readouterr()
+    assert stopped.value.code == 1
+    assert output.out == ""
+    assert output.err == "serving-window failed: RuntimeError\n"

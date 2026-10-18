@@ -33,3 +33,15 @@ Score completed evidence:
 ```bash
 .venv/bin/python research/experiments/tb2-to-tb21-v1/score_tb2_to_tb21.py
 ```
+
+## amd64 and Modal
+
+Controls pin `linux/amd64` on the staged execution copy (`--platform ''` keeps the daemon default). The answer-key package is not edited. Modal is opt-in, requires `--approve` and `--max-usd`, and this runner refuses a cap above $1:
+
+```bash
+.venv/bin/python research/experiments/tb2-to-tb21-v1/run_tb2_to_tb21.py \
+  --controls --cells install-windows-3.11 \
+  --environment modal --approve "tb2 native amd64" --max-usd 1
+```
+
+TB2 `build-pmars` gets a Debian snapshot plus an apt pin so `dpkg-dev=1.22.21` can install beside current trixie. TB2 `rstan-to-pystan` installs certificates, then pins `curl=8.5.0-2ubuntu10.6` from an Ubuntu snapshot. Both `mcmc-sampling-stan` versions install cmake before the oracle, because RcppParallel's configure step requires it and the frozen script does not. `caffe-cifar-10` uses each version's own agent timeout (TB2 1200s, TB2.1 3600s). `protein-assembly` is not fixed here: the recorded oracle fetches live RCSB sequences that still contain chromophore `X`, then DnaChisel fails before writing `gblock.txt`. Local Docker does not disable Rosetta, so `install-windows-3.11` and a TB2 caffe retry that must finish inside 1200s need Modal.

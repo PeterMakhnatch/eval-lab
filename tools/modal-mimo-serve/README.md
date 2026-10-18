@@ -89,6 +89,10 @@ second deployment even if a caller chooses another local journal. Retain the
 parent envelope/journal as permanent accounting evidence; the Modal Dict is
 operational coordination, not an invoice or long-term accounting archive.
 
+Bounded control-plane RPCs use the pinned SDK's explicit `retry=None` mode with
+their finite timeout. SDK 1.5.5 rejects a timeout combined with its default retry
+policy locally, before sending the metadata request.
+
 `maximum_seconds` counts conservatively from **before deployment** until
 **observed stopped state and zero active containers**, including startup,
 idle/cold renewals and shutdown. The UTC `--deadline` is the completed-stop

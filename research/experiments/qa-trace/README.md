@@ -65,6 +65,78 @@ selected IDs; report false flags, recall, abstentions and provenance separately.
 Earlier benchmark exposure means this is not a virgin-holdout claim, and the
 interface change alone is not evidence of a precision or recall gain.
 
+### Complete canonical MiMo comparison (70/70)
+
+The root canonical handoff now measures **64 accepted / 6 rejected / 0 unknown**
+on all 70 original v6 passes. Labels SHA-256:
+`7cff02af923805a03d86ab20b21319d85fed7f3c05f25e1f533c168a4907f8fe`.
+Both immutable prediction trees were seal-verified (355 qa6 / 568 qa7 files)
+and scored with **zero new model or native calls**.
+
+| Frozen predictor | Wrong passes caught, RNR | Accepted flags, RNR | Wrong passes caught, FP | Accepted flags, FP |
+|---|---:|---:|---:|---:|
+| qa-trace/6 | 4/6 | 14/64 | 3/6 | 9/64 |
+| qa-trace/7 | 4/6 | 13/64 | 3/6 | 9/64 |
+
+RNR is `reward_not_real`; FP is `false_positive`. Primary-cohort counts remain
+2/2 caught in both heads, accepted RNR flags 5/43 for both, and FP flags 3/43
+versus 4/43. The newly measured B/a2/001246 is accepted and flagged by qa6 only.
+These are grader-acceptance labels, not independent semantic correctness or
+sourcing/intent labels. No qa7 promotion is justified. Full reports:
+[qa6](results/qa-trace-6-mimo-v7-canonical-complete.json),
+[qa7](results/qa-trace-7-mimo-v7-canonical-complete.json). Older partial reports
+below remain historical, not overwritten. This is not a registered task-weakness
+key, so the correctness supplement is not inserted as a task-weakness CSV score.
+
+### Once-only matched attempt: quota-blocked, no accuracy result
+
+Feature PR [#1058](https://github.com/PeterMakhnatch/eval-lab/pull/1058) merged as
+`e05dea2d86bebb93fda756d949dd93675bbd0f27`; all 11 exact-head/base checks passed.
+The actual merged CLI bundle → verify → T0/T2 path printed `bundle intact`.
+The earlier real T1 behavior above exercised the same frozen treatment.
+
+Before test outputs, source `4e47eaf9f`, dependency lock, model routes and exact
+173 TJ / 25 paired selections were frozen and pushed in research-context
+`636ca76` (`bridge/2026-10-17-v7/qa-trace-8-freeze.json`). Both unchanged qa7 code
+and qa8 used Sonnet 5.5 analysts / Opus 5.5 refuters via Antigravity, with the
+same alternate routes, full T0/T1/T3 stages, and native execution disabled.
+Dev-only refuter probes remained INCONCLUSIVE under the unchanged strict
+command-custody checker; this limitation was disclosed before testing.
+
+The existing quota gate then refused **all test model calls at reported 61%
+weekly usage, above the 60% stop**. **0/188 TJ and 0/27 paired registered items
+are measured for either system.** No provider substitution, quota bypass or
+quality improvement is claimed. All unknowns remain unknown, not successes or
+misses. The CSV's explicitly `quota-blocked` rows preserve those denominators
+and `n/a` metrics; recorded zero cost is not a reconciled provider invoice.
+
+TJ wrote 173 abstaining verdicts per system, despite reporting
+`judged=173, quota_stop=null`: all 519 T1 records per system contain the quota
+refusal and no token usage. Paired wrote 11 qa7 / 10 qa8 abstaining verdicts
+before batch stop. Wrapper call counters include refused admissions, not actual
+provider inference. All common prepared inputs matched outside the treatment
+README/index: 173 TJ and 12 paired bundles. The prepared paired sources included
+three name-only packages in each system; they are context, not original-grader
+proof. Full [coverage/custody report](results/qa-trace-8-test-aware-quota-blocked.json).
+
+### What the post-freeze case audit actually found
+
+The isolated MiMo diagnostic was opened only after the source/configuration
+freeze; no rule or model changed from it. All **22** original FP scenarios for
+the requested 11 cells already read the actual verifier test patch. Missing
+access is not their measured root cause. Accepted flags concern uncovered
+contract/edge-case obligations; **15/17** historical raised FP records had
+inconclusive refutation and therefore remained active. The two misses passed
+old tests but failed appended repaired float64/custom-recursive-getter checks.
+The newly accepted 001246 adds a composition/state-contract disagreement.
+
+Acceptance does not independently disprove those edge-case objections. Clearing
+a flag merely because tests pass would overfit the grader. The qualified static
+index is not executed or semantic coverage, and its accuracy effect remains
+unmeasured. Full case-cited report is retained in research-context
+`bridge/2026-10-17-v7/qa-trace-8-canonical-diagnostic.md`.
+
+
 
 ## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
 

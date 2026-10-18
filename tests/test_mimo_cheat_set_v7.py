@@ -105,30 +105,25 @@ def test_attempt_terminal_only_after_tick():
     assert not cs.attempt_is_terminal({"stage": "preflight", "status": "blocked"})
 
 
-def test_spend_summary_releases_reservation_once_estimated():
+def test_spend_summary_releases_reservation_and_excludes_serving():
     rows = [
         {"kind": "attempt_reservation", "usd": 0.05, "cell_id": "a"},
         {"kind": "attempt_reservation", "usd": 0.05, "cell_id": "b"},
         {"kind": "sandbox_estimate", "usd": 0.03, "cell_id": "a"},
-        {"kind": "serving_share_upper", "usd": 0.5},
+        {"kind": "grade_reservation", "usd": 0.01, "cell_id": "a"},
+        {"kind": "serving_time_info", "usd": 0.5},
     ]
     spend = cs.spend_summary(rows)
-    assert spend["committed_usd"] == pytest.approx(0.53)
+    assert spend["committed_usd"] == pytest.approx(0.04)
     assert spend["open_reservations_usd"] == pytest.approx(0.05)
-    assert spend["total_usd"] == pytest.approx(0.58)
+    assert spend["total_usd"] == pytest.approx(0.09)
 
 
-def test_wave_fits_counts_serving_share_and_margin():
-    fits, projected = cs.wave_fits(
-        total_so_far_usd=1.0, cells=26, mean_sandbox_usd=0.04,
-        expected_wave_seconds=1800, expected_v6_pass_rate=0.5,
-    )
-    assert projected == pytest.approx(26 * 0.04 * 1.25 + 0.5 * cs.SERVING_USD_PER_HOUR + 0.13)
+def test_wave_fits_counts_sandboxes_margin_and_replays():
+    fits, projected = cs.wave_fits(total_so_far_usd=2.0, cells=26, mean_sandbox_usd=0.04)
+    assert projected == pytest.approx(26 * (0.04 * 1.25 + cs.GRADE_USD_PER_EXECUTION))
     assert fits
-    assert not cs.wave_fits(
-        total_so_far_usd=1.5, cells=26, mean_sandbox_usd=0.04,
-        expected_wave_seconds=1800, expected_v6_pass_rate=0.5,
-    )[0]
+    assert not cs.wave_fits(total_so_far_usd=2.5, cells=26, mean_sandbox_usd=0.04)[0]
 
 
 def test_trial_sandbox_usd_two_environments():
@@ -230,9 +225,52 @@ def test_repair_fails_closed(tmp_path, repaired_package, override, reason):
     assert any(reason in r for r in res.reasons), res.reasons
 
 
-def test_load_repairs_absent_entry_is_pending(tmp_path):
+def _repairs(tmp_path, entries, required):
     path = tmp_path / "repairs.json"
-    path.write_text(json.dumps({"status": "hold", "scoring_allowed": False, "repairs": []}))
-    resolutions, header = cs.load_repairs(path, [_task(tmp_path)])
-    assert not resolutions[TASK_ID].ready
+    path.write_text(json.dumps({
+        "status": "hold", "scoring_allowed": False, "repairs": entries, "required_tasks": required,
+    }))
+    return path
+
+
+def test_load_repairs_prefers_qualified_entry(tmp_path, repaired_package):
+    path = _repairs(tmp_path, [_entry(repaired_package)], [TASK_ID])
+    res, header = cs.load_repairs(path, [_task(tmp_path)], store=tmp_path / "store")
+    assert res[TASK_ID].kind == "qualified_repair"
     assert header["status"] == "hold"
+
+
+def test_load_repairs_unchanged_only_outside_required(tmp_path):
+    outside = cs.load_repairs(_repairs(tmp_path, [], ["other"]), [_task(tmp_path)],
+                              store=tmp_path / "store")[0][TASK_ID]
+    assert outside.kind == "unchanged_v6"
+    assert outside.package_digest == V6
+    inside = cs.load_repairs(_repairs(tmp_path, [], [TASK_ID]), [_task(tmp_path)],
+                             store=tmp_path / "store")[0][TASK_ID]
+    assert inside.kind == "pending" and not inside.ready
+
+
+def test_load_repairs_held_entry_stays_pending(tmp_path, repaired_package):
+    held = _entry(repaired_package, qualified_for_v7=False, status="partial")
+    res = cs.load_repairs(_repairs(tmp_path, [held], []), [_task(tmp_path)],
+                          store=tmp_path / "store")[0][TASK_ID]
+    assert res.kind == "pending"
+
+
+def test_load_repairs_uses_named_replacement(tmp_path, monkeypatch):
+    task = cs.TaskEntry("mimo-v2.6-rl/format-code-task-000371", tmp_path / "pkg", V6, ("f",))
+    digest = cs.REPLACEMENTS[task.task_id]
+    package = tmp_path / "store" / "mimo-v2.6-rl__format-code-task-000371" / digest[7:19]
+    package.mkdir(parents=True)
+    (package / "task.toml").write_text("[task]\n")
+    import evallab.task_variants as tv
+
+    monkeypatch.setattr(tv, "task_directory_digest", lambda p: digest)
+    held = {"task_id": task.task_id, "qualified_for_v7": False, "status": "partial"}
+    res = cs.load_repairs(_repairs(tmp_path, [held], [task.task_id]), [task],
+                          store=tmp_path / "store")[0][task.task_id]
+    assert res.kind == "replacement_prepared" and res.package == package
+    monkeypatch.setattr(tv, "task_directory_digest", lambda p: V7)
+    tampered = cs.load_repairs(_repairs(tmp_path, [held], [task.task_id]), [task],
+                               store=tmp_path / "store")[0][task.task_id]
+    assert tampered.kind == "pending"

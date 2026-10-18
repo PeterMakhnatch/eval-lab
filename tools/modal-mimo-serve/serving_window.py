@@ -571,6 +571,29 @@ def receipt(value: dict[str, Any]) -> dict[str, Any]:
                                                "observation", "stop", "stopped_at", "cap_exceeded")}}
 
 
+def _error_detail(exc: Exception) -> str:
+    if isinstance(exc, WindowError):
+        return str(exc)
+    name = type(exc).__name__
+    if name != "InvalidError" or type(exc).__module__ != "modal.exception":
+        return name
+    detail = str(exc)
+    for key, value in os.environ.items():
+        if value and re.search(r"(?i)(?:key|token|password|secret)$", key):
+            detail = detail.replace(value, "<redacted>")
+    # Keep the standalone tool's Modal-only dependency boundary. These follow
+    # the repository's bearer, key-shaped token and credential-assignment rules.
+    detail = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+", "Bearer <redacted>", detail)
+    detail = re.sub(r"(?i)\b(?:sk|rk)-[A-Za-z0-9._-]+", "<redacted>", detail)
+    detail = re.sub(
+        r"""(?i)["']?\b(?:[A-Za-z][A-Za-z0-9_-]*_)?"""
+        r"""(?:api[_ -]?key|access[_ -]?token|oauth[_ -]?token|session[_ -]?token|token|password|secret)"""
+        r"""["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)""",
+        "<redacted>", detail,
+    )
+    return f"{name}: {detail}"
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -625,8 +648,8 @@ def main(argv: list[str] | None = None) -> None:
             result = receipt(value)
         print(json.dumps(result, indent=2, sort_keys=True))
     except Exception as exc:
-        # Never print HTTP bodies/headers or SDK exception strings.
-        detail = str(exc) if isinstance(exc, WindowError) else type(exc).__name__
+        # Only SDK validation diagnostics are shown, after credential redaction.
+        detail = _error_detail(exc)
         print(f"serving-window failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from None
 

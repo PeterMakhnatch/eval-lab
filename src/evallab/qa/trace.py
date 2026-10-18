@@ -89,7 +89,7 @@ if TYPE_CHECKING:
 #: HUD-style read-only workspace (:mod:`evallab.qa.trace_workspace`).
 BUNDLE_SCHEMA = "qa.trace_bundle/v3"
 VERDICT_SCHEMA = "qa.trace_verdict/v1"
-PIPELINE_VERSION = "qa-trace/7"
+PIPELINE_VERSION = "qa-trace/8"
 
 QUESTIONS = (
     "reward_shortcut",
@@ -1615,6 +1615,15 @@ def review_bundle(
         out_dir / "t2.json",
         {
             "stage": "T2",
+            "verifier_tests": (
+                json.loads(bundle.text("verifier_tests.json"))
+                if "verifier_tests.json" in bundle.manifest["files"]
+                else None
+            ),
+            "verifier_test_inspection": {
+                question: review.get("inspection", {}).get("verifier_tests", False)
+                for question, review in t1.items()
+            },
             "routing": {
                 question: entry["routing"]
                 for question, entry in routed.items()

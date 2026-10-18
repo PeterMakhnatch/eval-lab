@@ -1,0 +1,59 @@
+diff --git a/src/gatsby-node.js b/src/gatsby-node.js
+index ce08b89..0f84142 100644
+--- a/src/gatsby-node.js
++++ b/src/gatsby-node.js
+@@ -37,10 +37,11 @@ exports.onCreateNode = async (
+     );
+     downloadingFilesActivity.start();
+     if (imagePathSegments.length) {
+-      await createImageNodesInArrays(imagePathSegments[0], node, {
++      const urls = await getAllFilesUrls(imagePathSegments[0], node, {
+         imagePathSegments,
+         ...createImageNodeOptions,
+       });
++      await createImageNodes(urls, node, createImageNodeOptions);
+     } else if (type === 'array') {
+       const urls = getPaths(node, imagePath, ext);
+       await createImageNodes(urls, node, createImageNodeOptions);
+@@ -159,8 +160,8 @@ async function createImageNode(url, node, options) {
+   }
+ }
+ 
+-// Recursively traverses objects/arrays at each path part, then operates on targeted leaf node
+-async function createImageNodesInArrays(path, node, options) {
++// Recursively traverses objects/arrays at each path part, and return an array of urls
++async function getAllFilesUrls(path, node, options) {
+   if (!path || !node) {
+     return;
+   }
+@@ -183,23 +184,21 @@ async function createImageNodesInArrays(path, node, options) {
+   // to the function of createImageNodes.
+   return Array.isArray(nextValue)
+     ? // Recursively call function with next path segment for each array element
+-      Promise.all(
+-        nextValue.map(item =>
+-          createImageNodesInArrays(
+-            imagePathSegments[pathIndex + 1],
+-            item,
+-            options
++      (
++        await Promise.all(
++          nextValue.map(item =>
++            getAllFilesUrls(imagePathSegments[pathIndex + 1], item, options)
+           )
+         )
+       )
+     : // otherwise, handle leaf node
+-      createImageNode(nextValue, nextNode, options);
++      nextValue;
+ }
+ 
+ exports.createResolvers = ({ cache, createResolvers }, options) => {
+-  const { nodeType, name = 'localImage', type = 'object' } = options;
++  const { nodeType, imagePath, name = 'localImage', type = 'object' } = options;
+ 
+-  if (type === 'array') {
++  if (type === 'array' || imagePath.includes('[].')) {
+     const resolvers = {
+       [nodeType]: {
+         [name]: {

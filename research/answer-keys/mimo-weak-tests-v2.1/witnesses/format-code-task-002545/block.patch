@@ -1,0 +1,23 @@
+diff --git a/lib/rucio/daemons/reaper/reaper.py b/lib/rucio/daemons/reaper/reaper.py
+index a8f3425..b53aee9 100644
+--- a/lib/rucio/daemons/reaper/reaper.py
++++ b/lib/rucio/daemons/reaper/reaper.py
+@@ -335,6 +335,7 @@ def __check_rse_usage(rse: RseData, greedy: bool = False, logger: "Callable[...,
+         return 1000000000000, False
+ 
+     rse.ensure_loaded(load_limits=True, load_usage=True, load_attributes=True)
++    available_sources = [key['source'] for key in rse.usage]
+ 
+     # Get RSE limits
+     min_free_space = rse.limits.get('MinFreeSpace', 0)
+@@ -343,6 +344,10 @@ def __check_rse_usage(rse: RseData, greedy: bool = False, logger: "Callable[...,
+     # Default is storage
+     source_for_total_space = rse.attributes.get('source_for_total_space', 'storage')
+     source_for_used_space = rse.attributes.get('source_for_used_space', 'storage')
++    if source_for_used_space not in available_sources:
++        logger(logging.WARNING, 'RSE: %s, \'%s\' requested for source_for_used_space but cannot be found. Will only delete obsolete',
++               rse.name, source_for_used_space)
++        return 0, True
+ 
+     logger(logging.DEBUG, 'RSE: %s, source_for_total_space: %s, source_for_used_space: %s',
+            rse.name, source_for_total_space, source_for_used_space)

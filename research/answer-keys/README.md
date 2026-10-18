@@ -154,6 +154,17 @@ run `uv run python research/answer-keys/splits/guard.py`.
   - Selection is source-derived and circular for the selecting tool; existing
     split assignments and the historical v1 key are preserved.
   - See `mimo-weak-tests-v2/README.md` and its deterministic `summary.json`.
+- `mimo-weak-tests-v2.1`: the complete versioned 567-task atlas after adjudicating
+  **all 112 archived unreviewed line survivors across 22 tasks**.
+  - Preserves the immutable v2 publication, its accepted witnesses and historical
+    splits; exports additional positives only after prompt-bound source review.
+  - No unreviewed survivors remain; adjudicated uncertainty and other coverage
+    gaps remain explicit rather than becoming clean negatives.
+  - Whole-patch witnesses are portable within the repository. Archived controls
+    remain distinct from fresh execution or repaired-package certification.
+  - Consume this provenance-rich key with the shared `evallab qa score`; the
+    separate `qa task-score` local model rejects the extra provenance columns.
+  - See `mimo-weak-tests-v2.1/README.md` and its deterministic `summary.json`.
 - `mimo-heldout-v6-to-v7`: retrospective audit of the frozen 33 MiMo evaluation
   task IDs, with original-audit package bindings and selected-v7 replay
   diagnostics kept separate. Supported semantic weaknesses, unresolved claims,

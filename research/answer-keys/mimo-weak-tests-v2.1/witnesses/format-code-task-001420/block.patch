@@ -1,0 +1,23 @@
+diff --git a/ui/src/time_picker.tsx b/ui/src/time_picker.tsx
+index bc73b2e..f7c5f89 100644
+--- a/ui/src/time_picker.tsx
++++ b/ui/src/time_picker.tsx
+@@ -145,12 +145,15 @@ export const
+         setValue((prevValue) => {
+           const date = new Date(prevValue!)
+           date.setTime(date.getTime() + 12 * 60 * 60 * 1000)
++          wave.args[m.name] = formatDateToTimeString(date, '24')
+           return date
+         })
+       },
+-      onSelectTime = (time: D | null) => {
+-        wave.args[m.name] = time ? formatDateToTimeString(time, '24') : null
+-        if (m.trigger) wave.push()
++      onChangeTime = (time: unknown) => {
++        if (time instanceof Date) {
++          wave.args[m.name] = formatDateToTimeString(time, '24')
++          setValue(time)
++        }
+       },
+       // HACK: https://stackoverflow.com/questions/70106353/material-ui-date-time-picker-safari-browser-issue
+       onOpen = () => setTimeout(() => (document.activeElement as HTMLElement)?.blur()),

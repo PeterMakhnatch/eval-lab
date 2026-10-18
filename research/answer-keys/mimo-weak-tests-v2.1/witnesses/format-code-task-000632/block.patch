@@ -1,0 +1,18 @@
+diff --git a/lib/monitoring/custom/CustomMonitoring.ts b/lib/monitoring/custom/CustomMonitoring.ts
+index 933758a..16023af 100644
+--- a/lib/monitoring/custom/CustomMonitoring.ts
++++ b/lib/monitoring/custom/CustomMonitoring.ts
+@@ -174,6 +174,13 @@ export interface CustomMetricGroup {
+    * @see {GraphWidgetProps.setPeriodToTimeRange}
+    */
+   readonly graphWidgetSetPeriodToTimeRange?: boolean;
++  /**
++   * Width of graph widget. Note that widgets will overflow into new rows if the summed width
++   * exceeds 24.
++   *
++   * @default - Automatically calculcated width, generally as wide as possible considering all metrics' widgets.
++   */
++  readonly graphWidgetWidth?: number;
+   /**
+    * @deprecated use addToSummaryDashboard. addToSummaryDashboard will take precedence over important.
+    * @see addToSummaryDashboard

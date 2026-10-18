@@ -37,9 +37,14 @@ def task_name(task_id: str) -> str:
     return task_id.split("@", 1)[0].rsplit("/", 1)[-1]
 
 
-def locked_splits() -> dict[str, str]:
+def locked_splits(additional_keys: tuple[str, ...] = ()) -> dict[str, str]:
     locked: dict[str, str] = {}
-    for key in ("trace-paired-v1", "executed-outcomes-v1", "mimo-weak-tests-v1"):
+    for key in (
+        "trace-paired-v1",
+        "executed-outcomes-v1",
+        "mimo-weak-tests-v1",
+        *additional_keys,
+    ):
         for item in jsonl(KEYS / key / "items.jsonl"):
             split = "test" if item["split"] in ("test", "heldout") else "dev"
             locked.setdefault(task_name(item["subject"]["task_id"]), split)
@@ -53,14 +58,20 @@ def split_for(name: str, locked: dict[str, str]) -> str:
     return "dev" if number % 3 == 0 else "test"
 
 
-def build() -> dict[str, str]:
-    atlas = jsonl(HERE / "atlas.jsonl")
+def build(
+    *,
+    here: Path = HERE,
+    key_id: str = KEY_ID,
+    additional_split_keys: tuple[str, ...] = (),
+    findings_name: str = "findings-supported-v2.jsonl",
+) -> dict[str, str]:
+    atlas = jsonl(here / "atlas.jsonl")
     names = [row["task_id"] for row in atlas]
     if len(atlas) != 567 or len(set(names)) != 567:
         raise ValueError("the frozen primary cohort must contain exactly 567 distinct tasks")
     if sorted(row["selection_index"] for row in atlas) != list(range(1, 568)):
         raise ValueError("selection indices must preserve all 567 frozen cohort positions")
-    locked = locked_splits()
+    locked = locked_splits(additional_split_keys)
     items: list[dict] = []
     findings: list[dict] = []
     witness_ids: set[str] = set()
@@ -77,7 +88,7 @@ def build() -> dict[str, str]:
         if row["semantic_verdict"] != ("confirmed_weak" if witnesses else "not_established"):
             raise ValueError(f"{name}: semantic verdict disagrees with accepted witnesses")
         for witness in witnesses:
-            identifier = f"{KEY_ID}:{name}:{witness['id']}"
+            identifier = f"{key_id}:{name}:{witness['id']}"
             if identifier in witness_ids:
                 raise ValueError(f"duplicate witness {identifier}")
             witness_ids.add(identifier)
@@ -86,7 +97,7 @@ def build() -> dict[str, str]:
                 raise ValueError(
                     f"{name}: witness must stay inside the committed witness directory"
                 )
-            patch = HERE / relative
+            patch = here / relative
             if hashlib.sha256(patch.read_bytes()).hexdigest() != witness["sha256"]:
                 raise ValueError(f"{name}: witness bytes do not match their recorded digest")
             if witness["package_digest"] != row["package_digest"]:
@@ -141,8 +152,8 @@ def build() -> dict[str, str]:
         causes = sorted({ROOT_CAUSES[w["kind"]] for w in witnesses})
         item = {
             "schema": "qa.answer_key/v1",
-            "key_id": KEY_ID,
-            "item_id": f"{KEY_ID}:task:{name}@{row['package_digest'][7:19]}",
+            "key_id": key_id,
+            "item_id": f"{key_id}:task:{name}@{row['package_digest'][7:19]}",
             "subject": subject,
             "package": row["package"],
             "expected_verdict": "fail",
@@ -158,7 +169,7 @@ def build() -> dict[str, str]:
             "role": None,
             "pair_ids": [],
             "evidence": [w["reason"] for w in witnesses],
-            "witness_ids": [f"{KEY_ID}:{name}:{w['id']}" for w in witnesses],
+            "witness_ids": [f"{key_id}:{name}:{w['id']}" for w in witnesses],
             "notes": "Positive-only source-derived target catalog; not an independent held-out key.",
         }
         AnswerKeyItem.model_validate(item)
@@ -227,7 +238,7 @@ def build() -> dict[str, str]:
     }
     return {
         "items.jsonl": render(items),
-        "findings-supported-v2.jsonl": render(findings),
+        findings_name: render(findings),
         "summary.json": json.dumps(summary, indent=2, sort_keys=True) + "\n",
     }
 

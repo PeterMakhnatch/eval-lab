@@ -1,0 +1,44 @@
+diff --git a/src/prefect/agent/docker/agent.py b/src/prefect/agent/docker/agent.py
+index 2d6ec63..8358884 100644
+--- a/src/prefect/agent/docker/agent.py
++++ b/src/prefect/agent/docker/agent.py
+@@ -466,17 +466,28 @@ class DockerAgent(Agent):
+             index += 1
+             container_name = f"{slugified_name}-{index}"
+ 
+-        # Create the container
+-        container = self.docker_client.create_container(
+-            image,
+-            command=get_flow_run_command(flow_run),
+-            environment=env_vars,
+-            name=container_name,
+-            volumes=container_mount_paths,
+-            host_config=self.docker_client.create_host_config(**host_config),
+-            networking_config=networking_config,
+-            labels=labels,
+-        )
++        # Create the container with retries on name conflicts
++        index = 0  # will be bumped on name colissions
++        while True:
++            try:
++                container = self.docker_client.create_container(
++                    image,
++                    command=get_flow_run_command(flow_run),
++                    environment=env_vars,
++                    name=container_name,
++                    volumes=container_mount_paths,
++                    host_config=self.docker_client.create_host_config(**host_config),
++                    networking_config=networking_config,
++                    labels=labels,
++                )
++            except docker.errors.APIError as exc:
++                if "Conflict" in str(exc) and "container name" in str(exc):
++                    index += 1
++                    container_name = f"{slugified_name}-{index}"
++                else:
++                    raise
++            else:
++                break
+ 
+         # Connect the rest of the networks
+         if self.networks:

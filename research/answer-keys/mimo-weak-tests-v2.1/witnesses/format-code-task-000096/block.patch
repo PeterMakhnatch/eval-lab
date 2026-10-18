@@ -1,0 +1,23 @@
+diff --git a/core/lib/network-request.js b/core/lib/network-request.js
+index 77bf329..cb7d88f 100644
+--- a/core/lib/network-request.js
++++ b/core/lib/network-request.js
+@@ -224,6 +224,7 @@ class NetworkRequest {
+     this.rendererStartTime = data.timestamp * 1000;
+     // Expected to be overridden with better value in `_recomputeTimesWithResourceTiming`.
+     this.networkRequestTime = this.rendererStartTime;
++    this.responseHeadersEndTime = this.rendererStartTime;
+ 
+     this.requestMethod = data.request.method;
+ 
+@@ -400,7 +401,9 @@ class NetworkRequest {
+     // that this timing from the netstack is greater than the onResponse timestamp, but just to ensure proper order
+     // is maintained we bound the new timing by the network request time and the response timestamp.
+     this.responseHeadersEndTime = headersReceivedTime;
+-    this.responseHeadersEndTime = Math.min(this.responseHeadersEndTime, responseTimestamp);
++    if (this.responseTimestamp !== undefined) {
++      this.responseHeadersEndTime = Math.min(this.responseHeadersEndTime, this.responseTimestamp);
++    }
+     this.responseHeadersEndTime = Math.max(this.responseHeadersEndTime, this.networkRequestTime);
+ 
+     // We're only at responseReceived (_onResponse) at this point.

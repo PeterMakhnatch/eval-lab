@@ -1,0 +1,227 @@
+diff --git a/.changeset/spotty-mails-sleep.md b/.changeset/spotty-mails-sleep.md
+new file mode 100644
+index 0000000..78869b5
+--- /dev/null
++++ b/.changeset/spotty-mails-sleep.md
+@@ -0,0 +1,5 @@
++---
++'@conform-to/react': patch
++---
++
++Removed aria-invalid from getFormProps and getFieldsetProps
+diff --git a/docs/api/react/getFieldsetProps.md b/docs/api/react/getFieldsetProps.md
+index 6efa295..b8a52fd 100644
+--- a/docs/api/react/getFieldsetProps.md
++++ b/docs/api/react/getFieldsetProps.md
+@@ -22,7 +22,7 @@ function Example() {
+ 
+ ### `ariaAttributes`
+ 
+-Decide whether to include `aria-invalid` and `aria-describedby` in the result props. Default to **true**.
++Decide whether to include `aria-describedby` in the result props. Default to **true**.
+ 
+ ### `ariaInvalid`
+ 
+@@ -46,7 +46,6 @@ function Example() {
+       id={fields.address.id}
+       name={fields.address.name}
+       form={fields.address.formId}
+-      aria-invalid={!form.valid || undefined}
+       aria-describedby={!form.valid ? form.errorId : undefined}
+     />
+   );
+diff --git a/docs/api/react/getFormProps.md b/docs/api/react/getFormProps.md
+index d031b8b..9598d45 100644
+--- a/docs/api/react/getFormProps.md
++++ b/docs/api/react/getFormProps.md
+@@ -22,7 +22,7 @@ function Example() {
+ 
+ ### `ariaAttributes`
+ 
+-Decide whether to include `aria-invalid` and `aria-describedby` in the result props. Default to **true**.
++Decide whether to include `aria-describedby` in the result props. Default to **true**.
+ 
+ ### `ariaInvalid`
+ 
+@@ -46,7 +46,6 @@ function Example() {
+       id={form.id}
+       onSubmit={form.onSubmit}
+       noValidate={form.noValidate}
+-      aria-invalid={!form.valid || undefined}
+       aria-describedby={!form.valid ? form.errorId : undefined}
+     />
+   );
+diff --git a/docs/ja/api/react/getFieldsetProps.md b/docs/ja/api/react/getFieldsetProps.md
+index 0385ec9..f3c60e0 100644
+--- a/docs/ja/api/react/getFieldsetProps.md
++++ b/docs/ja/api/react/getFieldsetProps.md
+@@ -22,7 +22,7 @@ function Example() {
+ 
+ ### `ariaAttributes`
+ 
+-結果のプロパティに `aria-invalid` と `aria-describedby` を含めるかどうかを決定します。デフォルトは **true** です。
++結果のプロパティに `aria-describedby` を含めるかどうかを決定します。デフォルトは **true** です。
+ 
+ ### `ariaInvalid`
+ 
+@@ -46,7 +46,6 @@ function Example() {
+       id={fields.address.id}
+       name={fields.address.name}
+       form={fields.address.formId}
+-      aria-invalid={!form.valid || undefined}
+       aria-describedby={!form.valid ? form.errorId : undefined}
+     />
+   );
+diff --git a/docs/ja/api/react/getFormProps.md b/docs/ja/api/react/getFormProps.md
+index 70f5349..6e336e5 100644
+--- a/docs/ja/api/react/getFormProps.md
++++ b/docs/ja/api/react/getFormProps.md
+@@ -22,7 +22,7 @@ function Example() {
+ 
+ ### `ariaAttributes`
+ 
+-結果のプロパティに `aria-invalid` と `aria-describedby` を含めるかどうかを決定します。デフォルトは **true** です。
++結果のプロパティに `aria-describedby` を含めるかどうかを決定します。デフォルトは **true** です。
+ 
+ ### `ariaInvalid`
+ 
+@@ -46,7 +46,6 @@ function Example() {
+       id={form.id}
+       onSubmit={form.onSubmit}
+       noValidate={form.noValidate}
+-      aria-invalid={!form.valid || undefined}
+       aria-describedby={!form.valid ? form.errorId : undefined}
+     />
+   );
+diff --git a/docs/ja/tutorial.md b/docs/ja/tutorial.md
+index 9053c5d..343d851 100644
+--- a/docs/ja/tutorial.md
++++ b/docs/ja/tutorial.md
+@@ -145,7 +145,6 @@ export default function ContactUs() {
+   return (
+     <Form
+       method="POST"
+-      aria-invalid={result?.formErrors ? true : undefined}
+       aria-describedby={result?.formErrors ? 'contact-error' : undefined}
+     >
+       <div id="contact-error">{result?.formErrors}</div>
+@@ -279,7 +278,6 @@ export default function ContactUs() {
+       method="post"
+       {/* 追加で必要な属性は `id` 属性のみです。*/}
+       id={form.id}
+-      aria-invalid={form.errors ? true : undefined}
+       aria-describedby={form.errors ? form.errorId : undefined}
+     >
+       <div id={form.errorId}>{form.errors}</div>
+@@ -402,7 +400,6 @@ export default function ContactUs() {
+       id={form.id}
+       {/* クライアント検証には `onSubmit` ハンドラが必要です。 */}
+       onSubmit={form.onSubmit}
+-      aria-invalid={form.errors ? true : undefined}
+       aria-describedby={form.errors ? form.errorId : undefined}
+     >
+       {/* ... */}
+diff --git a/docs/tutorial.md b/docs/tutorial.md
+index 3da1755..3cfe5ff 100644
+--- a/docs/tutorial.md
++++ b/docs/tutorial.md
+@@ -145,7 +145,6 @@ export default function ContactUs() {
+   return (
+     <Form
+       method="POST"
+-      aria-invalid={result?.formErrors ? true : undefined}
+       aria-describedby={result?.formErrors ? 'contact-error' : undefined}
+     >
+       <div id="contact-error">{result?.formErrors}</div>
+@@ -280,7 +279,6 @@ export default function ContactUs() {
+ 			method="post"
+       {/* The only additional attribute you need is the `id` attribute */}
+ 			id={form.id}
+-			aria-invalid={form.errors ? true : undefined}
+ 			aria-describedby={form.errors ? form.errorId : undefined}
+ 		>
+ 			<div id={form.errorId}>{form.errors}</div>
+@@ -403,7 +401,6 @@ export default function ContactUs() {
+ 			id={form.id}
+       {/* The `onSubmit` handler is required for client validation */}
+       onSubmit={form.onSubmit}
+-			aria-invalid={form.errors ? true : undefined}
+ 			aria-describedby={form.errors ? form.errorId : undefined}
+     >
+       {/* ... */}
+diff --git a/packages/conform-react/helpers.ts b/packages/conform-react/helpers.ts
+index 1f7734d..35b83c9 100644
+--- a/packages/conform-react/helpers.ts
++++ b/packages/conform-react/helpers.ts
+@@ -17,7 +17,7 @@ type FormControlOptions =
+ 			 */
+ 			ariaAttributes?: true;
+ 			/**
+-			 * Decide whether the aria-invalid attributes should be based on `meta.errors` or `meta.allErrors`.
++			 * Decide whether the `aria-invalid` and `aria-describedby` attributes should be based on `meta.errors` or `meta.allErrors`.
+ 			 * @default 'errors'
+ 			 */
+ 			ariaInvalid?: 'errors' | 'allErrors';
+@@ -139,6 +139,7 @@ function simplify<Props>(props: Props): Props {
+ export function getAriaAttributes(
+ 	metadata: Metadata<any, any, any>,
+ 	options: FormControlOptions = {},
++	field: boolean = true,
+ ): {
+ 	'aria-invalid'?: boolean;
+ 	'aria-describedby'?: string;
+@@ -157,7 +158,7 @@ export function getAriaAttributes(
+ 	const ariaDescribedBy = options.ariaDescribedBy;
+ 
+ 	return simplify({
+-		'aria-invalid': invalid || undefined,
++		'aria-invalid': (field && invalid) || undefined,
+ 		'aria-describedby': invalid
+ 			? `${metadata.errorId} ${ariaDescribedBy ?? ''}`.trim()
+ 			: ariaDescribedBy,
+@@ -166,7 +167,7 @@ export function getAriaAttributes(
+ 
+ /**
+  * Derives the properties of a form element based on the form metadata,
+- * including `id`, `onSubmit`, `noValidate`, `aria-invalid` and `aria-describedby`.
++ * including `id`, `onSubmit`, `noValidate`, and `aria-describedby`.
+  *
+  * @example
+  * ```tsx
+@@ -187,7 +188,7 @@ export function getFormProps<Schema extends Record<string, any>, FormError>(
+ 
+ /**
+  * Derives the properties of a fieldset element based on the field metadata,
+- * including `id`, `name`, `form`, `aria-invalid` and `aria-describedby`.
++ * including `id`, `name`, `form`, and `aria-describedby`.
+  *
+  * @example
+  * ```tsx
+@@ -196,12 +197,16 @@ export function getFormProps<Schema extends Record<string, any>, FormError>(
+  */
+ export function getFieldsetProps<
+ 	Schema extends Record<string, any> | undefined | unknown,
+->(metadata: FieldMetadata<Schema, any, any>, options?: FormControlOptions) {
++>(
++	metadata: FieldMetadata<Schema, any, any>,
++	options?: FormControlOptions,
++	field: boolean = false,
++) {
+ 	return simplify({
+ 		id: metadata.id,
+ 		name: metadata.name,
+ 		form: metadata.formId,
+-		...getAriaAttributes(metadata, options),
++		...getAriaAttributes(metadata, options, field),
+ 	});
+ }
+ 
+@@ -216,7 +221,7 @@ export function getFormControlProps<Schema>(
+ 	return simplify({
+ 		key: undefined,
+ 		required: metadata.required || undefined,
+-		...getFieldsetProps(metadata, options),
++		...getFieldsetProps(metadata, options, true),
+ 	});
+ }
+ 

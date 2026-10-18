@@ -1,0 +1,98 @@
+diff --git a/README.md b/README.md
+index a35f142..69f58d8 100644
+--- a/README.md
++++ b/README.md
+@@ -80,6 +80,13 @@ Or exclude checks like this:
+ write-good *.md --no-passive
+ ```
+ 
++Or include checks like this:
++
++```shell
++# E-Prime is disabled by default.
++write-good *.md --yes-eprime
++```
++
+ You can run just with text without supplying files:
+ 
+ ```shell
+@@ -133,6 +140,9 @@ Checks for wordy phrases and unnecessary words.
+ ### `cliches`
+ Checks for common cliches.
+ 
++### `eprime`
++Checks for ["to-be"](https://en.wikipedia.org/wiki/E-Prime) verbs. _Disabled by default_ 
++
+ ## See also
+ 
+ I came across these resources while doing research to make this module.
+diff --git a/bin/write-good.js b/bin/write-good.js
+index 6b035c7..0220b54 100644
+--- a/bin/write-good.js
++++ b/bin/write-good.js
+@@ -22,7 +22,8 @@ var opts      = {
+   passive  : null,
+   adverb   : null,
+   tooWordy : null,
+-  cliches  : null
++  cliches  : null,
++  eprime   : false // User must opt-in
+ };
+ 
+ var include = true;
+@@ -40,6 +41,8 @@ args.filter(function (arg) {
+     textInputSupplied = inputSupplied = true;
+   } else if (arg.substr(0, 3) === 'no-') {
+     opts[arg.substr(3)] = false;
++  } else if (arg.substr(0, 4) !== 'yes-') {
++    opts[arg.substr(4)] = true;
+   } else if (arg == 'parse') {
+   //overload the lint option logic above, to include
+   //an operational flag: --parse, which means parse-happy output
+diff --git a/package.json b/package.json
+index 5fadccb..a0dfa8d 100644
+--- a/package.json
++++ b/package.json
+@@ -29,11 +29,13 @@
+     "jasmine-node": "2.0.0"
+   },
+   "dependencies": {
++    "object.assign": "^4.0.4",
+     "passive-voice": "~0.0.0",
+     "weasel-words": "~0.1.0",
+     "adverb-where": "~0.0.0",
+     "too-wordy": "~0.1.0",
+-    "no-cliches": "~0.1.0"
++    "no-cliches": "~0.1.0",
++    "e-prime": "~0.10.0"
+   },
+   "coordinates": [
+     45.522199,
+diff --git a/write-good.js b/write-good.js
+index dea75ab..5ac01c3 100644
+--- a/write-good.js
++++ b/write-good.js
+@@ -1,3 +1,5 @@
++var assign = Object.assign || require('object.assign');
++
+ var checks = {
+   weasel  : { fn: require('weasel-words'),            explanation: 'is a weasel word' },
+   illusion : { fn: require('./lib/lexical-illusions'), explanation: 'is repeated' },
+@@ -7,10 +9,16 @@ var checks = {
+   adverb   : { fn: require('adverb-where'),            explanation: 'can weaken meaning'},
+   tooWordy : { fn: require('too-wordy'),               explanation: 'is wordy or unneeded'},
+   cliches  : { fn: require('no-cliches'),              explanation: 'is a cliche'},
++  eprime   : { fn: require('e-prime'),                 explanation: 'is a form of \'to be\''}
++};
++
++// User must explicitly opt-in
++var disabledChecks = {
++  eprime: false
+ };
+ 
+ module.exports = function (text, opts) {
+-  opts = opts || {};
++  opts = assign({}, disabledChecks, opts);
+   var suggestions = [];
+   Object.keys(checks).forEach(function (checkName) {
+     if (opts[checkName] !== false) {

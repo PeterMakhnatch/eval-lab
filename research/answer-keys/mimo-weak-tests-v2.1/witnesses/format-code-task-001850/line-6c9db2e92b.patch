@@ -1,0 +1,49 @@
+diff --git a/marimo/_ast/sql_visitor.py b/marimo/_ast/sql_visitor.py
+index a06f843..b7a9a5b 100644
+--- a/marimo/_ast/sql_visitor.py
++++ b/marimo/_ast/sql_visitor.py
+@@ -86,6 +86,9 @@ class TokenExtractor:
+             end = sql_statement.find('"', start + 1) + 1
+         elif sql_statement[start] == "'":
+             end = sql_statement.find("'", start + 1) + 1
++        elif sql_statement[start:].startswith("e'"):
++            start += 1
++            end = sql_statement.find("'", start + 1) + 1
+         else:
+             # For non-quoted tokens, find until space or comment
+             maybe_end = re.search(r"[\s\-/]", sql_statement[start:])
+diff --git a/marimo/_runtime/runtime.py b/marimo/_runtime/runtime.py
+index f5fa30e..90d3cf6 100644
+--- a/marimo/_runtime/runtime.py
++++ b/marimo/_runtime/runtime.py
+@@ -710,16 +710,27 @@ class Kernel:
+ 
+                 # We only drop in-memory tables: we don't want to drop tables
+                 # on databases!
+-                duckdb.execute(f"DROP TABLE IF EXISTS memory.main.{name}")
++                try:
++                    duckdb.execute(f"DROP TABLE IF EXISTS memory.main.{name}")
++                except Exception as e:
++                    LOGGER.warning("Failed to drop table %s: %s", name, str(e))
+             elif variable.kind == "view" and DependencyManager.duckdb.has():
+                 import duckdb
+ 
+                 # We only drop in-memory views for the same reason.
+-                duckdb.execute(f"DROP VIEW IF EXISTS memory.main.{name}")
++                try:
++                    pass
++                except Exception as e:
++                    LOGGER.warning("Failed to drop view %s: %s", name, str(e))
+             elif variable.kind == "schema" and DependencyManager.duckdb.has():
+                 import duckdb
+ 
+-                duckdb.execute(f"DETACH DATABASE IF EXISTS {name}")
++                try:
++                    duckdb.execute(f"DETACH DATABASE IF EXISTS {name}")
++                except Exception as e:
++                    LOGGER.warning(
++                        "Failed to detach schema %s: %s", name, str(e)
++                    )
+             else:
+                 if name in self.globals:
+                     del self.globals[name]

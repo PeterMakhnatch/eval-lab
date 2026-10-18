@@ -15,6 +15,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | mimo-stratified-sample100 | 40 (12/0) | 60 (11/0) test | 0 / 0 | 100 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
 | mimo-weak-tests-v2 | 45 (45/0) | 66 (66/0) test | 0 / 0 | 111 | 0 |
+| mimo-weak-tests-v2.1 | 46 (46/0) | 68 (68/0) test | 0 / 0 | 114 | 0 |
 | tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
@@ -63,7 +64,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | fix-git | sha256:f264d981302b | fail: executed-outcomes-v1, tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | fix-git | sha256:2f0e8d8e3c29 | fail: executed-outcomes-v1; pass: tb2-to-tb21-v1 |
 | format-code-task-000237 | sha256:5929118977d4 | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
-| format-code-task-001244 | sha256:2e9234abf407 | fail: mimo-weak-tests-v2; unknown: mimo-stratified-sample100 |
+| format-code-task-001244 | sha256:2e9234abf407 | fail: mimo-weak-tests-v2, mimo-weak-tests-v2.1; unknown: mimo-stratified-sample100 |
 | format-code-task-001400 | sha256:a35fc4f8ee0e | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002188 | sha256:05c56be38526 | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002649 | sha256:956bedd81ddc | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
@@ -93,6 +94,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-stratified-sample100 | 2 | 0 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-weak-tests-v1 | 11 | 1 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-weak-tests-v2 | 2 | 0 |
+| ref-subset-rule-iteration | tuned | QA Task, QA Trace | mimo-weak-tests-v2.1 | 2 | 0 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | trace-paired-v1 | 19 | 0 |
 | ref-subset-rule-iteration | | | tasks in no key | 1 | |
 | envcheck-867-repair-dev | tuned | EnvCheck | executed-outcomes-v1 | 11 | 18 |
@@ -100,10 +102,12 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-stratified-sample100 | 4 | 2 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v1 | 1 | 0 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v2 | 0 | 3 |
+| envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v2.1 | 0 | 3 |
 | envcheck-867-repair-dev | tuned | EnvCheck | trace-paired-v1 | 6 | 6 |
 | separate-verifier-10-probes | tuned | Verifier hardening | executed-outcomes-v1 | 3 | 4 |
 | separate-verifier-10-probes | tuned | Verifier hardening | mimo-stratified-sample100 | 2 | 1 |
 | separate-verifier-10-probes | tuned | Verifier hardening | mimo-weak-tests-v2 | 1 | 0 |
+| separate-verifier-10-probes | tuned | Verifier hardening | mimo-weak-tests-v2.1 | 1 | 0 |
 | separate-verifier-10-probes | tuned | Verifier hardening | trace-paired-v1 | 4 | 0 |
 | separate-verifier-10-probes | | | tasks in no key | 1 | |
 | executed-outcomes-ref-subset | selected | QA Task, QA Trace | executed-outcomes-v1 | 8 | 16 |
@@ -120,11 +124,13 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-heldout-v6-to-v7 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2 | 0 | 3 |
+| qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2.1 | 0 | 3 |
 | qa-trace-5-t3-fusion-fix | tuned | QA Trace (qa-trace/5*) | trace-paired-v1 | 6 | 2 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | executed-outcomes-v1 | 0 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-heldout-v6-to-v7 | 0 | 33 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2 | 0 | 3 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2.1 | 0 | 3 |
 | qa-trace-6-label-rule | tuned | QA Trace (qa-trace/6*) | trace-paired-v1 | 3 | 0 |
 | qa-trace-7-dev-only | tuned | QA Trace (qa-trace/7*) | trajectory-judge-400 | 26 | 0 |
 | qa-task-mimo-v7-scoreboard-source-reconciliation | selected | QA Task (qa-task/mimo-v7-audit*) from 2026-10-18 | mimo-heldout-v6-to-v7 | 0 | 33 |
@@ -132,3 +138,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-trace-8-inherited-test-exclusions | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trace-paired-v1 | 0 | 2 |
 | qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trace-paired-v1 | 7 | 0 |
 | qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trajectory-judge-400 | 26 | 0 |
+| mimo-weak-tests-v2.1-ref-subset | selected | QA Task, QA Trace | mimo-weak-tests-v2.1 | 46 | 68 |

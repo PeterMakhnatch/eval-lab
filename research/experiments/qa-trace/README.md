@@ -1,5 +1,48 @@
 # QA Agent - Trace (`evallab qa trace`), scored runs
 
+## PK-1 (2026-10-19): frozen-version comparison stopped by quota
+
+**The complete comparison is blocked, not a measured upgrade.** The unchanged
+qa6/qa7/qa8 sources used identical named `-pk1-luna` routes: Codex GPT-6-Luna
+analysts and GPT-5.6-Luna refuters, low effort, full T0/T1/T3, no native execution.
+The [protocol](results/qa-trace-pk1-20261019-freeze.json) was pushed before test
+inference; no prompt or classifier changed from test results.
+
+| Key | Eligible / registered | Persisted wrappers, qa6 / qa7 / qa8 | Common usable subjects per version |
+|---|---:|---:|---:|
+| trajectory-judge-400 test | 173 / 188 | 3 / 3 / 2 | 2 |
+| trace-paired-v1 test | 25 / 27 | 3 / 3 / 2 | 2 |
+| canonical MiMo v7 original passes | 70 / 70 | 3 / 2 / 2 | 2 |
+
+All runs terminated at the predeclared **79% new-session safety stop**, below the
+approved **80%** hard ceiling. The earlier Antigravity pools remained above their
+60% gate. QA Task's qualified paid text helpers are not a tool-using Trace
+replacement; no paid fallback or unapproved quota increase was attempted.
+
+The **15** new registered-key scoreboard rows use only the post-hoc intersection
+whose asked T1 answers were usable in every version. An extra qa7 paired item
+had a quota-refused `reward_shortcut`; its apparent nonflag is **not a measured
+clean answer**. Original prefixes and their seals remain in raw evidence.
+The common cases' retained original source artifacts match across all versions.
+This completion-selected prefix is not a random sample or the planned endpoint.
+
+The [comparison CSV](results/qa-trace-pk1-20261019.csv) also includes both canonical
+MiMo heads; it does not invent a registered task-weakness key. There are no
+observed MiMo wrong passes, so recall is **n/a**, not zero. Accepted-pass RNR
+flags are not independently verified false accusations of cheating. All 17
+retained T3 records were unverified. [Full bounded result and commands](results/qa-trace-pk1-20261019.json).
+New paid spend and native executions were zero; token/call metadata is not an
+invoice. Historical output exposure and the inventory scout's accidental
+historical MiMo data access are disclosed; this is not a virgin-holdout claim.
+
+### Five-line verdict
+
+1. Keep qa-trace/6 as the provisional reference, not a newly proven winner.
+2. Do not promote qa-trace/7 or /8: the requested complete comparison is blocked by quota admission.
+3. The common usable prefix has only two subjects per key; it contains no TJ clean example, complete paired pair, or MiMo wrong pass.
+4. The prefix differences are descriptive only; they establish neither a recall gain nor a reliable false-flag reduction.
+5. Resume the unchanged frozen study only with admissible capacity or a qualified bounded tool-using route; do not retune on these test outputs.
+
 ## qa-trace/8 (2026-10-18): explicit verifier-test review
 
 Task tests were already copied into B0 when a package resolved; this upgrade makes

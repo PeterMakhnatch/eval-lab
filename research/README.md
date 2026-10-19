@@ -6,7 +6,7 @@ experiment matrices, calibration ground truth, capability explorations, analytic
 queries, and reviewed, immutable evidence bundles.
 
 ## What lives here / entry points
-- `research/experiments/`: Experiment matrices, campaign manifests, and execution configurations (e.g. `research/experiments/local-controls.json`).
+- `research/experiments/`: Experiment matrices, campaign manifests, and execution configurations (e.g. `research/experiments/local-controls.json`); [mimo-clean-v7 dataset release](experiments/mimo-clean-v7/README.md).
 - [Reef continuous-improvement program](experiments/reef/README.md): current studies, results, and scoped contributions to Eval Lab and Reef.
 - [Card → folder → result index](CARD-INDEX.md): which HAR card lives in which `explorations/`/`experiments/` folder and where its principal result is.
 - `research/evidence/runs/`: Reviewed, immutable promoted control and trial bundles (e.g. `research/evidence/runs/event-summary-oracle-evidence/result.json`).

@@ -115,6 +115,41 @@ keys run -- .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_se
 `generate` exits 4 while the window is not ready, 3 on a preflight refusal,
 and 5 when the next wave would exceed the cap.
 
+### Second solver family: `--route oss` (deep queue A-2, 2026-10-19)
+
+Every phase takes `--route oss`. That runs the same 26 cells with
+`terminus-2` and `openrouter-metered/openai/gpt-oss-120b` on the airgapped
+Docker host loop (#1056): the model call stays on the host proxy, the task
+container keeps no network, and sandboxes are local.
+
+- State lives in `runs/mimo-cheat-set-v7-oss/` and the job prefix is
+  `mcs7oss`. The blind export is `cheat-set-v7-oss.jsonl`.
+- Budget: two pools.
+  - Model spend is capped at **$1** metered, with a $0.038 per-attempt proxy
+    ceiling; 26 cells × $0.038 fits.
+  - v7 replays on Modal come out of CheatBench's remaining **$0.79** sandbox
+    cap.
+- K defaults to 1 and concurrency to 1, so at most two containers run.
+- No serving window is involved.
+
+Export adds `v7_1_reward`. It is the v7 reward only when the task's
+candidate v7.1 grader (`bridge/2026-10-19-night/heldout-v7.1.json`) has the
+same package digest as v7; otherwise it stays null, and v7.1 is never
+inferred for a changed grader.
+
+**Status, 2026-10-19 06:25 ET: not run on this host.** The smoke cell
+(`000143:neutral:a1`) was approved, but the executor deferred it 70 times over
+42 minutes with `docker_capacity_unavailable` and it was then rejected. No
+container started and the model was never called ($0). The locked Docker
+capacity gate fails closed for two reasons:
+
+- The laptop's shared daemon runs containers with no CPU or memory limits.
+- Every one of the 13 packages declares 8,192 MB, which exceeds the 7.9 GiB
+  Docker VM.
+
+Unblocking needs a Docker VM of at least 10.2 GiB with no unbounded
+co-tenants, or a reviewed Modal host-loop path.
+
 ## Route admissibility (observed 2026-10-17, $0)
 
 The real dispatch validation on the v6 packages admits exactly one solver
@@ -125,7 +160,9 @@ reference setup, and `lock.mode`, which can never be declared away.
 |---|---|
 | `codex` / `gpt-6-luna`, docker, bare | refused: MiMo run needs `reference_profile` |
 | `codex` / `gpt-6-luna`, docker, `xiaomi-mimo-rl` + lock + deviations | refused: docker lock cannot combine with the package's `agent.network_mode = "no-network"` |
-| `terminus-2` / `zai/glm-5.3-flash`, docker, profiled | refused (same docker lock conflict) |
+| `terminus-2` / `zai/glm-5.3-flash`, docker, profiled | refused (same docker lock conflict; before the #1056 host-loop admission) |
+| `terminus-2` / `openrouter-metered/openai/gpt-oss-120b`, docker, profiled, 2026-10-19 | admitted (airgapped host loop, #1056) |
+| `terminus-2` / GPT-OSS-120b, **modal**, locked, 2026-10-19 | refused: the backend cannot provide the host-loop network/installation requirements |
 | `mimoagent` / self-hosted MiMo-V2.6-9B, **modal**, profiled | admitted (with provider ceilings and a served model) |
 | `oracle` replay (v7 grading), docker | refused |
 | `oracle` replay, **modal**, locked | admitted |

@@ -138,6 +138,53 @@ def test_wave_fits_counts_sandboxes_margin_and_replays():
     assert not cs.wave_fits(total_so_far_usd=2.5, cells=26, mean_sandbox_usd=0.04)[0]
 
 
+def test_metered_route_keeps_llm_spend_out_of_the_sandbox_cap(monkeypatch):
+    monkeypatch.setattr(cs, "ROUTE", cs.ROUTES["oss"])
+    rows = [
+        {"kind": "attempt_reservation", "usd": 0.038, "pool": "llm", "cell_id": "a"},
+        {"kind": "attempt_reservation", "usd": 0.038, "pool": "llm", "cell_id": "b"},
+        {"kind": "llm_estimate", "usd": 0.012, "cell_id": "a"},
+        {"kind": "grade_reservation", "usd": 0.01, "cell_id": "a"},
+    ]
+    spend = cs.spend_summary(rows)
+    assert spend["llm_usd"] == pytest.approx(0.012 + 0.038)
+    assert spend["total_usd"] == pytest.approx(0.01)
+    assert spend["cap_usd"] == cs.ROUTES["oss"].cap_usd
+
+
+def test_metered_route_wave_must_fit_the_llm_allocation(monkeypatch):
+    monkeypatch.setattr(cs, "ROUTE", cs.ROUTES["oss"])
+    ceiling = cs.ROUTES["oss"].ceilings["cost_limit_usd"]
+    assert cs.wave_fits(total_so_far_usd=0.0, cells=26, mean_sandbox_usd=0.0)[0]
+    room = cs.ROUTES["oss"].llm_cap_usd - 26 * ceiling
+    assert not cs.wave_fits(
+        total_so_far_usd=0.0, cells=26, mean_sandbox_usd=0.0, llm_so_far_usd=room + 0.01
+    )[0]
+
+
+def test_trial_llm_usd_prices_recorded_tokens(monkeypatch):
+    monkeypatch.setattr(cs, "ROUTE", cs.ROUTES["oss"])
+    price_in, price_out = cs.ROUTES["oss"].llm_price_per_mtok
+    usd = cs.trial_llm_usd({"n_input_tokens": 2_000_000, "n_output_tokens": 100_000})
+    assert usd == pytest.approx(2 * price_in + 0.1 * price_out)
+    assert cs.trial_llm_usd({"n_input_tokens": 5}) is None
+
+
+def test_v71_identity_reuses_v7_reward_only_for_identical_bytes(tmp_path):
+    target = cs.V7Target(TASK_ID, True, (), tmp_path, V7, "semantic_repair")
+    other = cs.V7Target("mimo-v2.6-rl/format-code-task-000149", True, (), tmp_path, V7, "semantic_repair")
+    doc = {"tasks": [
+        {"task_id": "format-code-task-000143", "evaluation_target": {"package_digest": V7}},
+        {"task_id": "format-code-task-000149", "evaluation_target": {"package_digest": V6}},
+    ]}
+    path = tmp_path / "heldout-v7.1.json"
+    path.write_text(json.dumps(doc))
+    out, _ = cs.v71_identity(path, {TASK_ID: target, other.task_id: other})
+    assert out[TASK_ID]["identical_to_v7"] is True
+    assert out[other.task_id]["identical_to_v7"] is False
+
+
+
 def test_trial_sandbox_usd_two_environments():
     result = {"started_at": "2026-10-17T08:00:00Z", "finished_at": "2026-10-17T08:10:00Z"}
     usd = cs.trial_sandbox_usd(result, cpus=2, memory_mb=8192)

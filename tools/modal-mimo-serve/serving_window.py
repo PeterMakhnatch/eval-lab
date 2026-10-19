@@ -393,10 +393,10 @@ def _deploy_reserved(journal: Journal, config: dict[str, Any], control: ModalCon
     require(time.time() < instant(config["expires_at"]), "window expired during admission")
     os.environ[WINDOW_ENV] = json.dumps(config)
     os.environ["EVALLAB_MIMO_GPU"] = config["gpu"]
-    os.environ["EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS"] = "60"
     serve = importlib.import_module("serve")
     require(config == serve.WINDOW, "serve.py did not retain this exact window config")
-    # No weights download, readiness request, autoscaler minimum, or second app.
+    # No weights download, readiness request, or second app; the owned window's
+    # deployment holds one warm container until the immutable deadline.
     journal.update(deployment_invoked_at=utc())
     serve.app.deploy(environment_name=config["environment"], strategy="recreate")
     app_id = serve.app.app_id

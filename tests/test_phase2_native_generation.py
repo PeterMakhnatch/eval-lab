@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 import sys
+import urllib.error
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -284,3 +288,322 @@ def test_checked_window_accepts_only_modal_owned_origins(tmp_path, monkeypatch, 
     else:
         with pytest.raises(g.Refusal, match="fake endpoint"):
             g.checked_window(receipt_path, envelope_path, plan)
+
+
+def live_window():
+    now = datetime.now(UTC)
+    return {"schema": "envcheck.modal-serving-window/v1",
+            "reservation_id": "trainer-finish-data-20261019-window-3",
+            "window_id": "trainer-finish-data-20261019-window-3",
+            "starts_at": (now - timedelta(hours=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=2)).isoformat(),
+            "upstream": "https://fixture-owned-base.modal.run",
+            "receipt": {"path": "/unused/receipt.json", "sha256": "sha256:" + "0" * 64}}
+
+
+def done_settings(done_path):
+    return {"concurrency": 7, "shared_window_client_done": {
+        "client": "cheatbench", "path": str(done_path), "concurrency_after_done": 20}}
+
+
+def done_receipt(window, **changes):
+    value = {"schema": "mimo.shared-serving-window.client-done/v1", "client": "cheatbench",
+             "window_receipt": "bridge/2026-10-17-v7/serving-window-v7.json",
+             "remote_reservation_id": window["reservation_id"],
+             "window_observed": {"last_observed_at_utc": datetime.now(UTC).isoformat(),
+                                 "last_observed_status": "active"},
+             "outcome": "completed_all_planned_waves",
+             "recorded_at_utc": datetime.now(UTC).isoformat()}
+    value.update(changes)
+    return value
+
+
+def test_client_done_widens_only_on_the_exact_live_window_receipt(tmp_path):
+    window = live_window()
+    done_path = tmp_path / "cheatbench-serving-window-done.json"
+    settings = done_settings(done_path)
+    # A missing or malformed receipt is simply not this window's completion.
+    assert g.dispatch_width(settings, window) == 7
+    done_path.write_text("{malformed")
+    assert g.dispatch_width(settings, window) == 7
+    # The historical WINDOW2 file can never count for this window.
+    historical = done_receipt(window, remote_reservation_id="trainer-finish-data-20261018-window-2",
+                              outcome="not_used_no_trial_fit_after_readiness",
+                              recorded_at_utc="2026-10-18T17:32:00Z")
+    g.write_json(done_path, historical, replace=True)
+    assert g.dispatch_width(settings, window) == 7
+    # Wrong client, wrong reservation, stale or future recording all stay at the plan bound.
+    for changes in ({"client": "trainer"},
+                    {"remote_reservation_id": "some-other-window"},
+                    {"schema": "mimo.shared-serving-window.client-done/v0"},
+                    {"recorded_at_utc": (datetime.now(UTC) - timedelta(hours=2)).isoformat()},
+                    {"recorded_at_utc": (datetime.now(UTC) + timedelta(hours=1)).isoformat()},
+                    {"recorded_at_utc": "not-a-timestamp"}):
+        g.write_json(done_path, done_receipt(window, **changes), replace=True)
+        assert g.dispatch_width(settings, window) == 7
+    # The exact final receipt for this live window widens to the admitted bound.
+    g.write_json(done_path, done_receipt(window), replace=True)
+    assert g.dispatch_width(settings, window) == 20
+    # Without the optional setting the existing bound is unchanged.
+    assert g.dispatch_width({"concurrency": 7}, window) == 7
+
+
+def native_settings(tmp_path, monkeypatch):
+    """Minimum real SHA-bound settings fixture for provider-free checked_settings."""
+    controls = tmp_path / "controls.json"
+    controls.write_text("{}")
+    request = tmp_path / "request.json"
+    request.write_text("{}")
+    monkeypatch.setattr(g, "CONTROLS_SHA", g.ref(controls)["sha256"])
+    monkeypatch.setattr(g, "REQUEST_SHA", g.ref(request)["sha256"])
+    cost = tmp_path / "cost.json"
+    g.write_json(cost, {"pricing_basis": "resource_bound_plus_build_buffer",
+                        "provider_product": "modal_sandbox",
+                        "cpu_usd_per_core_second": .00003942,
+                        "memory_usd_per_gib_second": .00000667,
+                        "image_build_usd_per_cell": .01, "other_provider_usd_per_cell": .01,
+                        "unknown_extras_acknowledged": True, "mechanism": "fixture resource quote",
+                        "source_urls": ["https://modal.com/pricing"]})
+    admission = tmp_path / "admission.json"
+    g.write_json(admission, {"schema": "repaired_data_sft_v2.control_admission/v1",
+                             "source_controls_handoff": g.ref(controls),
+                             "tasks": [{"task_id": task_id, "controls_qualified": True}
+                                       for task_id in g.TASK_IDS]})
+    settings = {"schema": "mimo.phase2-native-settings/v1", "campaign_id": "phase2-window3",
+                "reference_profile": "fixture-profile", "modal_app_name": "fixture-app",
+                "concurrency": 7,
+                "runtime": {"timeout_seconds": 180, "max_requests": 4,
+                            "max_input_tokens": 1024, "cost_limit_usd": .5},
+                "sandbox_timeout_seconds": 300,
+                "image_build_reserve_usd_per_cell": .01,
+                "other_provider_reserve_usd_per_cell": .01,
+                "cost_evidence": g.ref(cost), "controls": g.ref(controls),
+                "request": g.ref(request), "control_admission": g.ref(admission)}
+    return settings, tmp_path / "settings.json"
+
+
+def test_shared_done_setting_admits_only_the_exact_7_to_20_split(tmp_path, monkeypatch):
+    settings, path = native_settings(tmp_path, monkeypatch)
+    done = {"client": "cheatbench", "path": str(tmp_path / "done.json")}
+    for concurrency, after_done, accepted in ((7, 20, True), (16, 20, False), (6, 20, False),
+                                              (7, 19, False), (7, 21, False), (7, None, False)):
+        settings.update(concurrency=concurrency,
+                        shared_window_client_done={**done, "concurrency_after_done": after_done})
+        g.write_json(path, settings, replace=True)
+        if accepted:
+            assert g.checked_settings(path)["concurrency"] == 7
+        else:
+            with pytest.raises(g.Refusal):
+                g.checked_settings(path)
+    # Without the optional setting the ordinary 1..16 bound is unchanged.
+    del settings["shared_window_client_done"]
+    for concurrency in (1, 16):
+        settings["concurrency"] = concurrency
+        g.write_json(path, settings, replace=True)
+        assert g.checked_settings(path)["concurrency"] == concurrency
+
+
+def test_wave_offsets_advance_by_actual_wave_length_covering_all_76_once():
+    plan = matrix()
+    cells = plan["cells"]
+    specs = [f"spec-{cell['spec_id']}" for cell in cells]
+    widths = iter([7, 20])
+    waves = list(g.wave_plan(cells, specs, lambda: next(widths, 20)))
+    assert [len(wave) for wave in waves] == [7, 20, 20, 20, 9]
+    ordered = [cell["cell_id"] for wave in waves for cell, _ in wave]
+    assert len(ordered) == len(set(ordered)) == 76
+    assert ordered == [cell["cell_id"] for cell in cells]
+    assert [spec for wave in waves for _, spec in wave] == specs
+    with pytest.raises(g.Refusal):
+        list(g.wave_plan(cells, specs, lambda: 21))
+    with pytest.raises(g.Refusal):
+        list(g.wave_plan(cells, specs, lambda: 0))
+
+
+class FakeResponse:
+    def __init__(self, status, payload=b""):
+        self.status = status
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self.payload
+
+
+def fake_upstream(*outcomes):
+    """Sequential provider-free opener; the last outcome repeats when exhausted."""
+    state = {"urls": [], "index": 0}
+
+    def open_(request, timeout=None):
+        state["urls"].append(request.full_url)
+        outcome = outcomes[min(state["index"], len(outcomes) - 1)]
+        state["index"] += 1
+        if isinstance(outcome, Exception):
+            raise outcome
+        status, payload = outcome
+        return FakeResponse(status, payload)
+
+    return open_, state
+
+
+MODELS_BODY = json.dumps({"data": [{"id": g.RETURNED_MODEL}]}).encode()
+COMPLETION_BODY = json.dumps({"model": g.RETURNED_MODEL, "choices": [{"message": {"content": "OK"}}]}).encode()
+
+
+def fake_clock():
+    tick = [0.0]
+    return (lambda: tick[0]), (lambda seconds: tick.__setitem__(0, tick[0] + seconds))
+
+
+def test_live_binding_round_trips_the_exact_model():
+    open_, state = fake_upstream((200, b""), (200, MODELS_BODY), (200, COMPLETION_BODY))
+    result = g.live_binding(live_window(), key="fixture-key", budget_seconds=5, open_fn=open_)
+    assert result["authenticated"] is True and result["attempts"] == 1
+    assert result["returned_model"] == g.RETURNED_MODEL
+    assert [url.rsplit("/", 1)[-1] for url in state["urls"]] == ["health", "models", "completions"]
+
+
+def test_live_binding_accepts_a_plain_text_health_response():
+    open_, _ = fake_upstream((200, b"OK"), (200, MODELS_BODY), (200, COMPLETION_BODY))
+    result = g.live_binding(live_window(), key="fixture-key", budget_seconds=5, open_fn=open_)
+    assert result["authenticated"] is True and result["attempts"] == 1
+
+
+def test_live_binding_waits_out_a_cold_start_then_binds():
+    window = live_window()
+    cold = urllib.error.HTTPError(window["upstream"], 503, "cold", {}, None)
+    open_, _ = fake_upstream(cold, cold, (200, b""), (200, MODELS_BODY), (200, COMPLETION_BODY))
+    clock, sleeper = fake_clock()
+    result = g.live_binding(window, key="fixture-key", budget_seconds=10, open_fn=open_,
+                            clock=clock, sleeper=sleeper)
+    assert result["attempts"] == 3
+
+
+def test_live_binding_refuses_a_currently_unready_endpoint():
+    window = live_window()
+    cold = urllib.error.HTTPError(window["upstream"], 503, "cold", {}, None)
+    open_, state = fake_upstream(cold)
+    clock, sleeper = fake_clock()
+    with pytest.raises(g.Refusal):
+        g.live_binding(window, key="fixture-key", budget_seconds=5, open_fn=open_,
+                       clock=clock, sleeper=sleeper)
+    assert len(state["urls"]) > 1
+
+
+def test_live_binding_refuses_non_cold_rejection_without_burning_the_budget():
+    window = live_window()
+    rejected = urllib.error.HTTPError(window["upstream"], 401, "unauthorized", {}, None)
+    open_, state = fake_upstream(rejected)
+    with pytest.raises(g.Refusal):
+        g.live_binding(window, key="fixture-key", budget_seconds=60, open_fn=open_)
+    assert len(state["urls"]) == 1
+
+
+def test_live_binding_refuses_a_different_model_identity():
+    window = live_window()
+    wrong = json.dumps({"data": [{"id": g.RETURNED_MODEL}, {"id": "other-model"}]}).encode()
+    open_, _ = fake_upstream((200, b""), (200, wrong), (200, COMPLETION_BODY))
+    with pytest.raises(g.Refusal):
+        g.live_binding(window, key="fixture-key", budget_seconds=60, open_fn=open_)
+    mismatched = json.dumps({"model": "other-model", "choices": [{}]}).encode()
+    open_, _ = fake_upstream((200, b""), (200, MODELS_BODY), (200, mismatched))
+    with pytest.raises(g.Refusal):
+        g.live_binding(window, key="fixture-key", budget_seconds=60, open_fn=open_)
+
+
+def wave_fixture(tmp_path, monkeypatch, count=2):
+    plan = {"tasks": [{"task_id": "000089", "task": "mimo-v2.6-rl/format-code-task-000089"}],
+            "controls": {"fixture": True}}
+    wave = []
+    for index in range(count):
+        cell = {"cell_id": f"000089-k{index + 1}", "spec_id": f"s-{index + 1}", "job_name": f"job-k{index + 1}",
+                "task_index": 0, "task_id": "000089", "task": "mimo-v2.6-rl/format-code-task-000089"}
+        spec = SimpleNamespace(spec_id=cell["spec_id"], jobs_dir="runs", name=cell["job_name"])
+        wave.append((cell, spec))
+    window = live_window()
+    envelope_path = tmp_path / "envelope.json"
+    g.write_json(envelope_path, {"schema": "mimo.phase2-envelope/v1"})
+    envelope = {"approval": "fixture-approval"}
+    monkeypatch.setattr(g, "checked_window", lambda *args, **kwargs: window)
+    monkeypatch.setattr(g, "checked_envelope", lambda *args, **kwargs: (envelope, {}))
+    monkeypatch.setattr(g, "checked_plan", lambda *args, **kwargs: plan)
+    native = SimpleNamespace(validate_request=lambda *args, **kwargs: None)
+    queue_module = SimpleNamespace(Executor=SimpleNamespace(
+        prepare_request=staticmethod(lambda spec, repo_root: SimpleNamespace())))
+    queue = Mock()
+    queue.locate.side_effect = FileNotFoundError
+    queue.load.side_effect = lambda submitted: SimpleNamespace(spec_id=submitted.spec_id)
+    out = tmp_path / "out"
+    out.mkdir()
+    return {"wave": wave, "window": window, "plan": plan, "envelope": envelope,
+            "envelope_path": envelope_path, "plan_path": tmp_path / "plan.json",
+            "serving_window": tmp_path / "window.json", "modules": (native, queue_module),
+            "queue": queue, "out": out}
+
+
+def test_wave_charges_nothing_when_the_endpoint_is_currently_unready(tmp_path, monkeypatch):
+    fixture = wave_fixture(tmp_path, monkeypatch)
+    cold = urllib.error.HTTPError(fixture["window"]["upstream"], 503, "cold", {}, None)
+    open_, _ = fake_upstream(cold)
+    clock, sleeper = fake_clock()
+
+    def binding(window, **kwargs):
+        return g.live_binding(
+            window, key="fixture-key", budget_seconds=5, open_fn=open_, clock=clock, sleeper=sleeper)
+
+    budget = Mock()
+    executor = Mock()
+    executor.last_tick_reason = None
+    rows, stop = g.dispatch_wave(fixture["wave"], window=fixture["window"], plan=fixture["plan"],
+        plan_path=fixture["plan_path"], envelope_path=fixture["envelope_path"],
+        envelope=fixture["envelope"], serving_window=fixture["serving_window"],
+        modules=fixture["modules"], budget=budget, queue=fixture["queue"], executor=executor,
+        out=fixture["out"], key="fixture-key", binding_check=binding)
+    assert stop is True and len(rows) == len(fixture["wave"])
+    budget.charge.assert_not_called()
+    executor.submit.assert_not_called()
+    executor.tick.assert_not_called()
+    for row in rows:
+        assert row["dispatch_error"] is not None
+        assert row["reservation"] is None and row["fresh_binding"] is None
+
+
+def test_wave_dispatches_only_after_a_fresh_exact_binding(tmp_path, monkeypatch):
+    fixture = wave_fixture(tmp_path, monkeypatch)
+
+    def binding(window, **kwargs):
+        return {"authenticated": True, "checked_at": "fixture",
+                "returned_model": g.RETURNED_MODEL}
+
+    budget = Mock()
+    budget.charge.side_effect = lambda cell, receipt: {"cell_id": cell["cell_id"], "ordinal": 1}
+    executor = Mock()
+    executor.last_tick_reason = "fixture-tick"
+    executor.submit.side_effect = lambda spec: (spec, SimpleNamespace(
+        admitted=False, reason_code="paid_run_unauthorized"))
+    executor.tick.return_value = len(fixture["wave"])
+    rows, stop = g.dispatch_wave(fixture["wave"], window=fixture["window"], plan=fixture["plan"],
+        plan_path=fixture["plan_path"], envelope_path=fixture["envelope_path"],
+        envelope=fixture["envelope"], serving_window=fixture["serving_window"],
+        modules=fixture["modules"], budget=budget, queue=fixture["queue"], executor=executor,
+        out=fixture["out"], key="fixture-key", binding_check=binding)
+    assert stop is False
+    assert budget.charge.call_count == len(fixture["wave"])
+    assert executor.submit.call_count == len(fixture["wave"])
+    assert executor.tick.call_args.kwargs["parallel"] == len(fixture["wave"])
+    journal = [json.loads(line) for line in
+               (fixture["out"] / "dispatch-journal.jsonl").read_text().splitlines()]
+    tick = [event for event in journal if event["event"] == "native_tick_requested"]
+    assert len(tick) == 1
+    assert tick[0]["wave_width"] == len(fixture["wave"])
+    assert tick[0]["fresh_binding"] == {"authenticated": True, "checked_at": "fixture",
+                                        "returned_model": g.RETURNED_MODEL}
+    for row in rows:
+        assert row["dispatch_error"] is None
+        assert row["reservation"]["cell_id"] == row["cell_id"]
+        assert row["fresh_binding"]["authenticated"] is True

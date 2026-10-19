@@ -193,7 +193,7 @@ def _request(task: Path, tmp_path: Path, **overrides: Any) -> RunRequest:
     base.update(overrides)
     agent = base.get("agent")
     model = base.get("model")
-    metered = agent in {"mini-swe-agent", "zai-opencode"} or (
+    metered = agent in {"mini-swe-agent", "mimoagent", "zai-opencode"} or (
         agent == "terminus-2" and model is not None and model != TERMINUS_LOCAL_MODEL_SELECTOR
     )
     if metered:
@@ -292,6 +292,76 @@ def test_compose_task_is_refused(tmp_path: Path) -> None:
 
 def test_phase_network_policy_is_refused(tmp_path: Path) -> None:
     request = _request(_task(tmp_path, mimo=True, phase=True), tmp_path, agent="nop", model=None)
+    with pytest.raises(ValueError, match="phase network policies"):
+        validate_request(request)
+
+
+@pytest.mark.parametrize(
+    ("agent", "model"),
+    [
+        ("codex", None),
+        ("claude-code", None),
+        ("terminus-2", TERMINUS_LOCAL_MODEL_SELECTOR),
+    ],
+)
+def test_no_network_task_does_not_admit_in_container_model_agents(
+    tmp_path: Path, agent: str, model: str | None
+) -> None:
+    task = tmp_path / "in-container-model"
+    task.mkdir()
+    (task / "task.toml").write_text('[agent]\nnetwork_mode = "no-network"\n', encoding="utf-8")
+    request = _request(
+        task, tmp_path, environment="docker", agent=agent, model=model, egress_lock=True
+    )
+
+    with pytest.raises(ValueError, match="sandbox"):
+        validate_request(request)
+
+
+@pytest.mark.parametrize(
+    ("agent", "phase"),
+    [
+        ("terminus-2", '[agent]\nnetwork_mode = "no-network"\n'),
+        (
+            "mimoagent",
+            '[agent]\nnetwork_mode = "no-network"\n'
+            '[verifier]\nnetwork_mode = "no-network"\n',
+        ),
+        ("oracle", '[agent]\nnetwork_mode = "no-network"\n'),
+        ("nop", '[verifier]\nnetwork_mode = "no-network"\n'),
+    ],
+)
+def test_locked_docker_admits_no_network_phases_for_host_loops(
+    tmp_path: Path, agent: str, phase: str
+) -> None:
+    task = tmp_path / "airgapped-task"
+    task.mkdir()
+    (task / "task.toml").write_text(phase, encoding="utf-8")
+    request = _request(
+        task,
+        tmp_path,
+        environment="docker",
+        agent=agent,
+        model=MIMO_SELFHOSTED_MODEL_SELECTOR if agent not in {"oracle", "nop"} else None,
+        egress_lock=True,
+    )
+
+    validate_request(request)
+    assert resolve_egress_lock(request) is True
+
+
+@pytest.mark.parametrize("phase", ["agent", "verifier"])
+@pytest.mark.parametrize("mode", ['"public"', '"allowlist"', "false"])
+def test_locked_docker_refuses_phase_network_grants(
+    tmp_path: Path, phase: str, mode: str
+) -> None:
+    task = tmp_path / "network-grant"
+    task.mkdir()
+    (task / "task.toml").write_text(f"[{phase}]\nnetwork_mode = {mode}\n", encoding="utf-8")
+    request = _request(
+        task, tmp_path, environment="docker", agent="nop", model=None, egress_lock=True
+    )
+
     with pytest.raises(ValueError, match="phase network policies"):
         validate_request(request)
 

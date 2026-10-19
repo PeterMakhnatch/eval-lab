@@ -36,6 +36,20 @@ The reusable fix for problem 1 is in this change: `blind_atif` applied to all
 flattened evidence text in **0** documents. Problem 2 has no metadata fix;
 it defines which subset can honestly be used for exact-evidence supervision.
 
+**Fixed at the source (2026-10-19).** `evallab.cheatbench.convert` now
+returns the `blind_atif` projection and `materialize` writes `result.json` as
+`{}`. Labels and mechanisms live only in the `detectors-v1` manifest. The
+manifest's 4,268 CheatBench `trajectory_sha256` values were regenerated;
+`cb_subset.json` is byte-identical. The shared root
+`derived/detector-roots/cb` was re-materialized and checked:
+
+| | before | after |
+|---|---:|---:|
+| forbidden-field hits in trajectories | 12,804 | 0 |
+| label/mechanism/reward keys in `result.json` | 12,804 | 0 |
+| documents whose evidence text changed | — | 0 |
+| manifest hashes matching the files | 0 | 4,268 |
+
 ## Denominators
 
 | stage | count |

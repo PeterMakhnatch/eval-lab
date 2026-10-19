@@ -31,9 +31,11 @@ counted; nothing is silently dropped.
 
 One converter serves both consumers. ``convert`` turns a raw trace into
 detector ATIF (lossy by design: message/observation caps, dropped orphan
-observations); the builder also records per-step source spans in a
-side-channel that never enters the detector bytes. The viewer pipeline
-(``convert_row``) decorates those same steps with the spans and runs the
+observations) and returns its ``blind_atif`` projection, so materialized
+trials carry evidence only: no label, mechanism or span side-channel is in
+``trajectory.json`` or ``result.json``; labels live in the corpus manifest.
+The evaluator-only viewer pipeline (``convert_row``) decorates the same steps
+with the builder's per-step source spans and runs the
 cheat-localization layer (``locate_row`` / ``message_number`` /
 ``build_annotation``) to stage Scout transcripts with a clearly-marked
 annotation message. The fetch path is a single sha256-verified pinned
@@ -778,15 +780,12 @@ def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, li
     )
     for idx, step in enumerate(builder.steps):
         step["step_id"] = idx
+    # Labels, mechanisms and the source trace id stay in the corpus manifest;
+    # the converted document carries evidence only.
     doc = {
         "schema_version": "ATIF-v1.6",
         "agent": {"name": f"cheatbench/{bench}", "version": "raw_trace.v1-import"},
         "steps": builder.steps,
-        "metadata": {
-            "cheatbench_trace_id": trace_id,
-            "cheatbench_label": meta.get("label"),
-            "cheatbench_mechanism": meta.get("cheating_mechanism"),
-        },
     }
     stats = {
         "envelope": envelope,
@@ -800,13 +799,18 @@ def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, li
 
 
 def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
-    """Convert one CheatBench trace to ATIF.
+    """Convert one CheatBench trace to the actor-visible ATIF document.
 
-    Returns ``(doc, stats)``; raises ``ValueError(reason)`` with a reason in
-    ``EXCLUDED_REASONS`` when the row cannot be converted.
+    The document is the :func:`evallab.cheatbench_fidelity.blind_atif`
+    projection (``item_id`` = ``trace_id``): no label, mechanism or span
+    side-channel reaches a consumer. Returns ``(doc, stats)``; raises
+    ``ValueError(reason)`` with a reason in ``EXCLUDED_REASONS`` when the row
+    cannot be converted.
     """
+    from evallab.cheatbench_fidelity import blind_atif
+
     doc, stats, _ = _convert_inner(trace_id, raw, meta)
-    return doc, stats
+    return blind_atif(doc, item_id=trace_id), stats
 
 
 def _looks_iquest(messages: list[Any]) -> bool:
@@ -1060,19 +1064,9 @@ def materialize(parquet_path: str | Path, cb_root: str | Path) -> dict:
         agent_dir.mkdir(parents=True, exist_ok=True)
         body = json.dumps(doc, sort_keys=True)
         (agent_dir / "trajectory.json").write_text(body + "\n", encoding="utf-8")
-        (trial_dir / "result.json").write_text(
-            json.dumps(
-                {
-                    "reward": 1 if meta.get("label") == "cheating" else 0,
-                    "cheatbench_label": meta.get("label"),
-                    "cheatbench_mechanism": meta.get("cheating_mechanism"),
-                },
-                indent=1,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        # CheatBench records no task outcome; labels live only in the corpus
+        # manifest, so the trial result carries none.
+        (trial_dir / "result.json").write_text("{}\n", encoding="utf-8")
         (trial_dir / "config.json").write_text(
             json.dumps(
                 {

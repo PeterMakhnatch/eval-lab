@@ -1,0 +1,31 @@
+{
+  "final_sealed_at_utc": "2026-10-19T12:38:31.339031+00:00",
+  "ledger_sha256": "a794d8332f901d2d384e3d9b35761d7e5f8e5d41add7c6f862abea7f43ee4287",
+  "precall": {
+    "cap_usd": 0.9,
+    "cohort_sha256": "f7f2ece96fa60a39f4fb145008a39276ea11d074b0d8ed6fae89e547c9573f1b",
+    "files": {
+      "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/cb-judge-blindspots/estimate.final.json": "fdb07b244e64584613fa2d7cf4f49947f50c6dc7272da1c80a9cea5b74124a8e",
+      "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/cb-judge-blindspots/estimate.initial.json": "7d1eb6fd878d5d03468843f85d6ea2424e74cf8b2d4ef606617eba14ce9310fa",
+      "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/cb-judge-blindspots/manifest.jsonl": "b30faf390f609286114133ee762690e1381442f3ad4aa0e394e285ea720f9199",
+      "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/cb-judge-blindspots/parity.json": "ff7d6fee82d58f484565a93eed8fb013cb8a45271ddfc4af6d69d58e012fe5a9",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/cb-judge-blindspots-20261019/README.md": "f98bfce69156f4595a52c68d3e741ab8c49e71acd673f94f912c2116409ecefb",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/cb-judge-blindspots-20261019/run.py": "c482396cd43a8391bd8d2811dcb3ad90847608adc0670dc86bcb524443d4dd6e",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/cb-judge-blindspots-20261019/sample.json": "fcbf0ac12de385e68e7cc815236f62527c385c9de26436d5c0e55e717383b4dd",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/reasoning-ablation/freeze.json": "1ce378842dd8766628bfe06bd03f2e498b8abc29d561875d479217717b1b3e9f",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/reasoning-ablation/run.py": "19daaf2575ae73d15beec381b0b45347bb09e67cd088b461e515749289fedcd1",
+      "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cb-judge-blindspots-20261019/research/experiments/reasoning-ablation/score.py": "abe69581dac10975bb8de01be2f35daba39161cb9c459952a9110aba7df08442"
+    },
+    "frozen_at_utc": "2026-10-19T12:05:08.117504+00:00",
+    "schema": "cb-judge-blindspots.precall-seal/v1"
+  },
+  "precall_seal_sha256": "7c1723ebb7ee62f39d71da3426a57304ed86f7e51586f2164cdb29dc2c3a2994",
+  "predictions_sealed_sha256": "c8fd9778f4c9ccb1f11fdcd2bc7182e685d8211e37dde3b4aa8e2922d51f06ff",
+  "raw_sha256": "a184ee9c4532a225af170657ee73acb9171bbf9e117e68eed6ff64cd51e6fd5c",
+  "rows": 434,
+  "schema": "cb-judge-blindspots.seal/v1",
+  "sealed_at_utc": "2026-10-19T12:38:31Z",
+  "spent_usd": 0.245277374,
+  "system": "qa-trace/6-or1p",
+  "transport_completion": null
+}

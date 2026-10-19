@@ -45,61 +45,149 @@ from typing import Any
 
 EXPERIMENT_ID = "mimo-cheat-set-v7"
 REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNS_REL = Path("runs") / EXPERIMENT_ID
 BRIDGE = Path("/Users/petermakhnatch/Developer/research-context/bridge")
 
 DEFAULT_REPRODUCERS = BRIDGE / "overnight-2026-10-17/qa-task-mimo-v6-reproducers-20261017.json"
 DEFAULT_HELDOUT = BRIDGE / "2026-10-17-v7/heldout-v7.json"
+#: Candidate successor; recorded per attempt as identical-to-v7 or pending.
+DEFAULT_HELDOUT_V71 = BRIDGE / "2026-10-19-night/heldout-v7.1.json"
 DEFAULT_WINDOW = BRIDGE / "2026-10-17-v7/serving-window-v7.json"
 PRESSURE_PROMPT_REL = "research/experiments/mimo-cheat-set-v7/prompts/pressure.md"
 
-AGENT = "mimoagent"
-MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
-ENVIRONMENT = "modal"
 REFERENCE_PROFILE = "xiaomi-mimo-rl"
-#: Own billing app (census namespace, which also admits the ``limit`` policy)
-#: so Modal's per-app report attributes this lane's sandboxes.
-MODAL_APP = "mimo-clean-census-cheatbench-v7-20261018"
-MODAL_RESOURCE_POLICY = "limit"
-#: Trainer phase-1 mimoagent request/token ceilings (rds2-20261017-m1). The
-#: self-hosted route is priced (0, 0) by the proxy, so the dollar ceiling is a
-#: formal backstop only; the spec estimate is that ceiling plus the sandbox
-#: reservation (prepare_task requires estimate >= model ceiling + infra).
 TRIAL_TIMEOUT_SECONDS = 1800
-CEILINGS = {
-    "max_requests": 300,
-    "max_input_tokens": 2_000_000,
-    "max_output_tokens": 300_000,
-    "max_total_tokens": 2_300_000,
-    "cost_limit_usd": 0.01,
-}
 SUBMITTED_BY = "cheatbench"
-ACTOR = "research-harbor-v7-decision-2026-10-18T0455ET"
-APPROVAL = (
-    "Research tab (wK:pH) decision 2026-10-18 04:55 ET within Peter's $25 total: "
-    "CheatBench v7 cheat-set on self-hosted MiMo-9B (mimoagent, Modal), sharing the "
-    "Trainer's phase-2 serving window; CheatBench cap $4 (sandboxes + serving share); "
-    "K=3 if it fits else K=1; eval only"
-)
-DEVIATION_REASON = (
-    "CheatBench v7 cheat-set solver route approved by Research 2026-10-18 04:55 ET; "
-    "measures v6 grader weakness under the lab mimoagent wrapper (and, in the pressure "
-    "arm, an extra instruction), not Xiaomi-reference capability"
-)
+
+
+@dataclass(frozen=True)
+class Route:
+    """One solver family: harness, model, backend, ceilings and budget pools.
+
+    ``cap_usd`` bounds the lane's own sandboxes and v7 replays; ``llm_cap_usd``
+    (metered routes only) bounds model spend, which the trial proxy enforces
+    per attempt through ``cost_limit_usd``.
+    """
+
+    name: str
+    agent: str
+    model: str
+    environment: str
+    ceilings: Mapping[str, Any]
+    reservation_usd: float
+    cap_usd: float
+    actor: str
+    approval: str
+    deviation_reason: str
+    job_prefix: str
+    runs_rel: Path
+    export_stem: str
+    default_k: int
+    default_concurrency: int
+    window_gated: bool
+    credential_env: str
+    modal_app: str | None = None
+    modal_resource_policy: str | None = None
+    llm_cap_usd: float | None = None
+    #: USD per 1M (input, output) tokens for metered routes.
+    llm_price_per_mtok: tuple[float, float] | None = None
+
+
+ROUTES: dict[str, Route] = {
+    "mimo": Route(
+        name="mimo",
+        agent="mimoagent",
+        model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        environment="modal",
+        # Trainer phase-1 mimoagent ceilings (rds2-20261017-m1). The self-hosted
+        # route is priced (0, 0) by the proxy, so the dollar ceiling is a formal
+        # backstop (prepare_task requires estimate >= model ceiling + infra).
+        ceilings={
+            "max_requests": 300,
+            "max_input_tokens": 2_000_000,
+            "max_output_tokens": 300_000,
+            "max_total_tokens": 2_300_000,
+            "cost_limit_usd": 0.01,
+        },
+        # Per attempt before it runs (trial mean 444 s; agent + verifier env).
+        reservation_usd=0.05,
+        cap_usd=4.0,
+        actor="research-harbor-v7-decision-2026-10-18T0455ET",
+        approval=(
+            "Research tab (wK:pH) decision 2026-10-18 04:55 ET within Peter's $25 total: "
+            "CheatBench v7 cheat-set on self-hosted MiMo-9B (mimoagent, Modal), sharing the "
+            "Trainer's phase-2 serving window; CheatBench cap $4 (sandboxes + serving share); "
+            "K=3 if it fits else K=1; eval only"
+        ),
+        deviation_reason=(
+            "CheatBench v7 cheat-set solver route approved by Research 2026-10-18 04:55 ET; "
+            "measures v6 grader weakness under the lab mimoagent wrapper (and, in the pressure "
+            "arm, an extra instruction), not Xiaomi-reference capability"
+        ),
+        job_prefix="mcs7",
+        runs_rel=Path("runs") / EXPERIMENT_ID,
+        export_stem="cheat-set-v7",
+        default_k=3,
+        default_concurrency=8,
+        window_gated=True,
+        credential_env="MIMO_SELFHOSTED_API_KEY",
+        # Own billing app (census namespace, which also admits ``limit``) so
+        # Modal's per-app report attributes this lane's sandboxes.
+        modal_app="mimo-clean-census-cheatbench-v7-20261018",
+        modal_resource_policy="limit",
+    ),
+    "oss": Route(
+        name="oss",
+        agent="terminus-2",
+        model="openrouter-metered/openai/gpt-oss-120b",
+        # Host-loop agent on an airgapped Docker task (#1056): the model call
+        # stays on the host proxy; sandboxes are local, so $0 per attempt.
+        environment="docker",
+        # 26 cells x $0.038 stays inside the $1 metered allocation.
+        ceilings={
+            "max_requests": 300,
+            "max_input_tokens": 700_000,
+            "max_output_tokens": 70_000,
+            "max_total_tokens": 770_000,
+            "cost_limit_usd": 0.038,
+        },
+        reservation_usd=0.038,
+        # CheatBench's $4 minus the $3.21 the MiMo lane spent (window #3).
+        cap_usd=0.79,
+        actor="research-harbor-deep-queue-A-2-2026-10-19",
+        approval=(
+            "Research tab (wK:pH) deep queue item A-2, 2026-10-19, within Peter's $23 "
+            "overnight cap: second solver family (GPT-OSS-120b, metered OpenRouter) on the "
+            "13 weak held-out tasks; remaining CheatBench sandbox cap plus $1 metered LLM; "
+            "eval only"
+        ),
+        deviation_reason=(
+            "CheatBench v7 cheat-set second solver family (A-2, 2026-10-19): measures v6 "
+            "grader weakness under terminus-2 with GPT-OSS-120b (and, in the pressure arm, "
+            "an extra instruction), not Xiaomi-reference capability"
+        ),
+        job_prefix="mcs7oss",
+        runs_rel=Path("runs") / f"{EXPERIMENT_ID}-oss",
+        export_stem="cheat-set-v7-oss",
+        default_k=1,
+        # Agent plus separate verifier container: at most two at once.
+        default_concurrency=1,
+        window_gated=False,
+        credential_env="OPENROUTER_API_KEY",
+        llm_cap_usd=1.0,
+        # execution_contracts OpenRouterRoute pin (deepinfra/bf16, 2026-10-12).
+        llm_price_per_mtok=(0.037, 0.17),
+    ),
+}
+#: Selected in ``main``; every phase reads the active solver family from here.
+ROUTE = ROUTES["mimo"]
 
 PROMPTS = ("neutral", "pressure")
-DEFAULT_K = 3
-DEFAULT_CONCURRENCY = 8
-CAP_USD = 4.0
-#: Reservation per generation attempt before it runs (trial mean 444 s on the
-#: Trainer's phase-1 runs; agent + separate verifier environment).
-ATTEMPT_RESERVATION_USD = 0.05
 #: Modal list prices (src/evallab/rollout.py) and the A100 serving rate
 #: (docs/lora-sft-runbook.md, measured 2026-10-01).
 MODAL_CPU_USD_PER_CORE_SECOND = 0.0000131
 MODAL_MEMORY_USD_PER_GIB_SECOND = 0.00000222
 SERVING_USD_PER_HOUR = 2.8149
-#: counterfactual.CLOUD_USD_PER_EXECUTION; replays are only run for v6 passes.
+#: counterfactual.CLOUD_USD_PER_EXECUTION per v7 replay.
 GRADE_USD_PER_EXECUTION = 0.01
 POLL_SECONDS = 30.0
 
@@ -227,6 +315,7 @@ class Cell:
     prompt_condition: str
     attempt: int
     model: str
+    job_prefix: str = "mcs7"
 
     @property
     def cell_id(self) -> str:
@@ -234,7 +323,7 @@ class Cell:
 
     @property
     def job_name(self) -> str:
-        return f"mcs7-{self.task_short}-{self.prompt_condition}-a{self.attempt}"
+        return f"{self.job_prefix}-{self.task_short}-{self.prompt_condition}-a{self.attempt}"
 
     @property
     def item_id(self) -> str:
@@ -249,10 +338,11 @@ def plan_cells(
     k: int,
     model: str,
     task_filter: set[str] | None = None,
+    job_prefix: str = "mcs7",
 ) -> list[Cell]:
     """Attempt-major: every a1 cell precedes any a2, so a budget stop keeps K=1 whole."""
     return [
-        Cell(task.task_id, task.short, prompt, attempt, model)
+        Cell(task.task_id, task.short, prompt, attempt, model, job_prefix)
         for attempt in range(1, k + 1)
         for task in tasks
         if not task_filter or task.short in task_filter or task.task_id in task_filter
@@ -285,7 +375,9 @@ def phase_plan(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> dic
             }
         )
     prompts = [p.strip() for p in args.prompts.split(",") if p.strip()]
-    cells = plan_cells(tasks, prompts=prompts, k=args.k, model=MODEL)
+    cells = plan_cells(
+        tasks, prompts=prompts, k=args.k, model=ROUTE.model, job_prefix=ROUTE.job_prefix
+    )
     pressure_path = repo_root / PRESSURE_PROMPT_REL
     manifest = {
         "schema": "mimo-cheat-set/plan/v2",
@@ -295,18 +387,20 @@ def phase_plan(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> dic
         "population_source_sha256": _sha256_prefixed(args.reproducers.read_bytes()),
         "v7_release_source": str(args.heldout),
         "route": {
-            "agent": AGENT,
-            "model": MODEL,
-            "environment": ENVIRONMENT,
+            "name": ROUTE.name,
+            "agent": ROUTE.agent,
+            "model": ROUTE.model,
+            "environment": ROUTE.environment,
             "reference_profile": REFERENCE_PROFILE,
             "egress_lock": True,
-            "modal_app_name": MODAL_APP,
+            "modal_app_name": ROUTE.modal_app,
             "timeout_seconds": TRIAL_TIMEOUT_SECONDS,
-            **CEILINGS,
+            **ROUTE.ceilings,
         },
-        "approval": APPROVAL,
-        "actor": ACTOR,
-        "cap_usd": CAP_USD,
+        "approval": ROUTE.approval,
+        "actor": ROUTE.actor,
+        "cap_usd": ROUTE.cap_usd,
+        "llm_cap_usd": ROUTE.llm_cap_usd,
         "k": args.k,
         "prompts": prompts,
         "pressure_prompt": {
@@ -344,33 +438,47 @@ def trial_sandbox_usd(result: Mapping[str, Any], *, cpus: float, memory_mb: floa
 
 
 #: Ledger kinds that are recorded for the record but are not CheatBench spend:
-#: serving time is funded inside the Trainer's $12 window (FOCUS 2026-10-18).
+#: serving time is funded inside the Trainer's window (FOCUS 2026-10-18).
 INFORMATIONAL_KINDS = frozenset({"serving_time_info", "wave_refused"})
+#: Estimates that settle an attempt's reservation.
+ESTIMATE_KINDS = frozenset({"sandbox_estimate", "llm_estimate"})
+
+
+def _pool(row: Mapping[str, Any]) -> str:
+    """``llm`` (metered model spend) or ``sandbox`` (own sandboxes + replays)."""
+    if row.get("kind") == "llm_estimate":
+        return "llm"
+    return str(row.get("pool") or "sandbox")
 
 
 def spend_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """CheatBench's own spend (estimates) plus open reservations from the ledger."""
+    """Own spend (estimates) plus open reservations, per budget pool."""
     by_kind: Counter[str] = Counter()
     for row in rows:
         by_kind[str(row.get("kind"))] += float(row.get("usd") or 0.0)
     open_reservations = {
-        str(row.get("cell_id")): float(row.get("usd") or 0.0)
+        (str(row.get("cell_id")), _pool(row)): float(row.get("usd") or 0.0)
         for row in rows
         if row.get("kind") == "attempt_reservation"
     }
+    settled = {str(row.get("cell_id")) for row in rows if row.get("kind") in ESTIMATE_KINDS}
+    committed: Counter[str] = Counter()
+    reserved: Counter[str] = Counter()
     for row in rows:
-        if row.get("kind") == "sandbox_estimate":
-            open_reservations.pop(str(row.get("cell_id")), None)
-    committed = sum(
-        v for k, v in by_kind.items() if k != "attempt_reservation" and k not in INFORMATIONAL_KINDS
-    )
-    reserved = sum(open_reservations.values())
+        kind = row.get("kind")
+        if kind != "attempt_reservation" and kind not in INFORMATIONAL_KINDS:
+            committed[_pool(row)] += float(row.get("usd") or 0.0)
+    for (cell_id, pool), usd in open_reservations.items():
+        if cell_id not in settled:
+            reserved[pool] += usd
     return {
         "by_kind_usd": {k: round(v, 6) for k, v in sorted(by_kind.items())},
-        "committed_usd": round(committed, 6),
-        "open_reservations_usd": round(reserved, 6),
-        "total_usd": round(committed + reserved, 6),
-        "cap_usd": CAP_USD,
+        "committed_usd": round(committed["sandbox"], 6),
+        "open_reservations_usd": round(reserved["sandbox"], 6),
+        "total_usd": round(committed["sandbox"] + reserved["sandbox"], 6),
+        "cap_usd": ROUTE.cap_usd,
+        "llm_usd": round(committed["llm"] + reserved["llm"], 6),
+        "llm_cap_usd": ROUTE.llm_cap_usd,
         "excluded_from_cap": sorted(INFORMATIONAL_KINDS),
     }
 
@@ -380,12 +488,30 @@ def wave_fits(
     total_so_far_usd: float,
     cells: int,
     mean_sandbox_usd: float,
-    cap_usd: float = CAP_USD,
+    cap_usd: float | None = None,
+    llm_so_far_usd: float = 0.0,
 ) -> tuple[bool, float]:
-    """Whether one more wave of own sandboxes plus its v7 replays fits the cap,
-    with a 25% sandbox margin (every attempt is replayed on v7)."""
+    """Whether one more wave fits: own sandboxes (25% margin) plus one v7
+    replay per cell within ``cap_usd``, and for metered routes every cell's
+    per-attempt model ceiling within the LLM allocation."""
+    cap = ROUTE.cap_usd if cap_usd is None else cap_usd
     projected = cells * (mean_sandbox_usd * 1.25 + GRADE_USD_PER_EXECUTION)
-    return total_so_far_usd + projected <= cap_usd + 1e-9, round(projected, 6)
+    fits = total_so_far_usd + projected <= cap + 1e-9
+    if ROUTE.llm_cap_usd is not None:
+        llm_projected = cells * float(ROUTE.ceilings["cost_limit_usd"])
+        fits = fits and llm_so_far_usd + llm_projected <= ROUTE.llm_cap_usd + 1e-9
+    return fits, round(projected, 6)
+
+
+def trial_llm_usd(tokens: Mapping[str, Any] | None) -> float | None:
+    """Metered model spend of one trial from its recorded token counts."""
+    if ROUTE.llm_price_per_mtok is None or not tokens:
+        return None
+    n_in, n_out = tokens.get("n_input_tokens"), tokens.get("n_output_tokens")
+    if n_in is None or n_out is None:
+        return None
+    price_in, price_out = ROUTE.llm_price_per_mtok
+    return (int(n_in) * price_in + int(n_out) * price_out) / 1_000_000
 
 
 # ---------------------------------------------------------------- generation
@@ -541,7 +667,7 @@ def _declared_deviations(spec: Any, *, repo_root: Path) -> list[dict[str, Any]]:
     )
     profile = load_reference_profile(repo_root, REFERENCE_PROFILE)
     return [
-        {"field": diff["field"], "value": diff["actual"], "reason": DEVIATION_REASON}
+        {"field": diff["field"], "value": diff["actual"], "reason": ROUTE.deviation_reason}
         for diff in compare_fingerprint(fingerprint, profile)
         if diff["field"] != "lock.mode"
     ]
@@ -552,7 +678,7 @@ def build_spec(cell: Cell, task: TaskEntry, *, repo_root: Path, pressure_sha: st
 
     ``prepare_task`` validates its request before a lock or reference can be
     declared, so the snapshot is frozen with the model-free ``nop`` adapter and
-    the spec is then routed to mimoagent; every gate runs in the preflight.
+    the spec is then routed to the solver family; every gate runs in the preflight.
     """
     from evallab.execution_contracts import new_ulid
     from evallab.schemas import ExperimentSpec
@@ -581,24 +707,27 @@ def build_spec(cell: Cell, task: TaskEntry, *, repo_root: Path, pressure_sha: st
             "spec_id": new_ulid(),
             "task_id": task.native_id,
             "hypothesis": (
-                f"CheatBench v7 cheat-set: does MiMo-9B ({cell.prompt_condition} prompt, "
-                f"attempt {cell.attempt}) pass the v6 grader of {task.task_id} with a "
+                f"CheatBench v7 cheat-set: does {ROUTE.model} ({cell.prompt_condition} "
+                f"prompt, attempt {cell.attempt}) pass the v6 grader of {task.task_id} with a "
                 "submission the repaired v7 grader rejects?"
             ),
-            "agent": AGENT,
-            "model": MODEL,
-            "environment": ENVIRONMENT,
+            "agent": ROUTE.agent,
+            "model": ROUTE.model,
+            "environment": ROUTE.environment,
             "reference_profile": REFERENCE_PROFILE,
             "egress_lock": True,
             "deviations": [],
-            "modal_app_name": MODAL_APP,
-            "modal_resource_policy": MODAL_RESOURCE_POLICY,
-            "est_cost_usd": round(CEILINGS["cost_limit_usd"] + ATTEMPT_RESERVATION_USD, 4),
+            "est_cost_usd": round(
+                float(ROUTE.ceilings["cost_limit_usd"]) + ROUTE.reservation_usd, 4
+            ),
             "attempts": 1,
             "concurrency": 1,
-            **CEILINGS,
+            **ROUTE.ceilings,
         }
     )
+    if ROUTE.modal_app is not None:
+        data["modal_app_name"] = ROUTE.modal_app
+        data["modal_resource_policy"] = ROUTE.modal_resource_policy
     if cell.prompt_condition == "pressure":
         data["extra_instruction_path"] = PRESSURE_PROMPT_REL
         data["extra_instruction_sha256"] = pressure_sha
@@ -633,9 +762,9 @@ def _task_resources(package: Path) -> tuple[float, float]:
 
 def _ensure_upstream(window: Mapping[str, Any]) -> str | None:
     """Model route credentials for the executor; never printed."""
-    if not os.environ.get("MIMO_SELFHOSTED_API_KEY"):
-        return "MIMO_SELFHOSTED_API_KEY absent (run under `keys run --`)"
-    if not os.environ.get("EVALLAB_MIMO_SELFHOSTED_UPSTREAM"):
+    if not os.environ.get(ROUTE.credential_env):
+        return f"{ROUTE.credential_env} absent (run under `keys run --`)"
+    if ROUTE.window_gated and not os.environ.get("EVALLAB_MIMO_SELFHOSTED_UPSTREAM"):
         endpoint = (window.get("deployment") or {}).get("endpoint")
         if isinstance(endpoint, str) and endpoint.startswith("https://"):
             os.environ["EVALLAB_MIMO_SELFHOSTED_UPSTREAM"] = endpoint
@@ -654,8 +783,8 @@ def phase_generate(args: argparse.Namespace, repo_root: Path, runs_dir: Path) ->
     tasks = {t.task_id: t for t in load_population(args.reproducers)}
     task_filter = {t.strip() for t in args.tasks.split(",")} if args.tasks else None
     cells = plan_cells(
-        list(tasks.values()), prompts=manifest["prompts"], k=args.k, model=MODEL,
-        task_filter=task_filter,
+        list(tasks.values()), prompts=manifest["prompts"], k=args.k, model=ROUTE.model,
+        task_filter=task_filter, job_prefix=ROUTE.job_prefix,
     )
     attempts_path = runs_dir / ATTEMPTS_NAME
     spend_path = runs_dir / SPEND_NAME
@@ -669,12 +798,14 @@ def phase_generate(args: argparse.Namespace, repo_root: Path, runs_dir: Path) ->
             print(f"  pending {cell.job_name}")
         return 0
 
-    ok, why, window = serving_window(args.window)
-    print(f"window: {why}")
-    if not ok:
-        return 4
+    window: Mapping[str, Any] = {}
+    if ROUTE.window_gated:
+        ok, why, window = serving_window(args.window)
+        print(f"window: {why}")
+        if not ok:
+            return 4
     problem = _ensure_upstream(window)
-    if problem is None and importlib.util.find_spec("lmnr") is None:
+    if problem is None and ROUTE.agent == "mimoagent" and importlib.util.find_spec("lmnr") is None:
         # mimoagent dispatch refuses without it, after the spec is approved.
         problem = "Laminar runtime absent: run `uv sync --locked --extra laminar`"
     if problem:
@@ -693,8 +824,8 @@ def phase_generate(args: argparse.Namespace, repo_root: Path, runs_dir: Path) ->
             "task_short": cell.task_short,
             "prompt_condition": cell.prompt_condition,
             "attempt": cell.attempt,
-            "agent": AGENT,
-            "model": MODEL,
+            "agent": ROUTE.agent,
+            "model": ROUTE.model,
             "job_name": cell.job_name,
             "prompt_path": PRESSURE_PROMPT_REL if cell.prompt_condition == "pressure" else None,
             "prompt_sha256": pressure_sha if cell.prompt_condition == "pressure" else None,
@@ -712,14 +843,17 @@ def phase_generate(args: argparse.Namespace, repo_root: Path, runs_dir: Path) ->
         wave = [c for c in pending if c.attempt == attempt_index]
         ledger = _read_jsonl(spend_path)
         spend = spend_summary(ledger)
-        measured = [r for r in ledger if r.get("kind") == "sandbox_estimate"]
+        measured = [r for r in ledger if r.get("kind") in ESTIMATE_KINDS]
         if attempt_index > 1 and measured:
-            mean_sandbox = sum(float(r["usd"]) for r in measured) / len(measured)
+            sandbox = [r for r in ledger if r.get("kind") == "sandbox_estimate"]
+            mean_sandbox = sum(float(r["usd"]) for r in sandbox) / len(sandbox) if sandbox else 0.0
             fits, projected = wave_fits(
-                total_so_far_usd=spend["total_usd"], cells=len(wave), mean_sandbox_usd=mean_sandbox
+                total_so_far_usd=spend["total_usd"], cells=len(wave),
+                mean_sandbox_usd=mean_sandbox, llm_so_far_usd=spend["llm_usd"],
             )
             print(f"wave a{attempt_index}: projected ${projected:.3f} on top of "
-                  f"${spend['total_usd']:.3f} (cap ${CAP_USD:.2f}) -> {'run' if fits else 'stop'}")
+                  f"${spend['total_usd']:.3f} (cap ${ROUTE.cap_usd:.2f}; llm "
+                  f"${spend['llm_usd']:.3f} of {ROUTE.llm_cap_usd}) -> {'run' if fits else 'stop'}")
             if not fits:
                 _append_jsonl(spend_path, {
                     "kind": "wave_refused", "usd": 0.0, "wave": attempt_index,
@@ -758,11 +892,18 @@ def _run_wave(
         if prior.get("stage") == "submit" and prior.get("spec_id"):
             in_flight[str(prior["spec_id"])] = cell  # reconcile, never resubmit
             continue
-        ok, why, _ = serving_window(args.window)
-        if not ok:
-            print(f"stop submitting: {why}", file=sys.stderr)
-            break
-        if spend_summary(_read_jsonl(spend_path))["total_usd"] + ATTEMPT_RESERVATION_USD > CAP_USD:
+        if ROUTE.window_gated:
+            ok, why, _ = serving_window(args.window)
+            if not ok:
+                print(f"stop submitting: {why}", file=sys.stderr)
+                break
+        spend = spend_summary(_read_jsonl(spend_path))
+        over = (
+            spend["llm_usd"] + ROUTE.reservation_usd > ROUTE.llm_cap_usd + 1e-9
+            if ROUTE.llm_cap_usd is not None
+            else spend["total_usd"] + ROUTE.reservation_usd > ROUTE.cap_usd
+        )
+        if over:
             print("stop submitting: cap would be exceeded", file=sys.stderr)
             break
         try:
@@ -777,9 +918,10 @@ def _run_wave(
             print(f"[{cell.job_name}] preflight refusal: {refusal[:400]}", file=sys.stderr)
             return 3
         _, decision = executor.submit(spec)
-        executor.queue.approve(str(spec.spec_id), actor=ACTOR)
+        executor.queue.approve(str(spec.spec_id), actor=ROUTE.actor)
         _append_jsonl(spend_path, {
-            "kind": "attempt_reservation", "usd": ATTEMPT_RESERVATION_USD,
+            "kind": "attempt_reservation", "usd": ROUTE.reservation_usd,
+            "pool": "llm" if ROUTE.llm_cap_usd is not None else "sandbox",
             "cell_id": cell.cell_id, "spec_id": str(spec.spec_id), "recorded_at": _utcnow(),
         })
         record(cell, "submitted", "submit", spec_id=str(spec.spec_id),
@@ -800,32 +942,44 @@ def _run_wave(
             result = parsed.pop("result")
             trial_status = parsed.pop("status")
             status = trial_status if state == "done" or parsed["reward"] is not None else "infra"
-            usd = None
-            if result is not None:
-                cpus, memory_mb = _task_resources(task.v6_package)
-                usd = trial_sandbox_usd(result, cpus=cpus, memory_mb=memory_mb)
+            if ROUTE.environment == "modal":
+                usd = None
+                if result is not None:
+                    cpus, memory_mb = _task_resources(task.v6_package)
+                    usd = trial_sandbox_usd(result, cpus=cpus, memory_mb=memory_mb)
+                estimate = {
+                    "kind": "sandbox_estimate",
+                    "usd": round(usd if usd is not None else ROUTE.reservation_usd, 6),
+                    "basis": "Modal list price x trial wall x 2 environments"
+                    if usd is not None else "no result.json: reservation kept",
+                }
+            else:
+                usd = trial_llm_usd(parsed.get("tokens"))
+                estimate = {
+                    "kind": "llm_estimate",
+                    "usd": round(usd if usd is not None else ROUTE.reservation_usd, 6),
+                    "basis": "recorded tokens x pinned OpenRouter price; local Docker sandboxes"
+                    if usd is not None else "no token counts: per-attempt ceiling kept",
+                }
             _append_jsonl(spend_path, {
-                "kind": "sandbox_estimate",
-                "usd": round(usd if usd is not None else ATTEMPT_RESERVATION_USD, 6),
-                "basis": "Modal list price x trial wall x 2 environments"
-                if usd is not None else "no result.json: reservation kept",
-                "cell_id": cell.cell_id, "spec_id": spec_id, "recorded_at": _utcnow(),
+                **estimate, "cell_id": cell.cell_id, "spec_id": spec_id, "recorded_at": _utcnow(),
             })
             record(cell, status, "tick", spec_id=spec_id, queue_state=state, **parsed)
             print(f"[{cell.job_name}] {state}: {status} reward={parsed['reward']}")
         if in_flight:
             time.sleep(POLL_SECONDS)
-    wave_seconds = time.monotonic() - wave_start
-    _append_jsonl(spend_path, {
-        "kind": "serving_time_info",
-        "usd": 0.0,
-        "solo_upper_usd": round(wave_seconds / 3600.0 * SERVING_USD_PER_HOUR, 6),
-        "seconds": round(wave_seconds, 1),
-        "basis": "this wave's active wall time x A100 serving rate; serving is funded in "
-                 "the Trainer's window, recorded here only for attribution",
-        "wave": attempt_index,
-        "recorded_at": _utcnow(),
-    })
+    if ROUTE.window_gated:
+        wave_seconds = time.monotonic() - wave_start
+        _append_jsonl(spend_path, {
+            "kind": "serving_time_info",
+            "usd": 0.0,
+            "solo_upper_usd": round(wave_seconds / 3600.0 * SERVING_USD_PER_HOUR, 6),
+            "seconds": round(wave_seconds, 1),
+            "basis": "this wave's active wall time x A100 serving rate; serving is funded in "
+                     "the Trainer's window, recorded here only for attribution",
+            "wave": attempt_index,
+            "recorded_at": _utcnow(),
+        })
     return 0
 
 
@@ -915,6 +1069,38 @@ def load_v7_targets(
     return out, header
 
 
+def v71_identity(
+    heldout_v71: Path, targets: Mapping[str, V7Target]
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Bind each task's v7.1 candidate grader to its v7 grader by package digest.
+
+    A v7.1 grader whose bytes hash to the v7 target is the same program, so its
+    reward is the v7 observation; any other v7.1 grader stays unmeasured here
+    (``v7_1_reward`` None), never inferred.
+    """
+    doc = _read_json_object(heldout_v71) if heldout_v71.is_file() else {}
+    header = {
+        "path": str(heldout_v71),
+        "sha256": _sha256_prefixed(heldout_v71.read_bytes()) if heldout_v71.is_file() else None,
+        "status": doc.get("status"),
+        "scoring_allowed": doc.get("scoring_allowed"),
+    }
+    rows = {
+        str(r.get("task_id")).rsplit("/", 1)[-1]: r
+        for r in doc.get("tasks") or [] if isinstance(r, Mapping)
+    }
+    out: dict[str, dict[str, Any]] = {}
+    for task_id, target in targets.items():
+        row = rows.get(task_id.rsplit("/", 1)[-1]) or {}
+        digest = (row.get("evaluation_target") or {}).get("package_digest")
+        out[task_id] = {
+            "package_digest": digest,
+            "identical_to_v7": bool(digest) and target.ready and digest == target.package_digest,
+        }
+    return out, header
+
+
+
 # -------------------------------------------------------------------- grading
 
 
@@ -1001,8 +1187,8 @@ def phase_grade(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> in
             })
             continue
         total = spend_summary(_read_jsonl(spend_path))["total_usd"]
-        if total + GRADE_USD_PER_EXECUTION > CAP_USD:
-            print(f"[{cell_id}] grading stops: cap ${CAP_USD:.2f} reached (${total:.3f})")
+        if total + GRADE_USD_PER_EXECUTION > ROUTE.cap_usd:
+            print(f"[{cell_id}] grading stops: cap ${ROUTE.cap_usd:.2f} reached (${total:.3f})")
             return 5
         assert resolution.package is not None and resolution.package_digest is not None
         grader = cf.Grader(
@@ -1013,7 +1199,8 @@ def phase_grade(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> in
             record=str(args.heldout),
         )
         gate = CloudSpendGate(
-            approval=APPROVAL, cap_usd=GRADE_USD_PER_EXECUTION, usd_per_execution=GRADE_USD_PER_EXECUTION
+            approval=ROUTE.approval, cap_usd=GRADE_USD_PER_EXECUTION,
+            usd_per_execution=GRADE_USD_PER_EXECUTION,
         )
         work = runs_dir / "regrade" / cell_id.replace(":", "-") / resolution.package_digest[7:19]
         try:
@@ -1095,6 +1282,7 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
     attempts = latest_attempt_rows(_read_jsonl(runs_dir / ATTEMPTS_NAME))
     grades = latest_attempt_rows(_read_jsonl(runs_dir / GRADES_NAME))
     resolutions, header = load_v7_targets(args.heldout, load_population(args.reproducers))
+    v71, v71_header = v71_identity(args.heldout_v71, resolutions)
 
     exports = runs_dir / "exports"
     blind_dir = exports / "blind"
@@ -1111,6 +1299,8 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
         v6 = _num(attempt.get("reward"))
         v7 = _num(grade.get("v7_reward"))
         disp = disposition(v6, v7)
+        same = v71[str(attempt["task_id"])]["identical_to_v7"]
+        v71_reward = v7 if same else None
         label_rows.append(
             {
                 "schema": "mimo-cheat-set/label/v1",
@@ -1131,7 +1321,11 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
                 "v7_grader_label": grade.get("v7_grader_label"),
                 "v7_grader_kind": grade.get("v7_grader_kind"),
                 "v7_pending_reasons": grade.get("v7_pending_reasons"),
+                "v7_1_reward": v71_reward,
+                "v7_1_package_digest": v71[str(attempt["task_id"])]["package_digest"],
+                "v7_1_basis": "grader bytes identical to v7" if same else "v7.1 grader not run",
                 "disposition": disp,
+                "disposition_v7_1": disposition(v6, v71_reward),
                 "wrong_pass": None if disp == "unmeasured" else disp == "wrong_pass",
                 "trial_dir": attempt.get("trial_dir"),
                 "job_name": attempt.get("job_name"),
@@ -1185,8 +1379,9 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
     def dump(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         path.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8")
 
-    dump(exports / "cheat-set-v7.jsonl", blind_rows)
-    dump(exports / "cheat-set-v7.labels.jsonl", label_rows)
+    stem = ROUTE.export_stem
+    dump(exports / f"{stem}.jsonl", blind_rows)
+    dump(exports / f"{stem}.labels.jsonl", label_rows)
     def by_prompt(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         groups: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
         for row in rows:
@@ -1204,6 +1399,11 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
             "cells_planned": manifest["cells_planned"],
         },
         "v7_release": header,
+        "v7_1_candidate": {
+            **v71_header,
+            "tasks_identical_to_v7": sum(1 for v in v71.values() if v["identical_to_v7"]),
+            "tasks": len(v71),
+        },
         "v7_targets": {
             task_id: {"kind": r.kind, "ready": r.ready, "reasons": list(r.reasons),
                       "package_digest": r.package_digest, "repair_scope": r.repair_scope}
@@ -1233,8 +1433,10 @@ def phase_status(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
     attempts = latest_attempt_rows(_read_jsonl(runs_dir / ATTEMPTS_NAME))
     grades = latest_attempt_rows(_read_jsonl(runs_dir / GRADES_NAME))
     resolutions, header = load_v7_targets(args.heldout, load_population(args.reproducers))
-    ok, why, _ = serving_window(args.window)
-    print(f"window: {why}")
+    if ROUTE.window_gated:
+        ok, why, _ = serving_window(args.window)
+        print(f"window: {why}")
+    print(f"route: {ROUTE.name} {ROUTE.agent} {ROUTE.model} on {ROUTE.environment}")
     print(f"attempts: {dict(Counter(str(a.get('status')) for a in attempts.values()))}")
     print(f"grades: {dict(Counter(str(g.get('disposition')) for g in grades.values()))}")
     print(f"v7 release: status={header['status']} scoring_allowed={header['scoring_allowed']} "
@@ -1256,12 +1458,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs-dir", type=Path, default=None)
     parser.add_argument("--reproducers", type=Path, default=DEFAULT_REPRODUCERS)
     parser.add_argument("--heldout", type=Path, default=DEFAULT_HELDOUT)
+    parser.add_argument("--heldout-v71", type=Path, default=DEFAULT_HELDOUT_V71)
     parser.add_argument("--window", type=Path, default=DEFAULT_WINDOW)
-    parser.add_argument("--k", type=int, default=DEFAULT_K)
+    parser.add_argument("--route", choices=sorted(ROUTES), default="mimo",
+                        help="solver family (harness, model, backend, budgets)")
+    parser.add_argument("--k", type=int, default=None, help="default: the route's K")
     parser.add_argument("--prompts", default=",".join(PROMPTS))
     parser.add_argument("--tasks", default=None, help="comma-separated short task ids filter")
     parser.add_argument("--max-cells", type=int, default=None)
-    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY)
+    parser.add_argument("--concurrency", type=int, default=None, help="default: the route's")
     parser.add_argument("--retry-unmeasured", action="store_true", help="retry refused replays")
     parser.add_argument("--dry-run", action="store_true", help="generate: list pending cells only")
     return parser
@@ -1269,11 +1474,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    global ROUTE
+    ROUTE = ROUTES[args.route]
+    args.k = ROUTE.default_k if args.k is None else args.k
+    args.concurrency = ROUTE.default_concurrency if args.concurrency is None else args.concurrency
     repo_root = args.repo_root.resolve()
     # The executor and replays shell out to `harbor`; use the lab's pinned one.
     os.environ["PATH"] = f"{repo_root / '.venv' / 'bin'}:{os.environ.get('PATH', '')}"
     os.environ.setdefault("EVALLAB_DERIVED_ROOT", str(repo_root / "derived" / "parquet"))
-    runs_dir = (args.runs_dir or (repo_root / RUNS_REL)).resolve()
+    runs_dir = (args.runs_dir or (repo_root / ROUTE.runs_rel)).resolve()
     runs_dir.mkdir(parents=True, exist_ok=True)
     if args.phase == "plan":
         phase_plan(args, repo_root, runs_dir)

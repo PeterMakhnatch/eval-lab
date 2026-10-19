@@ -1,0 +1,8 @@
+{"reason": "unmeasured", "source": "cheat-set", "source_id": "cs7-2f87fe2df245425c", "status": "excluded"}
+{"reason": "unmeasured", "source": "cheat-set", "source_id": "cs7-39517921c6a6cba8", "status": "excluded"}
+{"reason": "unmeasured", "source": "cheat-set", "source_id": "cs7-b9178b99e6ec659b", "status": "excluded"}
+{"reason": "repaired fail: fail vs wrong pass needs a v6 grade", "source": "native", "source_id": "000089-k2", "status": "excluded"}
+{"reason": "repaired fail: fail vs wrong pass needs a v6 grade", "source": "native", "source_id": "000125-k1", "status": "excluded"}
+{"reason": "unmeasured", "source": "native", "source_id": "000125-k2", "status": "excluded"}
+{"reason": "unmeasured", "source": "native", "source_id": "000125-k3", "status": "excluded"}
+{"reason": "unmeasured", "source": "native", "source_id": "000125-k4", "status": "excluded"}

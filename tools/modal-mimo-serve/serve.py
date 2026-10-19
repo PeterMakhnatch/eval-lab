@@ -3,8 +3,10 @@
 One A100-80GB, 262144-token context, OpenAI-compatible ``/v1/chat/completions``. Every
 ``/v1`` call must carry ``Authorization: Bearer <SGLANG_API_KEY>``; the key
 comes from the Modal Secret ``evallab-mimo-v26-9b-api-key``. Weights live on
-the Modal Volume ``evallab-mimo-v26-9b-weights``. At most one container runs,
-and it scales to zero after 5 idle minutes.
+the Modal Volume ``evallab-mimo-v26-9b-weights``. At most one container runs;
+without an admitted owned window it scales to zero after the configured idle
+window (default 300 seconds), while an owned window holds that one container
+warm for the window's bounded life.
 
 From the repository root::
 
@@ -213,7 +215,9 @@ def sglang_command(api_key: str) -> list[str]:
     memory=SERVER_MEMORY,
     volumes={WEIGHTS_ROOT: weights},
     secrets=[modal.Secret.from_name(SECRET_NAME, required_keys=["SGLANG_API_KEY"])],
-    min_containers=0,
+    # An owned admitted window keeps its one model container warm for the
+    # window's bounded life; unowned deployments still scale to zero when idle.
+    min_containers=1 if WINDOW is not None else 0,
     max_containers=1,
     buffer_containers=0,
     scaledown_window=SCALEDOWN_WINDOW_SECONDS,

@@ -434,8 +434,18 @@ def stage_pair_packages(
 
 
 def check_codex_quota() -> dict[str, Any]:
+    """Fail closed on the quota script's own ceiling.
+
+    The script defaults to 60% and raises that ceiling only when the caller
+    sets ``RH_PAUSE_ABOVE``. A second hardcoded 60 here would ignore an
+    approved higher overnight ceiling.
+    """
     if not QUOTA_SCRIPT.is_file():
-        return {"subscription_work_allowed": True, "weekly_used_percent": 0}
+        return {
+            "subscription_work_allowed": True,
+            "weekly_used_percent": 0,
+            "pause_above_percent": 60,
+        }
     res = subprocess.run(
         [sys.executable, str(QUOTA_SCRIPT)],
         capture_output=True,
@@ -446,7 +456,9 @@ def check_codex_quota() -> dict[str, Any]:
     if res.returncode != 0:
         raise RuntimeError(f"Codex quota check failed: {res.stderr or res.stdout}")
     data = json.loads(res.stdout)
-    if not data.get("subscription_work_allowed") or int(data.get("weekly_used_percent", 0)) >= 60:
+    ceiling = int(data.get("pause_above_percent", 60))
+    used = int(data.get("weekly_used_percent", 0))
+    if not data.get("subscription_work_allowed") or used >= ceiling:
         raise RuntimeError(f"Codex weekly quota gate reached: {data}")
     return data
 

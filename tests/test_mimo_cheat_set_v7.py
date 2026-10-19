@@ -85,17 +85,29 @@ def test_disposition(v6, v7, expected):
 
 def test_compute_rates_only_v7_graded_passes_in_denominator():
     rows = [
-        {"v6_reward": 1.0, "v7_reward": 0.0, "disposition": "wrong_pass"},
-        {"v6_reward": 1.0, "v7_reward": 1.0, "disposition": "real_pass"},
-        {"v6_reward": 1.0, "v7_reward": None, "disposition": "unmeasured"},
-        {"v6_reward": 0.0, "v7_reward": None, "disposition": "not_a_pass"},
-        {"v6_reward": None, "v7_reward": None, "disposition": "unmeasured"},
+        {"task_id": "a", "v6_reward": 1.0, "v7_reward": 0.0, "disposition": "wrong_pass"},
+        {"task_id": "a", "v6_reward": 1.0, "v7_reward": 0.0, "disposition": "wrong_pass"},
+        {"task_id": "b", "v6_reward": 1.0, "v7_reward": 1.0, "disposition": "real_pass"},
+        {"task_id": "c", "v6_reward": 1.0, "v7_reward": None, "disposition": "unmeasured"},
+        {"task_id": "d", "v6_reward": 0.0, "v7_reward": None, "disposition": "not_a_pass"},
+        {"task_id": "e", "v6_reward": None, "v7_reward": None, "disposition": "unmeasured"},
     ]
     rates = cs.compute_rates(rows)
-    assert (rates["generation_measured"], rates["v6_passes"]) == (4, 3)
+    assert (rates["generation_measured"], rates["v6_passes"]) == (5, 4)
     assert rates["v6_passes_v7_pending"] == 1
-    assert rates["wrong_pass_rate_among_v7_graded_v6_passes"] == pytest.approx(1 / 2)
-    assert rates["wrong_pass_rate_per_measured_attempt_lower_bound"] == pytest.approx(1 / 4)
+    among = rates["wrong_pass_rate_among_v7_graded_v6_passes"]
+    assert (among["k"], among["n"]) == (2, 3)
+    lo, hi = among["wilson95"]
+    assert lo < 2 / 3 < hi
+    assert rates["wrong_pass_rate_per_measured_attempt_lower_bound"]["n"] == 5
+    # Two wrong passes on one task count once at task level.
+    tasks = rates["tasks_with_wrong_pass"]
+    assert (tasks["k"], tasks["n"]) == (1, 2)
+
+
+def test_compute_rates_empty_group_has_no_rate():
+    rates = cs.compute_rates([])
+    assert rates["wrong_pass_rate_among_v7_graded_v6_passes"]["rate"] is None
 
 
 def test_attempt_terminal_only_after_tick():

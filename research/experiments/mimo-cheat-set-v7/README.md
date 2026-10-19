@@ -95,6 +95,9 @@ not in the assigned list and two are semantically held by the Verifier lane.
   repaired-grader tasks (headline) and once over all tasks, plus the grader
   kind per task and spend: v6 pass rate, wrong-pass rate among v6 passes
   that have a v7 grade, a per-attempt lower bound, and pending-v7 counts.
+  Every rate is `{k, n, rate, wilson95}`. Attempts on one task are not
+  independent, so `tasks_with_wrong_pass` (tasks with ≥1 wrong pass among
+  tasks with ≥1 v7-graded v6 pass) is reported alongside.
 
 ## Run
 

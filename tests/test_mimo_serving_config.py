@@ -38,6 +38,7 @@ def test_invalid_deployment_configuration_refuses_before_registration(monkeypatc
         "EVALLAB_MIMO_GPU",
         "EVALLAB_MIMO_MAX_RUNNING_REQUESTS",
         "EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS",
+        "EVALLAB_MIMO_SERVING_WINDOW",
     ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv(name, value)

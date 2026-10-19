@@ -15,6 +15,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | hacktrace-act-v1 | 150 (75/75) | 150 (75/75) test | 0 / 0 | 222 | 0 |
 | mimo-heldout-v6-to-v7 | 0 (0/0) | 33 (11/0) heldout | 0 / 0 | 33 | 0 |
 | mimo-stratified-sample100 | 40 (12/0) | 60 (11/0) test | 0 / 0 | 100 | 0 |
+| mimo-v7-canonical-pass70 | 0 (0/0) | 70 (6/64) test | 0 / 0 | 27 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
 | mimo-weak-tests-v2 | 45 (45/0) | 66 (66/0) test | 0 / 0 | 111 | 0 |
 | mimo-weak-tests-v2.1 | 46 (46/0) | 68 (68/0) test | 0 / 0 | 114 | 0 |
@@ -38,9 +39,9 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | filter-js-from-html | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | financial-document-processor | breaker-bench-v1 | tb2-to-tb21-v1 |
 | fix-ocaml-gc | breaker-bench-v1 | tb2-to-tb21-v1 |
-| format-code-task-001246 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
+| format-code-task-001246 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
 | format-code-task-001480 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
-| format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
+| format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
 | git-multibranch | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | make-doom-for-mips | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | mteb-leaderboard | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
@@ -102,6 +103,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | envcheck-867-repair-dev | tuned | EnvCheck | executed-outcomes-v1 | 11 | 18 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-heldout-v6-to-v7 | 0 | 2 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-stratified-sample100 | 4 | 2 |
+| envcheck-867-repair-dev | tuned | EnvCheck | mimo-v7-canonical-pass70 | 0 | 4 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v1 | 1 | 0 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v2 | 0 | 3 |
 | envcheck-867-repair-dev | tuned | EnvCheck | mimo-weak-tests-v2.1 | 0 | 3 |
@@ -124,12 +126,14 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-s2-heldout-metadata | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | executed-outcomes-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-heldout-v6-to-v7 | 0 | 3 |
+| qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-v7-canonical-pass70 | 0 | 9 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-weak-tests-v2.1 | 0 | 3 |
 | qa-trace-5-t3-fusion-fix | tuned | QA Trace (qa-trace/5*) | trace-paired-v1 | 6 | 2 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | executed-outcomes-v1 | 0 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-heldout-v6-to-v7 | 0 | 33 |
+| qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-v7-canonical-pass70 | 0 | 70 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v1 | 3 | 7 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2 | 0 | 3 |
 | qa-task-mimo-v6-heldout-audit-33 | inspected | QA Task from 2026-10-17 | mimo-weak-tests-v2.1 | 0 | 3 |

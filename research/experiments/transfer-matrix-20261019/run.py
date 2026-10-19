@@ -396,12 +396,13 @@ def frozen_threshold(train_scores: list[float], fpr: float) -> float:
     return ordered[allowed] if allowed < len(ordered) else -math.inf
 
 
-#: Registered answer keys (the MiMo pass-70 key is not registered on main yet).
+#: Registered answer keys and their frozen test slots.
 SCOREBOARD_KEYS = {
     "cheatbench-actions-v1": 150,
     "hacktrace-act-v1": 150,
     "trajectory-judge-400": 188,
     "trace-paired-v1": 27,
+    "mimo-v7-canonical-pass70": 70,
 }
 
 

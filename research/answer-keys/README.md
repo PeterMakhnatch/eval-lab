@@ -161,6 +161,13 @@ behavioral intent. No model calls, submitted-code execution, or regrading occur.
   Both external keys have `subject.task_digest: null` because they do not provide
   digest-bound runnable task packages; source and trajectory byte hashes are
   separate manifest fields.
+- [`mimo-v7-canonical-pass70`](mimo-v7-canonical-pass70/README.md): **70 MiMo v6
+  passes** (27 tasks), all `test`: 6 `wrong_pass` (`expected_verdict: fail`) and 64
+  `real_pass`, labelled by the accepted v7 regrade (`regrade-v7.json`, pinned in
+  `internal-views/source.json`). `trial_ref`/`actions_only_ref` are the hash-bound
+  internal views above; `build.py` re-derives the manifest and checks every hash.
+  Grading-correctness labels, not behavioural intent; the trajectories were already
+  packaged for qa-trace-6 held-out v7 runs.
 
 - `envcheck-tb4-39`: **39 items** on historical Terminal-Bench 4 checkouts (`v4.0.0`
   and `1dcda8716784`).

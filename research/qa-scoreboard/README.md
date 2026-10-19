@@ -53,6 +53,12 @@ Writers so far:
   cover the actions-only views; AUROC and recall at 2%/5% test false alarms with
   cluster-bootstrap intervals are in the row notes and in that directory's
   `report.md`. Zero model calls.
+- `research/experiments/tripwires-v2-rebaseline-20261019/run.py --scoreboard`
+  writes tripwire rules v2 rows (`tripwires@86446d693ac0/<view>`, where
+  `execute_bash` counts as a shell tool) for every trace key. It also writes the
+  v1 rows (`tripwires@731d849f84c0/<view>`) that were missing for the internal keys,
+  using their committed v1 predictions. v1 rows are never rewritten. The per-item
+  decision flips are in that directory's `results.json`.
 
 ## Frozen retained-version suite
 

@@ -78,9 +78,10 @@ def blank_quoted_and_heredocs(command: str) -> str:
     return _QUOTED_SPAN_RE.sub(" ", text)
 
 
-#: Tools whose ``keystrokes`` (Terminus-2), ``command`` (MiMo), or Codex
-#: ``exec`` script carry the shell commands an agent step runs.
-SHELL_TOOL_NAMES = frozenset({"bash", "bash_command", "shell", "exec"})
+#: Tools whose ``keystrokes`` (Terminus-2), ``command`` (MiMo, OpenHands /
+#: SWE-agent ``execute_bash``), or Codex ``exec`` script carry the shell commands
+#: an agent step runs. ``execute_bash`` joined in tripwire rules v2.
+SHELL_TOOL_NAMES = frozenset({"bash", "bash_command", "shell", "exec", "execute_bash"})
 
 _SHELL_WRAPPER_RE = re.compile(r"^(?:(?:/usr)?/bin/)?(?:ba|z|da)?sh\s+-(?:l?c|cl)\s+")
 

@@ -30,7 +30,8 @@ clearly requires full recovery) no repair is proposed. If the maintainers do
 want full recovery, the one-line change is `assert matches == soln_tuples`.
 That change would kill all five recorded mutants: each leaves only 7 of the 8 pairs.
 
-Consequence for the 2026-10-19 weak-test survey: the five survivors here should be
-labelled "within intentional grader slack" rather than violations of an explicit
-requirement. That would lower the TB2.1 confirmed-weak count from 4/18 to 3/18
-(Wilson 95% 0.058–0.392).
+Consequence for the 2026-10-19 weak-test survey: the five survivors here are now
+labelled `within_intentional_grader_slack` instead of `required_gap`, so they no
+longer count as violations of an explicit requirement. The TB2.1 confirmed-weak
+count moves from 4/18 to 3/18 (Wilson 95% 0.058–0.392); see the
+`weak-tests-generalization-20261019` key README.

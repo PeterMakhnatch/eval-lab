@@ -344,7 +344,7 @@ def build() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]],
                 retained_refs = {value["path"]: source for source, value in row["files"].items()}
                 for candidate in row["candidates"]:
                     review = by_review[benchmark, name, candidate["id"]]
-                    if review["label"] not in {"required_gap", "equivalent_or_allowed", "outside_explicit_requirements", "unresolved"}:
+                    if review["label"] not in {"required_gap", "equivalent_or_allowed", "outside_explicit_requirements", "within_intentional_grader_slack", "unresolved"}:
                         raise ValueError("unknown semantic review label")
                     if not review.get("rationale") or not review.get("instruction_refs") or not review.get("consumer_refs"):
                         raise ValueError("every survivor review needs its requirement and verifier-consumer evidence")

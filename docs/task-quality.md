@@ -337,8 +337,9 @@ separate `--stages exploit` probe is requested.
     `research/evidence/runs/weak-tests-generalization-20261019-evidence/`
     (files over 1 MB are listed by digest in its `MANIFEST.json`); extract them
     under `research/evidence/runs/` before re-running `build`.
-    2026-10-19 result (`results.json`): TB2.1 4/18 measured tasks confirmed weak
-    (Wilson 95% 0.09–0.45; 12 witnesses); HumanEvalFix 0/12 (0–0.24). Every
+    2026-10-19 result (`results.json`): TB2.1 3/18 measured tasks confirmed weak
+    (Wilson 95% 0.058–0.392; 7 witnesses; sqlite-db-truncate relabelled as
+    intentional grader slack); HumanEvalFix 0/12 (0–0.24). Every
     HumanEvalFix instruction only asks that the listed tests pass, so a
     survivor there cannot violate a written requirement beyond the tests.
     Published summaries separate primary-attempt search coverage from native

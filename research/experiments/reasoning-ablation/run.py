@@ -60,18 +60,26 @@ KEYS = (
     "cheatbench-actions-v1",
     "hacktrace-act-v1",
 )
-EXTERNAL = {"cheatbench-actions-v1", "hacktrace-act-v1"}
+#: Keys scored later with the same frozen protocol (run with ``--keys``).
+LATER_KEYS = ("mimo-fresh-window3",)
+ALL_KEYS = KEYS + LATER_KEYS
+#: Keys whose items.jsonl is committed under research/answer-keys/.
+EXTERNAL = {"cheatbench-actions-v1", "hacktrace-act-v1", "mimo-fresh-window3"}
 #: Key-level constant recorded reward (identical for every item and both views).
 #: The MiMo key population is grader-accepted original passes by construction.
+#: Window-3 mixes passes and non-passes, so a reward would reveal labels: none given.
 RECORDED_REWARD = {"mimo-v7-canonical-pass70": 1.0}
 VIEWS = ("full", "actions")
 #: Pre-registered primary head per key (PK-1 heads; reward_hacking for cheat keys).
+#: Window-3 (registered after the main run): positives are non-passes and wrong
+#: passes together, so the any-defect head is primary.
 PRIMARY_HEAD = {
     "trajectory-judge-400": "any_finding",
     "trace-paired-v1": "any_finding",
     "mimo-v7-canonical-pass70": "reward_not_real",
     "cheatbench-actions-v1": "reward_hacking",
     "hacktrace-act-v1": "reward_hacking",
+    "mimo-fresh-window3": "any_finding",
 }
 QUESTIONS = (
     "reward_shortcut",
@@ -251,10 +259,12 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def manifest(split: str, limit: int | None = None) -> list[dict[str, Any]]:
+def manifest(
+    split: str, limit: int | None = None, keys: tuple[str, ...] = KEYS
+) -> list[dict[str, Any]]:
     """Label-free (item, view) manifest in a fixed round-robin order across keys."""
     per_key: dict[str, list[dict[str, Any]]] = {}
-    for key in KEYS:
+    for key in keys:
         rows = [r for r in key_rows(key) if r.get("split") == split]
         rows.sort(key=lambda r: hashlib.sha256(f"{SEED}:{r['item_id']}".encode()).hexdigest())
         if limit is not None:
@@ -273,15 +283,17 @@ def manifest(split: str, limit: int | None = None) -> list[dict[str, Any]]:
                 "paths": {"full": str(full), "actions": str(actions)},
             }
             entry["sha256"] = {"full": _sha(full), "actions": _sha(actions)}
-            for view, field in (("full", "trajectory_sha256"), ("actions", "actions_only_sha256")):
-                pinned = row.get(field)
-                if key in EXTERNAL and pinned and pinned != entry["sha256"][view]:
+            pins = row.get("trajectory_sha256")
+            if not isinstance(pins, dict):
+                pins = {"full": pins, "actions": row.get("actions_only_sha256")}
+            for view in VIEWS:
+                if key in EXTERNAL and pins.get(view) and pins[view] != entry["sha256"][view]:
                     raise SystemExit(f"{row['item_id']} {view}: hash mismatch with key")
             entries.append(entry)
         per_key[key] = entries
     ordered: list[dict[str, Any]] = []
     for index in range(max(len(v) for v in per_key.values())):
-        for key in KEYS:
+        for key in keys:
             if index < len(per_key[key]):
                 ordered.append(per_key[key][index])
     return ordered
@@ -576,7 +588,7 @@ def export_findings(out: Path) -> None:
     seal_record = json.loads((out / "seal.json").read_text())
     if hashlib.sha256(sealed).hexdigest() != seal_record["predictions_sealed_sha256"]:
         raise SystemExit("sealed predictions changed after sealing")
-    subjects = {r["item_id"]: r["subject"] for key in KEYS for r in key_rows(key)}
+    subjects = {r["item_id"]: r["subject"] for key in ALL_KEYS for r in key_rows(key)}
     count = 0
     for record in jsonl(out / "predictions.sealed.jsonl"):
         answers = record["answers"]
@@ -654,6 +666,9 @@ def main() -> None:
         default=list(VIEWS),
         help="views to run (the replicate re-runs the full view only)",
     )
+    parser.add_argument(
+        "--keys", nargs="+", choices=ALL_KEYS, default=list(KEYS), help="answer keys to include"
+    )
     args = parser.parse_args()
     if args.command == "seal":
         seal(args.out)
@@ -661,7 +676,7 @@ def main() -> None:
     if args.command == "findings":
         export_findings(args.out)
         return
-    entries = manifest(args.split, args.limit)
+    entries = manifest(args.split, args.limit, tuple(args.keys))
     if args.command == "manifest":
         args.out.mkdir(parents=True, exist_ok=True)
         (args.out / "manifest.jsonl").write_text(

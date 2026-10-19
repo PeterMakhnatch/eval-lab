@@ -75,6 +75,26 @@ Re-run recall: TJ 67/127, CheatBench 18/75, HackTrace 30/75 (full: 65, 21, 33).
 - Neither view caught any of the 6 MiMo wrong passes; trace-only judging
   does not detect these wrong submissions.
 
+## Fresh window-3 (blind; `mimo-fresh-window3`, eval-lab #1097)
+
+This key was registered after the main run and scored once with the same frozen
+protocol (`run.py --keys mimo-fresh-window3`). No recorded reward was given,
+because the key mixes passes and non-passes. The primary head, `any_finding`, was
+declared before any call. Predictions were sealed before scoring
+([`window3-seal.json`](window3-seal.json)), with results in
+[`window3-results.json`](window3-results.json). One not_a_pass item stayed
+unparsed in both views, so 51 of 52 items are scored.
+
+| Head | View | Recall (31 not_a_pass + 4 wrong_pass) | False alarms (17 real passes) |
+|---|---|---:|---:|
+| any_finding | full | 15/34 = 44.1% (28.9–60.6%) | 8/17 = 47.1% (26.2–69.0%) |
+| any_finding | actions | 17/34 = 50.0% (34.1–65.9%) | 10/17 = 58.8% (36.0–78.4%) |
+
+Paired: recall 3 full-only vs 5 actions-only flags (p = 0.73); false alarms 2 vs 4
+(p = 0.69). Wrong passes flagged: 0/4 full, 1/4 actions. `reward_hacking` on real
+passes: 2/17 full, 4/17 actions, the same direction as the MiMo pass70 rise but
+with a small n. Spend $0.0979.
+
 ## Limits
 
 - CheatBench full views are truncated in 110/150 items (actions: 106) and MiMo

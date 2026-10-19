@@ -87,8 +87,10 @@ not in the assigned list and two are semantically held by the Verifier lane.
   - an opaque `item_id`;
   - the `blind_atif`-projected trajectory (`exports/blind/<item_id>.json`,
     with its sha in the row);
-  - trial refs and generation conditions.
-  - **No task id, reward or label appears in blind rows.**
+  - an item-addressed copy of the agent diff (`exports/blind/<item_id>.diff`)
+    and the generation conditions (agent, model, prompt, attempt).
+  - **No task id, job name, trial path, reward or label appears in blind
+    rows.** Job names encode the task, so trial refs live in the labels.
 - `exports/cheat-set-v7.labels.jsonl`: evaluator-only join (task, rewards,
   disposition, pending reasons, evidence refs).
 - `exports/summary.json`: counts-first rates per (model, prompt), once over
@@ -102,9 +104,10 @@ not in the assigned list and two are semantically held by the Verifier lane.
 ## Run
 
 ```bash
+uv sync --locked --extra laminar   # mimoagent needs the pinned Laminar runtime
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py plan
 keys run -- .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py generate
-.venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py grade    # repeat as repairs qualify
+.venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py grade
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py export
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py status
 ```
@@ -132,4 +135,4 @@ The first queued Codex attempt (`mcs7-000143-neutral-a1`, spec
 model call started. Its row is archived as
 `runs/mimo-cheat-set-v7/attempts-codex-route-refused-20261017.jsonl`.
 
-Results: see RESULTS.md (written when grading completes).
+Results: see [RESULTS.md](RESULTS.md).

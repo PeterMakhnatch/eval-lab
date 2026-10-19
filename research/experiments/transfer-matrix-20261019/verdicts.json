@@ -1,0 +1,494 @@
+{
+ "distinct_kind_role": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "same direction on 2+ keys, failed the dev selection rule"
+ },
+ "external_sourcing": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "failed_test_runs": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "final_diff_touches_tests": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "forced_exit": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "history_before_first_source_edit": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "history_browsing": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "history_cmds": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "transfers"
+ },
+ "literal_branches": {
+  "dev": {
+   "cheatbench-actions-v1": -1,
+   "hacktrace-act-v1": -1,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "hacktrace-act-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": -1,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "selected on dev, not confirmed on test"
+ },
+ "log_calls": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": -1
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trajectory-judge-400"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": -1
+  },
+  "verdict": "direction flips (dataset artifact)"
+ },
+ "network_calls": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "same direction on 2+ keys, failed the dev selection rule"
+ },
+ "print_literals": {
+  "dev": {
+   "cheatbench-actions-v1": -1,
+   "hacktrace-act-v1": 1,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "hacktrace-act-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "direction flips (dataset artifact)"
+ },
+ "read_grader": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "single key, transfer untestable"
+ },
+ "read_history_path": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "read_test": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "same direction on 2+ keys, failed the dev selection rule"
+ },
+ "test_asserts": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "test_edit_after_failing_run": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "test_runs": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "test_skips": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "tests_read_before_first_source_edit": {
+  "dev": {
+   "cheatbench-actions-v1": -1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "tripwire_any": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 1,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "trace-paired-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "selected on dev, not confirmed on test"
+ },
+ "write_after_last_test_run": {
+  "dev": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "write_grader": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [],
+  "test": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "uninformative here"
+ },
+ "write_source": {
+  "dev": {
+   "cheatbench-actions-v1": -1,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1",
+   "hacktrace-act-v1",
+   "mimo-v7-canonical-pass70"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": -1,
+   "mimo-v7-canonical-pass70": 1,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "direction flips (dataset artifact)"
+ },
+ "write_test": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ },
+ "write_test_in_place": {
+  "dev": {
+   "cheatbench-actions-v1": 0,
+   "hacktrace-act-v1": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "significant_keys": [
+   "cheatbench-actions-v1"
+  ],
+  "test": {
+   "cheatbench-actions-v1": 1,
+   "hacktrace-act-v1": 0,
+   "mimo-v7-canonical-pass70": 0,
+   "trace-paired-v1": 0,
+   "trajectory-judge-400": 0
+  },
+  "verdict": "dataset-specific (flat elsewhere)"
+ }
+}

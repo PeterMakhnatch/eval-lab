@@ -271,6 +271,57 @@ def test_docker_capacity_respects_declared_memory_and_does_not_resize(tmp_path, 
     assert docker_task_resources(tmp_path / "task") == (2.0, 8192)
 
 
+@pytest.mark.parametrize(
+    ("declaration", "expected"),
+    [
+        ('memory = "2G"', 2048),
+        ('memory = "2.5G"', 2560),
+        ('memory = "768M"', 768),
+        ('memory = "2G"\nmemory_mb = 2048', 2048),
+    ],
+)
+def test_legacy_memory_uses_harbor_normalization_without_editing_task(
+    tmp_path, declaration, expected
+):
+    pytest.importorskip("harbor.models.task.config")
+    path = tmp_path / "task.toml"
+    original = f"[environment]\ncpus = 1\n{declaration}\n".encode()
+    path.write_bytes(original)
+    with pytest.warns(DeprecationWarning, match="memory"):
+        assert docker_task_resources(tmp_path) == (1.0, expected)
+    assert path.read_bytes() == original
+
+
+def test_conflicting_legacy_memory_limits_are_not_silently_resized(tmp_path):
+    pytest.importorskip("harbor.models.task.config")
+    (tmp_path / "task.toml").write_text(
+        '[environment]\ncpus = 1\nmemory = "2G"\nmemory_mb = 4096\n'
+    )
+    with pytest.warns(DeprecationWarning, match="memory"), pytest.raises(
+        ValueError, match="Conflicting"
+    ):
+        docker_task_resources(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "cpus = 1",
+        "memory_mb = 2048",
+        "cpus = true\nmemory_mb = 2048",
+        "cpus = 1\nmemory_mb = true",
+        "cpus = 1\nmemory_mb = 2.5",
+        "cpus = 1\nmemory_mb = 0",
+    ],
+)
+def test_missing_or_nonfinite_declared_resources_never_receive_defaults(
+    tmp_path, declaration
+):
+    (tmp_path / "task.toml").write_text(f"[environment]\n{declaration}\n")
+    with pytest.raises(ValueError, match="explicit finite"):
+        docker_task_resources(tmp_path)
+
+
 def test_unbounded_existing_container_refuses_host_capacity(monkeypatch):
     def command(argv, **kwargs):
         from types import SimpleNamespace

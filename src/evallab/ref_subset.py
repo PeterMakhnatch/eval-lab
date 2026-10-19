@@ -58,6 +58,7 @@ import time
 import tomllib
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -1302,6 +1303,7 @@ def _native_captured_files(
     complete = root / ".ref-subset-states/complete" if root is not None else None
     if complete is None or not complete.is_file() or complete.read_bytes() != b"complete\n":
         raise RuntimeError(f"{run.name}: native capture did not complete")
+    assert root is not None
     files: dict[str, bytes | None] = {}
     modes: dict[str, int | None] = {}
     for index, target in enumerate(targets):
@@ -1445,7 +1447,7 @@ def _probe_shared_task(
     base: dict[str, bytes | None] = {}
     fixed: dict[str, bytes | None] = {}
     changes: list[FileChange] = []
-    report = dict(head)
+    report: dict[str, Any] = dict(head)
 
     def runner(matrix: Any, root: Path) -> list[dict[str, Any]]:
         matrix_path = native_dir / "matrices" / f"{matrix.name}.json"
@@ -1530,10 +1532,8 @@ def _probe_shared_task(
                     binding["trials"].append(str(trial.relative_to(repo)))
                     exit_path = trial / "agent/exit-code.txt"
                     if exit_path.is_file():
-                        try:
+                        with suppress(ValueError):
                             rc = int(exit_path.read_text())
-                        except ValueError:
-                            pass
         scored = run.status in {"ok", "mismatch"} and run.reward is not None and math.isfinite(run.reward)
         grade = Grade(
             label, list(kept), run.reward if scored else None, rc, time.monotonic() - started,

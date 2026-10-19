@@ -289,6 +289,46 @@ separate `--stages exploit` probe is requested.
     environment that receives the artifacts, including unchanged reference
     files and file modes, but no state from earlier grades. Docker containers
     retain the task's network settings; local GPU tasks are `unavailable`.
+  - **Native shared-verifier tasks.** `run <original task> --target /absolute/file`
+    (repeat `--target` for every submission file) uses the existing native
+    `runner.run_matrix` / `Executor` path with host-isolated Docker. The task,
+    instructions, tests, Dockerfile, declared resources and timeouts are
+    unchanged; legacy `--memory` and timeout flags do not lower native limits.
+    Explicit legacy resource units such as `memory = "2G"` are normalized by
+    locked Harbor, without editing the task or supplying missing limits.
+    The intact reference and an actual no-op are graded first. Selected file
+    bytes, presence and permission bits are captured, and an independent
+    full-target reconstruction must pass on fresh base before searching.
+    Every subset and line mutant then writes only the selected-file mapping on
+    fresh base: the reference is **not** replayed before a candidate. Failed
+    reconstruction is unsupported/unknown, never a passing source edit over
+    stale compiled output. Symlinks, directories, special files, Compose,
+    GPUs and declared multi-step tasks are unsupported.
+    Native matrices share the host-wide **two-slot** Docker gate; they do not
+    acquire nested slots. If persistent services have unbounded declared
+    resources, the report explicitly records capacity-minus-reserve admission
+    rather than claiming competitor-adjusted free capacity. `--seed` fixes
+    line-mutant selection. Source-to-stage provenance is bound before execution,
+    immediately after snapshot validation; metadata never rereads a temporary
+    source after a trial. Reports retain native bindings, exact scripts and
+    control outcomes; `native/` holds scripts and matrices, whose bindings
+    locate raw job/trial evidence. Instruction-level review remains mandatory:
+    a survivor is not automatically a grader weakness.
+    The frozen cross-benchmark survey protocol and results live under
+    `research/experiments/weak-tests-generalization-20261019/`; retained proof
+    bytes live under `research/evidence/runs/weak-tests-generalization-20261019/`.
+    In a fresh owned worktree, recreate the selected original TB2.1 packages
+    with `uv run python research/experiments/weak-tests-generalization-20261019/study.py materialize`,
+    then run the same script with `run`. The vendored HumanEvalFix packages
+    need no model calls. `prepare` is only for freezing a new protocol, never
+    for replacing this cohort after observing grades. Publication requires
+    one instruction/consumer-grounded adjudication for every survivor.
+    Corrected transport/schema attempts use `run --attempt NAME --benchmark
+    humanevalfix` (or `tb21`), which freezes code hashes and the unchanged task
+    selection before running. The first pass and all subsequent reports remain
+    intact. `publish.py collect --owned-attempt NAME` explicitly selects completed
+    later attempts while retaining and counting earlier execution evidence;
+    candidate-bearing earlier attempts cannot be silently superseded.
   - **Modal and a $0 plan.** Both commands accept `--environment modal --plan`.
     Planning reads only local package/index/report bytes: it constructs no
     backend, calls neither Docker nor Modal, and needs no credentials or spend
@@ -353,9 +393,9 @@ separate `--stages exploit` probe is requested.
     - `report.json` (`evallab.ref_subset.report/v1`);
     - `finding.json` (`qa.finding/v1`, category `weak`);
     - `run-receipt.json` on Modal: backend, selected tasks, approval, cap and reservations;
-    - `native/` on Modal: isolated operation directories and raw command stdout/stderr;
-    - `minimal.patch`, the reproducer: `git apply` it on base and grade, expected reward 1;
-    - `dropped.patch`, the reference behaviour no hidden test needs.
+    - `native/`: shared-verifier scripts/matrices; Modal also retains isolated operation stdout/stderr;
+    - `minimal.patch`, the candidate diff; native reports also retain the exact fresh-base overlay script;
+    - `dropped.patch`, reference behavior omitted by a passing candidate, pending instruction review.
   - **Statuses:** `measured`, `budget_exhausted`, `baseline_mismatch`, `flaky`,
     `not_applicable` (fewer than two code blocks) and `unavailable`.
   - **Severity** comes from the kept share of reference code lines: at most 25% is

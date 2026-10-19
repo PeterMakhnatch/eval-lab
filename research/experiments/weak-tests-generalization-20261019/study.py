@@ -17,6 +17,7 @@ import sys
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from evallab.ref_subset import probe_task
 from evallab.registry import compute_task_digests
@@ -88,7 +89,7 @@ def prepare(prior: Path) -> None:
                          "traces_campaign" if row["task_id"] in TRACES_TASKS else "not_selected",
         })
     hef_root = REPO / "library/benchmarks/humanevalfix/humanevalfix"
-    hef_frame = []
+    hef_frame: list[dict[str, Any]] = []
     for package in sorted(hef_root.iterdir()):
         if not (package / "task.toml").is_file():
             continue
@@ -148,16 +149,41 @@ def prepare(prior: Path) -> None:
     print(json.dumps({"tb21_selected": list(TB_TARGETS), "hef_selected": [r["task_id"] for r in hef_frame if r["selected"]]}), flush=True)
 
 
-def run() -> None:
+def run(*, attempt: str | None = None, benchmark: str | None = None) -> None:
     plan = json.loads((HERE / "cohort.json").read_text())
     os.environ["EVALLAB_DERIVED_ROOT"] = str(REPO / "derived/parquet")
     os.environ["EVALLAB_DOCKER_LOCK_SLOTS"] = "2"
     results = []
     jobs = [("tb21", row) for row in plan["tb21"]["selected"]]
     jobs += [("humanevalfix", row) for row in plan["humanevalfix"]["frame"] if row["selected"]]
+    if attempt is not None and (Path(attempt).name != attempt or attempt in {"", ".", ".."}):
+        raise ValueError("attempt must be a single nonempty path component")
+    if benchmark not in {None, "tb21", "humanevalfix"}:
+        raise ValueError("unknown frozen benchmark")
+    if benchmark is not None:
+        jobs = [(family, row) for family, row in jobs if family == benchmark]
+    output = RUNS if attempt is None else RUNS / "attempts" / attempt
+    if (output / "attempt.json").exists() or (output / "completion.json").exists():
+        raise ValueError("refusing to replace an existing survey attempt")
+    method_files = (
+        "src/evallab/ref_subset.py", "src/evallab/campaign_execution.py",
+        "src/evallab/runner.py", "src/evallab/verifier_mutation.py",
+        str((HERE / "study.py").relative_to(REPO)),
+    )
+    dump(output / "attempt.json", {
+        "schema": "evallab.weak_tests_generalization.attempt/v1",
+        "started_at": datetime.now(UTC).isoformat(), "attempt": attempt or "first-pass",
+        "cohort_sha256": "sha256:" + hashlib.sha256((HERE / "cohort.json").read_bytes()).hexdigest(),
+        "selected": [{"benchmark": family, "task_id": row["task_id"]} for family, row in jobs],
+        "limits": plan["limits"],
+        "method_files": {name: "sha256:" + hashlib.sha256((REPO / name).read_bytes()).hexdigest()
+                         for name in method_files},
+        "first_pass_preserved": (RUNS / "completion.json").is_file(),
+        "disposition": "Original selection, task bytes, declared limits and search operators unchanged. Named subsequent attempts follow native transport or schema fixes; no completed report is overwritten.",
+    })
     for benchmark, row in jobs:
         package = REPO / row["package"]
-        out = RUNS / benchmark / row["task_id"]
+        out = output / benchmark / row["task_id"]
         if (out / "report.json").is_file():
             raise ValueError(f"refusing to overwrite completed trial evidence: {out}")
         report = probe_task(
@@ -167,15 +193,17 @@ def run() -> None:
         )
         result = {"benchmark": benchmark, "task_id": row["task_id"], "status": report["status"], "verdict": report["verdict"]}
         results.append(result)
-        dump(RUNS / "completed.json", results)
+        dump(output / "completed.json", results)
         print(json.dumps(result), flush=True)
-    dump(RUNS / "completion.json", {"finished_at": datetime.now(UTC).isoformat(), "results": results})
+    dump(output / "completion.json", {"finished_at": datetime.now(UTC).isoformat(), "results": results})
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "materialize", "run"))
     parser.add_argument("--prior-worktree", type=Path)
+    parser.add_argument("--attempt")
+    parser.add_argument("--benchmark", choices=("tb21", "humanevalfix"))
     args = parser.parse_args()
     if args.command == "prepare":
         if args.prior_worktree is None:
@@ -185,7 +213,7 @@ def main() -> None:
         plan = json.loads((HERE / "cohort.json").read_text())
         materialize(plan["tb21"]["frame"], {row["task_id"] for row in plan["tb21"]["selected"]})
     else:
-        run()
+        run(attempt=args.attempt, benchmark=args.benchmark)
 
 
 if __name__ == "__main__":

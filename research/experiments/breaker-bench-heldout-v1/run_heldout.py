@@ -433,6 +433,7 @@ def run_tw_controls(cell: Cell, runs_dir: Path) -> None:
         flush=True,
     )
 
+
 def run_pair_controls_valid(cell: Cell, runs_dir: Path) -> None:
     """Oracle=1 / nop=0 only, per pair version (the --controls-gate valid path).
 
@@ -453,7 +454,9 @@ def run_pair_controls_valid(cell: Cell, runs_dir: Path) -> None:
         oracle = nop = None
         try:
             matrix = plan_matrix(
-                staged.base[version], [], repo_root=REPO_ROOT,
+                staged.base[version],
+                [],
+                repo_root=REPO_ROOT,
                 timeout_seconds=REPLAY_TIMEOUT_SECONDS,
             )
             execution = run_matrix(matrix, root=REPO_ROOT)
@@ -465,8 +468,11 @@ def run_pair_controls_valid(cell: Cell, runs_dir: Path) -> None:
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
         row = _tw_controls_row(
-            cell, oracle=oracle, nop=nop,
-            duration=round(time.monotonic() - t0, 2), error=error,
+            cell,
+            oracle=oracle,
+            nop=nop,
+            duration=round(time.monotonic() - t0, 2),
+            error=error,
         )
         row["version"] = version
         row["subject_task_id"] = cell.subject_task_id(version)
@@ -496,7 +502,9 @@ def controls_phase(cells: Sequence[Cell], runs_dir: Path, *, gate_mode: str = "o
                 run_pair_controls_valid(cell, runs_dir)
             except Exception as exc:
                 rc = 1
-                print(f"[controls] {cell.label}: FAILED {type(exc).__name__}: {exc}", file=sys.stderr)
+                print(
+                    f"[controls] {cell.label}: FAILED {type(exc).__name__}: {exc}", file=sys.stderr
+                )
             continue
         try:
             dev.run_controls_phase([cell.raw], repo_root=REPO_ROOT, runs_dir=runs_dir)
@@ -860,6 +868,7 @@ def _quota() -> dict[str, Any]:
         raise RuntimeError(f"Codex quota script missing: {dev.QUOTA_SCRIPT}")
     return dev.check_codex_quota()
 
+
 def _metered_spend_usd(attempts_path: Path) -> float:
     """Fail-closed spend sum across recorded attempts in ``attempts_path``.
 
@@ -871,7 +880,11 @@ def _metered_spend_usd(attempts_path: Path) -> float:
     for row in read_jsonl(attempts_path):
         tokens = row.get("tokens") or {}
         cost = tokens.get("cost_usd") if isinstance(tokens, Mapping) else None
-        if row.get("status") in ("passed", "failed") and isinstance(cost, (int, float)) and not isinstance(cost, bool):
+        if (
+            row.get("status") in ("passed", "failed")
+            and isinstance(cost, (int, float))
+            and not isinstance(cost, bool)
+        ):
             total += float(cost)
         elif row.get("stage") in ("tick", "adopted"):
             limit = row.get("cost_limit_usd")
@@ -942,6 +955,7 @@ def _attempt_row(
         "error": error,
         "recorded_at": _utcnow(),
     }
+
 
 def _adopt_orphan_job(
     cell: Cell,
@@ -1265,8 +1279,26 @@ def extract_replay_script(trial_dir: Path | None, name: str = "breaker-replay.sh
                 for match in heredoc.finditer(keystrokes):
                     found = match.group(2)
     if found is None and keystroke_chunks:
-        for match in heredoc.finditer("\n".join(keystroke_chunks)):
+        joined_ks = "\n".join(keystroke_chunks)
+        for match in heredoc.finditer(joined_ks):
             found = match.group(2)
+        if found is None and name == "breaker-replay.sh":
+            report_heredoc = re.compile(
+                r"cat\s*>\s*\S*breaker-report\.json\s*<<-?\s*['\"]?(\w+)['\"]?[ \t]*\n.*?\n[ \t]*\1[ \t]*(?:\n|$)",
+                re.DOTALL,
+            )
+            cleaned_chunks: list[str] = []
+            for chunk in keystroke_chunks:
+                stripped = report_heredoc.sub("", chunk).strip()
+                if not stripped or "/eval_env" in stripped:
+                    continue
+                cleaned_chunks.append(stripped)
+            candidate_script = "\n".join(cleaned_chunks).strip()
+            if candidate_script and re.search(
+                r"(?:cat\s*>|>>|\bsed\s+-i|\btee\b|\bcp\b|\bmv\b|\bln\b|\bchmod\b|\bpython3?\b)",
+                candidate_script,
+            ):
+                found = candidate_script
     if found is None:
         return None
     # The script's own `chmod +x .../breaker-replay.sh` has nothing to act on in a fresh container.

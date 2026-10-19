@@ -1,0 +1,102 @@
+{
+  "cobol-modernization": {
+    "controls": {
+      "full": 1.0,
+      "nop": 0.0,
+      "oracle": 1.0
+    },
+    "oracle_tests": {
+      "test_outputs.py::test_data_files_exist": "passed",
+      "test_outputs.py::test_program_output": "passed",
+      "test_outputs.py::test_rejected_transactions_leave_files_unchanged": "passed",
+      "test_outputs.py::test_required_files_exist": "passed"
+    },
+    "original_tests_pass_on_oracle": true,
+    "report": "runs/tb21-repairs-20261019/round2/cobol-modernization/report.json",
+    "round1_survivors": {
+      "6326967e40": "survived",
+      "6d38c09872": "killed"
+    },
+    "round2": {
+      "generated": 89,
+      "killed": 7,
+      "survivors": [
+        {
+          "edit": "--- a/app/program.py\n+++ b/app/program.py\n@@ -81,7 +81,7 @@\n     with open(\"data/TRANSACTIONS.DAT\", \"r\") as f:\n         existing_content = f.read()\n     with open(\"data/TRANSACTIONS.DAT\", \"w\") as f:\n-        print((existing_content + content) + \"\\n\\n\")\n+        print(((content)) + \"\\n\\n\")\n         f.write(existing_content + content)\n \n \n",
+          "file": "app/program.py",
+          "id": "6326967e40",
+          "line": 84,
+          "operator": "drop-operand"
+        }
+      ],
+      "tried": 8
+    }
+  },
+  "multi-source-data-merger": {
+    "controls": {
+      "full": 1.0,
+      "nop": 0.0,
+      "oracle": 1.0
+    },
+    "oracle_tests": {
+      "test_outputs.py::test_conflict_report_records_match_sources": "passed",
+      "test_outputs.py::test_conflict_report_values": "passed",
+      "test_outputs.py::test_merged_data_exact_values": "passed",
+      "test_outputs.py::test_output_files_exist": "passed"
+    },
+    "original_tests_pass_on_oracle": true,
+    "report": "runs/tb21-repairs-20261019/round2/multi-source-data-merger/report.json",
+    "round1_survivors": {
+      "1e9ed0f32a": "killed",
+      "1f604f9086": "killed",
+      "46fb731802": "killed",
+      "812424b32a": "killed",
+      "8c6d91f8c1": "killed"
+    },
+    "round2": {
+      "generated": 43,
+      "killed": 8,
+      "survivors": [],
+      "tried": 8
+    }
+  },
+  "sam-cell-seg": {
+    "controls": {
+      "full": 1.0,
+      "nop": 0.0,
+      "oracle": 1.0
+    },
+    "oracle_tests": {
+      "test_outputs.py::test_bbox_columns_match_polylines": "passed",
+      "test_outputs.py::test_coords_are_flat_lists": "passed",
+      "test_outputs.py::test_csv_output_exists": "passed",
+      "test_outputs.py::test_csv_shape_cols": "passed",
+      "test_outputs.py::test_mask_alignment": "passed",
+      "test_outputs.py::test_masks_are_no_longer_rect": "passed",
+      "test_outputs.py::test_no_polyline_overlaps": "passed",
+      "test_outputs.py::test_python_file_exists": "passed",
+      "test_outputs.py::test_run_script": "passed",
+      "test_outputs.py::test_single_contiguous_mask_per_cell": "passed"
+    },
+    "original_tests_pass_on_oracle": true,
+    "report": "runs/tb21-repairs-20261019/round2/sam-cell-seg/report.json",
+    "round1_survivors": {
+      "175edfb9e4": "killed",
+      "25f5b35db4": "survived"
+    },
+    "round2": {
+      "generated": 58,
+      "killed": 7,
+      "survivors": [
+        {
+          "edit": "--- a/app/convert_masks.py\n+++ b/app/convert_masks.py\n@@ -147,7 +147,7 @@\n \n     # Iterative prediction with refinement\n     mask_input = None\n-    for iteration in range(3):\n+    for iteration in range(4):\n         prob_mask, _, low_res_logit = predictor.predict_torch(\n             point_coords=None,\n             point_labels=None,\n",
+          "file": "app/convert_masks.py",
+          "id": "25f5b35db4",
+          "line": 150,
+          "operator": "integer-shift"
+        }
+      ],
+      "tried": 8
+    }
+  }
+}

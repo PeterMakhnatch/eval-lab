@@ -9,6 +9,7 @@ mutants are graded by the repaired tests.
 
     uv run python research/experiments/tb21-test-repairs-20261019/run.py prepare
     uv run python research/experiments/tb21-test-repairs-20261019/run.py run [TASK ...]
+    uv run python research/experiments/tb21-test-repairs-20261019/run.py summarize
 """
 
 from __future__ import annotations
@@ -96,14 +97,79 @@ def run(tasks: list[str]) -> None:
         )
 
 
+# Round-1 survivors recorded by the 2026-10-19 survey (Traces campaign or Auditor retry).
+ROUND1_SURVIVORS = {
+    "multi-source-data-merger": [
+        "1f604f9086",
+        "812424b32a",
+        "1e9ed0f32a",
+        "8c6d91f8c1",
+        "46fb731802",
+    ],
+    "sam-cell-seg": ["25f5b35db4", "175edfb9e4"],
+    "cobol-modernization": ["6326967e40", "6d38c09872"],
+}
+
+
+def _ctrf(trial: str) -> dict[str, str]:
+    path = REPO / trial / "verifier/ctrf.json"
+    if not path.is_file():
+        return {}
+    tests = json.loads(path.read_text())["results"]["tests"]
+    return {test["name"]: test["status"] for test in tests}
+
+
+def summarize() -> None:
+    tasks = {}
+    for task in TARGETS:
+        path = RUNS / "round2" / task / "report.json"
+        if not path.is_file():
+            tasks[task] = {"status": "not_run"}
+            continue
+        report = json.loads(path.read_text())
+        grades = {grade["label"]: grade for grade in report["grades"]}
+        oracle = grades["oracle"]
+        oracle_tests = _ctrf(oracle["native"]["trials"][0])
+        original = (RUNS / "packages/original" / task / "tests/test_outputs.py").read_text()
+        mutants = report["mutants"]
+        outcomes = {run["id"]: run["outcome"] for run in mutants["runs"]}
+        tasks[task] = {
+            "report": str(path.relative_to(REPO)),
+            "controls": {label: grades[label]["reward"] for label in ("oracle", "nop", "full")},
+            "oracle_tests": oracle_tests,
+            "original_tests_pass_on_oracle": bool(oracle_tests)
+            and all(
+                status == "passed"
+                for name, status in oracle_tests.items()
+                if f"def {name.split('::')[-1]}(" in original
+            ),
+            "round1_survivors": {
+                mid: outcomes.get(mid, "not_selected") for mid in ROUND1_SURVIVORS[task]
+            },
+            "round2": {
+                "generated": mutants.get("generated"),
+                "tried": mutants.get("tried"),
+                "killed": mutants.get("killed"),
+                "survivors": [
+                    {key: survivor[key] for key in ("id", "operator", "file", "line", "edit")}
+                    for survivor in mutants.get("survivors", [])
+                ],
+            },
+        }
+    (HERE / "results.json").write_text(json.dumps(tasks, indent=2, sort_keys=True) + "\n")
+    print(json.dumps({task: row.get("round2", row.get("status")) for task, row in tasks.items()}))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("prepare", "run"))
+    parser.add_argument("command", choices=("prepare", "run", "summarize"))
     parser.add_argument("tasks", nargs="*")
     parser.add_argument("--source", type=Path, default=PRIOR)
     args = parser.parse_args()
     if args.command == "prepare":
         prepare(args.source)
+    elif args.command == "summarize":
+        summarize()
     else:
         run(args.tasks or list(TARGETS))
 

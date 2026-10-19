@@ -37,5 +37,5 @@ more than one source, so the test checks:
 
 - solve.sh oracle: reward 1. Full reference reconstruction on a fresh base: reward 1. nop: reward 0.
 - The 5 recorded survivors now get reward 0.
-- The original assertions still pass on the oracle output; this was checked by running the original test functions locally.
-- Round 2: the same seeded search (8 line mutants) left 0 survivors. All 8 were killed.
+- In the oracle trial's verifier output, all original tests and the new test passed. Locally, the original test functions also pass on the oracle `conflicts.json`.
+- Round 2: the same seeded search ran the same 8 of 43 generated line mutants, and all 8 were killed (0 survivors).

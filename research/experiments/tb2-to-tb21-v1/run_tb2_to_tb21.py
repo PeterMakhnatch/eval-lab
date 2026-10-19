@@ -139,6 +139,9 @@ def oracle_prelude(slug: str, version: str) -> str:
                     "Pin-Priority: 1001\n"
                 ),
             )
+            # PyStan imports pkg_resources; mirror TB2.1's dependency ceiling.
+            + "printf '%s\\n' 'setuptools<71' > /tmp/evallab-rstan-constraints.txt || exit 1\n"
+            "export PIP_CONSTRAINT=/tmp/evallab-rstan-constraints.txt\n"
         )
     if slug == "mcmc-sampling-stan":
         return "apt-get update || exit 1\napt-get install -y cmake || exit 1\n"

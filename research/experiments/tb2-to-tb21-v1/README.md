@@ -51,4 +51,11 @@ reservations within one invocation, not provider billing or cumulative spend
 across invocations; keep an external campaign receipt and do not reset spent
 reservations when retrying.
 
+TB2 RStan also constrains pip to `setuptools<71`, matching the ceiling already
+present in the frozen TB2.1 reference. Its otherwise unbounded tooling upgrade
+installs a setuptools release without `pkg_resources`, which PyStan 3.10 imports.
+The constraint is exported only for the control script; neither frozen oracle
+nor verifier is edited. Native TB2 oracle/blank controls passed with this
+dependency constraint after the unconstrained reference failed at import.
+
 TB2 `build-pmars` prefers the complete Debian `20251101T000000Z` snapshot dependency set, not only `dpkg-dev=1.22.21`: current trixie's `libc6-dev` breaks its required `libdpkg-perl`. This restores the frozen oracle's dependency versions inside the execution container without editing the source task or oracle. TB2 `rstan-to-pystan` installs certificates, then pins `curl=8.5.0-2ubuntu10.6` from an Ubuntu snapshot. Both `mcmc-sampling-stan` versions install cmake before the oracle, because RcppParallel's configure step requires it and the frozen script does not. `caffe-cifar-10` uses each version's own agent timeout (TB2 1200s, TB2.1 3600s). `protein-assembly` is not fixed here: the recorded oracle fetches live RCSB sequences that still contain chromophore `X`, then DnaChisel fails before writing `gblock.txt`. Local Docker does not disable Rosetta, so `install-windows-3.11` and a TB2 caffe retry that must finish inside 1200s need Modal.

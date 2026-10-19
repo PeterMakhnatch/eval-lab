@@ -815,39 +815,18 @@ def resolve_egress_lock(request: RunRequest) -> bool:
     return is_mimo_run(request.task, request.model)
 
 
-def _task_declares_phase_network_policy(task: Path) -> bool:
-    """Whether ``task.toml`` declares a task phase network policy (HAR-140).
-
-    Harbor would restore the task's baseline after that phase, lifting the
-    egress lock, so a locked run refuses it at dispatch. The constructor of
-    :class:`evallab.harbor_daytona.BoundedDaytonaEnvironment` remains the
-    backstop for any phase policy Harbor derives beyond this spelling.
-    """
+def _task_phase_network_modes(task: Path) -> dict[str, object]:
+    """Declared phase modes, retaining invalid values for fail-closed admission."""
     try:
         document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError):
-        return False
-    if not isinstance(document, dict):
-        return False
-    agent = document.get("agent")
-    if isinstance(agent, dict) and "network_mode" in agent:
-        return True
-    verifier = document.get("verifier")
-    return isinstance(verifier, dict) and "network_mode" in verifier
-
-
-def _task_agent_network_mode(task: Path) -> str | None:
-    """The task's declared agent-phase network baseline, if any."""
-    try:
-        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
-        return None
-    if not isinstance(document, dict):
-        return None
-    agent = document.get("agent")
-    if isinstance(agent, dict) and isinstance(agent.get("network_mode"), str):
-        return agent["network_mode"]
-    return None
+        return {}
+    modes: dict[str, object] = {}
+    for phase in ("agent", "verifier"):
+        config = document.get(phase)
+        if isinstance(config, dict) and "network_mode" in config:
+            modes[phase] = config["network_mode"]
+    return modes
 
 
 def _selfhosted_upstream_host(request: RunRequest) -> str | None:
@@ -885,19 +864,24 @@ def _validate_egress_lock(request: RunRequest) -> None:
             "egress_lock requires a single-container task: multi-container (compose) "
             "tasks cannot be locked"
         )
+    phase_modes = _task_phase_network_modes(request.task)
     if request.environment == "modal":
-        # Modal enforces per-phase outbound policies itself, so a declared
-        # agent baseline is the enforcement, not a lift risk (the daytona/
-        # docker concern above). The lock is truthful only when that
-        # baseline already denies agent-phase egress; anything else would
-        # be a lock in name only.
-        if _task_agent_network_mode(request.task) != "no-network":
+        # Modal enforces per-phase outbound policies itself. Its lock is
+        # truthful only when the declared agent baseline already denies egress.
+        if phase_modes.get("agent") != "no-network":
             raise ValueError(
                 "egress_lock on Modal requires the task's agent phase to "
                 "declare network_mode 'no-network': the sandbox would "
                 "otherwise keep general egress under a locked label"
             )
-    elif _task_declares_phase_network_policy(request.task):
+    elif request.environment == "docker":
+        # This backend never changes its creation-time network=none, including
+        # when Harbor restores a public task baseline after a no-network phase.
+        if any(mode != "no-network" for mode in phase_modes.values()):
+            raise ValueError(
+                "egress_lock on Docker admits only no-network task phase network policies"
+            )
+    elif phase_modes:
         raise ValueError(
             "egress_lock cannot be combined with task phase network policies: "
             "Harbor would restore the baseline after the phase and lift the lock"

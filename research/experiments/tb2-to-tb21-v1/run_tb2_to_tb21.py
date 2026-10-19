@@ -71,9 +71,9 @@ KNOWN_CONTROL_LIMITS = {
         "changes answer-key bytes, so this runner does not."
     ),
     "caffe-cifar-10": (
-        "TB2 declares 1200s; the recorded amd64 install did not finish in that "
-        "window under emulation. TB2.1 declares 3600s and this runner uses that "
-        "version's own timeout. Native amd64 is the remaining probe for TB2."
+        "TB2 declares 1200s; the recorded amd64 build completed, but its "
+        "CIFAR-10 download at about 50 KiB/s did not. TB2.1 declares 3600s "
+        "and uses its own timeout. Native CPU alone is not a demonstrated fix."
     ),
     "install-windows-3.11": (
         "the recorded oracle compiled QEMU and started two processes; the "
@@ -139,9 +139,16 @@ def oracle_prelude(slug: str, version: str) -> str:
                     "Pin-Priority: 1001\n"
                 ),
             )
+            # PyStan imports pkg_resources; mirror TB2.1's dependency ceiling.
+            + "printf '%s\\n' 'setuptools<71' > /tmp/evallab-rstan-constraints.txt || exit 1\n"
+            "export PIP_CONSTRAINT=/tmp/evallab-rstan-constraints.txt\n"
         )
     if slug == "mcmc-sampling-stan":
-        return "apt-get update || exit 1\napt-get install -y cmake || exit 1\n"
+        # Noninteractive remotes otherwise upgrades earlier explicit pins.
+        return (
+            "apt-get update || exit 1\napt-get install -y cmake || exit 1\n"
+            "export R_REMOTES_UPGRADE=never\n"
+        )
     return ""
 
 

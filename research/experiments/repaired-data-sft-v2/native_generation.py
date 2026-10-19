@@ -17,6 +17,12 @@ plan/admit/collect are provider-free. Only run submits/approves/ticks the public
 ExperimentSpec -> Executor -> NativeMimoAgent/LockedModalEnvironment path.
 There is no retry, resume, historical diff, restored conversation, training,
 deployment, synthetic runner, readiness bypass, or global policy bypass.
+Before EVERY wave's charges, run makes fresh authenticated /health,
+/v1/models and /v1/chat/completions requests against the receipt's upstream:
+a recorded receipt is never live health, a cold endpoint polls inside a
+bounded readiness budget counted in the launch margin, and an unready or
+wrong-model endpoint refuses before any reservation. No request/response
+bodies or credentials are recorded.
 
 SETTINGS schema mimo.phase2-native-settings/v1 (all operational values explicit):
 {campaign_id, reference_profile, modal_app_name, concurrency, runtime:{
@@ -26,7 +32,17 @@ SETTINGS schema mimo.phase2-native-settings/v1 (all operational values explicit)
  controls:{path,sha256}, request:{path,sha256},
  control_admission:{path,sha256}, parent_packages:{digest:path}}
 parent_packages is optional, for real archived parents whose historical local
-path no longer exists; it never changes a VariantRecord. cost_evidence must be a
+path no longer exists; it never changes a VariantRecord. The optional
+shared_window_client_done:{client,path,concurrency_after_done} setting permits
+ONE bounded widening of the wave width: waves stay at concurrency until the
+final mimo.shared-serving-window.client-done/v1 receipt at path names that
+client and this live window's remote_reservation_id, recorded within the
+window. Missing, malformed, stale, or wrong-window evidence never widens.
+The admitted shared split is exact: this client's waves run at concurrency 7
+alongside CheatBench's 13 and widen only to the combined 20 after its done
+receipt. Without the setting the
+existing bounded width is unchanged; there is no generic scheduler.
+cost_evidence must be a
 parent-owned quote with pricing_basis='resource_bound_plus_build_buffer',
 provider_product='modal_sandbox', cpu_usd_per_core_second,
 memory_usd_per_gib_second, image_build_usd_per_cell, other_provider_usd_per_cell,
@@ -75,7 +91,11 @@ import math
 import os
 import re
 import sys
+import time
 import tomllib
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -91,6 +111,14 @@ TASK_IDS = tuple(["000089", "000125", "000169", "000354", "000561", "000792", "0
 K = 4
 CELLS = len(TASK_IDS) * K
 PROBE_SECONDS = 10.0
+#: Fresh per-wave readiness/model-binding budget, counted inside the launch
+#: margin before the immutable window stop. Covers an observed cold start.
+BINDING_SECONDS = 300.0
+#: This client's admitted share of the shared window while CheatBench still
+#: runs; the parent's split is exactly this 7 widening to the combined 20.
+SHARED_WINDOW_TRAINER_CONCURRENCY = 7
+SHARED_WINDOW_MAX_CONCURRENCY = 20
+SHARED_DONE_SCHEMA = "mimo.shared-serving-window.client-done/v1"
 
 #: Admitted serving origins, matching the repository's self-hosted route pin:
 #: one serving label under ``*.modal.run`` or one serving label under a
@@ -184,6 +212,15 @@ def checked_settings(path: Path) -> dict[str, Any]:
     checked_ref(admission["source_controls_handoff"])
     same(tuple(row["task_id"] for row in admission["tasks"]), TASK_IDS, "scoped control admission must bind exactly the approved nineteen")
     require(all(row.get("controls_qualified") is True for row in admission["tasks"]), "a selected task lacks actual retained control qualification")
+    done = value.get("shared_window_client_done")
+    if done is not None:
+        require(type(done) is dict, "shared_window_client_done must be an explicit object")
+        same(done.get("client"), "cheatbench", "only the CheatBench client's final receipt may widen a shared wave")
+        require(type(done.get("path")) is str and bool(done["path"].strip()), "shared_window_client_done.path must name the parent's client-done receipt")
+        same(value["concurrency"], SHARED_WINDOW_TRAINER_CONCURRENCY,
+             "the shared-window split admits only this client's exact 7-wide initial waves")
+        same(done.get("concurrency_after_done"), SHARED_WINDOW_MAX_CONCURRENCY,
+             "client-done widening is exactly the shared-window combined bound, not a free width")
     return value
 
 
@@ -518,11 +555,12 @@ def checked_window(path: Path, envelope_path: Path, plan: dict[str, Any], *, exp
     require(RETURNED_MODEL in value["allowed_models"], "serving window does not admit the exact actual upstream BASE ID")
     start, end = utc_instant(value["starts_at"]), utc_instant(value["expires_at"])
     now_utc = datetime.now(UTC)
-    # This is a conservative launch margin for both sandbox TTLs and the
-    # native probe, NOT a hard wall bound on outside-TTL image/registry builds.
+    # This is a conservative launch margin for both sandbox TTLs, the native
+    # probe and the fresh per-wave binding budget, NOT a hard wall bound on
+    # outside-TTL image/registry builds.
     # Parent's independent stop guard still wins; expired/incomplete trials
     # retain null/error endpoints and cannot become repaired qualifiers.
-    needed = timedelta(seconds=2 * plan["config"]["sandbox_timeout_seconds"] + PROBE_SECONDS + 30)
+    needed = timedelta(seconds=2 * plan["config"]["sandbox_timeout_seconds"] + PROBE_SECONDS + BINDING_SECONDS + 30)
     require(start <= now_utc and now_utc + needed < end, "insufficient admitted serving deadline for the two-TTL native launch margin")
     guard = value["stop_guard"]
     require(guard["armed"] is True and guard["app_id"] == value["app_id"], "actual independent owned-app stop guard is not armed")
@@ -539,6 +577,171 @@ def checked_window(path: Path, envelope_path: Path, plan: dict[str, Any], *, exp
     same(binding["returned_model"], RETURNED_MODEL, "readiness returned another model")
     same(value["budget"]["envelope"], ref(envelope_path), "serving/native drivers do not share the same admitted parent envelope")
     return {**value, "receipt": receipt}
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def live_binding(window: dict[str, Any], *, key: str, budget_seconds: float,
+                 open_fn: Callable[..., Any] | None = None, sleeper: Callable[[float], None] = time.sleep,
+                 clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+    """Freshly authenticated health/model binding, immediately before a wave's charges.
+
+    Real ``/health``, ``/v1/models`` and ``/v1/chat/completions`` requests on
+    every call: a recorded receipt is never live health. A cold endpoint
+    (connect/timeout errors or 502/503/504) polls inside ``budget_seconds``,
+    bounded by the immutable ``expires_at``; any other failure, a redirect, or
+    a missing/different returned model refuses before any cell is charged.
+    Only status/model metadata is returned — never bodies or the key.
+    """
+    require(bool(key), "MIMO_SELFHOSTED_API_KEY is absent; use keys has, then keys run")
+    upstream = window["upstream"].rstrip("/")
+    expiry = utc_instant(window["expires_at"]).timestamp()
+    open_ = open_fn or urllib.request.build_opener(_NoRedirect()).open
+    deadline = clock() + budget_seconds
+
+    def request(path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
+        remaining = min(deadline - clock(), expiry - time.time())
+        require(remaining > 0, "readiness budget is exhausted before the immutable window stop")
+        req = urllib.request.Request(upstream + path,
+            data=helpers.canonical(body) if body is not None else None,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        with open_(req, timeout=min(PROBE_SECONDS, remaining)) as response:
+            raw = response.read()
+            return response.status, json.loads(raw) if raw and path != "/health" else None
+
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            status, _ = request("/health")
+            require(status == 200, "fresh authenticated health did not return 200")
+            status, models = request("/v1/models")
+            require(status == 200 and [row.get("id") for row in (models or {}).get("data") or []] == [RETURNED_MODEL],
+                    "fresh authenticated /v1/models is not exclusively the exact BASE model")
+            body = {"model": RETURNED_MODEL, "messages": [{"role": "user", "content": "Reply with OK."}],
+                    "max_tokens": 1, "temperature": 1.0, "top_p": 0.95, "top_k": 20,
+                    "chat_template_kwargs": {"enable_thinking": True}}
+            status, response = request("/v1/chat/completions", body)
+            returned = (response or {}).get("model")
+            require(status == 200 and returned == RETURNED_MODEL and bool((response or {}).get("choices")),
+                    "fresh authenticated binding did not round-trip the exact BASE model")
+            return {"authenticated": True, "checked_at": now(), "upstream": upstream, "attempts": attempts,
+                    "requests": ["GET /health", "GET /v1/models", "POST /v1/chat/completions"],
+                    "requested_model": RETURNED_MODEL, "returned_model": returned}
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {502, 503, 504}:
+                raise Refusal("fresh upstream binding was rejected without cold-start semantics") from None
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            pass
+        require(clock() + 2 < deadline and time.time() + 2 < expiry,
+                "upstream did not bind within the admitted readiness budget")
+        sleeper(2)
+
+
+def shared_client_done(settings: dict[str, Any], window: dict[str, Any]) -> bool:
+    """Whether the exact final client-done receipt for THIS live window exists.
+
+    Fail safe: a missing, malformed, stale, wrong-client, or wrong-window
+    receipt is simply not this window's completion and never widens the wave.
+    """
+    done = settings.get("shared_window_client_done")
+    if done is None:
+        return False
+    try:
+        receipt = read_json(Path(done["path"]))
+        require(type(receipt) is dict, "client-done receipt is not an object")
+        same(receipt.get("schema"), SHARED_DONE_SCHEMA, "wrong client-done schema")
+        same(receipt.get("client"), done["client"], "client-done receipt is for another client")
+        same(receipt.get("remote_reservation_id"), window["reservation_id"], "client-done receipt belongs to another window")
+        recorded = utc_instant(receipt["recorded_at_utc"])
+        require(utc_instant(window["starts_at"]) <= recorded <= datetime.now(UTC),
+                "client-done receipt was not recorded inside this live window")
+    except Exception:
+        return False
+    return True
+
+
+def dispatch_width(settings: dict[str, Any], window: dict[str, Any]) -> int:
+    """Current wave width: the plan's bounded concurrency, widened only by this
+    exact window's final client-done receipt, never above the shared cap."""
+    if shared_client_done(settings, window):
+        return settings["shared_window_client_done"]["concurrency_after_done"]
+    return settings["concurrency"]
+
+
+def wave_plan(cells: list[dict[str, Any]], specs: list[Any],
+              width_at: Callable[[], int]) -> Iterator[list[tuple[dict[str, Any], Any]]]:
+    """Offsets advance by actual wave length, so every one of the 76 unique
+    cells is dispatched exactly once even when the width widens between waves."""
+    offset = 0
+    while offset < len(cells):
+        width = width_at()
+        require(type(width) is int and 1 <= width <= SHARED_WINDOW_MAX_CONCURRENCY,
+                "wave width is outside the admitted bound")
+        wave = list(zip(cells[offset:offset + width], specs[offset:offset + width], strict=True))
+        require(len(wave) == min(width, len(cells) - offset), "wave slicing lost a cell")
+        yield wave
+        offset += len(wave)
+
+
+def dispatch_wave(wave: list[tuple[dict[str, Any], Any]], *, window: dict[str, Any],
+                 plan: dict[str, Any], plan_path: Path, envelope_path: Path, envelope: dict[str, Any],
+                 serving_window: Path, modules: tuple[Any, Any], budget: NativeBudget, queue: Any,
+                 executor: Any, out: Path, key: str,
+                 binding_check: Callable[..., dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], bool]:
+    """One bounded wave: fresh binding BEFORE any charge, then per-cell
+    charge/submit/approve and one tick. A refusal anywhere stops the batch
+    after this wave's rows are recorded; a binding or custody refusal never
+    reaches the durable charge or the provider."""
+    native, queue_module = modules
+    probe = binding_check or live_binding
+    charges, dispatch_error, dispatched, binding = {}, None, 0, None
+    rows = []
+    try:
+        window = checked_window(serving_window, envelope_path, plan, expected=window["receipt"])
+        checked_envelope(envelope_path, plan_path, plan)
+        checked_plan(plan_path)
+        binding = probe(window, key=key, budget_seconds=BINDING_SECONDS)
+        for cell, spec in wave:
+            native.validate_request(queue_module.Executor.prepare_request(spec, repo_root=ROOT), repo_root=ROOT)
+            charges[cell["cell_id"]] = budget.charge(cell, window["receipt"])
+            submitted, decision = executor.submit(spec)
+            same(queue.load(submitted).spec_id, spec.spec_id, "native queue changed a cell identity")
+            require(not decision.admitted and decision.reason_code == "paid_run_unauthorized",
+                    "only exact parent per-spec approval can authorize this paid native request")
+            queue.approve(spec.spec_id, actor=envelope["approval"])
+        checked_window(serving_window, envelope_path, plan, expected=window["receipt"])
+        checked_envelope(envelope_path, plan_path, plan)
+        append_json(out / "dispatch-journal.jsonl", {"at": now(), "event": "native_tick_requested",
+            "spec_ids": [spec.spec_id for _, spec in wave], "envelope": ref(envelope_path),
+            "wave_width": len(wave), "fresh_binding": binding})
+        dispatched = executor.tick(parallel=len(wave), spec_ids=[spec.spec_id for _, spec in wave])
+    except (Exception, KeyboardInterrupt) as exc:
+        dispatch_error = failure(exc)
+    for cell, spec in wave:
+        try:
+            queued = queue.locate(spec.spec_id)
+            if queued.parent.name in {"pending", "proposed", "waiting", "approved"}:
+                queue.reject(spec.spec_id, actor=envelope["approval"],
+                             message="single-shot fresh dispatch ended; no later implicit run is authorized")
+        except FileNotFoundError:
+            pass
+        try:
+            row = observation(cell, spec, plan, queue)
+        except Exception as exc:
+            row = {"schema": "mimo.phase2-native-execution/v1", **cell, "status": "native_observation_unavailable",
+                   "execution_id": None, "native_job_id": None, "repaired_reward": None,
+                   "problems": [failure(exc)], "original_v6_grade": "not_requested_unmeasured"}
+        row.update(reservation=charges.get(cell["cell_id"]), serving_window=window["receipt"],
+                   envelope=ref(envelope_path), wave_native_dispatches=dispatched,
+                   dispatch_error=dispatch_error, native_tick_reason=executor.last_tick_reason,
+                   fresh_binding=binding)
+        append_json(out / "executions.jsonl", row)
+        rows.append(row)
+    return rows, dispatch_error is not None or dispatched != len(wave)
 
 
 def score(result: dict[str, Any]) -> float | None:
@@ -614,47 +817,14 @@ def run(plan_path: Path, envelope_path: Path, serving_window: Path) -> dict[str,
         except BlockingIOError as exc:
             raise Refusal("the parent native envelope already has an active dispatcher") from exc
         with helpers.process_upstream(window["upstream"]):
-            stop = False
-            width = plan["config"]["concurrency"]
-            for offset in range(0, CELLS, width):
-                wave = list(zip(plan["cells"][offset:offset + width], specs[offset:offset + width], strict=True))
+            for wave in wave_plan(plan["cells"], specs, lambda: dispatch_width(plan["config"], window)):
+                wave_rows, stop = dispatch_wave(wave, window=window, plan=plan, plan_path=plan_path,
+                    envelope_path=envelope_path, envelope=envelope, serving_window=serving_window,
+                    modules=(native, queue_module), budget=budget, queue=queue, executor=executor,
+                    out=out, key=os.environ["MIMO_SELFHOSTED_API_KEY"])
+                rows.extend(wave_rows)
                 if stop:
                     break
-                charges, dispatch_error, dispatched = {}, None, 0
-                try:
-                    window = checked_window(serving_window, envelope_path, plan, expected=window["receipt"])
-                    checked_envelope(envelope_path, plan_path, plan)
-                    checked_plan(plan_path)
-                    for cell, spec in wave:
-                        native.validate_request(queue_module.Executor.prepare_request(spec, repo_root=ROOT), repo_root=ROOT)
-                        charges[cell["cell_id"]] = budget.charge(cell, window["receipt"])
-                        submitted, decision = executor.submit(spec)
-                        same(queue.load(submitted).spec_id, spec.spec_id, "native queue changed a cell identity")
-                        require(not decision.admitted and decision.reason_code == "paid_run_unauthorized", "only exact parent per-spec approval can authorize this paid native request")
-                        queue.approve(spec.spec_id, actor=envelope["approval"])
-                    checked_window(serving_window, envelope_path, plan, expected=window["receipt"])
-                    checked_envelope(envelope_path, plan_path, plan)
-                    append_json(out / "dispatch-journal.jsonl", {"at": now(), "event": "native_tick_requested", "spec_ids": [spec.spec_id for _, spec in wave], "envelope": ref(envelope_path)})
-                    dispatched = executor.tick(parallel=width, spec_ids=[spec.spec_id for _, spec in wave])
-                except (Exception, KeyboardInterrupt) as exc:
-                    dispatch_error = failure(exc)
-                for cell, spec in wave:
-                    try:
-                        queued = queue.locate(spec.spec_id)
-                        if queued.parent.name in {"pending", "proposed", "waiting", "approved"}:
-                            queue.reject(spec.spec_id, actor=envelope["approval"], message="single-shot fresh dispatch ended; no later implicit run is authorized")
-                    except FileNotFoundError:
-                        pass
-                    try:
-                        row = observation(cell, spec, plan, queue)
-                    except Exception as exc:
-                        row = {"schema": "mimo.phase2-native-execution/v1", **cell, "status": "native_observation_unavailable", "execution_id": None,
-                               "native_job_id": None, "repaired_reward": None, "problems": [failure(exc)], "original_v6_grade": "not_requested_unmeasured"}
-                    row.update(reservation=charges.get(cell["cell_id"]), serving_window=window["receipt"], envelope=ref(envelope_path),
-                               wave_native_dispatches=dispatched, dispatch_error=dispatch_error, native_tick_reason=executor.last_tick_reason)
-                    append_json(out / "executions.jsonl", row)
-                    rows.append(row)
-                stop = dispatch_error is not None or dispatched != len(wave)
             observed = {row["cell_id"] for row in rows}
             for cell in plan["cells"]:
                 if cell["cell_id"] not in observed:

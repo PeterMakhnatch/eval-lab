@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -390,6 +391,86 @@ def adoptable(window, config, tmp_path, monkeypatch):
     args = SimpleNamespace(state=journal.path, config_sha256=claim,
                            deployed_source_revision="e698e6cb7132274ce2e30960963a717e3812f87b")
     return journal, args, store, provider, control, calls
+
+
+def load_serve(tmp_path, monkeypatch, env):
+    """Import ``serve.py`` with a recorded fake ``modal`` module; provider-free."""
+    calls = {}
+
+    def decorator(**kwargs):
+        def apply(fn):
+            calls[fn.__name__] = kwargs
+            return fn
+        return apply
+
+    image = Mock()
+    image.entrypoint.return_value = image
+    image.env.return_value = image
+    image.add_local_python_source.return_value = image
+    app = SimpleNamespace(function=decorator, server=decorator, app_id="ap-fixture")
+    modal = Mock()
+    modal.Image.from_registry.return_value = image
+    modal.App.side_effect = lambda *args, **kwargs: app
+    modal.Period.side_effect = lambda **kwargs: dict(kwargs)
+    modal.enter.side_effect = lambda **kwargs: (lambda fn: fn)
+    modal.exit.side_effect = lambda **kwargs: (lambda fn: fn)
+    monkeypatch.setitem(sys.modules, "modal", modal)
+    for key in ("EVALLAB_MIMO_GPU", "EVALLAB_MIMO_MAX_RUNNING_REQUESTS",
+                "EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS", "EVALLAB_MIMO_SERVING_WINDOW"):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    path = Path(__file__).resolve().parents[1] / "tools/modal-mimo-serve/serve.py"
+    spec = importlib.util.spec_from_file_location("serve_under_test", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module, calls
+
+
+def owned_window_config(window, *, start: float, maximum_seconds: int = 3500, reserve: int = 120):
+    return {"schema": "mimo.serving-window-config/v1", "app_name": window.APP_NAME,
+            "gpu": "A100-80GB", "hard_cpu_limit": 4, "hard_memory_mib_limit": 32768,
+            "usd_per_second_upper_bound": "0.0008196325", "maximum_seconds": maximum_seconds,
+            "shutdown_reserve_seconds": reserve, "cap_usd": "3.00",
+            "reservation_id": "fixture-window3", "window_id": "fixture-window3",
+            "owner": "fixture-owner", "environment": "main",
+            "budget_state": {"path": "/unused/parent-envelope.json", "sha256": "sha256:" + "a" * 64},
+            "starts_at": window.utc(start), "expires_at": window.utc(start + maximum_seconds - reserve),
+            "stop_deadline": window.utc(start + maximum_seconds)}
+
+
+def test_owned_window_holds_one_warm_container_for_the_bounded_window(window, tmp_path, monkeypatch):
+    now = 2_000_000.0
+    monkeypatch.setattr(window.time, "time", lambda: now)
+    config = owned_window_config(window, start=now + 60)
+    _, calls = load_serve(tmp_path, monkeypatch, {"EVALLAB_MIMO_SERVING_WINDOW": json.dumps(config)})
+    server = calls["MimoServer"]
+    assert server["min_containers"] == 1
+    assert server["max_containers"] == 1 and server["buffer_containers"] == 0
+    # The original stop bounds are unchanged: the same-app guard still runs on
+    # its minute schedule with the baked deadline timeout and no warm floor.
+    guard = calls["stop_window"]
+    assert guard["schedule"] == {"seconds": 60}
+    assert guard["timeout"] == window.MAX_SECONDS + 60
+    assert guard["min_containers"] == 0 and guard["max_containers"] == 1
+
+
+def test_unowned_deployment_still_scales_to_zero_with_no_window_guard(window, tmp_path, monkeypatch):
+    _, calls = load_serve(tmp_path, monkeypatch, {})
+    server = calls["MimoServer"]
+    assert server["min_containers"] == 0
+    assert server["scaledown_window"] == 300
+    assert "stop_window" not in calls
+
+
+def test_owned_window_start_refuses_after_immutable_expiry(window, tmp_path, monkeypatch):
+    now = 2_000_000.0
+    monkeypatch.setattr(window.time, "time", lambda: now)
+    config = owned_window_config(window, start=now - 3400)
+    module, _ = load_serve(tmp_path, monkeypatch, {"EVALLAB_MIMO_SERVING_WINDOW": json.dumps(config)})
+    with pytest.raises(RuntimeError, match="expired"):
+        module.MimoServer().start()
 
 
 def test_adopt_existing_binds_deployed_app_under_live_watchdog(window, adoptable):

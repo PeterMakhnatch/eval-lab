@@ -16,7 +16,7 @@ This $0 source alignment is not a deployment or live qualification of the
 | Image | `lmsysorg/sglang:v0.5.20-runtime`, pinned by digest `sha256:00b02004…6f800` (qwen3_5 model + `mimo` reasoning parser; CUDA 13.0) |
 | Weights | Modal Volume `evallab-mimo-v26-9b-weights`, HF revision `2367e865d009c13ac81713a2878291d33ab28177` |
 | GPU | 1× A100-80GB. `--context-length 262144`, `--reasoning-parser mimo`, `--tool-call-parser qwen3_coder`, `--served-model-name XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` |
-| Scaling | `max_containers=1`, `min_containers=0`, `buffer_containers=0`; configurable idle window, default 300 seconds |
+| Scaling | `max_containers=1`, `buffer_containers=0`; `min_containers=0` for ordinary deployments, `1` only under an owned admitted serving window; configurable idle window, default 300 seconds |
 | Auth | SGLang `--api-key` from Modal Secret `evallab-mimo-v26-9b-api-key` (`SGLANG_API_KEY`) |
 
 The container's log relay removes the key from SGLang's startup `server_args` line.
@@ -32,10 +32,14 @@ HAR-192 adds bounded deployment settings shared with `serve_lora.py`:
 Resolved settings are baked into the image so remote imports cannot revert to
 defaults. BF16, checkpoint, parsers and 262,144 context remain unchanged; the
 shared KV pool still sizes itself at startup. C20 does not promise twenty full
-contexts fit or twenty-way throughput. No `min_containers=1` hold is installed:
-the pinned Modal 1.5.5 autoscaler update has no TTL. Use one owned campaign
-allocation, retain scale-to-zero after failure, and explicitly stop/verify zero
-on drain. Idle-window behavior through long tool gaps needs live measurement.
+contexts fit or twenty-way throughput. Ordinary deployments install no
+`min_containers` hold: the pinned Modal 1.5.5 autoscaler update has no TTL.
+The one exception is an owned admitted serving window (below): its
+`min_containers=1` is bounded by the window's own immutable expiry, armed
+remote guard, detached watchdog and in-container kill, so the hold cannot
+extend past the admitted deadline. Use one owned campaign allocation, retain
+scale-to-zero after failure, and explicitly stop/verify zero on drain.
+Idle-window behavior through long tool gaps needs live measurement.
 
 The [HAR-192 design and cost table](../../docs/execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
 compare Runpod A100 + unchanged Daytona against Modal A100 + locked Docker on
@@ -115,6 +119,23 @@ Three safeguards are independent of the foreground deploy/health controller:
 3. Each server process group has an in-container deadline kill, and a new model
    process refuses to start after expiry. Killing that process alone is **not**
    claimed to stop the deployed app.
+
+The owned deployment keeps its single model container warm
+(`min_containers=1`) for the window's bounded life so a cold start cannot
+consume a client lane's charges; the ordinary `min_containers=0` path above
+is unchanged for unowned deployments. A native dispatcher inside the window
+makes its own fresh authenticated `/health`, `/v1/models` and
+`/v1/chat/completions` requests immediately before each wave's reservations —
+a recorded readiness receipt is never live health, and a cold endpoint polls
+inside a bounded readiness budget that is counted in the launch margin before
+the immutable stop. The optional `shared_window_client_done` native setting
+(`{client, path, concurrency_after_done}`) permits one bounded wave widening:
+waves stay at the plan's `concurrency` until the final
+`mimo.shared-serving-window.client-done/v1` receipt at `path` names that
+client and this window's `remote_reservation_id`, recorded within the window;
+missing, malformed, stale or wrong-window evidence never widens, and the
+setting admits only the parent's exact split: an initial width of 7 widening
+to the combined shared maximum of 20 after that receipt.
 
 The remote guard uses Modal's runtime task credentials, not copied API keys.
 Its stop RPC and scheduler behavior remain **unqualified until actually run**.
@@ -301,10 +322,11 @@ Native cumulative token backstops do not add or clamp a completion
 supervisor's served-context upper bound and are refused when that reservation
 does not fit. An explicit SDK limit reserves its original value.
 
-Readiness is time-sensitive: the server scales to zero after five idle
-minutes. Re-run the authenticated chat/completions readiness immediately before
-dispatch if preparation pauses; an earlier pass is not proof of current
-readiness.
+Readiness is time-sensitive: an ordinary deployment scales to zero after the
+configured idle window (an owned window instead holds its container warm until
+the immutable expiry). Re-run the authenticated chat/completions readiness
+immediately before dispatch if preparation pauses; an earlier pass is not
+proof of current readiness.
 
 
 ## Cost

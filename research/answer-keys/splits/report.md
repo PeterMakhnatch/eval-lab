@@ -8,9 +8,11 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | key | items dev (fail/pass) | items reported (fail/pass) | pairs dev / reported | units | straddling units |
 |---|---|---|---|---|---|
 | breaker-bench-v1 | 123 (75/46) | 503 (327/176) test | 46 / 168 | 412 | 0 |
+| cheatbench-actions-v1 | 150 (75/75) | 150 (75/75) test | 0 / 0 | 6 | 0 |
 | delphik-open-defect-tb2 | 0 (0/0) | 47 (23/24) heldout | 0 / 0 | 47 | 0 |
 | envcheck-tb4-39 | 13 (7/6) | 26 (18/8) heldout | 0 / 0 | 39 | 0 |
 | executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
+| hacktrace-act-v1 | 150 (75/75) | 150 (75/75) test | 0 / 0 | 222 | 0 |
 | mimo-heldout-v6-to-v7 | 0 (0/0) | 33 (11/0) heldout | 0 / 0 | 33 | 0 |
 | mimo-stratified-sample100 | 40 (12/0) | 60 (11/0) test | 0 / 0 | 100 | 0 |
 | mimo-weak-tests-v1 | 25 (13/12) | 24 (7/17) test | 4 / 0 | 42 | 0 |
@@ -141,5 +143,6 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | mimo-weak-tests-v2.1-ref-subset | selected | QA Task, QA Trace | mimo-weak-tests-v2.1 | 46 | 68 |
 | qa-trace-pk1-common-inherited-and-dev | tuned | QA Trace (qa-trace/6-pk1-luna*), QA Trace (qa-trace/7-pk1-luna*), QA Trace (qa-trace/8-pk1-luna*) | trace-paired-v1 | 1 | 2 |
 | qa-trace-pk1-common-inherited-and-dev | tuned | QA Trace (qa-trace/6-pk1-luna*), QA Trace (qa-trace/7-pk1-luna*), QA Trace (qa-trace/8-pk1-luna*) | trajectory-judge-400 | 13 | 15 |
+| cheatbench-actions-prior-combined-v1-calibration | tuned | QA Trace T0 (combined_v1*) | cheatbench-actions-v1 | 150 | 150 |
 | qa-task-s2a-ordinary-heldout-20261019 | inspected | QA Task (qa-task@s2a-ordinary-availability-verified*) from 2026-10-19 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s2a-ordinary-heldout-20261019 | inspected | QA Task (qa-task@s2a-ordinary-availability-verified*) from 2026-10-19 | envcheck-tb4-39 | 0 | 26 |

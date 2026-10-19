@@ -14,7 +14,7 @@ findings or reports (including signal-only reports) with a different digest are
 excluded from hits and counted in `digest_mismatches`.
 
 Layout: `<key_id>/{README.md, items.jsonl, build.py}`. `build.py` is
-deterministic (stdlib + evallab only) and regenerates `items.jsonl`
+deterministic (stdlib + locked Eval Lab dependencies only) and regenerates `items.jsonl`
 byte-identically from local sources; items are sorted by `item_id` and each
 line is `json.dumps(item, sort_keys=True)`.
 
@@ -103,6 +103,22 @@ items on a reported split; see `splits/README.md`. After adding or rebuilding a 
 run `uv run python research/answer-keys/splits/guard.py`.
 
 ## Keys and provenance caveats
+
+- [`cheatbench-actions-v1`](cheatbench-actions-v1/README.md): **300 external
+  traces**, 75 positive + 75 negative in each dev/test split; benchmark-family
+  holdout, blinded full normalized ATIF and assistant-prose-free actions view.
+  MIT source, pinned raw hashes, exhaustive label-leak and mutation audits, $0
+  fixed-tripwire baseline with Wilson intervals. **Already present in detectors-v1
+  calibration:** not a fresh unseen dataset for systems tuned on that corpus.
+- [`hacktrace-act-v1`](hacktrace-act-v1/README.md): **300 external trajectories**,
+  75 ACT-positive + 75 negative in each upstream problem-disjoint split.
+  CC BY 4.0 source; explicit file-submission blocks are decoded into ordered
+  writes, not invented native shell actions. Full and actions-only ATIF, source
+  pins, exhaustive leakage audits and the same $0 frozen tripwire baseline.
+  ACT negatives can be wrong submissions; they are not correctness certificates.
+  Both external keys have `subject.task_digest: null` because they do not provide
+  digest-bound runnable task packages; source and trajectory byte hashes are
+  separate manifest fields.
 
 - `envcheck-tb4-39`: **39 items** on historical Terminal-Bench 4 checkouts (`v4.0.0`
   and `1dcda8716784`).

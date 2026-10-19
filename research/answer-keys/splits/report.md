@@ -21,6 +21,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | mimo-weak-tests-v2 | 45 (45/0) | 66 (66/0) test | 0 / 0 | 111 | 0 |
 | mimo-weak-tests-v2.1 | 46 (46/0) | 68 (68/0) test | 0 / 0 | 114 | 0 |
 | tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
+| tb21-weak-tests-v1 | 23 (1/0) | 66 (4/0) heldout/test | 0 / 0 | 89 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
 | weak-tests-generalization-20261019 | 253 (4/0) | 0 (0/0) - | 0 / 0 | 253 | 0 |
@@ -33,95 +34,95 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 
 | task | dev in | reported in |
 |---|---|---|
-| adaptive-rejection-sampler | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| bn-fit-modify | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| break-filter-js-from-html | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| build-cython-ext | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| build-pmars | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| build-pov-ray | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| caffe-cifar-10 | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| cancel-async-tasks | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| chess-best-move | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| circuit-fibsqrt | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| cobol-modernization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| code-from-image | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| compile-compcert | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| configure-git-webserver | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| constraints-scheduling | breaker-bench-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| count-dataset-tokens | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| crack-7z-hash | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| custom-memory-heap-crash | breaker-bench-v1, weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| db-wal-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| distribution-search | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| dna-assembly | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| dna-insert | breaker-bench-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| extract-elf | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| extract-moves-from-video | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| feal-differential-cryptanalysis | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| feal-linear-cryptanalysis | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| filter-js-from-html | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| financial-document-processor | breaker-bench-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| fix-code-vulnerability | weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| fix-git | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, executed-outcomes-v1, tb2-to-tb21-v1 |
-| fix-ocaml-gc | breaker-bench-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
+| adaptive-rejection-sampler | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| bn-fit-modify | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| break-filter-js-from-html | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| build-cython-ext | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| build-pmars | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| build-pov-ray | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| caffe-cifar-10 | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| cancel-async-tasks | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| chess-best-move | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| circuit-fibsqrt | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| cobol-modernization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| code-from-image | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| compile-compcert | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| configure-git-webserver | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| constraints-scheduling | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
+| count-dataset-tokens | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| crack-7z-hash | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| custom-memory-heap-crash | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
+| db-wal-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| distribution-search | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| dna-assembly | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| dna-insert | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
+| extract-elf | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| extract-moves-from-video | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| feal-differential-cryptanalysis | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| feal-linear-cryptanalysis | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| filter-js-from-html | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| financial-document-processor | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
+| fix-code-vulnerability | weak-tests-generalization-20261019 | tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| fix-git | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, executed-outcomes-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| fix-ocaml-gc | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
 | format-code-task-000089 | mimo-weak-tests-v2, mimo-weak-tests-v2.1 | mimo-fresh-window3 |
 | format-code-task-001246 | mimo-weak-tests-v1 | mimo-fresh-window3, mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
 | format-code-task-001480 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
 | format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
-| gcode-to-text | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| git-leak-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| git-multibranch | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| gpt2-codegolf | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| headless-terminal | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| hf-model-inference | weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| install-windows-3.11 | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| kv-store-grpc | weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| large-scale-text-editing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| largest-eigenval | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| llm-inference-batching-scheduler | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| log-summary-date-ranges | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| mailman | weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
-| make-doom-for-mips | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| make-mips-interpreter | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| mcmc-sampling-stan | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| model-extraction-relu-logits | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| modernize-scientific-stack | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| mteb-leaderboard | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| mteb-retrieve | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| multi-source-data-merger | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| nginx-request-logging | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| openssl-selfsigned-cert | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| overfull-hbox | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| password-recovery | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| path-tracing | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
-| path-tracing-reverse | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| polyglot-c-py | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| polyglot-rust-c | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| portfolio-optimization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| protein-assembly | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| prove-plus-comm | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| pypi-server | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| pytorch-model-cli | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| pytorch-model-recovery | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| qemu-alpine-ssh | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| qemu-startup | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
-| query-optimize | breaker-bench-v1, trace-paired-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
-| raman-fitting | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| regex-chess | breaker-bench-v1, weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| regex-log | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| reshard-c4-data | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| rstan-to-pystan | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| sam-cell-seg | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| sanitize-git-repo | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
-| schemelike-metacircular-eval | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| sqlite-db-truncate | breaker-bench-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
-| sqlite-with-gcov | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| torch-pipeline-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| torch-tensor-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
-| train-fasttext | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1 |
-| tune-mjcf | weak-tests-generalization-20261019 | breaker-bench-v1 |
-| video-processing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
-| winning-avg-corewars | weak-tests-generalization-20261019 | breaker-bench-v1 |
+| gcode-to-text | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| git-leak-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| git-multibranch | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| gpt2-codegolf | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| headless-terminal | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| hf-model-inference | weak-tests-generalization-20261019 | tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| install-windows-3.11 | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| kv-store-grpc | weak-tests-generalization-20261019 | tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| large-scale-text-editing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| largest-eigenval | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| llm-inference-batching-scheduler | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| log-summary-date-ranges | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| mailman | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| make-doom-for-mips | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| make-mips-interpreter | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| mcmc-sampling-stan | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| model-extraction-relu-logits | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| modernize-scientific-stack | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| mteb-leaderboard | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
+| mteb-retrieve | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| multi-source-data-merger | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| nginx-request-logging | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| openssl-selfsigned-cert | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| overfull-hbox | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| password-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| path-tracing | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
+| path-tracing-reverse | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| polyglot-c-py | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| polyglot-rust-c | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| portfolio-optimization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| protein-assembly | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| prove-plus-comm | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| pypi-server | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| pytorch-model-cli | tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1 |
+| pytorch-model-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| qemu-alpine-ssh | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| qemu-startup | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
+| query-optimize | breaker-bench-v1, tb21-weak-tests-v1, trace-paired-v1, weak-tests-generalization-20261019 | tb2-to-tb21-v1 |
+| raman-fitting | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| regex-chess | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2 |
+| regex-log | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| reshard-c4-data | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| rstan-to-pystan | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| sam-cell-seg | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| sanitize-git-repo | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
+| schemelike-metacircular-eval | tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1 |
+| sqlite-db-truncate | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
+| sqlite-with-gcov | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| torch-pipeline-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| torch-tensor-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| train-fasttext | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| tune-mjcf | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| video-processing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| winning-avg-corewars | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 
 ## Same package bytes, different verdicts
 
@@ -130,42 +131,42 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 
 | task | digest | verdicts |
 |---|---|---|
-| adaptive-rejection-sampler | sha256:30441b50999d | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| bn-fit-modify | sha256:57f05f1df737 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| adaptive-rejection-sampler | sha256:30441b50999d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| bn-fit-modify | sha256:57f05f1df737 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | break-filter-js-from-html | sha256:6a5ba00b9c02 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
-| break-filter-js-from-html | sha256:d69a4a53e886 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| break-filter-js-from-html | sha256:d69a4a53e886 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | build-cython-ext | sha256:d4d36be3c0d4 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
-| build-cython-ext | sha256:ebc99236a044 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| build-pmars | sha256:72ab289f8810 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| build-pov-ray | sha256:99a7d6e951b4 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| build-cython-ext | sha256:ebc99236a044 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| build-pmars | sha256:72ab289f8810 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| build-pov-ray | sha256:99a7d6e951b4 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | caffe-cifar-10 | sha256:8f62884b1a00 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| caffe-cifar-10 | sha256:370572ecc98f | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| cancel-async-tasks | sha256:e7cc5fa47a58 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| chess-best-move | sha256:5a874dee9e45 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| circuit-fibsqrt | sha256:fd3342fedd5f | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| cobol-modernization | sha256:914b37494851 | fail: weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
-| code-from-image | sha256:e715f07939a8 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| caffe-cifar-10 | sha256:370572ecc98f | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| cancel-async-tasks | sha256:e7cc5fa47a58 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| chess-best-move | sha256:5a874dee9e45 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| circuit-fibsqrt | sha256:fd3342fedd5f | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| cobol-modernization | sha256:914b37494851 | fail: tb21-weak-tests-v1, weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
+| code-from-image | sha256:e715f07939a8 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | compile-compcert | sha256:c81e199b27b9 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| compile-compcert | sha256:c4c0fcaa95bc | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| configure-git-webserver | sha256:47abd3aa255d | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| constraints-scheduling | sha256:c0146b993663 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| count-dataset-tokens | sha256:e5387bc1be89 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| custom-memory-heap-crash | sha256:84aaaa6b70b5 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| db-wal-recovery | sha256:5b52bc6eca9d | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| distribution-search | sha256:fd7c534757c2 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| dna-assembly | sha256:195102d43d97 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| dna-insert | sha256:819a049375e9 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| extract-elf | sha256:12bdc80501eb | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| extract-moves-from-video | sha256:4445f08b249b | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| feal-differential-cryptanalysis | sha256:26d4b179e89b | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| feal-linear-cryptanalysis | sha256:10799d1e76fe | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| filter-js-from-html | sha256:50db1e57cdee | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| compile-compcert | sha256:c4c0fcaa95bc | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| configure-git-webserver | sha256:47abd3aa255d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| constraints-scheduling | sha256:c0146b993663 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| count-dataset-tokens | sha256:e5387bc1be89 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| custom-memory-heap-crash | sha256:84aaaa6b70b5 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| db-wal-recovery | sha256:5b52bc6eca9d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| distribution-search | sha256:fd7c534757c2 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| dna-assembly | sha256:195102d43d97 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| dna-insert | sha256:819a049375e9 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| extract-elf | sha256:12bdc80501eb | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| extract-moves-from-video | sha256:4445f08b249b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| feal-differential-cryptanalysis | sha256:26d4b179e89b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| feal-linear-cryptanalysis | sha256:10799d1e76fe | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| filter-js-from-html | sha256:50db1e57cdee | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1; pass: envcheck-tb4-39 |
-| financial-document-processor | sha256:f84178ede1eb | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| fix-code-vulnerability | sha256:fea5863aa6fd | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| financial-document-processor | sha256:f84178ede1eb | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| fix-code-vulnerability | sha256:fea5863aa6fd | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | fix-git | sha256:f264d981302b | fail: executed-outcomes-v1, tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| fix-git | sha256:2f0e8d8e3c29 | fail: executed-outcomes-v1; pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| fix-ocaml-gc | sha256:65bfc3088c9d | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| fix-git | sha256:2f0e8d8e3c29 | fail: executed-outcomes-v1; pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| fix-ocaml-gc | sha256:65bfc3088c9d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | format-code-task-000237 | sha256:5929118977d4 | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-001244 | sha256:2e9234abf407 | fail: mimo-weak-tests-v2, mimo-weak-tests-v2.1; unknown: mimo-stratified-sample100 |
 | format-code-task-001400 | sha256:a35fc4f8ee0e | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
@@ -174,33 +175,34 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | format-code-task-002742 | sha256:eebc07e8d34a | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002866 | sha256:c1fa445d03cd | fail: executed-outcomes-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002884 | sha256:85fbd05efb9a | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
-| gcode-to-text | sha256:8ae8f633b879 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| git-leak-recovery | sha256:d681de43f546 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| gcode-to-text | sha256:8ae8f633b879 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| git-leak-recovery | sha256:d681de43f546 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | git-multibranch | sha256:4512d76e39b6 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
-| git-multibranch | sha256:19c20a15160b | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| headless-terminal | sha256:9d82d212ec58 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| hf-model-inference | sha256:655b162d513b | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| install-windows-3.11 | sha256:37bca2642f89 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| kv-store-grpc | sha256:7ddb52adbc4e | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| large-scale-text-editing | sha256:1a4c47c3843c | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| make-doom-for-mips | sha256:5000b91dbdb4 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| mcmc-sampling-stan | sha256:f48e3ab0a271 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| git-multibranch | sha256:19c20a15160b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| headless-terminal | sha256:9d82d212ec58 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| hf-model-inference | sha256:655b162d513b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| install-windows-3.11 | sha256:37bca2642f89 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| kv-store-grpc | sha256:7ddb52adbc4e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| large-scale-text-editing | sha256:1a4c47c3843c | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| make-doom-for-mips | sha256:5000b91dbdb4 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| make-mips-interpreter | sha256:e987ecd2373d | fail: tb21-weak-tests-v1; unknown: weak-tests-generalization-20261019 |
+| mcmc-sampling-stan | sha256:f48e3ab0a271 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | mteb-leaderboard | sha256:0a60e5513574 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| mteb-leaderboard | sha256:59d008cd5c5e | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| mteb-retrieve | sha256:862616912f37 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| overfull-hbox | sha256:d013ea7ea644 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| mteb-leaderboard | sha256:59d008cd5c5e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| mteb-retrieve | sha256:862616912f37 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| overfull-hbox | sha256:d013ea7ea644 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | polyglot-c-py | sha256:d04bb722a5a5 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| polyglot-c-py | sha256:64b82e4f9066 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| polyglot-rust-c | sha256:46c294fcde77 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| protein-assembly | sha256:29be4b9e19d1 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| query-optimize | sha256:9c3951327bea | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| rstan-to-pystan | sha256:32094d1688d5 | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| sam-cell-seg | sha256:57fe4ee6d3c5 | fail: weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
+| polyglot-c-py | sha256:64b82e4f9066 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| polyglot-rust-c | sha256:46c294fcde77 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| protein-assembly | sha256:29be4b9e19d1 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| query-optimize | sha256:9c3951327bea | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| rstan-to-pystan | sha256:32094d1688d5 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| sam-cell-seg | sha256:57fe4ee6d3c5 | fail: tb21-weak-tests-v1, weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
 | torch-pipeline-parallelism | sha256:0ee676b39d4a | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| torch-pipeline-parallelism | sha256:fee0c9db891e | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
-| torch-tensor-parallelism | sha256:280efa2017af | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| torch-pipeline-parallelism | sha256:fee0c9db891e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| torch-tensor-parallelism | sha256:280efa2017af | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | train-fasttext | sha256:dd9463a06f82 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
-| train-fasttext | sha256:efef66833f2a | pass: tb2-to-tb21-v1; unknown: weak-tests-generalization-20261019 |
+| train-fasttext | sha256:efef66833f2a | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 
 ## Exposures (who was tuned on or read what)
 
@@ -213,6 +215,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-tb4-39 | 1 | 5 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | executed-outcomes-v1 | 1 | 4 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb2-to-tb21-v1 | 0 | 2 |
+| breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb21-weak-tests-v1 | 0 | 1 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | weak-tests-generalization-20261019 | 1 | 0 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
@@ -278,3 +281,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-task-s2a-ordinary-heldout-20261019 | inspected | QA Task (qa-task@s2a-ordinary-availability-verified*) from 2026-10-19 | envcheck-tb4-39 | 0 | 26 |
 | action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | cheatbench-actions-v1 | 0 | 3 |
 | action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | hacktrace-act-v1 | 150 | 150 |
+| px1-tb21-weak-tests-producer-inspection | inspected | Traces (evallab hack ref-subset*) | tb21-weak-tests-v1 | 23 | 66 |

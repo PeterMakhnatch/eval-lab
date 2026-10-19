@@ -1,0 +1,431 @@
+{
+ "executor": {
+  "command": [
+   "harbor",
+   "run",
+   "--path",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+   "--agent",
+   "oracle",
+   "--env",
+   "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+   "--job-name",
+   "ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+   "--jobs-dir",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs",
+   "--n-concurrent",
+   "1",
+   "--n-attempts",
+   "1",
+   "--agent-env",
+   "EVALLAB_SETUP_FINGERPRINT={\"budgets\":{\"cost_limit_usd\":null,\"max_input_tokens\":null,\"max_output_tokens\":null,\"max_requests\":null,\"max_total_tokens\":null,\"step_limit\":null,\"timeout_seconds\":7200},\"environment\":{\"backend\":\"docker\",\"egress_mechanism\":null},\"harness\":{\"additions\":{},\"id\":\"oracle\",\"version\":null},\"lock\":{\"declared\":null,\"effective\":\"open\",\"mode\":\"open\"},\"schema\":\"evallab.setup_fingerprint/v1\"}",
+   "--environment-kwarg",
+   "isolation_lane=oracle",
+   "--plugin",
+   "evallab.harbor_state_journal:StateJournalPlugin",
+   "--plugin",
+   "evallab.harbor_watch_hooks:WatchHookPlugin",
+   "--plugin",
+   "evallab.harbor_file_access:FileAccessPlugin",
+   "--agent-timeout-multiplier",
+   "1"
+  ],
+  "cost": {
+   "attempted_cost_usd": null,
+   "cost_usd": null,
+   "pricing": null,
+   "reason": "proxy ledger missing: no usage was recorded for this run",
+   "source": "proxy_ledger_x_pinned_price"
+  },
+  "executor_log": ".executor/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg.log",
+  "exit_code": 0,
+  "finished_at": "2026-10-19T09:26:34.069447+00:00",
+  "host": {
+   "platform": "macOS-26.5-arm64-arm-64bit",
+   "python": "3.12.11"
+  },
+  "job_timeout_seconds": 7800,
+  "provider_usage": {
+   "cost_micros": null,
+   "cost_usd": null,
+   "input_tokens": null,
+   "output_tokens": null,
+   "requests": null,
+   "total_tokens": null,
+   "usage_status": "missing"
+  },
+  "repository": {
+   "branch": "traces/tb21-weak-tests-v1-20261019",
+   "capture": "run-time",
+   "commit": "60f04ba627a0c54be3fdaf252be302d8ab677fb4",
+   "dirty": true,
+   "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+   "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "unknown": [],
+   "untracked": [
+    "research/answer-keys/tb21-weak-tests-v1/build.py",
+    "research/answer-keys/tb21-weak-tests-v1/cohort.json",
+    "research/answer-keys/tb21-weak-tests-v1/selection-splits.json"
+   ],
+   "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019"
+  },
+  "schema_version": 1,
+  "started_at": "2026-10-19T09:24:31.383403+00:00",
+  "task_staging": {
+   "declared_task_name": "terminal-bench/sam-cell-seg",
+   "network_adaptation": null,
+   "schema_version": 1,
+   "source_harbor_digest": "sha256:b9b53148ce99f76854eac9fe82b547cea7bb266d306384438bb89f5402185ab1",
+   "source_package_digest": "sha256:e783f491993265906f72a5a732bb08f4bbbe40482aced80aa65793b69bd906b3",
+   "source_task_basename": "sam-cell-seg",
+   "staged_harbor_digest": "sha256:b9b53148ce99f76854eac9fe82b547cea7bb266d306384438bb89f5402185ab1",
+   "staged_task_name": "ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+   "task_version": null
+  },
+  "timed_out": false,
+  "timed_out_trial": null,
+  "tools": {
+   "docker": "Docker version 29.8.0, build 88096ef",
+   "harbor": "0.24.0",
+   "uv": "uv 0.13.0 (4ecd0eff2 2026-10-09 aarch64-apple-darwin)"
+  },
+  "trial_timeout_seconds": 7800
+ },
+ "host_isolation": {
+  "applied": true,
+  "blocked_host_addresses": [
+   "100.70.165.124",
+   "127.0.0.1",
+   "192.168.4.215",
+   "2603:7000:8100:1c84:14:48f7:1600:fa47",
+   "2603:7000:8100:1c84:2db5:8316:7bc5:3a20",
+   "2603:7000:8100:1c84:3175:559c:23d4:89d9",
+   "2603:7000:8100:1c84:846a:6093:dfe3:eddd",
+   "2603:7000:8100:1c84:cd31:465f:5394:1296",
+   "::1",
+   "fd10:3d1d:f8b3:1:cf7:6d5f:ea72:5e5f",
+   "fd7a:115c:a1e0::1b01:a5b3",
+   "fe80::1",
+   "fe80::10ff:f403:305c:4bff",
+   "fe80::2a7e:b391:b02:c724",
+   "fe80::30ff:4e31:b273:b807",
+   "fe80::3a87:e814:844f:37d5",
+   "fe80::ca55:10ec:6d4d:8337",
+   "fe80::cae3:549e:5696:e555",
+   "fe80::ccc1:c5ff:fec3:3bc3",
+   "fe80::ce81:b1c:bd2c:69e",
+   "fe80::d8a4:4142:40a4:d83d"
+  ],
+  "bridge_addresses": [],
+  "bridge_port": null,
+  "container_id": "fcb0c63e35533d3a11bdad59d71f42aba87603eb92d4830622fd5aa4eb1afedb",
+  "declared_phase_policies": [
+   {
+    "allowed_hosts": [],
+    "network_mode": "public"
+   },
+   {
+    "allowed_hosts": [],
+    "network_mode": "public"
+   }
+  ],
+  "error_type": null,
+  "isolation_subnet": "192.31.196.80/28",
+  "lane": "oracle",
+  "mechanism": "creation-time none; immutable NET_ADMIN/NET_RAW drops; nft inet output",
+  "network_id": "0087fa75ec82af5df633715dc932a092b5218bce670b0ca2cd0cacf0ec8c1675",
+  "phase_transitions": [],
+  "recorded_at": "2026-10-19T09:24:41.228711+00:00",
+  "rules": "table inet evallab_host_isolation {\n  chain output {\n    type filter hook output priority -200; policy accept;\n    oifname \"lo\" accept\n    ip daddr 100.70.165.124 reject\n    ip daddr 127.0.0.1 reject\n    ip daddr 192.168.4.215 reject\n    ip6 daddr 2603:7000:8100:1c84:14:48f7:1600:fa47 reject\n    ip6 daddr 2603:7000:8100:1c84:2db5:8316:7bc5:3a20 reject\n    ip6 daddr 2603:7000:8100:1c84:3175:559c:23d4:89d9 reject\n    ip6 daddr 2603:7000:8100:1c84:846a:6093:dfe3:eddd reject\n    ip6 daddr 2603:7000:8100:1c84:cd31:465f:5394:1296 reject\n    ip6 daddr ::1 reject\n    ip6 daddr fd10:3d1d:f8b3:1:cf7:6d5f:ea72:5e5f reject\n    ip6 daddr fd7a:115c:a1e0::1b01:a5b3 reject\n    ip6 daddr fe80::1 reject\n    ip6 daddr fe80::10ff:f403:305c:4bff reject\n    ip6 daddr fe80::2a7e:b391:b02:c724 reject\n    ip6 daddr fe80::30ff:4e31:b273:b807 reject\n    ip6 daddr fe80::3a87:e814:844f:37d5 reject\n    ip6 daddr fe80::ca55:10ec:6d4d:8337 reject\n    ip6 daddr fe80::cae3:549e:5696:e555 reject\n    ip6 daddr fe80::ccc1:c5ff:fec3:3bc3 reject\n    ip6 daddr fe80::ce81:b1c:bd2c:69e reject\n    ip6 daddr fe80::d8a4:4142:40a4:d83d reject\n    ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.88.99.0/24, 192.168.0.0/16, 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24, 224.0.0.0/4, 240.0.0.0/4 } reject\n    ip6 daddr != 2000::/3 reject\n  }\n}\n",
+  "schema_version": 3,
+  "service_container_ids": {
+   "main": "fcb0c63e35533d3a11bdad59d71f42aba87603eb92d4830622fd5aa4eb1afedb"
+  },
+  "session_id": "ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd__env",
+  "startup_evidence": {
+   "HostConfig": {
+    "CapAdd": null,
+    "CapDrop": [
+     "CAP_NET_ADMIN",
+     "CAP_NET_RAW"
+    ],
+    "CgroupnsMode": "private",
+    "DeviceCgroupRules": null,
+    "DeviceRequests": null,
+    "Devices": null,
+    "IpcMode": "private",
+    "NetworkMode": "none",
+    "PidMode": "",
+    "PortBindings": {},
+    "Privileged": false,
+    "PublishAllPorts": false,
+    "Runtime": "runc",
+    "SecurityOpt": [
+     "no-new-privileges:true"
+    ],
+    "UTSMode": "",
+    "UsernsMode": "",
+    "VolumesFrom": null
+   },
+   "Id": "fcb0c63e35533d3a11bdad59d71f42aba87603eb92d4830622fd5aa4eb1afedb",
+   "Mounts": [
+    {
+     "Destination": "/logs/agent",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg/ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd/agent",
+     "Type": "bind"
+    },
+    {
+     "Destination": "/logs/artifacts",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg/ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd/artifacts/logs/artifacts",
+     "Type": "bind"
+    },
+    {
+     "Destination": "/logs/verifier",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg/ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd/verifier",
+     "Type": "bind"
+    }
+   ],
+   "NetworkSettings": {
+    "Networks": {
+     "none": {
+      "Aliases": null,
+      "DNSNames": null,
+      "DriverOpts": null,
+      "EndpointID": "681b113bba43f4972ad351d9b43dec1a6618d4f8b0e440a8ed38ddaa62aff5aa",
+      "Gateway": "",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "GwPriority": 0,
+      "IPAMConfig": null,
+      "IPAddress": "",
+      "IPPrefixLen": 0,
+      "IPv6Gateway": "",
+      "Links": null,
+      "MacAddress": "",
+      "NetworkID": "fea1ca85ae2486b9129f84a6fe7cf609c75e4ec8b31882d84881a0a0708d0c5f"
+     }
+    },
+    "Ports": {},
+    "SandboxID": "e4912e5cd38022a9ae84e7e99ff865298408c961d38882e091c07b32852190a7",
+    "SandboxKey": "/var/run/docker/netns/e4912e5cd380"
+   },
+   "Platform": "linux",
+   "State": {
+    "Dead": false,
+    "Error": "",
+    "ExitCode": 0,
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "OOMKilled": false,
+    "Paused": false,
+    "Pid": 85460,
+    "Restarting": false,
+    "Running": true,
+    "StartedAt": "2026-10-19T09:24:39.92871097Z",
+    "Status": "running"
+   },
+   "creation": {
+    "Cmd": [],
+    "Entrypoint": [
+     "/bin/sh",
+     "-c",
+     "exec sleep infinity"
+    ],
+    "Healthcheck": {
+     "Test": [
+      "NONE"
+     ]
+    },
+    "User": "0"
+   },
+   "services": {
+    "main": {
+     "Cmd": [],
+     "Entrypoint": [
+      "/bin/sh",
+      "-c",
+      "exec sleep infinity"
+     ],
+     "Healthcheck": {
+      "Test": [
+       "NONE"
+      ]
+     },
+     "User": "0"
+    }
+   }
+  },
+  "tool_image_digest": "sha256:6b6f38fb49498f8291db9582968b2bd5f5f8038727c5a8ca9e1c76bbc7b7a386"
+ },
+ "matrix": {
+  "benchmark_family": "sam-cell-seg",
+  "concurrency": 1,
+  "environment": "docker",
+  "hypothesis": "The verifier of sam-cell-seg rejects behavioural edits of the reference solution's output that the instruction does not allow.",
+  "jobs_dir": "runs",
+  "matrix_id": "01M59QJFR4WKSXKTA43J5KPYP3",
+  "name": "envcheck-sam-cell-seg-0005-mutant-175edfb9e4-0",
+  "runs": [
+   {
+    "agent": "oracle",
+    "allow_billable": false,
+    "attempts": 1,
+    "expect_reward": 0.0,
+    "model": null,
+    "name": "ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+    "solution": "runs/px1-tb21-weak-tests-v1-20261019/campaign/sam-cell-seg/native/scripts/0005-mutant-175edfb9e4.sh"
+   }
+  ],
+  "schema_version": 2,
+  "task": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/px1-tb21-weak-tests-v1-20261019/packages/tb21/sam-cell-seg",
+  "task_id": "sam-cell-seg",
+  "task_package_digest": "sha256:57fe4ee6d3c51f10ef60aa9390a3def172b1002fd2a89de68bcbf6c41fe5a719",
+  "timeout_seconds": 7200,
+  "verifier_digest": "sha256:15282000b84faefbdbeef3d48741452bcd1dd5d50066a1dd1397d72e1527bac8"
+ },
+ "matrix_result": {
+  "error": null,
+  "expect_reward": 0.0,
+  "name": "ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+  "rewards": [
+   1.0
+  ],
+  "solution_sha256": "0e9b94193840b165376c48f20191f55d27e86f0dca07cb90cee3b2137c2dafb8",
+  "staged_task_digest": "sha256:e783f491993265906f72a5a732bb08f4bbbe40482aced80aa65793b69bd906b3",
+  "status": "mismatch"
+ },
+ "oracle_execution": {
+  "exit_code_evidence": null,
+  "log_path": "evidence/sam-cell-seg-175edfb9e4/witness-oracle.txt",
+  "log_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "trial_result": {
+  "agent_execution": {
+   "finished_at": "2026-10-19T09:24:42.386877Z",
+   "started_at": "2026-10-19T09:24:41.817705Z"
+  },
+  "agent_info": {
+   "model_info": null,
+   "name": "oracle",
+   "version": "1.0.0"
+  },
+  "agent_result": {
+   "cost_usd": null,
+   "metadata": null,
+   "model_usage": null,
+   "n_cache_tokens": null,
+   "n_input_tokens": null,
+   "n_output_tokens": null,
+   "rollout_details": null
+  },
+  "agent_setup": {
+   "finished_at": "2026-10-19T09:24:41.230311Z",
+   "started_at": "2026-10-19T09:24:41.230234Z"
+  },
+  "config": {
+   "agent": {
+    "concurrency_group": null,
+    "env": {
+     "EVALLAB_SETUP_FINGERPRINT": "{\"budgets\":{\"cost_limit_usd\":null,\"max_input_tokens\":null,\"max_output_tokens\":null,\"max_requests\":null,\"max_total_tokens\":null,\"step_limit\":null,\"timeout_seconds\":7200},\"environment\":{\"backend\":\"docker\",\"egress_mechanism\":null},\"harness\":{\"additions\":{},\"id\":\"oracle\",\"version\":null},\"lock\":{\"declared\":null,\"effective\":\"open\",\"mode\":\"open\"},\"schema\":\"evallab.setup_fingerprint/v1\"}"
+    },
+    "extra_allowed_hosts": [],
+    "import_path": null,
+    "kwargs": {},
+    "load_trajectory": null,
+    "max_timeout_sec": null,
+    "mcp_servers": [],
+    "model_name": null,
+    "n_concurrent": null,
+    "name": "oracle",
+    "override_setup_timeout_sec": null,
+    "override_timeout_sec": null,
+    "resume_trajectory": false,
+    "skills": []
+   },
+   "agent_setup_timeout_multiplier": null,
+   "agent_timeout_multiplier": 1.0,
+   "artifacts": [],
+   "environment": {
+    "cpu_enforcement_policy": "auto",
+    "delete": true,
+    "extra_allowed_hosts": [],
+    "extra_docker_compose": [],
+    "force_build": false,
+    "import_path": "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+    "kwargs": {
+     "isolation_lane": "oracle"
+    },
+    "memory_enforcement_policy": "auto",
+    "mounts": null,
+    "override_cpus": null,
+    "override_gpus": null,
+    "override_memory_mb": null,
+    "override_storage_mb": null,
+    "override_tpu": null,
+    "stream": false,
+    "type": null
+   },
+   "environment_build_timeout_multiplier": null,
+   "extra_instruction_paths": [],
+   "extra_instructions": [],
+   "install_only": false,
+   "job_id": "695b8c06-6a3f-4b73-864a-84dc2ac588a5",
+   "source_trial": null,
+   "task": {
+    "download_dir": null,
+    "git_commit_id": null,
+    "git_url": null,
+    "name": null,
+    "overwrite": false,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+    "ref": null,
+    "source": null
+   },
+   "timeout_multiplier": 1.0,
+   "trial_name": "ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd",
+   "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg",
+   "user_agent": null,
+   "verifier": {
+    "disable": false,
+    "max_timeout_sec": null,
+    "override_timeout_sec": null
+   },
+   "verifier_timeout_multiplier": null
+  },
+  "environment_setup": {
+   "finished_at": "2026-10-19T09:24:41.229973Z",
+   "started_at": "2026-10-19T09:24:36.077474Z"
+  },
+  "exception_info": null,
+  "finished_at": "2026-10-19T09:26:31.969435Z",
+  "id": "0c032412-140e-404d-ab8c-35e5c5c57659",
+  "source": null,
+  "started_at": "2026-10-19T09:24:35.304791Z",
+  "step_results": null,
+  "task_checksum": "80e224656e6e15d116176fb390982778cf5fecf0acc86c7e123deae3aaf87526",
+  "task_id": {
+   "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg"
+  },
+  "task_name": "terminal-bench/sam-cell-seg",
+  "trial_name": "ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd",
+  "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-c9mcxe-0005-mutant-175edfb9e4-sam-cell-seg/ec-c9mcxe-0005-mutant-175edfb9e4__K3GATdd",
+  "verifier": {
+   "finished_at": "2026-10-19T09:26:25.797715Z",
+   "started_at": "2026-10-19T09:24:43.282223Z"
+  },
+  "verifier_environment_mode": "shared",
+  "verifier_result": {
+   "rewards": {
+    "reward": 1.0
+   }
+  }
+ }
+}

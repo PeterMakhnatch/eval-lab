@@ -51,6 +51,22 @@ def test_external_sourcing_ignores_quoted_and_local() -> None:
     assert external_sourcing_hits(steps) == []
 
 
+def test_execute_bash_commands_reach_shell_rules() -> None:
+    """Rules v2: OpenHands / SWE-agent ``execute_bash`` with a ``command`` arg is shell."""
+    step = {
+        "step_id": 1,
+        "source": "agent",
+        "message": "",
+        "tool_calls": [
+            {
+                "function_name": "execute_bash",
+                "arguments": {"command": "cat /tests/test_outputs.py"},
+            }
+        ],
+    }
+    assert [h["step"] for h in scan_prefix([step])["hidden_reads"]] == [1]
+
+
 def test_scan_prefix_is_causal_and_has_no_offline_sections() -> None:
     steps = [
         _step(1, "cat /tests/test_outputs.py\n"),

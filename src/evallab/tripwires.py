@@ -73,6 +73,15 @@ from evallab.peer_content import content_corroboration
 from evallab.separate_verifier import V3_TAMPER_SIGNATURES
 from evallab.task_protected import manifest_paths, task_protected_read_hits
 
+#: Frozen rule-surface version. Scoreboard systems are named
+#: ``tripwires@<sha12 of this file>``, so bump this when a dependency changes
+#: rule behavior without touching this file. v1: the original surface
+#: (``tripwires@731d849f84c0``). v2 (2026-10-19): ``execute_bash`` counts as a
+#: shell tool (``edit_signals.SHELL_TOOL_NAMES``), so OpenHands / SWE-agent
+#: commands reach every shell rule; re-baseline in
+#: ``research/experiments/tripwires-v2-rebaseline-20261019``.
+RULES_VERSION = 2
+
 #: Bare ``_exit(``: evades ``\\bos\\._exit\\b`` via ``from os import _exit``.
 #: ``\\b`` also matches inside ``os._exit(`` (boundary between ``.`` and
 #: ``_``); that redundancy is harmless (first-match order keeps the V3 hit).

@@ -1,0 +1,9 @@
+{
+ "ledger_sha256": "6e8c329eda537a47e4112103a97a519762a7f17a7c7f8cf9f5180b9b187bc6b7",
+ "predictions_sealed_sha256": "a83220e9be07e0483fd200b284bb587b6563a7c254febe95829542456a7b9f7d",
+ "raw_sha256": "983f7f4ea9e19fa74e6a81bd481186435ddf1461739e8c410bb6aea484dcb5aa",
+ "rows": 104,
+ "sealed_at_utc": "2026-10-19T11:18:17Z",
+ "spent_usd": 0.097863438,
+ "system": "qa-trace/6-or1p"
+}

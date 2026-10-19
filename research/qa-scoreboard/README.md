@@ -59,14 +59,11 @@ Writers so far:
   v1 rows (`tripwires@731d849f84c0/<view>`) that were missing for the internal keys,
   using their committed v1 predictions. v1 rows are never rewritten. The per-item
   decision flips are in that directory's `results.json`.
-<<<<<<< HEAD
 - `research/experiments/history-cmds-window3-20261019/run.py --scoreboard` writes
   the one-shot blind test on `mimo-fresh-window3`. It covers the frozen
   dev-selected rule (`action-rule@88cf3b998fd3/history_cmds-or-tripwire/<view>`) and
   the tripwire OR. Recall counts `wrong_pass` + `not_a_pass` items, and the
   wrong-pass-only recall is in the row notes.
-=======
->>>>>>> origin/main
 
 ## Frozen retained-version suite
 

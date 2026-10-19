@@ -40,12 +40,8 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | filter-js-from-html | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | financial-document-processor | breaker-bench-v1 | tb2-to-tb21-v1 |
 | fix-ocaml-gc | breaker-bench-v1 | tb2-to-tb21-v1 |
-<<<<<<< HEAD
 | format-code-task-000089 | mimo-weak-tests-v2, mimo-weak-tests-v2.1 | mimo-fresh-window3 |
 | format-code-task-001246 | mimo-weak-tests-v1 | mimo-fresh-window3, mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
-=======
-| format-code-task-001246 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
->>>>>>> origin/main
 | format-code-task-001480 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
 | format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
 | git-multibranch | breaker-bench-v1 | delphik-open-defect-tb2, tb2-to-tb21-v1 |

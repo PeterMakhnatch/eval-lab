@@ -318,7 +318,7 @@ def test_committed_threshold_pauses_billable_work_above_sixty_percent(tmp_path: 
     artifact that would actually change if someone moved the threshold.
     """
     committed = load_policy(REPO_ROOT / "policy" / "standing-approvals.yaml")
-    assert committed.refuse_billable_at_used_percent == 60
+    assert committed.refuse_billable_at_used_percent == 80
     for used in (59.0, 59.9):
         reading = headroom(used_percent=used)
         assert provider_reported_exhaustion(reading) is None

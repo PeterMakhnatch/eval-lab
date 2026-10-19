@@ -1,0 +1,270 @@
+{
+  "benchmarks": {
+    "humanevalfix": {
+      "attempted_n": 12,
+      "baseline_qualified_n": 12,
+      "by_producer": {
+        "Auditor": {
+          "attempted_n": 12,
+          "baseline_qualified_n": 12,
+          "confirmed_rate_attempted": {
+            "count": 0,
+            "n": 12,
+            "rate": 0.0,
+            "wilson_95_ci": [
+              2.7755575615628914e-17,
+              0.24249400665524085
+            ]
+          },
+          "confirmed_rate_baseline_qualified": {
+            "count": 0,
+            "n": 12,
+            "rate": 0.0,
+            "wilson_95_ci": [
+              2.7755575615628914e-17,
+              0.24249400665524085
+            ]
+          }
+        }
+      },
+      "clean_negative_tasks": 0,
+      "confirmed_rate_attempted": {
+        "count": 0,
+        "n": 12,
+        "rate": 0.0,
+        "wilson_95_ci": [
+          2.7755575615628914e-17,
+          0.24249400665524085
+        ]
+      },
+      "confirmed_rate_baseline_qualified": {
+        "count": 0,
+        "n": 12,
+        "rate": 0.0,
+        "wilson_95_ci": [
+          2.7755575615628914e-17,
+          0.24249400665524085
+        ]
+      },
+      "confirmed_weak_tasks": 0,
+      "confirmed_witnesses": 0,
+      "frame_n": 164,
+      "grade_records": 72,
+      "native_trials": 72,
+      "observed_frame_lower_bound": 0.0,
+      "primary_attempt_baseline_qualified_n": 12,
+      "primary_search": {
+        "candidate_bearing_tasks": 1,
+        "line_candidates_generated_recorded": 39,
+        "line_candidates_tried": 33,
+        "line_coverage_counts": {
+          "measured": 7,
+          "not_applicable": 3,
+          "unknown": 2
+        },
+        "line_generation_unreported_tasks": 0,
+        "subset_coverage_counts": {
+          "measured": 1,
+          "not_applicable": 11
+        }
+      },
+      "prior_attempts_retained": 12,
+      "scored_grades": 72,
+      "semantic_review_counts": {
+        "outside_explicit_requirements": 1
+      },
+      "status_counts": {
+        "measured": 1,
+        "not_applicable": 11,
+        "not_run": 152
+      },
+      "unknown_tasks": 164
+    },
+    "tb21": {
+      "attempted_n": 18,
+      "baseline_qualified_n": 18,
+      "by_producer": {
+        "Auditor": {
+          "attempted_n": 2,
+          "baseline_qualified_n": 2,
+          "confirmed_rate_attempted": {
+            "count": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson_95_ci": [
+              0.09453120573423074,
+              0.9054687942657693
+            ]
+          },
+          "confirmed_rate_baseline_qualified": {
+            "count": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson_95_ci": [
+              0.09453120573423074,
+              0.9054687942657693
+            ]
+          }
+        },
+        "trials run by Traces campaign traces-tb21-weak-tests-v1-20261019, adjudicated by Auditor": {
+          "attempted_n": 16,
+          "baseline_qualified_n": 16,
+          "confirmed_rate_attempted": {
+            "count": 3,
+            "n": 16,
+            "rate": 0.1875,
+            "wilson_95_ci": [
+              0.06591599071428142,
+              0.4300888096197414
+            ]
+          },
+          "confirmed_rate_baseline_qualified": {
+            "count": 3,
+            "n": 16,
+            "rate": 0.1875,
+            "wilson_95_ci": [
+              0.06591599071428142,
+              0.4300888096197414
+            ]
+          }
+        }
+      },
+      "clean_negative_tasks": 0,
+      "confirmed_rate_attempted": {
+        "count": 4,
+        "n": 18,
+        "rate": 0.2222222222222222,
+        "wilson_95_ci": [
+          0.09000928108601694,
+          0.45214584316212625
+        ]
+      },
+      "confirmed_rate_baseline_qualified": {
+        "count": 4,
+        "n": 18,
+        "rate": 0.2222222222222222,
+        "wilson_95_ci": [
+          0.09000928108601694,
+          0.45214584316212625
+        ]
+      },
+      "confirmed_weak_tasks": 4,
+      "confirmed_witnesses": 12,
+      "frame_n": 89,
+      "grade_records": 184,
+      "native_trials": 183,
+      "observed_frame_lower_bound": 0.0449438202247191,
+      "primary_attempt_baseline_qualified_n": 18,
+      "primary_search": {
+        "candidate_bearing_tasks": 11,
+        "line_candidates_generated_recorded": 620,
+        "line_candidates_tried": 97,
+        "line_coverage_counts": {
+          "measured": 6,
+          "not_applicable": 2,
+          "unknown": 10
+        },
+        "line_generation_unreported_tasks": 0,
+        "subset_coverage_counts": {
+          "measured": 5,
+          "not_applicable": 13
+        }
+      },
+      "prior_attempts_retained": 2,
+      "scored_grades": 182,
+      "semantic_review_counts": {
+        "equivalent_or_allowed": 4,
+        "outside_explicit_requirements": 11,
+        "required_gap": 12,
+        "unresolved": 4
+      },
+      "status_counts": {
+        "measured": 5,
+        "not_applicable": 13,
+        "not_run": 71
+      },
+      "unknown_tasks": 85
+    }
+  },
+  "independent_detector_evaluation": false,
+  "independent_s3_replay": false,
+  "interpretation": "Rates count method-established instruction violations under bounded search, not all true weaknesses. Wilson intervals are nominal binomial intervals for these observed rates, not corrections for purposive TB2.1 selection, stratified sampling or search censoring. Tiny reference edits may have no proper code subset or applicable line operator; absence of applicable probes is missing measurement, not evidence of a good grader. Search counts describe primary attempts; execution totals also include retained prior attempts. Unmeasured/nonpositive tasks remain unknown, never clean.",
+  "method_reuse": {
+    "archival_mimo_comparison": {
+      "caveat": "Historical raw-package sample from 389 previously measured eligible tasks; neither fresh v6 grades nor an independent detector comparison. Its 23 supported key positives differ from its 24 later strict adjudications.",
+      "new_executions": 0,
+      "published_key_verdict_counts": {
+        "fail": 23,
+        "pass": 0,
+        "unknown": 77
+      },
+      "rate_comparison": "Context only, not a matched cross-dataset prevalence comparison: eligibility, sampling and bounded-search censoring differ. No claim of matched search effort across datasets.",
+      "raw_candidate_rate": {
+        "count": 69,
+        "n": 100,
+        "rate": 0.69,
+        "wilson_95_ci": [
+          0.5937,
+          0.7722
+        ]
+      },
+      "resolved_uncertain_sensitivity": {
+        "count": 26,
+        "n": 100,
+        "rate": 0.26,
+        "wilson_95_ci": [
+          0.184,
+          0.3537
+        ]
+      },
+      "sha256": "sha256:352201643987cd6a35c4b72a590e29aa3d0413419d3fa0d2adb53cdd08084b87",
+      "source": "research/answer-keys/mimo-stratified-sample100/summary.json",
+      "strict_confirmed_rate": {
+        "count": 24,
+        "n": 100,
+        "rate": 0.24,
+        "wilson_95_ci": [
+          0.1669,
+          0.3323
+        ]
+      }
+    },
+    "engine": "src/evallab/ref_subset.py",
+    "first_pass_native_source_archive": {
+      "path": "research/evidence/runs/weak-tests-generalization-20261019-method-first-pass.tar.gz",
+      "sha256": "sha256:9bae626260b1a8c61d007cd3f8bce967956d6b0dd12facacd1a0d95043f30ae1"
+    },
+    "mutation_operators": "Existing evallab.verifier_mutation line operators; no new minimization method.",
+    "native_transport_source_commits": [
+      "6fc2e8389f9c7ea73f116adc0b4003b5e8e66ca6",
+      "e116b577bc2c3916217e6cc06caefcba0c71c903",
+      "60f04ba627a0c54be3fdaf252be302d8ab677fb4"
+    ],
+    "transport_schema_fixes": [
+      "Normalize explicitly declared legacy memory units using locked Harbor; never assume missing limits.",
+      "Bind the validated source/staged snapshot before execution, not by rereading a temporary source after the trial.",
+      "Repair native-transport type annotations and lint only; existing mutation and minimization operators unchanged."
+    ]
+  },
+  "new_experimental_model_calls": 0,
+  "owned_attempts": [
+    "first-pass",
+    "native-schema-fix-hef",
+    "hef-resume-20261019",
+    "tb21-retry-20261019"
+  ],
+  "paid_experiment_spend_usd": 0,
+  "primary_attempt_rule": "For each unchanged frozen task, use the last explicitly named completed owned attempt for candidate search. Prior attempts remain retained and included in execution counts. Candidate-bearing prior attempts cannot be superseded. Baseline-qualified denominators include valid controls from any retained attempt; positive witnesses require their own primary attempt's controls.",
+  "resource_limit": "One owned lane; shared two-slot Docker gate with the Traces campaign. Native task limits unchanged. Capacity-minus-reserve fallback with unbounded services is disclosed in raw matrix receipts.",
+  "schema": "evallab.weak_tests_generalization.results/v1",
+  "selection": {
+    "humanevalfix": "Four equal strata of 41 tasks by buggy source byte length (task name breaks ties); take the three smallest seeded SHA-256 ranks in each stratum. All tasks have equal 3/41 inclusion probability under the recorded hash-rank design.",
+    "tb21": "Purposive two-stratum pilot: one executable Python submission and one structured-data submission, disjoint from the 20 live Traces tasks. Not a random population estimate."
+  },
+  "source_provenance": [
+    "Auditor",
+    "trials run by Traces campaign traces-tb21-weak-tests-v1-20261019, adjudicated by Auditor"
+  ],
+  "survivors_reviewed": 32,
+  "survivors_unreviewed": 0
+}

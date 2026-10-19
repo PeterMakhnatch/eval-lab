@@ -329,6 +329,17 @@ separate `--stages exploit` probe is requested.
     intact. `publish.py collect --owned-attempt NAME` explicitly selects completed
     later attempts while retaining and counting earlier execution evidence;
     candidate-bearing earlier attempts cannot be silently superseded.
+    `run --resume-from EARLIER` skips tasks that already have a report in an
+    interrupted attempt; `collect` accepts such an interrupted attempt through
+    its per-task `completed.json`. Prior Traces tasks whose report is absent at
+    collection time are listed under `prior_reports_absent_at_collection`.
+    Retained bytes ship as
+    `research/evidence/runs/weak-tests-generalization-20261019-evidence.tar.gz`;
+    extract it under `research/evidence/runs/` before re-running `build`.
+    2026-10-19 result (`results.json`): TB2.1 4/18 measured tasks confirmed weak
+    (Wilson 95% 0.09–0.45; 12 witnesses); HumanEvalFix 0/12 (0–0.24). Every
+    HumanEvalFix instruction only asks that the listed tests pass, so a
+    survivor there cannot violate a written requirement beyond the tests.
     Published summaries separate primary-attempt search coverage from native
     execution totals across all retained attempts. A one-block repair can
     have no proper subset, and its rewritten lines can have no applicable

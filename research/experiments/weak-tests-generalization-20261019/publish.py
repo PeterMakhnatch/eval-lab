@@ -73,27 +73,34 @@ def collect(include_prior: bool, owned_attempts: list[str] | None = None) -> Non
         if Path(attempt).name != attempt or attempt in {"", ".", ".."}:
             raise ValueError("attempt must be a single nonempty path component")
         attempt_root = RUNS / "attempts" / attempt
-        completion = json.loads((attempt_root / "completion.json").read_text())
         snapshot = json.loads((attempt_root / "attempt.json").read_text())
         expected = {(row["benchmark"], row["task_id"]) for row in snapshot["selected"]}
-        actual = [(row["benchmark"], row["task_id"]) for row in completion["results"]]
+        # An interrupted attempt keeps its per-task completed.json; only those reports are used.
+        interrupted = not (attempt_root / "completion.json").is_file()
+        results = (json.loads((attempt_root / "completed.json").read_text()) if interrupted
+                   else json.loads((attempt_root / "completion.json").read_text())["results"])
+        actual = [(row["benchmark"], row["task_id"]) for row in results]
         if (
             snapshot["cohort_sha256"] != digest(HERE / "cohort.json")
             or snapshot["limits"] != plan["limits"]
-            or len(set(actual)) != len(actual) or set(actual) != expected
+            or len(set(actual)) != len(actual)
+            or not (set(actual) <= expected if interrupted else set(actual) == expected)
             or not expected <= selected_jobs.keys()
         ):
             raise ValueError("a completed attempt differs from the unchanged frozen plan")
         sources.extend((family, selected_jobs[family, name], REPO,
                         attempt_root / family / name, "Auditor") for family, name in actual)
+    missing: list[str] = []
     if include_prior:
         root = Path(plan["tb21"]["prior_worktree"])
         prior_runs = root / "runs/px1-tb21-weak-tests-v1-20261019"
         if not (prior_runs / "campaign-results.json").is_file():
             raise ValueError("the Traces driver is not finished; do not inspect or take it over")
+        missing = [name for name in plan["tb21"]["prior_live_campaign"]
+                   if not (prior_runs / "campaign" / name / "report.json").is_file()]
         sources += [("tb21", {"task_id": name}, root, prior_runs / "campaign" / name,
                      "trials run by Traces campaign traces-tb21-weak-tests-v1-20261019, adjudicated by Auditor")
-                    for name in plan["tb21"]["prior_live_campaign"]]
+                    for name in plan["tb21"]["prior_live_campaign"] if name not in missing]
     retained: dict[tuple[str, str], dict[str, Any]] = {}
     for benchmark, selected, root, report_dir, producer in sources:
         name = selected["task_id"]
@@ -173,6 +180,7 @@ def collect(include_prior: bool, owned_attempts: list[str] | None = None) -> Non
     dump(HERE / "inventory.json", {
         "schema": "evallab.weak_tests_generalization.inventory/v1",
         "owned_attempts": ["first-pass", *attempts], "tasks": inventory,
+        "prior_reports_absent_at_collection": missing,
     })
     queue = [
         {"benchmark": row["benchmark"], "task_id": row["task_id"], "candidate_id": candidate["id"]}

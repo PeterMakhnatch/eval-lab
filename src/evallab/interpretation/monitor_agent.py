@@ -151,6 +151,8 @@ def _payload(
     *, disable_thinking: bool = False,
     response_format: Literal["json_schema", "json_object"] = "json_schema",
     reasoning_effort: str | None = None,
+    provider: dict[str, Any] | None = None,
+    reasoning: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     output_format: dict[str, Any]
     if response_format not in {"json_schema", "json_object"}:
@@ -178,6 +180,10 @@ def _payload(
         result["thinking"] = {"type": "disabled"}
     if reasoning_effort is not None:
         result["reasoning_effort"] = reasoning_effort
+    if provider is not None:
+        result["provider"] = provider
+    if reasoning is not None:
+        result["reasoning"] = reasoning
     return result
 
 
@@ -197,6 +203,8 @@ class OpenAIInvestigator:
         disable_thinking: bool = False,
         response_format: Literal["json_schema", "json_object"] = "json_schema",
         reasoning_effort: str | None = None,
+        provider: dict[str, Any] | None = None,
+        reasoning: dict[str, Any] | None = None,
     ) -> None:
         parsed = urllib.parse.urlsplit(endpoint)
         host = parsed.hostname or ""
@@ -248,6 +256,14 @@ class OpenAIInvestigator:
         ):
             raise ValueError("reasoning_effort must be a supported explicit level without disable_thinking")
         self.reasoning_effort = reasoning_effort
+        if provider is not None and not isinstance(provider, dict):
+            raise ValueError("provider options must be a JSON object")
+        if reasoning is not None and (
+            not isinstance(reasoning, dict) or reasoning_effort is not None or disable_thinking
+        ):
+            raise ValueError("reasoning options require one explicit JSON object without conflicting controls")
+        self.provider = json.loads(_json(provider)) if provider is not None else None
+        self.reasoning = json.loads(_json(reasoning)) if reasoning is not None else None
         self._api_key = api_key
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -270,6 +286,8 @@ class OpenAIInvestigator:
             disable_thinking=self.disable_thinking,
             response_format=self.response_format,
             reasoning_effort=self.reasoning_effort,
+            provider=self.provider,
+            reasoning=self.reasoning,
         )).encode("utf-8")
         if len(encoded) > _MAX_REQUEST_BYTES:
             raise ValueError("provider request exceeds byte bound")
@@ -342,13 +360,24 @@ class OpenAIInvestigator:
                     "provider did not finish a plain assistant response",
                     finish_reason=choice.get("finish_reason"),
                 )
-            inert_fields = {"role", "content", "refusal", "reasoning_content", "annotations"}
-            if set(message) - inert_fields or message.get("refusal"):
-                raise InvestigatorError("provider tool/execution features or refusal are unsupported")
-            reasoning = message.get("reasoning_content")
-            if reasoning is not None and not isinstance(reasoning, str):
+            inert_fields = {
+                "role", "content", "refusal", "reasoning_content", "reasoning", "reasoning_details", "annotations",
+            }
+            unsupported = sorted(set(message) - inert_fields)
+            if unsupported or message.get("refusal"):
+                raise InvestigatorError(
+                    "provider tool/execution features or refusal are unsupported"
+                    f" (fields: {', '.join(unsupported) or 'refusal'})"
+                )
+            reasoning = [message.get("reasoning_content"), message.get("reasoning")]
+            if any(value is not None and not isinstance(value, str) for value in reasoning):
                 raise InvestigatorError("invalid provider reasoning metadata")
-            if self.disable_thinking and reasoning:
+            details = message.get("reasoning_details")
+            if details is not None and (
+                not isinstance(details, list) or any(not isinstance(item, dict) for item in details)
+            ):
+                raise InvestigatorError("invalid provider reasoning details")
+            if self.disable_thinking and (any(reasoning) or details):
                 raise InvestigatorError("provider ignored explicit disabled-thinking control")
             if message.get("annotations") not in (None, []):
                 raise InvestigatorError("provider external-tool annotations are unsupported")
@@ -732,6 +761,10 @@ def investigate(
         "request_profile": request_profile,
         "prompt_sha256": content_digest(_SYSTEM_PROMPT),
     }
+    if getattr(transport, "provider", None) is not None:
+        identity["provider"] = getattr(transport, "provider", None)
+    if getattr(transport, "reasoning", None) is not None:
+        identity["reasoning"] = getattr(transport, "reasoning", None)
     pass_id = content_digest(identity)
     source_limits = _source_limits(case, corpus)
     with _request_lock(work_dir):
@@ -808,6 +841,8 @@ def investigate(
                     disable_thinking=getattr(transport, "disable_thinking", False),
                     response_format=getattr(transport, "response_format", "json_schema"),
                     reasoning_effort=getattr(transport, "reasoning_effort", None),
+                    provider=getattr(transport, "provider", None),
+                    reasoning=getattr(transport, "reasoning", None),
                 )
                 if len(_json(payload)) > limits.max_context_chars:
                     extra_limits.append("Context bound reached; evidence was not silently discarded.")

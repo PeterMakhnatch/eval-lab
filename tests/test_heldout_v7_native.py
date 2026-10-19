@@ -112,7 +112,11 @@ def evidence_runner(score: Any = 1, *, mutate=None):
             staged, adaptation = runner.stage_request_task(request, root / "runs/.exec-stage" / run.name)
             staging = runner._task_staging_provenance(request.task, staged, adaptation)
         agent = {"name": "oracle", "model_name": None, "import_path": None}
-        environment = {"type": None, "import_path": MODAL_ENVIRONMENT_IMPORT_PATH}
+        environment = {
+            "type": None,
+            "import_path": (native.HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH
+                            if matrix.environment == "docker" else MODAL_ENVIRONMENT_IMPORT_PATH),
+        }
         task = {"path": str(staged)}
         trial_config = {
             "job_id": NEW_JOB, "trial_name": trial.name, "task": task,
@@ -545,3 +549,39 @@ def test_parent_can_apply_existing_modal_policy_fields_without_losing_native_cus
     receipt_ref = observation["native_evidence"]["matrix_receipt"]
     receipt = json.loads(Path(receipt_ref["path"]).read_bytes())
     assert all(receipt["matrix"][key] == value for key, value in policies.items())
+
+
+@pytest.mark.parametrize("score", [0, 1])
+@pytest.mark.parametrize("cases", [0, 1])
+def test_docker_calibration_is_model_free_and_requires_positive_cases(tmp_path, monkeypatch, score, cases):
+    row, target = source(tmp_path), grader(tmp_path)
+    monkeypatch.setattr(native, "modal_resource_blocker", lambda _: pytest.fail("Docker used a Modal grant gate"))
+
+    def case_log(context):
+        context["reward_artifacts"]["junit-grade.log"] = f"mvn surefire=1 cases={cases}\n"
+
+    observation = native.replay_and_collect(
+        row, target, repo_root=tmp_path / "repo", work=tmp_path / "repo/runs/round/item",
+        backend="docker", require_case_execution=True, matrix_runner=evidence_runner(score, mutate=case_log),
+    )
+    evidence = observation["native_evidence"]
+    assert evidence["backend"] == "docker" and evidence["dispatched"] is True
+    assert evidence["submitted_matrix"]["environment"] == "docker"
+    assert evidence["submitted_matrix"]["runs"][0]["agent"] == "oracle"
+    assert evidence["submitted_matrix"]["runs"][0]["model"] is None
+    if cases:
+        assert observation["v7_outcome"] is bool(score), observation
+        assert observation["v7_error"] is None and evidence["positive_case_execution"] is True
+    else:
+        assert observation["v7_outcome"] is None
+        assert observation["v7_error"] == "native_positive_case_execution_unproven"
+        assert observation["replayed"] is True
+
+
+@pytest.mark.parametrize("environment", [
+    {"type": "docker", "import_path": None},
+    {"type": None, "import_path": MODAL_ENVIRONMENT_IMPORT_PATH},
+])
+def test_docker_native_proof_refuses_unisolated_or_cloud_backend(environment):
+    with pytest.raises(ValueError, match="first_party_isolated_docker"):
+        native._environment(environment, "docker")

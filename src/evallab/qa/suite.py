@@ -57,10 +57,25 @@ class _Run(ContractModel):
         return value
 
 
+class NotRescored(ContractModel):
+    """A published result this command cannot re-score; shown verbatim, never as a row."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    agent: Agent
+    system: str = Field(min_length=1)
+    key: str = Field(min_length=1)
+    split: str = Field(min_length=1)
+    reported: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+
+
 class _Manifest(ContractModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     runs: list[_Run]
+    not_rescored: list[NotRescored] = Field(default_factory=list)
 
 
 class SourceReceipt(ContractModel):
@@ -115,6 +130,7 @@ class SuiteReport(ContractModel):
     bound_sources: list[str]
     sources: list[SourceReceipt]
     rows: list[SuiteRow]
+    not_rescored: list[NotRescored] = Field(default_factory=list)
 
 
 def _sha256(content: bytes) -> str:
@@ -319,9 +335,11 @@ def _frozen_keys(root: Path) -> tuple[list[AnswerKey], ModuleType, list[dict], d
     return keys, guard, exposures, raw_keys, custody
 
 
-def _bindings(manifest: Path | None, keys: list[AnswerKey]) -> dict[tuple[str, str, str], tuple[_Run, Path]]:
+def _bindings(
+    manifest: Path | None, keys: list[AnswerKey]
+) -> tuple[dict[tuple[str, str, str], tuple[_Run, Path]], list[NotRescored]]:
     if manifest is None:
-        return {}
+        return {}, []
     parsed = _Manifest.model_validate(
         json.loads(manifest.read_bytes(), object_pairs_hook=_json_object)
     )
@@ -339,7 +357,7 @@ def _bindings(manifest: Path | None, keys: list[AnswerKey]) -> dict[tuple[str, s
         if not source.is_dir() and not (source.is_file() and source.suffix == ".jsonl"):
             raise ValueError(f"runs manifest {manifest}: missing/invalid findings source {source}")
         bindings[identity] = (run, source)
-    return bindings
+    return bindings, parsed.not_rescored
 
 
 def _exposure_notes(
@@ -521,7 +539,7 @@ def build_suite(
     exposure_hits = {
         record["exposure_id"]: guard.exposed_items(record, raw_keys) for record in exposures
     }
-    bindings = _bindings(manifest, keys)
+    bindings, not_rescored = _bindings(manifest, keys)
     if manifest is not None:
         custody[str(manifest)] = _sha256(manifest.read_bytes())
     receipts: dict[str, SourceReceipt] = {}
@@ -592,6 +610,7 @@ def build_suite(
         frozen_custody=dict(sorted(custody.items())),
         bound_sources=sorted({str(path) for _run, path in bindings.values()}),
         sources=[receipts[path] for path in sorted(receipts)], rows=rows,
+        not_rescored=[entry for entry in not_rescored if entry.agent in agents],
     )
 
 
@@ -668,6 +687,18 @@ def render_suite(report: SuiteReport, root: Path | None = None) -> str:
             if cells:
                 values = [rows[0].agent, version, status, ", ".join(cells)]
                 lines.append("| " + " | ".join(map(_cell, values)) + " |")
+    if report.not_rescored:
+        lines += [
+            "", "## Reported elsewhere, not re-scored here", "",
+            "These published results have no version-proved per-item `qa.finding/v1` records available to this command "
+            "(or are on datasets that are not registered keys). They are copied verbatim from the named source with that "
+            "source's own denominators; they are not re-scored on the frozen splits, are not suite rows, and are not new runs.", "",
+            "| Agent | System (as reported) | Key | Split | Reported (copied, not re-scored) | Why not re-scored | Source |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for entry in report.not_rescored:
+            values = [entry.agent, entry.system, entry.key, entry.split, entry.reported, entry.reason, entry.source]
+            lines.append("| " + " | ".join(map(_cell, values)) + " |")
     lines += ["", "## Coverage and interpretation", ""]
     for row in bound:
         score = row.score

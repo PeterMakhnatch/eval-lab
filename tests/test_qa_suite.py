@@ -606,10 +606,18 @@ def test_one_report_compares_several_agents_and_lists_unmeasured_cells(
         _run("k", str(task_source)),
         _run("k", str(wire_source), version="tripwires@abc/actions", agent="tripwire"),
     ])
+    published = {
+        "agent": "trace", "system": "qa-trace/6-pk1-luna", "key": "k", "split": "heldout",
+        "reported": "recall 0.5 (n=2)", "reason": "aggregate row only", "source": "scoreboard.csv",
+    }
+    document = json.loads(manifest.read_text())
+    manifest.write_text(json.dumps(document | {"not_rescored": [published, published | {"agent": "task"}]}))
     args = ("--runs", str(manifest), "--agent", "tripwire")
     assert _invoke(tmp_path, *args, versions=("qa-task/v1", "tripwires@abc/actions")) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["agents"] == ["task", "tripwire"]
+    assert [entry["agent"] for entry in payload["not_rescored"]] == ["task"]
+    assert len(payload["rows"]) == 4
     assert _row(payload)["agent"] == "task"
     assert _row(payload)["score"]["recall"] == 1.0
     wire = _row(payload, version="tripwires@abc/actions")
@@ -620,6 +628,7 @@ def test_one_report_compares_several_agents_and_lists_unmeasured_cells(
     assert "| task | qa-task/v1 | no-run | later/dev (1) |" in report
     assert "| raw/task.jsonl |" in report
     assert str(tmp_path) not in report
+    assert "| task | qa-trace/6-pk1-luna | k | heldout | recall 0.5 (n=2) | aggregate row only | scoreboard.csv |" in report
     capsys.readouterr()
     assert _invoke(tmp_path, "--runs", str(manifest), versions=("tripwires@abc/actions",)) == 2
     assert "unversioned labels are unavailable" in capsys.readouterr().err

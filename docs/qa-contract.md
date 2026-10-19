@@ -191,6 +191,14 @@ report puts source-bound cells in its main table and lists every `no-run`
 and `inapplicable` key/split cell, per version, in an "Unmeasured cells"
 table; the JSON keeps one full row per cell.
 
+The manifest may also carry an optional `not_rescored` list for published
+results the suite cannot re-score (aggregate-only scoreboard rows, unversioned
+producers, datasets that are not registered keys). Each entry has exactly
+`agent`, `system`, `key`, `split`, `reported`, `reason` and `source` strings.
+Entries for the requested agents are printed verbatim in a separate
+"Reported elsewhere, not re-scored here" table; they never become suite rows,
+never enter a rate, and are not new runs.
+
 The suite calls the shared scorer, preserving refutation, root-cause and
 paired-discrimination semantics. Rates show their labelled **measured**
 denominators; unknown labels never become negatives. Unknown decisions,

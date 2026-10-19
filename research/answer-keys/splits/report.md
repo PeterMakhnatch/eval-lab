@@ -146,3 +146,5 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | cheatbench-actions-prior-combined-v1-calibration | tuned | QA Trace T0 (combined_v1*) | cheatbench-actions-v1 | 150 | 150 |
 | qa-task-s2a-ordinary-heldout-20261019 | inspected | QA Task (qa-task@s2a-ordinary-availability-verified*) from 2026-10-19 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s2a-ordinary-heldout-20261019 | inspected | QA Task (qa-task@s2a-ordinary-availability-verified*) from 2026-10-19 | envcheck-tb4-39 | 0 | 26 |
+| action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | cheatbench-actions-v1 | 0 | 3 |
+| action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | hacktrace-act-v1 | 150 | 150 |

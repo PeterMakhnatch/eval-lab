@@ -315,18 +315,22 @@ def _load_tb21_materializer() -> Any:
     return mod
 
 
+WEAK_TB21_SLUGS = (
+    "cobol-modernization",
+    "multi-source-data-merger",
+    "sam-cell-seg",
+    "sqlite-db-truncate",
+)
+
+
 def load_weak_tb21_items() -> list[dict[str, Any]]:
     rows = [
         json.loads(line)
         for line in KEY_ITEMS_PATH.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    return [
-        row
-        for row in rows
-        if row.get("expected_verdict") == "fail"
-        and str((row.get("subject") or {}).get("task_id", "")).startswith("tb21/")
-    ]
+    target_ids = {f"tb21/{slug}" for slug in WEAK_TB21_SLUGS}
+    return [row for row in rows if str((row.get("subject") or {}).get("task_id", "")) in target_ids]
 
 
 class WeakTB21Cell(rh.Cell):
@@ -367,7 +371,16 @@ def cells_from_key() -> list[WeakTB21Cell]:
             "benchmark": "terminal-bench-2",
             "slug": slug,
             "mechanism": "weak_verifier",
-            "expected_root_causes": list(item.get("expected_root_causes") or []),
+            "expected_root_causes": list(
+                item.get("expected_root_causes")
+                or (
+                    [
+                        "test_json_data passes when score > 6 matching rows, so up to two wrong or missing rows pass."
+                    ]
+                    if slug == "sqlite-db-truncate"
+                    else []
+                )
+            ),
             "task_digest": str(item["subject"]["task_digest"]),
             "timeout_seconds": rh.DEFAULT_TIMEOUT_SECONDS,
         }

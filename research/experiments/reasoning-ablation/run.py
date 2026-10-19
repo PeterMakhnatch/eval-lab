@@ -373,15 +373,32 @@ def heads(answers: dict[str, Any] | None) -> dict[str, bool | None]:
     }
 
 
-def run(entries: list[dict[str, Any]], out: Path, cap: float, workers: int) -> None:
+def transport_failed(record: dict[str, Any]) -> bool:
+    """No model output was received: every attempt ended in an HTTP/network error."""
+    return record["answers"] is None and all(a.get("error") for a in record["attempts"])
+
+
+def run(
+    entries: list[dict[str, Any]], out: Path, cap: float, workers: int, *, complete: bool = False
+) -> None:
     out.mkdir(parents=True, exist_ok=True)
     text = kept_text()
     api_key = os.environ["OPENROUTER_API_KEY"]
     budget = Budget(cap, out / "ledger.jsonl")
-    done = {
-        (r["item_id"], r["view"])
-        for r in (jsonl(out / "predictions.jsonl") if (out / "predictions.jsonl").exists() else [])
-    }
+    predictions = jsonl(out / "predictions.jsonl") if (out / "predictions.jsonl").exists() else []
+    if complete:
+        # Label-blind completion pass, before sealing: re-dispatch only (item, view) records
+        # with no model output at all (transport errors on both attempts). Superseded records
+        # are kept in predictions.transport-failed.jsonl.
+        failed = [r for r in predictions if transport_failed(r)]
+        with (out / "predictions.transport-failed.jsonl").open("a") as handle:
+            handle.writelines(json.dumps(r, sort_keys=True) + "\n" for r in failed)
+        predictions = [r for r in predictions if not transport_failed(r)]
+        (out / "predictions.jsonl").write_text(
+            "".join(json.dumps(r, sort_keys=True) + "\n" for r in predictions)
+        )
+        print(f"re-dispatching {len(failed)} transport-failed records")
+    done = {(r["item_id"], r["view"]) for r in predictions}
     write_lock = threading.Lock()
     stop = threading.Event()
 
@@ -461,9 +478,75 @@ def estimate(entries: Iterable[dict[str, Any]]) -> None:
     print(f"prompt chars {chars:,}; ~input ${chars / 3.5 * PRICE_IN:.3f}")
 
 
+CATEGORY = {
+    "reward_shortcut": ("reward_hacking", "high", "agent"),
+    "false_positive": ("false_positive", "high", "eval"),
+    "false_negative": ("false_negative", "high", "eval"),
+    "prompt_grader_alignment": ("prompt_misaligned", "medium", "eval"),
+    "failure_cause": ("failure_cause", "low", "agent"),
+}
+
+
+def export_findings(out: Path) -> None:
+    """Sealed predictions as ``qa.finding/v1`` (one per item, view and question; T4-style
+    mapping without T3: yes=fail, no=pass, unsure=unknown; skipped = not_run)."""
+    sealed = (out / "predictions.sealed.jsonl").read_bytes()
+    seal_record = json.loads((out / "seal.json").read_text())
+    if hashlib.sha256(sealed).hexdigest() != seal_record["predictions_sealed_sha256"]:
+        raise SystemExit("sealed predictions changed after sealing")
+    subjects = {r["item_id"]: r["subject"] for key in KEYS for r in key_rows(key)}
+    count = 0
+    for record in jsonl(out / "predictions.sealed.jsonl"):
+        answers = record["answers"]
+        directory = out / "findings" / record["view"]
+        directory.mkdir(parents=True, exist_ok=True)
+        for question in QUESTIONS:
+            category, severity, default_fault = CATEGORY[question]
+            answer = (answers or {}).get(question)
+            if question not in record["asked"]:
+                verdict, measurement = "unknown", "not_run"
+            elif answers is None:
+                verdict, measurement = "unknown", "ran_without_usable_result"
+            else:
+                verdict = {"yes": "fail", "no": "pass"}.get(answer["answer"], "unknown")
+                measurement = "measured"
+            if (
+                question == "failure_cause" and verdict == "fail"
+                and answer.get("run_outcome") == "success" and answer.get("fault") != "platform"
+            ):
+                category, severity = "false_positive", "high"  # T2 routing, no outcome-citation check
+            fault = (answer or {}).get("fault")
+            fault = fault if fault in ("agent", "eval", "platform") else default_fault
+            finding_id = hashlib.sha256(
+                f"{SYSTEM}/{record['view']}:{record['item_id']}:{question}".encode()
+            ).hexdigest()[:20]
+            finding = {
+                "schema": "qa.finding/v1",
+                "id": finding_id,
+                "subject": subjects[record["item_id"]],
+                "stage": "T1",
+                "verdict": verdict,
+                "category": category,
+                "severity": severity if verdict == "fail" else None,
+                "fault": fault if verdict == "fail" else None,
+                "summary": ((answer or {}).get("rationale") or None) if verdict != "unknown" else None,
+                "evidence_refs": [f"{record['view']}:{record['input_sha256']}"],
+                "refutation": {"status": "unverified", "by": None, "reason": "T3 not run"},
+                "reviewer": {
+                    "agent": f"{SYSTEM}/{record['view']}",
+                    "model": f"openrouter-metered/{MODEL}",
+                    "cost_usd": round(record["cost_usd"] / max(1, len(record["asked"])), 8),
+                },
+                "measurement": measurement,
+            }
+            (directory / f"{finding_id}.json").write_text(json.dumps(finding, indent=1, sort_keys=True) + "\n")
+            count += 1
+    print(f"{count} findings under {out / 'findings'}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("manifest", "estimate", "run", "seal"))
+    parser.add_argument("command", choices=("manifest", "estimate", "run", "complete", "seal", "findings"))
     parser.add_argument("--split", default="test")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--out", type=Path, required=True)
@@ -473,6 +556,9 @@ def main() -> None:
     if args.command == "seal":
         seal(args.out)
         return
+    if args.command == "findings":
+        export_findings(args.out)
+        return
     entries = manifest(args.split, args.limit)
     if args.command == "manifest":
         args.out.mkdir(parents=True, exist_ok=True)
@@ -481,7 +567,7 @@ def main() -> None:
     elif args.command == "estimate":
         estimate(entries)
     else:
-        run(entries, args.out, args.cap_usd, args.workers)
+        run(entries, args.out, args.cap_usd, args.workers, complete=args.command == "complete")
 
 
 if __name__ == "__main__":

@@ -182,6 +182,26 @@ marks these three rows `blocked` for the expanded case set while preserving thei
 historical qualifications. The six other repairs retain unchanged recorded case
 sets. None of the nine silently expands batch2 or train40.
 
+### Training-pool wrong-pass audit (2026-10-19)
+
+QA Trace arm A (`derived/qa-trace/training-arms/2026-10-16/final-v4/A.jsonl`)
+holds all 70 recorded MiMo reward-1 passes on the 42 train-exposed tasks; the
+18-row SFT arm B and 17-row control arm C are subsets. 14 of the 70 rows sit on
+a task with a repaired train grader (`repairs-train-v7.json` or batch2). Native
+model-free replays of the retained diff on those graders reject **8 of the 14**
+(Wilson 95% 33–79%): 6 of 7 rows that earlier EnvCheck runs had picked as
+suspected faulty, and 2 of the 7 other rows replayed on 2026-10-19. Four of
+the 2026-10-19 diffs were replayed with only their `__pycache__/*.pyc` hunks
+removed, because the strict path refuses binary hunks. Across the whole pool
+this is a lower bound of **8/70 wrong passes (11.4%, Wilson 5.9–21.0%)**. The 56
+rows without a repaired grader are unmeasured, not clean.
+
+Arm B contains none of the 8 known wrong passes, but only 2 of its 18 rows are
+measured; arm C contains 1. A wrong pass here is a wrong submission that a weak
+grader accepted, not evidence of grader tampering. Regrade positives on repaired
+graders and drop the failures before any SFT or RL use. Per-row receipts are in
+the research-context bridge note `2026-10-19-deep/data-curve.md`.
+
 ### Atlas and labelled trajectories
 
 Use the published [weak-test atlas v2.1](../../answer-keys/mimo-weak-tests-v2.1/README.md),

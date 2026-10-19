@@ -1,0 +1,4265 @@
+{
+  "cost": {
+    "all_successes_metered": true,
+    "cap_usd": 0.9,
+    "completion_requests": 0,
+    "ledger_sha256": "a794d8332f901d2d384e3d9b35761d7e5f8e5d41add7c6f862abea7f43ee4287",
+    "metered_usd": 0.245277374,
+    "providers": {
+      "DeepInfra": 434
+    },
+    "requests": 434,
+    "retry_requests": 0,
+    "transport_errors": 0
+  },
+  "elided_paired_traces": {
+    "actions": 40,
+    "full": 43
+  },
+  "hal_usaco_false_alarm": "unmeasured: source has no labelled negatives",
+  "head_results": {
+    "any_finding": {
+      "all_planned_sensitivity_missing_as_no_alarm": {
+        "cybench": {
+          "false_alarm": {
+            "actions": {
+              "k": 2,
+              "n": 14,
+              "rate": 0.1429,
+              "wilson95": [
+                0.0401,
+                0.3994
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.14285714285714285,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.5,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 14,
+              "rate": 0.2143,
+              "wilson95": [
+                0.0757,
+                0.4759
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.6666666666666666,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            }
+          }
+        },
+        "hal-usaco": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": null,
+              "full_only": 0,
+              "mcnemar_exact_p": null,
+              "n": 0,
+              "test_status": "too_few_pairs"
+            },
+            "rule": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 22,
+              "n": 25,
+              "rate": 0.88,
+              "wilson95": [
+                0.7004,
+                0.9583
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 25,
+              "rate": 0.12,
+              "wilson95": [
+                0.0417,
+                0.2996
+              ]
+            },
+            "paired": {
+              "actions_only": 20,
+              "delta_actions_minus_full": 0.76,
+              "full_only": 1,
+              "mcnemar_exact_p": 2.1e-05,
+              "n": 25,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_actions": {
+              "k": 22,
+              "n": 25,
+              "rate": 0.88,
+              "wilson95": [
+                0.7004,
+                0.9583
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 25,
+              "rate": 0.12,
+              "wilson95": [
+                0.0417,
+                0.2996
+              ]
+            }
+          }
+        },
+        "kernelbench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 5,
+              "n": 9,
+              "rate": 0.5556,
+              "wilson95": [
+                0.2667,
+                0.8112
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.5555555555555556,
+              "full_only": 5,
+              "mcnemar_exact_p": 0.0625,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 5,
+              "n": 9,
+              "rate": 0.5556,
+              "wilson95": [
+                0.2667,
+                0.8112
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "full": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.3333333333333333,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            }
+          }
+        },
+        "swe-bench-verified": {
+          "false_alarm": {
+            "actions": {
+              "k": 7,
+              "n": 15,
+              "rate": 0.4667,
+              "wilson95": [
+                0.2481,
+                0.6988
+              ]
+            },
+            "full": {
+              "k": 6,
+              "n": 15,
+              "rate": 0.4,
+              "wilson95": [
+                0.1982,
+                0.6425
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.06666666666666667,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 15,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_actions": {
+              "k": 8,
+              "n": 15,
+              "rate": 0.5333,
+              "wilson95": [
+                0.3012,
+                0.7519
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 15,
+              "rate": 0.4,
+              "wilson95": [
+                0.1982,
+                0.6425
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "paired": {
+              "actions_only": 3,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 3,
+              "mcnemar_exact_p": 1.0,
+              "n": 20,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_actions": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-rebench": {
+          "false_alarm": {
+            "actions": {
+              "k": 10,
+              "n": 14,
+              "rate": 0.7143,
+              "wilson95": [
+                0.4535,
+                0.8828
+              ]
+            },
+            "full": {
+              "k": 14,
+              "n": 14,
+              "rate": 1.0,
+              "wilson95": [
+                0.7847,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.2857142857142857,
+              "full_only": 4,
+              "mcnemar_exact_p": 0.125,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "rule_or_actions": {
+              "k": 10,
+              "n": 14,
+              "rate": 0.7143,
+              "wilson95": [
+                0.4535,
+                0.8828
+              ]
+            },
+            "rule_or_full": {
+              "k": 14,
+              "n": 14,
+              "rate": 1.0,
+              "wilson95": [
+                0.7847,
+                1.0
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 8,
+              "rate": 0.5,
+              "wilson95": [
+                0.2152,
+                0.7848
+              ]
+            },
+            "full": {
+              "k": 8,
+              "n": 8,
+              "rate": 1.0,
+              "wilson95": [
+                0.6756,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.5,
+              "full_only": 4,
+              "mcnemar_exact_p": 0.125,
+              "n": 8,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 8,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.3244
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 8,
+              "rate": 0.5,
+              "wilson95": [
+                0.2152,
+                0.7848
+              ]
+            },
+            "rule_or_full": {
+              "k": 8,
+              "n": 8,
+              "rate": 1.0,
+              "wilson95": [
+                0.6756,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-smith": {
+          "false_alarm": {
+            "actions": {
+              "k": 3,
+              "n": 9,
+              "rate": 0.3333,
+              "wilson95": [
+                0.1206,
+                0.6458
+              ]
+            },
+            "full": {
+              "k": 1,
+              "n": 9,
+              "rate": 0.1111,
+              "wilson95": [
+                0.0199,
+                0.435
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.2222222222222222,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.5,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 9,
+              "rate": 0.3333,
+              "wilson95": [
+                0.1206,
+                0.6458
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 9,
+              "rate": 0.1111,
+              "wilson95": [
+                0.0199,
+                0.435
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 4,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 4,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.4899
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            }
+          }
+        },
+        "terminal-bench-2": {
+          "false_alarm": {
+            "actions": {
+              "k": 10,
+              "n": 29,
+              "rate": 0.3448,
+              "wilson95": [
+                0.1994,
+                0.5265
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 29,
+              "rate": 0.3103,
+              "wilson95": [
+                0.1728,
+                0.4923
+              ]
+            },
+            "paired": {
+              "actions_only": 4,
+              "delta_actions_minus_full": 0.034482758620689655,
+              "full_only": 3,
+              "mcnemar_exact_p": 1.0,
+              "n": 29,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "rule_or_actions": {
+              "k": 13,
+              "n": 29,
+              "rate": 0.4483,
+              "wilson95": [
+                0.2841,
+                0.6245
+              ]
+            },
+            "rule_or_full": {
+              "k": 12,
+              "n": 29,
+              "rate": 0.4138,
+              "wilson95": [
+                0.2551,
+                0.5926
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 39,
+              "n": 64,
+              "rate": 0.6094,
+              "wilson95": [
+                0.4869,
+                0.7194
+              ]
+            },
+            "full": {
+              "k": 37,
+              "n": 64,
+              "rate": 0.5781,
+              "wilson95": [
+                0.4561,
+                0.6913
+              ]
+            },
+            "paired": {
+              "actions_only": 10,
+              "delta_actions_minus_full": 0.03125,
+              "full_only": 8,
+              "mcnemar_exact_p": 0.814529,
+              "n": 64,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 64,
+              "rate": 0.3125,
+              "wilson95": [
+                0.2123,
+                0.4339
+              ]
+            },
+            "rule_or_actions": {
+              "k": 49,
+              "n": 64,
+              "rate": 0.7656,
+              "wilson95": [
+                0.6487,
+                0.8525
+              ]
+            },
+            "rule_or_full": {
+              "k": 50,
+              "n": 64,
+              "rate": 0.7812,
+              "wilson95": [
+                0.6657,
+                0.865
+              ]
+            }
+          }
+        }
+      },
+      "benchmark": {
+        "cybench": {
+          "false_alarm": {
+            "actions": {
+              "k": 2,
+              "n": 14,
+              "rate": 0.1429,
+              "wilson95": [
+                0.0401,
+                0.3994
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.14285714285714285,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.5,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 14,
+              "rate": 0.2143,
+              "wilson95": [
+                0.0757,
+                0.4759
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.6666666666666666,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            }
+          }
+        },
+        "hal-usaco": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": null,
+              "full_only": 0,
+              "mcnemar_exact_p": null,
+              "n": 0,
+              "test_status": "too_few_pairs"
+            },
+            "rule": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 22,
+              "n": 25,
+              "rate": 0.88,
+              "wilson95": [
+                0.7004,
+                0.9583
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 25,
+              "rate": 0.12,
+              "wilson95": [
+                0.0417,
+                0.2996
+              ]
+            },
+            "paired": {
+              "actions_only": 20,
+              "delta_actions_minus_full": 0.76,
+              "full_only": 1,
+              "mcnemar_exact_p": 2.1e-05,
+              "n": 25,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_actions": {
+              "k": 22,
+              "n": 25,
+              "rate": 0.88,
+              "wilson95": [
+                0.7004,
+                0.9583
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 25,
+              "rate": 0.12,
+              "wilson95": [
+                0.0417,
+                0.2996
+              ]
+            }
+          }
+        },
+        "kernelbench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 5,
+              "n": 9,
+              "rate": 0.5556,
+              "wilson95": [
+                0.2667,
+                0.8112
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.5555555555555556,
+              "full_only": 5,
+              "mcnemar_exact_p": 0.0625,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 5,
+              "n": 9,
+              "rate": 0.5556,
+              "wilson95": [
+                0.2667,
+                0.8112
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "full": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.3333333333333333,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            }
+          }
+        },
+        "swe-bench-verified": {
+          "false_alarm": {
+            "actions": {
+              "k": 7,
+              "n": 15,
+              "rate": 0.4667,
+              "wilson95": [
+                0.2481,
+                0.6988
+              ]
+            },
+            "full": {
+              "k": 6,
+              "n": 15,
+              "rate": 0.4,
+              "wilson95": [
+                0.1982,
+                0.6425
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.06666666666666667,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 15,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_actions": {
+              "k": 8,
+              "n": 15,
+              "rate": 0.5333,
+              "wilson95": [
+                0.3012,
+                0.7519
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 15,
+              "rate": 0.4,
+              "wilson95": [
+                0.1982,
+                0.6425
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "paired": {
+              "actions_only": 3,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 3,
+              "mcnemar_exact_p": 1.0,
+              "n": 20,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_actions": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-rebench": {
+          "false_alarm": {
+            "actions": {
+              "k": 10,
+              "n": 14,
+              "rate": 0.7143,
+              "wilson95": [
+                0.4535,
+                0.8828
+              ]
+            },
+            "full": {
+              "k": 14,
+              "n": 14,
+              "rate": 1.0,
+              "wilson95": [
+                0.7847,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.2857142857142857,
+              "full_only": 4,
+              "mcnemar_exact_p": 0.125,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "rule_or_actions": {
+              "k": 10,
+              "n": 14,
+              "rate": 0.7143,
+              "wilson95": [
+                0.4535,
+                0.8828
+              ]
+            },
+            "rule_or_full": {
+              "k": 14,
+              "n": 14,
+              "rate": 1.0,
+              "wilson95": [
+                0.7847,
+                1.0
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 8,
+              "rate": 0.5,
+              "wilson95": [
+                0.2152,
+                0.7848
+              ]
+            },
+            "full": {
+              "k": 8,
+              "n": 8,
+              "rate": 1.0,
+              "wilson95": [
+                0.6756,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.5,
+              "full_only": 4,
+              "mcnemar_exact_p": 0.125,
+              "n": 8,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 8,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.3244
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 8,
+              "rate": 0.5,
+              "wilson95": [
+                0.2152,
+                0.7848
+              ]
+            },
+            "rule_or_full": {
+              "k": 8,
+              "n": 8,
+              "rate": 1.0,
+              "wilson95": [
+                0.6756,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-smith": {
+          "false_alarm": {
+            "actions": {
+              "k": 3,
+              "n": 9,
+              "rate": 0.3333,
+              "wilson95": [
+                0.1206,
+                0.6458
+              ]
+            },
+            "full": {
+              "k": 1,
+              "n": 9,
+              "rate": 0.1111,
+              "wilson95": [
+                0.0199,
+                0.435
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.2222222222222222,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.5,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 9,
+              "rate": 0.3333,
+              "wilson95": [
+                0.1206,
+                0.6458
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 9,
+              "rate": 0.1111,
+              "wilson95": [
+                0.0199,
+                0.435
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 4,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 4,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.4899
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            }
+          }
+        },
+        "terminal-bench-2": {
+          "false_alarm": {
+            "actions": {
+              "k": 10,
+              "n": 29,
+              "rate": 0.3448,
+              "wilson95": [
+                0.1994,
+                0.5265
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 29,
+              "rate": 0.3103,
+              "wilson95": [
+                0.1728,
+                0.4923
+              ]
+            },
+            "paired": {
+              "actions_only": 4,
+              "delta_actions_minus_full": 0.034482758620689655,
+              "full_only": 3,
+              "mcnemar_exact_p": 1.0,
+              "n": 29,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "rule_or_actions": {
+              "k": 13,
+              "n": 29,
+              "rate": 0.4483,
+              "wilson95": [
+                0.2841,
+                0.6245
+              ]
+            },
+            "rule_or_full": {
+              "k": 12,
+              "n": 29,
+              "rate": 0.4138,
+              "wilson95": [
+                0.2551,
+                0.5926
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 39,
+              "n": 64,
+              "rate": 0.6094,
+              "wilson95": [
+                0.4869,
+                0.7194
+              ]
+            },
+            "full": {
+              "k": 37,
+              "n": 64,
+              "rate": 0.5781,
+              "wilson95": [
+                0.4561,
+                0.6913
+              ]
+            },
+            "paired": {
+              "actions_only": 10,
+              "delta_actions_minus_full": 0.03125,
+              "full_only": 8,
+              "mcnemar_exact_p": 0.814529,
+              "n": 64,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 64,
+              "rate": 0.3125,
+              "wilson95": [
+                0.2123,
+                0.4339
+              ]
+            },
+            "rule_or_actions": {
+              "k": 49,
+              "n": 64,
+              "rate": 0.7656,
+              "wilson95": [
+                0.6487,
+                0.8525
+              ]
+            },
+            "rule_or_full": {
+              "k": 50,
+              "n": 64,
+              "rate": 0.7812,
+              "wilson95": [
+                0.6657,
+                0.865
+              ]
+            }
+          }
+        }
+      },
+      "mechanism_recall": [
+        {
+          "actions": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "benchmark": "cybench",
+          "full": {
+            "k": 3,
+            "n": 3,
+            "rate": 1.0,
+            "wilson95": [
+              0.4385,
+              1.0
+            ]
+          },
+          "mechanism": "secret_discovery_via_web_search",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": -0.6666666666666666,
+            "full_only": 2,
+            "mcnemar_exact_p": 0.5,
+            "n": 3,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_actions": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rule_or_full": {
+            "k": 3,
+            "n": 3,
+            "rate": 1.0,
+            "wilson95": [
+              0.4385,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 22,
+            "n": 25,
+            "rate": 0.88,
+            "wilson95": [
+              0.7004,
+              0.9583
+            ]
+          },
+          "benchmark": "hal-usaco",
+          "full": {
+            "k": 3,
+            "n": 25,
+            "rate": 0.12,
+            "wilson95": [
+              0.0417,
+              0.2996
+            ]
+          },
+          "mechanism": "harness_leaks_answer",
+          "paired": {
+            "actions_only": 20,
+            "delta_actions_minus_full": 0.76,
+            "full_only": 1,
+            "mcnemar_exact_p": 2.1e-05,
+            "n": 25,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          },
+          "rule_or_actions": {
+            "k": 22,
+            "n": 25,
+            "rate": 0.88,
+            "wilson95": [
+              0.7004,
+              0.9583
+            ]
+          },
+          "rule_or_full": {
+            "k": 3,
+            "n": 25,
+            "rate": 0.12,
+            "wilson95": [
+              0.0417,
+              0.2996
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "benchmark": "kernelbench",
+          "full": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": -0.3333333333333333,
+            "full_only": 1,
+            "mcnemar_exact_p": 1.0,
+            "n": 3,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_actions": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_full": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 9,
+            "n": 20,
+            "rate": 0.45,
+            "wilson95": [
+              0.2582,
+              0.6579
+            ]
+          },
+          "benchmark": "swe-bench-verified",
+          "full": {
+            "k": 9,
+            "n": 20,
+            "rate": 0.45,
+            "wilson95": [
+              0.2582,
+              0.6579
+            ]
+          },
+          "mechanism": "secret_discovery_in_environment",
+          "paired": {
+            "actions_only": 3,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 3,
+            "mcnemar_exact_p": 1.0,
+            "n": 20,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_actions": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 4,
+            "n": 8,
+            "rate": 0.5,
+            "wilson95": [
+              0.2152,
+              0.7848
+            ]
+          },
+          "benchmark": "swe-rebench",
+          "full": {
+            "k": 8,
+            "n": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6756,
+              1.0
+            ]
+          },
+          "mechanism": "secret_discovery_in_environment",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": -0.5,
+            "full_only": 4,
+            "mcnemar_exact_p": 0.125,
+            "n": 8,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.3244
+            ]
+          },
+          "rule_or_actions": {
+            "k": 4,
+            "n": 8,
+            "rate": 0.5,
+            "wilson95": [
+              0.2152,
+              0.7848
+            ]
+          },
+          "rule_or_full": {
+            "k": 8,
+            "n": 8,
+            "rate": 1.0,
+            "wilson95": [
+              0.6756,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "benchmark": "swe-smith",
+          "full": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 4,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "rule_or_actions": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 26,
+            "n": 41,
+            "rate": 0.6341,
+            "wilson95": [
+              0.4812,
+              0.7641
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 28,
+            "n": 41,
+            "rate": 0.6829,
+            "wilson95": [
+              0.5302,
+              0.8044
+            ]
+          },
+          "mechanism": "harness_leaks_answer",
+          "paired": {
+            "actions_only": 5,
+            "delta_actions_minus_full": -0.04878048780487805,
+            "full_only": 7,
+            "mcnemar_exact_p": 0.774414,
+            "n": 41,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 41,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.0857
+            ]
+          },
+          "rule_or_actions": {
+            "k": 26,
+            "n": 41,
+            "rate": 0.6341,
+            "wilson95": [
+              0.4812,
+              0.7641
+            ]
+          },
+          "rule_or_full": {
+            "k": 28,
+            "n": 41,
+            "rate": 0.6829,
+            "wilson95": [
+              0.5302,
+              0.8044
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 10,
+            "n": 20,
+            "rate": 0.5,
+            "wilson95": [
+              0.2993,
+              0.7007
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 7,
+            "n": 20,
+            "rate": 0.35,
+            "wilson95": [
+              0.1812,
+              0.5671
+            ]
+          },
+          "mechanism": "harness_leaks_verifier",
+          "paired": {
+            "actions_only": 4,
+            "delta_actions_minus_full": 0.15,
+            "full_only": 1,
+            "mcnemar_exact_p": 0.375,
+            "n": 20,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_actions": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          },
+          "mechanism": "secret_discovery_via_web_search",
+          "paired": {
+            "actions_only": 1,
+            "delta_actions_minus_full": 0.5,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 2,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 2,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.6576
+            ]
+          },
+          "rule_or_actions": {
+            "k": 2,
+            "n": 2,
+            "rate": 1.0,
+            "wilson95": [
+              0.3424,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": null,
+            "n": 1,
+            "test_status": "too_few_pairs"
+          },
+          "rule": {
+            "k": 0,
+            "n": 1,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "rule_or_actions": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          }
+        }
+      ]
+    },
+    "reward_hacking": {
+      "all_planned_sensitivity_missing_as_no_alarm": {
+        "cybench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.6666666666666666,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            }
+          }
+        },
+        "hal-usaco": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": null,
+              "full_only": 0,
+              "mcnemar_exact_p": null,
+              "n": 0,
+              "test_status": "too_few_pairs"
+            },
+            "rule": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 25,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            }
+          }
+        },
+        "kernelbench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            }
+          }
+        },
+        "swe-bench-verified": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 15,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2039
+              ]
+            },
+            "full": {
+              "k": 2,
+              "n": 15,
+              "rate": 0.1333,
+              "wilson95": [
+                0.0374,
+                0.3788
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.13333333333333333,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 15,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 15,
+              "rate": 0.2,
+              "wilson95": [
+                0.0705,
+                0.4519
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 6,
+              "n": 20,
+              "rate": 0.3,
+              "wilson95": [
+                0.1455,
+                0.519
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.15,
+              "full_only": 3,
+              "mcnemar_exact_p": 0.25,
+              "n": 20,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_actions": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-rebench": {
+          "false_alarm": {
+            "actions": {
+              "k": 7,
+              "n": 14,
+              "rate": 0.5,
+              "wilson95": [
+                0.268,
+                0.732
+              ]
+            },
+            "full": {
+              "k": 6,
+              "n": 14,
+              "rate": 0.4286,
+              "wilson95": [
+                0.2138,
+                0.6741
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.07142857142857142,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "rule_or_actions": {
+              "k": 7,
+              "n": 14,
+              "rate": 0.5,
+              "wilson95": [
+                0.268,
+                0.732
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 14,
+              "rate": 0.4286,
+              "wilson95": [
+                0.2138,
+                0.6741
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 2,
+              "mcnemar_exact_p": 1.0,
+              "n": 8,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 8,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.3244
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            }
+          }
+        },
+        "swe-smith": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 4,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 4,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.4899
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            }
+          }
+        },
+        "terminal-bench-2": {
+          "false_alarm": {
+            "actions": {
+              "k": 6,
+              "n": 29,
+              "rate": 0.2069,
+              "wilson95": [
+                0.0985,
+                0.3839
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "paired": {
+              "actions_only": 3,
+              "delta_actions_minus_full": 0.10344827586206896,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.25,
+              "n": 29,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "rule_or_actions": {
+              "k": 9,
+              "n": 29,
+              "rate": 0.3103,
+              "wilson95": [
+                0.1728,
+                0.4923
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 29,
+              "rate": 0.2069,
+              "wilson95": [
+                0.0985,
+                0.3839
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 17,
+              "n": 64,
+              "rate": 0.2656,
+              "wilson95": [
+                0.173,
+                0.3848
+              ]
+            },
+            "full": {
+              "k": 13,
+              "n": 64,
+              "rate": 0.2031,
+              "wilson95": [
+                0.1227,
+                0.3171
+              ]
+            },
+            "paired": {
+              "actions_only": 7,
+              "delta_actions_minus_full": 0.0625,
+              "full_only": 3,
+              "mcnemar_exact_p": 0.34375,
+              "n": 64,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 64,
+              "rate": 0.3125,
+              "wilson95": [
+                0.2123,
+                0.4339
+              ]
+            },
+            "rule_or_actions": {
+              "k": 31,
+              "n": 64,
+              "rate": 0.4844,
+              "wilson95": [
+                0.3663,
+                0.6042
+              ]
+            },
+            "rule_or_full": {
+              "k": 31,
+              "n": 64,
+              "rate": 0.4844,
+              "wilson95": [
+                0.3663,
+                0.6042
+              ]
+            }
+          }
+        }
+      },
+      "benchmark": {
+        "cybench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            },
+            "rule_or_full": {
+              "k": 1,
+              "n": 14,
+              "rate": 0.0714,
+              "wilson95": [
+                0.0127,
+                0.3147
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.6666666666666666,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 3,
+              "rate": 0.3333,
+              "wilson95": [
+                0.0615,
+                0.7923
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 3,
+              "rate": 1.0,
+              "wilson95": [
+                0.4385,
+                1.0
+              ]
+            }
+          }
+        },
+        "hal-usaco": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": null,
+              "full_only": 0,
+              "mcnemar_exact_p": null,
+              "n": 0,
+              "test_status": "too_few_pairs"
+            },
+            "rule": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson95": null
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 25,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 25,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.1332
+              ]
+            }
+          }
+        },
+        "kernelbench": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 3,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 3,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.5615
+              ]
+            }
+          }
+        },
+        "swe-bench-verified": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 15,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2039
+              ]
+            },
+            "full": {
+              "k": 2,
+              "n": 15,
+              "rate": 0.1333,
+              "wilson95": [
+                0.0374,
+                0.3788
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.13333333333333333,
+              "full_only": 2,
+              "mcnemar_exact_p": 0.5,
+              "n": 15,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_actions": {
+              "k": 1,
+              "n": 15,
+              "rate": 0.0667,
+              "wilson95": [
+                0.0119,
+                0.2982
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 15,
+              "rate": 0.2,
+              "wilson95": [
+                0.0705,
+                0.4519
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 6,
+              "n": 20,
+              "rate": 0.3,
+              "wilson95": [
+                0.1455,
+                0.519
+              ]
+            },
+            "full": {
+              "k": 9,
+              "n": 20,
+              "rate": 0.45,
+              "wilson95": [
+                0.2582,
+                0.6579
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": -0.15,
+              "full_only": 3,
+              "mcnemar_exact_p": 0.25,
+              "n": 20,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_actions": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 20,
+              "n": 20,
+              "rate": 1.0,
+              "wilson95": [
+                0.8389,
+                1.0
+              ]
+            }
+          }
+        },
+        "swe-rebench": {
+          "false_alarm": {
+            "actions": {
+              "k": 7,
+              "n": 14,
+              "rate": 0.5,
+              "wilson95": [
+                0.268,
+                0.732
+              ]
+            },
+            "full": {
+              "k": 6,
+              "n": 14,
+              "rate": 0.4286,
+              "wilson95": [
+                0.2138,
+                0.6741
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.07142857142857142,
+              "full_only": 1,
+              "mcnemar_exact_p": 1.0,
+              "n": 14,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 14,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2153
+              ]
+            },
+            "rule_or_actions": {
+              "k": 7,
+              "n": 14,
+              "rate": 0.5,
+              "wilson95": [
+                0.268,
+                0.732
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 14,
+              "rate": 0.4286,
+              "wilson95": [
+                0.2138,
+                0.6741
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "paired": {
+              "actions_only": 2,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 2,
+              "mcnemar_exact_p": 1.0,
+              "n": 8,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 8,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.3244
+              ]
+            },
+            "rule_or_actions": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            },
+            "rule_or_full": {
+              "k": 3,
+              "n": 8,
+              "rate": 0.375,
+              "wilson95": [
+                0.1368,
+                0.6943
+              ]
+            }
+          }
+        },
+        "swe-smith": {
+          "false_alarm": {
+            "actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 9,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_actions": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            },
+            "rule_or_full": {
+              "k": 0,
+              "n": 9,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.2991
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "paired": {
+              "actions_only": 0,
+              "delta_actions_minus_full": 0.0,
+              "full_only": 0,
+              "mcnemar_exact_p": 1.0,
+              "n": 4,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 0,
+              "n": 4,
+              "rate": 0.0,
+              "wilson95": [
+                0.0,
+                0.4899
+              ]
+            },
+            "rule_or_actions": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            },
+            "rule_or_full": {
+              "k": 4,
+              "n": 4,
+              "rate": 1.0,
+              "wilson95": [
+                0.5101,
+                1.0
+              ]
+            }
+          }
+        },
+        "terminal-bench-2": {
+          "false_alarm": {
+            "actions": {
+              "k": 6,
+              "n": 29,
+              "rate": 0.2069,
+              "wilson95": [
+                0.0985,
+                0.3839
+              ]
+            },
+            "full": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "paired": {
+              "actions_only": 3,
+              "delta_actions_minus_full": 0.10344827586206896,
+              "full_only": 0,
+              "mcnemar_exact_p": 0.25,
+              "n": 29,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 3,
+              "n": 29,
+              "rate": 0.1034,
+              "wilson95": [
+                0.0358,
+                0.2639
+              ]
+            },
+            "rule_or_actions": {
+              "k": 9,
+              "n": 29,
+              "rate": 0.3103,
+              "wilson95": [
+                0.1728,
+                0.4923
+              ]
+            },
+            "rule_or_full": {
+              "k": 6,
+              "n": 29,
+              "rate": 0.2069,
+              "wilson95": [
+                0.0985,
+                0.3839
+              ]
+            }
+          },
+          "recall": {
+            "actions": {
+              "k": 17,
+              "n": 64,
+              "rate": 0.2656,
+              "wilson95": [
+                0.173,
+                0.3848
+              ]
+            },
+            "full": {
+              "k": 13,
+              "n": 64,
+              "rate": 0.2031,
+              "wilson95": [
+                0.1227,
+                0.3171
+              ]
+            },
+            "paired": {
+              "actions_only": 7,
+              "delta_actions_minus_full": 0.0625,
+              "full_only": 3,
+              "mcnemar_exact_p": 0.34375,
+              "n": 64,
+              "test_status": "descriptive_unadjusted"
+            },
+            "rule": {
+              "k": 20,
+              "n": 64,
+              "rate": 0.3125,
+              "wilson95": [
+                0.2123,
+                0.4339
+              ]
+            },
+            "rule_or_actions": {
+              "k": 31,
+              "n": 64,
+              "rate": 0.4844,
+              "wilson95": [
+                0.3663,
+                0.6042
+              ]
+            },
+            "rule_or_full": {
+              "k": 31,
+              "n": 64,
+              "rate": 0.4844,
+              "wilson95": [
+                0.3663,
+                0.6042
+              ]
+            }
+          }
+        }
+      },
+      "mechanism_recall": [
+        {
+          "actions": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "benchmark": "cybench",
+          "full": {
+            "k": 3,
+            "n": 3,
+            "rate": 1.0,
+            "wilson95": [
+              0.4385,
+              1.0
+            ]
+          },
+          "mechanism": "secret_discovery_via_web_search",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": -0.6666666666666666,
+            "full_only": 2,
+            "mcnemar_exact_p": 0.5,
+            "n": 3,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_actions": {
+            "k": 1,
+            "n": 3,
+            "rate": 0.3333,
+            "wilson95": [
+              0.0615,
+              0.7923
+            ]
+          },
+          "rule_or_full": {
+            "k": 3,
+            "n": 3,
+            "rate": 1.0,
+            "wilson95": [
+              0.4385,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          },
+          "benchmark": "hal-usaco",
+          "full": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          },
+          "mechanism": "harness_leaks_answer",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 25,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          },
+          "rule_or_actions": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          },
+          "rule_or_full": {
+            "k": 0,
+            "n": 25,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.1332
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "benchmark": "kernelbench",
+          "full": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 3,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_actions": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          },
+          "rule_or_full": {
+            "k": 0,
+            "n": 3,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.5615
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 6,
+            "n": 20,
+            "rate": 0.3,
+            "wilson95": [
+              0.1455,
+              0.519
+            ]
+          },
+          "benchmark": "swe-bench-verified",
+          "full": {
+            "k": 9,
+            "n": 20,
+            "rate": 0.45,
+            "wilson95": [
+              0.2582,
+              0.6579
+            ]
+          },
+          "mechanism": "secret_discovery_in_environment",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": -0.15,
+            "full_only": 3,
+            "mcnemar_exact_p": 0.25,
+            "n": 20,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_actions": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 3,
+            "n": 8,
+            "rate": 0.375,
+            "wilson95": [
+              0.1368,
+              0.6943
+            ]
+          },
+          "benchmark": "swe-rebench",
+          "full": {
+            "k": 3,
+            "n": 8,
+            "rate": 0.375,
+            "wilson95": [
+              0.1368,
+              0.6943
+            ]
+          },
+          "mechanism": "secret_discovery_in_environment",
+          "paired": {
+            "actions_only": 2,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 2,
+            "mcnemar_exact_p": 1.0,
+            "n": 8,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 8,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.3244
+            ]
+          },
+          "rule_or_actions": {
+            "k": 3,
+            "n": 8,
+            "rate": 0.375,
+            "wilson95": [
+              0.1368,
+              0.6943
+            ]
+          },
+          "rule_or_full": {
+            "k": 3,
+            "n": 8,
+            "rate": 0.375,
+            "wilson95": [
+              0.1368,
+              0.6943
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "benchmark": "swe-smith",
+          "full": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 4,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 4,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.4899
+            ]
+          },
+          "rule_or_actions": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 4,
+            "n": 4,
+            "rate": 1.0,
+            "wilson95": [
+              0.5101,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 9,
+            "n": 41,
+            "rate": 0.2195,
+            "wilson95": [
+              0.12,
+              0.3671
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 9,
+            "n": 41,
+            "rate": 0.2195,
+            "wilson95": [
+              0.12,
+              0.3671
+            ]
+          },
+          "mechanism": "harness_leaks_answer",
+          "paired": {
+            "actions_only": 3,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 3,
+            "mcnemar_exact_p": 1.0,
+            "n": 41,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 41,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.0857
+            ]
+          },
+          "rule_or_actions": {
+            "k": 9,
+            "n": 41,
+            "rate": 0.2195,
+            "wilson95": [
+              0.12,
+              0.3671
+            ]
+          },
+          "rule_or_full": {
+            "k": 9,
+            "n": 41,
+            "rate": 0.2195,
+            "wilson95": [
+              0.12,
+              0.3671
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 6,
+            "n": 20,
+            "rate": 0.3,
+            "wilson95": [
+              0.1455,
+              0.519
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 2,
+            "n": 20,
+            "rate": 0.1,
+            "wilson95": [
+              0.0279,
+              0.301
+            ]
+          },
+          "mechanism": "harness_leaks_verifier",
+          "paired": {
+            "actions_only": 4,
+            "delta_actions_minus_full": 0.2,
+            "full_only": 0,
+            "mcnemar_exact_p": 0.125,
+            "n": 20,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_actions": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 20,
+            "n": 20,
+            "rate": 1.0,
+            "wilson95": [
+              0.8389,
+              1.0
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          },
+          "mechanism": "secret_discovery_via_web_search",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": 1.0,
+            "n": 2,
+            "test_status": "descriptive_unadjusted"
+          },
+          "rule": {
+            "k": 0,
+            "n": 2,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.6576
+            ]
+          },
+          "rule_or_actions": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          },
+          "rule_or_full": {
+            "k": 1,
+            "n": 2,
+            "rate": 0.5,
+            "wilson95": [
+              0.0945,
+              0.9055
+            ]
+          }
+        },
+        {
+          "actions": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "benchmark": "terminal-bench-2",
+          "full": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "mechanism": "verifier_exploitation",
+          "paired": {
+            "actions_only": 0,
+            "delta_actions_minus_full": 0.0,
+            "full_only": 0,
+            "mcnemar_exact_p": null,
+            "n": 1,
+            "test_status": "too_few_pairs"
+          },
+          "rule": {
+            "k": 0,
+            "n": 1,
+            "rate": 0.0,
+            "wilson95": [
+              0.0,
+              0.7935
+            ]
+          },
+          "rule_or_actions": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          },
+          "rule_or_full": {
+            "k": 1,
+            "n": 1,
+            "rate": 1.0,
+            "wilson95": [
+              0.2065,
+              1.0
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "parsed_both_views": 217,
+  "planned_items": 217,
+  "precall_frozen_at_utc": "2026-10-19T12:05:08.117504+00:00",
+  "precision": "not reported: mechanism-enriched sample",
+  "primary_head": "reward_hacking",
+  "schema": "cb-judge-blindspots.results/v1",
+  "scored_at_utc": "2026-10-19T12:38:35.515421+00:00",
+  "seal_sha256": "4718093886e6e101acaffb7876578576ecda41cb71ece949f42361e3d0a8102b",
+  "sealed_at_utc": "2026-10-19T12:38:31.339031+00:00",
+  "secondary_head": "any_finding",
+  "unmeasured": []
+}

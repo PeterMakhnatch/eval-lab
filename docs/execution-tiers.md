@@ -238,9 +238,12 @@ evidence to the isolation record; a failed switch fails the trial, never an
 unlocked fallback. Allowlists and any other phase mode stay refused at
 construction and at switch time, as do extra overlays, unknown
 environment options, unsafe host mounts, privilege overrides and GPU/device
-passthrough (next paragraph). The plain strict `LockedDockerEnvironment`
-backend keeps refusing every switch and every task Compose file; only this
-wrapper allows the pair and task sidecars.
+passthrough (next paragraph). The strict `LockedDockerEnvironment` accepts
+`no-network` phase assertions and restoration of the original task baseline,
+but keeps `network=none` throughout: these are logical policy transitions,
+not detach/reconnect operations. It still refuses other policy switches and
+every task Compose file; only host isolation allows physical transitions and
+task sidecars.
 
 Multi-service tasks (a task `environment/docker-compose.yaml` declaring
 sidecars besides `main`, e.g. CheatBench checker sidecars) run every service
@@ -598,11 +601,22 @@ An SSH Docker context alone is not remote staging of the controller's files.
 The container has `network_mode: none` **from creation**, drops `NET_RAW`,
 and has `no-new-privileges`. Native daemon inspection must confirm the
 namespace, privileges and exact Harbor log/artifact binds before setup exec
-or copy is allowed. Docker calls the `none` network's driver `null`.
-The applied-lock receipt is the existing `egress-lock.json` contract.
-Compose, extra overlays, privileged/device/host namespace access, arbitrary
-host mounts, in-sandbox agent installation and phase-network switches are
-refused. There is no macOS-to-public fallback and no source-package rewrite.
+or copy is allowed. A corroborating kernel interface census must contain `lo`;
+any non-loopback interface not confirmed down, missing/malformed census, or
+probe failure refuses the trial. Down kernel pseudo-devices are recorded,
+not mistaken for usable networking. Docker calls the `none` network's driver
+`null`. The applied-lock receipt is the existing `egress-lock.json` contract,
+including the actual container identity and interface states.
+
+Explicit `[agent]` and/or `[verifier] network_mode = "no-network"` is admitted
+for the existing host-loop/control whitelist. Model transport stays on the
+host; tools execute in the locked container. Harbor enters the logical phase
+and restores the original task baseline without ever reconnecting that
+container, even when the task's original baseline is `public`. Explicit
+public/allowlist/invalid task phase declarations, Compose, extra overlays,
+privileged/device/host namespace access, arbitrary host mounts, and in-sandbox
+agent installation remain refused. There is no macOS-to-public fallback and
+no source-package rewrite.
 Native host-side exec/upload/download still work. Builds/pulls are trusted
 host operations; the lock does not certify pre-existing image contents or
 protect against a Docker/kernel escape. Cohort/image admission remains separate.

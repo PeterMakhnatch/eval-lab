@@ -72,8 +72,9 @@ class LockedDockerEnvironment(DockerEnvironment):
     """Native Docker lifecycle with an explicit, immutable egress lock.
 
     Import through ``evallab.harbor_docker:LockedDockerEnvironment`` and pass
-    ``egress_lock=True``. Repeated baseline phase policies are native no-ops;
-    different phase policies and network allowlists are refused, not adapted.
+    ``egress_lock=True``. No-network phases and baseline restores are logical
+    assertions: the container stays network=none throughout. Other policy
+    switches and network allowlists are refused, not adapted.
     GPU/device passthrough is outside this CPU sandbox's qualified boundary.
     """
 
@@ -105,6 +106,7 @@ class LockedDockerEnvironment(DockerEnvironment):
         self._native_evidence: dict[str, Any] = {}
         self._container_id: str | None = None
         baseline = network_policy or task_env_config.resolve_baseline()
+        self._lock_baseline = baseline
         try:
             if egress_lock is not True:
                 raise ValueError("LockedDockerEnvironment requires explicit egress_lock=true")
@@ -139,7 +141,10 @@ class LockedDockerEnvironment(DockerEnvironment):
             }
             if set(kwargs) - accepted:
                 raise ValueError("egress_lock refuses unknown environment options")
-            if any(policy != baseline for policy in phase_network_policies):
+            if any(
+                policy != baseline and policy.network_mode != NetworkMode.NO_NETWORK
+                for policy in phase_network_policies
+            ):
                 raise ValueError("egress_lock refuses phase network policy switches")
             if (task_env_config.gpus or 0) > 0 or (kwargs.get("override_gpus") or 0) > 0:
                 raise ValueError("egress_lock CPU sandbox does not support GPU passthrough")
@@ -166,17 +171,26 @@ class LockedDockerEnvironment(DockerEnvironment):
 
     @property
     def capabilities(self) -> EnvironmentCapabilities:
-        return EnvironmentCapabilities(disable_internet=True, mounted=True)
+        # Harbor requires this capability for a phase that differs logically
+        # from the task baseline, even though our Docker network never changes.
+        return EnvironmentCapabilities(
+            disable_internet=True, mounted=True, dynamic_network_policy=True
+        )
 
     def validate_network_policy_support(self, network_policy: NetworkPolicy | None = None) -> None:
         policy = network_policy or self.network_policy
         if policy.network_mode not in (NetworkMode.PUBLIC, NetworkMode.NO_NETWORK):
             raise ValueError("egress_lock refuses network allowlists")
-        if policy != self.network_policy:
+        if policy != self._lock_baseline and policy.network_mode != NetworkMode.NO_NETWORK:
             raise ValueError("egress_lock refuses network policy switches")
 
     async def _apply_network_policy(self, network_policy: NetworkPolicy) -> None:
-        raise ValueError("egress_lock cannot change network policy after creation")
+        """Assert a logical phase without changing the creation-time lock."""
+        self.validate_network_policy_support(network_policy)
+        if not self._lock_confirmed:
+            raise RuntimeError("egress_lock phase assertions require a confirmed lock")
+        # Harbor updates its logical policy after this assertion. Baseline
+        # restoration never reconnects this network=none container.
 
     def _allowed_mounts(self) -> dict[str, Path]:
         paths = EnvironmentPaths()
@@ -333,6 +347,36 @@ class LockedDockerEnvironment(DockerEnvironment):
         self._validate_locked_main_service(main)
         return main
 
+    async def _sandbox_interface_states(self, container_id: str | None = None) -> dict[str, str]:
+        """Corroborate daemon attachment evidence with a kernel interface census.
+
+        Detached namespaces can retain down pseudo-devices (tunl0, sit0, ...).
+        The sandbox lacks NET_ADMIN; daemon-side attachment evidence remains
+        authoritative, rather than trusting this in-container census alone.
+        """
+        cid = container_id or self._container_id
+        assert cid is not None
+        output = await self._daemon_output(
+            "exec",
+            cid,
+            "sh",
+            "-c",
+            "for i in /sys/class/net/*; do "
+            '[ -d "$i" ] || continue; '
+            "printf '%s %s\\n' \"${i##*/}\" "
+            '"$(cat "$i"/operstate 2>/dev/null || echo unknown)"; done',
+        )
+        states: dict[str, str] = {}
+        for line in output.splitlines():
+            fields = line.split()
+            if len(fields) != 2 or fields[0] in states:
+                raise RuntimeError("Docker interface census is malformed")
+            name, state = fields
+            states[name] = state
+        if "lo" not in states:
+            raise RuntimeError("Docker interface census is missing loopback evidence")
+        return states
+
     async def _confirm_lock(self) -> None:
         result = await super()._run_docker_compose_command(
             ["ps", "--all", "--quiet"], timeout_sec=10
@@ -449,6 +493,18 @@ class LockedDockerEnvironment(DockerEnvironment):
         if not isinstance(options, list) or not options or set(options) - _SECURITY_OPTIONS:
             raise RuntimeError("egress_lock Docker security options are unsafe or unknown")
         self._check_locked_mounts(mounts)
+        states = await self._sandbox_interface_states()
+        self._native_evidence["interface_states"] = states
+        unexpected = {
+            name: state
+            for name, state in states.items()
+            if name != "lo" and state != "down"
+        }
+        if unexpected:
+            raise RuntimeError(
+                "egress_lock Docker has non-loopback interfaces not confirmed down: "
+                + json.dumps(unexpected, sort_keys=True)
+            )
         self._write_lock_record(applied=True)
         self._lock_confirmed = True
 

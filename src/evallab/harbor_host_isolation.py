@@ -157,8 +157,9 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                     "the no-network/public pair"
                 )
         self._declared_phase_policies = tuple(declared)
-        # The strict base refuses every switch; forward only baseline repeats
-        # and keep the declared none/public pair for the phase-switch path.
+        # Forward only baseline repeats; retain the declared pair for this
+        # subclass's real disconnect/reconnect path rather than the strict
+        # base's immutable no-network assertions.
         forward = [policy for policy in declared if policy == baseline]
         args, kwargs = self._replace_phase_policies(args, kwargs, forward)
         super().__init__(*args, egress_lock=True, **kwargs)
@@ -856,33 +857,6 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             isinstance(endpoint, dict) and endpoint.get("NetworkID") == self._network_id
             for endpoint in networks.values()
         )
-
-    async def _sandbox_interface_states(self, container_id: str | None = None) -> dict[str, str]:
-        """Kernel operstate per sandbox interface, read through an unprivileged exec.
-
-        A detached netns still lists kernel pseudo-devices (tunl0, sit0, ...);
-        only operstate `up` marks a usable interface. The sandbox lacks
-        NET_ADMIN, so it cannot bring an interface up; the daemon-side
-        attachment evidence above is the primary proof and this census
-        corroborates it from inside.
-        """
-        cid = container_id or self._container_id
-        assert cid is not None
-        output = await self._daemon_output(
-            "exec",
-            cid,
-            "sh",
-            "-c",
-            "for i in /sys/class/net/*; do "
-            "printf '%s %s\\n' \"${i##*/}\" "
-            '"$(cat "$i"/operstate 2>/dev/null || echo unknown)"; done',
-        )
-        states: dict[str, str] = {}
-        for line in output.splitlines():
-            name, _, state = line.partition(" ")
-            if name.strip():
-                states[name.strip()] = state.strip()
-        return states
 
     async def _confirm_no_network_state(self) -> dict[str, Any]:
         """Prove the sandbox has no attachment and no usable interface but lo."""

@@ -252,7 +252,7 @@ def admit(
     """
     data, manifest_ref = bound_bytes({"path": str(manifest_path), "sha256": accepted_sha})
     manifest = json.loads(data)
-    if (manifest.get("schema") != "mimo.heldout/v1" or manifest.get("successor_version") != "v7"
+    if (manifest.get("schema") != "mimo.heldout/v1" or manifest.get("successor_version") not in {"v7", "v7.1"}
             or manifest.get("scoring_allowed") is not True or manifest.get("freeze_ready") is not True
             or manifest.get("pending_gates") != []
             or str((manifest.get("independent_verifier") or {}).get("status")).lower() != "pass"):

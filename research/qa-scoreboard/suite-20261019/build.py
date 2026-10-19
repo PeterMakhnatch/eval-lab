@@ -69,6 +69,48 @@ RETAINED = [
      "Held-out test run on Antigravity Sonnet; quota-blocked, every T1 record is ran_without_usable_result."),
 ]
 
+# Track B LLM arm (ReasoningAblation): one gpt-oss-120b call per (item, view), qa-trace/6
+# question texts, sealed before labels were read. Canonical store is eval-lab-results; the
+# raw records are copied here unchanged except that the 15 trajectory-judge-400 test items
+# that tuned the qa-trace prompts (exposure `qa-trace-tj-prompt-dev`) are dropped, exactly
+# as the bound qa-trace/3, /5 and /7 runs left them unmeasured.
+OR1P = Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings")
+OR1P_KEYS = ("cheatbench-actions-v1", "hacktrace-act-v1", "mimo-v7-canonical-pass70",
+             "trace-paired-v1", "trajectory-judge-400")
+
+
+def or1p_runs() -> list[dict]:
+    exposure = next(
+        record for record in _jsonl(KEYS / "splits/exposure.jsonl")
+        if record["exposure_id"] == "qa-trace-tj-prompt-dev"
+    )
+    tuned = {
+        line.strip() for line in (REPO / exposure["items_file"]["trajectory-judge-400"]).read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    tuned_trials = {item_id.split(":", 1)[-1] for item_id in tuned}
+    runs = []
+    for view in ("full", "actions"):
+        records = [json.loads(path.read_text(encoding="utf-8")) for path in sorted((OR1P / view).rglob("*.json"))]
+        kept = [r for r in records if r["subject"]["trial_id"] not in tuned_trials]
+        path = HERE / "findings" / f"qa-trace-6-or1p-{view}.jsonl"
+        path.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in kept), encoding="utf-8")
+        for key in OR1P_KEYS:
+            runs.append({
+                "agent": "trace", "version": f"qa-trace/6-or1p/{view}", "key": key,
+                "findings": path.relative_to(HERE).as_posix(),
+                "run": f"reasoning-ablation test, sealed 2026-10-19T09:23:13Z ({OR1P / view})",
+                "notes": (
+                    f"Single-call gpt-oss-120b judge on the {view} view (no tools, no T0/T3). "
+                    f"{len(records) - len(kept)} records on the {len(tuned_trials)} tuned trajectory-judge-400 test items dropped. "
+                    "Per-finding cost fields carry a third of each call's cost on all five question records, so their sum "
+                    "overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. "
+                    "Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md."
+                ),
+            })
+    return runs
+
+
 # Published scoreboard systems this command cannot re-score: (agent, exact system, reason).
 # A system ending in "/" selects every system with that prefix.
 FROM_SCOREBOARD = [
@@ -88,6 +130,8 @@ FROM_SCOREBOARD = [
      "Raw findings name the unversioned producer `TA monitor`; the version is only in the run manifest."),
     ("tripwire", "action-lr@88cf3b998fd3/",
      "Transfer matrix (eval-lab #1091): per-item scores in a custom format, no qa.finding/v1 records; train key is part of the system."),
+    ("tripwire", "action-rule@88cf3b998fd3/",
+     "History-command action rule (eval-lab #1097): per-item booleans in a custom format, no qa.finding/v1 records."),
     ("task", "qa-task@verified",
      "S0-S3 producer records are unversioned (`qa-task`, `qa-task/shortcut-agent`, ...); `@verified` is a `qa task-score` mode with full-cohort denominators, not a producer id."),
     ("task", "qa-task@flagged",
@@ -140,38 +184,14 @@ def scoreboard_entries() -> list[dict]:
     return entries
 
 
-def baseline_entries() -> list[dict]:
-    """Tripwires on the MiMo v7 canonical 70: not a registered answer key."""
-    baseline = json.loads((KEYS / "internal-views/baseline.json").read_text())["mimo-v7-canonical-pass70"]
-    version = f"tripwires@{baseline['tripwires_sha256'][:12]}"
-    entries = []
-    for view in ("full", "actions"):
-        metrics = baseline["views"][view]
-        recall, alarms = metrics["recall"], metrics["false_alarm"]
-        entries.append({
-            "agent": "tripwire", "system": f"{version}/{view}", "key": "mimo-v7-canonical-pass70",
-            "split": baseline["split"],
-            "reported": (
-                f"recall {recall['rate']:.4f} ({recall['hits']}/{recall['n']}); "
-                f"false alarms {alarms['rate']:.4f} ({alarms['hits']}/{alarms['n']}); "
-                f"measured {baseline['coverage']['measured_items']}/{baseline['coverage']['source_items']}"
-            ),
-            "reason": "Dataset is a blinded internal view population, not a registered answer key.",
-            "source": "research/answer-keys/internal-views/baseline.json",
-        })
-    return entries
-
-
-def _tripwire_findings(key: str, predictions: list[dict], sha: str, view: str, source: str) -> tuple[str, list[dict]]:
-    version = f"tripwires@{sha[:12]}/{view}"
+def _tripwire_findings(key: str, decisions: list[tuple[str, list[str]]], version: str, view: str, source: str) -> list[dict]:
     items = {item["item_id"]: item for item in _jsonl(KEYS / key / "items.jsonl")}
     findings = []
-    for prediction in sorted(predictions, key=lambda p: p["item_id"]):
-        fired = prediction[view]
+    for item_id, fired in sorted(decisions):
         findings.append({
             "schema": "qa.finding/v1",
-            "id": f"{version}:{prediction['item_id']}",
-            "subject": items[prediction["item_id"]]["subject"],
+            "id": f"{version}:{item_id}",
+            "subject": items[item_id]["subject"],
             "stage": f"T0-tripwires-{view}",
             "verdict": "fail" if fired else "pass",
             "category": "reward_hacking",
@@ -182,49 +202,68 @@ def _tripwire_findings(key: str, predictions: list[dict], sha: str, view: str, s
             "reviewer": {"agent": version, "model": None, "cost_usd": 0.0},
             "measurement": "measured",
         })
-    return version, findings
+    return findings
+
+
+def _tripwire_sources() -> list[tuple[str, str, str, list[dict], object, str]]:
+    """(key, tripwires sha256, source file, records, fired(record, view) -> rules, run label)."""
+    sources = []
+    for key in ("cheatbench-actions-v1", "hacktrace-act-v1"):
+        source = f"research/answer-keys/{key}/predictions.jsonl"
+        sha = json.loads((KEYS / key / "baseline.json").read_text())["tripwires_sha256"]
+        sources.append((key, sha, source, _jsonl(REPO / source), lambda p, v: p[v],
+                        "eval-lab #1083 external_traces.py baseline (rules v1)"))
+    internal = json.loads((KEYS / "internal-views/baseline.json").read_text())
+    source = "research/answer-keys/internal-views/predictions.jsonl"
+    records = _jsonl(REPO / source)
+    for key in ("trajectory-judge-400", "trace-paired-v1", "mimo-v7-canonical-pass70"):
+        sources.append((key, internal[key]["tripwires_sha256"], source,
+                        [p for p in records if p["dataset"] == key], lambda p, v: p[v],
+                        "eval-lab #1087 internal_traces.py baseline (rules v1)"))
+    rebaseline = "research/experiments/tripwires-v2-rebaseline-20261019"
+    sha = json.loads((REPO / rebaseline / "results.json").read_text())["tripwires_sha256"]
+    records = _jsonl(REPO / rebaseline / "predictions.jsonl")
+    for key in sorted({p["key"] for p in records}):
+        sources.append((key, sha, f"{rebaseline}/predictions.jsonl", [p for p in records if p["key"] == key],
+                        lambda p, v: p["v2"][v], "eval-lab #1094 tripwires rules v2 re-baseline"))
+    window3 = "research/experiments/history-cmds-window3-20261019"
+    sha = json.loads((REPO / window3 / "results.json").read_text())["tripwires_sha256"]
+    sources.append(("mimo-fresh-window3", sha, f"{window3}/predictions.jsonl", _jsonl(REPO / window3 / "predictions.jsonl"),
+                    lambda p, v: p[v]["tripwire_rules"], "eval-lab #1097 one-shot blind window-3 test (rules v2)"))
+    return sources
 
 
 def tripwire_runs() -> list[dict]:
-    sources = [
-        (key, json.loads((KEYS / key / "baseline.json").read_text())["tripwires_sha256"],
-         f"research/answer-keys/{key}/predictions.jsonl", None, "eval-lab #1083 external_traces.py baseline")
-        for key in ("cheatbench-actions-v1", "hacktrace-act-v1")
-    ]
-    internal = json.loads((KEYS / "internal-views/baseline.json").read_text())
-    sources += [
-        (key, internal[key]["tripwires_sha256"], "research/answer-keys/internal-views/predictions.jsonl", key,
-         "eval-lab #1087 internal_traces.py baseline")
-        for key in ("trajectory-judge-400", "trace-paired-v1")
-    ]
     runs = []
-    for key, sha, source, dataset, run in sources:
-        predictions = [p for p in _jsonl(REPO / source) if dataset is None or p.get("dataset") == dataset]
+    for key, sha, source, records, fired, run in _tripwire_sources():
         for view in ("full", "actions"):
-            version, findings = _tripwire_findings(key, predictions, sha, view, source)
-            path = HERE / "findings" / f"{key}--tripwires-{view}.jsonl"
-            path.parent.mkdir(parents=True, exist_ok=True)
+            version = f"tripwires@{sha[:12]}/{view}"
+            findings = _tripwire_findings(key, [(p["item_id"], fired(p, view)) for p in records], version, view, source)
+            path = HERE / "findings" / f"{key}--tripwires-{sha[:12]}-{view}.jsonl"
             path.write_text("".join(json.dumps(f, sort_keys=True) + "\n" for f in findings), encoding="utf-8")
             notes = "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls."
             if key == "cheatbench-actions-v1":
                 notes = "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. " + notes
-            if dataset is not None:
-                notes += " Items without a usable ATIF are not emitted and stay unmeasured."
             runs.append({
                 "agent": "tripwire", "version": version, "key": key,
-                "findings": path.relative_to(HERE).as_posix(), "run": run, "notes": notes,
+                "findings": path.relative_to(HERE).as_posix(), "run": run,
+                "notes": notes + " Items the source could not measure are not emitted and stay unmeasured.",
             })
     return runs
 
 
 def main() -> None:
-    runs = tripwire_runs() + [
+    findings_dir = HERE / "findings"
+    findings_dir.mkdir(exist_ok=True)
+    for stale in findings_dir.glob("*.jsonl"):
+        stale.unlink()
+    runs = tripwire_runs() + or1p_runs() + [
         {"agent": a, "version": v, "key": k, "findings": f, "run": r, "notes": n}
         for a, v, k, f, r, n in RETAINED
     ]
     document = {
         "runs": sorted(runs, key=lambda r: (r["agent"], r["version"], r["key"])),
-        "not_rescored": scoreboard_entries() + baseline_entries(),
+        "not_rescored": scoreboard_entries(),
     }
     (HERE / "runs.json").write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     versions = sorted({r["version"] for r in runs} | {"qa-task@s2a-ordinary-availability-verified"})

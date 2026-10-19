@@ -307,6 +307,60 @@
       "system": "action-lr@88cf3b998fd3/train=trajectory-judge-400"
     },
     {
+      "agent": "tripwire",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Transfer matrix (eval-lab #1091): per-item scores in a custom format, no qa.finding/v1 records; train key is part of the system.",
+      "reported": "recall 0.6667; false alarms 0.7188; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T08:59:56Z)",
+      "split": "test",
+      "system": "action-lr@88cf3b998fd3/train=cheatbench-actions-v1"
+    },
+    {
+      "agent": "tripwire",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Transfer matrix (eval-lab #1091): per-item scores in a custom format, no qa.finding/v1 records; train key is part of the system.",
+      "reported": "recall 0.0000; false alarms 0.0000; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T08:59:56Z)",
+      "split": "test",
+      "system": "action-lr@88cf3b998fd3/train=hacktrace-act-v1"
+    },
+    {
+      "agent": "tripwire",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Transfer matrix (eval-lab #1091): per-item scores in a custom format, no qa.finding/v1 records; train key is part of the system.",
+      "reported": "recall 0.6667; false alarms 0.7812; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T08:59:56Z)",
+      "split": "test",
+      "system": "action-lr@88cf3b998fd3/train=trace-paired-v1"
+    },
+    {
+      "agent": "tripwire",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Transfer matrix (eval-lab #1091): per-item scores in a custom format, no qa.finding/v1 records; train key is part of the system.",
+      "reported": "recall 0.0000; false alarms 0.0000; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T08:59:56Z)",
+      "split": "test",
+      "system": "action-lr@88cf3b998fd3/train=trajectory-judge-400"
+    },
+    {
+      "agent": "tripwire",
+      "key": "mimo-fresh-window3",
+      "reason": "History-command action rule (eval-lab #1097): per-item booleans in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.8286; false alarms 0.8824; paired n/a; measured 52/52; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T09:04:28Z)",
+      "split": "test",
+      "system": "action-rule@88cf3b998fd3/history_cmds-or-tripwire/actions"
+    },
+    {
+      "agent": "tripwire",
+      "key": "mimo-fresh-window3",
+      "reason": "History-command action rule (eval-lab #1097): per-item booleans in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.8286; false alarms 0.8824; paired n/a; measured 52/52; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T09:04:28Z)",
+      "split": "test",
+      "system": "action-rule@88cf3b998fd3/history_cmds-or-tripwire/full"
+    },
+    {
       "agent": "task",
       "key": "envcheck-tb4-39",
       "reason": "S0-S3 producer records are unversioned (`qa-task`, `qa-task/shortcut-agent`, ...); `@verified` is a `qa task-score` mode with full-cohort denominators, not a producer id.",
@@ -665,24 +719,6 @@
       "source": "research/qa-scoreboard/scoreboard.csv (2026-10-18T11:53:53Z)",
       "split": "test",
       "system": "cheat_ladder 3.0.0 (model-free)"
-    },
-    {
-      "agent": "tripwire",
-      "key": "mimo-v7-canonical-pass70",
-      "reason": "Dataset is a blinded internal view population, not a registered answer key.",
-      "reported": "recall 0.5000 (3/6); false alarms 0.5312 (34/64); measured 70/70",
-      "source": "research/answer-keys/internal-views/baseline.json",
-      "split": "test",
-      "system": "tripwires@731d849f84c0/full"
-    },
-    {
-      "agent": "tripwire",
-      "key": "mimo-v7-canonical-pass70",
-      "reason": "Dataset is a blinded internal view population, not a registered answer key.",
-      "reported": "recall 0.5000 (3/6); false alarms 0.5312 (34/64); measured 70/70",
-      "source": "research/answer-keys/internal-views/baseline.json",
-      "split": "test",
-      "system": "tripwires@731d849f84c0/actions"
     }
   ],
   "runs": [
@@ -760,6 +796,86 @@
     },
     {
       "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-actions.jsonl",
+      "key": "cheatbench-actions-v1",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
+      "version": "qa-trace/6-or1p/actions"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-actions.jsonl",
+      "key": "hacktrace-act-v1",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
+      "version": "qa-trace/6-or1p/actions"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-actions.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
+      "version": "qa-trace/6-or1p/actions"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-actions.jsonl",
+      "key": "trace-paired-v1",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
+      "version": "qa-trace/6-or1p/actions"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-actions.jsonl",
+      "key": "trajectory-judge-400",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
+      "version": "qa-trace/6-or1p/actions"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-full.jsonl",
+      "key": "cheatbench-actions-v1",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
+      "version": "qa-trace/6-or1p/full"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-full.jsonl",
+      "key": "hacktrace-act-v1",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
+      "version": "qa-trace/6-or1p/full"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-full.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
+      "version": "qa-trace/6-or1p/full"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-full.jsonl",
+      "key": "trace-paired-v1",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
+      "version": "qa-trace/6-or1p/full"
+    },
+    {
+      "agent": "trace",
+      "findings": "findings/qa-trace-6-or1p-full.jsonl",
+      "key": "trajectory-judge-400",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
+      "version": "qa-trace/6-or1p/full"
+    },
+    {
+      "agent": "trace",
       "findings": "../../../derived/qa-trace/qa-trace-7/trajectory-judge-400-test/findings",
       "key": "trajectory-judge-400",
       "notes": "Held-out test run only (T1 gpt-6.1-sol:medium, T3 gpt-6-luna:medium); dev iterations and the Antigravity test-aware control are not bound.",
@@ -784,67 +900,179 @@
     },
     {
       "agent": "tripwire",
-      "findings": "findings/cheatbench-actions-v1--tripwires-actions.jsonl",
+      "findings": "findings/cheatbench-actions-v1--tripwires-731d849f84c0-actions.jsonl",
       "key": "cheatbench-actions-v1",
-      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls.",
-      "run": "eval-lab #1083 external_traces.py baseline",
+      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1083 external_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/actions"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/hacktrace-act-v1--tripwires-actions.jsonl",
+      "findings": "findings/hacktrace-act-v1--tripwires-731d849f84c0-actions.jsonl",
       "key": "hacktrace-act-v1",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls.",
-      "run": "eval-lab #1083 external_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1083 external_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/actions"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/trace-paired-v1--tripwires-actions.jsonl",
+      "findings": "findings/mimo-v7-canonical-pass70--tripwires-731d849f84c0-actions.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
+      "version": "tripwires@731d849f84c0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trace-paired-v1--tripwires-731d849f84c0-actions.jsonl",
       "key": "trace-paired-v1",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items without a usable ATIF are not emitted and stay unmeasured.",
-      "run": "eval-lab #1087 internal_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/actions"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/trajectory-judge-400--tripwires-actions.jsonl",
+      "findings": "findings/trajectory-judge-400--tripwires-731d849f84c0-actions.jsonl",
       "key": "trajectory-judge-400",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items without a usable ATIF are not emitted and stay unmeasured.",
-      "run": "eval-lab #1087 internal_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/actions"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/cheatbench-actions-v1--tripwires-full.jsonl",
+      "findings": "findings/cheatbench-actions-v1--tripwires-731d849f84c0-full.jsonl",
       "key": "cheatbench-actions-v1",
-      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls.",
-      "run": "eval-lab #1083 external_traces.py baseline",
+      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1083 external_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/full"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/hacktrace-act-v1--tripwires-full.jsonl",
+      "findings": "findings/hacktrace-act-v1--tripwires-731d849f84c0-full.jsonl",
       "key": "hacktrace-act-v1",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls.",
-      "run": "eval-lab #1083 external_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1083 external_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/full"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/trace-paired-v1--tripwires-full.jsonl",
+      "findings": "findings/mimo-v7-canonical-pass70--tripwires-731d849f84c0-full.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
+      "version": "tripwires@731d849f84c0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trace-paired-v1--tripwires-731d849f84c0-full.jsonl",
       "key": "trace-paired-v1",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items without a usable ATIF are not emitted and stay unmeasured.",
-      "run": "eval-lab #1087 internal_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/full"
     },
     {
       "agent": "tripwire",
-      "findings": "findings/trajectory-judge-400--tripwires-full.jsonl",
+      "findings": "findings/trajectory-judge-400--tripwires-731d849f84c0-full.jsonl",
       "key": "trajectory-judge-400",
-      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items without a usable ATIF are not emitted and stay unmeasured.",
-      "run": "eval-lab #1087 internal_traces.py baseline",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1087 internal_traces.py baseline (rules v1)",
       "version": "tripwires@731d849f84c0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/cheatbench-actions-v1--tripwires-86446d693ac0-actions.jsonl",
+      "key": "cheatbench-actions-v1",
+      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/hacktrace-act-v1--tripwires-86446d693ac0-actions.jsonl",
+      "key": "hacktrace-act-v1",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/mimo-fresh-window3--tripwires-86446d693ac0-actions.jsonl",
+      "key": "mimo-fresh-window3",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1097 one-shot blind window-3 test (rules v2)",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/mimo-v7-canonical-pass70--tripwires-86446d693ac0-actions.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trace-paired-v1--tripwires-86446d693ac0-actions.jsonl",
+      "key": "trace-paired-v1",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trajectory-judge-400--tripwires-86446d693ac0-actions.jsonl",
+      "key": "trajectory-judge-400",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/actions"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/cheatbench-actions-v1--tripwires-86446d693ac0-full.jsonl",
+      "key": "cheatbench-actions-v1",
+      "notes": "CheatBench is prior-exposed (combined_v1 calibration corpus), not a fresh holdout. Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/hacktrace-act-v1--tripwires-86446d693ac0-full.jsonl",
+      "key": "hacktrace-act-v1",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/mimo-fresh-window3--tripwires-86446d693ac0-full.jsonl",
+      "key": "mimo-fresh-window3",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1097 one-shot blind window-3 test (rules v2)",
+      "version": "tripwires@86446d693ac0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/mimo-v7-canonical-pass70--tripwires-86446d693ac0-full.jsonl",
+      "key": "mimo-v7-canonical-pass70",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trace-paired-v1--tripwires-86446d693ac0-full.jsonl",
+      "key": "trace-paired-v1",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/full"
+    },
+    {
+      "agent": "tripwire",
+      "findings": "findings/trajectory-judge-400--tripwires-86446d693ac0-full.jsonl",
+      "key": "trajectory-judge-400",
+      "notes": "Frozen evidence-only OR of the tripwire rules on the blinded view; no tuning, no model calls. Items the source could not measure are not emitted and stay unmeasured.",
+      "run": "eval-lab #1094 tripwires rules v2 re-baseline",
+      "version": "tripwires@86446d693ac0/full"
     }
   ]
 }

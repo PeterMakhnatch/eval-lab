@@ -285,9 +285,10 @@ def test_run_visits_all70_even_retained_graders_and_keeps_out_of_scope_cell(roun
     inventory = tmp_path / "inventory.json"
     value = prepare(rounds, cohort, inventory)
     synthetic_plan = document(tmp_path / "loop-only-plan.json", {"fixture": "cell-loop unit test, not an admitted round"})
-    execution_plan = {"inventory": rounds.ref(inventory), "graders": {
-        task: {"retained_grader": True} for task in value["ordered33"],
-    }}
+    execution_plan = {
+        "inventory": rounds.ref(inventory),
+        "graders": {task: {"retained_grader": True} for task in value["ordered33"]},
+    }
     monkeypatch.setattr(rounds, "validate_plan", lambda *_: (execution_plan, value))
     monkeypatch.setattr(rounds, "grader_for", lambda task, selected: (task, selected))
     monkeypatch.setenv("EVALLAB_DOCKER_LOCK_SLOTS", "1")

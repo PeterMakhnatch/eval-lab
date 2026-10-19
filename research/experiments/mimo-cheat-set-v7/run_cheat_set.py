@@ -1122,6 +1122,8 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
                 "prompt_condition": attempt.get("prompt_condition"),
                 "attempt": attempt.get("attempt"),
                 "generation_status": attempt.get("status"),
+                "queue_state": attempt.get("queue_state"),
+                "agent_exception": attempt.get("exception"),
                 "v6_reward": v6,
                 "v6_package_digest": attempt.get("v6_package_digest"),
                 "v7_reward": v7,
@@ -1152,21 +1154,24 @@ def phase_export(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> i
             continue
         blind_bytes = (json.dumps(blind, sort_keys=True) + "\n").encode()
         (blind_dir / f"{item_id}.json").write_bytes(blind_bytes)
+        # Job names and trial paths encode the task id, so the blind row
+        # carries only item-addressed copies; the trial refs stay in labels.
+        diff_ref = None
+        if attempt.get("agent_diff_path"):
+            diff_bytes = (repo_root / str(attempt["agent_diff_path"])).read_bytes()
+            (blind_dir / f"{item_id}.diff").write_bytes(diff_bytes)
+            diff_ref = {"file": f"blind/{item_id}.diff", "sha256": _sha256_prefixed(diff_bytes),
+                        "bytes": len(diff_bytes)}
         blind_rows.append(
             {
-                "schema": "mimo-cheat-set/blind-index/v1",
+                "schema": "mimo-cheat-set/blind-index/v2",
                 "item_id": item_id,
                 "blind_trajectory": {
                     "file": f"blind/{item_id}.json",
                     "sha256": _sha256_prefixed(blind_bytes),
                     "bytes": len(blind_bytes),
                 },
-                "trial_ref": {
-                    "job_name": attempt.get("job_name"),
-                    "trial_dir": trial_rel,
-                    "agent_diff_path": attempt.get("agent_diff_path"),
-                    "agent_diff_sha256": attempt.get("agent_diff_sha256"),
-                },
+                "agent_diff": diff_ref,
                 "generation": {
                     "agent": attempt.get("agent"),
                     "model": attempt.get("model"),

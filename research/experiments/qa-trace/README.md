@@ -137,6 +137,72 @@ unmeasured. Full case-cited report is retained in research-context
 `bridge/2026-10-17-v7/qa-trace-8-canonical-diagnostic.md`.
 
 
+## Bounded T1 prefix follow-up (2026-10-18)
+
+The rebased efficiency follow-up uses the distinct pipeline/output namespace
+`qa-trace/8-bounded-prefix-1` and prompt provenance
+`qa-trace/8/t1-bounded-prefix/1`, preserving qa-trace/8's required verifier-test
+inspection. It does not reuse the unchanged control's default run directory.
+T1 places question-independent policy, prescan and blind evidence in the shared
+system-prefix position, before OMP's dynamic cwd footer.
+Recorded evidence remains explicitly untrusted JSON data; the question and
+single inspection retry stay in the user suffix. Each scenario still receives
+its own scratch workspace and existing sandbox fence.
+
+The initial trajectory excerpt has an 8,000-character hard budget, including
+omission markers with original step-ID endpoints. Full sealed evidence remains
+available through targeted step/range reads. Inline material does not satisfy
+mandatory actual tool inspection. Stage keys hash the actual prefix and question
+contract; configuration records the prompt version, preventing stale stage reuse.
+Retry-call counts and provider usage remain in their owning stage.
+
+This is an engineering/protocol candidate, **not a qualified quality or savings
+result**. Its 15-item dev slice was frozen before any candidate outcome.
+The original qa-trace/7 Codex protocol stopped before its first study call. A separately
+registered Google-subscription comparison ran nine native turns, then stopped
+at its conservative quota threshold with only one paired item attempted; two
+baseline turns at the 180-second study transport limit have unknown usage.
+The >90% full-slice T1 cache target, at least 30% noncached-input-plus-output
+reduction and zero recall/false-alarm regression remain unestablished by that
+pilot. Cold calls, retries and T3 must remain in the comparison. No partial-slice
+ratio, equal prefix, CPU smoke or missing-as-zero counter establishes acceptance.
+No held-out item was used. The new PS-1 comparison retains the exact frozen
+15-item slice but pins an unchanged qa-trace/8 control and rebased candidate.
+Its current merge gate is at least 30% fresh-input-plus-output reduction with no
+recall/false-alarm regression; >90% T1 cache remains a reported diagnostic target.
+
+### PS-1 native frozen-slice attempt (2026-10-19)
+
+The unchanged current-main qa-trace/8 control and bounded-prefix candidate
+ran the exact original frozen 15-item dev slice and per-item arm order. Each
+deliberate native process required a newly refreshed Codex usage reading below
+80%; reaching that ceiling sealed admission without continuing or substituting
+judges after outcomes. Production timeouts and inspection requirements were
+preserved. The exercised trace-source hashes match the delivered candidate.
+
+| Arm | Admitted processes | Usable items | Inclusive input | Cached input | Noncached input | Output | Noncached input + output |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Current-main control | 38 | 9 / 15 | 2,801,786 | 2,083,200 | 718,586 | 45,235 | 763,821 |
+| Bounded-prefix candidate | 38 | 8 / 15 | 2,818,080 | 2,060,416 | 757,664 | 45,045 | 802,709 |
+
+Every admitted process has complete reported usage, including cold calls and
+T3. These are unmatched admitted-call subtotals, **not a full paired-slice cost
+estimate**; the partial candidate T1 cache fraction is 71.22%, not a full-slice
+cache result. Unlaunched quota-stopped work remains unmeasured. One already
+control-correct clean item became unknown in the candidate, so even the
+observed results do not establish quality parity.
+
+Acceptance is **false**: the comparison is incomplete and establishes neither
+30% full-slice savings nor no-regression. Full-slice recall/false-alarm deltas and
+cost reduction remain unknown. No partial subset was promoted or retuned and
+no metered judge was substituted after viewing outcomes. New paid API/compute
+spend was $0; the PR remains draft, not merged.
+
+The compact [outcome receipt](../../explorations/agent-efficiency/ps1-20261019-result.json)
+links the retained private source/protocol/raw artifacts. The original frozen
+slice and stopped historical pilot remain unchanged. The separate S1 cache win
+does not replace this quality/whole-pipeline acceptance gate.
+
 
 ## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
 

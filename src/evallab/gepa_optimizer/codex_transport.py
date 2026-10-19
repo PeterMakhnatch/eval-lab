@@ -1,7 +1,9 @@
 """One text-only GEPA reflection through an authenticated Codex subscription.
 
-User config, project instructions and tool features are disabled; the CLI runs
-ephemerally in an empty read-only workspace. This is not host file-read isolation.
+User config, project instructions and tool features are disabled for every vote.
+An optional real, metadata-only native seed gives fresh ephemeral forks a shared
+cache-routing key and blind empty cwd, never another vote's history or output.
+This is not host file-read isolation, and provider cache hits are not guaranteed.
 Only a complete, single-turn text response is usable. Quota and billing remain
 unknown; request limits count CLI invocations, not physical upstream requests.
 """
@@ -12,12 +14,15 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import signal
 import subprocess
 import time
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from evallab.execution_contracts import persist_private_bytes
 
@@ -109,6 +114,7 @@ _KNOWN_EVENT_TYPES = frozenset(
 # without touching stdlib subprocess globally.
 _RUN = subprocess.run
 _POPEN = subprocess.Popen
+_SEED_POPEN = subprocess.Popen
 
 
 class CodexTransportError(RuntimeError):
@@ -331,13 +337,292 @@ def _stop(process: Any) -> None:
             process.wait()
 
 
+def _no_symlink_directory(path: Path) -> Path:
+    absolute = path.absolute()
+    if any(part.is_symlink() for part in (absolute, *absolute.parents)):
+        raise ValueError("Codex directories must not follow symlinks")
+    return absolute.resolve()
+
+
+def _require_empty_prefill_cwd(cwd: Path) -> None:
+    _no_symlink_directory(cwd)
+    if not cwd.is_dir() or next(cwd.iterdir(), None) is not None:
+        raise ValueError("Shared Codex prefill cwd must remain an empty directory")
+
+
+def _empty_seed_bytes(path: Path, *, thread_id: str, cwd: Path, model: str) -> bytes:
+    """Accept only native model instructions and one root metadata record."""
+    _no_symlink_directory(path)
+    if not path.is_file() or path.stat().st_size > MAX_TRANSCRIPT_BYTES:
+        raise CodexTransportError("Codex prefill seed is not a bounded regular file")
+    raw = path.read_bytes()
+    try:
+        records = [json.loads(line) for line in raw.splitlines() if line.strip()]
+        if (
+            len(records) != 1
+            or records[0]["type"] != "session_meta"
+            or set(records[0]) != {"timestamp", "type", "payload"}
+        ):
+            raise ValueError("history")
+        meta = records[0]["payload"]
+        allowed = {
+            "creator_user_id", "creator_account_id", "session_id", "id", "timestamp",
+            "cwd", "runtime_workspace_roots", "originator", "cli_version", "source",
+            "model_provider", "base_instructions", "history_mode", "context_window",
+        }
+        instructions = meta["base_instructions"]
+        window = meta.get("context_window")
+        if window is not None:
+            if set(window) != {"window_id"}:
+                raise ValueError("context window")
+            UUID(window["window_id"])
+        if (
+            set(meta) - allowed
+            or str(UUID(thread_id)) != thread_id
+            or meta["id"] != thread_id
+            or meta["session_id"] != thread_id
+            or meta["cwd"] != str(cwd)
+            or meta["runtime_workspace_roots"] != [str(cwd)]
+            or meta["model_provider"] != MODEL_PROVIDER
+            or meta["cli_version"] != CODEX_VERSION.removeprefix("codex-cli ")
+            or meta["history_mode"] != "legacy"
+            or set(instructions) != {"text", "provenance"}
+            or not isinstance(instructions["text"], str)
+            or not instructions["text"].strip()
+            or instructions["provenance"] != {"type": "model", "model": model}
+        ):
+            raise ValueError("context")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise CodexTransportError("Codex prefill seed contains history or custom context") from exc
+    return raw
+
+
+@dataclass(frozen=True)
+class _EmptySeed:
+    thread_id: str
+    rollout: Path
+    snapshot: Path
+    content: bytes
+
+    def require_unchanged(self, *, cwd: Path, model: str) -> None:
+        current = _empty_seed_bytes(self.rollout, thread_id=self.thread_id, cwd=cwd, model=model)
+        _no_symlink_directory(self.snapshot)
+        if current != self.content or self.snapshot.read_bytes() != self.content:
+            raise CodexTransportError("Codex prefill seed changed; retained evidence is unusable")
+
+
+def _require_seed_policy_read_only(home: Path) -> None:
+    """Allow policy loading, but never trigger Codex's one-shot policy rewrite."""
+    marker = home / ".sandbox_migration"
+    if marker.is_symlink() or not marker.is_file():
+        raise CodexTransportError(
+            "Codex seed requires an existing native migration marker; refusing policy migration"
+        )
+    _no_symlink_directory(marker)
+
+
+def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
+    """Materialize a genuine model-free thread; never submit a turn or user text.
+
+    Standalone app-server lacks exec's config/rules isolation flags. Disable
+    hooks and legacy notify per process/thread and reject custom instructions
+    or provider routes. Native execpolicy may load, but cannot enter a strictly
+    metadata-only seed; an existing migration marker prevents policy rewrites.
+    """
+    directory.mkdir(mode=0o700, exist_ok=False)
+    requests_path = directory / "requests.jsonl"
+    events_path = directory / "events.jsonl"
+    log_path = directory / "client.log"
+    for path in (requests_path, events_path, log_path):
+        path.touch(mode=0o600, exist_ok=False)
+    argv = [
+        str(_executable()), "app-server", "--stdio",
+        "-c", f'model_provider="{MODEL_PROVIDER}"',
+        "-c", 'web_search="disabled"',
+        "-c", "analytics.enabled=false", "-c", "feedback.enabled=false",
+        "-c", "project_doc_max_bytes=0", "-c", "features.skip_host_skill_discovery=true",
+        "-c", "notify=[]",
+    ]
+    for feature in DISABLED_FEATURES:
+        argv.extend(("--disable", feature))
+    with requests_path.open("ab") as requests, events_path.open("ab") as events, log_path.open(
+        "ab"
+    ) as log, selectors.DefaultSelector() as selector:
+        process = _SEED_POPEN(
+            argv, cwd=cwd, env=_scrub_env(dict(os.environ)), stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=log, start_new_session=True, bufsize=0,
+        )
+        stdin, stdout = process.stdin, process.stdout
+        assert stdin is not None and stdout is not None
+        pending = b""
+        received = 0
+        deadline = time.monotonic() + 60
+        selector.register(stdout, selectors.EVENT_READ)
+
+        def next_message() -> dict[str, Any] | None:
+            nonlocal pending, received
+            while b"\n" not in pending:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    raise CodexTransportError("Codex model-free seed creation timed out")
+                chunk = os.read(stdout.fileno(), 65536)
+                if not chunk:
+                    if pending:
+                        raise CodexTransportError("Codex seed server returned partial JSON")
+                    return None
+                received += len(chunk)
+                if received > MAX_TRANSCRIPT_BYTES or log_path.stat().st_size > MAX_TRANSCRIPT_BYTES:
+                    raise CodexTransportError("Codex seed server exceeded its output bound")
+                pending += chunk
+            line, pending = pending.split(b"\n", 1)
+            try:
+                message = json.loads(line)
+            except (ValueError, UnicodeDecodeError) as exc:
+                raise CodexTransportError("Codex seed server returned invalid JSON") from exc
+            if not isinstance(message, dict):
+                raise CodexTransportError("Codex seed server returned a non-object")
+            # Config may contain credentials. Never retain its values or layers.
+            retained = {"id": 2, "configuration_redacted": True} if message.get("id") == 2 else message
+            events.write((json.dumps(retained, ensure_ascii=False) + "\n").encode())
+            events.flush()
+            method = message.get("method", "")
+            if not isinstance(method, str) or method.startswith(
+                ("turn/", "item/", "mcpServer/", "hook/", "hooks/", "codex/event/")
+            ):
+                raise CodexTransportError("Codex seed server attempted nonempty/tool activity")
+            return message
+
+        def rpc(identifier: int, method: str, params: dict[str, Any]) -> dict[str, Any]:
+            payload = (json.dumps({"id": identifier, "method": method, "params": params}) + "\n").encode()
+            requests.write(payload)
+            requests.flush()
+            stdin.write(payload)
+            stdin.flush()
+            while (message := next_message()) is not None:
+                if "id" not in message:
+                    continue
+                if message["id"] != identifier or "error" in message or not isinstance(message.get("result"), dict):
+                    raise CodexTransportError(f"Codex model-free seed {method} failed; inspect retained logs")
+                return message["result"]
+            raise CodexTransportError("Codex seed server exited before completing setup")
+
+        try:
+            initialized = rpc(1, "initialize", {
+                "clientInfo": {"name": "evallab-empty-prefill", "version": "1"},
+                "capabilities": {"experimentalApi": True},
+            })
+            home = _no_symlink_directory(Path(initialized["codexHome"]))
+            config = rpc(2, "config/read", {"cwd": str(cwd)})["config"]
+            if (
+                not isinstance(config, dict)
+                or any(config.get(key) for key in (
+                    "instructions", "base_instructions", "user_instructions", "developer_instructions",
+                    "model_instructions_file", "model_catalog_json",
+                ))
+                or config.get("model_provider") != MODEL_PROVIDER
+                or config.get("model_providers", {}).get(MODEL_PROVIDER)
+            ):
+                raise CodexTransportError("Codex seed requires native instructions and provider routing")
+            features = config.get("features")
+            if (
+                not isinstance(features, dict)
+                or any(features.get(feature) is not False for feature in DISABLED_FEATURES)
+                or config.get("notify") != []
+                or config.get("project_doc_max_bytes") != 0
+            ):
+                raise CodexTransportError("Codex seed hook/tool/instruction isolation is unknown")
+            _require_seed_policy_read_only(home)
+            servers = config.get("mcp_servers", {})
+            if not isinstance(servers, dict):
+                raise CodexTransportError("Codex seed MCP configuration is unknown")
+            started = rpc(3, "thread/start", {
+                "model": model, "modelProvider": MODEL_PROVIDER, "cwd": str(cwd),
+                "approvalPolicy": "never", "sandbox": "read-only", "ephemeral": False,
+                "historyMode": "legacy", "developerInstructions": "",
+                "config": {
+                    "mcp_servers": {name: {"enabled": False} for name in servers},
+                    "features": {feature: False for feature in DISABLED_FEATURES},
+                    "notify": [], "project_doc_max_bytes": 0, "web_search": "disabled",
+                    "developer_instructions": "",
+                },
+            })["thread"]
+            thread_id = started["id"]
+            # An unused thread is lazy. Explicit ungrouped placement is the
+            # supported model-free operation that persists its real metadata.
+            rpc(4, "thread/section/move", {"threadId": thread_id, "sectionId": None})
+            thread = rpc(5, "thread/read", {"threadId": thread_id, "includeTurns": True})["thread"]
+            if (
+                thread["id"] != thread_id or thread["sessionId"] != thread_id
+                or thread["turns"] != [] or thread["preview"] != ""
+                or thread["ephemeral"] is not False or thread.get("forkedFromId") is not None
+                or thread.get("parentThreadId") is not None or thread["historyMode"] != "legacy"
+            ):
+                raise CodexTransportError("Codex seed is not a fresh empty root thread")
+            rollout = _no_symlink_directory(Path(thread["path"]))
+            _require_seed_policy_read_only(home)
+            if not rollout.is_relative_to(home / "sessions"):
+                raise CodexTransportError("Codex seed rollout escaped native session storage")
+            content = _empty_seed_bytes(rollout, thread_id=thread_id, cwd=cwd, model=model)
+            snapshot = directory / "seed-rollout.jsonl"
+            persist_private_bytes(snapshot, content, secrets=())
+            seed = _EmptySeed(thread_id, rollout, snapshot, content)
+            stdin.close()
+            while next_message() is not None:
+                pass
+            process.wait(timeout=max(0.01, deadline - time.monotonic()))
+            if process.returncode != 0:
+                raise CodexTransportError("Codex seed server failed during shutdown")
+        except (KeyError, TypeError, AttributeError, OSError, subprocess.TimeoutExpired) as exc:
+            raise CodexTransportError("Codex model-free seed creation failed; inspect retained evidence") from exc
+        finally:
+            if not stdin.closed:
+                stdin.close()
+            _stop(process)
+            stdout.close()
+    seed.require_unchanged(cwd=cwd, model=model)
+    _require_seed_policy_read_only(home)
+    _require_empty_prefill_cwd(cwd)
+    return seed
+
+
+def _independent_fork_id(path: Path, *, seed: _EmptySeed, used: set[str]) -> str:
+    threads = [
+        event.get("thread_id")
+        for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+        if (event := json.loads(line)).get("type") == "thread.started"
+    ]
+    if len(threads) != 1 or not isinstance(threads[0], str):
+        raise CodexTransportError("Codex fork did not report exactly one fresh thread")
+    thread_id = threads[0]
+    try:
+        if str(UUID(thread_id)) != thread_id:
+            raise ValueError("noncanonical thread id")
+    except ValueError as exc:
+        raise CodexTransportError("Codex fork reported an invalid native thread id") from exc
+    if thread_id == seed.thread_id or thread_id in used:
+        raise CodexTransportError("Codex fork reused a prior lifecycle/thread identity")
+    used.add(thread_id)
+    return thread_id
+
+
 class CodexTransport:
     """One text-only GEPA reflection turn via the Codex subscription CLI."""
 
-    def __init__(self, *, repo_root: Path, model: str, timeout_seconds: int = 900):
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        model: str,
+        timeout_seconds: int = 900,
+        prefill_cwd: Path | None = None,
+    ):
         self.repo_root = repo_root.resolve()
         self.model = _bare_model(model)
         self.timeout_seconds = timeout_seconds
+        self.prefill_cwd = prefill_cwd
+        self._prefill_seed: _EmptySeed | None = None
+        self._seed_attempted = False
+        self._used_thread_ids: set[str] = set()
 
     def _version_digest(self, executable: Path) -> tuple[str, str]:
         completed = _run_probe([str(executable), "--version"], timeout=20)
@@ -419,19 +704,32 @@ class CodexTransport:
                 str(cwd),
                 "-o",
                 str(last_message),
-                "-",
             )
         )
+        if self._prefill_seed is not None:
+            argv.extend(("fork", self._prefill_seed.thread_id))
+        argv.append("-")
         return argv
 
     def request(self, prompt: str | list[dict[str, Any]], *, directory: Path) -> dict[str, Any]:
-        """Run exactly one completed text-only turn; never retry or fall back."""
+        """Run one fresh ephemeral turn; retain unique evidence, never retry.
+
+        ``prefill_cwd`` enables fresh native ephemeral forks of one real,
+        metadata-only empty seed. Only its cache-routing key and empty cwd
+        repeat; seed purity and immutable bytes are checked before each launch
+        and before accepting text. All prompt/output artifacts remain unique.
+        """
         facts = self.preflight()
-        if any(part.is_symlink() for part in (directory, *directory.parents)):
-            raise ValueError("Proposer directories must not follow symlinks")
-        directory.mkdir(parents=True, exist_ok=False, mode=0o700)
         cwd = directory / "cwd"
-        cwd.mkdir(mode=0o700)
+        if self.prefill_cwd is not None:
+            directory = _no_symlink_directory(directory)
+            cwd = _no_symlink_directory(self.prefill_cwd)
+            if cwd.is_relative_to(directory) or directory.is_relative_to(cwd):
+                raise ValueError("Codex prefill cwd and evidence directory must be disjoint")
+        directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+        cwd.mkdir(parents=True, exist_ok=self.prefill_cwd is not None, mode=0o700)
+        if self.prefill_cwd is not None:
+            _require_empty_prefill_cwd(cwd)
         text = prompt if isinstance(prompt, str) else json.dumps(prompt, ensure_ascii=False)
         if not text.strip():
             raise ValueError("Codex proposer prompt must not be empty")
@@ -443,6 +741,15 @@ class CodexTransport:
         events_path.touch(mode=0o600, exist_ok=False)
         log_path.touch(mode=0o600, exist_ok=False)
         last_message.touch(mode=0o600, exist_ok=False)
+        if self.prefill_cwd is not None:
+            if self._prefill_seed is None:
+                if self._seed_attempted:
+                    raise CodexTransportError("Codex seed bootstrap already failed; never retry implicitly")
+                self._seed_attempted = True
+                self._prefill_seed = _create_empty_seed(
+                    directory=directory / "prefill-seed", cwd=cwd, model=self.model
+                )
+            self._prefill_seed.require_unchanged(cwd=cwd, model=self.model)
         argv = self._argv(cwd=cwd, last_message=last_message)
         env = _scrub_env(dict(os.environ))
         with (
@@ -478,12 +785,25 @@ class CodexTransport:
                     )
             finally:
                 _stop(process)
+        if self.prefill_cwd is not None:
+            _require_empty_prefill_cwd(cwd)
         if any(
             path.stat().st_size > MAX_TRANSCRIPT_BYTES
             for path in (events_path, log_path, last_message)
         ):
             raise CodexTransportError("Codex output limit reached")
         response, usage = parse_transcript(events_path)
+        if self._prefill_seed is not None:
+            self._prefill_seed.require_unchanged(cwd=cwd, model=self.model)
+            thread_id = _independent_fork_id(
+                events_path, seed=self._prefill_seed, used=self._used_thread_ids
+            )
+            facts["prefill_cache"] = {
+                "mode": "empty_seed_ephemeral_fork",
+                "seed_thread_id": self._prefill_seed.thread_id,
+                "seed_rollout_sha256": hashlib.sha256(self._prefill_seed.content).hexdigest(),
+                "thread_id": thread_id,
+            }
         return {
             "response": response,
             "upstream_estimated_cost_usd": None,

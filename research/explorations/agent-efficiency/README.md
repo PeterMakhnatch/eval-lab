@@ -276,3 +276,131 @@ registration are retained separately rather than replaced with this safer helper
 
 The preparation/runners default to no model execution. Do not enable
 `--run-subscription` merely to reproduce these tables.
+
+## QA trace/task efficiency follow-up (2026-10-18)
+
+This follow-up profiles retained native usage before changing prompts. These are
+historical execution costs, not a baseline/candidate quality comparison or a
+provider invoice. Trace cohorts contain 916 stored item-executions (689 recorded
+subject identities), not 916 distinct trajectories. Task evidence was recovered
+from 15 archived `.qa-task` run trees because the live `runs/.qa-task` directory
+had already been retired.
+
+| Native stage | Retained records | Inclusive input | Cached input | Noncached input | Output |
+|---|---:|---:|---:|---:|---:|
+| qa-trace/6 T1 | 651 | 128,457,817 | 101,769,512 | 26,688,305 | 1,455,688 |
+| qa-trace/6 T3 | 225 | 11,347,825 | 9,266,808 | 2,081,017 | 254,715 |
+| qa-trace/7 T1 | 995 | 116,550,258 | 93,180,800 | 23,369,458 | 1,323,070 |
+| qa-trace/7 T3 | 300 | 16,093,701 | 13,084,032 | 3,009,669 | 336,546 |
+| qa-task rubric S1 | 561 (560 complete) | 38,617,722 | 8,615,936 | 30,001,786 | 1,012,652 |
+| qa-task mutant adjudication | 97 | 1,337,044 | 615,424 | 721,620 | 7,155 |
+| qa-task shortcut | 127 | 4,274,221 | 1,439,232 | 2,834,989 | 68,575 |
+
+The task rubric row is a **known subtotal**: one interrupted native request has
+no usage counters in its events, empty client log or empty final-message file.
+It is unknown, not free. All 785 task request identities are source-bound to 134
+task/digest identities and 200 source invocations. For 101 old requests whose
+ledger totals/timestamps did not reconcile, identity was recovered from a unique
+byte-for-byte match of every captured task file against same-run report packages;
+no nearest-time or filename-order attribution was invented. Trace stage totals
+reconcile exactly with retained verdict totals, including retries.
+
+Native Codex `input_tokens` includes its cached subset; OMP `input` excludes
+`cacheRead`/`cacheWrite`. The profile normalizes both to inclusive input,
+cache-read input, noncached input and output. Cache writes are noncached input.
+Reasoning output is not added a second time. Missing components remain unknown.
+The full source-bound profiles, request IDs and source hashes remain private:
+`~/.local/share/eval-lab/studies/qa-token-efficiency-20261018T152101Z/`,
+`trace-usage-profile-v1.json` (SHA-256
+`bd5c093af13c2190b71dfab64405f265f6464feef0c238b54bdb8c61ab17505c`) and
+`task-usage-profile-v2.json` (SHA-256
+`fbd757aaaf841af7ed1f622fa67efc9adf135b0c9ccf82891308f24a582794b0`).
+
+The engineering changes are bounded blind T1 evidence plus a question-independent
+system prefix before the dynamic cwd footer, and one strict identity-bound
+adjudication batch for the same first six surviving mutants. Invalid batches
+become unknown without per-mutant fallback calls or fabricated token allocation.
+The bounded-prefix pipeline uses its own output namespace, leaving historical
+qa-trace/7 evidence intact. See the [trace protocol](../../experiments/qa-trace/README.md)
+and [task batch contract](../../../docs/qa-task.md#mutant-adjudication-batches).
+
+The profile also sets priorities: T1 owns most trace noncached-input-plus-output
+spend, but rubric S1, not mutant adjudication, owns most task spend. Batching the
+small adjudication stage alone cannot deliver a 30% whole-task reduction.
+The separate native S1 cache experiment below addresses this measured bottleneck;
+it does not qualify the bounded QA Trace prefix.
+
+### Historical trace pilot limits (2026-10-18)
+
+A 15-item dev slice and per-item arm order were frozen before model outcomes.
+The original Codex comparison stopped at admission, before any study call, when
+shared weekly usage crossed the preregistered conservative lane threshold.
+An additional Google-subscription comparison was separately registered before
+outcomes, using the same slice, acceptance and source-pinned arms. It ran nine
+native subscription turns before fresh Gemini weekly usage reached 59.81094%,
+past its tighter 59.8% admission stop. Only one paired item was attempted; two
+baseline turns at the 180-second study transport limit have no retained usage.
+Seven turns have complete counters, but their subtotal is not a full paired cost.
+The protocol never admits missing counters as zero or promotes a partial slice.
+
+Consequently, the >90% aggregate T1 cache, at least 30% noncached-input-plus-output
+reduction and zero quality-regression targets are **not established**. This is
+neither Codex non-regression nor token-to-quota equivalence. The frozen comparison
+and source candidate remain unqualified, not a successful performance release.
+Cold calls, retries and T3 remain in the denominator. The sealed failure receipt
+is `google-study-result-v1.json`, SHA-256
+`a81fdb8dc08da8c78f1d78305dea22c3667f0dc736a2b4c49fcf9f5bcf346837`.
+
+The native smoke also identified concrete next investigation points: `_omp_argv`
+does not disable default rule/skill/extension discovery, despite supplying a
+standalone QA system prompt, and `call_model` discards partial stdout/usage on a
+transport exception. The installed harness exposes per-call isolation flags.
+Context isolation and failure-accounting retention need their own measured,
+safety-preserving treatment; this patch does not silently disable standing
+instructions, add retries or claim those causes account for a measured fraction.
+
+### PS-1: independent S1 prefill reuse (2026-10-19)
+
+The preregistered six-turn probe used one archived, byte-identical 77,355-character
+rubric packet and the fixed interleaving control, candidate, candidate, control,
+control, candidate. Control used current-main fresh ephemeral exec/cwd requests;
+candidate used the actual `CodexLane` with supported ephemeral forks of one
+genuine, model-free empty seed. All six native thread IDs are distinct, all six
+prompt hashes match, and all source usage counters are complete.
+
+| Arm | Calls | Complete rubrics | Inclusive input | Cached input | Noncached input | Output | Noncached input + output |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Fresh exec/cwd control | 3 | 3 | 91,618 | 4,096 | 87,522 | 4,931 | 92,453 |
+| Independent empty-seed forks | 3 | 2 | 86,937 | 57,600 | 29,337 | 5,860 | 35,197 |
+
+The primary metric fell **61.93% including the cold first candidate vote**.
+That first vote had no cached input; each subsequent candidate vote cached
+28,800 of 28,979 input tokens (99.38%). Output increased, rather than being
+excluded from the denominator. Both cwd and native cache-routing behavior
+changed, and provider-framed cold inputs also differ: this is a combined-path
+measurement, not the isolated causal effect of cwd or a text-equivalent full
+provider request.
+
+No prior prompt or response is inherited. Native seed creation submits no
+model turn; it retains exactly one model-provenance metadata record. Child
+thread identities, seed bytes and empty cwd checks reject history contamination
+or lifecycle reuse. See the [production contract](../../../docs/qa-task.md#independent-rubric-cache-reuse).
+
+Offline replay through the actual production JSON parser and completeness rules
+found one malformed candidate response. It was not repaired or rerun, and all
+its tokens remain counted. Applying the existing complete-vote/majority rules
+also changes some criterion results. Thus even this one packet does **not**
+establish unchanged usable-vote performance; a complete native turn is not a
+complete rubric answer. The saved-output diagnostic is not ground-truth scoring.
+
+This establishes a one-packet cost result, not rubric correctness, statistical
+noninferiority, savings across tasks/models or an exact quota percentage.
+The separate [frozen QA Trace comparison](../../experiments/qa-trace/README.md#ps-1-native-frozen-slice-attempt-2026-10-19)
+did not meet acceptance; the PR remains draft and must not merge on this S1
+number alone. New paid API/compute spend was $0.
+
+Reviewable counters and limits are in [ps1-20261019-result.json](ps1-20261019-result.json).
+Preregistration, source archives, all raw native streams, quota admissions and
+immutable outcome files remain under
+`~/.local/share/eval-lab/studies/ps1-20261019/`.
+

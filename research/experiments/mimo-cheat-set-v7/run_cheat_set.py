@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import sys
@@ -673,6 +674,9 @@ def phase_generate(args: argparse.Namespace, repo_root: Path, runs_dir: Path) ->
     if not ok:
         return 4
     problem = _ensure_upstream(window)
+    if problem is None and importlib.util.find_spec("lmnr") is None:
+        # mimoagent dispatch refuses without it, after the spec is approved.
+        problem = "Laminar runtime absent: run `uv sync --locked --extra laminar`"
     if problem:
         print(f"refusing: {problem}", file=sys.stderr)
         return 4
@@ -794,9 +798,8 @@ def _run_wave(
             task = tasks[cell.task_id]
             parsed = parse_trial(repo_root / "runs" / cell.job_name, repo_root=repo_root)
             result = parsed.pop("result")
-            status = parsed["status"] if state == "done" else (
-                parsed["status"] if parsed["reward"] is not None else "infra"
-            )
+            trial_status = parsed.pop("status")
+            status = trial_status if state == "done" or parsed["reward"] is not None else "infra"
             usd = None
             if result is not None:
                 cpus, memory_mb = _task_resources(task.v6_package)

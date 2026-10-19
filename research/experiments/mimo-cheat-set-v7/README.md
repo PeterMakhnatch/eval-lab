@@ -102,9 +102,10 @@ not in the assigned list and two are semantically held by the Verifier lane.
 ## Run
 
 ```bash
+uv sync --locked --extra laminar   # mimoagent needs the pinned Laminar runtime
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py plan
 keys run -- .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py generate
-.venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py grade    # repeat as repairs qualify
+.venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py grade
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py export
 .venv/bin/python research/experiments/mimo-cheat-set-v7/run_cheat_set.py status
 ```

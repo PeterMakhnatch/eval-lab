@@ -33,6 +33,11 @@ Writers so far:
   Category-match counts appear in row notes, distinct from root-cause attribution.
   Corpus-only CheatBench and staged MiMo pass-correctness measurements remain in
   their experiment reports rather than using unregistered scoreboard keys.
+- `research/experiments/live-watch-paired-dev/run.py` replays the shipped
+  `INTEGRITY_BOARD_RULES` policy on `trace-paired-v1` **dev only**. It emits
+  shared findings plus per-rule step references without fitting rules, invoking
+  models, or calling the stop actuator. The retained run is
+  [`live_watch_paired_dev/2026-10-19/`](live_watch_paired_dev/2026-10-19/).
 
 ## Retrospective MiMo audit publication
 
@@ -73,3 +78,21 @@ denominator; `n/a` is intentional. A scoped nonflag does not certify a clean
 task. The numeric zero in `cost_per_item_usd` means no newly attributed charge
 for publishing these retained findings, not zero historical audit/model cost.
 The audit rows neither qualify a repaired grader nor flip `scoring_allowed`.
+
+## Reproducing the live-watch dev diagnostic
+
+Use a new output directory; the runner does not overwrite an existing run:
+
+```sh
+uv run python research/experiments/live-watch-paired-dev/run.py --out /private/tmp/watch-paired-dev
+uv run evallab qa score --key trace-paired-v1 --findings /private/tmp/watch-paired-dev \
+  --split dev --agent "TA monitor" --system "live-watch/integrity-board@$(git rev-parse --short HEAD)" \
+  --scoreboard /private/tmp/watch-paired-dev-scoreboard.csv
+```
+
+These are retrospective candidate-alert label-agreement rows, not a held-out
+result or verified cheating verdicts. A measured nonflag is scoped to the
+integrity-board policy, not a clean-trace certificate. Missing completed ATIFs,
+including oracle and scripted CheatAgent trials, remain unknown. Other
+operational/attempt-only alerts stay in `observations.jsonl` but do not become
+integrity findings. Root-cause attribution is unmeasured.

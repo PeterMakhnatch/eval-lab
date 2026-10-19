@@ -38,6 +38,9 @@ Writers so far:
 - `evallab qa task-score` writes digest-bound task-audit rows. Its quality-complete
   coverage, full-cohort detection rate, category matching, and exact root-cause
   attribution are distinct quantities.
+- `evallab qa suite` compares explicitly version-proved retained findings
+  against every registered key's frozen native splits. It atomically replaces
+  `suite-YYYYMMDD.md`, **does not append to the CSV**, and runs no new benchmark.
 - `research/experiments/live-watch-paired-dev/run.py` replays the shipped
   `INTEGRITY_BOARD_RULES` policy on `trace-paired-v1` **dev only**. It emits
   shared findings plus per-rule step references without fitting rules, invoking
@@ -56,6 +59,87 @@ Writers so far:
   v1 rows (`tripwires@731d849f84c0/<view>`) that were missing for the internal keys,
   using their committed v1 predictions. v1 rows are never rewritten. The per-item
   decision flips are in that directory's `results.json`.
+
+## Frozen retained-version suite
+
+Use `evallab qa suite --agent task|trace|breaker|tripwire --version <exact-producer>`.
+Repeat `--version` to compare retained versions, and repeat `--agent` to put
+several agents in one report; absent evidence stays absent.
+The default report is `research/qa-scoreboard/suite-YYYYMMDD.md` (UTC date); use
+`--date YYYY-MM-DD` for a fixed reporting date and `--output <path>` for an
+independent destination. Existing reports are replaced, not appended, only
+after every input and split/exposure guard succeeds.
+
+For example, save the following manifest as
+`research/qa-scoreboard/retained-breaker-runs.json`. The relative paths below
+are relative to **that manifest**, not the command's working directory:
+
+```json
+{
+  "runs": [
+    {
+      "agent": "breaker",
+      "version": "cheat-ladder-v1.4.0",
+      "key": "breaker-bench-v1",
+      "findings": "../experiments/breaker-bench-ladder-floor/findings/ladder-v1.4.0"
+    },
+    {
+      "agent": "breaker",
+      "version": "cheat-ladder-v3.0.0",
+      "key": "breaker-bench-v1",
+      "findings": "../experiments/breaker-bench-ladder-floor/findings/ladder-v3.0.0"
+    }
+  ]
+}
+```
+
+```sh
+uv run evallab qa suite --agent breaker \
+  --version cheat-ladder-v1.4.0 --version cheat-ladder-v3.0.0 \
+  --runs research/qa-scoreboard/retained-breaker-runs.json \
+  --date 2026-10-19 --output /private/tmp/retained-breaker-suite.md --json
+```
+
+These retained floor sources cover only their actually measured dev subjects;
+listing all keys/splits does not execute the unmeasured cells. The version
+identity must be proved by each raw `qa.finding/v1` record's `reviewer.agent`.
+`cheat-ladder-3.0.0` (without `v`) is a different identity, not an alias of
+`cheat-ladder-v3.0.0`. Point manifests at a precise `findings/` directory or
+raw-finding JSONL, not a broad run root containing other producers' findings.
+An explicit binding replaces key-local discovery for that cell and cannot
+relabel or combine alternative same-version runs. Optional `run` and `notes`
+are metadata only. Without a binding, only the key's `findings*.jsonl` and
+`findings/` are inspected, and unversioned producers remain unavailable.
+The full manifest/producer rules are in [`docs/qa-contract.md`](../../docs/qa-contract.md#frozen-version-comparisons-qa-suite).
+
+Read a suite row with its denominators and custody receipt:
+
+- One row is **version × registered key × native split**, `category=all`;
+  keys and labels are never pooled into an overall score. Mixed keys retain
+  their complete frozen item count and state the agent-applicable count.
+- Recall and false alarms use measured positive and negative labels only.
+  Unknown labels are shown separately; a scoped nonflag is not a certified
+  clean negative. Pairs require both sides measured, otherwise they do not
+  enter discrimination. An empty denominator is `n/a`, never zero.
+- `no-run`, `inapplicable`, source-present-but-`unmeasured`, unknown decisions,
+  explicit not-run, unusable runs and absent per-item evidence remain distinct.
+  Package findings need exact task id/digest; trace findings need exact
+  task/trial ids. A similarly named package or trial cannot fill a cell.
+- Recorded reviewer USD is attributable only to matching raw evidence in that
+  version/key/split. Missing raw cost fields are `n/a`; a partially known
+  charge has a separately labelled known subtotal. Per-measured item cost
+  requires recorded cost for every matched measured finding. Explicit raw
+  `$0` is preserved but may mean publication cost, not a free historical
+  audit. **New re-score cost is $0; total historical cost remains unknown.**
+- Frozen assignment/exposure checks run before publication. A claimed
+  exclusion must actually exclude those item ids. Disclosed exposures and
+  source-derived labels retain their caveats: this is retrospective label
+  agreement, not a fresh blind test, independent cross-key replication,
+  repaired-grader qualification or operational cheating verdict.
+- `--json` includes full rows and SHA256 receipts for raw sources, key/pair
+  files, the frozen split/exposure files and the manifest. It does not export
+  the shared CSV scorer's default-zero legacy cost field; nullable suite
+  cost fields retain the recordedness distinction.
 
 ## Retrospective MiMo audit publication
 

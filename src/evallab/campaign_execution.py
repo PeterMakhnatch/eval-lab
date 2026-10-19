@@ -213,7 +213,9 @@ def docker_task_resources(task_dir: Path) -> tuple[float, int]:
         raise ValueError("locked Docker requires explicit finite task CPU and memory limits")
     if "memory" in environment:
         try:
-            from harbor.models.task.config import EnvironmentConfig
+            from harbor.models.task.config import (  # ty: ignore[unresolved-import]
+                EnvironmentConfig,
+            )
         except ImportError as exc:
             raise ValueError("legacy memory units require the locked Harbor runtime") from exc
         memory_mb = EnvironmentConfig.model_validate(dict(environment)).memory_mb

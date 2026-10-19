@@ -718,3 +718,29 @@ def test_failed_smoke_cannot_release_batch_using_graded_artifact(tmp_path: Path)
     assert service.queue.stop_path.exists()
     assert _service(tmp_path, runner=run).tick() == 0
     assert calls == ["failed-smoke"]
+
+
+def test_resolved_mid_trial_proxy_error_spike_does_not_fence_queue(tmp_path: Path) -> None:
+    """A mid-trial proxy_error_spike in alerts.jsonl that resolved in status.json does not fence."""
+    from evallab.dispatch_guards import read_spike_alerts
+
+    job_dir = tmp_path / "job-resolved"
+    watch_dir = job_dir / "watch"
+    watch_dir.mkdir(parents=True)
+    (watch_dir / "alerts.jsonl").write_text(
+        json.dumps(
+            {
+                "rule": "proxy_error_spike",
+                "severity": "high",
+                "scope": "fleet",
+                "first_seen": "2026-10-19T07:56:41+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (watch_dir / "status.json").write_text(
+        json.dumps({"fleet_alerts": [], "trials": [{"state": "finished"}]}),
+        encoding="utf-8",
+    )
+    assert read_spike_alerts(job_dir) == []

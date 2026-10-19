@@ -5,17 +5,19 @@
 
 | Column | Meaning |
 |---|---|
-| `recall` | Flagged share of measured items with `expected_verdict: fail` |
-| `false_alarm_rate` | Flagged share of measured items with `expected_verdict: pass` |
-| `root_cause_match` | Share of flagged faults whose stated cause matches `expected_root_cause` |
+| `recall` | Detection share of `expected_verdict: fail` items; row notes identify the evidence threshold and denominator |
+| `false_alarm_rate` | Detection share of `expected_verdict: pass` items; alerts on weak negatives are not certified semantic false positives |
+| `root_cause_match` | Cause agreement under the writer's labelled denominator; category matching is a separate metric |
 | `paired_discrimination` | Mean of flag(child) − flag(parent) over pairs where both members were measured |
-| `cost_per_item_usd` | Spend per item |
-| `n_items`, `n_measured` | Items in the slice, and how many of them have a decision |
+| `cost_per_item_usd` | Attributed spend per item under the row's scorer; notes disclose bounds and inherited historical cost |
+| `n_items`, `n_measured` | Selected items and the writer's decision/quality coverage; not necessarily new-treatment coverage |
 | `n_pairs`, `n_pairs_measured` | Pairs in the slice, and how many have a decision for both members |
 | `status` | What was measured |
 
-- An unmeasured item counts in `n_items` but never in a rate. "Not measured" is never
-  "pass".
+- "Not measured" is never "pass". `evallab qa score` uses measured-only rate
+  denominators; `evallab qa task-score` uses the full nonexcluded positive/negative
+  cohort and reports flagged and verified evidence separately. Compare rows only
+  after matching their evidence thresholds and denominators.
 - `category` = `all` covers every item in the split. A per-category row covers that
   category's pairs: their children and parents.
 - Rows say which split they are on. If a row's system was tuned or developed on items in
@@ -33,6 +35,9 @@ Writers so far:
   Category-match counts appear in row notes, distinct from root-cause attribution.
   Corpus-only CheatBench and staged MiMo pass-correctness measurements remain in
   their experiment reports rather than using unregistered scoreboard keys.
+- `evallab qa task-score` writes digest-bound task-audit rows. Its quality-complete
+  coverage, full-cohort detection rate, category matching, and exact root-cause
+  attribution are distinct quantities.
 - `research/experiments/live-watch-paired-dev/run.py` replays the shipped
   `INTEGRITY_BOARD_RULES` policy on `trace-paired-v1` **dev only**. It emits
   shared findings plus per-rule step references without fitting rules, invoking
@@ -96,3 +101,45 @@ integrity-board policy, not a clean-trace certificate. Missing completed ATIFs,
 including oracle and scripted CheatAgent trials, remain unknown. Other
 operational/attempt-only alerts stay in `observations.jsonl` but do not become
 integrity findings. Root-cause attribution is unmeasured.
+
+## Ordinary-program S2a held-out comparison (2026-10-19)
+
+`qa-task@s2a-ordinary-availability-verified` publishes the frozen historical S0–S3
+findings **union** newly qualified ordinary-program findings, not a full new audit
+or stand-alone seeker recall. The historical baseline already used verifier-aware
+K≤3. [The evidence index](s2a-ordinary-heldout-20261019.json) pins both original
+archives, frozen keys, per-case outcomes, executed counterexamples and costs.
+
+The new search made at most three physical model calls per eligible task,
+including failed calls. Of 67 nonexcluded held-out members, 38 met the declared
+safety/interface/resource scope and 12 received a native candidate trial.
+Six candidates passed genuinely fresh S3; only three also had an independent
+task-contract counterexample and three distinct passing oracle plus three
+distinct failing nop controls. Fixed-input hardcoding alone did not qualify.
+The RStan candidate's required script was observably missing, but its reference
+controls failed on an unavailable pinned curl dependency, so it was not promoted.
+
+Neither key gained a labelled-positive hit. The two newly detected weak-negative
+defects are real ordinary-program counterexamples, not grounds to relabel the
+frozen key or call its label-negative alerts semantically false. Unexecuted,
+abstained, rejected and control-unqualified cases do not certify clean graders.
+`n_measured` retains historical baseline quality coverage, not new seeker coverage.
+
+The OSS-to-Z.AI continuation was explicitly registered after an HTTP429 and
+earlier outputs. Runtime corrections are retained. This is exploratory,
+post-exposure evidence, not a blinded or prompt-only causal comparison.
+The CSV cost includes historical baseline charges plus new reported charges
+and the retained upper bound for one unpriced failed request; maximum reservations
+are not an observed bill.
+
+The retained raw bundle contains the frozen keys and reconciled metadata.
+For example, this exercises the scorer without running another model or trial:
+
+```sh
+RAW="$PWD/runs/.qa-task/pj1-s2a-heldout-20261019"
+uv run --no-sync evallab qa task-score \
+  --key "$RAW/frozen-answer-keys/delphik-open-defect-tb2" \
+  --findings "$RAW/reconciliation-final/union/delphik-open-defect-tb2" \
+  --split heldout --exclude-item terminal-bench/fix-git
+```
+

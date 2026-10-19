@@ -196,6 +196,49 @@ Sol-honest too.
   72/100 runs against 0/100 clean ones, so the TW recall is an upper bound for
   natural, unconfessed hacks.
 
+### Single-run questions: `evallab qa ask`
+
+```bash
+keys run -- uv run evallab qa ask <trial-or-trajectory.json-or-bundle> \
+  "Did the patch fix the requested bug, or only satisfy the retained tests?" \
+  --max-usd 0.10 --approve "Authorized single-run QA, at most USD 0.10" \
+  --out runs/.qa-ask/example
+```
+
+The command builds or reuses the same sealed `qa.trace_bundle/v3` used by QA Trace,
+including retained changes, task tests, task priors and blinded ATIF. Standalone
+ATIF files also pass through `blind_atif`; evaluator labels and annotation steps
+are not exposed. `--task-dir` and `--task-name` supply retained task context when
+the trial cannot resolve it. An existing sealed workspace cannot be rebound.
+The bundle is an immutable snapshot: reuse checks its seal and source identity,
+not whether the original trial or task package has subsequently changed. Use a
+fresh `--out` to take a new snapshot.
+
+A fresh metered GLM-5.3-Flash analyst answers only from Python-implemented
+`read`, literal `grep` and retained-`diff` tools. There is no shell, executable
+task code, browser or network tool; the only hosted traffic is the approved model
+transport. Tools can access only sealed evidence paths, never `bundle.json`,
+symlink targets or files outside the workspace. Each atomic answer claim must
+cite an existing `step N` or retained `file:line` range; missing or invalid
+citations reject the answer rather than silently accepting uncited prose.
+One invalid final object gets one schema/citation correction within the existing
+model-call and dollar caps; repeated invalid output fails. Transport errors are
+not retried and never trigger a provider fallback.
+The existing `verify_claims` refuter independently checks the cited claims and
+one counter-check in a fresh manifest-blind session. It reports
+`VERIFIED` / `REFUTED` / `UNVERIFIED`, not a correctness guarantee.
+
+The supported model route is `openrouter-metered/z-ai/glm-5.3-flash`, pinned to
+Z.AI FP8 with medium reasoning and provider fallbacks disabled; no Codex
+route is selected or called. The existing bounded hosted transport and lifetime
+reservation ledger require `--approve` and `--max-usd` for paid calls.
+The lifetime budget reserves a conservative input-byte/output-token bound
+*before* each request, including failures, and never refunds reservations.
+Use the same `--budget-dir`, cap and approval to share a ceiling across questions
+or trials. Printed cost is the token-price estimate for this invocation, distinct
+from the retained lifetime reservations. `--json` and the question-hashed JSON
+under `--out` retain the answer, tool provenance, refutations and accounting.
+
 ### QA Agent - Trace: `evallab qa trace`
 
 ```bash

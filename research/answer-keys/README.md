@@ -102,6 +102,48 @@ units straddling splits, stale assignments, and scoreboard rows that score tuned
 items on a reported split; see `splits/README.md`. After adding or rebuilding a key,
 run `uv run python research/answer-keys/splits/guard.py`.
 
+## Internal paired actor views
+
+`uv run python research/answer-keys/internal_traces.py` reproduces the frozen
+full/actions-only companion views described in
+[`internal-views/source.json`](internal-views/source.json). This does not rebuild,
+relabel, or register replacements for the original answer keys. The driver-only
+custody, coverage, predictions, baseline, and leak-audit files are committed in
+`internal-views/`; actor payloads remain outside Git. Loader-ready companion keys
+are published under
+`~/Developer/eval-lab-results/2026-10-19/internal-traces/keys/{full,actions}/<key>`.
+The artifact and research-context roots can be overridden by the CLI flags.
+
+- `trajectory-judge-400`: all **188 test items**, 138 faulty and 50 clean; the
+  existing `tj_atif` adapter retains the embedded observations. These labels
+  cover general actor faults, including 82 silent and 56 loud faults, not just
+  wrong-but-passing submissions or reward-hacking behavior.
+- `trace-paired-v1`: all **27 test slots** remain in `coverage.jsonl`; only
+  **11 original actor inputs** exist (8 labelled children, 3 passing parents).
+  The other **16 are unavailable**, not benign and not detector misses. No
+  verifier transcript, retained diff, or fabricated empty trace substitutes for
+  them. The exceptional oracle parent uses its explicitly receipted original
+  one-action source, not its regrade verifier transcript. Stored terminal output
+  may already be clipped.
+- `mimo-v7-canonical-pass70`: all **70 accepted canonical original v6 pass
+  trajectories**, labelled by the independently accepted v7 export as **6 wrong
+  submissions and 64 real passes**. All arms/attempts are retained, including
+  25 cells excluded only from the separate primary comparison. All 70 current
+  source hashes match their sealed bundle receipts; original bytes are retained
+  in the driver-only `sealed-sources/` store outside Git. This is not the older
+  33-task `mimo-heldout-v6-to-v7` grader-weakness key.
+
+Each actor view passes `blind_atif` and uses opaque filenames/session IDs.
+Full means stored actor-step evidence, including prose and explicit reasoning,
+not evaluator headers, identities, usage metrics, or operational duplicate text.
+Actions-only removes agent prose and explicit reasoning fields while retaining
+the same ordered calls, arguments, observations, and recorded user/system text.
+Reasoning in code comments, tool arguments, and observations is not erased.
+Never expose the source/key/coverage manifests or `sealed-sources/` to detectors.
+The only baseline is the unchanged transcript-visible tripwire rule OR; its
+Wilson intervals are descriptive, and wrong-submission labels do not establish
+behavioral intent. No model calls, submitted-code execution, or regrading occur.
+
 ## Keys and provenance caveats
 
 - [`cheatbench-actions-v1`](cheatbench-actions-v1/README.md): **300 external

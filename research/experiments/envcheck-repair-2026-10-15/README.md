@@ -181,3 +181,41 @@ focused tests. The later mixed-report guard was observed failing before,
 passing after, and rejecting the public CLI input before any model/Docker call.
 Required exact-head GitHub CI remains the code-delivery gate; experimental
 acceptance remains separately blocked as described above.
+
+## Released-v7 contract follow-up: PB-1 (2026-10-19)
+
+The separate v7.1 repair fixtures live in
+[`envcheck-v71-pb1-20261019/fixtures`](../envcheck-v71-pb1-20261019/fixtures/):
+
+- [`002915.py`](../envcheck-v71-pb1-20261019/fixtures/002915.py) preserves equality
+  of separately constructed, structurally equal unmeasured Cirq circuits when
+  measurement-key equality is required. It also checks qubit-identity options
+  and unequal gate structure through the real Mitiq comparator.
+- [`002451.py`](../envcheck-v71-pb1-20261019/fixtures/002451.py) preserves Satpy's
+  missing-unit composite workflow and unsupported-conversion errors unless
+  conversion is explicitly disabled. It reuses the released-v7 external
+  `pyninjotiff` I/O fixture while exercising real writer/conversion logic and
+  asserting the numeric image data that reaches that boundary.
+
+Embed these files through `RepairTest` and `derive_repair_variant`; the native
+repository destinations are `mitiq/tests/test_v71_empty_measurement_keys.py`
+and `satpy/tests/writer_tests/test_v71_ninjotiff_missing_units.py`. The derived
+grader appends to the exact released-v7 patch and wraps, rather than replaces,
+its original command. Instructions, reference solutions and environments are
+unchanged.
+
+The PB-1 acceptance gate is reference repeat3, nop repeat3, every admitted old
+and new wrong submission, and distinct fresh native replays of both new
+released-v7 wrong programs. No independently admitted correct alternate was
+supplied for either task; reference controls do not certify arbitrary correct
+submissions. Qualification and release are separate: the delta handoff
+`bridge/2026-10-19-night/repairs-v7.1.json` in research-context does not itself
+reopen scoring or training.
+
+Both packages completed that native qualification gate. The reviewed
+[custody capsule](../../evidence/envcheck-v71-pb1-20261019.tar.gz) retains all
+native-consumer source bindings, the exact parent and child packages, full
+exposed lineage records, admissions, controls and one-off callers. Its index
+binds each original path to an archived member and digest. It excludes virtual
+environments and container images and does not authorize retiring referenced
+runtimes or releasing the held-out tasks.

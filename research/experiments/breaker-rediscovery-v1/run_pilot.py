@@ -214,12 +214,10 @@ def load_cohort(cohort_path: Path = COHORT_PATH) -> tuple[dict[str, Any], list[C
         pin = str(pkg_raw.get("pin") or "").strip()
         if not root_env or not rel_path or not pin:
             raise ValueError(f"cohort item {item_id!r} package requires root_env, path, and pin")
-        if (
-            isinstance(timeout_raw, bool)
-            or not isinstance(timeout_raw, int)
-            or timeout_raw <= 0
-        ):
-            raise ValueError(f"cohort item {item_id!r} has invalid timeout_seconds: {timeout_raw!r}")
+        if isinstance(timeout_raw, bool) or not isinstance(timeout_raw, int) or timeout_raw <= 0:
+            raise ValueError(
+                f"cohort item {item_id!r} has invalid timeout_seconds: {timeout_raw!r}"
+            )
         exp_pkg_digest = (
             str(pkg_raw["package_digest"])
             if isinstance(pkg_raw.get("package_digest"), str)
@@ -587,9 +585,7 @@ def run_plan_phase(
             for arm in ARMS:
                 job_name = codex_job_name(item, arm, round_num)
                 pkg_for_arm = pristine_rel if arm == "blind" else variant_rel
-                prompt_rel = _repo_rel_or_abs(
-                    repo_root, runs_dir / "prompts" / f"{job_name}.md"
-                )
+                prompt_rel = _repo_rel_or_abs(repo_root, runs_dir / "prompts" / f"{job_name}.md")
                 spec_rel = f"derived/prepared/{job_name}.json"
                 plan_doc["codex_cells"].append(
                     {
@@ -722,9 +718,9 @@ def run_controls_phase(
                         )
                         negative_status = str(neg.get("status") or "")
         else:
-            reason = (completed.stderr or completed.stdout or f"exit_code={completed.returncode}").strip()[
-                :500
-            ]
+            reason = (
+                completed.stderr or completed.stdout or f"exit_code={completed.returncode}"
+            ).strip()[:500]
 
         if verdict != "ok":
             any_failed = True
@@ -947,8 +943,7 @@ def summarize_diff_file(diff_path: Path, limit: int = MAX_EXCERPT_CHARS) -> str:
                     if cpath and cpath != ".":
                         entries.append(f"{cpath} ({ctype})")
                 header = (
-                    f"files_changed ({len(entries)}): "
-                    f"{', '.join(entries) if entries else 'none'}\n"
+                    f"files_changed ({len(entries)}): {', '.join(entries) if entries else 'none'}\n"
                 )
                 remaining = max(200, limit - len(header))
                 return header + _cap_text(raw, limit=remaining)
@@ -1030,6 +1025,14 @@ def discover_breaker_report(trial_dir: Path) -> tuple[dict[str, Any] | None, Pat
                 msg = step.get("message")
                 if isinstance(msg, str) and msg:
                     candidates.append(msg)
+                for tc in step.get("tool_calls") or []:
+                    if isinstance(tc, Mapping):
+                        args_map = tc.get("arguments")
+                        if isinstance(args_map, Mapping):
+                            for k in ("keystrokes", "input", "cmd", "command"):
+                                val = args_map.get(k)
+                                if isinstance(val, str) and val:
+                                    candidates.append(val)
                 obs = step.get("observation")
                 if isinstance(obs, Mapping):
                     for res in obs.get("results") or []:
@@ -1173,9 +1176,7 @@ def parse_codex_trial(
         "verifier_stdout_path": _repo_rel_or_abs(repo_root, stdout_file)
         if stdout_file.is_file()
         else None,
-        "agent_diff_path": _repo_rel_or_abs(repo_root, diff_file)
-        if diff_file.is_file()
-        else None,
+        "agent_diff_path": _repo_rel_or_abs(repo_root, diff_file) if diff_file.is_file() else None,
         "breaker_report_path": _repo_rel_or_abs(repo_root, report_source)
         if report_source is not None
         else None,
@@ -1281,7 +1282,9 @@ def cell_validated_in_prior_rounds(prior_rows: Sequence[Mapping[str, Any]]) -> b
     """A cell is already validated if a prior attempt passed (reward >= 1.0) and was not legit_solution."""
     for row in prior_rows:
         reward = row.get("reward")
-        if not (isinstance(reward, (int, float)) and not isinstance(reward, bool) and reward >= 1.0):
+        if not (
+            isinstance(reward, (int, float)) and not isinstance(reward, bool) and reward >= 1.0
+        ):
             continue
         report = row.get("breaker_report")
         if isinstance(report, Mapping) and report.get("status") == "legit_solution":
@@ -1338,11 +1341,7 @@ def run_codex_round_phase(
     for pkg in admitted:
         item = pkg.item
         for arm in ARMS:
-            cell_rows = [
-                r
-                for r in existing_rows
-                if r.get("id") == item.id and r.get("arm") == arm
-            ]
+            cell_rows = [r for r in existing_rows if r.get("id") == item.id and r.get("arm") == arm]
             prior_rows = [
                 r
                 for r in cell_rows
@@ -1382,9 +1381,7 @@ def run_codex_round_phase(
                 active_digests = pkg.pristine_digests
 
             job_name = codex_job_name(item, arm, round_num)
-            prompt_text = build_attempt_prompt(
-                arm, round_num, prior_rows, repo_root=repo_root
-            )
+            prompt_text = build_attempt_prompt(arm, round_num, prior_rows, repo_root=repo_root)
             prompt_bytes = prompt_text.encode("utf-8")
             prompt_sha = _sha256_prefixed(prompt_bytes)
             prompt_file = prompts_out_dir / f"{job_name}.md"
@@ -1681,7 +1678,8 @@ def run_score_skeleton_phase(
             rewards: list[float] = [
                 float(r["reward"])
                 for r in cell_attempts
-                if isinstance(r.get("reward"), (int, float)) and not isinstance(r.get("reward"), bool)
+                if isinstance(r.get("reward"), (int, float))
+                and not isinstance(r.get("reward"), bool)
             ]
             max_reward = max(rewards) if rewards else None
             pass_attempts = [

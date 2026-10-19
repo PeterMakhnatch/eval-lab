@@ -1,4 +1,4 @@
-"""``evallab qa`` CLI: score a findings directory against an answer key."""
+"""``evallab qa`` CLI: shared scoring, frozen suites, task and trace QA."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     qa = commands.add_parser(
         "qa",
         help="Shared QA contract: score findings against answer keys ($0)",
-        description="Score qa.finding/v1 findings against a qa.answer_key/v1 key.",
+        description="Score retained QA findings or compare versions on frozen answer-key splits.",
     )
     sub = qa.add_subparsers(dest="qa_cmd", required=True)
     score = sub.add_parser("score", help="Score a findings directory against an answer key")
@@ -76,6 +76,10 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     )
     score.add_argument("--json", action="store_true")
     score.set_defaults(func=_score_command)
+
+    from evallab.qa.suite import add_suite_command
+
+    add_suite_command(sub)
 
     from evallab.qa.task import add_task_commands
 

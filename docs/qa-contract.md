@@ -7,10 +7,10 @@ audience:
 
 # QA contract (`evallab.qa`)
 
-One contract for the three QA agents (task auditor, trace auditor,
-reward seeker) so their output is comparable and scoreable on external
-answer keys. Implementation: `src/evallab/qa/` (`models`, `answer_key`,
-`score`, `cli`); tests: `tests/test_qa.py`. The trace auditor
+One contract for task QA, trace QA, the reward seeker and tripwire findings,
+so their output is comparable and scoreable on external answer keys.
+Implementation: `src/evallab/qa/` (`models`, `answer_key`, `score`, `suite`,
+`cli`); tests: `tests/test_qa.py`, `tests/test_qa_suite.py`. The trace auditor
 (`evallab qa trace`, `src/evallab/qa/trace.py`) is described in
 `docs/harbor-view.md`. Plan of record: `research-context/FOCUS.md`.
 
@@ -112,6 +112,112 @@ n_pairs_measured, status, notes`.
   `flag(child) − flag(parent)`.
 - `cost_per_item_usd` = reviewer cost of matched findings / measured
   items. Findings on subjects outside the key are counted in `notes`.
+
+## Frozen version comparisons: `qa suite`
+
+```bash
+uv run evallab qa suite --agent trace \
+  --version qa-trace/7 --version qa-trace/8 \
+  --runs /private/tmp/retained-trace-runs.json --date 2026-10-19 \
+  --output /private/tmp/qa-trace-comparison.md --json
+```
+
+This command only reads surviving evidence. It runs no model, solver, task,
+repair loop or benchmark, and its **new re-score cost is $0**, not a claim
+about historical model cost. One `--version` is valid; repeat it for a
+comparison. `--agent` is `task`, `trace`, `breaker` or `tripwire`.
+
+The optional `--runs` JSON manifest has exactly this shape (additional
+fields are rejected):
+
+```json
+{
+  "runs": [
+    {
+      "agent": "trace",
+      "version": "qa-trace/8",
+      "key": "trace-paired-v1",
+      "findings": "raw/qa-trace-8/findings",
+      "run": "retained-run-id",
+      "notes": "Optional evidence metadata, not scoring authority"
+    }
+  ]
+}
+```
+
+`agent`, `version`, `key` and `findings` are required. `run` and `notes` are
+optional strings. `findings` is an existing directory of raw
+`qa.finding/v1` JSON/JSONL documents, or a JSONL file containing only those
+records. Relative paths resolve from the **manifest's directory**, not the
+shell's directory or repository root. Directories may contain ancillary
+JSON reports; malformed tagged findings are errors. AppleDouble `._*` files
+are ignored. Duplicate JSON fields, duplicate `(agent, version, key)`
+bindings, conflicting finding ids, unknown keys and invalid sources fail
+without replacing the previous report. One explicit binding replaces
+local discovery for that version/key; it does not pool alternative runs.
+The same source can bind more than one key, with exact subject filtering.
+
+Without a binding, discovery is limited to a registered key's
+`findings*.jsonl` and `findings/`. A filename or manifest label is **not**
+producer proof. Supported version identities are `qa-task/…` or
+`qa-task@…`; `qa-trace/…` or `qa-trace@…`; `qa-breaker/…`,
+`qa-breaker@…`, `breaker/…`, `breaker@…` or `cheat-ladder-…`; and
+`tripwire/…`, `tripwire@…`, `qa-tripwire/…` or `live-watch/…`,
+respectively. They must match raw `reviewer.agent` exactly. For a trace
+pipeline such as `qa-trace/8`, raw `qa-trace/8/T0` through `/T3` also
+prove that pipeline when the suffix equals the finding's `stage`. A
+stage name itself is not a suite version. `cheat-ladder-3.0.0` and
+`cheat-ladder-v3.0.0` are distinct identities. Generic `QA Task`,
+`Traces` or `TA monitor` records remain unavailable for a selected version;
+custom decision files and scoreboard aggregates are not raw findings.
+An explicit source with a different/unversioned producer is an error,
+never relabelled. Task evidence additionally requires the same task id
+**and package digest**; trace evidence requires the same task id and trial
+id. Missing identities and same-name/different-digest findings cannot
+measure a key item.
+
+Every registered direct-child answer key is loaded, including mixed keys,
+and every native split gets one `category=all` row per requested version.
+There is no pooled `all` split or hardcoded key list. Keys, pairs,
+assignments and exposures remain frozen: the existing split guard checks
+the lock files, pair/task grouping and exposure acknowledgements before
+publication. Claimed exclusions are also checked against the actual
+measured item ids, not just aggregate coverage. Rows with no subjects of
+the agent's kind are `inapplicable`; no version-proved source is `no-run`;
+a source with no usable matching decisions is `unmeasured`.
+
+The suite calls the shared scorer, preserving refutation, root-cause and
+paired-discrimination semantics. Rates show their labelled **measured**
+denominators; unknown labels never become negatives. Unknown decisions,
+explicit not-run, unusable runs and missing evidence have separate item-level
+counts. With several stages, usable measured evidence takes precedence, then
+unknown decisions, unusable runs, explicit not-run and missing evidence.
+Only complete measured pairs enter paired discrimination; no measured
+pairs is `n/a`. Overlapping keys are not independent replications, and
+exposed or source-derived labels are not a new blinded/generalization
+result. A scoped nonflag does not certify a clean task or trace.
+
+Recorded reviewer cost includes only matched findings for this
+version/key/split and distinguishes explicit recorded `$0`, missing cost
+fields, and the known subtotal of partially recorded charges. Per-measured
+item cost is available only when all matched measured findings record
+cost; unusable/unknown decision charges remain in recorded totals.
+These are raw finding charges, **not total historical audit/model/solver
+cost**. JSON exposes the nullable suite cost fields and deliberately
+omits the legacy scorer's default-zero `cost_per_item_usd`.
+
+The deterministic Markdown report atomically replaces
+`research/qa-scoreboard/suite-<date>.md` (UTC report date by default);
+`--output` overrides that destination and `--json` also prints the rows,
+denominators and SHA256 custody receipts. No scoreboard CSV rows are
+appended. Inputs cannot be used as the output destination. File receipts
+hash original bytes; directory receipts hash the sorted relative-path /
+file-byte-hash inventory of files containing findings. Frozen key README,
+item, pair, assignment, exposure and manifest hashes accompany the comparison.
+JSON also lists every bound source path (including unrequested versions),
+which is reserved against accidental output overwrite but is not thereby
+scored or certified.
+See `research/qa-scoreboard/README.md` for a retained Breaker example.
 
 ## Keys on main that load with this module
 

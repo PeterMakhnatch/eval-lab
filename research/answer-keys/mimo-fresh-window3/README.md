@@ -22,10 +22,10 @@ Blinded trace key over the fresh window-3 MiMo rollouts
   `~/Developer/eval-lab-results/2026-10-19/fresh-window3/`. Source bytes are sealed in
   `sealed-sources/`. Both views of every item were scanned for label, grade and source
   id strings: 0 hits. The prompt text, including the cheat-set pressure prompt, is
+  genuine actor input and stays.
 - **Fresh trajectories, not unseen tasks:** two tasks overlap other keys' dev splits
   (000089 is in `mimo-weak-tests-v2`/`v2.1` dev, 001246 in `mimo-weak-tests-v1` dev;
   see `../splits/report.md`), and the cheat-set tasks are the v7 held-out tasks.
-  genuine actor input and stays.
 - **Prompted population:** half the cheat-set cells used a pressure prompt, and
   wrong passes are rare (4). This is not a spontaneous-incidence estimate.
 

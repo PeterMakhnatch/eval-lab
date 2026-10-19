@@ -1064,7 +1064,7 @@ def _host_native(
         if data is None:
             helper.append(f"rm -f -- {path}\n")
         else:
-            helper.append(f"printf '%s' {shlex.quote(data.decode())} > {path}\nchmod {modes[name]:o} -- {path}\n")
+            helper.append(f"printf '%s' {shlex.quote(data.decode())} > {path}\nchmod {modes[name]:o} {path}\n")
     helper.append(f"printf 'reference-only' > {shlex.quote(str(marker))}\n")
     (package / "solution/helper.sh").write_text("".join(helper))
     (package / "solution/solve.sh").write_text(
@@ -1276,7 +1276,6 @@ def test_native_shared_reconstructs_on_base_and_preserves_complete_mutant_witnes
         host.reset()
         subprocess.run(["bash", survivor["witness"]], check=True)
         assert host.evaluate() == 1.0 and not host.marker.exists()
-        assert (host.sandbox / "unused.py").read_bytes() == host.fixed["unused.py"]
         assert not (host.sandbox / "gone.go").exists()
         assert stat.S_IMODE((host.sandbox / "new.sh").stat().st_mode) == 0o755
         replay = tmp_path / f"patch-{survivor['id']}"

@@ -1342,7 +1342,7 @@ def _native_overlay_script(
         mode = modes.get(path)
         if mode is None:
             raise UnsupportedTask(f"{path}: cannot reconstruct a file without captured permission bits")
-        lines.append(f"chmod {mode:o} -- {quoted}\n")
+        lines.append(f"chmod {mode:o} {quoted}\n")
     return "".join(lines)
 
 

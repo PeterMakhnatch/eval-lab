@@ -333,9 +333,10 @@ separate `--stages exploit` probe is requested.
     interrupted attempt; `collect` accepts such an interrupted attempt through
     its per-task `completed.json`. Prior Traces tasks whose report is absent at
     collection time are listed under `prior_reports_absent_at_collection`.
-    Retained bytes ship as
-    `research/evidence/runs/weak-tests-generalization-20261019-evidence.tar.gz`;
-    extract it under `research/evidence/runs/` before re-running `build`.
+    Retained bytes ship as per-task archives in
+    `research/evidence/runs/weak-tests-generalization-20261019-evidence/`
+    (files over 1 MB are listed by digest in its `MANIFEST.json`); extract them
+    under `research/evidence/runs/` before re-running `build`.
     2026-10-19 result (`results.json`): TB2.1 4/18 measured tasks confirmed weak
     (Wilson 95% 0.09–0.45; 12 witnesses); HumanEvalFix 0/12 (0–0.24). Every
     HumanEvalFix instruction only asks that the listed tests pass, so a

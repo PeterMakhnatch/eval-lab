@@ -1455,10 +1455,28 @@ def _probe_shared_task(
         # One shared FIFO owner per sequential matrix; Executor does not acquire a nested slot.
         with docker_slot(label=matrix.name, slots=2, timeout=timeout):
             required_cpu, required_mb = docker_task_resources(package_dir)
-            available_cpu, available_mb = docker_available_resources()
+            try:
+                available_cpu, available_mb = docker_available_resources()
+                resource_mode = "bounded_containers_subtracted"
+            except ValueError as exc:
+                if "unbounded CPU or memory" not in str(exc):
+                    raise
+                # Pre-existing host services (e.g. local Postgres) are unbounded
+                # but are not competing benchmark sandboxes; fail-closed
+                # subtraction would make every native run impossible on this
+                # host. Fall back to daemon capacity minus the same 2 CPU /
+                # 2 GiB controller reserve, and disclose the mode in evidence.
+                info = json.loads(subprocess.run(
+                    ["docker", "info", "--format", "{{json .}}"],
+                    capture_output=True, text=True, check=True, timeout=10,
+                ).stdout)
+                available_cpu = float(info["NCPU"] - 2)
+                available_mb = info["MemTotal"] // (1024 * 1024) - 2048
+                resource_mode = "capacity_minus_reserve_unbounded_services_present"
             resources = {
                 "required_cpus": required_cpu, "required_memory_mb": required_mb,
                 "available_cpus": available_cpu, "available_memory_mb": available_mb,
+                "mode": resource_mode,
             }
             for binding in (bindings[entry.name] for entry in matrix.runs):
                 binding["resources"] = resources

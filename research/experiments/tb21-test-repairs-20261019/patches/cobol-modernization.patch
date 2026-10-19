@@ -1,0 +1,47 @@
+--- a/tests/test_outputs.py
++++ b/tests/test_outputs.py
+@@ -92,3 +92,44 @@
+     assert (data_dir / "TRANSACTIONS.DAT").read_text() == expected_transactions, (
+         "TRANSACTIONS.DAT content mismatch"
+     )
++
++
++# --- Repair (append-only): program.cbl only processes a transaction when the
++# buyer, seller and book exist AND the seller owns the book
++# (VALIDATE-USERS-AND-BOOK sets WS-VALID-OWNER only if BOOK-OWNER = seller).
++# Otherwise it changes no .DAT file. The instruction requires identical .DAT
++# output to program.cbl for any INPUT.DAT, so rejected inputs must leave the
++# files unchanged.
++def _run_with_input(input_line):
++    initial = {
++        "ACCOUNTS.DAT": (
++            "U001John Doe            0000001000U002Jane Smith"
++            "          0000002000U003Bob Wilson          0000001500"
++        ),
++        "BOOKS.DAT": (
++            "B001Python Basics       U001B002COBOL Guide         "
++            "U002B003Java Tutorial       U003"
++        ),
++        "TRANSACTIONS.DAT": "",
++    }
++    data_dir = Path("/app/data")
++    for name, content in initial.items():
++        (data_dir / name).write_text(content)
++    Path("/app/src/INPUT.DAT").write_text(input_line)
++    result = subprocess.run(
++        ["python", "/app/program.py"], capture_output=True, text=True, cwd="/app"
++    )
++    assert result.returncode == 0, "Command failed"
++    return initial, {name: (data_dir / name).read_text() for name in initial}
++
++
++def test_rejected_transactions_leave_files_unchanged():
++    """Seller does not own the book, or an id is unknown: no file may change."""
++    for input_line in (
++        "U001U002B0030000000020",  # seller U002 does not own B003 (owner U003)
++        "U009U003B0030000000020",  # unknown buyer
++        "U001U009B0030000000020",  # unknown seller
++        "U001U003B0090000000020",  # unknown book
++    ):
++        initial, after = _run_with_input(input_line)
++        assert after == initial, f"{input_line}: files changed for a rejected transaction"

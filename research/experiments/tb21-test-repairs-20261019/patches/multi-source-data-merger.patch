@@ -1,0 +1,43 @@
+--- a/tests/test_outputs.py
++++ b/tests/test_outputs.py
+@@ -54,3 +54,40 @@
+         conflict = email_conflicts[0]
+         assert conflict["values"]["source_a"] == "john@a.com"
+         assert conflict["selected"] == "john@a.com"
++
++
++# --- Repair (append-only): check every conflict record against the instruction.
++# Only user 101 appears in more than one source (source_a/users.json,
++# source_b/users.csv, source_c/users.parquet), so every conflict belongs to 101.
++# The instruction's format requires user_id, field, per-source values and
++# "selected" = the highest-priority source value (source_a > source_b > source_c).
++EXPECTED_101_CONFLICTS = {
++    "name": {"source_a": "John Doe", "source_b": "John Doe", "source_c": "John D."},
++    "email": {"source_a": "john@a.com", "source_b": "john@b.com", "source_c": "john@c.com"},
++    "created_date": {"source_a": "2024-01-15", "source_b": "2024-01-10", "source_c": "2024-01-20"},
++}
++
++
++def test_conflict_report_records_match_sources():
++    """Every conflict names the right user and field, the per-source values and the priority pick."""
++    with open("/app/conflicts.json", "r") as f:
++        report = json.load(f)
++
++    by_field = {}
++    for conflict in report["conflicts"]:
++        assert conflict["user_id"] == 101, f"only user 101 appears in several sources: {conflict}"
++        field = conflict["field"]
++        # "status" is optional in the instruction; any other field must be a unified name.
++        assert field in {"name", "email", "created_date", "status"}, f"bad field: {conflict}"
++        assert "selected" in conflict, f"conflict lacks 'selected': {conflict}"
++        values = conflict["values"]
++        top = next(values[s] for s in ("source_a", "source_b", "source_c") if s in values)
++        assert conflict["selected"] == top, f"selected is not the highest-priority value: {conflict}"
++        assert field not in by_field, f"duplicate conflict for field {field}"
++        by_field[field] = values
++
++    for field, expected in EXPECTED_101_CONFLICTS.items():
++        assert field in by_field, f"missing user 101 conflict for {field}"
++        assert {k: by_field[field].get(k) for k in expected} == expected, (
++            f"wrong per-source values for {field}: {by_field[field]}"
++        )

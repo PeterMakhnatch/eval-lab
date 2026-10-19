@@ -1039,13 +1039,14 @@ def test_successor_does_not_promote_a_partial_envcheck_repair(driver, successor_
     assert payload["scoring_allowed"] is False
 
 
+@pytest.mark.parametrize("round_number", [None, 1, 2])
 @pytest.mark.parametrize("change", [
     None, "remove_assertions", "skip_original", "missing_wrong", "false_negative",
     "no_case_evidence", "repeat_alias", "unbound_submission",
     "historical_wrapper", "historical_original_status", "historical_addition_status",
 ])
 def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_submission_controls(
-    driver, successor_case, tmp_path: Path, change,
+    driver, successor_case, tmp_path: Path, change, round_number,
 ) -> None:
     from evallab.registry import compute_task_digests
     from evallab.runner import load_matrix, staged_matrix_request
@@ -1179,12 +1180,33 @@ def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_subm
     }
     handoff = json.loads(case["repairs"].read_text())
     handoff.update(repairs=[row], complete_count=1)
+    options = {}
+    if round_number is not None:
+        previous_version = "v7" if round_number == 1 else f"v7.{round_number - 1}"
+        previous = driver["successor_payload"](case["frozen"], setup_handoff=case["setup"](), repo_root=repo)
+        previous["successor_version"] = previous_version
+        qualified = tmp_path / "previous-qualified.json"
+        qualified.write_text(driver["encoded"](previous))
+        accepted = tmp_path / "previous-independent-pass.json"
+        accepted.write_text(json.dumps({"status": "pass", "candidate": driver["fingerprint"](qualified)}))
+        predecessor = tmp_path / "previous-release.json"
+        predecessor.write_text(driver["encoded"](previous | {
+            "status": "released", "scoring_allowed": True, "freeze_ready": True, "pending_gates": [],
+            "training_allowed": True, "dispatch_allowed": True, "canonical_scoring_allowed": True,
+            "independent_verifier": {"status": "pass", "evidence": driver["fingerprint"](accepted),
+                                     "qualified_candidate": driver["fingerprint"](qualified)},
+        }))
+        case["repairs"] = tmp_path / f"repairs-round-{round_number}.json"
+        handoff.update(required_task_count=1, parent_release=driver["fingerprint"](predecessor))
+        if round_number == 1:
+            handoff["round_number"] = round_number
+        options = {"round_number": round_number, "predecessor_manifest": predecessor}
     case["repairs"].write_text(json.dumps(handoff))
     if change not in {None, "historical_wrapper"}:
         with pytest.raises(ValueError):
-            driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+            driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo, **options)
         return
-    payload = driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+    payload = driver["successor_payload"](case["frozen"], repairs_handoff=case["repairs"], repo_root=repo, **options)
     selected = payload["tasks"][0]["evaluation_target"]
     assert selected["package_digest"] == record.variant_digest != parent_record.variant_digest
     assert selected["lineage"]["full_transform_chain_newest_first"] == [
@@ -1197,7 +1219,23 @@ def test_successor_binds_nonempty_repairs_to_preserved_tests_and_all_native_subm
     assert "native_nop_0_0_0" not in controls["missing"]
     assert payload["counts"]["selected_semantic_repairs"] == 1
     assert payload["independent_verifier"]["status"] == "pending" and payload["scoring_allowed"] is False
-    driver["validate_successor"](payload, case["frozen"], repairs_handoff=case["repairs"], repo_root=repo)
+    driver["validate_successor"](payload, case["frozen"], repairs_handoff=case["repairs"], repo_root=repo, **options)
+    if round_number is not None:
+        assert payload["successor_version"] == selected["version_column"] == f"v7.{round_number}"
+        assert payload["round"]["number"] == round_number
+        assert payload["round"]["repairs"] == driver["fingerprint"](case["repairs"])
+        assert all(payload[key] is False for key in (
+            "training_allowed", "dispatch_allowed", "canonical_scoring_allowed", "scoring_allowed", "freeze_ready",
+        ))
+        previous_rows = json.loads(predecessor.read_text())["tasks"]
+        assert payload["heldout"] == case["membership"]
+        assert payload["tasks"][1:] == previous_rows[1:]
+        destination = tmp_path / f"heldout-v7.{round_number}.json"
+        driver["assemble_successor"](case["frozen"], destination, repairs_handoff=case["repairs"], repo_root=repo, **options)
+        before = destination.read_bytes()
+        with pytest.raises(FileExistsError):
+            driver["assemble_successor"](case["frozen"], destination, repairs_handoff=case["repairs"], repo_root=repo, **options)
+        assert destination.read_bytes() == before
 
 
 @pytest.mark.parametrize("native_change", [
@@ -1350,3 +1388,29 @@ def test_successor_fresh_baseline_pairs_require_native_repeat3_and_selected_froz
     case_log.write_text("2 passed in 0.01s\n")
     with pytest.raises(ValueError, match="successor manifest differs"):
         driver["validate_successor"](payload, case["frozen"], **options)
+
+
+@pytest.mark.parametrize("round_number", [True, 0, -1])
+def test_strict_round_refuses_nonpositive_or_boolean_number(driver, released_successor, round_number):
+    case, predecessor, repairs, _ = released_successor
+    with pytest.raises(ValueError, match="positive integer"):
+        driver["successor_payload"](case["frozen"], predecessor_manifest=predecessor,
+                                    repairs_handoff=repairs, round_number=round_number, repo_root=case["repo"])
+
+
+@pytest.mark.parametrize("change", ["empty", "wrong_filename", "wrong_number", "boolean_number", "partial"])
+def test_strict_round_never_promotes_an_empty_or_misbound_handoff(driver, released_successor, tmp_path, change):
+    case, predecessor, repairs, _ = released_successor
+    handoff = json.loads(repairs.read_text()) | {"round_number": 1}
+    if change == "wrong_number":
+        handoff["round_number"] = 2
+    elif change == "boolean_number":
+        handoff["round_number"] = True
+    elif change == "partial":
+        handoff["repairs"] = [{"task_id": case["membership"][0], "status": "partial", "qualified_for_v7": False}]
+        handoff["required_task_count"] = 1
+    path = tmp_path / ("repairs-round-2.json" if change == "wrong_filename" else "repairs-round-1.json")
+    path.write_text(json.dumps(handoff))
+    with pytest.raises(ValueError, match="repair round"):
+        driver["successor_payload"](case["frozen"], predecessor_manifest=predecessor,
+                                    repairs_handoff=path, round_number=1, repo_root=case["repo"])

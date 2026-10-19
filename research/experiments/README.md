@@ -139,3 +139,140 @@ are unmeasured, never imputed failures. Existing report files are not overwritte
 cohort for new Base/A cells. This cohort is conditioned on prior C measurability;
 it is not a new unbiased all33-task population, nor permission to narrow the
 all33 training exclusion or the original B/C raw schedules.
+
+### Same33 hardening rounds: native data-effect consumer
+
+`heldout-v7/rounds.py` consumes the existing canonical pass inventory and the
+published window3 native snapshot. It is a model-free, $0 Docker calibration
+consumer, not a release, scoring, training, or paid-dispatch authority.
+`campaign.admit` and the staged paid grants are unchanged. Original-v7 baseline
+admission is rechecked through `campaign.admit`; a candidate manifest alone
+cannot authorize a round.
+
+The round assembler reuses `mimo-training-20261016/freeze.py`. For round N it
+requires the existing `envcheck.repairs-v7/v1` handoff named exactly
+`repairs-round-N.json`, with a byte-bound `parent_release`, a nonempty entirely
+qualified selection, and equal complete/required/selected counts. If a producer
+includes a `round_number` annotation, it must be the matching integer, not a
+boolean. No new annotation is required on the producer schema. The predecessor
+must be independently accepted and released: v7 for N=1, v7.(N-1) thereafter.
+The assembled immutable `heldout-v7.N` keeps the exact frozen33 membership, order,
+training exclusions, selected package/Harbor/verifier identities, and complete
+VariantRecord ancestry. Unchanged selections remain from that predecessor;
+earlier repairs are not reverted to v6. The new candidate closes all scoring,
+training and dispatch permission flags and resets independent acceptance.
+Existing output paths are never overwritten.
+
+Use the owned worktree's already-installed native Python, and choose a new
+output directory for each attempt. The current real input locators are:
+
+```sh
+PY=.venv/bin/python
+BRIDGE=/Users/petermakhnatch/Developer/research-context/bridge
+OUT=runs/mimo-m1-data-curve-20261019
+$PY research/experiments/heldout-v7/regrade.py inventory \
+  --inputs "$BRIDGE/2026-10-17-v7/classifiers-v7-source-inputs.json" \
+  --out "$OUT/source-inventory.json"
+$PY research/experiments/heldout-v7/rounds.py inventory \
+  --canonical-inventory "$OUT/source-inventory.json" \
+  --canonical-labels "$BRIDGE/2026-10-17-v7/regrade-v7.json" \
+  --fresh-result "$BRIDGE/2026-10-19-night/trainer-window3-native-result.json" \
+  --out "$OUT/round-inventory-bound.json"
+$PY research/experiments/heldout-v7/rounds.py report \
+  --inventory "$OUT/round-inventory-bound.json" \
+  --out "$OUT/readiness-report-nullable-pairs.json"
+```
+
+Before a real round, set `ROUND`, `FROZEN_SOURCE_DIR`, `ACCEPTED_PREDECESSOR`,
+and `QUALIFIED_REPAIRS` to the actual handed-off round and accepted immutable
+inputs. The first round's frozen source directory is the accepted original-v7
+`mimo-training-20261016` directory; its five frozen source hashes must still
+match. Do not substitute the pending night v7.1 candidate for a released
+predecessor, rename an old repair file to invent a round, or rerun only changed
+tasks.
+
+```sh
+$PY research/experiments/heldout-v7/rounds.py assemble \
+  --frozen-source-dir "$FROZEN_SOURCE_DIR" --predecessor "$ACCEPTED_PREDECESSOR" \
+  --repairs "$QUALIFIED_REPAIRS" --round-number "$ROUND" \
+  --out "$OUT/heldout-v7.$ROUND.json"
+$PY research/experiments/heldout-v7/rounds.py plan \
+  --inventory "$OUT/round-inventory-bound.json" \
+  --manifest "$OUT/heldout-v7.$ROUND.json" --out "$OUT/round-$ROUND-plan.json"
+EVALLAB_DOCKER_LOCK_SLOTS=1 $PY research/experiments/heldout-v7/rounds.py run \
+  --plan "$OUT/round-$ROUND-plan.json" --work "$OUT/round-$ROUND-native" \
+  --out "$OUT/round-$ROUND-report.json"
+```
+
+For N>1, pass `--previous-report` to `plan` with the previous target-round
+report, whose candidate bytes must be bound by this round's independently
+accepted predecessor. Without that measured predecessor report, before/after
+pairs remain unmeasured rather than borrowing original-v7 grades. `report` can
+recover retained partial evidence with the exact `--plan` and `--work`:
+
+```sh
+$PY research/experiments/heldout-v7/rounds.py report \
+  --inventory "$OUT/round-inventory-bound.json" --plan "$OUT/round-$ROUND-plan.json" \
+  --work "$OUT/round-$ROUND-native" --out "$OUT/round-$ROUND-recovered.json"
+$PY research/experiments/heldout-v7/rounds.py curve \
+  --report "$OUT/round-1-report.json" --report "$OUT/round-2-report.json" \
+  --out "$OUT/round-1-2-curve.json"
+```
+
+The run visits every physical source pass, including retained graders and
+different UUIDs with identical patches. It uses `cf.replay` and the existing
+matrix/Executor front door and shared Docker FIFO, one serial oracle job at a
+time (primary plus separate verifier: at most two containers). No model call,
+alternate scheduler/store, released scoring admission, or inherited grant is
+introduced. Every cell gets an immutable attempt and actual native observation,
+or an explicit missing/error disposition. A valid boolean grade requires a
+fresh native dispatch, unchanged source and exact target identities, raw
+receipt/config/lock/result custody, successful process/oracle proof and positive
+executed cases. Zero-case, timeout, infrastructure and failed-shell results
+remain unmeasured, never reward0. Failed attempts are retained; retries use new
+work/output paths rather than overwriting them.
+
+Reports keep canonical70 and fresh window3 separate, including the full
+plan/census/labels/model-configuration snapshot bindings. No task swap maps an
+out-of-scope fresh program onto a heldout grader. `paired` and `unpaired` expose
+the flip denominator; flip/retention counts are null if no paired grades exist.
+The optional `inventory --gold-labels` input has schema
+`mimo.hardening-gold/v1` and labels keyed by `source_uid` with a byte-bound
+`independent_adjudication`. Each adjudication must have schema
+`mimo.independent-correct/v1`, `independent:true`, `verdict:correct`, a named
+reviewer, and the exact source UUID pair, task ID and `diff_sha256`. Producer
+pass labels or a correct alternate for another program are not gold for these
+submissions. Gold-correct rejection rates are null at denominator0.
+
+Exercised local evidence is retained under
+`runs/mimo-m1-data-curve-20261019/`:
+
+| Artifact | SHA-256 | Observed coverage |
+| --- | --- | --- |
+| `source-inventory.json` | `d8160894f8201d6d06b9a067b79b98cd14bc21c7d2b7bd435e46d629b45db01c` | All-arm native inventory; original canonical70 preserved |
+| `round-inventory-bound.json` | `68554c4af3aab1c2171e533f28b2a2fd4b7759677e61854f7668cd4ae70093d0` | 70 canonical + all3 published fresh pass candidates; 73 physical cells |
+| `readiness-report-nullable-pairs.json` | `4bf2bfccae40889c5291ae732e6541d3675d7acdfd4f523b0e2cb30a2ac906f3` | 0 target-round measurements, 73 missing dispositions, 0 pairs; flips null |
+
+The original-v7 differential labels are 64 real/6 wrong, not independent
+semantic gold. Canonical sources retain16 native exceptions. Window3 retains
+all76 planned dispositions and8 native endpoints, with3 published reward1
+candidates, all carrying `AgentTimeoutError` on task000089 outside frozen33.
+All3 remain explicit unsupported-scope/source-error rows; native-clean passes
+and collector-admitted rows are0. The gold-correct denominator is0.
+No `repairs-round-N.json` was available for the exercised assembly; that command
+failed closed with the exact missing path. Planning the pending night v7.1 and
+turning a readiness report into a measured curve also failed closed. No new
+native target-round job, per-round flip result, or independent PASS is claimed.
+The remaining numerical prerequisites are a genuinely qualified round handoff,
+its accepted predecessor (night v7.1 is still pending), and heldout-compatible
+fresh programs rather than silently substituting tasks.
+
+Applied deep-library techniques are fixed immutable accumulated rounds (A1),
+separate legitimate-route retention rather than task-only gold transfer
+(A2/A3), paired retrospective old-program/new-grader measurements rather than
+prospective model-behavior claims (A6), and reference/process/executed-case
+anti-fake-hardness gates (A8). The evidence does not reproduce paper scores or
+certify semantic correctness/honesty. Deterministic boundaries are in
+`test_mimo_training_split.py`, `test_heldout_v7_native.py` and
+`test_heldout_v7_rounds.py`; the integration owner runs those tests and normal
+repository gates after handoff, not concurrently with worker edits.

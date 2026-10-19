@@ -153,14 +153,17 @@ def _canonical(finding: Finding) -> str:
 
 def _unique(findings: list[Finding], source: Path) -> list[Finding]:
     seen: set[str] = set()
-    ids: dict[str, str] = {}
+    # Retained producers reuse ids across subjects (e.g. qa-trace/3 T0 not_run stubs), so an
+    # id conflicts only when the same subject carries two different records under it.
+    ids: dict[tuple[str, str], str] = {}
     result: list[Finding] = []
     for finding in findings:
         canonical = _canonical(finding)
         if finding.id:
-            previous = ids.setdefault(finding.id, canonical)
+            subject = json.dumps(finding.subject.model_dump(), sort_keys=True)
+            previous = ids.setdefault((finding.id, subject), canonical)
             if previous != canonical:
-                raise ValueError(f"{source}: conflicting finding id {finding.id!r}")
+                raise ValueError(f"{source}: conflicting finding id {finding.id!r} for one subject")
         if canonical not in seen:
             seen.add(canonical)
             result.append(finding)
@@ -733,7 +736,8 @@ def _suite_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         if manifest is not None:
             manifest = (manifest if manifest.is_absolute() else root / manifest).resolve()
         report = build_suite(root, agents=args.agent, versions=args.version, day=args.date, manifest=manifest)
-        destination = args.output or Path(f"research/qa-scoreboard/suite-{args.date}.md")
+        default = Path(f"research/qa-scoreboard/suite-{args.date.replace('-', '')}.md")
+        destination = args.output or default
         destination = destination if destination.is_absolute() else root / destination
         # Do not let --output turn a successful comparison into destruction of its inputs.
         protected = {(root / path).resolve() for path in report.frozen_custody}
@@ -779,6 +783,6 @@ def add_suite_command(commands: argparse._SubParsersAction) -> None:
     )
     suite.add_argument("--runs", type=Path, help="JSON runs manifest; paths are relative to its directory")
     suite.add_argument("--date", default=datetime.now(UTC).date().isoformat(), help="Report date (YYYY-MM-DD, UTC)")
-    suite.add_argument("--output", type=Path, help="Atomic report destination (default: research/qa-scoreboard/suite-DATE.md)")
+    suite.add_argument("--output", type=Path, help="Atomic report destination (default: research/qa-scoreboard/suite-YYYYMMDD.md)")
     suite.add_argument("--json", action="store_true", help="Also print the full comparison and source custody as JSON")
     suite.set_defaults(func=_suite_command)

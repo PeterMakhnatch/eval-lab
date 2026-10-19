@@ -40,7 +40,7 @@ Writers so far:
   attribution are distinct quantities.
 - `evallab qa suite` compares explicitly version-proved retained findings
   against every registered key's frozen native splits. It atomically replaces
-  `suite-<date>.md`, **does not append to the CSV**, and runs no new benchmark.
+  `suite-YYYYMMDD.md`, **does not append to the CSV**, and runs no new benchmark.
 - `research/experiments/live-watch-paired-dev/run.py` replays the shipped
   `INTEGRITY_BOARD_RULES` policy on `trace-paired-v1` **dev only**. It emits
   shared findings plus per-rule step references without fitting rules, invoking
@@ -59,7 +59,7 @@ Writers so far:
 Use `evallab qa suite --agent task|trace|breaker|tripwire --version <exact-producer>`.
 Repeat `--version` to compare retained versions, and repeat `--agent` to put
 several agents in one report; absent evidence stays absent.
-The default report is `research/qa-scoreboard/suite-<UTC-date>.md`; use
+The default report is `research/qa-scoreboard/suite-YYYYMMDD.md` (UTC date); use
 `--date YYYY-MM-DD` for a fixed reporting date and `--output <path>` for an
 independent destination. Existing reports are replaced, not appended, only
 after every input and split/exposure guard succeeds.

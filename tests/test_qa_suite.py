@@ -13,6 +13,7 @@ from evallab.cli import parser
 from evallab.qa import suite
 
 DAY = "2026-10-19"
+REPORT = "research/qa-scoreboard/suite-20261019.md"
 _MISSING = object()
 
 
@@ -240,7 +241,7 @@ def test_unknown_labels_abstentions_not_run_unusable_and_incomplete_pairs_stay_d
     assert row["recorded_cost_subtotal_usd"] == pytest.approx(1.5)
     assert (row["n_recorded_costs"], row["n_cost_findings"]) == (5, 6)
     assert row["cost_per_measured_item_usd"] is None
-    report = (tmp_path / f"research/qa-scoreboard/suite-{DAY}.md").read_text()
+    report = (tmp_path / REPORT).read_text()
     assert "n/a (n=0)" in report
     assert "n/a (0/1)" in report
     records[1] = _finding(items[1], version=version + "/T1", stage="T1", verdict="pass", cost=0.1)
@@ -430,7 +431,7 @@ def test_actual_exposed_item_cannot_hide_behind_an_aggregate_exclusion_count(
     _jsonl(directory / "findings.jsonl", [_finding(items[0])])
     assert _invoke(tmp_path) == 2
     assert "actually measured excluded" in capsys.readouterr().err
-    assert not (tmp_path / f"research/qa-scoreboard/suite-{DAY}.md").exists()
+    assert not (tmp_path / REPORT).exists()
 
 
 def test_disclosed_source_derived_labels_keep_the_guard_caveat_visible(
@@ -453,7 +454,7 @@ def test_disclosed_source_derived_labels_keep_the_guard_caveat_visible(
     assert row["score"]["recall"] is None
     assert row["score"]["false_alarm_rate"] is None
     assert any("same retained audit" in note and "not independent" in note for note in row["notes"])
-    report = (tmp_path / f"research/qa-scoreboard/suite-{DAY}.md").read_text()
+    report = (tmp_path / REPORT).read_text()
     assert "not total historical" in report
     assert "source-derived" in report.lower()
 
@@ -623,7 +624,7 @@ def test_one_report_compares_several_agents_and_lists_unmeasured_cells(
     wire = _row(payload, version="tripwires@abc/actions")
     assert (wire["agent"], wire["score"]["n_measured"], wire["score"]["false_alarm_rate"]) == ("tripwire", 1, 0.0)
     assert _row(payload, key="later", split="dev", version="tripwires@abc/actions")["score"]["status"] == "inapplicable"
-    report = (tmp_path / f"research/qa-scoreboard/suite-{DAY}.md").read_text()
+    report = (tmp_path / REPORT).read_text()
     assert "| tripwire | tripwires@abc/actions | inapplicable | later/dev (1) |" in report
     assert "| task | qa-task/v1 | no-run | later/dev (1) |" in report
     assert "| raw/task.jsonl |" in report
@@ -632,3 +633,23 @@ def test_one_report_compares_several_agents_and_lists_unmeasured_cells(
     capsys.readouterr()
     assert _invoke(tmp_path, "--runs", str(manifest), versions=("tripwires@abc/actions",)) == 2
     assert "unversioned labels are unavailable" in capsys.readouterr().err
+
+
+def test_a_retained_id_reused_on_different_subjects_is_not_a_conflict(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    a, b = _item("a", kind="trace", trial="ta"), _item("b", kind="trace", trial="tb", verdict="pass")
+    _key(tmp_path, "k", [a, b])
+    _freeze(tmp_path)
+    stub = {"id": "shared-t0-stub", "stage": "T0", "verdict": "unknown", "measurement": "not_run", "severity": None, "fault": None}
+    records = [
+        _finding(a, version="qa-trace/3/T0", stage="T0") | stub,
+        _finding(b, version="qa-trace/3/T0", stage="T0") | stub,
+        _finding(a, version="qa-trace/3/T1", stage="T1"),
+        _finding(b, version="qa-trace/3/T1", stage="T1", verdict="pass"),
+    ]
+    source = _jsonl(tmp_path / "raw/v3.jsonl", records)
+    manifest = _manifest(tmp_path, [_run("k", str(source), version="qa-trace/3", agent="trace")])
+    assert _invoke(tmp_path, "--runs", str(manifest), agent="trace", versions=("qa-trace/3",)) == 0
+    row = _row(json.loads(capsys.readouterr().out), version="qa-trace/3")
+    assert (row["score"]["n_measured"], row["score"]["recall"], row["score"]["false_alarm_rate"]) == (2, 1.0, 0.0)

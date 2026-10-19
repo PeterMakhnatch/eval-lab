@@ -220,7 +220,7 @@ cost**. JSON exposes the nullable suite cost fields and deliberately
 omits the legacy scorer's default-zero `cost_per_item_usd`.
 
 The deterministic Markdown report atomically replaces
-`research/qa-scoreboard/suite-<date>.md` (UTC report date by default);
+`research/qa-scoreboard/suite-YYYYMMDD.md` (UTC report date by default);
 `--output` overrides that destination and `--json` also prints the rows,
 denominators and SHA256 custody receipts. No scoreboard CSV rows are
 appended. Inputs cannot be used as the output destination. Markdown shows

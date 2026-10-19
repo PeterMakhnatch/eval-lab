@@ -494,6 +494,49 @@ def test_hosted_transport_preserves_missing_partial_and_zero_usage(usage, expect
     assert "tools" not in opener.payload
 
 
+def test_hosted_transport_preserves_pinned_provider_and_reasoning():
+    provider = {"order": ["deepinfra/bf16"], "allow_fallbacks": False}
+    opener = _Opener(_provider_value())
+    transport = OpenAIInvestigator(
+        endpoint="https://provider.example/v1", model="explicit-model", api_key="synthetic-key",
+        response_format="json_object", provider=provider, reasoning={"effort": "medium"},
+    )
+    transport._opener = opener
+    provider["allow_fallbacks"] = True
+    transport.complete([{"role": "user", "content": "data"}], max_output_tokens=128, schema={})
+    assert opener.payload["provider"] == {"order": ["deepinfra/bf16"], "allow_fallbacks": False}
+    assert opener.payload["reasoning"] == {"effort": "medium"}
+    assert "reasoning_effort" not in opener.payload
+
+
+@pytest.mark.parametrize("metadata", [
+    {"reasoning": "provider-internal reasoning"},
+    {"reasoning_details": [{"type": "reasoning.summary", "summary": "internal"}]},
+    {"reasoning": None, "reasoning_details": []},
+])
+def test_hosted_transport_treats_openrouter_reasoning_as_inert_metadata(metadata):
+    message = {"role": "assistant", "content": '{"request":{"action":"related"}}', **metadata}
+    opener = _Opener(_provider_value(message=message))
+    completion = _http_transport(opener).complete(
+        [{"role": "user", "content": "data"}], max_output_tokens=128, schema={},
+    )
+    assert completion.content == '{"request":{"action":"related"}}'
+    if any(metadata.values()):
+        with pytest.raises(InvestigatorError, match="disabled-thinking"):
+            _http_transport(opener, disable_thinking=True).complete(
+                [{"role": "user", "content": "data"}], max_output_tokens=128, schema={},
+            )
+
+
+@pytest.mark.parametrize("metadata", [{"reasoning": {}}, {"reasoning_details": ["invalid"]}])
+def test_hosted_transport_rejects_malformed_openrouter_metadata(metadata):
+    message = {"role": "assistant", "content": "{}", **metadata}
+    with pytest.raises(InvestigatorError, match="invalid provider reasoning"):
+        _http_transport(_Opener(_provider_value(message=message))).complete(
+            [{"role": "user", "content": "data"}], max_output_tokens=128, schema={},
+        )
+
+
 
 
 @pytest.mark.parametrize("value", [

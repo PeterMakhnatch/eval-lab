@@ -57,7 +57,7 @@ LAUNCH_COMMAND = (
     "--controls --floor --all-rounds --replay --status "
     "--actor rh-agents-2026-10-17/tick"
 )
-MODAL_APP_NAME = "tb2-amd64-modal"
+MODAL_APP_NAME = "mimo-clean-census-tb2-amd64"
 MODAL_CAP_USD = 1.0
 DEFAULT_PLATFORM = "linux/amd64"
 DEFAULT_USD_PER_EXECUTION = 0.20

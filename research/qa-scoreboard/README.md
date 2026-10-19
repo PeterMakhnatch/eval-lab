@@ -64,6 +64,10 @@ Writers so far:
   dev-selected rule (`action-rule@88cf3b998fd3/history_cmds-or-tripwire/<view>`) and
   the tripwire OR. Recall counts `wrong_pass` + `not_a_pass` items, and the
   wrong-pass-only recall is in the row notes.
+- `research/experiments/task-evidence-detector-20261019/run.py --scoreboard` writes
+  the `Task evidence` rows (`weak-task@atlas-v2.1+sample100` and
+  `weak-task-untouched@atlas-v2.1`) for MiMo70 and window-3. Only v6 passes are
+  measured: recall is on `wrong_pass` and false alarms are on `real_pass`.
 
 ## Frozen retained-version suite
 

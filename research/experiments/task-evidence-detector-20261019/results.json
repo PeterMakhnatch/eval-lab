@@ -1,0 +1,241 @@
+{
+ "action_features_sha256": "88cf3b998fd33bdd97590579d816d99fea5fd472a7a17530eb23544636fb8516",
+ "cost_usd": 0.0,
+ "keys": {
+  "mimo-fresh-window3": {
+   "D1": {
+    "false_alarm": {
+     "hits": 10,
+     "n": 17,
+     "rate": 0.5882352941176471,
+     "wilson_95": [
+      0.3600544264299978,
+      0.7838894320978518
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000089",
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-001686"
+    ],
+    "recall": {
+     "hits": 0,
+     "n": 4,
+     "rate": 0.0,
+     "wilson_95": [
+      0,
+      0.4898908364545973
+     ]
+    }
+   },
+   "D1-v1": {
+    "false_alarm": {
+     "hits": 7,
+     "n": 17,
+     "rate": 0.4117647058823529,
+     "wilson_95": [
+      0.2161105679021481,
+      0.6399455735700021
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-001686"
+    ],
+    "recall": {
+     "hits": 0,
+     "n": 4,
+     "rate": 0.0,
+     "wilson_95": [
+      0,
+      0.4898908364545973
+     ]
+    }
+   },
+   "D2": {
+    "false_alarm": {
+     "hits": 0,
+     "n": 17,
+     "rate": 0.0,
+     "wilson_95": [
+      0,
+      0.1843181350088518
+     ]
+    },
+    "flagged_tasks": [],
+    "recall": {
+     "hits": 0,
+     "n": 4,
+     "rate": 0.0,
+     "wilson_95": [
+      0,
+      0.4898908364545973
+     ]
+    }
+   },
+   "n_real_pass": 17,
+   "n_tasks": 11,
+   "n_wrong_pass": 4,
+   "v7_grader_repaired": {
+    "false_alarm": {
+     "hits": 11,
+     "n": 17,
+     "rate": 0.6470588235294118,
+     "wilson_95": [
+      0.41300363485218694,
+      0.8269027960275627
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000143",
+     "format-code-task-000149",
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-001246",
+     "format-code-task-001686",
+     "format-code-task-002371"
+    ],
+    "recall": {
+     "hits": 4,
+     "n": 4,
+     "rate": 1.0,
+     "wilson_95": [
+      0.5101091635454027,
+      1
+     ]
+    }
+   },
+   "wrong_pass_tasks": [
+    "format-code-task-000143",
+    "format-code-task-000149",
+    "format-code-task-002371"
+   ]
+  },
+  "mimo-v7-canonical-pass70": {
+   "D1": {
+    "false_alarm": {
+     "hits": 9,
+     "n": 64,
+     "rate": 0.140625,
+     "wilson_95": [
+      0.0757857255603086,
+      0.24616281741577023
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-001686"
+    ],
+    "recall": {
+     "hits": 0,
+     "n": 6,
+     "rate": 0.0,
+     "wilson_95": [
+      2.7755575615628914e-17,
+      0.3903342879021653
+     ]
+    }
+   },
+   "D1-v1": {
+    "false_alarm": {
+     "hits": 9,
+     "n": 64,
+     "rate": 0.140625,
+     "wilson_95": [
+      0.0757857255603086,
+      0.24616281741577023
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-001686"
+    ],
+    "recall": {
+     "hits": 0,
+     "n": 6,
+     "rate": 0.0,
+     "wilson_95": [
+      2.7755575615628914e-17,
+      0.3903342879021653
+     ]
+    }
+   },
+   "D2": {
+    "false_alarm": {
+     "hits": 0,
+     "n": 64,
+     "rate": 0.0,
+     "wilson_95": [
+      0,
+      0.05662405979280534
+     ]
+    },
+    "flagged_tasks": [],
+    "recall": {
+     "hits": 0,
+     "n": 6,
+     "rate": 0.0,
+     "wilson_95": [
+      2.7755575615628914e-17,
+      0.3903342879021653
+     ]
+    }
+   },
+   "n_real_pass": 64,
+   "n_tasks": 27,
+   "n_wrong_pass": 6,
+   "v7_grader_repaired": {
+    "false_alarm": {
+     "hits": 18,
+     "n": 64,
+     "rate": 0.28125,
+     "wilson_95": [
+      0.18593372333727837,
+      0.40133930282207403
+     ]
+    },
+    "flagged_tasks": [
+     "format-code-task-000143",
+     "format-code-task-000149",
+     "format-code-task-000371",
+     "format-code-task-000657",
+     "format-code-task-000783",
+     "format-code-task-001246",
+     "format-code-task-001686",
+     "format-code-task-001948",
+     "format-code-task-002371",
+     "format-code-task-002451",
+     "format-code-task-002915"
+    ],
+    "recall": {
+     "hits": 6,
+     "n": 6,
+     "rate": 1.0,
+     "wilson_95": [
+      0.6096657120978346,
+      1
+     ]
+    }
+   },
+   "wrong_pass_tasks": [
+    "format-code-task-000143",
+    "format-code-task-000149",
+    "format-code-task-000783",
+    "format-code-task-002371",
+    "format-code-task-002915"
+   ]
+  }
+ },
+ "llm_calls": 0,
+ "schema": "evallab.task_evidence_detector/v1",
+ "weak_set_sizes": {
+  "D1": 114,
+  "D1-v1": 16,
+  "sample100": 23,
+  "v2.1": 114
+ }
+}

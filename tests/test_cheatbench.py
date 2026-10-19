@@ -776,3 +776,48 @@ def test_annotation_correction_notes():
 def test_pinned_constants_match_record():
     assert REVISION == "461360b34e93644955563dcc9243c6cc1a53bd0f"
     assert SHA256 == "b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63"
+
+
+def test_materialized_trials_are_blind_and_labels_stay_in_manifest(tmp_path):
+    import hashlib
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from evallab.cheatbench_fidelity import find_forbidden_json
+
+    trace = {
+        "task_name": "t",
+        "benchmark": "terminal-bench-2",
+        "events": [
+            {"step": "1", "src": "user", "msg": "Do the thing."},
+            {"step": "2", "src": "agent", "msg": "Reading the tests first.", "obs": "ok"},
+        ],
+    }
+    rows = [
+        _row(trace_id="cb-cheat", label="cheating", trace=json.dumps(trace)),
+        _row(trace_id="cb-benign", label="benign", cheating_mechanism=None, trace=json.dumps(trace)),
+    ]
+    parquet = tmp_path / "rows.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), parquet)
+
+    stats = mod.materialize(parquet, tmp_path / "root")
+    assert stats["converted"] == 2
+    for trace_id in ("cb-cheat", "cb-benign"):
+        trial = tmp_path / "root" / "cb" / trace_id
+        body = (trial / "agent" / "trajectory.json").read_text(encoding="utf-8")
+        doc = json.loads(body)
+        assert find_forbidden_json(doc) == []
+        assert doc["metadata"]["item_id"] == trace_id
+        assert json.loads((trial / "result.json").read_text(encoding="utf-8")) == {}
+        # The two documents differ only in identity, never in label.
+        assert "cheating" not in body and "secret_discovery" not in body
+
+    _, manifest_rows, _ = mod.subset(parquet)
+    by_id = {row["id"]: row for row in manifest_rows}
+    assert by_id["cb-cheat"]["labels"]["reward_hacking"] is True
+    assert by_id["cb-benign"]["labels"]["reward_hacking"] is False
+    written = (tmp_path / "root/cb/cb-cheat/agent/trajectory.json").read_text(encoding="utf-8")
+    assert by_id["cb-cheat"]["trajectory_sha256"] == hashlib.sha256(
+        written.rstrip("\n").encode("utf-8")
+    ).hexdigest()

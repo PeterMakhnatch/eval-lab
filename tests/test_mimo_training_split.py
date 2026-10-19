@@ -797,6 +797,94 @@ def test_successor_retains_frozen33_packages_lineage_and_exact_v6_controls(drive
     assert {path.name: path.read_bytes() for path in case["frozen"].iterdir()} == before
 
 
+@pytest.fixture
+def released_successor(driver, successor_case, tmp_path: Path):
+    case = successor_case
+    candidate = driver["successor_payload"](
+        case["frozen"], setup_handoff=case["setup"](), repairs_handoff=case["repairs"], repo_root=case["repo"],
+    )
+    qualified = tmp_path / "qualified-candidate.json"
+    qualified.write_text(driver["encoded"](candidate))
+    evidence = tmp_path / "independent-acceptance.json"
+    evidence.write_text(json.dumps({"status": "pass", "candidate": driver["fingerprint"](qualified)}))
+    predecessor = tmp_path / "released-v7.json"
+    predecessor.write_text(driver["encoded"](candidate | {
+        "status": "released", "scoring_allowed": True, "freeze_ready": True, "pending_gates": [],
+        "independent_verifier": {
+            "status": "pass", "evidence": driver["fingerprint"](evidence),
+            "qualified_candidate": driver["fingerprint"](qualified),
+        },
+    }))
+    repairs = tmp_path / "delta.json"
+
+    def rebind() -> None:
+        repairs.write_text(json.dumps({
+            "schema": "envcheck.repairs-v7/v1", "repairs": [], "complete_count": 0,
+            "required_task_count": 0, "recorded_reproducer_count": 0,
+            "training_allowed": False, "source_inputs": [],
+            "parent_release": driver["fingerprint"](predecessor),
+        }))
+
+    rebind()
+    return case, predecessor, repairs, rebind
+
+
+def test_successor_delta_retains_selected_children_but_not_predecessor_release_rights(driver, released_successor) -> None:
+    case, predecessor, repairs, _ = released_successor
+    previous = json.loads(predecessor.read_text())
+    payload = driver["successor_payload"](
+        case["frozen"], repairs_handoff=repairs, predecessor_manifest=predecessor, repo_root=case["repo"],
+    )
+    selected = next(row for row in payload["tasks"] if row["task_id"] == "format-code-task-001948")
+    assert selected["evaluation_target"]["package_digest"] != selected["frozen_parent"]["package_digest"]
+    assert payload["tasks"] == previous["tasks"]
+    assert payload["successor_version"] == "v7.1"
+    assert payload["scoring_allowed"] is False and payload["freeze_ready"] is False
+    assert payload["independent_verifier"] == {"status": "pending", "evidence": None}
+    assert payload["pending_gates"] and payload["predecessor"] == driver["fingerprint"](predecessor)
+    altered = payload | {"scoring_allowed": True}
+    with pytest.raises(ValueError, match="successor manifest differs"):
+        driver["validate_successor"](
+            altered, case["frozen"], repairs_handoff=repairs,
+            predecessor_manifest=predecessor, repo_root=case["repo"],
+        )
+
+
+@pytest.mark.parametrize("change", [
+    "reordered", "training_boundary", "wrong_parent", "source_drift", "selected_package_drift",
+    "unaccepted", "numeric_flag", "frozen_metadata",
+])
+def test_successor_delta_refuses_predecessor_custody_or_boundary_drift(driver, released_successor, change) -> None:
+    case, predecessor, repairs, rebind = released_successor
+    previous = json.loads(predecessor.read_text())
+    if change == "reordered":
+        previous["heldout"].reverse()
+    elif change == "training_boundary":
+        previous["training_exposure"].append(previous["heldout"][0])
+    elif change == "wrong_parent":
+        handoff = json.loads(repairs.read_text())
+        handoff["parent_release"]["sha256"] = "0" * 64
+        repairs.write_text(json.dumps(handoff))
+    elif change == "source_drift":
+        case["inventory"].write_text("{}")
+    elif change == "selected_package_drift":
+        target = next(row["evaluation_target"] for row in previous["tasks"] if row["task_id"] == "format-code-task-001948")
+        (Path(target["package_path"]) / "environment/setup/setup.sh").write_text("exit 0\n")
+    elif change == "unaccepted":
+        previous["independent_verifier"]["status"] = "pending"
+    elif change == "numeric_flag":
+        previous["scoring_allowed"] = 1
+    elif change == "frozen_metadata":
+        previous["tasks"][0]["source_controls"] = {}
+    if change not in {"wrong_parent", "source_drift", "selected_package_drift"}:
+        predecessor.write_text(driver["encoded"](previous))
+        rebind()
+    with pytest.raises(ValueError):
+        driver["successor_payload"](
+            case["frozen"], repairs_handoff=repairs, predecessor_manifest=predecessor, repo_root=case["repo"],
+        )
+
+
 @pytest.mark.parametrize("change", ["duplicate", "substitute", "drop", "reorder", "rich_row", "open_gate", "numeric_gate"])
 def test_successor_validator_refuses_membership_target_or_scoring_mutation(driver, successor_case, change) -> None:
     case = successor_case

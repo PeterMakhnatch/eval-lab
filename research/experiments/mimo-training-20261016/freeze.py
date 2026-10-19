@@ -1318,11 +1318,120 @@ def _successor_runtime_repair(path: Path, parent: dict[str, Any], repo_root: Pat
     }
 
 
+def _successor_delta(base: dict[str, Any], predecessor_path: Path, repairs_path: Path | None,
+                     repo_root: Path) -> dict[str, Any]:
+    """Extend an exact released selection, never restart its repairs from v6."""
+    sources = {item["path"]: dict(item) for item in base["sources"]}
+    predecessor = _successor_json(predecessor_path, sources)
+    if (predecessor.get("schema") != "mimo.heldout/v1"
+            or predecessor.get("successor_version") != "v7"
+            or predecessor.get("status") != "released"
+            or predecessor.get("scoring_allowed") is not True
+            or predecessor.get("freeze_ready") is not True
+            or predecessor.get("pending_gates") != []
+            or predecessor.get("independent_verifier", {}).get("status") != "pass"):
+        raise ValueError("successor delta requires an independently accepted released v7 predecessor")
+    for key in ("heldout", "train", "training_exposure"):
+        if predecessor[key] != base[key]:
+            raise ValueError(f"successor predecessor changes the frozen {key} boundary")
+    for name, binding in base["frozen_sources"].items():
+        _successor_binding(Path(binding["path"]), predecessor["frozen_sources"][name], sources)
+    for binding in predecessor["sources"]:
+        _successor_binding(Path(binding["path"]), binding, sources)
+    for key in ("evidence", "qualified_candidate"):
+        binding = predecessor["independent_verifier"].get(key)
+        if not isinstance(binding, dict):
+            raise ValueError("released predecessor lacks bound independent acceptance evidence")
+        _successor_binding(Path(binding["path"]), binding, sources)
+    repairs = _successor_repairs(repairs_path, sources)
+    handoff = repairs["handoff"]
+    if handoff is None or not isinstance(handoff.get("parent_release"), dict):
+        raise ValueError("successor delta requires an exact parent-release repair handoff")
+    _successor_binding(predecessor_path, handoff["parent_release"], sources)
+    if set(repairs["selections"]) - set(base["heldout"]):
+        raise ValueError("successor delta repair lies outside the frozen33")
+    previous = rows_by_id(predecessor["tasks"])
+    if list(previous) != base["heldout"]:
+        raise ValueError("successor predecessor requires the exact ordered33 task rows")
+    controls_path = Path(base["frozen_sources"]["native-controls.json"]["path"])
+    controls = _successor_json(controls_path, sources)
+    control_pairs = rows_by_id(controls["selected_pairs"])
+    tasks = []
+    for frozen in base["tasks"]:
+        task_id = frozen["task_id"]
+        row = previous[task_id]
+        mutable = {"frozen_parent", "evaluation_target", "successor_selection", "native_controls"}
+        if any(row.get(key) != value for key, value in frozen.items() if key not in mutable):
+            raise ValueError(f"successor predecessor changes frozen task metadata: {task_id}")
+        parent, expected_parent = row["frozen_parent"], frozen["frozen_parent"]
+        if any(parent[key] != expected_parent[key] for key in (
+                "package_path", "package_digest", "harbor_digest", "verifier_digest", "registered_endpoint")):
+            raise ValueError(f"successor predecessor changes frozen parent identity: {task_id}")
+        old_chain = parent["lineage"]["records_newest_first"]
+        frozen_chain = expected_parent["lineage"]["records_newest_first"]
+        if ([item["record"]["sha256"] for item in old_chain]
+                != [item["record"]["sha256"] for item in frozen_chain]):
+            raise ValueError(f"successor predecessor changes frozen parent lineage: {task_id}")
+        selected = row["evaluation_target"]
+        actual = _successor_identity(Path(selected["package_path"]), selected["package_digest"], selected["harbor_digest"])
+        if actual["verifier_digest"] != selected["verifier_digest"]:
+            raise ValueError(f"successor predecessor selected grader changed: {task_id}")
+        for record in selected["lineage"]["records_newest_first"]:
+            _successor_binding(Path(record["record"]["path"]), record["record"], sources)
+        if task_id in repairs["selections"]:
+            selected = _successor_repair(task_id, selected, repairs["selections"][task_id], repo_root, sources)
+            selected = selected | {"version_column": "v7.1"}
+            row = row | {
+                "evaluation_target": selected, "successor_selection": "semantic-repair",
+                "native_controls": _successor_controls(
+                    task_id, parent, selected, controls, control_pairs, dict(sources[str(controls_path)]), sources,
+                ),
+            }
+        tasks.append(row)
+    for binding in list(sources.values()):
+        source_bytes(Path(binding["path"]), sources)
+    counts = dict(predecessor["counts"])
+    counts.update({
+        "selected_unchanged_v6": sum(row["successor_selection"] == "unchanged-v6" for row in tasks),
+        "selected_setup_only": sum(row["successor_selection"] == "setup-only" for row in tasks),
+        "selected_semantic_repairs": sum(row["successor_selection"] == "semantic-repair" for row in tasks),
+        "selected_runtime_repairs": sum(row["successor_selection"] == "runtime-repair" for row in tasks),
+        "changed_from_predecessor": len(repairs["selections"]),
+        "retained_from_predecessor": len(tasks) - len(repairs["selections"]),
+    })
+    return predecessor | {
+        "successor_version": "v7.1", "status": "candidate", "tasks": tasks, "counts": counts,
+        "predecessor": dict(sources[str(predecessor_path.resolve())]),
+        "semantic_repairs": repairs,
+        "semantic_repair_history": {"predecessor": dict(sources[str(predecessor_path.resolve())]),
+                                    "scope": "Earlier selections and controls remain in the bound released predecessor."},
+        "sources": sorted(sources.values(), key=lambda item: item["path"]),
+        "scoring_allowed": False, "freeze_ready": False,
+        "validity_check_allowed": True, "validity_release": None,
+        "independent_verifier": {"status": "pending", "evidence": None},
+        "pending_gates": [
+            "native_reference_1_1_1_and_nop_0_0_0_on_each_selected_digest",
+            "all_adjudicated_wrong_reproducer_outcomes_zero",
+            "no_rejected_adjudicated_correct_case", "independent_verifier_pass",
+        ],
+        "limits": base["limits"] + [
+            "v7.1 extends the exact released v7 selections. Unchanged rows retain their own package-bound evidence.",
+            "The predecessor's PASS and scoring rights do not authorize this candidate.",
+        ],
+    }
+
+
 def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None = None,
                       setup_handoff: Path | None = None, runtime_repair_handoff: Path | None = None,
-                      repo_root: Path = ROOT, native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
+                      repo_root: Path = ROOT, native_control_metadata: tuple[Path, ...] = (),
+                      predecessor_manifest: Path | None = None) -> dict[str, Any]:
     """Assemble the frozen33 candidate; no ranking, execution, or scoring release."""
     frozen_source_dir, repo_root = frozen_source_dir.resolve(), repo_root.resolve()
+    if predecessor_manifest is not None:
+        if setup_handoff is not None or runtime_repair_handoff is not None or native_control_metadata:
+            raise ValueError("successor delta retains predecessor setup/runtime/baseline selections; supply only repairs")
+        base = successor_payload(frozen_source_dir, repo_root=repo_root)
+        return _successor_delta(base, predecessor_manifest, repairs_handoff, repo_root.resolve())
     sources: dict[str, dict[str, Any]] = {}
     files = {name: frozen_source_dir / name for name in (
         "heldout.json", "split.json", "manifest.json", "native-controls.json", "lineage-registration.json",
@@ -1462,11 +1571,12 @@ def successor_payload(frozen_source_dir: Path, *, repairs_handoff: Path | None =
 def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
                        runtime_repair_handoff: Path | None = None, repo_root: Path = ROOT,
-                       native_control_metadata: tuple[Path, ...] = ()) -> None:
+                       native_control_metadata: tuple[Path, ...] = (),
+                       predecessor_manifest: Path | None = None) -> None:
     """Validate candidate contents and current source/package/record custody."""
     expected = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
                                  setup_handoff=setup_handoff, runtime_repair_handoff=runtime_repair_handoff, repo_root=repo_root,
-                                 native_control_metadata=native_control_metadata)
+                                 native_control_metadata=native_control_metadata, predecessor_manifest=predecessor_manifest)
     if encoded(payload) != encoded(expected):
         raise ValueError("successor manifest differs from its exact frozen inputs, selected identities, or closed gates")
 
@@ -1474,14 +1584,15 @@ def validate_successor(payload: dict[str, Any], frozen_source_dir: Path, *,
 def assemble_successor(frozen_source_dir: Path, destination: Path, *,
                        repairs_handoff: Path | None = None, setup_handoff: Path | None = None,
                        runtime_repair_handoff: Path | None = None, repo_root: Path = ROOT,
-                       native_control_metadata: tuple[Path, ...] = ()) -> dict[str, Any]:
+                       native_control_metadata: tuple[Path, ...] = (),
+                       predecessor_manifest: Path | None = None) -> dict[str, Any]:
     """Atomically publish a new candidate without replacing any existing file."""
     destination = destination.resolve()
     if destination.is_relative_to(frozen_source_dir.resolve()):
         raise ValueError("successor destination must be outside the frozen source directory")
     payload = successor_payload(frozen_source_dir, repairs_handoff=repairs_handoff,
                                 setup_handoff=setup_handoff, runtime_repair_handoff=runtime_repair_handoff, repo_root=repo_root,
-                                native_control_metadata=native_control_metadata)
+                                native_control_metadata=native_control_metadata, predecessor_manifest=predecessor_manifest)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=destination.parent, suffix=".tmp", delete=False) as handle:
         temporary = Path(handle.name)
@@ -1507,6 +1618,7 @@ def main() -> None:
     parser.add_argument("--repairs-handoff", type=Path)
     parser.add_argument("--setup-handoff", type=Path)
     parser.add_argument("--runtime-repair-handoff", type=Path)
+    parser.add_argument("--predecessor-manifest", type=Path)
     parser.add_argument("--native-control-metadata", type=Path, action="append", default=[])
     parser.add_argument("--successor-destination", type=Path)
     mode = parser.add_mutually_exclusive_group()
@@ -1533,6 +1645,7 @@ def main() -> None:
                 repairs_handoff=args.repairs_handoff, setup_handoff=args.setup_handoff,
                 runtime_repair_handoff=args.runtime_repair_handoff, repo_root=args.repo_root,
                 native_control_metadata=tuple(args.native_control_metadata),
+                predecessor_manifest=args.predecessor_manifest,
             )
             print(json.dumps({
                 "counts": payload["counts"], "manifest": fingerprint(args.successor_destination),

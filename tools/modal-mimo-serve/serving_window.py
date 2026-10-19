@@ -653,7 +653,7 @@ def receipt(value: dict[str, Any]) -> dict[str, Any]:
             "resources": {"gpu": config["gpu"], "gpu_count": 1, "cpu_request": 4,
                           "hard_cpu_limit": config["hard_cpu_limit"], "memory_request_mib": 16384,
                           "hard_memory_mib_limit": config["hard_memory_mib_limit"],
-                          "min_gpu_containers": 1, "max_gpu_containers": 1, "max_guard_containers": 1},
+                          "max_gpu_containers": 1, "max_guard_containers": 1},
             **{key: value.get(key) for key in ("deployment", "stop_guard", "health", "readiness", "authenticated_binding",
                                                "observation", "stop", "stopped_at", "cap_exceeded")}}
 

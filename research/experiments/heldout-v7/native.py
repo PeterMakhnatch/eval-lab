@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import re
+import runpy
 import tempfile
 import tomllib
 from pathlib import Path
@@ -21,7 +22,11 @@ from harbor.models.trial.result import TimingInfo as NativeTimingInfo
 from harbor.models.verifier.result import VerifierResult as NativeVerifierResult
 
 from evallab import runner as native_runner
-from evallab.execution_contracts import MODAL_ENVIRONMENT_IMPORT_PATH
+from evallab.execution_contracts import (
+    HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+    LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+    MODAL_ENVIRONMENT_IMPORT_PATH,
+)
 from evallab.heldout_verifier import scan_agent_diff
 from evallab.qa import counterfactual as cf
 from evallab.registry import compute_task_digests, harbor_task_digest
@@ -91,12 +96,26 @@ def _modal(environment: Any) -> None:
     )
 
 
+def _environment(value: Any, backend: str) -> None:
+    if backend == "modal":
+        _modal(value)
+        return
+    _require(
+        backend == "docker" and isinstance(value, dict)
+        and value.get("type") in (None, "docker")
+        and value.get("import_path") in {
+            HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH, LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+        },
+        "native_backend_not_first_party_isolated_docker",
+    )
+
+
 def _matrix(
-    document: dict[str, Any], grader: cf.Grader, root: Path, script: bytes,
+    document: dict[str, Any], grader: cf.Grader, root: Path, script: bytes, backend: str = "modal",
 ) -> ExperimentMatrix:
     matrix = ExperimentMatrix.model_validate(document)
     _require(
-        matrix.environment == "modal" and matrix.jobs_dir == "runs"
+        backend in {"modal", "docker"} and matrix.environment == backend and matrix.jobs_dir == "runs"
         and matrix.concurrency == 1 and len(matrix.runs) == 1
         and matrix.task_id == grader.task_name.rsplit("/", 1)[-1]
         and (root / matrix.task).resolve() == grader.package.resolve()
@@ -127,10 +146,11 @@ def _matrix(
 
 def _qualify(
     row: dict[str, Any], execution: Any, submitted: dict[str, Any], grader: cf.Grader,
-    root: Path, work: Path, script: bytes, evidence: dict[str, Any],
+    root: Path, work: Path, script: bytes, evidence: dict[str, Any], *,
+    backend: str = "modal", require_case_execution: bool = False,
 ) -> bool:
     _require(
-        row.get("input_kind") == "native_patch_replay" and row.get("environment") == "modal"
+        row.get("input_kind") == "native_patch_replay" and row.get("environment") == backend
         and row.get("grader_identity") == grader.identity_json
         and not row.get("refusals") and row.get("execution_error") is None,
         "native_replay_refused_or_failed",
@@ -150,7 +170,7 @@ def _qualify(
         == {k: v for k, v in submitted.items() if k not in _MODAL_POLICY_FIELDS},
         "native_matrix_changed_since_submission",
     )
-    matrix = _matrix(matrix_doc, grader, root, script)
+    matrix = _matrix(matrix_doc, grader, root, script, backend)
     run = matrix.runs[0]
     outcomes = receipt.get("results")
     _require(
@@ -243,7 +263,7 @@ def _qualify(
         "native_job_config_mismatch",
     )
     _oracle(config["agents"][0])
-    _modal(config.get("environment"))
+    _environment(config.get("environment"), backend)
     executed_path = root / matrix.jobs_dir / ".exec-stage" / run.name
     _require(config["tasks"][0].get("path") == str(executed_path), "native_job_task_path_mismatch")
     trial = job.trials[0]
@@ -272,8 +292,8 @@ def _qualify(
     )
     _oracle(trial_config.get("agent"))
     _oracle(trial_lock.get("agent"))
-    _modal(trial_config.get("environment"))
-    _modal(trial_lock.get("environment"))
+    _environment(trial_config.get("environment"), backend)
+    _environment(trial_lock.get("environment"), backend)
     _require(
         (data.get("agent_info") or {}).get("name") == "oracle"
         and (data.get("agent_info") or {}).get("model_info") is None
@@ -324,6 +344,11 @@ def _qualify(
     else:
         value = float(path.read_text())
     _require(_binary(value) == score, "native_reward_artifact_disagrees")
+    if require_case_execution:
+        census = runpy.run_path(str(Path(__file__).resolve().parents[1] / "mimo-v6-full-fleet/census.py"))
+        proof = census["positive_case_execution"](trial.path)
+        evidence["positive_case_execution"] = proof
+        _require(proof is True, "native_positive_case_execution_unproven")
     evidence.update(
         matrix_receipt=_ref(expected_receipt), invocations=_ref(invocation_path),
         job_dir=str(job_path), native_job_id=job.id, native_trial_id=trial.id,
@@ -334,17 +359,19 @@ def _qualify(
 
 def replay_and_collect(
     source_row: dict[str, Any], grader: cf.Grader, *, repo_root: Path, work: Path,
-    spend_gate: CloudSpendGate, matrix_runner: Any = None,
+    spend_gate: CloudSpendGate | None = None, matrix_runner: Any = None,
+    backend: str = "modal", require_case_execution: bool = False,
 ) -> dict[str, Any]:
     """Return one nullable observation; source failures never become new zeroes.
 
     An existing empty diff is replayable. Missing/changed/non-UTF8 bytes, any
     binary-artifact stripping, native refusals and incomplete evidence are not.
-    Only the shared gate charged by cf.replay authorizes a Modal dispatch.
+    Modal still requires the shared spend gate; Docker uses cf.replay's shared FIFO.
     """
     evidence: dict[str, Any] = {
         "schema": "heldout-v7.native/v1", "engine": cf.ENGINE_VERSION,
         "dispatched": False, "files": {}, "refusals": [],
+        "backend": backend,
         "canonical_v6_outcome": source_row.get("v6_outcome"),
         "canonical_v6_error": source_row.get("v6_error"),
     }
@@ -416,9 +443,11 @@ def replay_and_collect(
         _require(source_row.get("task_id") == grader.task_name, "source_grader_task_mismatch")
         cf.canonical_graders([grader])
         _require(not any(p.is_symlink() for p in grader.package.rglob("*")), "grader_package_contains_symlink")
-        blocker = modal_resource_blocker(grader.package)
-        _require(blocker is None, "modal_resource_ineligible:" + str(blocker))
-        cf.check_backend("modal", spend_gate)
+        _require(backend in {"modal", "docker"}, "native_backend_not_authorized")
+        if backend == "modal":
+            blocker = modal_resource_blocker(grader.package)
+            _require(blocker is None, "modal_resource_ineligible:" + str(blocker))
+        cf.check_backend(backend, spend_gate)
         config = tomllib.loads((grader.package / "task.toml").read_bytes().decode("utf-8"))
         evidence["files"][str((grader.package / "task.toml").resolve())] = _ref(grader.package / "task.toml")
         evidence["grader"] = {**grader.to_json(), "verifier_digest": compute_task_digests(grader.package).verifier}
@@ -435,7 +464,7 @@ def replay_and_collect(
             _require(not state, "multiple_native_dispatches_refused")
             _require(root.resolve() == repo_root.resolve(), "native_dispatch_root_mismatch")
             submitted = matrix.model_dump(mode="json")
-            checked = _matrix(submitted, grader, root.resolve(), script)
+            checked = _matrix(submitted, grader, root.resolve(), script, backend)
             job_path = root / checked.jobs_dir / checked.runs[0].name
             receipt = root / checked.jobs_dir / ".executor" / f"{checked.matrix_id}.matrix.json"
             _require(not job_path.exists() and not receipt.exists() and not receipt.with_suffix(".invocations.jsonl").exists(), "native_existing_job_or_receipt_refused")
@@ -448,7 +477,7 @@ def replay_and_collect(
             return state["execution"]
 
         row = cf.replay(source, grader, work / "replay", diff_text=text, repo_root=root,
-                        matrix_runner=execute, environment="modal", spend_gate=spend_gate)
+                        matrix_runner=execute, environment=backend, spend_gate=spend_gate)
         with native_path.open("x", encoding="utf-8") as stream:
             json.dump(row, stream, indent=2)
             stream.write("\n")
@@ -458,7 +487,10 @@ def replay_and_collect(
         evidence["cf_recorded"] = row.get("recorded")
         evidence["cf_refusals"] = row.get("refusals", [])
         _require("execution" in state, "native_not_dispatched:" + ";".join(row.get("refusals", [])))
-        observation["v7_outcome"] = _qualify(row, state["execution"], state["submitted"], grader, root, work, script, evidence)
+        observation["v7_outcome"] = _qualify(
+            row, state["execution"], state["submitted"], grader, root, work, script, evidence,
+            backend=backend, require_case_execution=require_case_execution,
+        )
     except Exception as exc:
         observation["v7_outcome"] = None
         observation["v7_error"] = str(exc) if isinstance(exc, _Unmeasured) else f"{type(exc).__name__}:{exc}"

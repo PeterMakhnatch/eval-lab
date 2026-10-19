@@ -377,6 +377,19 @@ def read_spike_alerts(job_dir: Path) -> list[dict[str, Any]]:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
+    open_fleet_rules: set[str] | None = None
+    status_path = Path(job_dir) / "watch" / "status.json"
+    if status_path.is_file():
+        try:
+            status_doc = json.loads(status_path.read_text(encoding="utf-8"))
+            if isinstance(status_doc, dict) and isinstance(status_doc.get("fleet_alerts"), list):
+                open_fleet_rules = {
+                    str(a.get("rule"))
+                    for a in status_doc["fleet_alerts"]
+                    if isinstance(a, dict) and a.get("rule")
+                }
+        except (OSError, ValueError):
+            open_fleet_rules = None
     matches: list[dict[str, Any]] = []
     for line in lines:
         if not line.strip():
@@ -386,6 +399,12 @@ def read_spike_alerts(job_dir: Path) -> list[dict[str, Any]]:
         except ValueError:
             continue
         if isinstance(row, dict) and row.get("rule") in SPIKE_RULES:
+            if (
+                row.get("rule") == "proxy_error_spike"
+                and open_fleet_rules is not None
+                and "proxy_error_spike" not in open_fleet_rules
+            ):
+                continue
             matches.append(row)
     return matches
 

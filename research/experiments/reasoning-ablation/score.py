@@ -12,7 +12,9 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from run import KEYS, PRIMARY_HEAD, REPO, SYSTEM, VIEWS, jsonl, key_rows
+from run import ALL_KEYS, PRIMARY_HEAD, REPO, SYSTEM, VIEWS, jsonl, key_rows
+
+KEYS = ALL_KEYS
 
 HEADS = ("any_finding", "reward_hacking", "false_positive", "reward_not_real")
 BOOTSTRAP = 10_000
@@ -90,7 +92,7 @@ def score(out: Path) -> dict[str, Any]:
     excluded = exposed()
     rng = random.Random(BOOTSTRAP_SEED)
     result: dict[str, Any] = {"seal": seal, "keys": {}}
-    for key in KEYS:
+    for key in [k for k in KEYS if any(e["key"] == k for e in manifest)]:
         labels = {r["item_id"]: r for r in key_rows(key) if r.get("split") == "test"}
         dropped = [
             e["item_id"]
@@ -168,6 +170,18 @@ def score(out: Path) -> dict[str, Any]:
                 for view in VIEWS:
                     counter[view] += bool(rows[i][view]["heads"][head])
             entry["positive_strata_primary_head"] = {s: dict(c) for s, c in sorted(strata.items())}
+        if any("source_label" in labels[i] for i in both):
+            by_label: dict[str, dict[str, Any]] = {}
+            for i in both:
+                group = by_label.setdefault(
+                    labels[i]["source_label"],
+                    {"n": 0, **{v: dict.fromkeys(HEADS, 0) for v in VIEWS}},
+                )
+                group["n"] += 1
+                for view in VIEWS:
+                    for head in HEADS:
+                        group[view][head] += bool(rows[i][view]["heads"][head])
+            entry["by_source_label"] = dict(sorted(by_label.items()))
         result["keys"][key] = entry
     result["total_cost_usd"] = round(sum(e["cost_usd"] for e in result["keys"].values()), 6)
     return result

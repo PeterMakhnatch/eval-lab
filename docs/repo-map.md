@@ -65,7 +65,7 @@ inputs:
   - path: src/evallab/cheat_ladder.py
     digest: sha256:c357400e78279e8eaabab88968ad19aeceddf398b0a16a39fa8a01acc1634722
   - path: src/evallab/cheatbench.py
-    digest: sha256:85df2837bbec5ffe748faf08513d9bb2c4a388622b02a7e9d46aca75b7f51c22
+    digest: sha256:340deb13957bf4a8c5cefc8e4a6aa90684b267344363e71901470ebabff0904c
   - path: src/evallab/cheatbench_fidelity.py
     digest: sha256:bdcd29dbaa70698b0bca0e3b2239788ac72f5f93b8b59dc9bfbb0d1639422c4e
   - path: src/evallab/cli.py

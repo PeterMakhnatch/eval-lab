@@ -79,6 +79,13 @@ The default report is `research/qa-scoreboard/suite-YYYYMMDD.md` (UTC date); use
 independent destination. Existing reports are replaced, not appended, only
 after every input and split/exposure guard succeeds.
 
+The 2026-10-19 table is [`suite-20261019.md`](suite-20261019.md). Its inputs are
+assembled by [`suite-20261019/build.py`](suite-20261019/build.py), which prints the
+exact suite command: committed tripwire predictions become version-proved findings
+under `suite-20261019/findings/`, retained QA Trace runs are bound in place under
+the git-ignored `derived/qa-trace/` by SHA256 receipt, and published results that
+cannot be re-scored are quoted verbatim in the manifest's `not_rescored` list.
+
 For example, save the following manifest as
 `research/qa-scoreboard/retained-breaker-runs.json`. The relative paths below
 are relative to **that manifest**, not the command's working directory:

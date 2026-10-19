@@ -43,6 +43,13 @@ Writers so far:
   shared findings plus per-rule step references without fitting rules, invoking
   models, or calling the stop actuator. The retained run is
   [`live_watch_paired_dev/2026-10-19/`](live_watch_paired_dev/2026-10-19/).
+- `research/experiments/transfer-matrix-20261019/run.py --scoreboard` writes the
+  `action-lr@<sha>/train=<key>` rows: an L2 logistic regression over
+  `evallab.action_features`, fitted on one key's dev split and scored on every
+  registered key's test split at a threshold frozen at 5% dev false alarms. Rows
+  cover the actions-only views; AUROC and recall at 2%/5% test false alarms with
+  cluster-bootstrap intervals are in the row notes and in that directory's
+  `report.md`. Zero model calls.
 
 ## Retrospective MiMo audit publication
 

@@ -139,3 +139,5 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trace-paired-v1 | 7 | 0 |
 | qa-trace-8-dev-only | tuned | QA Trace (qa-trace/8*), QA Trace (qa-trace/7-test-aware-antigravity*) | trajectory-judge-400 | 26 | 0 |
 | mimo-weak-tests-v2.1-ref-subset | selected | QA Task, QA Trace | mimo-weak-tests-v2.1 | 46 | 68 |
+| qa-trace-pk1-common-inherited-and-dev | tuned | QA Trace (qa-trace/6-pk1-luna*), QA Trace (qa-trace/7-pk1-luna*), QA Trace (qa-trace/8-pk1-luna*) | trace-paired-v1 | 1 | 2 |
+| qa-trace-pk1-common-inherited-and-dev | tuned | QA Trace (qa-trace/6-pk1-luna*), QA Trace (qa-trace/7-pk1-luna*), QA Trace (qa-trace/8-pk1-luna*) | trajectory-judge-400 | 13 | 15 |

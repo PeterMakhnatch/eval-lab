@@ -191,8 +191,10 @@ def build_llm_findings(
     *,
     allow_incomplete: bool,
     gate_mode: str,
+    agent_name: str | None = None,
+    model_short: str = MODEL_SHORT,
 ) -> tuple[list[Finding], dict[str, Any]]:
-    agent = LLM_AGENTS[arm]
+    agent = agent_name or LLM_AGENTS[arm]
     findings: list[Finding] = []
     counts = {
         "admitted": 0,
@@ -237,7 +239,7 @@ def build_llm_findings(
                         category=category,
                         summary="every attempt ended in infrastructure failure",
                         reviewer=Reviewer(
-                            agent=agent, model=MODEL_SHORT, tokens=None, cost_usd=0.0
+                            agent=agent, model=model_short, tokens=None, cost_usd=0.0
                         ),
                         measurement="ran_without_usable_result",
                     )
@@ -255,7 +257,7 @@ def build_llm_findings(
                     verdict="unknown",
                     category=category,
                     summary="attempts produced no verifier reward",
-                    reviewer=Reviewer(agent=agent, model=MODEL_SHORT, tokens=tokens, cost_usd=0.0),
+                    reviewer=Reviewer(agent=agent, model=model_short, tokens=tokens, cost_usd=0.0),
                     measurement="ran_without_usable_result",
                 )
             )
@@ -292,7 +294,7 @@ def build_llm_findings(
             findings.append(
                 _fail_finding(
                     agent=agent,
-                    model=MODEL_SHORT,
+                    model=model_short,
                     cell=cell,
                     version=cell.llm_version,
                     category=category,
@@ -312,7 +314,7 @@ def build_llm_findings(
             findings.append(
                 _pass_finding(
                     agent=agent,
-                    model=MODEL_SHORT,
+                    model=model_short,
                     cell=cell,
                     version=cell.llm_version,
                     category=category,
@@ -340,7 +342,7 @@ def build_llm_findings(
             findings.append(
                 _fail_finding(
                     agent=agent,
-                    model=MODEL_SHORT,
+                    model=model_short,
                     cell=cell,
                     version=fixed_version,
                     category=fixed_category,
@@ -365,7 +367,7 @@ def build_llm_findings(
             findings.append(
                 _pass_finding(
                     agent=agent,
-                    model=MODEL_SHORT,
+                    model=model_short,
                     cell=cell,
                     version=fixed_version,
                     category=fixed_category,
@@ -509,8 +511,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     ap.add_argument("--scoreboard", type=Path, default=DEFAULT_SCOREBOARD)
     ap.add_argument("--findings-dir", type=Path, default=None, help="default: <runs-dir>/findings")
+    ap.add_argument(
+        "--arms",
+        default="blind,verifier-aware,floor",
+        help="comma-separated: blind, verifier-aware, floor",
+    )
+    ap.add_argument("--agent-prefix", default="codex")
+    ap.add_argument("--model-short", default=MODEL_SHORT)
+    ap.add_argument(
+        "--system-template",
+        default="openai/{model_short} (PinnedCodex, {arm})",
+    )
+    ap.add_argument("--note", default="", help="appended to every scoreboard note")
     args = ap.parse_args(argv)
-
     runs_dir = args.runs_dir.resolve()
     cohort = rh.load_cohort(args.cohort)
     cells = rh.cells_of(cohort)
@@ -534,8 +547,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         "scores": {},
     }
     base_note = cohort_note(cohort, gate)
+    if args.note:
+        base_note = f"{base_note}; {args.note}"
+    wanted = {arm.strip() for arm in args.arms.split(",") if arm.strip()}
     plan: list[tuple[str, str, list[Finding], dict[str, Any], str]] = []
     for arm in rh.ARMS:
+        if arm not in wanted:
+            continue
+        agent_name = (
+            LLM_AGENTS[arm]
+            if args.agent_prefix == "codex"
+            else f"{args.agent_prefix}-{arm}"
+        )
         findings, detail = build_llm_findings(
             arm,
             cells,
@@ -543,10 +566,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             items,
             allow_incomplete=args.allow_incomplete,
             gate_mode=args.controls_gate,
+            agent_name=agent_name,
+            model_short=args.model_short,
         )
         c = detail["counts"]
         note = (
-            f"{base_note}; {LLM_AGENTS[arm]}: 0.2.0/task side measured {c['child_measured']}/{c['admitted']} admitted "
+            f"{base_note}; {agent_name}: 0.2.0/task side measured {c['child_measured']}/{c['admitted']} admitted "
             f"(validated {c['validated']}, incomplete {c['incomplete']}, not run {c['not_run']}, "
             f"no usable result {c['unusable']}); 0.2.2 side measured {c['parent_measured']} via candidate replay "
             f"({c['parent_unmeasured']} unmeasured), false discoveries {c['false_discoveries']}; "
@@ -558,23 +583,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         plan.append(
-            (LLM_AGENTS[arm], f"openai/{MODEL_SHORT} (PinnedCodex, {arm})", findings, detail, note)
+            (
+                agent_name,
+                args.system_template.format(model_short=args.model_short, arm=arm),
+                findings,
+                detail,
+                note,
+            )
         )
-    floor_findings, floor_detail = build_floor_findings(
-        cells, state, items, gate_mode=args.controls_gate
-    )
-    fc = floor_detail["counts"]
-    plan.append(
-        (
-            FLOOR_AGENT,
-            f"cheat_ladder {rh.LADDER_VERSION} (model-free)",
-            floor_findings,
-            floor_detail,
-            f"{base_note}; {FLOOR_AGENT}: measured {fc['measured']}/{fc['admitted']} admitted cells, "
-            f"cracked {fc['cracked']}; run on 0.2.0 / the task only",
+    if "floor" in wanted:
+        floor_findings, floor_detail = build_floor_findings(
+            cells, state, items, gate_mode=args.controls_gate
         )
-    )
-
+        fc = floor_detail["counts"]
+        plan.append(
+            (
+                FLOOR_AGENT,
+                f"cheat_ladder {rh.LADDER_VERSION} (model-free)",
+                floor_findings,
+                floor_detail,
+                f"{base_note}; {FLOOR_AGENT}: measured {fc['measured']}/{fc['admitted']} admitted cells, "
+                f"cracked {fc['cracked']}; run on 0.2.0 / the task only",
+            )
+        )
     for agent, system, findings, detail, note in plan:
         fdir = findings_root / agent
         write_findings(findings, fdir)

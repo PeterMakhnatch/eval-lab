@@ -860,6 +860,25 @@ def _quota() -> dict[str, Any]:
         raise RuntimeError(f"Codex quota script missing: {dev.QUOTA_SCRIPT}")
     return dev.check_codex_quota()
 
+def _metered_spend_usd(attempts_path: Path) -> float:
+    """Fail-closed spend sum across recorded attempts in ``attempts_path``.
+
+    Settled trials (``passed``/``failed``) with a numeric ``tokens.cost_usd``
+    charge that actual amount; an executed trial whose cost was not reported
+    charges its ``cost_limit_usd`` ceiling; pre-dispatch failures charge 0.
+    """
+    total = 0.0
+    for row in read_jsonl(attempts_path):
+        tokens = row.get("tokens") or {}
+        cost = tokens.get("cost_usd") if isinstance(tokens, Mapping) else None
+        if row.get("status") in ("passed", "failed") and isinstance(cost, (int, float)) and not isinstance(cost, bool):
+            total += float(cost)
+        elif row.get("stage") in ("tick", "adopted"):
+            limit = row.get("cost_limit_usd")
+            if isinstance(limit, (int, float)) and not isinstance(limit, bool):
+                total += float(limit)
+    return total
+
 
 def _attempt_row(
     cell: Cell,
@@ -880,6 +899,9 @@ def _attempt_row(
     package: Path,
     parsed: Mapping[str, Any] | None,
     adopted: bool = False,
+    agent: str = DEFAULT_AGENT,
+    model: str = DEFAULT_MODEL,
+    cost_limit_usd: float | None = None,
 ) -> dict[str, Any]:
     digests = compute_task_digests(package)
     parsed = parsed or {}
@@ -890,6 +912,9 @@ def _attempt_row(
         "slug": cell.slug,
         "arm": arm,
         "attempt": attempt,
+        "agent": agent,
+        "model": model,
+        "cost_limit_usd": cost_limit_usd,
         "version": cell.llm_version,
         "subject_task_id": cell.subject_task_id(cell.llm_version),
         "item_id": cell.item_id(cell.llm_version),
@@ -917,7 +942,6 @@ def _attempt_row(
         "error": error,
         "recorded_at": _utcnow(),
     }
-
 
 def _adopt_orphan_job(
     cell: Cell,
@@ -980,12 +1004,22 @@ def run_attempt(
     runs_dir: Path,
     actor: str,
     timeout_override: int | None,
+    prompt_for: Any = None,
+    spec_patch: Any = None,
+    agent: str = DEFAULT_AGENT,
+    model: str = DEFAULT_MODEL,
+    cost_limit_usd: float | None = None,
+    max_spend_usd: float | None = None,
 ) -> tuple[dict[str, Any] | None, int]:
     """Run one trial. Returns (recorded row or None, rc); rc != 0 stops the whole phase."""
     attempts_path = runs_dir / ATTEMPTS_JSONL
     staged = stage_cell(cell, runs_dir)
     package = (staged.base if arm == "blind" else staged.aware)[cell.llm_version]
-    base_name = f"bbh-{cell.short}-{ARM_TAG[arm]}-a{attempt}"
+    if agent == DEFAULT_AGENT:
+        base_name = f"bbh-{cell.short}-{ARM_TAG[arm]}-a{attempt}"
+    else:
+        agent_tag = re.sub(r"[^a-z0-9]+", "-", agent.lower()).strip("-")[:8] or "llm"
+        base_name = f"bbh-{agent_tag}-{cell.short}-{ARM_TAG[arm]}-a{attempt}"
 
     adopted = _adopt_orphan_job(
         cell, arm, attempt, base_name, attempts_path=attempts_path, package=package
@@ -993,11 +1027,22 @@ def run_attempt(
     if adopted is not None:
         return adopted, 0
 
-    try:
-        quota = _quota()
-    except RuntimeError as exc:
-        print(f"[codex] stopping: {exc}", file=sys.stderr)
-        return None, 1
+    quota: Mapping[str, Any] | None = None
+    if agent == "codex":
+        try:
+            quota = _quota()
+        except RuntimeError as exc:
+            print(f"[codex] stopping: {exc}", file=sys.stderr)
+            return None, 1
+    elif max_spend_usd is not None:
+        spent = _metered_spend_usd(attempts_path)
+        next_cost = float(cost_limit_usd or 0.0)
+        if spent + next_cost > max_spend_usd + 1e-9:
+            print(
+                f"[metered] stopping: spend {spent:.4f} + {next_cost:.4f} > max_spend_usd {max_spend_usd:.4f}",
+                file=sys.stderr,
+            )
+            return None, 1
 
     prior_infra = [
         r
@@ -1009,7 +1054,10 @@ def run_attempt(
         retry += 1
     job_name = base_name + (f"-r{retry}" if retry else "")
 
-    prompt_text = build_prompt(arm, attempt, prior_rows)
+    if prompt_for is not None:
+        prompt_text = prompt_for(cell, arm, attempt, prior_rows)
+    else:
+        prompt_text = build_prompt(arm, attempt, prior_rows)
     prompt_bytes = prompt_text.encode("utf-8")
     prompt_sha = "sha256:" + hashlib.sha256(prompt_bytes).hexdigest()
     prompt_file = runs_dir / "prompts" / f"{job_name}.md"
@@ -1045,29 +1093,35 @@ def run_attempt(
             spec_rel=spec_rel,
             package=package,
             parsed=parsed,
+            agent=agent,
+            model=model,
+            cost_limit_usd=cost_limit_usd,
         )
         append_row(attempts_path, row)
         return row
 
+    prep_cmd = [
+        evallab,
+        "tasks",
+        "prepare",
+        str(package),
+        "--name",
+        job_name,
+        "--agent",
+        agent,
+        "--model",
+        model,
+        "--timeout-seconds",
+        str(timeout_override or cell.timeout_seconds),
+        "--submitted-by",
+        DEFAULT_SUBMITTED_BY,
+        "--output",
+        spec_rel,
+    ]
+    if cost_limit_usd is not None:
+        prep_cmd.extend(["--cost-limit-usd", str(cost_limit_usd)])
     prep = subprocess.run(
-        [
-            evallab,
-            "tasks",
-            "prepare",
-            str(package),
-            "--name",
-            job_name,
-            "--agent",
-            DEFAULT_AGENT,
-            "--model",
-            DEFAULT_MODEL,
-            "--timeout-seconds",
-            str(timeout_override or cell.timeout_seconds),
-            "--submitted-by",
-            DEFAULT_SUBMITTED_BY,
-            "--output",
-            spec_rel,
-        ],
+        prep_cmd,
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -1083,6 +1137,8 @@ def run_attempt(
     spec["extra_instruction_path"] = prompt_rel
     spec["extra_instruction_sha256"] = prompt_sha
     spec["attempts"] = 1
+    if spec_patch is not None:
+        spec_patch(spec, prompt_rel)
     spec_file.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     sub = subprocess.run(
@@ -1125,7 +1181,7 @@ def run_attempt(
             "--max-active-trials",
             "1",
             "--agent-capacity",
-            "codex=1",
+            f"{agent}=1",
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -1192,15 +1248,25 @@ def extract_replay_script(trial_dir: Path | None, name: str = "breaker-replay.sh
         re.DOTALL,
     )
     found: str | None = None
+    keystroke_chunks: list[str] = []
     for step in steps:
         for call in step.get("tool_calls") or []:
-            source = str((call.get("arguments") or {}).get("input") or "")
+            args_map = call.get("arguments") or {}
+            source = str(args_map.get("input") or "")
             for literal in _JS_CMD.finditer(source):
                 command = _decode_js_string(literal.group(1))
                 if command is None:
                     continue
                 for match in heredoc.finditer(command):
                     found = match.group(2)
+            keystrokes = args_map.get("keystrokes")
+            if isinstance(keystrokes, str) and keystrokes:
+                keystroke_chunks.append(keystrokes)
+                for match in heredoc.finditer(keystrokes):
+                    found = match.group(2)
+    if found is None and keystroke_chunks:
+        for match in heredoc.finditer("\n".join(keystroke_chunks)):
+            found = match.group(2)
     if found is None:
         return None
     # The script's own `chmod +x .../breaker-replay.sh` has nothing to act on in a fresh container.
@@ -1362,6 +1428,10 @@ def codex_round(
     actor: str,
     timeout_override: int | None,
     gate_mode: str,
+    agent: str = DEFAULT_AGENT,
+    model: str = DEFAULT_MODEL,
+    cost_limit_usd: float | None = None,
+    max_spend_usd: float | None = None,
 ) -> int:
     attempts_path = runs_dir / ATTEMPTS_JSONL
     for cell in admitted_cells(cells, runs_dir, mode=gate_mode):
@@ -1399,6 +1469,10 @@ def codex_round(
                 runs_dir=runs_dir,
                 actor=actor,
                 timeout_override=timeout_override,
+                agent=agent,
+                model=model,
+                cost_limit_usd=cost_limit_usd,
+                max_spend_usd=max_spend_usd,
             )
             if row is not None:
                 print(
@@ -1497,6 +1571,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--timeout-override", type=int, default=None)
     ap.add_argument("--actor", default=DEFAULT_ACTOR)
+    ap.add_argument("--agent", default=DEFAULT_AGENT)
+    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--cost-limit-usd", type=float, default=None)
+    ap.add_argument("--max-spend-usd", type=float, default=None)
     args = ap.parse_args(argv)
 
     os.environ.setdefault("EVALLAB_DERIVED_ROOT", str(REPO_ROOT / "derived" / "parquet"))
@@ -1532,6 +1610,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             actor=args.actor,
             timeout_override=args.timeout_override,
             gate_mode=args.controls_gate,
+            agent=args.agent,
+            model=args.model,
+            cost_limit_usd=args.cost_limit_usd,
+            max_spend_usd=args.max_spend_usd,
         )
         rc |= round_rc
         if round_rc:

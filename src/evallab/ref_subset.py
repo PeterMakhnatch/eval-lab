@@ -23,12 +23,13 @@ defensive branch the instruction never asks for, so read ``dropped.patch``.
 Blocks are the smallest unit: a single block that the tests only half need is
 ``hack mutate``'s job.
 
-Grading defaults to local Docker; Modal is explicit and spend-gated. Each grade
-starts fresh from a snapshot taken after task setup, so build output never
-carries between grades and setup runs once per task. Raw MiMo code packages
-grade their working tree in place. Separate-verifier Harbor packages derive
-the reference from their oracle and upload only artifacts into fresh verifiers.
-``--plan`` inspects local package bytes without constructing either backend.
+Grading defaults to local Docker; Modal is explicit and spend-gated. Raw MiMo
+and separate-verifier grades start from prepared snapshots. Ordinary shared
+Harbor tasks instead use native, host-isolated one-worker matrices with their
+unchanged manifest and explicit ``--target`` files (or declared artifacts).
+Every candidate applies only the complete selected-file mapping to fresh base,
+without replaying the reference. An independently passing full-target
+reconstruction is required. ``--plan`` constructs no backend.
 
 QA Agent - Trace, T0: ``trace`` compares a passing trial's
 ``verifier/agent.diff`` with the task report. A pass whose diff leaves every
@@ -47,6 +48,7 @@ import io
 import json
 import math
 import re
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -56,6 +58,7 @@ import time
 import tomllib
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -194,6 +197,11 @@ def file_change(path: str, base: bytes | None, fixed: bytes | None, tests: set[s
     change = FileChange(path=path, base=base, fixed=fixed)
     base_lines = _lines(base) if base is not None else []
     fixed_lines = _lines(fixed) if fixed is not None else []
+    if (base is None) != (fixed is None) and base_lines == [] and fixed_lines == []:
+        # Creating/deleting an empty file is still a real filesystem change.
+        kind = "test" if path in tests else "noncode" if _noncode_path(path) else "code"
+        change.blocks.append(Block(f"{path}#0", path, kind, 0, 0, 1, 1))
+        return change
     if base_lines is None or fixed_lines is None:
         kind: BlockKind = "test" if path in tests else "noncode" if _noncode_path(path) else "code"
         size = 1
@@ -308,13 +316,19 @@ def apply_reference(patch: str, base: dict[str, bytes | None]) -> dict[str, byte
         }
 
 
-def unified_patch(before: dict[str, bytes | None], after: dict[str, bytes | None]) -> str:
-    """A ``git apply``-able patch from ``before`` to ``after`` (git's own diff)."""
+def unified_patch(
+    before: dict[str, bytes | None],
+    after: dict[str, bytes | None],
+    *,
+    before_modes: dict[str, int | None] | None = None,
+    after_modes: dict[str, int | None] | None = None,
+) -> str:
+    """A base-applicable Git patch; optional modes preserve Git's executable bit."""
     with tempfile.TemporaryDirectory(prefix="ref-subset-diff-") as tmp:
         root = Path(tmp)
         git = ["git", "-c", "user.name=ref-subset", "-c", "user.email=ref-subset@localhost"]
         subprocess.run([*git, "init", "-q"], cwd=root, check=True)
-        for state in (before, after):
+        for state, modes in ((before, before_modes), (after, after_modes)):
             for path, data in state.items():
                 target = root / path
                 if data is None:
@@ -322,6 +336,9 @@ def unified_patch(before: dict[str, bytes | None], after: dict[str, bytes | None
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(data)
+                    mode = modes.get(path) if modes is not None else None
+                    if mode is not None:
+                        target.chmod(0o755 if mode & 0o100 else 0o644)
             subprocess.run([*git, "add", "-A"], cwd=root, check=True)
             if state is before:
                 subprocess.run(
@@ -479,6 +496,7 @@ class Grade:
     seconds: float
     status: Literal["scored", "unscored", "timeout", "error"]
     tail: str = ""
+    native: dict[str, Any] | None = None
 
     @property
     def passed(self) -> bool:
@@ -1050,7 +1068,11 @@ def mutants_finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
         "severity": summary["severity"],
         "fault": "eval" if summary["verdict"] == "fail" else None,
         "summary": text,
-        "evidence_refs": [str(out_dir / "report.json"), *(str(out_dir / "mutants" / f"{s['id']}.patch") for s in survivors)],
+        "evidence_refs": [
+            str(out_dir / "report.json"),
+            *(str(out_dir / "mutants" / f"{s['id']}.patch") for s in survivors),
+            *(s["witness"] for s in survivors if s.get("witness")),
+        ],
         "reproducer": (
             {"kind": "patch", "path": str(out_dir / "mutants" / f"{first}.patch"), "expected_reward": 1}
             if first
@@ -1138,7 +1160,7 @@ def finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
     evidence = [str(out_dir / "report.json")]
     evidence += [
         str(out_dir / name)
-        for name in ("minimal.patch", "dropped.patch")
+        for name in ("minimal.patch", "dropped.patch", "minimal.sh", "reference.patch", "reference.sh")
         if (out_dir / name).is_file()
     ]
     return {
@@ -1174,6 +1196,524 @@ def finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
 # One task
 
 
+def _shared_config(path: Path) -> dict[str, Any] | None:
+    """Select native shared tasks without widening the two legacy Package variants."""
+    from evallab.verifier_mutation import _task_config
+
+    config = _task_config(path)
+    verifier = config.get("verifier") or {}
+    environment = config.get("environment") or {}
+    if (
+        environment.get("docker_image")
+        and (path / "environment/setup/setup.sh").is_file()
+        and (path / "tests/test.sh").is_file()
+    ):
+        return None
+    mode = verifier.get("environment_mode")
+    if mode is None:
+        mode = "separate" if verifier.get("environment") is not None else "shared"
+    return config if mode == "shared" else None
+
+
+def _shared_targets(path: Path, config: dict[str, Any], targets: Sequence[str]) -> list[str]:
+    from evallab.campaign_execution import docker_task_resources
+    from evallab.verifier_mutation import declared_targets
+
+    if config.get("steps"):
+        raise UnsupportedTask("native solution overrides do not support declared task steps")
+    if not (path / "solution/solve.sh").is_file() or not (path / "tests/test.sh").is_file():
+        raise UnsupportedTask("native shared tasks need solution/solve.sh and tests/test.sh")
+    if any((path / "environment" / name).exists() for name in (
+        "docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml",
+    )):
+        raise UnsupportedTask("native ref-subset supports one sandbox, not task Compose services")
+    if (config.get("environment") or {}).get("gpus"):
+        raise UnsupportedTask("native ref-subset cannot admit a local GPU task")
+    docker_task_resources(path)  # Local manifest validation only; never lower its limits.
+    timeout = (config.get("agent") or {}).get("timeout_sec")
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, int | float)
+        or not math.isfinite(timeout)
+        or not 1 <= timeout <= 28_800
+        or int(timeout) != timeout
+    ):
+        raise UnsupportedTask("native ref-subset needs a declared integral agent timeout of 1–28800 seconds")
+    chosen = list(dict.fromkeys(targets or declared_targets(config)))
+    if not chosen:
+        raise UnsupportedTask("the task declares no artifacts; pass repeated --target absolute FILE paths")
+    for target in chosen:
+        pure = PurePosixPath(target)
+        if (
+            not pure.is_absolute()
+            or str(pure) != target
+            or ".." in pure.parts
+            or target == "/"
+            or any(ord(char) < 32 or ord(char) == 127 for char in target)
+        ):
+            raise UnsupportedTask(f"native targets must be normalized absolute file paths: {target!r}")
+        if pure.parts[1] in {"logs", "tests", "solution", "proc", "sys", "dev"}:
+            raise UnsupportedTask(f"native target overlaps harness/runtime files: {target}")
+    return chosen
+
+
+def _native_path_checks(target: str) -> str:
+    """Refuse symlinks (including ancestors), directories and special files."""
+    pure = PurePosixPath(target)
+    lines = []
+    for parent in [*reversed(pure.parents), pure]:
+        quoted = shlex.quote(str(parent))
+        lines.append(f"if [ -L {quoted} ]; then echo 'ref-subset: symlink target' >&2; exit 97; fi\n")
+    quoted = shlex.quote(target)
+    lines.append(
+        f"if [ -e {quoted} ] && [ ! -f {quoted} ]; then "
+        "echo 'ref-subset: target is not a regular file' >&2; exit 97; fi\n"
+    )
+    return "".join(lines)
+
+
+def _native_capture_script(solve: str | None, targets: Sequence[str]) -> str:
+    from evallab.verifier_mutation import CAPTURE_ROOT, capture_script
+
+    states = f"{CAPTURE_ROOT}/.ref-subset-states"
+    lines = [capture_script(solve, ()), "set -e\n", f"mkdir -p {shlex.quote(states)}\n"]
+    for index, target in enumerate(targets):
+        lines.append(_native_path_checks(target))
+        lines.append(
+            f"if [ -f {shlex.quote(target)} ]; then printf 'present\\n'; "
+            f"else printf 'absent\\n'; fi > {shlex.quote(f'{states}/{index}')}\n"
+        )
+        lines.append(
+            f"if [ -f {shlex.quote(target)} ]; then "
+            f"stat -c '%a' -- {shlex.quote(target)} > {shlex.quote(f'{states}/{index}.mode')}; fi\n"
+        )
+    lines += [
+        capture_script(None, targets),
+        f"printf 'complete\\n' > {shlex.quote(f'{states}/complete')}\n",
+    ]
+    return "".join(lines)
+
+
+def _native_captured_files(
+    repo: Path, run: Any, targets: Sequence[str]
+) -> tuple[dict[str, bytes | None], dict[str, int | None]]:
+    from evallab.verifier_mutation import _captured_files, _captured_root
+
+    root = _captured_root(repo, run)
+    complete = root / ".ref-subset-states/complete" if root is not None else None
+    if complete is None or not complete.is_file() or complete.read_bytes() != b"complete\n":
+        raise RuntimeError(f"{run.name}: native capture did not complete")
+    assert root is not None
+    files: dict[str, bytes | None] = {}
+    modes: dict[str, int | None] = {}
+    for index, target in enumerate(targets):
+        state = (root / ".ref-subset-states" / str(index)).read_bytes()
+        host = root / target.lstrip("/")
+        relative = host.relative_to(root)
+        if any(root.joinpath(*relative.parts[:end]).is_symlink() for end in range(1, len(relative.parts) + 1)):
+            raise UnsupportedTask(f"{target}: captured symlink is not a regular-file witness")
+        if state == b"absent\n" and not host.exists():
+            files[target.lstrip("/")] = None
+            modes[target.lstrip("/")] = None
+        elif state == b"present\n" and host.is_file():
+            files[target.lstrip("/")] = _captured_files(root, target)[target]
+            mode = (root / ".ref-subset-states" / f"{index}.mode").read_text().strip()
+            if not re.fullmatch(r"[0-7]{1,4}", mode) or int(mode, 8) & 0o7000:
+                raise UnsupportedTask(f"{target}: missing/unsupported native file permission bits")
+            modes[target.lstrip("/")] = int(mode, 8)
+        else:
+            raise RuntimeError(f"{run.name}: incomplete or non-file capture for {target}")
+    return files, modes
+
+
+def _native_overlay_script(
+    files: dict[str, bytes | None], modes: dict[str, int | None]
+) -> str:
+    """Only selected files on fresh base; exact bytes with no interpreter/decoder dependency."""
+    lines = ["#!/usr/bin/env bash\n# ref-subset: selected files on fresh base; no reference replay\nset -e\n"]
+    for path, data in sorted(files.items()):
+        lines.append(_native_path_checks(path))
+        quoted = shlex.quote(path)
+        if data is None:
+            lines.append(f"rm -f -- {quoted}\n")
+            continue
+        lines += [f"mkdir -p {shlex.quote(str(PurePosixPath(path).parent))}\n", f": > {quoted}\n"]
+        for start in range(0, len(data), 4096):
+            escaped = "".join(f"\\0{byte:03o}" for byte in data[start:start + 4096])
+            lines.append(f"printf '%b' '{escaped}' >> {quoted}\n")
+        mode = modes.get(path)
+        if mode is None:
+            raise UnsupportedTask(f"{path}: cannot reconstruct a file without captured permission bits")
+        lines.append(f"chmod {mode:o} {quoted}\n")
+    return "".join(lines)
+
+
+def _grade_entry(grade: Grade) -> dict[str, Any]:
+    result = {
+        "label": grade.label, "kept": len(grade.kept), "kept_blocks": grade.kept,
+        "reward": grade.reward, "rc": grade.rc, "status": grade.status,
+        "seconds": grade.seconds, "tail": grade.tail,
+    }
+    if grade.native is not None:
+        result["native"] = grade.native
+    return result
+
+
+def _probe_shared_task(
+    package_dir: Path,
+    out_dir: Path,
+    config: dict[str, Any],
+    targets: Sequence[str],
+    *,
+    repo_root: Path,
+    max_grades: int,
+    mutants: int,
+    mutation_seed: str | None,
+    requested_limits: dict[str, Any],
+    log: Callable[[str], None],
+) -> dict[str, Any]:
+    from evallab.campaign_execution import docker_available_resources, docker_task_resources
+    from evallab.docker_lock import docker_slot
+    from evallab.execution_contracts import new_ulid
+    from evallab.registry import compute_task_digests
+    from evallab.runner import run_matrix
+    from evallab.verifier_mutation import _Audit, _slug
+
+    task_id = str((config.get("task") or {}).get("name") or package_dir.name)
+    try:
+        selected = _shared_targets(package_dir, config, targets)
+        if max_grades < 4 or mutants < 0:
+            raise UnsupportedTask("native ref-subset needs max_grades >= 4 and mutants >= 0")
+        repo = repo_root.resolve()
+        output = out_dir.resolve()
+        if not output.is_relative_to(repo):
+            raise UnsupportedTask(f"native output directory must stay inside its repository ({repo})")
+    except (ValueError, OSError) as exc:
+        return _write_skipped(task_id, package_dir, out_dir, "not_applicable", str(exc))
+    output.mkdir(parents=True, exist_ok=True)
+    native_dir = output / "native"
+    native_dir.mkdir(exist_ok=True)
+    timeout = int(config["agent"]["timeout_sec"])
+    digests = compute_task_digests(package_dir)
+    solve_bytes = (package_dir / "solution/solve.sh").read_bytes()
+    try:
+        solve = solve_bytes.decode("utf-8")  # Preserve CRLF and the intact reference/helper body.
+    except UnicodeDecodeError as exc:
+        return _write_skipped(
+            task_id, package_dir, out_dir, "not_applicable",
+            f"native capture requires an intact UTF-8 reference script; unsupported encoding: {exc}",
+        )
+    head: dict[str, Any] = {
+        "schema": SCHEMA_REPORT, "backend": "docker", "package_type": "native-shared",
+        "package": str(package_dir), "package_digest": digests.package,
+        "verifier_digest": digests.verifier, "task_id": task_id, "started_at": _now(),
+        "code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "reference": {
+            "oracle": "solution/solve.sh", "oracle_sha256": hashlib.sha256(solve_bytes).hexdigest(),
+            "patch": str(output / "reference.patch"), "patch_root": "/",
+        },
+        "limits": {
+            "max_grades": max_grades, "mutants": mutants, "matrix_workers": 1,
+            "shared_docker_slots": 2, "matrix_timeout_seconds": timeout,
+            "requested_legacy_limits": requested_limits,
+            "declared_agent_timeout_sec": config["agent"]["timeout_sec"],
+            "effective_agent_timeout_sec": timeout, "agent_timeout_multiplier": 1.0,
+            "mutation_seed": task_id if mutation_seed is None else mutation_seed,
+            "additional_original_capture_grades": 1,
+            "subset_limit_includes": ["full", "nop"],
+            "environment": config.get("environment") or {},
+            "verifier": config.get("verifier") or {},
+            "resource_admission": "live native Docker capacity, including controller/competitor reserve",
+            "overrides": "legacy memory/oracle_timeout/grade_timeout do not override native task limits",
+        },
+        "native_limits": [
+            "Selected regular-file bytes and permission bits are captured; absence is distinct from empty.",
+            "Every candidate applies ONLY the complete selected-file mapping to fresh base, with no "
+            "reference replay. Original oracle=1, actual nop=0 and independent full-target reconstruction=1 "
+            "are required. Unselected files, non-file side effects, ownership and compiled outputs are "
+            "not reconstructed; failed reconstruction is unsupported/unmeasured, never a replay fallback.",
+            "A surviving source edit may be dead or not consumed by the verifier. Instruction/consumer "
+            "adjudication is required; these are hypotheses, not accepted weak-test positives.",
+            "Targets must be explicit files (or declared file artifacts); directories, symlinks, "
+            "special files, task steps, Compose services and GPUs are unsupported.",
+        ],
+        "targets": selected,
+    }
+    bindings: dict[str, dict[str, Any]] = {}
+    runs: list[Any] = []
+    grades: list[Grade] = []
+    base_modes: dict[str, int | None] = {}
+    fixed_modes: dict[str, int | None] = {}
+    base: dict[str, bytes | None] = {}
+    fixed: dict[str, bytes | None] = {}
+    changes: list[FileChange] = []
+    report: dict[str, Any] = dict(head)
+
+    def runner(matrix: Any, root: Path) -> list[dict[str, Any]]:
+        matrix_path = native_dir / "matrices" / f"{matrix.name}.json"
+        common = {"matrix_id": matrix.matrix_id, "matrix": str(matrix_path.relative_to(repo))}
+        for entry in matrix.runs:
+            bindings[entry.name] = dict(common)
+        # One shared FIFO owner per sequential matrix; Executor does not acquire a nested slot.
+        with docker_slot(label=matrix.name, slots=2, timeout=timeout):
+            required_cpu, required_mb = docker_task_resources(package_dir)
+            try:
+                available_cpu, available_mb = docker_available_resources()
+                resource_mode = "bounded_containers_subtracted"
+            except ValueError as exc:
+                if "unbounded CPU or memory" not in str(exc):
+                    raise
+                # Pre-existing host services (e.g. local Postgres) are unbounded
+                # but are not competing benchmark sandboxes; fail-closed
+                # subtraction would make every native run impossible on this
+                # host. Fall back to daemon capacity minus the same 2 CPU /
+                # 2 GiB controller reserve, and disclose the mode in evidence.
+                info = json.loads(subprocess.run(
+                    ["docker", "info", "--format", "{{json .}}"],
+                    capture_output=True, text=True, check=True, timeout=10,
+                ).stdout)
+                available_cpu = float(info["NCPU"] - 2)
+                available_mb = info["MemTotal"] // (1024 * 1024) - 2048
+                resource_mode = "capacity_minus_reserve_unbounded_services_present"
+            resources = {
+                "required_cpus": required_cpu, "required_memory_mb": required_mb,
+                "available_cpus": available_cpu, "available_memory_mb": available_mb,
+                "mode": resource_mode,
+            }
+            for binding in (bindings[entry.name] for entry in matrix.runs):
+                binding["resources"] = resources
+            if required_cpu > available_cpu or required_mb > available_mb:
+                raise RuntimeError(f"native task resource-ineligible; no limits lowered: {resources}")
+            if compute_task_digests(package_dir).package != digests.package:
+                raise RuntimeError("native source package changed since the reference was bound")
+            execution = run_matrix(matrix, root=root)
+        results = []
+        for row in execution.results:
+            if any(isinstance(value, float) and not math.isfinite(value) for value in row.get("rewards") or []):
+                row = row | {
+                    "status": "infra", "rewards": [],
+                    "error": "native returned non-finite reward; raw outcome is retained in its receipt",
+                }
+            results.append(row)
+        by_name = {row["name"]: row for row in results}
+        for entry in matrix.runs:
+            bindings[entry.name].update(
+                receipt=str(execution.receipt_path.relative_to(repo)),
+                invocations=str(execution.invocation_path.relative_to(repo)),
+                result=by_name.get(entry.name),
+            )
+        return results
+
+    audit = _Audit(
+        package=package_dir.resolve(), repo_root=repo, run_dir=native_dir,
+        slug=_slug(task_id.rsplit("/", 1)[-1], limit=28), nonce=new_ulid().lower()[-6:],
+        solve=solve, digests=digests, timeout_seconds=timeout, workers=1, runner=runner,
+    )
+
+    def execute(label: str, script: str, role: Any, kept: Sequence[str] = ()) -> Grade:
+        started = time.monotonic()
+        stage_label = f"{len(runs):04d}-{_slug(label, limit=40)}"
+        run = audit.stage(role, stage_label, script)
+        (repo / run.script).chmod(0o755)
+        runs.append(run)
+        failure = ""
+        try:
+            audit.execute([run], stage_label)
+        except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:
+            run.status, run.error = "infra", str(exc)
+            failure = str(exc)
+        binding = run.model_dump(mode="json") | bindings.get(run.name, {})
+        binding["package_digest"] = digests.package
+        binding["trials"] = []
+        rc = None
+        if run.job_dir is not None:
+            for trial in sorted((repo / run.job_dir).iterdir()):
+                if trial.is_dir() and (trial / "result.json").is_file():
+                    binding["trials"].append(str(trial.relative_to(repo)))
+                    exit_path = trial / "agent/exit-code.txt"
+                    if exit_path.is_file():
+                        with suppress(ValueError):
+                            rc = int(exit_path.read_text())
+        scored = run.status in {"ok", "mismatch"} and run.reward is not None and math.isfinite(run.reward)
+        grade = Grade(
+            label, list(kept), run.reward if scored else None, rc, time.monotonic() - started,
+            "scored" if scored else "error", failure or run.error or "", binding,
+        )
+        grades.append(grade)
+        log(f"  {task_id} {label}: reward={grade.reward} {grade.status} {grade.seconds:.0f}s")
+        if not scored:
+            raise RuntimeError(f"{label}: native outcome unavailable; {grade.tail or run.status}")
+        return grade
+
+    def candidate_modes(files: dict[str, bytes | None]) -> dict[str, int | None]:
+        return {
+            path: None if data is None else fixed_modes[path] if fixed[path] is not None else base_modes[path]
+            for path, data in files.items()
+        }
+
+    def grade_files(label: str, files: dict[str, bytes | None], kept: Sequence[str] = ()) -> Grade:
+        if label in controls:
+            expected = fixed if label == "full" else base
+            if any(expected.get(path) != data for path, data in files.items()):
+                raise RuntimeError(f"{label}: baseline does not match its actual native capture")
+            controls[label].kept = list(kept)
+            return controls[label]
+        complete = fixed | files
+        modes = candidate_modes(complete)
+        script = _native_overlay_script(
+            {"/" + path: data for path, data in complete.items()},
+            {"/" + path: mode for path, mode in modes.items()},
+        )
+        witness = None
+        patch = None
+        if label.startswith("mutant:"):
+            ident = label.split(":", 1)[1]
+            directory = output / "mutants"
+            directory.mkdir(exist_ok=True)
+            patch, witness = directory / f"{ident}.patch", directory / f"{ident}.sh"
+        elif label == "confirm":
+            patch, witness = output / "minimal.patch", output / "minimal.sh"
+        if patch is not None and witness is not None:
+            patch.write_text(unified_patch(base, complete, before_modes=base_modes, after_modes=modes))
+            witness.write_text(script)
+            witness.chmod(0o755)
+        try:
+            return execute(label, script, "mutant" if label.startswith("mutant:") else "equivalent", kept)
+        finally:
+            if witness is not None and grades and grades[-1].label == label:
+                assert grades[-1].native is not None
+                grades[-1].native.update(patch=str(patch), witness=str(witness), patch_root="/")
+
+    controls: dict[str, Grade] = {}
+    try:
+        for label, reference, role in (
+            ("oracle", solve, "capture-oracle"), ("nop", None, "capture-base"),
+        ):
+            controls[label] = execute(label, _native_capture_script(reference, selected), role)
+        for label, destination, mode_destination in (
+            ("oracle", fixed, fixed_modes), ("nop", base, base_modes),
+        ):
+            run = runs[0 if label == "oracle" else 1]
+            captured, modes = _native_captured_files(repo, run, selected)
+            destination.update(captured)
+            mode_destination.update(modes)
+        for path in base:
+            if base[path] is not None and fixed[path] is not None and base_modes[path] != fixed_modes[path]:
+                raise UnsupportedTask(f"{path}: existing-file mode changes are not represented by byte change blocks")
+        head["captures"] = {
+            label: {
+                path: None if data is None else {
+                    "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "mode": modes[path],
+                }
+                for path, data in files.items()
+            }
+            for label, files, modes in (("base", base, base_modes), ("oracle", fixed, fixed_modes))
+        }
+        reference_patch = unified_patch(base, fixed, before_modes=base_modes, after_modes=fixed_modes)
+        (output / "reference.patch").write_text(reference_patch)
+        full_script = _native_overlay_script(
+            {"/" + path: data for path, data in fixed.items()},
+            {"/" + path: mode for path, mode in fixed_modes.items()},
+        )
+        (output / "reference.sh").write_text(full_script)
+        (output / "reference.sh").chmod(0o755)
+        head["reference"]["sha256"] = hashlib.sha256(reference_patch.encode()).hexdigest()
+        head["reference"]["witness"] = str(output / "reference.sh")
+        head["reference"]["oracle_capture_script"] = runs[0].script
+        changes = [
+            file_change(path, base[path], fixed[path], set())
+            for path in base if base[path] != fixed[path]
+        ]
+
+        def grade(label: str, keep: set[str]) -> Grade:
+            return grade_files(
+                label, {change.path: compose(change, keep) for change in changes}, sorted(keep)
+            )
+
+        search_grades: list[Grade] = []
+        if controls["oracle"].reward != 1.0 or controls["nop"].reward != 0.0:
+            status, keep, reason = (
+                "baseline_mismatch", {b.id for c in changes for b in c.blocks},
+                f"native controls oracle={controls['oracle'].reward}, nop={controls['nop'].reward}; expected 1 and 0",
+            )
+        else:
+            controls["full"] = execute("full", full_script, "equivalent")
+            if not controls["full"].passed:
+                raise UnsupportedTask(
+                    "selected targets cannot reconstruct the passing reference on fresh base: "
+                    f"full-target reward={controls['full'].reward}; unsupported/unmeasured, no reference-replay fallback"
+                )
+            status, keep, reason = Probe(changes, grade, max_grades=max_grades, grades=search_grades).run()
+        report = head | summarize(task_id, changes, status, keep, reason, grades)
+        report["coverage"] = {
+            "subset": "unknown" if status == "budget_exhausted" else status,
+            "mutations": "not_requested" if not mutants else "unknown",
+        }
+        if status == "budget_exhausted":
+            report.update(verdict="unknown", severity=None)
+        if (output / "minimal.patch").is_file():
+            kept_files = {change.path: compose(change, keep) for change in changes}
+            kept_complete = base | kept_files
+            (output / "dropped.patch").write_text(unified_patch(
+                kept_complete, fixed, before_modes=candidate_modes(kept_complete), after_modes=fixed_modes,
+            ))
+        if mutants and status not in {"baseline_mismatch", "flaky"}:
+            summary, _ = mutation_pass(
+                changes, grade_files, search_grades, limit=mutants,
+                seed=task_id if mutation_seed is None else mutation_seed,
+            )
+            summary["untried"] = summary.get("generated", 0) - summary.get("tried", 0)
+            summary["coverage"] = "unknown" if summary["untried"] or summary.get("unscored") else summary["status"]
+            if summary["untried"]:
+                summary.update(status="budget_exhausted", reason="mutation limit left generated candidates untried")
+                if summary["verdict"] == "pass":
+                    summary.update(verdict="unknown", severity=None)
+            for survivor in summary.get("survivors") or []:
+                survivor.update(
+                    patch=str(output / "mutants" / f"{survivor['id']}.patch"),
+                    witness=str(output / "mutants" / f"{survivor['id']}.sh"), patch_root="/",
+                )
+            report["mutants"] = summary
+            report["coverage"]["mutations"] = summary["coverage"]
+    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError, ImportError) as exc:
+        report = head | report | {
+            "status": "not_applicable" if isinstance(exc, UnsupportedTask) else "unavailable",
+            "reason": str(exc), "verdict": "unknown", "severity": None,
+            "coverage": {"subset": "unknown", "mutations": "unknown"},
+        }
+        if mutants:
+            report["mutants"] = {
+                "stage": STAGE_MUTANTS, "limit": mutants, "status": report["status"],
+                "reason": str(exc), "verdict": "unknown", "severity": None, "coverage": "unknown",
+                "tried": sum(g.label.startswith("mutant:") for g in grades),
+                "generated": None, "untried": None,
+            }
+    if "mutants" in report:
+        report["mutants"]["runs"] = [
+            _grade_entry(g) | {"id": g.label.split(":", 1)[1],
+                              "outcome": "unknown" if g.status != "scored" else "survived" if g.passed else "killed"}
+            for g in grades if g.label.startswith("mutant:")
+        ]
+    report.update(
+        finished_at=_now(), grades=[_grade_entry(grade) for grade in grades],
+        execution={"transport": "runner.run_matrix/Executor/HostIsolatedDockerEnvironment",
+                   "runs": [grade.native for grade in grades]},
+    )
+    (output / "grades.log").write_text(
+        "".join(
+            f"== {g.label} reward={g.reward} rc={g.rc} {g.status} {g.seconds:.1f}s\n"
+            f"{json.dumps(_grade_entry(g), sort_keys=True)}\n" for g in grades
+        )
+    )
+    (output / "report.json").write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")
+    (output / "finding.json").write_text(json.dumps(finding(report, output), indent=1, sort_keys=True) + "\n")
+    if "mutants" in report:
+        (output / "finding-mutants.json").write_text(
+            json.dumps(mutants_finding(report, output), indent=1, sort_keys=True) + "\n"
+        )
+    return report
+
+
 def probe_task(
     package_dir: Path,
     patch_path: Path | None,
@@ -1186,6 +1726,9 @@ def probe_task(
     mutants: int = 0,
     environment: str = "docker",
     spend_gate: CloudSpendGate | None = None,
+    targets: Sequence[str] = (),
+    repo_root: Path | None = None,
+    mutation_seed: str | None = None,
     log: Callable[[str], None] = print,
 ) -> dict[str, Any]:
     """Probe one task and write report.json, finding.json and the patches to ``out_dir``.
@@ -1194,10 +1737,32 @@ def probe_task(
     its own oracle and records it as ``reference.patch`` (over the artifacts, relative to ``/``).
     ``mutants`` > 0 adds the line-level pass (:func:`mutation_pass`): ``report["mutants"]``,
     ``finding-mutants.json`` and one reproducer per survivor in ``mutants/``.
+    Shared-verifier tasks use unchanged native matrices and selected ``targets`` (absolute files).
+    Native output must be inside ``repo_root`` (defaults to this checkout); the legacy memory
+    and timeout arguments do not override native manifest limits. ``mutation_seed`` overrides
+    the default task-id seed for deterministic line-mutant selection.
     """
     _check_environment(environment, spend_gate)
     if environment == "modal" and mutants < 0:
         raise ValueError("Modal mutant count must be nonnegative")
+    shared = _shared_config(package_dir)
+    if shared is not None:
+        if patch_path is not None or environment != "docker":
+            return _write_skipped(
+                package_dir.name, package_dir, out_dir, "not_applicable",
+                "native shared tasks require Docker and derive their reference from the intact oracle (no --patch)",
+                environment=environment, spend_gate=spend_gate,
+            )
+        return _probe_shared_task(
+            package_dir, out_dir, shared, targets,
+            repo_root=repo_root or Path(__file__).resolve().parents[2],
+            max_grades=max_grades, mutants=mutants, mutation_seed=mutation_seed,
+            requested_limits={"memory": memory, "grade_timeout_s": grade_timeout,
+                              "oracle_timeout_s": oracle_timeout},
+            log=log,
+        )
+    if targets:
+        raise ValueError("--target is only supported for native shared-verifier tasks")
     out_dir.mkdir(parents=True, exist_ok=True)
     started = _now()
     try:
@@ -1343,7 +1908,8 @@ def probe_task(
                 (out_dir / "dropped.patch").write_text(unified_patch(kept_files, full_files))
             if mutants > 0:
                 summary, survivors = mutation_pass(
-                    changes, grade_files, grades, limit=mutants, seed=package.task_id,
+                    changes, grade_files, grades, limit=mutants,
+                    seed=package.task_id if mutation_seed is None else mutation_seed,
                     tests=package.tests,
                 )  # fmt: skip
                 report["mutants"] = summary
@@ -1885,7 +2451,7 @@ def _command_spend_gate(args: argparse.Namespace) -> CloudSpendGate | None:
 
 
 def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool) -> int:
-    """Read only local package/index/report bytes. No runtime/backend imports."""
+    """Read only local package/index/report bytes. No runtime/backend construction."""
     tasks: list[dict[str, Any]] = []
     refusals: list[str] = []
     maximum = 16 if args.environment == "modal" else 2
@@ -1902,6 +2468,36 @@ def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool
             "reservation_units_upper_bound": 0,
         }
         try:
+            shared = _shared_config(job.package)
+            if shared is not None:
+                item["package_type"] = "native-shared"
+                if sweep_mode:
+                    raise UnsupportedTask("native shared tasks use run with per-task --target files, not the legacy index sweep")
+                if job.patch is not None or args.environment != "docker":
+                    raise UnsupportedTask("native shared tasks require Docker and their own oracle, not --patch")
+                item["targets"] = _shared_targets(job.package, shared, getattr(args, "target", ()))
+                if args.max_grades < 4 or args.mutants < 0:
+                    raise UnsupportedTask("native ref-subset needs max_grades >= 4 and mutants >= 0")
+                item.update(
+                    reference={"oracle": "solution/solve.sh"},
+                    action="probe", matrix_workers=1, shared_docker_slots=2,
+                    effective_agent_timeout_sec=int(shared["agent"]["timeout_sec"]),
+                    declared_agent_timeout_sec=shared["agent"]["timeout_sec"],
+                    agent_timeout_multiplier=1.0,
+                    requested_legacy_limits={"memory": args.memory, "oracle_timeout_s": args.oracle_timeout},
+                    candidate_state="fresh base; selected files only; no reference replay",
+                    required_controls={"oracle": 1, "nop": 0, "full": 1},
+                    resources=(shared.get("environment") or {}),
+                    live_resource_eligibility="unmeasured; checked under shared admission before each native matrix",
+                    mutation_seed=(
+                        str((shared.get("task") or {}).get("name") or job.package.name)
+                        if getattr(args, "seed", None) is None else args.seed
+                    ),
+                )
+                tasks.append(item)
+                continue
+            if getattr(args, "target", ()):
+                raise UnsupportedTask("--target is only supported for native shared-verifier tasks")
             package = Package.load(job.package)
             item["package_type"] = "separate-verifier" if package.separate else "raw-mimo"
             if package.separate == (job.patch is not None):
@@ -1973,7 +2569,7 @@ def _plan_command(args: argparse.Namespace, jobs: list[Job], *, sweep_mode: bool
 
 
 def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
-    del root, harbor
+    del harbor
     if args.plan:
         return _plan_command(
             args, [Job(args.package.name, args.package, args.patch, "")], sweep_mode=False
@@ -1993,6 +2589,9 @@ def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
         mutants=args.mutants,
         environment=args.environment,
         spend_gate=spend_gate,
+        targets=args.target,
+        repo_root=root,
+        mutation_seed=args.seed,
     )
     print(
         json.dumps(
@@ -2071,11 +2670,13 @@ def add_ref_subset_parser(hack_commands: Any) -> None:
     commands = parser.add_subparsers(dest="ref_subset_command", required=True)
     run = commands.add_parser(
         "run",
-        help="Probe one task: a raw MiMo package against --patch, or a Harbor separate-verifier "
-        "task against its own oracle's artifacts",
+        help="Probe raw MiMo against --patch, separate-verifier oracle artifacts, or an unchanged "
+        "shared Harbor task through native matrices with --target files",
     )
     run.add_argument("package", type=Path)
     run.add_argument("--patch", type=Path, help="Reference patch (MiMo packages only)")
+    run.add_argument("--target", action="append", default=[], help="Absolute native shared target FILE; repeat per file")
+    run.add_argument("--seed", help="Deterministic line-mutant selection seed (default: task id)")
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
     run.add_argument("--memory", default="4g")

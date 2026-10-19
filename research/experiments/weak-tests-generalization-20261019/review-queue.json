@@ -1,0 +1,162 @@
+[
+  {
+    "benchmark": "tb21",
+    "candidate_id": "1f604f9086",
+    "task_id": "multi-source-data-merger"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "812424b32a",
+    "task_id": "multi-source-data-merger"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "1e9ed0f32a",
+    "task_id": "multi-source-data-merger"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "8c6d91f8c1",
+    "task_id": "multi-source-data-merger"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "46fb731802",
+    "task_id": "multi-source-data-merger"
+  },
+  {
+    "benchmark": "humanevalfix",
+    "candidate_id": "8ded9b8b85",
+    "task_id": "python-134"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "6326967e40",
+    "task_id": "cobol-modernization"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "6d38c09872",
+    "task_id": "cobol-modernization"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "685133c9e8",
+    "task_id": "headless-terminal"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "e8e4bd4df5",
+    "task_id": "headless-terminal"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "db06d8f466",
+    "task_id": "make-mips-interpreter"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "90558b9da9",
+    "task_id": "make-mips-interpreter"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "cac7dc83c9",
+    "task_id": "make-mips-interpreter"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "343ecb3f1d",
+    "task_id": "make-mips-interpreter"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "140553a61b",
+    "task_id": "modernize-scientific-stack"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "f54890be39",
+    "task_id": "modernize-scientific-stack"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "7a8a2efbee",
+    "task_id": "openssl-selfsigned-cert"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "7fcfaed34e",
+    "task_id": "path-tracing"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "17af0092b5",
+    "task_id": "polyglot-rust-c"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "b357ef1d63",
+    "task_id": "polyglot-rust-c"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "25f5b35db4",
+    "task_id": "sam-cell-seg"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "175edfb9e4",
+    "task_id": "sam-cell-seg"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "ae98bef5a5",
+    "task_id": "sqlite-db-truncate"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "4dc0898831",
+    "task_id": "sqlite-db-truncate"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "daedbf50fa",
+    "task_id": "sqlite-db-truncate"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "589ef2f863",
+    "task_id": "sqlite-db-truncate"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "ca53de8d56",
+    "task_id": "sqlite-db-truncate"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "af2d4ca639",
+    "task_id": "video-processing"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "8ffc2bb1b4",
+    "task_id": "video-processing"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "b079761968",
+    "task_id": "video-processing"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "f5c77d4617",
+    "task_id": "video-processing"
+  },
+  {
+    "benchmark": "tb21",
+    "candidate_id": "2f173b6f32",
+    "task_id": "video-processing"
+  }
+]

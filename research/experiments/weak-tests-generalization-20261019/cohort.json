@@ -1,0 +1,3011 @@
+{
+  "humanevalfix": {
+    "frame": [
+      {
+        "base_source_bytes": 918,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-0",
+        "package_digest": "sha256:904ac721e6fb4062afcb02647d805453c1a14c1886626adaa8a672e17dc17f76",
+        "selected": false,
+        "selection_rank": "f5400f2ffe4c89480d079acf65e928b2816a6442486e85a558749cf915da214c",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__0.py"
+        ],
+        "task_id": "python-0",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 978,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-1",
+        "package_digest": "sha256:60d2644afc752a1f41cb35e41ef307f878b86803e003dc992f59466c31a29d39",
+        "selected": false,
+        "selection_rank": "1bdb21303d500db11ab493bbc7bcdcec5942c70f0ce3919abc1857af0103dbd6",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__1.py"
+        ],
+        "task_id": "python-1",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 631,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-10",
+        "package_digest": "sha256:19576ac0d3cfb5d82223bf5c83205634a44765b161d27d3ae1dece0fa046be07",
+        "selected": false,
+        "selection_rank": "e2830cc1a75d0327f9bc7fe5c4c01417cf2f64486a505064d6c08e374505b41e",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__10.py"
+        ],
+        "task_id": "python-10",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 542,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-100",
+        "package_digest": "sha256:7391dce9c864e2bc4fd8b2f749cad77944fc6edf8e8c789fa0519e6c07fac231",
+        "selected": false,
+        "selection_rank": "25fa362e481e0eb8f38a1c70ca23528a15f35d966c0be2f5485b1a7133423aea",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__100.py"
+        ],
+        "task_id": "python-100",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1022,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-101",
+        "package_digest": "sha256:ea802814f54e8f634357dc1aead7b9795e52bd75cecfd8b846cbdb1f3cd496e6",
+        "selected": false,
+        "selection_rank": "fd68fdf4bbf7088765f395de131b8520285052f391bb73c37ef998b8fb231ed0",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__101.py"
+        ],
+        "task_id": "python-101",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 575,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-102",
+        "package_digest": "sha256:5fd701b0a53fea1235e6129d996c58025480aede518de537c253a65ba6404435",
+        "selected": false,
+        "selection_rank": "d454b3095b0af7317734d2282f0f4d7e756cf33298a2aa1128cdc0bce3f0c769",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__102.py"
+        ],
+        "task_id": "python-102",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 842,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-103",
+        "package_digest": "sha256:60534612a3da5f3c0a1f4cd260d481d67a2e601b5fb2a96d45fba305242f3877",
+        "selected": false,
+        "selection_rank": "105076284b86b2eb9b12af788c1bf9cc56be333e63f5d074e4d46714a0f84f8f",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__103.py"
+        ],
+        "task_id": "python-103",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 639,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-104",
+        "package_digest": "sha256:7db30c096454c4524d267002ccfe970b7f3370e773b2d4a4db641c01bab1353f",
+        "selected": false,
+        "selection_rank": "4e8fadd0fe4adde569d98d7876962a3c4e63fe240b64bd52eee303c5a44cbe3f",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__104.py"
+        ],
+        "task_id": "python-104",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1017,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-105",
+        "package_digest": "sha256:76f9b705020e43c09c602c22a01db36d70acbf50e69be93f6d1d3437823a7ebd",
+        "selected": false,
+        "selection_rank": "567ad2c2bc5635b0af8a112e24e185ad6f28072991f5452ad76c8e0fa68e0e56",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__105.py"
+        ],
+        "task_id": "python-105",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 426,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-106",
+        "package_digest": "sha256:39613b7d14061ee9585700ce8788b580bce80dd6b05dab573e60086db4ff7c70",
+        "selected": false,
+        "selection_rank": "561d5ce31faa3d88550c35198e1ddb8f882ab41c6cbb9d1f33f4f81383457e5c",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__106.py"
+        ],
+        "task_id": "python-106",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1042,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-107",
+        "package_digest": "sha256:43f6d3108aa0ffaed04fba9b8668e30f502b60e2ffdc5db72c3a06db599f3418",
+        "selected": false,
+        "selection_rank": "23617a95b0e50126a27faffdb7f5df4d82048f8338ee46576b0c1f3cea7468ca",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__107.py"
+        ],
+        "task_id": "python-107",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 833,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-108",
+        "package_digest": "sha256:81a6489ccc0173c2623330db38c54ca54f8f6f38761116ce3bc73bcaa407482b",
+        "selected": false,
+        "selection_rank": "813ce85b25e9143a7cf1016303976f201e040ebb1c46567bc6ac4d86ed9430e2",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__108.py"
+        ],
+        "task_id": "python-108",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 819,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-109",
+        "package_digest": "sha256:240ef013ea53fb65f2c44b5f5ec9abc202202596728bd515ebc2dda8f5d96c7a",
+        "selected": false,
+        "selection_rank": "83edb4959de705ae4c60e394923e82b4a8c00e4cbd43cc66ea954fa86fba573d",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__109.py"
+        ],
+        "task_id": "python-109",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 404,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-11",
+        "package_digest": "sha256:914736e629ae557197e6f349e0af6069581a02b495f17c4f4d8ce907126afa4d",
+        "selected": false,
+        "selection_rank": "43d05a4361df41bded636b7378f859e50d58362bac6358cb02463898c5bc5b96",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__11.py"
+        ],
+        "task_id": "python-11",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 771,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-110",
+        "package_digest": "sha256:bcfedc753e479f8c221dfb4fae80429fddb328de9a51e8da8de9c32bafb905a9",
+        "selected": false,
+        "selection_rank": "6f1d30f0dc02b31379151cc98ad284987953cd2907de9981729734ad52734bd8",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__110.py"
+        ],
+        "task_id": "python-110",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1333,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-111",
+        "package_digest": "sha256:7dcaa444d8078db6da8c65bd8f7aec9975b934ad9a599ee813d8a4da90ed0443",
+        "selected": false,
+        "selection_rank": "d1956ed9ef257452224091b9c07cd93e16f54c24c5778c3bcb5e25d70d803fb3",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__111.py"
+        ],
+        "task_id": "python-111",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 682,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-112",
+        "package_digest": "sha256:bd6940c1666ff3dc5de13480291887683df0e18c44550db7751bacb87b4f30f7",
+        "selected": false,
+        "selection_rank": "2619f1b4c8228162bbb5336e03f95b38661e3a8a9ea3db0ac0ef0a51db96d66c",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__112.py"
+        ],
+        "task_id": "python-112",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1003,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-113",
+        "package_digest": "sha256:c3ed2867eee2fc5517111d0d89f34c618f803b25fbc62c212d3387b79643caee",
+        "selected": false,
+        "selection_rank": "75a66d1d78f54e466ad360a218b84502b8081c9403fa4b8419e554b4f318801f",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__113.py"
+        ],
+        "task_id": "python-113",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1166,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-114",
+        "package_digest": "sha256:4fb935e7b6400e592500460f9afb1659eae5dfda8762f5101664ce117b936c37",
+        "selected": false,
+        "selection_rank": "3bd352fe8f6183f368a1c87266cb718793374f7b464691182d24961c52da24e4",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__114.py"
+        ],
+        "task_id": "python-114",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 735,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-115",
+        "package_digest": "sha256:faaa955f6e7ab8b072eac5e6349bac4229999614b46b8de878991da34580e81d",
+        "selected": false,
+        "selection_rank": "9ad432320c0e2e78dcc38bb55218e313b755d2ed5da26db37773f856f9ee6b73",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__115.py"
+        ],
+        "task_id": "python-115",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 847,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-116",
+        "package_digest": "sha256:34c0e90023c23e599a170df61ff3513bd1b4819b07f7875127d2a3533b90c0cb",
+        "selected": false,
+        "selection_rank": "56020350a7be9fbb4dde0ec5a368f9f37c9b1f9e3b36c2c66cd13be4c8d70461",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__116.py"
+        ],
+        "task_id": "python-116",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1311,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-117",
+        "package_digest": "sha256:ab2a6bdb583c816ea1e939f43e4e24a2891b62c64f948a6557f5cbc580f070ac",
+        "selected": false,
+        "selection_rank": "80d03f31a424564f66b783943525d33f27e329a6f5854407284c8e8e1fb8c74d",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__117.py"
+        ],
+        "task_id": "python-117",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1054,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-118",
+        "package_digest": "sha256:9814359562c6e68e530c8c93a56c7ef243c14324f9165eadcaa01ed7ca251c77",
+        "selected": false,
+        "selection_rank": "e4a5efb62161ace4db30fac0be3b378ec819935f4cb57319c5b96375feb171e0",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__118.py"
+        ],
+        "task_id": "python-118",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1119,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-119",
+        "package_digest": "sha256:383af484663d8bf5c64c3f35d7e16479d2d8562a4dd0cf6808d9f74b62d541cc",
+        "selected": false,
+        "selection_rank": "3da16c39e04f33da189f595500e2d1b549e93c88468aca41ccbbc7b65f0927d4",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__119.py"
+        ],
+        "task_id": "python-119",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 428,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-12",
+        "package_digest": "sha256:44dde11361f00cc3ea5b0698d512fcab69bb95ad9dc1d90a1d12d0f973e0431a",
+        "selected": false,
+        "selection_rank": "88a1dae54967ed00b1eea8802cee24bb4e1a7e629180b52c8140f87f29c7c2be",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__12.py"
+        ],
+        "task_id": "python-12",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 859,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-120",
+        "package_digest": "sha256:555ef10d7334d75554e75063bddc09d99367354185532633c07ee567416b0ea1",
+        "selected": false,
+        "selection_rank": "95bd5c5684e2f2d47ba507f040c1e19185cd539dc0eae0f2835e1903f066f47b",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__120.py"
+        ],
+        "task_id": "python-120",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 506,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-121",
+        "package_digest": "sha256:9dc5ebf668125d1ac9f682b6ce81ea46140a5783e3ffd816c6ad7b4c0de7e54e",
+        "selected": false,
+        "selection_rank": "d0cfbd11819a83141ba82265a59fcbb07d825424e4384854cad8942dfe67bbf4",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__121.py"
+        ],
+        "task_id": "python-121",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 623,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-122",
+        "package_digest": "sha256:01670a9a3153199b986a57e541181e0f916507796e716c5d16864e83d9c88a25",
+        "selected": false,
+        "selection_rank": "4e348d821c10cfe2a4b516b1a8fc54cca37eba6827cc8b1e00bd4cb12b9ebb33",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__122.py"
+        ],
+        "task_id": "python-122",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 753,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-123",
+        "package_digest": "sha256:48f93b85a29057159f8211940e869b35b8b9335f6c3f6fe673c0fd56454ff441",
+        "selected": false,
+        "selection_rank": "ba0828dbb47a3dcdfd039baa6a47380206e53552c9bbd6f5344692d0ff51339e",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__123.py"
+        ],
+        "task_id": "python-123",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1295,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-124",
+        "package_digest": "sha256:d96f9edfb957713921992bddf6feb12746a6ce228f5dffe1aa9e9e162080208e",
+        "selected": true,
+        "selection_rank": "0b405ed49f16bac914e2de5530c4faa86ea987c0675029f1a49d135461553c01",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__124.py"
+        ],
+        "task_id": "python-124",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 662,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-125",
+        "package_digest": "sha256:cdad5a7c062feb641913849ec9868baad156da19cfe363d67ab99974933c594d",
+        "selected": false,
+        "selection_rank": "b6dd7b41759921ef0f922a7de2d80c79f41e1e0b6269b5299ce233c0b576fe75",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__125.py"
+        ],
+        "task_id": "python-125",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1431,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-126",
+        "package_digest": "sha256:fec37f19230eac17f431d2f68c787c9fad62a1cff43f0b03b38678d871e1996b",
+        "selected": false,
+        "selection_rank": "b7aee2cbf7bc6b0fdb1805b1afc8f3c17d9ff208182fc6345ca1776479d6c10e",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__126.py"
+        ],
+        "task_id": "python-126",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 971,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-127",
+        "package_digest": "sha256:3b9078b4c079a816be377f91bc37c9ebd5d958e020e9c3c3e9e5475e7c9dfef9",
+        "selected": false,
+        "selection_rank": "e5fb7d338260a829821996c26deba79db788f9fc8ba20f4e9c3f5fbe03549357",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__127.py"
+        ],
+        "task_id": "python-127",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 815,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-128",
+        "package_digest": "sha256:719b1dd9e61f9daad238f0c6a5f9fd24adadf9be240bbc11d4c3b737f706dac7",
+        "selected": false,
+        "selection_rank": "72e4ce361ee68f5bacef24c19320cc86b911dee80dff98e584efae32d574cf7f",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__128.py"
+        ],
+        "task_id": "python-128",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1804,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-129",
+        "package_digest": "sha256:e47b38aa02e19de4cb65c089b8814df7060062559dfbbac7f6b55aa43a457c79",
+        "selected": false,
+        "selection_rank": "49e8483c7ff0443a6a8abe82ca0e8db58722d1630580f3b10da3b858a17b4535",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__129.py"
+        ],
+        "task_id": "python-129",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 367,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-13",
+        "package_digest": "sha256:4992649dc26b99e5700f6cb8ae19f2ae54774f035ff77efbb5c83fe317d42eb5",
+        "selected": false,
+        "selection_rank": "6d8119844ab1519881f1fa85695b2ab8e747ff6bc099e384ac7cf3164e89766f",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__13.py"
+        ],
+        "task_id": "python-13",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 959,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-130",
+        "package_digest": "sha256:4b347186e3c3165154488b6a21594d96317c177ac4520bb65a615544f1beb431",
+        "selected": false,
+        "selection_rank": "fefb05af630edf705c52503f61b3b574002cd4a80d22bac96f6d28e49097ee80",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__130.py"
+        ],
+        "task_id": "python-130",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 605,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-131",
+        "package_digest": "sha256:7b65960488a656a6bc8865f7b836cafe4d4fdef4b973428efadfaea6a9493fa9",
+        "selected": false,
+        "selection_rank": "14c821a7c2702c0c5c2f38139deeb511dc62457f5202b0c7f1baaedfa96e6efd",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__131.py"
+        ],
+        "task_id": "python-131",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1317,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-132",
+        "package_digest": "sha256:e712d4323a9391777ac3b35e6a1faa4fcdd020434a896d7c574f9ac98fe971ed",
+        "selected": false,
+        "selection_rank": "156bbac5db7caee0bbfe4948910ce75314c10a83efdfdbeb65f81257af66f7cf",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__132.py"
+        ],
+        "task_id": "python-132",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1478,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-133",
+        "package_digest": "sha256:71fe3ca00c6caed0a607ebfaf196b01750c24cdc803093e7b8d820a2a957e8ea",
+        "selected": false,
+        "selection_rank": "79f45b74d080546585c50ecabaf8a6512c0e6342025c53c8e3f30d8ee2e1dc72",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__133.py"
+        ],
+        "task_id": "python-133",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 973,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-134",
+        "package_digest": "sha256:676a7516bb011607e5d226f76da14869faa68bdeb7da56bfdc5b21ff01a382e2",
+        "selected": true,
+        "selection_rank": "10846b264247d06e5ca44a3649208198e55d96746f0ddd2a233cf28a10a2d123",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__134.py"
+        ],
+        "task_id": "python-134",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 476,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-135",
+        "package_digest": "sha256:8fe22c90203d8766572a0fdeea458d3fe250e63791767619b7cdff7f602fd5c1",
+        "selected": false,
+        "selection_rank": "85cbfee7e8127c743c61705f703598b71065d6c7eb223b1dc84e2df9828c76a2",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__135.py"
+        ],
+        "task_id": "python-135",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1272,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-136",
+        "package_digest": "sha256:ef3c2a79662f04f939086d70d96f71751bf27f34afdab9e5d9c59cc9cc47a108",
+        "selected": false,
+        "selection_rank": "3cbb3b86fd7f16d92d23abcf00c4a10fd68ab406f3aabf18fecc17c3c3d782ad",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__136.py"
+        ],
+        "task_id": "python-136",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 759,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-137",
+        "package_digest": "sha256:f2f8ac23d27f578d2df6caca854a4620848a95d06fbf3be3cd51cb331bc9e56d",
+        "selected": false,
+        "selection_rank": "a29b3e46d70ccd4c0f7cd99ac0b8eac98623188da67fa05dedbf792c50c3caca",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__137.py"
+        ],
+        "task_id": "python-137",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 486,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-138",
+        "package_digest": "sha256:a2542999a8e19efc4b4dc81127424e24579d46b7f2f933fcf25936e8dba2e255",
+        "selected": false,
+        "selection_rank": "9137ae99863f7f6713c2c2ec824c2894b97c7f24294a3dc99f6ef01082c37444",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__138.py"
+        ],
+        "task_id": "python-138",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 536,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-139",
+        "package_digest": "sha256:0724fdde75a1ef6b28c8e137119386b6d76eeb4c7974422cabade8a98710bfc4",
+        "selected": false,
+        "selection_rank": "2690e9f903635b1d96c4fa391d8d5a20cfadc8c5f559ec938d957bbf0b38ed7b",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__139.py"
+        ],
+        "task_id": "python-139",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 397,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-14",
+        "package_digest": "sha256:ee5abec8febdc6fe5f288ee3d5411ec4f2b6b367e55a62b56b2a48eaeef79a24",
+        "selected": false,
+        "selection_rank": "7c49ab07ac8a6915fb52e6f085bb3f43f06484856e8d3c7a5136ec185c4cfa2d",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__14.py"
+        ],
+        "task_id": "python-14",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1288,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-140",
+        "package_digest": "sha256:24f3a4bededb43fb3fa182c338b5f6830b4670877271232bff9fd60d00a27d9e",
+        "selected": false,
+        "selection_rank": "f89ea04eeba3d7b2e04a4bace2787eee32fcd156be6668fbca2652cb025d1dda",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__140.py"
+        ],
+        "task_id": "python-140",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1860,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-141",
+        "package_digest": "sha256:0616db92c73a93323cbd53a22106125d6382b2c197eaa7671199bdadb0396ad7",
+        "selected": true,
+        "selection_rank": "0c77d10570df69ea2c40fba0bef651868c8962291e7fe7fe4b289d248c413ffe",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__141.py"
+        ],
+        "task_id": "python-141",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 988,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-142",
+        "package_digest": "sha256:43b3e8bdb7f1d6c8f2711a7d314e3735fa0f84052ab41e757160bbcd556232c2",
+        "selected": false,
+        "selection_rank": "23c2ae9f29256606f08180db6f78897c57008cf5664d0cd01b55a777b63409a1",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__142.py"
+        ],
+        "task_id": "python-142",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 870,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-143",
+        "package_digest": "sha256:cac288111c320025d3d5292a920f8ac71d48219f67d9152336eeee44db35fa7d",
+        "selected": false,
+        "selection_rank": "cfc082372c404cf26ecb53b89952d8c6b8559558eadda8d1a6375c3a266e9d15",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__143.py"
+        ],
+        "task_id": "python-143",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1075,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-144",
+        "package_digest": "sha256:ae8b0645cf99e7425f28ab7cd80515ebe2e91491689a431c370ba84b52cc7919",
+        "selected": false,
+        "selection_rank": "952a09960ddba965d886a4da271c148babaf523d4be8efbd946e567faa19047e",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__144.py"
+        ],
+        "task_id": "python-144",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 994,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-145",
+        "package_digest": "sha256:107bc84a1ebafc9b4e25ec4b6325245abd811d25ff9b3749863b29b2eb982a36",
+        "selected": false,
+        "selection_rank": "ca3bd0a5c2a175a5facc711b262261879273dcac7e662919266cfd7fb655ceb2",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__145.py"
+        ],
+        "task_id": "python-145",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 822,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-146",
+        "package_digest": "sha256:b2f1a6edaff7e2729a42d1856cf3ccb6d69936268b69e7afdb4ea85d71925ae6",
+        "selected": false,
+        "selection_rank": "9716339778ec2f4e1a4ebfc02c7c4128c9305909e4f25875c0853e055276c293",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__146.py"
+        ],
+        "task_id": "python-146",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 473,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-147",
+        "package_digest": "sha256:eb4e3252beca9a8e38c356ba1c82e06219d2715dcdaf85a1afc92b86368a623d",
+        "selected": false,
+        "selection_rank": "6dcba7a1975f1ff1f9f0bdc718eac8a3f739b64a7a03fbf7065e96f2653009bf",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__147.py"
+        ],
+        "task_id": "python-147",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1259,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-148",
+        "package_digest": "sha256:ed7d27e5f2adee8afac697c37feac530a90f1a5200e2d99b015a89323b0bfdb3",
+        "selected": false,
+        "selection_rank": "5dd355400944349962480bd935743e0f47578816a39b164d8d7d99c1e0598be7",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__148.py"
+        ],
+        "task_id": "python-148",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 794,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-149",
+        "package_digest": "sha256:c729b10d910dca541eabb341185e0842c8dbeec8faa781430ee128cf09d92dbb",
+        "selected": false,
+        "selection_rank": "8aa35db5102581c070a81ba6d39ac3824508cb596a68d9638d903452579b218e",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__149.py"
+        ],
+        "task_id": "python-149",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 280,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-15",
+        "package_digest": "sha256:377becf5e28b06c423865d2ad3a3c3a94bfa664e4a437bd5313de3b6ff9b9f1a",
+        "selected": false,
+        "selection_rank": "30491cbce1978bcb2688a45113ce5b88f867f1bd21a8fce8db41d340eb22e89b",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__15.py"
+        ],
+        "task_id": "python-15",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 668,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-150",
+        "package_digest": "sha256:63f650a9dece7dbd4c664b5bd3dd5c35059fcf11151dece38e9a0c6c0d3fbad6",
+        "selected": false,
+        "selection_rank": "ddb6e0c42667774d28b2958ccb6c2b4f7ea7c495c0abe5438ab000fb505366ab",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__150.py"
+        ],
+        "task_id": "python-150",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1139,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-151",
+        "package_digest": "sha256:7129106730f0030a6fd3c25c74e32b5a932f0736c4e38c70864d4bf4090bdae4",
+        "selected": false,
+        "selection_rank": "e6c4a81c86c0008a9ac08432a8d8872c2a24d608b0a743b2fe9da66940840f0d",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__151.py"
+        ],
+        "task_id": "python-151",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 980,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-152",
+        "package_digest": "sha256:9680366312a31be81d3ad19033622aac5a4e1f5692ea57d98b8560956a46524d",
+        "selected": false,
+        "selection_rank": "ae957a9071ca1161effa2f8e88b95a27a92ef12650b96c239a2c55205a5b7edf",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__152.py"
+        ],
+        "task_id": "python-152",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1498,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-153",
+        "package_digest": "sha256:17aa5f7371ccb43904dfe01787b65d8ae1fab522ed3f4fca3d40c6c6b9437a51",
+        "selected": false,
+        "selection_rank": "17696acc0419e39b1234baff5aacd52fcfa32bd352aa224a6dfbc0005ee82982",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__153.py"
+        ],
+        "task_id": "python-153",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 920,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-154",
+        "package_digest": "sha256:5a67f1eb4b988bda6354f676f219174ff815ef6508e064e34afc8c1dc9d62cf3",
+        "selected": false,
+        "selection_rank": "5522a176502247ce8b19a19c7189a60af188129fd445907a18621093f5adf46e",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__154.py"
+        ],
+        "task_id": "python-154",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 672,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-155",
+        "package_digest": "sha256:6bfeaef4c2b79eae39516b23f11ca640dce25f1880427487475cd58125cb1712",
+        "selected": false,
+        "selection_rank": "7a6f4ba93deb9fd14a7849003aceb83c84920f930d5ebf1621842e93a18d5953",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__155.py"
+        ],
+        "task_id": "python-155",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1158,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-156",
+        "package_digest": "sha256:14898386bc9e8142ccfc44226c918914bee1053a72d9b250fb47660f36ef041a",
+        "selected": false,
+        "selection_rank": "3c7a36ec2300d5a0393486d33f77bff8503913a88e96a9a07c05f43beca091e5",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__156.py"
+        ],
+        "task_id": "python-156",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 901,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-157",
+        "package_digest": "sha256:7acf9fe7c16a1da38d71dd247d432caa5373dafc731bbb7f7d061f7344330522",
+        "selected": false,
+        "selection_rank": "55a3b147f78e280a3d3260cd84171576eb66a3cc89b46009eea1cc6a6cad735c",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__157.py"
+        ],
+        "task_id": "python-157",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 838,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-158",
+        "package_digest": "sha256:c0008cce66742105d5a9a501ac7c1182f55432c4f6b0b1cab78fe6940363df2a",
+        "selected": false,
+        "selection_rank": "0a585ce453e209e5bcb690cc89e7d6e60ddc770de2820944dbed878073ab3273",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__158.py"
+        ],
+        "task_id": "python-158",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 723,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-159",
+        "package_digest": "sha256:baedd196b780446ec29e86044ea435e40cc7d1e09a63f12db7827798526f9547",
+        "selected": false,
+        "selection_rank": "4d141d4cb6c1d40d7d0bae18cdd41338c2a20b6da91ffdbc5b5bb65af16d7593",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__159.py"
+        ],
+        "task_id": "python-159",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 444,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-16",
+        "package_digest": "sha256:4a77f8ff81f67ac44d73403a993f59dcbbf9cfdaf1a2c35aa86afeb616f9aade",
+        "selected": false,
+        "selection_rank": "7d969848ceace1ef78517d34abe7a62ec6d12bc8278aa4a3a20690ad691b020c",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__16.py"
+        ],
+        "task_id": "python-16",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 643,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-160",
+        "package_digest": "sha256:1cfddc5b475d4576f05e2be95d73d2ecd45c46daaa30aa2b3f9c7fd4c3f7bb0f",
+        "selected": false,
+        "selection_rank": "dbb9a5a3a615cd2f0d52e45adb008a5cda39af086f19927e04a88681a2815df0",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__160.py"
+        ],
+        "task_id": "python-160",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 719,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-161",
+        "package_digest": "sha256:46be0dbf2fc38b1b1af645b994395a522067e28cf2513fc8c2b5e23efd2c5952",
+        "selected": false,
+        "selection_rank": "3c0daccf380caf98556178ca883a4e6b1928527cb4823fa87dd2a6d36140e9d9",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__161.py"
+        ],
+        "task_id": "python-161",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 526,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-162",
+        "package_digest": "sha256:1693f31910918a15c577f825a2e993b4c95ed3f141e1a68c1f9c79fd4bef480e",
+        "selected": false,
+        "selection_rank": "74aeed37bda35f313dcd999cfcc3071afe7e50d9d5258028705b47079220eecf",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__162.py"
+        ],
+        "task_id": "python-162",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 619,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-163",
+        "package_digest": "sha256:ae576d27b7d468f3f9128b77cb59a7c1c12f91eb3c90bd02ad53b67fb4afb536",
+        "selected": false,
+        "selection_rank": "6dfbe3e446ecbea3278b4b372e4ef469d1b16cf2b4d3986c75f6b8d0f73149e8",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__163.py"
+        ],
+        "task_id": "python-163",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 516,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-17",
+        "package_digest": "sha256:4c11dbfe596ab6480d1af78b08de91c4c0fd62840dcd7d7707509ae1ea6ef48b",
+        "selected": false,
+        "selection_rank": "0d5c90e80513c00603ca336d58664cbb88e7cf8eccb1c82f5ccf431d9f873292",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__17.py"
+        ],
+        "task_id": "python-17",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 458,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-18",
+        "package_digest": "sha256:8d780d445507fb4ebd07e5d0192774d483f088334c49eb8c134df569a1e47460",
+        "selected": false,
+        "selection_rank": "70153eea5aae7f58a4dbbc8d9748cb20369cc0bc85506458b3ff0b967d95d1a5",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__18.py"
+        ],
+        "task_id": "python-18",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 723,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-19",
+        "package_digest": "sha256:375cc01cd36cc62cbd6477d13409be2195bdf015751b8dee97ce5b266fe9de16",
+        "selected": false,
+        "selection_rank": "c2bc810c36f5af6691cdd1ae5d970aecd1303c0e2f6174fe89500c37251edf99",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__19.py"
+        ],
+        "task_id": "python-19",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 279,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-2",
+        "package_digest": "sha256:e4bb34eefe209e3e62c27c567cc503a397b33f16951e370facd31c7bfb6b7fb2",
+        "selected": false,
+        "selection_rank": "d740b648dbf4a01491eb70e1457a603b19d7a40b4d15f0a1e84fa42d101fca73",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__2.py"
+        ],
+        "task_id": "python-2",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1134,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-20",
+        "package_digest": "sha256:f5b142fe3eb0fbccca09be5c8e9c20dbf0c6808be9b8af8409748a3a6288adfa",
+        "selected": false,
+        "selection_rank": "214fb25624c7cdefea500d40490ffd1c276913d31d06622686c943977940e4a1",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__20.py"
+        ],
+        "task_id": "python-20",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 646,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-21",
+        "package_digest": "sha256:284d8af03466cbe14350c1a263ee2072d89fff8fb916fccb84634b2e17ed9adf",
+        "selected": false,
+        "selection_rank": "2aa0c20063879c3eb8157c6a0b0ac3f43bd33be5c3a54e6be246c0594de170b0",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__21.py"
+        ],
+        "task_id": "python-21",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 382,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-22",
+        "package_digest": "sha256:0dfa09369be9131c151699c5054aa25a8d62c2b5bd87a288c8d5f9ed42516e05",
+        "selected": false,
+        "selection_rank": "bc2b1da48bd62c0781ca9ae36f7cc73268116e5650c1eb226aa05ff0b3f2435f",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__22.py"
+        ],
+        "task_id": "python-22",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 189,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-23",
+        "package_digest": "sha256:f4f5676584d4dfaeace4727748dc4a8a755b98bb029e8bf9e8b467f3e786f7fe",
+        "selected": true,
+        "selection_rank": "18754b4957c6d1673ac23f05b4d36280c9b5e5c0541824b70b4216743416e302",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__23.py"
+        ],
+        "task_id": "python-23",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 350,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-24",
+        "package_digest": "sha256:0c1682aa2aff331b80b20ed04e983e5ce3ae88d263243e8cfe91bd070713b88c",
+        "selected": false,
+        "selection_rank": "ffa358b7e4afdfe03959231cc853cdd604bd6ad765abcce9120afbfba6dfa3b5",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__24.py"
+        ],
+        "task_id": "python-24",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 715,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-25",
+        "package_digest": "sha256:98f688a6f64cd8775c424dbeb561633105c50086c88f7c92637b9bd1a16831c0",
+        "selected": true,
+        "selection_rank": "09a23038bf6d894bf81cda270bbc9a05f67b900482ea77386bebfc873aa45151",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__25.py"
+        ],
+        "task_id": "python-25",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 410,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-26",
+        "package_digest": "sha256:9e8600631fd7d233d025c96bec1d264fc6555b9e223f01070737bbd12fb1c432",
+        "selected": true,
+        "selection_rank": "146dea7175f798057d895097e56907f6411b622aa7f47f097b20ca1e4171ac6c",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__26.py"
+        ],
+        "task_id": "python-26",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 291,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-27",
+        "package_digest": "sha256:b5b029dada279c139d39e73dc4cce47b647349c507334ffd79cb011b036db13b",
+        "selected": false,
+        "selection_rank": "4fa7746a9c277c5731db10eb3d721e31bbcd6763590f57a65a0ce05dca9d7ed7",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__27.py"
+        ],
+        "task_id": "python-27",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 291,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-28",
+        "package_digest": "sha256:6edb25d9f7bd64688e295cbba960478678486169a37c41437897af4f1fdf86a8",
+        "selected": false,
+        "selection_rank": "2da0697240360d05fb0e4a28b8e86eb9764afed3758aa73d59677539f6658ba7",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__28.py"
+        ],
+        "task_id": "python-28",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 368,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-29",
+        "package_digest": "sha256:5c10bb51b0744fa543393ae08407a132fafa1d4c95cfe7dc00306fd63c5e36a7",
+        "selected": false,
+        "selection_rank": "7f68b0cde815b84521d4a282ddcb9fcc581d1c2dedff8e9e7592be1d4ce7fa91",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__29.py"
+        ],
+        "task_id": "python-29",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 569,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-3",
+        "package_digest": "sha256:b7ea831c05b48a03fc72b0bd846c2d41847fce3c7c93fafc2530b9eebc8b91f1",
+        "selected": false,
+        "selection_rank": "eff7ea0f24de020426bb7522d1373362fe48ff373d88cb54469e3cf5a6332927",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__3.py"
+        ],
+        "task_id": "python-3",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 337,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-30",
+        "package_digest": "sha256:3c2d9616fcef713d876bc94a2ec6d2981ba0b3e41906a03f81b15fcc52241efa",
+        "selected": false,
+        "selection_rank": "612ac87ae3e8600417ca8827829c7e2af5aa0db51b1b5192d41fd76f27e88378",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__30.py"
+        ],
+        "task_id": "python-30",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 627,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-31",
+        "package_digest": "sha256:66d3cb3969115c65720e0cdd4f08fd88b949b851a1e3f472b38d0229cd886288",
+        "selected": false,
+        "selection_rank": "fbe42e01d1dca50f025e22d6bb3015a915832e253f82b4df2acbfdeebbb795a2",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__31.py"
+        ],
+        "task_id": "python-31",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1066,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-32",
+        "package_digest": "sha256:a2107c842aef7d660075c4e0d6bb2314290243b39dba9ea1be8cd8877e4fe8b8",
+        "selected": false,
+        "selection_rank": "1fc2a554c02acf62aba89538cf5f002d04983579fc64bc1a7f199dc186b70fcc",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__32.py"
+        ],
+        "task_id": "python-32",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 775,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-33",
+        "package_digest": "sha256:d5be16d8458eddc0782d2aa7d33e93203abe1f78fceac99f3a3a5010ca84c735",
+        "selected": true,
+        "selection_rank": "06b144995d904c9e9878edc92d60a613cc5bd2c14bdd13b9453e8d1419cfeeaa",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__33.py"
+        ],
+        "task_id": "python-33",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 154,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-34",
+        "package_digest": "sha256:64951567906be13b126133ed545ad2dd809ca39d071d6862fea12bd5854a34ad",
+        "selected": false,
+        "selection_rank": "2542a6c5f1c264e2a617ab7de2b1e255939398260b03e7b04528fc80aafbc42a",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__34.py"
+        ],
+        "task_id": "python-34",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 263,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-35",
+        "package_digest": "sha256:ac474a87c54ba1a863d6cb9a9cf27ba114e5bbc16fd6d22e3c1db95ea83b3538",
+        "selected": false,
+        "selection_rank": "c913076b905cd7981363c884ea4072f3cff91ec5693146543c7e2c050d74f450",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__35.py"
+        ],
+        "task_id": "python-35",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 531,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-36",
+        "package_digest": "sha256:ad2ddbdedc1865c2ed672ba29daf2dc539fab80c70ce2dd60c538cf56a8c78ca",
+        "selected": false,
+        "selection_rank": "2b1072fcb023a6b268125b3e6c4ef5d11b8d5ece326146d903a749d79ad133f0",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__36.py"
+        ],
+        "task_id": "python-36",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 566,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-37",
+        "package_digest": "sha256:6eb07885fa5e5b4cccf23e8317f436f4f655d38b0f42a7bcb39b6d5dea693ab4",
+        "selected": false,
+        "selection_rank": "4285bd6de71449cd72bc35747baab0e1cda800d3e7aa363042d8d75a157498ea",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__37.py"
+        ],
+        "task_id": "python-37",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 824,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-38",
+        "package_digest": "sha256:4e607e4bb8417de94f780d663798b6a7af5fb324f69739bed123deabeca7f4d7",
+        "selected": false,
+        "selection_rank": "39111b18b836d959331ad8f8a0ce72c0c71517cf9818c9716531165907295844",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__38.py"
+        ],
+        "task_id": "python-38",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 748,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-39",
+        "package_digest": "sha256:ef690d390e2a6a5607e3c6d3743e093f51e0ffea82b622d5b703f2761b13ad62",
+        "selected": false,
+        "selection_rank": "c5bbc3deb4663a801cef3c155f6cb1d39ecfddb88b74d893a35e48f716d99abf",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__39.py"
+        ],
+        "task_id": "python-39",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 485,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-4",
+        "package_digest": "sha256:cab32e294c3714124b99237d17ae41ad3459da5e35af3e28bf30b5c2c993669e",
+        "selected": true,
+        "selection_rank": "134d2f5d59390d62b454672ae47cc3fc8d351ff65062aaf3e2bd1174f86ea7c4",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__4.py"
+        ],
+        "task_id": "python-4",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 797,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-40",
+        "package_digest": "sha256:e7f0533d2613010db44f67c7b4bf542aadc4c98d5d6bb6679b3fe29a895c728a",
+        "selected": false,
+        "selection_rank": "603dc2fcfd5e86597de302e692a9af6d3c4fb2b94074f341fcec729931f5c4d8",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__40.py"
+        ],
+        "task_id": "python-40",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 306,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-41",
+        "package_digest": "sha256:a8cc3a6c673546ba0adf5c343558194b6392942da28d7bddf16906a1aec99dd6",
+        "selected": false,
+        "selection_rank": "e3732a567c4c8f532ed69afad94f005785e6c6bf9bd7007754b8b4e46517d0ef",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__41.py"
+        ],
+        "task_id": "python-41",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 263,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-42",
+        "package_digest": "sha256:03caa5eebb39dc56fded29221f50779d7d4d68f7b7a894d0ad053402de2202ac",
+        "selected": false,
+        "selection_rank": "473466c56c8562fd1995c5d607840e042e45f4bac66dff15ca39a813bd072827",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__42.py"
+        ],
+        "task_id": "python-42",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 730,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-43",
+        "package_digest": "sha256:7a092141b7dd9075f82f26751fb638bc3c3ba83ddeb096f27a7d0eae99faaf17",
+        "selected": false,
+        "selection_rank": "7c2c646d56a668e55409c131b7c2f42c06eef67019bf0c50351c695e8d3edda1",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__43.py"
+        ],
+        "task_id": "python-43",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 493,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-44",
+        "package_digest": "sha256:385b73865382a2401fb0ea08a16e01b9b4f21774851972434f4f12a017d79aca",
+        "selected": false,
+        "selection_rank": "b100f84e221f48dedb0bf846fa10b197f7f49dca8368f3c3d9aca534528b37e5",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__44.py"
+        ],
+        "task_id": "python-44",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 217,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-45",
+        "package_digest": "sha256:5916bdb898745e42700fdc4daaebdc1e8b979386781d7e0c12f16a0f163bef3a",
+        "selected": false,
+        "selection_rank": "7ef05ef48fb07000a62bffb8fd450a3091888861fa8fc9cc877668ecec6e0415",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__45.py"
+        ],
+        "task_id": "python-45",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 379,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-46",
+        "package_digest": "sha256:c94c0055c0813989ea085d4840370542733521c7dfc52ccb3c51cdf5f96caf56",
+        "selected": false,
+        "selection_rank": "756d5456cd1bc26066033f7c614c7de9c8c0d381277ca15f4f1595bcf8294f8a",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__46.py"
+        ],
+        "task_id": "python-46",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 400,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-47",
+        "package_digest": "sha256:998d53dc82ab5e0532c607a0039fedb1d15ef886029da0da919a609afed80643",
+        "selected": false,
+        "selection_rank": "2d96462e47ae49175c20d103d03930737a9766a86c9c9445a2eed897d2b1728b",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__47.py"
+        ],
+        "task_id": "python-47",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 487,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-48",
+        "package_digest": "sha256:1356eaec7cc0d09714134915e451fd9199b4fa8a31aedb2c42a5cab27e174bdd",
+        "selected": false,
+        "selection_rank": "8d8706eaffe9f7263bc0697566e3769afc9362c8f6beaece47bffbf5fec7534a",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__48.py"
+        ],
+        "task_id": "python-48",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 342,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-49",
+        "package_digest": "sha256:3805c9628c149ade814d73a487096f911b94557b75f69849b2f9bf8cf0618862",
+        "selected": false,
+        "selection_rank": "4a0f69c63155ed0899a8db8a7fa4a2f460fd0251cf411d132d72a1ae8fa9f9f7",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__49.py"
+        ],
+        "task_id": "python-49",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 458,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-5",
+        "package_digest": "sha256:2584845d794c933a5cfa78066afd73f5c41180934ec3d74afd4de49808f72009",
+        "selected": false,
+        "selection_rank": "87bf215dde2bdc7a31904ec676bed6d875163b2d0c45b8d6234ebe50c732e252",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__5.py"
+        ],
+        "task_id": "python-5",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 671,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-50",
+        "package_digest": "sha256:c76e58c0d9883b3634a35154c5934cd5081774564bc760eebd631bd2a486d0f0",
+        "selected": true,
+        "selection_rank": "0adbc0889972fbc0e4595551ebc46e6932507582e077c727cb5447991767acb2",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__50.py"
+        ],
+        "task_id": "python-50",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 481,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-51",
+        "package_digest": "sha256:c8122f76c03a0aa7439e597ccd3148579e5caa7def46a47d50e8586e0472240a",
+        "selected": false,
+        "selection_rank": "208b1b9890d1c411603e93ae7c75b1553e9d53d465d455cea5413edf45567e7f",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__51.py"
+        ],
+        "task_id": "python-51",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 458,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-52",
+        "package_digest": "sha256:f8943828bc0a732e0ab57fbb2b049c1b3475d310581397f8c4f1ee40a95d9c8e",
+        "selected": false,
+        "selection_rank": "4644756093cf8b17788be20db66d62ac323abd72c0ecb170a74d679645e2a946",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__52.py"
+        ],
+        "task_id": "python-52",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 358,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-53",
+        "package_digest": "sha256:4a7bfefa5c5bfb3e0ac8b85839c83dcd3c3d424b117d8f9b2f019f05850daf9d",
+        "selected": false,
+        "selection_rank": "3cad3ae2b8c83330b22345abd1f7a33a0813ad6da415533e0e7b80c9b7dba217",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__53.py"
+        ],
+        "task_id": "python-53",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 491,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-54",
+        "package_digest": "sha256:38dfdb56238850b03193bcfdab141288103c1f6ed568bb1d0db5c535aa124eed",
+        "selected": false,
+        "selection_rank": "bf4e85183b7c377d851eff26d86ed2b10b5cbfb2cffb3774ccc55e4f68e6b8f9",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__54.py"
+        ],
+        "task_id": "python-54",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 304,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-55",
+        "package_digest": "sha256:a09ccdcb2434c2a9a9d9593a61c44413c513c3338074fd840e68cac64d9a11c0",
+        "selected": false,
+        "selection_rank": "3c62a92b167f5ba9de4f9302cc3e18f5a56fea04b4caf9d39db54eed4bc8148d",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__55.py"
+        ],
+        "task_id": "python-55",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 829,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-56",
+        "package_digest": "sha256:44aaa404a075f9afa179eec958c9db8aca734858bb10dcb6c56c615b4b434065",
+        "selected": false,
+        "selection_rank": "a10b96820ec05f381f803c958b48823ffea54c7b773bff848f1a197d036f9c6a",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__56.py"
+        ],
+        "task_id": "python-56",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 527,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-57",
+        "package_digest": "sha256:2c9a15d968493b7fda4c5599cc682f500342d55f819ff01f06d82a6c6d4e96e4",
+        "selected": false,
+        "selection_rank": "0d082c40f6c9136dd553386ff3edb7ad29fd77a1b6eddb4e950c26b243f261d4",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__57.py"
+        ],
+        "task_id": "python-57",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 414,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-58",
+        "package_digest": "sha256:6f960d335bbb22142a8baa2c879dd0868e625de8e0a3fead7ca08111d8abf843",
+        "selected": false,
+        "selection_rank": "e91ce8e33a969050a3b8794e6566d3aae6b3b8fd07e69bcfcf4fefc728e123d5",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__58.py"
+        ],
+        "task_id": "python-58",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 628,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-59",
+        "package_digest": "sha256:9eba4f02c00c3bf97983ef4398b78bd01d8dc0df187d9092fbd0cd809533d57f",
+        "selected": false,
+        "selection_rank": "1c98abc012fd616c217e7b73ba35d2aa46b24aece2ad179695827d818470d62a",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__59.py"
+        ],
+        "task_id": "python-59",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 696,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-6",
+        "package_digest": "sha256:ade438195763b778c4aa5fef0399b0021882143f458415c86fb45d4c064e35d0",
+        "selected": false,
+        "selection_rank": "13bf80ae94e273bfddac4c382682c84b14b5e71d1aa70057b793de64880736fd",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__6.py"
+        ],
+        "task_id": "python-6",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 241,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-60",
+        "package_digest": "sha256:51e1d7ab47ec9e28de838d0029e13af7189e0594ac24e2f6d71900ac84ef9d48",
+        "selected": false,
+        "selection_rank": "3f21ed0cb1d3b6d719a31c2469f0a5de49fd06eb75b617c58e7e7707dd2eb421",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__60.py"
+        ],
+        "task_id": "python-60",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 828,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-61",
+        "package_digest": "sha256:9636de87a941f7ec6ab6ca0cd926bc989f8a6999333b92b646fc446b5db69c0c",
+        "selected": false,
+        "selection_rank": "6c3bd003dc9419d41daf807fc6b8b831ef23394dc88ca616c1405078147f0a93",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__61.py"
+        ],
+        "task_id": "python-61",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 352,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-62",
+        "package_digest": "sha256:3d679ea08e530f797f4f4940fe78ebcf356262b000dbf321d0033e87582ee1c3",
+        "selected": false,
+        "selection_rank": "a82cf0f82e463317fdaeec24db7283d03b1f7a13f88015017b2ebeedb92bbc5b",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__62.py"
+        ],
+        "task_id": "python-62",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 403,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-63",
+        "package_digest": "sha256:a1a8837ab813078bfbcd60845c0dad002a89628e43bca151f329dbb377336c81",
+        "selected": false,
+        "selection_rank": "eb7754b3e9a1e52d5426b68bb61dc0656294949642cf3f98786347bbcf1ce7df",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__63.py"
+        ],
+        "task_id": "python-63",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 698,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-64",
+        "package_digest": "sha256:32cf1ae8fba79432ad5a87ed8f31f1bc3d6f1c79a596455bbbe4fbb9b471e7bf",
+        "selected": false,
+        "selection_rank": "3911e682496af619adce0df0505de2faaa451c68ad785d277aa4615f929bb2b8",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__64.py"
+        ],
+        "task_id": "python-64",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 635,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-65",
+        "package_digest": "sha256:45ab2058189eea9df82fdd00706f4767130f01416c4ba5a3f75ef9742d66f57e",
+        "selected": false,
+        "selection_rank": "37a68e44d67bfe51078bc25eafbe64d1428212342dee121de2b3572ce441b85f",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__65.py"
+        ],
+        "task_id": "python-65",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 773,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-66",
+        "package_digest": "sha256:d1d25bb0202c2759f6ce8213196d30aa503ae35c3a223e1d8f7d7e0c9ad0dd62",
+        "selected": false,
+        "selection_rank": "cd0e0d947e03a7890934b9b980c897e52728b1dc2ffc4a5da678bf87f3f7ec67",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__66.py"
+        ],
+        "task_id": "python-66",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 697,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-67",
+        "package_digest": "sha256:42a06e089ba097e5eecb92922852d5c5adcba107f6fa6a6b8cc7fde5b4016407",
+        "selected": false,
+        "selection_rank": "3b46dfdd6caeb80f9dc062483bd9943b33f422701bd83296cca33ad8b1ef9a65",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__67.py"
+        ],
+        "task_id": "python-67",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 848,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-68",
+        "package_digest": "sha256:a2992beb28c64072b686c796be878911e2ed6c9461f75347787024dbdc699656",
+        "selected": false,
+        "selection_rank": "39702de5505c54d0b8efc4272a8d88fa175f199e12a1a624ed049073455c3cbe",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__68.py"
+        ],
+        "task_id": "python-68",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1937,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-69",
+        "package_digest": "sha256:4715f09e3ab1ecdab546ec573db12c0257ebc67c9ed322fdfee8ecad76e49d5a",
+        "selected": false,
+        "selection_rank": "ad4d4141fef38ec477edbc4406401fa41e0df76cce4952a09777ed7f0a2b7bf2",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__69.py"
+        ],
+        "task_id": "python-69",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 615,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-7",
+        "package_digest": "sha256:cc363e4c4e0edb40b2d33561e2d2291e165142901c049ac6c6694e95f670fe8c",
+        "selected": false,
+        "selection_rank": "f8b3e0f7aa2109f08fdeb17a0e104f2379a40dc63320461fed993ce1a32f3357",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__7.py"
+        ],
+        "task_id": "python-7",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 927,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-70",
+        "package_digest": "sha256:319e3137ef3777537282a82bfda401082eafd5310151a09badd4d3036fdc07dc",
+        "selected": false,
+        "selection_rank": "35c3a25d6321565709c8113640250afa7cdb88f22ff81186bec8903794ce02cf",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__70.py"
+        ],
+        "task_id": "python-70",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 854,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-71",
+        "package_digest": "sha256:a6b24b1a5d74355fc9fe585946e6dd2a55d7029a1cc05c084c48bf2a5b1f29a3",
+        "selected": false,
+        "selection_rank": "ea4f35facff25b5652b3dc3c2027e3be6b9703e8caa33894293d190c38f7e533",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__71.py"
+        ],
+        "task_id": "python-71",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 591,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-72",
+        "package_digest": "sha256:cfc1f81d98fcd12da133f34aa1fac179576f9b53c0df987d34b8b358149595eb",
+        "selected": false,
+        "selection_rank": "3d6c4df6f51097abc862ed0e3c5b2835d39cc19e9e197a7de0a89f8bee03abbb",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__72.py"
+        ],
+        "task_id": "python-72",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 664,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-73",
+        "package_digest": "sha256:3db12adb887072fb2ab17bf554fe5bbacbd8fc2c9be97b6852072b2ccf391433",
+        "selected": false,
+        "selection_rank": "25d06a1bb5eec2801398364369c868167a9880ab938dfe18f4c196581710e6da",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__73.py"
+        ],
+        "task_id": "python-73",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1093,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-74",
+        "package_digest": "sha256:73d2eccdfc649b4a9104fb656b0ea6fb71629e31b525eb3fbb6d6e33f233d2b8",
+        "selected": false,
+        "selection_rank": "676d8edca977181b04a1a5e9e3d7562f933debe460eba449a8848b0aeccc3700",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__74.py"
+        ],
+        "task_id": "python-74",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 936,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-75",
+        "package_digest": "sha256:35bc867992a0dc0f1d63170b76764567bce0500095bc301c2588c04f3e427cfc",
+        "selected": false,
+        "selection_rank": "52a838ead1457bf6a4b96b15440750745138c6d8905b3874e807198d26320e72",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__75.py"
+        ],
+        "task_id": "python-75",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1950,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-76",
+        "package_digest": "sha256:6f45747a6fffebaccd9c428e9e468a4dbce6f3facbfe6331d5eaa6e7e4514408",
+        "selected": false,
+        "selection_rank": "109e2d05ff8a02d359f173df47b7be6bd2f88d9957e3d556947770754eeeb04c",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__76.py"
+        ],
+        "task_id": "python-76",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 777,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-77",
+        "package_digest": "sha256:ec57c3e81d618dfb3029b4cea146520424125c995488eb3837424d0eba38206c",
+        "selected": false,
+        "selection_rank": "67aec65f1678eb2266536ea80266b6dc4b47908d3ff948ebc8874c524634e596",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__77.py"
+        ],
+        "task_id": "python-77",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 913,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-78",
+        "package_digest": "sha256:20e2b40061084979a07aed11f2a58baaa2e2d1a5dcc043fb0563161022b3f5d4",
+        "selected": false,
+        "selection_rank": "2c84631cd20ea5e4d58d618a11b15612cc9c6f79df96fa2549b949bfe8a91130",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__78.py"
+        ],
+        "task_id": "python-78",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 555,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-79",
+        "package_digest": "sha256:258e79e9af1461a39c26b20c885022e2e50731c934076ea3d9235603094c3ea3",
+        "selected": false,
+        "selection_rank": "ba69572e198da2fc73289121844fbca63ed557b26ca4f1176aab3fc39e63a15d",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__79.py"
+        ],
+        "task_id": "python-79",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 505,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-8",
+        "package_digest": "sha256:22c373585e4c9245ba2f7026ed078a8731d2f87e468503ce78f599943eb8d077",
+        "selected": false,
+        "selection_rank": "e8c09472a28f9c2c3424f5d83cea859cb314de26244643fd88bae9a8ff05b212",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__8.py"
+        ],
+        "task_id": "python-8",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 633,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-80",
+        "package_digest": "sha256:4791803bdeb775463b7fbdaa5105c9af50a993018dc8e2a7bc458c19a49cfa5b",
+        "selected": false,
+        "selection_rank": "89ab46180464faaadafdbf1c9297b6f64cc70fae6b1c84440fb7585ac781e042",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__80.py"
+        ],
+        "task_id": "python-80",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1469,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-81",
+        "package_digest": "sha256:f648b708dbe3ca26b65534e9635bc0f9a86cba9121125305b22859f91889b776",
+        "selected": false,
+        "selection_rank": "e76d8964e3b805fe001c03b231bce3586b132ce6d67764ef9b19f42985866e3e",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__81.py"
+        ],
+        "task_id": "python-81",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 976,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-82",
+        "package_digest": "sha256:f4d27b5b7f90068537840e7356eb9cb86d038bee3459bb4594968392b9182988",
+        "selected": false,
+        "selection_rank": "86386977d5477027329735081d7417a6f0e23e22fab4e6e05baad9ea9bc93c1c",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__82.py"
+        ],
+        "task_id": "python-82",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 573,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-83",
+        "package_digest": "sha256:a67a24b7e819886b80c19735677de57883a21b559dd519eb3f281301c54e7cf6",
+        "selected": false,
+        "selection_rank": "a991dd7f97beff92ac0842e0ef6552870bb87fd18649e70acd94fd73c9598b52",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__83.py"
+        ],
+        "task_id": "python-83",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 550,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-84",
+        "package_digest": "sha256:3ed99c35cbed69acb5ad83ccadbccee7bcd7349c4885484144cb314866c3676d",
+        "selected": false,
+        "selection_rank": "67e9c0dc9edac26fd11e4e5fee98828e970725206acb920134af327945baf379",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__84.py"
+        ],
+        "task_id": "python-84",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 353,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-85",
+        "package_digest": "sha256:55813ee793c1339885e4afe2e2d1be53c3819f125483fbb85453c3e784996f11",
+        "selected": false,
+        "selection_rank": "224fc2f9d79f6e6878426264fb486412189df8633b5a402278b2981cc7677124",
+        "stratum": "source_size_q1",
+        "targets": [
+          "/workspace/Python__85.py"
+        ],
+        "task_id": "python-85",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 628,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-86",
+        "package_digest": "sha256:4ea6d014fc298706e895657518277dbdd98cdee171f59a539c665e2131faabf3",
+        "selected": false,
+        "selection_rank": "1d72c67353e5671b4ac81184d9cf118620a2c98730d9b487336fa3bf2b8ac7b3",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__86.py"
+        ],
+        "task_id": "python-86",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1126,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-87",
+        "package_digest": "sha256:1169d94a86e4203f36216d7ecd275580d3f195579d14cff9fbbc3d4aac209b86",
+        "selected": false,
+        "selection_rank": "f349dfd92711884f5ddb572e48d337ea27da00fc8eba086250a0cd9424a9ca54",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__87.py"
+        ],
+        "task_id": "python-87",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 847,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-88",
+        "package_digest": "sha256:d114c40b7cb72e5c5f2072d078f82756ad531f4c1ac34e7b64b1b61d7a3e831a",
+        "selected": false,
+        "selection_rank": "19893a091f79ab8dbd90299a5253d52a65a4756cc4133befa8d7e2d54f2b5f87",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__88.py"
+        ],
+        "task_id": "python-88",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1210,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-89",
+        "package_digest": "sha256:d483b5186f126396b8b6e1bb9915fccbc3689ba9b21a17efc3a1f992abb90c23",
+        "selected": false,
+        "selection_rank": "9a81ebe624f83dc115aae71fe8d4057b3c14490cc131ecd8ed8cd25e03bf1a68",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__89.py"
+        ],
+        "task_id": "python-89",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 566,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-9",
+        "package_digest": "sha256:70a7563e39282436bb1226bb030c618a48c4e73ac32ed08f5b6bb67795920c88",
+        "selected": true,
+        "selection_rank": "012fbc6e90886bb453493ecd6bf6bb9c35c0168e76b27d9c86655dc5dd23b9dd",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__9.py"
+        ],
+        "task_id": "python-9",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 565,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-90",
+        "package_digest": "sha256:44a0b0610292c00da197ce8732744d9e2ca14e8cf8bf2b5170d07441a420804d",
+        "selected": false,
+        "selection_rank": "e06bc5cece5acc1d36e84b3e39bc1617a34d4b98846edb9017d89eb5b9f21641",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__90.py"
+        ],
+        "task_id": "python-90",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 708,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-91",
+        "package_digest": "sha256:ec4436b9a7b88467fcf7c1cedfb53d32c40a3a27a3a49615b0101df6e055451f",
+        "selected": false,
+        "selection_rank": "13063e0a47dfd9f0e6e06c53ae5d7777e8775bb0c78e824f11b9e01219b6b854",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__91.py"
+        ],
+        "task_id": "python-91",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1293,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-92",
+        "package_digest": "sha256:a3c2a5ebc6c358de4947a037b39646567e84237f4723df3dfa47b516cb605bf0",
+        "selected": false,
+        "selection_rank": "641f1e25e720bbce6fd5b09cc8948ffa5229571ef16740598ea1177ce200ebb7",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__92.py"
+        ],
+        "task_id": "python-92",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 915,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-93",
+        "package_digest": "sha256:ad8496573f153df0146101c966e28a808b987d20cea72b96aa5d2ae100c05ed3",
+        "selected": false,
+        "selection_rank": "eb768d4d5a60ec4b98aa70269794a68c5efa9ad5fd26fd954d4565648a4ab5f7",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__93.py"
+        ],
+        "task_id": "python-93",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1847,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-94",
+        "package_digest": "sha256:48d5bdb2db0f62fdd25586925c7abdda88843aaaae39edc9048332ce79831401",
+        "selected": false,
+        "selection_rank": "229110f1437c1100ec46a17138f531b96f5ad05995d530dfbf7b61c83f321187",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__94.py"
+        ],
+        "task_id": "python-94",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 1947,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-95",
+        "package_digest": "sha256:4b6423ebab571f620d6c7521826306ff658dbd5d9e6d7d1ada1a224ecd2511ae",
+        "selected": false,
+        "selection_rank": "9d34b73886c7e8cab22aaf540ffc1f001398e0f82a80f0435ab6747a448bf9eb",
+        "stratum": "source_size_q4",
+        "targets": [
+          "/workspace/Python__95.py"
+        ],
+        "task_id": "python-95",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 837,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-96",
+        "package_digest": "sha256:2c23ed2296a27e34964d8324491ad74eceb1ae9ee078e17a396bed1a7cf12943",
+        "selected": false,
+        "selection_rank": "364fb54a0953b3b2451cc2a53327115601c7bf3d0faa805c9ac5e9191c2d1400",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__96.py"
+        ],
+        "task_id": "python-96",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 897,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-97",
+        "package_digest": "sha256:d8b9e8ac98a8a8c8e69fbfcdb0058c58431266d54ce4f7481de5cb471e7e741b",
+        "selected": false,
+        "selection_rank": "d69e5938cb49d38d756d8d1c9158d19607ab3054460f3216f4fa564229384471",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__97.py"
+        ],
+        "task_id": "python-97",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 539,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-98",
+        "package_digest": "sha256:933fc11c9bd1b4ad9dc7fbccc54c71bcd49eb6021c691c0ef295dc4b630952a4",
+        "selected": true,
+        "selection_rank": "01bfb93738a9e263e6cc26a19a39ea13977ff01238aabe11007edcfd145b0ec5",
+        "stratum": "source_size_q2",
+        "targets": [
+          "/workspace/Python__98.py"
+        ],
+        "task_id": "python-98",
+        "timeout_sec": 600.0
+      },
+      {
+        "base_source_bytes": 827,
+        "package": "library/benchmarks/humanevalfix/humanevalfix/python-99",
+        "package_digest": "sha256:159c2e3be31297954a399065bf98e45ecbb8d8ac4c4acb0db4ed44fd1a44b1a6",
+        "selected": true,
+        "selection_rank": "06bd31b5912e6eb3ba7ed310fdd320fbc57ee68d93fa3670c2fcf724cf64c3b0",
+        "stratum": "source_size_q3",
+        "targets": [
+          "/workspace/Python__99.py"
+        ],
+        "task_id": "python-99",
+        "timeout_sec": 600.0
+      }
+    ],
+    "frame_n": 164,
+    "sampling": "Four equal strata of 41 tasks by buggy source byte length (task name breaks ties); take the three smallest seeded SHA-256 ranks in each stratum. All tasks have equal 3/41 inclusion probability under the recorded hash-rank design.",
+    "selection_reason": "Largest already-materialized homogeneous lightweight Python code-repair registry benchmark: 164 reference-bearing CPU tasks with one editable Python file, common Python 3.12 image, 1 CPU/2 GiB and 600-second task deadlines. SWE-bench pools need large per-task images; math/MCQ benchmarks do not exercise reference-code mutation. This is not an exhaustive claim that no other public registry benchmark has more eligible tasks.",
+    "selection_seed": "weak-tests-generalization-20261019:hef-size-strata-v1",
+    "source": {
+      "commit": "ab02ff13250fae8d91b93a6e4c11ce0bdcb78215",
+      "registry": "humanevalfix@1.0",
+      "repo": "laude-institute/harbor-datasets"
+    }
+  },
+  "limits": {
+    "line_mutants": 8,
+    "owned_lanes": 1,
+    "shared_docker_slots": 2,
+    "subset_grades": 24
+  },
+  "method": "evallab.ref_subset.probe_task / Probe / mutation_pass / verifier_mutation.select_mutants",
+  "method_code_sha256": "06f9776949020caf2c9e3af1b945119bcd9e1a39ad35d87bfae8b21b6bd11e6c",
+  "paid_experiment_spend_usd": 0,
+  "prepared_at": "2026-10-19T07:03:45.440894+00:00",
+  "schema": "evallab.weak_tests_generalization.cohort/v1",
+  "tb21": {
+    "frame": [
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:30441b50999d7a02ccd880d132275759138ebf977db2e2c0f4a89954e5990a82",
+        "reference_sha256": "fe443a8082b5183ba1623311ba0ee958888aefa633eff93766b9ae14e9bdd84d",
+        "selection": "not_selected",
+        "task_id": "adaptive-rejection-sampler"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:57f05f1df7374d81043b90eb5a6bc875fe71825a464269d706a1acb55a3192f4",
+        "reference_sha256": "813eb810cf041466468703ef14fdb06ada533b9accddf774eecc7a7191d5cb79",
+        "selection": "not_selected",
+        "task_id": "bn-fit-modify"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:d69a4a53e886b8c14dfaa8ac3501b9ca46876fd306a0b9cdfa21b9d5253a4ece",
+        "reference_sha256": "1d77103dc3f10e94d00f3714a773e659211770d9197649e2473227a0ac60f2a5",
+        "selection": "not_selected",
+        "task_id": "break-filter-js-from-html"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:ebc99236a044b379e3030f8b6b77eae4c292f718f499b956dd25d9f11fef6367",
+        "reference_sha256": "41bbdde88617070366a70e518eedca466a4ea1acd7e96899b2fb7da988e40abc",
+        "selection": "not_selected",
+        "task_id": "build-cython-ext"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:72ab289f88104105766fa951673c4c9e073878a1fadbda42d3094abfd868989b",
+        "reference_sha256": "111b4e532ec411c9826cd67309f39efac21063e3a76d5cb268e62ce5fadc713f",
+        "selection": "not_selected",
+        "task_id": "build-pmars"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:99a7d6e951b45e62cb410ef91c8e1fc45afb94ae2cfc265a94f2b94a639b1bb5",
+        "reference_sha256": "3da9dbf589656512cd7a7004dc3752d3552a6af939cfe59eff79f91695fa42c7",
+        "selection": "not_selected",
+        "task_id": "build-pov-ray"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:370572ecc98fae8ae50c196cdd39b4e7c4a022b2da5f217b03c44fa60339e540",
+        "reference_sha256": "771887de1ed557269c7f3160c777519aa9538e1e9b59771b2f6ef38c8952490c",
+        "selection": "not_selected",
+        "task_id": "caffe-cifar-10"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:e7cc5fa47a58ad7ea8125a34e6ad09fe00d3fcf678cc80e7d5f2c58bbbd9b6ef",
+        "reference_sha256": "4938ca4ad5b7dcd36b414b42a1abb10c058ecefce7462b678f9bd05c9fae1844",
+        "selection": "auditor",
+        "task_id": "cancel-async-tasks"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5a874dee9e45b83289b1362dc447a173316fa22b50b05d0918c6b12c8991cedd",
+        "reference_sha256": "53b5c5e2278ca915b0930eedfd44565ca84ef21c7346fd6601434484cf76151f",
+        "selection": "not_selected",
+        "task_id": "chess-best-move"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:fd3342fedd5f16ab182b777fa066f180c16c331d481d22f93ab7ef0ebdaa8575",
+        "reference_sha256": "a4ffab4183815a0eb7646abc1de1fc67695014c060d7ff16e8bca9ec94385d0b",
+        "selection": "not_selected",
+        "task_id": "circuit-fibsqrt"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:914b37494851452a3fdc5554264601eb854c602fb33f3b3c0c22d25adcf0b84e",
+        "reference_sha256": "7d4a0504e1686c1790bfbc074d4e598f4c631f54c2bc5f3d5fd786574b4810b9",
+        "selection": "traces_campaign",
+        "task_id": "cobol-modernization"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:e715f07939a8083efa1da9a5ce98019540896d7d14da6f3a25f67d0c90f09612",
+        "reference_sha256": "bf3dcc484e6c47b7991cb401b17820cfffa33050265ae86328e4a81be1ee7693",
+        "selection": "not_selected",
+        "task_id": "code-from-image"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:c4c0fcaa95bca031004b2f144f22bc25eab539c5a74c675358ab2b202aaffd9a",
+        "reference_sha256": "d0836b9f5d1728ab03a42756beee6f04de99103c4b5bd4e0f32b62e56ebbb18a",
+        "selection": "not_selected",
+        "task_id": "compile-compcert"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:47abd3aa255d5b74a5a61e135082a22ad52dcf1aa64c031c3494e411d80a5e52",
+        "reference_sha256": "921ff9c1dabdbd130e1a6616c24b236b7ba9a1517b3dff4c33fe8c8a129e2e7a",
+        "selection": "not_selected",
+        "task_id": "configure-git-webserver"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:c0146b9936635834edaa569c1363bfb155b3ee4d42bd61f679ad24534793d694",
+        "reference_sha256": "802d81ec064fad3050bbade95a2f847ac24e0b7f80fa69b0bcee0347dc92fe77",
+        "selection": "not_selected",
+        "task_id": "constraints-scheduling"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:e5387bc1be89685e36d05c590fbdb2e9952a7c1d9bf1f0edb3a50892d5b72e95",
+        "reference_sha256": "2187111069ab025503e74d0c49528b27a867680575add1588ee94ec2a470bc70",
+        "selection": "not_selected",
+        "task_id": "count-dataset-tokens"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:bd9ce34cc3cf69c3276c509cbbae07d1d64a8319c89f58d641952261594eda0a",
+        "reference_sha256": "2640463e6e14658426f3ea629e0702688e00553eb8006cf31ec3b9cff75c4b19",
+        "selection": "not_selected",
+        "task_id": "crack-7z-hash"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:84aaaa6b70b5a163457c5c60d2ee894fb638baa9d97a0b405c5d0450c941c2a8",
+        "reference_sha256": "b0b1d10bea1cd5be14a82b35d522df616df1e67028f90d2a6bef90aaa98511a1",
+        "selection": "traces_campaign",
+        "task_id": "custom-memory-heap-crash"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5b52bc6eca9df23b8e1b589be3c94d02286f5c8c3d4454ce291d858f5bb6676d",
+        "reference_sha256": "ed8530c94103bf19783a1d41bc63fe4db478cdd9629f22fee25c45a45699f5e8",
+        "selection": "not_selected",
+        "task_id": "db-wal-recovery"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:fd7c534757c24502c48d8376ba0c77cb5cd72446baafdc3d7cab17a1a553a487",
+        "reference_sha256": "19daaee18d534f36679854b0ba5727290df389ee023ebb67846cb89579d38bbe",
+        "selection": "not_selected",
+        "task_id": "distribution-search"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:195102d43d974a37b76f48f76aec15fc3d763f0882f37fd038111d6de80adefe",
+        "reference_sha256": "c976cb118c8ef1befd846ba05fd5cadb1b1f529bc76b9f2ea9cb3049e6e11a47",
+        "selection": "not_selected",
+        "task_id": "dna-assembly"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:819a049375e91159db5cbf1030dc42d09c53def9a64eeae95c83479f0800771d",
+        "reference_sha256": "161b9fa46a76b05743fa3fb8eb01be275d5f89466813096aa5b89bc19b3db099",
+        "selection": "not_selected",
+        "task_id": "dna-insert"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:12bdc80501ebd724c8c0bfa9a512437f575a13da6b3c7f78b404e5a9cfe072ed",
+        "reference_sha256": "c72b1715a26c4eefe4c53934243a1d67f7560b3c126f82d2c98c92870f69df40",
+        "selection": "traces_campaign",
+        "task_id": "extract-elf"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:4445f08b249ba09a823acafcc2ce59f87d4658becb6092687523ef7de91f9b2d",
+        "reference_sha256": "102dbb49e51054e4f12cbf92252b9572506a1d735e393589a024c2cb45fa6b77",
+        "selection": "not_selected",
+        "task_id": "extract-moves-from-video"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:26d4b179e89b591be777d2e27d0910c29c5dd121a4c7b2516beea5ae72837eb8",
+        "reference_sha256": "6846dd2877aac95bc0b35a65c3b522403d21491407e02f07b7060ab4071a9620",
+        "selection": "not_selected",
+        "task_id": "feal-differential-cryptanalysis"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:10799d1e76fe4aa7ad32ffca708c1cb98d40ef1f7cb1c5fcba7e71c5509efc77",
+        "reference_sha256": "be50ae01a3ea850a6dc4bc99dc130d0b7ad37963c85544a02b03a4f5da29cb77",
+        "selection": "not_selected",
+        "task_id": "feal-linear-cryptanalysis"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:50db1e57cdee9fb552be8d3649c8fbcb97b09c711aa037000f4376c1c5d68281",
+        "reference_sha256": "9686e12af48346d2df538c3b46710122ee8dc80dfd0eecacb7a1476bf892ec9f",
+        "selection": "not_selected",
+        "task_id": "filter-js-from-html"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:f84178ede1eb0cf28e4a980a122ba80be600e71505e5881cc5f38c85531374a2",
+        "reference_sha256": "8d7ca9ab25d9334c045b72e1045131a4b0ea5f5e4e99bff52be9d5da910f7dcb",
+        "selection": "not_selected",
+        "task_id": "financial-document-processor"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:fea5863aa6fdbacb3dd64eced0b59ae202f46d871b296452cf996a10bc1c8417",
+        "reference_sha256": "7a0131b369d83ae8546ecc3f9b4e23d38240f1bd1f0941e4430fa85b5182ee03",
+        "selection": "traces_campaign",
+        "task_id": "fix-code-vulnerability"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:2f0e8d8e3c29f242395450c759cb6460dfcec5beab2a3f177f8911a64c7694e8",
+        "reference_sha256": "4789fa74e92e5b7b893c4b8637c26db2b6458b2136edfc3e686cc278dfc23630",
+        "selection": "not_selected",
+        "task_id": "fix-git"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:65bfc3088c9da7caf6ca53ef6d54a7e2b293c0c66420b0621bea43848a34624a",
+        "reference_sha256": "0582baecb730dc76448563ffda39eb3756a31e76f0756d2a5c0ffcbcad049f2f",
+        "selection": "traces_campaign",
+        "task_id": "fix-ocaml-gc"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:8ae8f633b879f0c81e60f01ed8a00a6e2d62264dc423d60006ad1fc5ac3906a8",
+        "reference_sha256": "22dbd3a33750fae3c9e15c669e0f0dcbc2262434fb534bf0c2019269c044792b",
+        "selection": "not_selected",
+        "task_id": "gcode-to-text"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:d681de43f546b90535871e0fb14a9f8711a8e3434cf4f5812ff6f1351c890ae7",
+        "reference_sha256": "791a7eb23019ee7c93307b35cc77ea334469c4d3688e1171fe1e5ba6fd9a14dd",
+        "selection": "not_selected",
+        "task_id": "git-leak-recovery"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:19c20a15160b707c5f976ff727e30f8e89e4b269fb2f3a9b2c1388c6a7b5111e",
+        "reference_sha256": "300ca96b79db8d77f14742109aaf76048aafc4644ced750b1bc5c2761e8d0175",
+        "selection": "not_selected",
+        "task_id": "git-multibranch"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:0a50baf8cd5ca4c1d5cd11b959b36a2de8f5ec1ba63a6461bf63de706d3e1f67",
+        "reference_sha256": "8c288a53bdf566d7278a35eda08d6baaf50883b0e1917ceb638b823cf6456b70",
+        "selection": "not_selected",
+        "task_id": "gpt2-codegolf"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:9d82d212ec581392c94c7a1648c29ddd1d0948b9fc36d9ad7ba9bc520e364b6f",
+        "reference_sha256": "fbfc2d1f9fb861422055d4b968a5089874ade0f65da04e44eb4d13bc71a93fd7",
+        "selection": "traces_campaign",
+        "task_id": "headless-terminal"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:655b162d513b847dc65e1852228380991803105292f78f4d3f252637ca748f32",
+        "reference_sha256": "9a7b198075371c088c04a60fe536791588812ac1aacc88df0703353401a89c8e",
+        "selection": "not_selected",
+        "task_id": "hf-model-inference"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:37bca2642f890f3a0e9fbd969e364fdf01738ede9e6b8d96f9ebef765ce865ac",
+        "reference_sha256": "68a9221b9a29331b66fd34fccd71db71d2b5a720e917f2ef95f4a8a542a71ee4",
+        "selection": "not_selected",
+        "task_id": "install-windows-3.11"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:7ddb52adbc4ebc929852adaeedbf569f5a81fb58dd92d6d3a242cb5ac3b2912b",
+        "reference_sha256": "6bee2938ac9731d1156b0ca02b28c3d5793bf2cbe5f995c863d397093af01cb7",
+        "selection": "not_selected",
+        "task_id": "kv-store-grpc"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:1a4c47c3843c3390a211f5387ebad01aeb1e9c6f6644d5b71fb987cff3d804ff",
+        "reference_sha256": "a4fb27c7fa4cd4da26f7fbccbaaca24c290dc41ab9dbbb6e1dc916e72743c55d",
+        "selection": "not_selected",
+        "task_id": "large-scale-text-editing"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:0de1c3f5d6fbca158066db5a6433128417d0dbe4a3d5a6db10747fc016885760",
+        "reference_sha256": "8f414e50ce29f21ae26c423d74949b257073e95318ca5f5a95c2d9a90bfe93c2",
+        "selection": "not_selected",
+        "task_id": "largest-eigenval"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:ebec5a39d0c2d977092e26cdb39ffd4c0acc23923fd89392c034751d7b79d3d6",
+        "reference_sha256": "cb9efb586d76a893c3027e62029e286eb6c7583dc92dbf1840a3adc236a926d7",
+        "selection": "not_selected",
+        "task_id": "llm-inference-batching-scheduler"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:8099b5bb9d459401a9b767a3c950c54c45c3ee4d22ea206ac40177d160b4c0ff",
+        "reference_sha256": "9f6a8ee8947bdf1c0f31b530b6194ae998d66841a3b785fa2e246ee840350ab6",
+        "selection": "not_selected",
+        "task_id": "log-summary-date-ranges"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:6a66cfad5948e1f8f6163c20ac18f75352eea2eb96e9ce294b8da8f9572e11d7",
+        "reference_sha256": "326572800999206e3d882e177902878722b98f8c90b19f3e2bcdfb5425989a50",
+        "selection": "not_selected",
+        "task_id": "mailman"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5000b91dbdb443462d6068f7b027f9189836807d0ce44cace30423bb130728eb",
+        "reference_sha256": "7795f4ac8ee4eaa35f2cfdce7f05e3c589b1c1b75534c02451a51b1767c3d6b6",
+        "selection": "not_selected",
+        "task_id": "make-doom-for-mips"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:e987ecd2373d93960287c135dbc733bdae874b8459f2a23833e87ad014dfe73a",
+        "reference_sha256": "94063278c36e848006bcc3381d347af4dea066d3eff4da3ba29538922f6c22a1",
+        "selection": "traces_campaign",
+        "task_id": "make-mips-interpreter"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:f48e3ab0a271becd2f85a5df35473fd54fe65337f10d08717e4d012acd7aad0f",
+        "reference_sha256": "1d24eeab0b65b0c6a81d300e4aa88c158ad36db2eeb0b684ffe458f01c436d87",
+        "selection": "not_selected",
+        "task_id": "mcmc-sampling-stan"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:830f2d600b02e774ed61e5fdfcaafeccf090a27fde4a06c897b0c40b50e0ff4f",
+        "reference_sha256": "48d4becc41fda5b6063fe96947474ffe778a29d6924d7b2bb235eb61e5ce555d",
+        "selection": "not_selected",
+        "task_id": "merge-diff-arc-agi-task"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5973b02ac028b7b69b49d819cf7964208930c44f5ae96e653749609fe439c28d",
+        "reference_sha256": "4cea5094f074ff21453d4423aa1b415a104ed90caa55a4acbb4f09941a3994ea",
+        "selection": "traces_campaign",
+        "task_id": "model-extraction-relu-logits"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:dd4fedc7bb4fcf7c547ac47d3f825beb66bcbee37d0ccf008a209349f21459d7",
+        "reference_sha256": "8f92baa6d2f2318e3059f094faa9ba0c94f939239b3f93ab2803a20f8e84fcd7",
+        "selection": "traces_campaign",
+        "task_id": "modernize-scientific-stack"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:59d008cd5c5e1aae463e7c5be377cd7a40520341a003416bc7fcd9dff4d13d1b",
+        "reference_sha256": "4ed68831d4acf5d80d2d73eec1f21efd0896a6f51f23020f572cfc0af6da0410",
+        "selection": "not_selected",
+        "task_id": "mteb-leaderboard"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:862616912f37f2b40e6b46ef505f03c2fedbece01554c4a16e9a23bbe54f76f7",
+        "reference_sha256": "97adb02c74de75d6d66829cf12d0a3d05b35b1b48b597ab67b90388517286553",
+        "selection": "not_selected",
+        "task_id": "mteb-retrieve"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:bf447b1768ecf5e0ee55c29f135cdb85f61b92bf8d22705e1fa8ffdfde700bb0",
+        "reference_sha256": "1b3d0d50e31930d042495d48f4c8e95f1a9c1a979c803b7f7cec651322537e1e",
+        "selection": "auditor",
+        "task_id": "multi-source-data-merger"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:f96c451d9e531a8b7a64c034c67609c5c7db46d2cd5ae74a4367bb0fccbf1046",
+        "reference_sha256": "2454bbbf7c201a9a778165f286373ba2cb991a0eb1d026a8005d57ae71250dd9",
+        "selection": "not_selected",
+        "task_id": "nginx-request-logging"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:07e63c2e2819532843e1e59f2729a7148a50d1940cf501ae821a910ecd772115",
+        "reference_sha256": "58cf3c844e907745cd81fb4bd75efb3d080e2f0e82b589c56c954ae6e1756510",
+        "selection": "traces_campaign",
+        "task_id": "openssl-selfsigned-cert"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:d013ea7ea644faf5a81f43127d0166f37193100fc27968a80302b85e6d5c9b7d",
+        "reference_sha256": "e0e6d40406b33ed41cebe14636f173374ed2b2d4e2ae6cf734ac7a87a42b84ba",
+        "selection": "not_selected",
+        "task_id": "overfull-hbox"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:2c3a430daea74a6a11027890f953587d9fd97e712553fe439dc6e7c75db80fab",
+        "reference_sha256": "c5f9fc70b6bae40befdd0088dde1a3bc6e909852c9fbb36a617c627b7b8d804f",
+        "selection": "not_selected",
+        "task_id": "password-recovery"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:1007d0f600ca0ca5a7834df445c526c27bd968dbeb87ca26fc10f669d853ff14",
+        "reference_sha256": "d107abde101eecee6838da80cc52a3d480c93956fff3a9343a299ea01b3fe9e6",
+        "selection": "traces_campaign",
+        "task_id": "path-tracing"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:de13ec97d3d361d2ae0d200a675618fa3ad9ab0d632243b0a9d08552fdd26f8f",
+        "reference_sha256": "3489e31c60b7ad7ea1c22035143b6d130cc864427db867234ae8c416b296a2d2",
+        "selection": "traces_campaign",
+        "task_id": "path-tracing-reverse"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:64b82e4f9066a0ad2b89e1c6004ba8674f3e89554bdefbdf00f7e68f42d55b4b",
+        "reference_sha256": "e768453a194037b0517803fa0d99dbd3b6f820dead842e0b6161019b33456bf0",
+        "selection": "traces_campaign",
+        "task_id": "polyglot-c-py"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:46c294fcde7740c225814847f9cfe9767faa48a31a2ef44e35314480d2ca649e",
+        "reference_sha256": "f3b101d9528efb3997937fa134b10e3773521bf83d576dab3183e977d12c9638",
+        "selection": "traces_campaign",
+        "task_id": "polyglot-rust-c"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:e4f92530b9031a6b1cc84ca15b72ee96a22d884ac0b7245a76238abf2bbbad01",
+        "reference_sha256": "c9291da2bf6d504896b1259bf3d896c7ca29d71630975c49493805f758d138cc",
+        "selection": "not_selected",
+        "task_id": "portfolio-optimization"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:29be4b9e19d11329eefa3e6bdc4423e48189c156618cfae67a4174f0af1c5c1f",
+        "reference_sha256": "0a6622bc3d0342f95cdd838eb61a965a896c5f2cdb9b98e0410465b50fa15502",
+        "selection": "not_selected",
+        "task_id": "protein-assembly"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:c57e0229d9c1bb0b82d8d5695a85f9a7d8b3dee502d171971787a6a8d1c8ca32",
+        "reference_sha256": "efac67daf424d3add515a45ad6e9a6f89ce2639dcc8476dcc106076d956ee422",
+        "selection": "not_selected",
+        "task_id": "prove-plus-comm"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:7cf0d9851a29c04587eaf1998c5dab65d47d0fa1a60e30e0a3d55a281456d0fa",
+        "reference_sha256": "1143c0eade4932ec3aeaa5013fb5e23bbcccca15dead294aa03b6af88750775a",
+        "selection": "not_selected",
+        "task_id": "pypi-server"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5c230923099a363b09c118000eb2d0838cdaae6f7d1816feb273ed187429599a",
+        "reference_sha256": "3b34e561c9ef0a53c9948655847846eb4811aaac67b990480aa6aac1b04bfe66",
+        "selection": "not_selected",
+        "task_id": "pytorch-model-cli"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:2f136d2320e01a797dbdb844f3e76659f0a2de09fca674e64d5e786781ffe671",
+        "reference_sha256": "175a7802777b43e0fa4f629d71f7c68fb40706813c342aaddc72108d89bd5b2c",
+        "selection": "not_selected",
+        "task_id": "pytorch-model-recovery"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:c6215d679fc789aeb51a45cac2086df07d74c904febe9b912a62a3c84c4360db",
+        "reference_sha256": "1cd31186c427b91bb00499d22aa4f0214fc1ca93b40b6e4cfa969611b848db2a",
+        "selection": "not_selected",
+        "task_id": "qemu-alpine-ssh"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:60502079a6842e402c65e29927b1f78a82790fb72235819684eeeb3711f90dfa",
+        "reference_sha256": "a6a644e03c4bbde4039f222d9509a884e62b4a3402990482688b67ed5dc7919d",
+        "selection": "not_selected",
+        "task_id": "qemu-startup"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:9c3951327bea7e41f27a9db0023a171f1a13885152030f0c883526ad92a3438c",
+        "reference_sha256": "0d95f3cedb287ff9d47c796cbaf812c300d1222c10fa80c49e8acb0e81eb6978",
+        "selection": "not_selected",
+        "task_id": "query-optimize"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:81bee2e3e68ccb81907c6181bc0286a5cb636d865e74a11510e772862d89ed56",
+        "reference_sha256": "cc803d3c254063f82ab1da5b59f276951d50d1f307657606027a45dc035a53ee",
+        "selection": "traces_campaign",
+        "task_id": "raman-fitting"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:b49ec6372b76da5a09add048f8fefaa6259c64ce27989c958cf043fe647f0e9d",
+        "reference_sha256": "b728bf0ea392a3d244afbd0818d36933c8d3e190e47743c1382cd518d518a2e9",
+        "selection": "traces_campaign",
+        "task_id": "regex-chess"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:4e512b002700e489e7ee8de534e631c34f32be4837d535daeceb937978b2c428",
+        "reference_sha256": "7e670d4f2b4bccb1e4db38f2a173e085ceda028c38167912b466b0a84fcc0999",
+        "selection": "not_selected",
+        "task_id": "regex-log"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:5d4d54603276e2e3797ca6a76dc43d0a479737093e37d726813caf1da74a66fa",
+        "reference_sha256": "84ab67b5d3ceb68cac0413e5ba4a130bdb52ad7c764bbd231a30d9d8f82fa976",
+        "selection": "not_selected",
+        "task_id": "reshard-c4-data"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:32094d1688d58faaf83ecb712977f26ce06649a71f06a88d44c6f0e6f7fd9d06",
+        "reference_sha256": "f7aa57d6008ad2c41ba0a9417d8f9918c876cb3b47b1fb7bd75bb9eecadf9762",
+        "selection": "not_selected",
+        "task_id": "rstan-to-pystan"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:57fe4ee6d3c51f10ef60aa9390a3def172b1002fd2a89de68bcbf6c41fe5a719",
+        "reference_sha256": "62bdd93b58b6490534f019e2a05b3e05499e9efb4b6ecf6894fee2355d5fe32e",
+        "selection": "traces_campaign",
+        "task_id": "sam-cell-seg"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:f9b8390ed9ee21fbf480551b663a72fc4ed25f0c5b33544471b683c179d616e2",
+        "reference_sha256": "40b6f8e8d2d61333e4ea02aefb7ce906cf6886f0b50e9e8c5d534a1d7d62d721",
+        "selection": "traces_campaign",
+        "task_id": "sanitize-git-repo"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:dcdde520cec96e7fc2b217f75f0cb6879b59c21dcc73c5ad1c8ba2a23e7d4698",
+        "reference_sha256": "e2c5b0ac2bef4801a1891e13c108813381877426c1a7f01bab86b4fc1f712510",
+        "selection": "not_selected",
+        "task_id": "schemelike-metacircular-eval"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:202892c72b56e7253fa9bfdef54aae5fd7e65ba3ffe5580f915ebed384036e7a",
+        "reference_sha256": "d17995a8f29c6d656c749271fd28e10d31afee6aa75f40ad28fea1c907f2a791",
+        "selection": "not_selected",
+        "task_id": "sparql-university"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:8d709a9557d79121fae98628658b5a5a025464577d828e3a7c28aa1a64f3c26a",
+        "reference_sha256": "6aa341ba5e614aa5ef991cdd2d398da1c5833b80123795d7da87ea41da431a04",
+        "selection": "traces_campaign",
+        "task_id": "sqlite-db-truncate"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:d9d83147490ae7cd3194851ba9ecf27cf5a320b0c982598cde04a1742b3dc76f",
+        "reference_sha256": "e054f4092eb4b2895866a89c4d4e3591dda0fa28bd9d825ca60403f359a8f027",
+        "selection": "not_selected",
+        "task_id": "sqlite-with-gcov"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:fee0c9db891e3769012c6ac42789ccd7a3dd9cf310bc7daf564a5a076f91124d",
+        "reference_sha256": "787198e4178d88b887697aefdd29819f29435ffdfe356545d92f58a30fb38b70",
+        "selection": "not_selected",
+        "task_id": "torch-pipeline-parallelism"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 8192,
+        "package_digest": "sha256:280efa2017af0745d845200a40797faf79940b1c1255134bc36e6fc8eddef271",
+        "reference_sha256": "d083b7cbf9dbb6cc2ff38c8f2acc150f0059c04aea42d6c2183aeaecc5a19385",
+        "selection": "not_selected",
+        "task_id": "torch-tensor-parallelism"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 4096,
+        "package_digest": "sha256:efef66833f2a5567abfee4c465d849a8825abd0b1ca3011971685235656cd298",
+        "reference_sha256": "431b8fce223717cde4b934aeb565823acdeb2f9fba8be662ea2dd3fe716e3779",
+        "selection": "not_selected",
+        "task_id": "train-fasttext"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:f2767027d01600c98fa053891bef1e76a57b7b5ceb9e73fd907aba6a824c20ec",
+        "reference_sha256": "afe5dcb32992bcd89893af943ccf0d0e38c1d43627e15adc6abd8df1f6c11d54",
+        "selection": "not_selected",
+        "task_id": "tune-mjcf"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:64eb7d839a9aa7de333f6295bee12cc7137e0b3afcc25c169de2dd92ceb4e842",
+        "reference_sha256": "6db47fdd921f40b338685c1144bcf763f259304ad35fea5a9c69b04eef30bb89",
+        "selection": "traces_campaign",
+        "task_id": "video-processing"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:e9d439b48430fa82b8adea4dccfdcf4a508556fc88deab16975453133710bbe1",
+        "reference_sha256": "69de3ffc423578fde8f2f75282ee8d72129c91e669eef844cd14dfab308a2855",
+        "selection": "not_selected",
+        "task_id": "vulnerable-secret"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:1c68145f0d274a47b112acbce586292402f03bf46a309c6ac3bd02290549ff0b",
+        "reference_sha256": "760a9abad5281db831e579c2529fa30c58d9e61fb923d9d46edac165669c3682",
+        "selection": "not_selected",
+        "task_id": "winning-avg-corewars"
+      },
+      {
+        "compose": false,
+        "gpus": 0,
+        "memory_mb": 2048,
+        "package_digest": "sha256:f6bb305b3253831062678178ed1c83af830202955d796203ccd591df468e39f1",
+        "reference_sha256": "01550b7de7ab1320b1898eae055226bb7c73bee259c75102d2240c974a730409",
+        "selection": "not_selected",
+        "task_id": "write-compressor"
+      }
+    ],
+    "frame_n": 89,
+    "own_sampling": "Purposive two-stratum pilot: one executable Python submission and one structured-data submission, disjoint from the 20 live Traces tasks. Not a random population estimate.",
+    "prior_cohort_sha256": "9aeb4254c86aaf68dd65dfa7c4a9a1c4a56fee04a43c22c7dfeee57e5d044001",
+    "prior_live_campaign": [
+      "cobol-modernization",
+      "custom-memory-heap-crash",
+      "extract-elf",
+      "fix-code-vulnerability",
+      "fix-ocaml-gc",
+      "headless-terminal",
+      "make-mips-interpreter",
+      "model-extraction-relu-logits",
+      "modernize-scientific-stack",
+      "openssl-selfsigned-cert",
+      "path-tracing",
+      "path-tracing-reverse",
+      "polyglot-c-py",
+      "polyglot-rust-c",
+      "raman-fitting",
+      "sam-cell-seg",
+      "sanitize-git-repo",
+      "sqlite-db-truncate",
+      "video-processing",
+      "regex-chess"
+    ],
+    "prior_worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019",
+    "selected": [
+      {
+        "package": "runs/weak-tests-generalization-20261019/packages/tb21/cancel-async-tasks",
+        "targets": [
+          "/app/run.py"
+        ],
+        "task_id": "cancel-async-tasks"
+      },
+      {
+        "package": "runs/weak-tests-generalization-20261019/packages/tb21/multi-source-data-merger",
+        "targets": [
+          "/app/merged_users.parquet",
+          "/app/conflicts.json"
+        ],
+        "task_id": "multi-source-data-merger"
+      }
+    ],
+    "source": {
+      "commit": "7131e4375048a0e408a8fb404b5f499d726b695b",
+      "repo": "harbor-framework/terminal-bench-2-1",
+      "task_prefix": "tasks/"
+    }
+  }
+}

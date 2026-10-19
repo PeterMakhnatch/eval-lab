@@ -1478,20 +1478,30 @@ def _darwin_public_policy() -> HarborNetworkPolicy:
     )
 
 
+@pytest.mark.parametrize("source_state", ["unchanged", "changed", "removed"])
 def test_staging_cleaned_up_after_success(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    source_state: str,
 ) -> None:
-    """A successful run removes the temporary copy and keeps the metadata."""
+    """Cleanup and input provenance do not depend on the source's later lifecycle."""
+    from evallab.registry import compute_task_digests, harbor_task_digest
+
     request = RunRequest(
         task=no_network_task(tmp_path),
         agent="oracle",
         name="staging-success",
         jobs_dir=tmp_path / "runs",
     )
+    original_package = compute_task_digests(request.task).package
+    original_harbor = harbor_task_digest(request.task)
 
     def completed(*_args, **kwargs) -> HarborProcessResult:
         kwargs["job_dir"].mkdir(parents=True)
+        if source_state == "removed":
+            runner_module.shutil.rmtree(request.task)
+        elif source_state == "changed":
+            (request.task / "task.toml").write_text('[task]\nname = "later-source"\n')
         return HarborProcessResult(
             returncode=0,
             timed_out=False,
@@ -1528,6 +1538,8 @@ def test_staging_cleaned_up_after_success(
     assert manifest["network_adaptation"]["effective_verifier_network"] == "public"
     metadata = json.loads((job_dir / "lab-metadata.json").read_text())
     assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
+    assert metadata["task_staging"]["source_package_digest"] == original_package
+    assert metadata["task_staging"]["source_harbor_digest"] == original_harbor
 
 
 def test_read_only_task_store_stages_and_cleans_up(

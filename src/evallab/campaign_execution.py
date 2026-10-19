@@ -193,7 +193,7 @@ def docker_available_resources() -> tuple[float, int]:
 
 
 def docker_task_resources(task_dir: Path) -> tuple[float, int]:
-    """Use declared task limits unchanged, never a cheaper assumed 4-GiB size."""
+    """Use finite declared limits, including Harbor's legacy unit notation."""
     environment = tomllib.loads((task_dir / "task.toml").read_text()).get("environment") or {}
     cpus, memory_mb = environment.get("cpus"), environment.get("memory_mb")
     if (
@@ -201,9 +201,24 @@ def docker_task_resources(task_dir: Path) -> tuple[float, int]:
         or not isinstance(cpus, int | float)
         or not math.isfinite(cpus)
         or cpus <= 0
-        or isinstance(memory_mb, bool)
-        or not isinstance(memory_mb, int)
-        or memory_mb < 1
+        or (
+            memory_mb is not None
+            and (
+                isinstance(memory_mb, bool)
+                or not isinstance(memory_mb, int)
+                or memory_mb < 1
+            )
+        )
     ):
+        raise ValueError("locked Docker requires explicit finite task CPU and memory limits")
+    if "memory" in environment:
+        try:
+            from harbor.models.task.config import (  # ty: ignore[unresolved-import]
+                EnvironmentConfig,
+            )
+        except ImportError as exc:
+            raise ValueError("legacy memory units require the locked Harbor runtime") from exc
+        memory_mb = EnvironmentConfig.model_validate(dict(environment)).memory_mb
+    if not isinstance(memory_mb, int) or isinstance(memory_mb, bool) or memory_mb < 1:
         raise ValueError("locked Docker requires explicit finite task CPU and memory limits")
     return float(cpus), memory_mb

@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import shlex
+import shutil
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
@@ -1002,3 +1008,450 @@ def test_modal_unsupported_shapes_refuse_plans_and_execution_before_provider_wor
     assert report["status"] == "unavailable" and report["verdict"] == "unknown"
     assert reason in report["reason"]
     assert gate.executions == 0 and report["execution"]["events"] == []
+
+
+# ---------------------------------------------------------------------------
+# Native shared tasks: real script/file behaviour behind a local matrix boundary
+
+
+def _shared_package(root: Path) -> Path:
+    for name in ("environment/Dockerfile", "tests/test.sh", "solution/solve.sh"):
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("#\n")
+    (root / "task.toml").write_text(
+        '[task]\nname = "bench/native"\n'
+        '[agent]\ntimeout_sec = 900.0\n'
+        '[verifier]\ntimeout_sec = 120.0\n'
+        '[environment]\ndocker_image = "fixture/no-download"\n'
+        'cpus = 1\nmemory_mb = 128\nstorage_mb = 128\ngpus = 0\n'
+    )
+    return root
+
+
+def _host_native(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    one_file: bool = False,
+    require_effect: bool = False,
+    simple_fix: bool = False,
+    fault_at: int | None = None,
+    nonfinite: bool = False,
+) -> SimpleNamespace:
+    """Execute real override/helper/verifier scripts, replacing only Docker admission/transport."""
+    from evallab import campaign_execution, docker_lock, runner, verifier_mutation
+
+    repo = tmp_path.resolve()
+    package = _shared_package(repo / "package")
+    sandbox = repo / "sandbox"
+    capture = repo / "container-capture"
+    marker = sandbox / "unselected-reference-effect"
+    base: dict[str, bytes | None] = {"m.py": b"def f(x):\n    return x\n"}
+    fixed: dict[str, bytes | None] = {
+        "m.py": (
+            b"def f(x):\n    return x + 1\n" if simple_fix
+            else b"def f(x):\n    if x > 0:\n        return x + 1\n    return x\n"
+        )
+    }
+    if not one_file:
+        base.update({"unused.py": b"unused = 0\n", "gone.go": b"package old\n", "new.sh": None})
+        fixed.update({"unused.py": b"unused = 1\n", "gone.go": None, "new.sh": b"#!/bin/sh\nexit 0"})
+    modes = {name: 0o755 if name.endswith(".sh") else 0o644 for name in fixed}
+    helper = ["#!/usr/bin/env bash\nset -e\n", f"mkdir -p {shlex.quote(str(sandbox))}\n"]
+    for name, data in fixed.items():
+        path = shlex.quote(str(sandbox / name))
+        if data is None:
+            helper.append(f"rm -f -- {path}\n")
+        else:
+            helper.append(f"printf '%s' {shlex.quote(data.decode())} > {path}\nchmod {modes[name]:o} {path}\n")
+    helper.append(f"printf 'reference-only' > {shlex.quote(str(marker))}\n")
+    (package / "solution/helper.sh").write_text("".join(helper))
+    (package / "solution/solve.sh").write_text(
+        '#!/usr/bin/env bash\nbash "$(dirname "${BASH_SOURCE[0]}")/helper.sh"\nexit $?\n'
+    )
+    verifier = (
+        "from pathlib import Path\n"
+        "namespace = {}\n"
+        "try:\n"
+        f"    exec(Path({str(sandbox / 'm.py')!r}).read_bytes(), namespace)\n"
+        "    passed = namespace['f'](5) == 6\n"
+        f"    passed = passed and (Path({str(marker)!r}).is_file() if {require_effect!r} else True)\n"
+        "except Exception:\n"
+        "    passed = False\n"
+        "print(float(passed))\n"
+    )
+    (package / "tests/test.sh").write_text(
+        f"#!/usr/bin/env bash\n{shlex.quote(sys.executable)} - <<'PY'\n{verifier}PY\n"
+    )
+    # Native task images are Linux; this test boundary also works on macOS's BSD stat.
+    binaries = repo / "host-test-bin"
+    binaries.mkdir()
+    (binaries / "stat").write_text(
+        "#!/bin/sh\nexec " + shlex.quote(sys.executable)
+        + " -c 'import os,sys; print(format(os.stat(sys.argv[-1]).st_mode & 0o7777, \"o\"))' \"$@\"\n"
+    )
+    (binaries / "stat").chmod(0o755)
+    monkeypatch.setenv("PATH", str(binaries) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(verifier_mutation, "CAPTURE_ROOT", str(capture))
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (8.0, 16_384))
+    active = False
+    admissions: list[dict[str, Any]] = []
+    invocations: list[dict[str, Any]] = []
+
+    @contextmanager
+    def slot(**kwargs: Any) -> Any:
+        nonlocal active
+        assert not active
+        admissions.append(kwargs)
+        active = True
+        try:
+            yield
+        finally:
+            active = False
+
+    def reset() -> None:
+        shutil.rmtree(sandbox, ignore_errors=True)
+        shutil.rmtree(capture, ignore_errors=True)
+        sandbox.mkdir()
+        for name, content in base.items():
+            if content is not None:
+                path = sandbox / name
+                path.write_bytes(content)
+                path.chmod(modes[name])
+
+    def evaluate() -> float:
+        result = subprocess.run(["bash", str(package / "tests/test.sh")], check=True, capture_output=True, text=True)
+        return float(result.stdout)
+
+    def matrix_runner(matrix: Any, *, root: Path) -> Any:
+        assert active and matrix.concurrency == 1 and len(matrix.runs) == 1
+        reset()
+        run = matrix.runs[0]
+        with runner.staged_matrix_request(matrix, run, repo_root=root) as (request, provenance):
+            result = subprocess.run(
+                ["bash", str(request.task / "solution/solve.sh")],
+                cwd=sandbox, capture_output=True, text=True,
+            )
+            reward = evaluate()
+        job = root / matrix.jobs_dir / run.name
+        trial = job / "trial"
+        (trial / "agent").mkdir(parents=True)
+        (trial / "agent/oracle.txt").write_text(result.stdout + result.stderr)
+        (trial / "agent/exit-code.txt").write_text(str(result.returncode))
+        (trial / "result.json").write_text(json.dumps({"reward": reward, "agent_rc": result.returncode}))
+        if capture.is_dir():
+            shutil.copytree(capture, trial / "artifacts/logs/artifacts/envcheck-capture")
+        row = {
+            "name": run.name, "status": "ok" if reward == run.expect_reward else "mismatch",
+            "rewards": [reward], "error": None, **provenance,
+        }
+        if result.returncode:
+            row.update(status="infra", rewards=[], error=f"oracle script exited {result.returncode}")
+        if fault_at == len(invocations):
+            if nonfinite:
+                row.update(status="ok", rewards=[float("nan")])
+            else:
+                row.update(status="infra", rewards=[], error="injected transport failure")
+        invocations.append({
+            "matrix": matrix, "reference_effect": marker.exists(), "row": row,
+            "files": {name: (sandbox / name).read_bytes() if (sandbox / name).is_file() else None for name in base},
+        })
+        receipt = root / matrix.jobs_dir / ".executor" / f"{matrix.matrix_id}.matrix.json"
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_text(json.dumps({"matrix": matrix.model_dump(mode="json"), "results": [row]}))
+        invocation = receipt.with_suffix(".invocations.jsonl")
+        invocation.write_text(json.dumps(row) + "\n")
+        return SimpleNamespace(results=[row], receipt_path=receipt, invocation_path=invocation)
+
+    monkeypatch.setattr(docker_lock, "docker_slot", slot)
+    monkeypatch.setattr(runner, "run_matrix", matrix_runner)
+    return SimpleNamespace(
+        package=package, sandbox=sandbox, base=base, fixed=fixed, modes=modes,
+        targets=[str(sandbox / name) for name in base], marker=marker,
+        reset=reset, evaluate=evaluate, invocations=invocations, admissions=admissions,
+    )
+
+
+def test_empty_file_creation_and_deletion_are_real_change_blocks() -> None:
+    for base, fixed in ((None, b""), (b"", None)):
+        change = file_change("empty.go", base, fixed, set())
+        assert len(change.blocks) == 1 and change.blocks[0].kind == "code"
+        assert compose(change, set()) == base
+        assert compose(change, {change.blocks[0].id}) == fixed
+
+
+def test_native_writer_preserves_exact_bytes_modes_absence_and_quoted_paths(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    special = root / "quote ' $(touch injected)"
+    gone = root / "gone"
+    gone.write_bytes(b"old")
+    files = {str(special): bytes(range(256)) * 20 + b"no-final-newline", str(root / "empty"): b"", str(gone): None}
+    modes = {path: None if data is None else 0o755 for path, data in files.items()}
+    result = subprocess.run(["bash"], input=ref_subset._native_overlay_script(files, modes), text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    assert special.read_bytes() == files[str(special)]
+    assert (root / "empty").read_bytes() == b""
+    assert stat.S_IMODE(special.stat().st_mode) == 0o755
+    assert not gone.exists() and not (root / "injected").exists()
+
+
+@pytest.mark.parametrize("kind", ["directory", "symlink"])
+def test_native_writer_refuses_non_regular_targets_without_deleting_them(tmp_path: Path, kind: str) -> None:
+    root = tmp_path.resolve()
+    target = root / "target"
+    if kind == "directory":
+        target.mkdir()
+        (target / "keep").write_bytes(b"keep")
+    else:
+        (root / "keep").write_bytes(b"keep")
+        target.symlink_to(root / "keep")
+    result = subprocess.run(
+        ["bash"], input=ref_subset._native_overlay_script({str(target): None}, {str(target): None}),
+        text=True, capture_output=True,
+    )
+    assert result.returncode == 97
+    assert target.exists() and (root / "keep" if kind == "symlink" else target / "keep").read_bytes() == b"keep"
+
+
+def test_native_captures_distinguish_absent_empty_deleted_and_incomplete(tmp_path: Path) -> None:
+    run = SimpleNamespace(name="capture", job_dir="runs/capture")
+    capture = tmp_path / "runs/capture/trial/artifacts/logs/artifacts/envcheck-capture"
+    states = capture / ".ref-subset-states"
+    states.mkdir(parents=True)
+    (states / "complete").write_bytes(b"complete\n")
+    for index, present in enumerate((False, True, False)):
+        (states / str(index)).write_bytes(b"present\n" if present else b"absent\n")
+        if present:
+            (states / f"{index}.mode").write_text("755\n")
+    (capture / "app").mkdir()
+    (capture / "app/empty").write_bytes(b"")
+    files, modes = ref_subset._native_captured_files(tmp_path, run, ["/app/new", "/app/empty", "/app/deleted"])
+    assert files == {"app/new": None, "app/empty": b"", "app/deleted": None}
+    assert modes == {"app/new": None, "app/empty": 0o755, "app/deleted": None}
+    (states / "complete").unlink()
+    with pytest.raises(RuntimeError, match="did not complete"):
+        ref_subset._native_captured_files(tmp_path, run, ["/app/new"])
+
+
+def test_native_shared_reconstructs_on_base_and_preserves_complete_mutant_witnesses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _host_native(tmp_path, monkeypatch)
+    original = {p.relative_to(host.package): p.read_bytes() for p in host.package.rglob("*") if p.is_file()}
+    output = tmp_path / "out"
+    report = probe_task(
+        host.package, None, output, targets=host.targets, repo_root=tmp_path,
+        mutants=8, mutation_seed="tb21-weak-tests-v1", log=lambda _: None,
+    )
+    assert report["verdict"] == "fail" and report["mutants"]["verdict"] == "fail"
+    assert [g["label"] for g in report["grades"][:3]] == ["oracle", "nop", "full"]
+    assert [g["reward"] for g in report["grades"][:3]] == [1.0, 0.0, 1.0]
+    assert host.invocations[0]["reference_effect"]
+    assert all(not run["reference_effect"] for run in host.invocations[1:])
+    assert all(entry["slots"] == 2 and entry["timeout"] == 900 for entry in host.admissions)
+    assert report["limits"]["agent_timeout_multiplier"] == 1.0
+    assert report["limits"]["effective_agent_timeout_sec"] == 900
+    assert report["limits"]["requested_legacy_limits"]["grade_timeout_s"] == 1800
+    assert report["limits"]["mutation_seed"] == "tb21-weak-tests-v1"
+    assert "new file mode 100755" in (output / "reference.patch").read_text()
+    assert original == {p.relative_to(host.package): p.read_bytes() for p in host.package.rglob("*") if p.is_file()}
+    for grade in report["grades"]:
+        native = grade["native"]
+        assert grade["rc"] == 0 and grade["status"] == "scored"
+        script = tmp_path / native["script"]
+        assert native["script_sha256"] == "sha256:" + hashlib.sha256(script.read_bytes()).hexdigest()
+        assert (tmp_path / native["matrix"]).is_file() and (tmp_path / native["receipt"]).is_file()
+        assert native["job_dir"] and len(native["trials"]) == 1
+    assert sum(g["label"].startswith("mutant:") for g in report["grades"]) == report["mutants"]["tried"]
+    assert len(report["mutants"]["runs"]) == report["mutants"]["tried"]
+    assert all(g["label"] in (output / "grades.log").read_text() for g in report["grades"])
+    host.reset()
+    subprocess.run(["bash", str(output / "minimal.sh")], check=True)
+    assert host.evaluate() == 1.0 and not host.marker.exists()
+    assert (host.sandbox / "unused.py").read_bytes() == host.base["unused.py"]
+    assert (host.sandbox / "gone.go").read_bytes() == host.base["gone.go"]
+    assert not (host.sandbox / "new.sh").exists()
+    for survivor in report["mutants"]["survivors"]:
+        host.reset()
+        subprocess.run(["bash", survivor["witness"]], check=True)
+        assert host.evaluate() == 1.0 and not host.marker.exists()
+        assert not (host.sandbox / "gone.go").exists()
+        assert stat.S_IMODE((host.sandbox / "new.sh").stat().st_mode) == 0o755
+        replay = tmp_path / f"patch-{survivor['id']}"
+        replay.mkdir()
+        for path, data in host.base.items():
+            if data is not None:
+                target = replay / str(host.sandbox / path).lstrip("/")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+        subprocess.run(["git", "apply", survivor["patch"]], cwd=replay, check=True)
+        for path in host.base:
+            patched = replay / str(host.sandbox / path).lstrip("/")
+            actual = host.sandbox / path
+            assert (patched.read_bytes() if patched.exists() else None) == (actual.read_bytes() if actual.exists() else None)
+        assert stat.S_IMODE((replay / str(host.sandbox / "new.sh").lstrip("/")).stat().st_mode) & 0o100
+
+
+def test_native_shared_refuses_reference_side_effects_missing_from_full_target_reconstruction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _host_native(tmp_path, monkeypatch, one_file=True, require_effect=True)
+    report = probe_task(
+        host.package, None, tmp_path / "out", targets=host.targets, repo_root=tmp_path,
+        mutants=8, log=lambda _: None,
+    )
+    assert report["status"] == "not_applicable" and report["verdict"] == "unknown"
+    assert "cannot reconstruct" in report["reason"]
+    assert [g["reward"] for g in report["grades"]] == [1.0, 0.0, 0.0]
+    assert len(host.invocations) == 3 and report["mutants"]["tried"] == 0
+    assert not any(run["reference_effect"] for run in host.invocations[1:])
+
+
+@pytest.mark.parametrize("nonfinite", [False, True])
+def test_native_shared_aborts_unknown_on_line_grade_infra_or_nonfinite_reward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, nonfinite: bool,
+) -> None:
+    host = _host_native(tmp_path, monkeypatch, one_file=True, fault_at=3, nonfinite=nonfinite)
+    report = probe_task(
+        host.package, None, tmp_path / "out", targets=host.targets, repo_root=tmp_path,
+        mutants=8, log=lambda _: None,
+    )
+    assert report["status"] == "unavailable" and report["verdict"] == "unknown"
+    assert len(host.invocations) == 4 and len(report["grades"]) == 4
+    assert report["grades"][-1]["label"].startswith("mutant:")
+    assert report["grades"][-1]["status"] == "error" and report["grades"][-1]["reward"] is None
+    assert report["mutants"]["runs"][0]["outcome"] == "unknown"
+    assert Path(report["grades"][-1]["native"]["witness"]).is_file()
+    assert report["coverage"] == {"subset": "unknown", "mutations": "unknown"}
+
+
+def test_native_shared_untried_mutants_cannot_produce_a_clean_certificate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _host_native(tmp_path, monkeypatch, one_file=True, simple_fix=True)
+    report = probe_task(
+        host.package, None, tmp_path / "out", targets=host.targets, repo_root=tmp_path,
+        mutants=1, log=lambda _: None,
+    )
+    summary = report["mutants"]
+    assert summary["tried"] == 1 and summary["generated"] > 1
+    assert summary["killed"] == 1 and summary["untried"] == summary["generated"] - 1
+    assert summary["status"] == "budget_exhausted" and summary["verdict"] == "unknown"
+    assert summary["coverage"] == "unknown"
+
+
+def test_native_shared_subset_budget_exhaustion_remains_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _host_native(tmp_path, monkeypatch)
+    report = probe_task(
+        host.package, None, tmp_path / "out", targets=host.targets, repo_root=tmp_path,
+        max_grades=4, log=lambda _: None,
+    )
+    assert report["status"] == "budget_exhausted" and report["verdict"] == "unknown"
+    assert report["coverage"]["subset"] == "unknown"
+    assert len(report["grades"]) <= 5  # Four subset grades, plus the distinct original-oracle capture.
+
+
+def test_native_shared_resource_refusal_never_lowers_task_ram_or_starts_transport(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab import campaign_execution
+
+    host = _host_native(tmp_path, monkeypatch, one_file=True)
+    manifest = host.package / "task.toml"
+    manifest.write_text(manifest.read_text().replace("memory_mb = 128", "memory_mb = 8192"))
+    original = manifest.read_bytes()
+    monkeypatch.setattr(campaign_execution, "docker_available_resources", lambda: (8.0, 7933))
+    report = probe_task(
+        host.package, None, tmp_path / "out", targets=host.targets, repo_root=tmp_path,
+        memory="1g", log=lambda _: None,
+    )
+    assert report["status"] == "unavailable" and report["verdict"] == "unknown"
+    assert "resource-ineligible" in report["reason"] and not host.invocations
+    assert manifest.read_bytes() == original
+    assert report["grades"][0]["native"]["resources"]["required_memory_mb"] == 8192
+
+
+@pytest.mark.parametrize("targets", [[], ["/app/m.py"], ["/app/../m.py"], ["/logs/reward.txt"]])
+def test_native_shared_plan_covers_explicit_files_and_refuses_unsupported_paths_without_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], targets: list[str],
+) -> None:
+    package = _shared_package(tmp_path / "package")
+    with pytest.raises(ValueError):
+        Package.load(package)  # Legacy consumers must not mistake shared tasks for raw MiMo.
+    _forbid_execution(monkeypatch)
+    arguments = ["run", str(package), "--output-dir", str(tmp_path / "out"), "--plan"]
+    for target in targets:
+        arguments += ["--target", target]
+    args = _ref_args(*arguments)
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    item = plan["tasks"][0]
+    assert item["package_type"] == "native-shared" and not (tmp_path / "out").exists()
+    if targets == ["/app/m.py"]:
+        assert not plan["execution_refused"] and item["targets"] == targets
+        assert item["required_controls"] == {"oracle": 1, "nop": 0, "full": 1}
+        assert item["effective_agent_timeout_sec"] == 900 and item["agent_timeout_multiplier"] == 1.0
+    else:
+        assert plan["execution_refused"] and item["action"] == "refused"
+
+
+@pytest.mark.parametrize(
+    ("shape", "reason"),
+    [
+        ("steps", "steps"),
+        ("compose", "Compose"),
+        ("gpu", "GPU"),
+        ("fractional-timeout", "integral"),
+        ("external-patch", "own oracle"),
+        ("modal", "require Docker"),
+    ],
+)
+def test_native_shared_unsupported_shapes_refuse_zero_execution_plans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    shape: str, reason: str,
+) -> None:
+    package = _shared_package(tmp_path / "package")
+    config = package / "task.toml"
+    arguments = ["run", str(package), "--target", "/app/m.py", "--output-dir", str(tmp_path / "out"), "--plan"]
+    if shape == "steps":
+        config.write_text('steps = [{name = "unsupported"}]\n' + config.read_text())
+    elif shape == "compose":
+        (package / "environment/compose.yaml").write_text("services: {}\n")
+    elif shape == "gpu":
+        config.write_text(config.read_text().replace("gpus = 0", "gpus = 1"))
+    elif shape == "fractional-timeout":
+        config.write_text(config.read_text().replace("900.0", "900.5"))
+    elif shape == "external-patch":
+        patch = tmp_path / "external.patch"
+        patch.write_text(_PATCH)
+        arguments += ["--patch", str(patch)]
+    else:
+        arguments += ["--environment", "modal"]
+    original = {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
+    _forbid_execution(monkeypatch)
+    args = _ref_args(*arguments)
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["execution_refused"] and plan["reservation_units_upper_bound"] == 0
+    assert reason in plan["tasks"][0]["reason"] and not (tmp_path / "out").exists()
+    assert original == {p.relative_to(package): p.read_bytes() for p in package.rglob("*") if p.is_file()}
+
+
+def test_native_shared_plan_accepts_repeated_targets_and_frozen_mutation_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    package = _shared_package(tmp_path / "package")
+    _forbid_execution(monkeypatch)
+    args = _ref_args(
+        "run", str(package), "--target", "/app/main.py", "--target", "/app/new.sh",
+        "--seed", "tb21-weak-tests-v1", "--mutants", "8", "--max-grades", "24",
+        "--output-dir", str(tmp_path / "out"), "--plan",
+    )
+    assert args.func(args, tmp_path) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert not plan["execution_refused"]
+    assert plan["tasks"][0]["targets"] == ["/app/main.py", "/app/new.sh"]
+    assert plan["tasks"][0]["mutation_seed"] == "tb21-weak-tests-v1"

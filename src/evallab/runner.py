@@ -2794,6 +2794,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     started = datetime.now(UTC)
     try:
         staged_task, adaptation = stage_request_task(request, staging_dir)
+        # Bind the validated input snapshot before a long-running trial can outlive its source.
+        task_staging = _task_staging_provenance(request.task, staged_task, adaptation)
         staged_request: RunRequest = replace(request, task=staged_task)
         staged_harness: Path | None = None
         harness_meta: dict[str, Any] | None = None
@@ -2968,7 +2970,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             finished=finished,
             process=process,
             network_adaptation=adaptation,
-            task_staging=_task_staging_provenance(request.task, staged_task, adaptation),
+            task_staging=task_staging,
             toolbox=toolbox_meta,
             harness_tree=harness_meta,
             local_ollama=local_binding.to_dict() if local_binding is not None else None,

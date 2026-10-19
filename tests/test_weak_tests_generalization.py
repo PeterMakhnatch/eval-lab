@@ -148,11 +148,50 @@ def test_unmeasured_tasks_never_become_clean_negatives(tmp_path, monkeypatch) ->
     results, atlas, items, findings = publish.build()
     assert not findings
     assert {item["expected_verdict"] for item in items} == {"unknown"}
+    assert all(not item["source_visible"] and not item["selected_by"] for item in items)
     assert {row["status"] for row in atlas} == {"not_run"}
     for row in results["benchmarks"].values():
         assert row["unknown_tasks"] == 1
         assert row["clean_negative_tasks"] == row["attempted_n"] == 0
         assert row["confirmed_rate_attempted"]["rate"] is None
+
+
+def test_operator_inapplicability_is_counted_without_labeling_clean(tmp_path, monkeypatch) -> None:
+    publish = load_publisher()
+    monkeypatch.setattr(publish, "HERE", tmp_path)
+    monkeypatch.setattr(publish, "EVIDENCE", tmp_path)
+    frame = [{"task_id": "sample", "package_digest": "sha256:" + "a" * 64}]
+    publish.dump(tmp_path / "cohort.json", {
+        "tb21": {"frame": frame, "own_sampling": "purposive"},
+        "humanevalfix": {"frame": frame, "sampling": "stratified"},
+    })
+    report = tmp_path / "report.json"
+    publish.dump(report, {
+        "status": "not_applicable", "package_digest": frame[0]["package_digest"],
+        "coverage": {"subset": "not_applicable", "mutations": "not_applicable"},
+        "code_blocks": 1, "code_lines": 4, "mutants": {"generated": 0, "tried": 0},
+    })
+    source = "runs/sample/report.json"
+    publish.dump(tmp_path / "inventory.json", {"tasks": [{
+        "benchmark": "humanevalfix", "task_id": "sample", "producer": "unit-test",
+        "source_report": source,
+        "files": {source: {"path": str(report), "sha256": publish.digest(report)}},
+        "candidates": [],
+    }]})
+    (tmp_path / "reviews.jsonl").write_text("")
+    results, atlas, items, findings = publish.build()
+    search = results["benchmarks"]["humanevalfix"]["primary_search"]
+    assert search["subset_coverage_counts"] == {"not_applicable": 1}
+    assert search["line_coverage_counts"] == {"not_applicable": 1}
+    assert search["line_candidates_generated_recorded"] == search["line_candidates_tried"] == 0
+    assert search["line_generation_unreported_tasks"] == 0
+    assert not findings
+    observed = next(row for row in atlas if row["benchmark"] == "humanevalfix")
+    assert observed["reference_code_blocks"] == 1
+    assert observed["semantic_verdict"] == "not_established"
+    item = next(item for item in items if item["subject"]["task_id"] == "humanevalfix/sample")
+    assert item["expected_verdict"] == "unknown" and item["source_visible"]
+    assert not item["selected_by"]
 
 
 @pytest.mark.parametrize("fault", [

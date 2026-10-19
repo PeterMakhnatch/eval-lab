@@ -329,6 +329,13 @@ separate `--stages exploit` probe is requested.
     intact. `publish.py collect --owned-attempt NAME` explicitly selects completed
     later attempts while retaining and counting earlier execution evidence;
     candidate-bearing earlier attempts cannot be silently superseded.
+    Published summaries separate primary-attempt search coverage from native
+    execution totals across all retained attempts. A one-block repair can
+    have no proper subset, and its rewritten lines can have no applicable
+    mutation operator; neither outcome establishes a clean grader. Frame
+    items not executed remain unknown and are not marked source-visible.
+    The historical MiMo comparison is descriptive, not a matched estimate
+    of cross-dataset prevalence or equal search effort.
   - **Modal and a $0 plan.** Both commands accept `--environment modal --plan`.
     Planning reads only local package/index/report bytes: it constructs no
     backend, calls neither Docker nor Modal, and needs no credentials or spend

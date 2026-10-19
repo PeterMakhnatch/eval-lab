@@ -295,6 +295,9 @@ def build() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]],
                     producer=row["producer"], coverage=report.get("coverage"),
                     report=row["files"][row["source_report"]]["path"],
                     **_execution_counts(report),
+                    reference_code_blocks=report.get("code_blocks"),
+                    reference_code_lines=report.get("code_lines"),
+                    mutants_generated=report.get("mutants", {}).get("generated"),
                     mutants_tried=report.get("mutants", {}).get("tried", 0))
                 try:
                     controls = [grade_proof(row, report, label, reward)
@@ -367,8 +370,9 @@ def build() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]],
                     "expected_category": "weak" if weak else None,
                     "expected_fault": "eval" if weak else None, "expected_root_causes": roots,
                     "label_source": "native source-visible reference-subset/line-mutation survey; instruction-adjudicated",
-                    "split": "dev", "source_visible": True, "selected_by": ["ref-subset"],
-                    "notes": "No independent detector evaluation. Unknown is not a clean negative."}
+                    "split": "dev", "source_visible": row is not None,
+                    "selected_by": ["ref-subset"] if weak else [],
+                    "notes": "Frozen frame item; only established positives are output-selected. No independent detector evaluation. Unknown is not a clean negative."}
             AnswerKeyItem.model_validate(item)
             items.append(item)
             for witness in entry["witnesses"]:
@@ -410,6 +414,16 @@ def build() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]],
             "primary_attempt_baseline_qualified_n": sum(row["baseline_qualified"] for row in rows),
             "prior_attempts_retained": sum(len(row.get("prior_attempts", [])) for row in rows),
             "by_producer": by_producer,
+            "primary_search": {
+                "subset_coverage_counts": dict(Counter(
+                    (row.get("coverage") or {}).get("subset", "unreported") for row in attempted)),
+                "line_coverage_counts": dict(Counter(
+                    (row.get("coverage") or {}).get("mutations", "unreported") for row in attempted)),
+                "line_candidates_generated_recorded": sum(row.get("mutants_generated") or 0 for row in attempted),
+                "line_generation_unreported_tasks": sum(row.get("mutants_generated") is None for row in attempted),
+                "line_candidates_tried": sum(row["mutants_tried"] for row in attempted),
+                "candidate_bearing_tasks": sum(bool(row["reviews"]) for row in attempted),
+            },
             "confirmed_rate_attempted": wilson(count, len(attempted)),
             "confirmed_rate_baseline_qualified": wilson(count, len(qualified)),
             "observed_frame_lower_bound": count / len(frame),
@@ -445,13 +459,14 @@ def build() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]],
                 "published_key_verdict_counts": mimo["expected_verdict_counts"],
                 "new_executions": 0,
                 "caveat": "Historical raw-package sample from 389 previously measured eligible tasks; neither fresh v6 grades nor an independent detector comparison. Its 23 supported key positives differ from its 24 later strict adjudications.",
+                "rate_comparison": "Context only, not a matched cross-dataset prevalence comparison: eligibility, sampling and bounded-search censoring differ. No claim of matched search effort across datasets.",
             },
         },
         "survivors_reviewed": len(reviews), "survivors_unreviewed": 0,
         "independent_detector_evaluation": False, "independent_s3_replay": False,
         "owned_attempts": bundle.get("owned_attempts", ["first-pass"]),
         "primary_attempt_rule": "For each unchanged frozen task, use the last explicitly named completed owned attempt for candidate search. Prior attempts remain retained and included in execution counts. Candidate-bearing prior attempts cannot be superseded. Baseline-qualified denominators include valid controls from any retained attempt; positive witnesses require their own primary attempt's controls.",
-        "interpretation": "Rates count method-established instruction violations under bounded search, not all true weaknesses. Wilson intervals are nominal binomial intervals for these observed rates, not corrections for purposive TB2.1 selection, stratified sampling or search censoring. Unmeasured/nonpositive tasks remain unknown, never clean.",
+        "interpretation": "Rates count method-established instruction violations under bounded search, not all true weaknesses. Wilson intervals are nominal binomial intervals for these observed rates, not corrections for purposive TB2.1 selection, stratified sampling or search censoring. Tiny reference edits may have no proper code subset or applicable line operator; absence of applicable probes is missing measurement, not evidence of a good grader. Search counts describe primary attempts; execution totals also include retained prior attempts. Unmeasured/nonpositive tasks remain unknown, never clean.",
         "selection": {"tb21": plan["tb21"]["own_sampling"], "humanevalfix": plan["humanevalfix"]["sampling"]},
         "resource_limit": "One owned lane; shared two-slot Docker gate with the Traces campaign. Native task limits unchanged. Capacity-minus-reserve fallback with unbounded services is disclosed in raw matrix receipts.",
         "source_provenance": sorted({row["producer"] for row in inventory})}

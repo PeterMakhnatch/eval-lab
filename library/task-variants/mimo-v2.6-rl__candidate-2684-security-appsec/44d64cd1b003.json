@@ -1,0 +1,50 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/candidate-2684-security-appsec",
+  "variant_digest": "sha256:44d64cd1b003d45763a639b8541605e830158eaaf125163343b2d3da28f96d8d",
+  "variant_harbor_digest": "sha256:1955707b4552049ad4440377f6e96fc68a089ce9e3aa3ac13923c2f718e08e59",
+  "parent": {
+    "digest": "sha256:9ef93696066f76fe2352a39ece1f6cac9001b6ebb772127844cf5f548a66e666",
+    "harbor_digest": "sha256:5ca8d60d83b8d060560383b9d4d535f59adf2418d2e2e5ef67530758d070f098",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__candidate-2684-security-appsec/9ef93696066f.json"
+    }
+  },
+  "transform": "scanner-runtime-dependency@1",
+  "components_changed": [
+    "task_toml",
+    "environment"
+  ],
+  "files": [
+    {
+      "path": "environment/Dockerfile",
+      "before_sha256": "sha256:1a0db7430e77f59aa6fce4e6879689ac29780dcc569d6adad5963c62c03c4c43",
+      "after_sha256": "sha256:edce631bf8c3242c4e53487a9c4c5aa655fbb8829ce2d2e8ac3335143dddf906",
+      "content": "# The task's image, pinned by digest.\n# Setup runs at start from [environment.healthcheck]; environment/setup/ is its readable copy.\nFROM docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:5500f28f54d7b1440f51ccf8fde50ae3b9b278c1283894effe9c559474904f4a\n\n# Author-time dependency repair; no agent-side dependency installation.\nRUN /usr/local/bin/python3.12 -m pip install --disable-pip-version-check \\\n    --no-cache-dir --no-deps \\\n    'https://files.pythonhosted.org/packages/80/c5/0c06759b95747882bb50abda18f5fb48c3e9b0fbfc6ebc0e23550b52415d/stevedore-5.5.0-py3-none-any.whl#sha256=18363d4d268181e8e8452e71a38cd77630f345b2ef6b4a8d5614dac5ee0d18cf'\n"
+    },
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:15791ca5cebaa02be944111e17418b34f75e29248bc0ae39713db1e9e80b62a3",
+      "after_sha256": "sha256:8555a30412b62fa50c0433671e82129c39807fc678b76f85e0318427b8c22518",
+      "content": "schema_version = \"1.4\"\n\n[task]\nname = \"mimo-v2.6-rl/candidate-2684-security-appsec\"\ndescription = \"Repair a real Bandit cross-module regression so Trojan Source findings retain precise source ranges through scanning…\"\nkeywords = [\"mimo-v2.6-rl\", \"terminal\"]\n\n[metadata]\nadapter = \"mimo_harbor 1.1.0\"\ncategory = \"Terminal tasks\"\ndomain = \"terminal\"\nkeywords = [\"terminal\", \"Terminal tasks\", \"Terminal-bench style\", \"English\", \"static-analysis\", \"security\", \"python\", \"real-repair\"]\noriginal_allow_internet = false\nreference_harness = \"XiaomiMiMo/verl a2ad9f6 + XiaomiMiMo/mimoagent 467f0a1\"\nreference_step_limit = 500\nsource_dataset = \"XiaomiMiMo/MiMo-V2.6-RL-oss\"\nsource_id = \"candidate-2684-security-appsec\"\nsource_revision = \"639865fd3374018d6cb29b9fb82dd531406fcf5f\"\ntitle = \"Repair a real Bandit cross-module regression so Trojan Source findings retain precise source ranges through scanning…\"\n\n[agent]\ntimeout_sec = 900.0\n\n[verifier]\ntimeout_sec = 240.0\nuser = \"root\"\n\n[environment]\nworkdir = \"/app\"\ncpus = 1\nmemory_mb = 2048\nstorage_mb = 10240\nnetwork_mode = \"public\"\nbuild_timeout_sec = 1800.0\n\n[environment.healthcheck]\n# one-time setup before the agent (environment/setup/setup.sh)\ncommand = \"bash -c 'test -f /var/lib/mimo/ready || { mkdir -p /var/lib/mimo && echo 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 | base64 -d | tar -xzf - -C /var/lib/mimo && bash /var/lib/mimo/setup.sh; }'\"\ntimeout_sec = 1200.0\nretries = 0\ninterval_sec = 5.0\n"
+    }
+  ],
+  "rationale": "Bake the missing generic stevedore dependency in the task's pinned Python 3.12 image before agent setup; do not provide reference code to nop, change tests, or permit agent network/dependency installs.",
+  "inputs": {
+    "parent_package_digest": "sha256:9ef93696066f76fe2352a39ece1f6cac9001b6ebb772127844cf5f548a66e666",
+    "base_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:5500f28f54d7b1440f51ccf8fde50ae3b9b278c1283894effe9c559474904f4a",
+    "dependency": "stevedore==5.5.0",
+    "wheel_url": "https://files.pythonhosted.org/packages/80/c5/0c06759b95747882bb50abda18f5fb48c3e9b0fbfc6ebc0e23550b52415d/stevedore-5.5.0-py3-none-any.whl",
+    "wheel_sha256": "18363d4d268181e8e8452e71a38cd77630f345b2ef6b4a8d5614dac5ee0d18cf",
+    "dependency_python": "/usr/local/bin/python3.12",
+    "qualification_or_admission": false
+  },
+  "created_by": "mimo-data",
+  "created_at": "2026-10-19T06:12:29Z",
+  "status": "candidate",
+  "evidence": []
+}

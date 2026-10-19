@@ -171,6 +171,68 @@ is not acceptance. V7 acceptance requires reference `[1,1,1]`, do-nothing
 rejected adjudicated-correct submission, and an independent Verifier PASS
 bound to the final manifest and grader bytes.
 
+### Released-v7 delta: held-out v7.1
+
+For the two-task 2026-10-19 delta, supply `--predecessor-manifest` and the
+new `--repairs-handoff`; do **not** combine the old and new repair lists or
+reassemble the cohort from v6. The predecessor must be the exact hash-bound,
+independently accepted released v7 manifest. Its frozen sources, selected
+package bytes, complete lineage and native-source custody are rechecked.
+The delta retains the other 31 rich rows exactly, including the 001246
+runtime repair. Membership, order, training exposure and frozen columns
+cannot change. Setup, runtime and baseline overrides are rejected in delta
+mode. The result declares `successor_version="v7.1"` and resets every
+release/acceptance gate; the predecessor's PASS is not inherited.
+
+```sh
+NIGHT="$HOME/Developer/research-context/bridge/2026-10-19-night"
+uv run --no-sync python research/experiments/mimo-training-20261016/freeze.py \
+  --assemble-successor \
+  --frozen-source-dir research/experiments/mimo-training-20261016 \
+  --predecessor-manifest "$BRIDGE/heldout-v7.json" \
+  --repairs-handoff "$NIGHT/repairs-v7.1.json" \
+  --successor-destination "$NIGHT/heldout-v7.1.json"
+uv run --no-sync python \
+  research/experiments/mimo-v71-train40-followup-20261019/build_intake.py \
+  --manifest "$NIGHT/heldout-v7.1.json" \
+  --predecessor-controls "$BRIDGE/mimo-data-heldout-v7-selected-controls-20261018.json" \
+  --output "$NIGHT/mimo-data-heldout-v7.1-selected-controls-20261019.json"
+```
+
+Run the second command again with `--check` to reconstruct and compare the
+delivered index against actual serialized inputs and native bytes. It keeps
+unique wrong programs separate from physical replay executions: the measured
+candidate joins 33 repeat3 baseline pairs, 24 distinct wrong programs / 26 wrong
+executions (including two fresh S3 executions), and eight retained admitted-correct
+controls, with their original repeat counts. The two changed tasks have no
+supplied independently admitted correct alternates. Shortened finding IDs are
+joined by exact patch bytes; historical unspecified outcomes remain explicitly
+predecessor-only, never transferred to a changed grader.
+
+`heldout-v7/campaign.py` recognizes v7.1 only behind its existing exact-hash,
+released-manifest and independent-PASS admission gates. The historical staged
+twelve-repair campaign remains v7-only and retains its original paid scope.
+Neither assembly nor intake runs an agent, starts a container, spends money,
+opens scoring or grants training/dispatch permission.
+
+### Train40 scanner environment follow-up
+
+The separate `mimo-v71-train40-followup-20261019/build_scanner_runtime_variant.py`
+derives `scanner-runtime-dependency@1` from the frozen scanner package. It bakes
+the missing, SHA-pinned `stevedore==5.5.0` wheel into an author-built image and
+removes the overriding `docker_image` setting so Harbor actually builds it.
+Agent-time installs remain forbidden. Only `environment/Dockerfile` and
+`task.toml` change; tests, assertions, fixtures, instruction and source remain
+byte-identical. The derivative is not a swap into the canonical 40.
+
+Local native Docker controls on this new child measured reference `[1,1,1]`
+and nop `[0,0,0]`, with all five named cases executing on every repeat. The
+reference is a retained production-code-only candidate, not an independent
+model solve or semantic/honesty admission. The original failed scanner attempt
+and the canonical 37/40 measured-pair boundary remain unchanged. The two ARVO
+positive-reference tasks remain out of scope; benign negative evidence is
+retained without developing or executing exploit payloads.
+
 ### Source-bound 001246 collection repair
 
 `format-code-task-001246` has a separate, bounded runtime-repair producer:

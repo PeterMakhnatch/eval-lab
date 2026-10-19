@@ -1,0 +1,1516 @@
+{
+  "adaptive-rejection-sampler": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:adaptive-rejection-sampler",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:adaptive-rejection-sampler",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "bn-fit-modify": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:bn-fit-modify",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:bn-fit-modify",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "break-filter-js-from-html": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/break-filter-js-from-html",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:break-filter-js-from-html",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:break-filter-js-from-html",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "build-cython-ext": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/build-cython-ext",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:build-cython-ext",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:build-cython-ext",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "build-pmars": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/build-pmars",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:build-pmars",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:build-pmars",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "build-pov-ray": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/build-pov-ray",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:build-pov-ray",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:build-pov-ray",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "caffe-cifar-10": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/caffe-cifar-10",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:caffe-cifar-10",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:caffe-cifar-10",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/caffe-cifar-10",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "cancel-async-tasks": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:cancel-async-tasks",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:cancel-async-tasks",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "chess-best-move": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:chess-best-move",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:chess-best-move",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "circuit-fibsqrt": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:circuit-fibsqrt",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:circuit-fibsqrt",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "cobol-modernization": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/cobol-modernization",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:cobol-modernization",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:cobol-modernization",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "code-from-image": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:code-from-image",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:code-from-image",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "compile-compcert": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/compile-compcert",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:compile-compcert",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:compile-compcert",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/compile-compcert",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "configure-git-webserver": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/configure-git-webserver",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:configure-git-webserver",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:configure-git-webserver",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "constraints-scheduling": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:constraints-scheduling",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:constraints-scheduling",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/constraints-scheduling",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "count-dataset-tokens": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:count-dataset-tokens",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:count-dataset-tokens",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "crack-7z-hash": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/crack-7z-hash",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "custom-memory-heap-crash": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:custom-memory-heap-crash",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:custom-memory-heap-crash",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/custom-memory-heap-crash",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "db-wal-recovery": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:db-wal-recovery",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:db-wal-recovery",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "distribution-search": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/distribution-search",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:distribution-search",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:distribution-search",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "dna-assembly": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:dna-assembly",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:dna-assembly",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "dna-insert": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:dna-insert",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:dna-insert",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/dna-insert",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "extract-elf": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/extract-elf",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:extract-elf",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:extract-elf",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "extract-moves-from-video": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:extract-moves-from-video",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:extract-moves-from-video",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "feal-differential-cryptanalysis": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/feal-differential-cryptanalysis",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:feal-differential-cryptanalysis",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:feal-differential-cryptanalysis",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "feal-linear-cryptanalysis": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/feal-linear-cryptanalysis",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:feal-linear-cryptanalysis",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:feal-linear-cryptanalysis",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "filter-js-from-html": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/filter-js-from-html",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:filter-js-from-html",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:filter-js-from-html",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/filter-js-from-html",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "financial-document-processor": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:financial-document-processor",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:financial-document-processor",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/financial-document-processor",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "fix-code-vulnerability": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:fix-code-vulnerability",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:fix-code-vulnerability",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "fix-git": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/fix-git",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "executed-outcomes-v1:terminal-bench/fix-git@2f0e8d8e3c29",
+        "key_id": "executed-outcomes-v1",
+        "split": "heldout"
+      },
+      {
+        "item_id": "executed-outcomes-v1:terminal-bench/fix-git@f264d981302b",
+        "key_id": "executed-outcomes-v1",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:fix-git",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:fix-git",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "fix-ocaml-gc": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:fix-ocaml-gc",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:fix-ocaml-gc",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/fix-ocaml-gc",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "gcode-to-text": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/gcode-to-text",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:gcode-to-text",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:gcode-to-text",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "git-leak-recovery": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/git-leak-recovery",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:git-leak-recovery",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:git-leak-recovery",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "git-multibranch": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/git-multibranch",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:git-multibranch",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:git-multibranch",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/git-multibranch",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "gpt2-codegolf": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/gpt2-codegolf",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "headless-terminal": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/headless-terminal",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:headless-terminal",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:headless-terminal",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "hf-model-inference": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:hf-model-inference",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:hf-model-inference",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "install-windows-3.11": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:install-windows-3.11",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:install-windows-3.11",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "kv-store-grpc": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:kv-store-grpc",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:kv-store-grpc",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "large-scale-text-editing": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/large-scale-text-editing",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:large-scale-text-editing",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:large-scale-text-editing",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "largest-eigenval": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/largest-eigenval",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "llm-inference-batching-scheduler": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/llm-inference-batching-scheduler",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "log-summary-date-ranges": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "mailman": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/mailman",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "make-doom-for-mips": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/make-doom-for-mips",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:make-doom-for-mips",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:make-doom-for-mips",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/make-doom-for-mips",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "make-mips-interpreter": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "mcmc-sampling-stan": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/mcmc-sampling-stan",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:mcmc-sampling-stan",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:mcmc-sampling-stan",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "merge-diff-arc-agi-task": {
+    "historical_assignments": [
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/merge-diff-arc-agi-task",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "model-extraction-relu-logits": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/model-extraction-relu-logits",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "modernize-scientific-stack": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "mteb-leaderboard": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/mteb-leaderboard",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:mteb-leaderboard",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:mteb-leaderboard",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/mteb-leaderboard",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "mteb-retrieve": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/mteb-retrieve",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:mteb-retrieve",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:mteb-retrieve",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "multi-source-data-merger": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "nginx-request-logging": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/nginx-request-logging",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "openssl-selfsigned-cert": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "overfull-hbox": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:overfull-hbox",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:overfull-hbox",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "password-recovery": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "path-tracing": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/path-tracing",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/path-tracing",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "path-tracing-reverse": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/path-tracing-reverse",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "polyglot-c-py": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/polyglot-c-py",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:polyglot-c-py",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:polyglot-c-py",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "polyglot-rust-c": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:polyglot-rust-c",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:polyglot-rust-c",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "portfolio-optimization": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/portfolio-optimization",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "protein-assembly": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/protein-assembly",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:protein-assembly",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:protein-assembly",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "prove-plus-comm": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "pypi-server": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "pytorch-model-cli": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "dev"
+  },
+  "pytorch-model-recovery": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "qemu-alpine-ssh": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/qemu-alpine-ssh",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "qemu-startup": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/qemu-startup",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/qemu-startup",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "query-optimize": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:query-optimize",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:query-optimize",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "trace-paired-v1:attr-query-optimize-tamper-rewar__hboiPbf",
+        "key_id": "trace-paired-v1",
+        "split": "dev"
+      },
+      {
+        "item_id": "trace-paired-v1:hack-00-oracle-terminal-bench-qu__SfFyBLk",
+        "key_id": "trace-paired-v1",
+        "split": "dev"
+      },
+      {
+        "item_id": "trace-paired-v1:query-optimize-cheat__YThnmyz",
+        "key_id": "trace-paired-v1",
+        "split": "dev"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/query-optimize",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "raman-fitting": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/raman-fitting",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "regex-chess": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/regex-chess",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/regex-chess",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "regex-log": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "reshard-c4-data": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "rstan-to-pystan": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/rstan-to-pystan",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:rstan-to-pystan",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:rstan-to-pystan",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "sam-cell-seg": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/sam-cell-seg",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:sam-cell-seg",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:sam-cell-seg",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "sanitize-git-repo": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/sanitize-git-repo",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/sanitize-git-repo",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "schemelike-metacircular-eval": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "dev"
+  },
+  "sparql-university": {
+    "historical_assignments": [
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/sparql-university",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "sqlite-db-truncate": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/sqlite-db-truncate",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/sqlite-db-truncate",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "sqlite-with-gcov": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/sqlite-with-gcov",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "torch-pipeline-parallelism": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/torch-pipeline-parallelism",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:torch-pipeline-parallelism",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:torch-pipeline-parallelism",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "torch-tensor-parallelism": {
+    "historical_assignments": [
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:torch-tensor-parallelism",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:torch-tensor-parallelism",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "train-fasttext": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/train-fasttext",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb21:train-fasttext",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      },
+      {
+        "item_id": "tb2-to-tb21-v1:tb2:train-fasttext",
+        "key_id": "tb2-to-tb21-v1",
+        "split": "test"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse pinned TB2.1 predecessor assignment.",
+    "split": "test"
+  },
+  "tune-mjcf": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "video-processing": {
+    "historical_assignments": [
+      {
+        "item_id": "terminal-bench/video-processing",
+        "key_id": "delphik-open-defect-tb2",
+        "split": "heldout"
+      }
+    ],
+    "prior_development_exposure": false,
+    "reason": "Reuse the first published TB assignment in stable key/item order.",
+    "split": "heldout"
+  },
+  "vulnerable-secret": {
+    "historical_assignments": [
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/vulnerable-secret",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  },
+  "winning-avg-corewars": {
+    "historical_assignments": [],
+    "prior_development_exposure": false,
+    "reason": "Unassigned task: deterministic sha256(tb21-weak-tests-v1:<task>) modulo5; residue0 dev, otherwise test.",
+    "split": "test"
+  },
+  "write-compressor": {
+    "historical_assignments": [
+      {
+        "item_id": "breaker-bench-v1:pair:benchflow:terminal-bench-2/write-compressor",
+        "key_id": "breaker-bench-v1",
+        "source_kind": "historical_pair_tuning",
+        "split": "dev"
+      }
+    ],
+    "prior_development_exposure": true,
+    "reason": "Preserve any historical TB development exposure conservatively; do not newly present it as unseen.",
+    "split": "dev"
+  }
+}

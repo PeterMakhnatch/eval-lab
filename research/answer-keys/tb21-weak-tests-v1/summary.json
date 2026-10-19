@@ -1,0 +1,28 @@
+{
+  "clean_negative_tasks": 0,
+  "codex_cli_calls": 0,
+  "cohort_tasks": 89,
+  "confirmed_weak_tasks": 5,
+  "confirmed_witnesses": 14,
+  "independent_detector_evaluation": false,
+  "key_id": "tb21-weak-tests-v1",
+  "new_paid_experimental_calls": 0,
+  "observed_full_cohort_weak_rate": 0.056179775280898875,
+  "rate_interpretation": "Observed lower bound under the recorded eligibility and search budget; not population prevalence.",
+  "schema": "evallab.tb21_weak_tests.summary/v1",
+  "search_status_counts": {
+    "confirmed_weak": 5,
+    "measured_no_survivor": 31,
+    "measured_survivors_none_confirmed": 6,
+    "not_run_external_prerequisite": 1,
+    "not_run_incomplete_reconstruction": 26,
+    "not_run_local_model_hold": 2,
+    "not_run_opaque_single_artifact": 4,
+    "not_run_resource_and_local_model_hold": 2,
+    "not_run_resource_hold": 6,
+    "not_run_safety_hold": 4,
+    "unavailable_infrastructure": 2
+  },
+  "source_pin": "7131e4375048a0e408a8fb404b5f499d726b695b",
+  "unknown_tasks": 84
+}

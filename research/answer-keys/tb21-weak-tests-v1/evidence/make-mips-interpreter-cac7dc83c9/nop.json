@@ -1,0 +1,431 @@
+{
+ "executor": {
+  "command": [
+   "harbor",
+   "run",
+   "--path",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-dk5d81-0001-nop-make-mips-interpreter",
+   "--agent",
+   "oracle",
+   "--env",
+   "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+   "--job-name",
+   "ec-dk5d81-0001-nop-make-mips-interpreter",
+   "--jobs-dir",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs",
+   "--n-concurrent",
+   "1",
+   "--n-attempts",
+   "1",
+   "--agent-env",
+   "EVALLAB_SETUP_FINGERPRINT={\"budgets\":{\"cost_limit_usd\":null,\"max_input_tokens\":null,\"max_output_tokens\":null,\"max_requests\":null,\"max_total_tokens\":null,\"step_limit\":null,\"timeout_seconds\":1800},\"environment\":{\"backend\":\"docker\",\"egress_mechanism\":null},\"harness\":{\"additions\":{},\"id\":\"oracle\",\"version\":null},\"lock\":{\"declared\":null,\"effective\":\"open\",\"mode\":\"open\"},\"schema\":\"evallab.setup_fingerprint/v1\"}",
+   "--environment-kwarg",
+   "isolation_lane=oracle",
+   "--plugin",
+   "evallab.harbor_state_journal:StateJournalPlugin",
+   "--plugin",
+   "evallab.harbor_watch_hooks:WatchHookPlugin",
+   "--plugin",
+   "evallab.harbor_file_access:FileAccessPlugin",
+   "--agent-timeout-multiplier",
+   "1"
+  ],
+  "cost": {
+   "attempted_cost_usd": null,
+   "cost_usd": null,
+   "pricing": null,
+   "reason": "proxy ledger missing: no usage was recorded for this run",
+   "source": "proxy_ledger_x_pinned_price"
+  },
+  "executor_log": ".executor/ec-dk5d81-0001-nop-make-mips-interpreter.log",
+  "exit_code": 0,
+  "finished_at": "2026-10-19T07:38:00.197578+00:00",
+  "host": {
+   "platform": "macOS-26.5-arm64-arm-64bit",
+   "python": "3.12.11"
+  },
+  "job_timeout_seconds": 2400,
+  "provider_usage": {
+   "cost_micros": null,
+   "cost_usd": null,
+   "input_tokens": null,
+   "output_tokens": null,
+   "requests": null,
+   "total_tokens": null,
+   "usage_status": "missing"
+  },
+  "repository": {
+   "branch": "traces/tb21-weak-tests-v1-20261019",
+   "capture": "run-time",
+   "commit": "60f04ba627a0c54be3fdaf252be302d8ab677fb4",
+   "dirty": true,
+   "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+   "uncommitted_diff_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "unknown": [],
+   "untracked": [
+    "research/answer-keys/tb21-weak-tests-v1/build.py",
+    "research/answer-keys/tb21-weak-tests-v1/cohort.json",
+    "research/answer-keys/tb21-weak-tests-v1/selection-splits.json"
+   ],
+   "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019"
+  },
+  "schema_version": 1,
+  "started_at": "2026-10-19T07:36:42.973749+00:00",
+  "task_staging": {
+   "declared_task_name": "terminal-bench/make-mips-interpreter",
+   "network_adaptation": null,
+   "schema_version": 1,
+   "source_harbor_digest": "sha256:c83c3ba90ac701e887d831ee46568ac687ba75f71ddf4b9edb89c947f4d8d321",
+   "source_package_digest": "sha256:ac443967188b8e07bc710905232e71ff257836a919a8cc14c29d1e5e2ce21e3d",
+   "source_task_basename": "make-mips-interpreter",
+   "staged_harbor_digest": "sha256:c83c3ba90ac701e887d831ee46568ac687ba75f71ddf4b9edb89c947f4d8d321",
+   "staged_task_name": "ec-dk5d81-0001-nop-make-mips-interpreter",
+   "task_version": null
+  },
+  "timed_out": false,
+  "timed_out_trial": null,
+  "tools": {
+   "docker": "Docker version 29.8.0, build 88096ef",
+   "harbor": "0.24.0",
+   "uv": "uv 0.13.0 (4ecd0eff2 2026-10-09 aarch64-apple-darwin)"
+  },
+  "trial_timeout_seconds": 2400
+ },
+ "host_isolation": {
+  "applied": true,
+  "blocked_host_addresses": [
+   "100.70.165.124",
+   "127.0.0.1",
+   "192.168.4.215",
+   "2603:7000:8100:1c84:14:48f7:1600:fa47",
+   "2603:7000:8100:1c84:2db5:8316:7bc5:3a20",
+   "2603:7000:8100:1c84:3175:559c:23d4:89d9",
+   "2603:7000:8100:1c84:846a:6093:dfe3:eddd",
+   "2603:7000:8100:1c84:cd31:465f:5394:1296",
+   "::1",
+   "fd10:3d1d:f8b3:1:cf7:6d5f:ea72:5e5f",
+   "fd7a:115c:a1e0::1b01:a5b3",
+   "fe80::1",
+   "fe80::10ff:f403:305c:4bff",
+   "fe80::2a7e:b391:b02:c724",
+   "fe80::30ff:4e31:b273:b807",
+   "fe80::3a87:e814:844f:37d5",
+   "fe80::ca55:10ec:6d4d:8337",
+   "fe80::cae3:549e:5696:e555",
+   "fe80::ccc1:c5ff:fec3:3bc3",
+   "fe80::ce81:b1c:bd2c:69e",
+   "fe80::d8a4:4142:40a4:d83d"
+  ],
+  "bridge_addresses": [],
+  "bridge_port": null,
+  "container_id": "fc91a3fc6794a876c426c547ba664ee8d6223f768c869b675b63444fc30a8f66",
+  "declared_phase_policies": [
+   {
+    "allowed_hosts": [],
+    "network_mode": "public"
+   },
+   {
+    "allowed_hosts": [],
+    "network_mode": "public"
+   }
+  ],
+  "error_type": null,
+  "isolation_subnet": "192.31.196.16/28",
+  "lane": "oracle",
+  "mechanism": "creation-time none; immutable NET_ADMIN/NET_RAW drops; nft inet output",
+  "network_id": "7b98fc37cdcfb3f1ea3dc022796d5d5b19dcfada2e58d49fe2700435f0407961",
+  "phase_transitions": [],
+  "recorded_at": "2026-10-19T07:36:53.239916+00:00",
+  "rules": "table inet evallab_host_isolation {\n  chain output {\n    type filter hook output priority -200; policy accept;\n    oifname \"lo\" accept\n    ip daddr 100.70.165.124 reject\n    ip daddr 127.0.0.1 reject\n    ip daddr 192.168.4.215 reject\n    ip6 daddr 2603:7000:8100:1c84:14:48f7:1600:fa47 reject\n    ip6 daddr 2603:7000:8100:1c84:2db5:8316:7bc5:3a20 reject\n    ip6 daddr 2603:7000:8100:1c84:3175:559c:23d4:89d9 reject\n    ip6 daddr 2603:7000:8100:1c84:846a:6093:dfe3:eddd reject\n    ip6 daddr 2603:7000:8100:1c84:cd31:465f:5394:1296 reject\n    ip6 daddr ::1 reject\n    ip6 daddr fd10:3d1d:f8b3:1:cf7:6d5f:ea72:5e5f reject\n    ip6 daddr fd7a:115c:a1e0::1b01:a5b3 reject\n    ip6 daddr fe80::1 reject\n    ip6 daddr fe80::10ff:f403:305c:4bff reject\n    ip6 daddr fe80::2a7e:b391:b02:c724 reject\n    ip6 daddr fe80::30ff:4e31:b273:b807 reject\n    ip6 daddr fe80::3a87:e814:844f:37d5 reject\n    ip6 daddr fe80::ca55:10ec:6d4d:8337 reject\n    ip6 daddr fe80::cae3:549e:5696:e555 reject\n    ip6 daddr fe80::ccc1:c5ff:fec3:3bc3 reject\n    ip6 daddr fe80::ce81:b1c:bd2c:69e reject\n    ip6 daddr fe80::d8a4:4142:40a4:d83d reject\n    ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.88.99.0/24, 192.168.0.0/16, 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24, 224.0.0.0/4, 240.0.0.0/4 } reject\n    ip6 daddr != 2000::/3 reject\n  }\n}\n",
+  "schema_version": 3,
+  "service_container_ids": {
+   "main": "fc91a3fc6794a876c426c547ba664ee8d6223f768c869b675b63444fc30a8f66"
+  },
+  "session_id": "ec-dk5d81-0001-nop-make-mips-int__tnwqioH__env",
+  "startup_evidence": {
+   "HostConfig": {
+    "CapAdd": null,
+    "CapDrop": [
+     "CAP_NET_ADMIN",
+     "CAP_NET_RAW"
+    ],
+    "CgroupnsMode": "private",
+    "DeviceCgroupRules": null,
+    "DeviceRequests": null,
+    "Devices": null,
+    "IpcMode": "private",
+    "NetworkMode": "none",
+    "PidMode": "",
+    "PortBindings": {},
+    "Privileged": false,
+    "PublishAllPorts": false,
+    "Runtime": "runc",
+    "SecurityOpt": [
+     "no-new-privileges:true"
+    ],
+    "UTSMode": "",
+    "UsernsMode": "",
+    "VolumesFrom": null
+   },
+   "Id": "fc91a3fc6794a876c426c547ba664ee8d6223f768c869b675b63444fc30a8f66",
+   "Mounts": [
+    {
+     "Destination": "/logs/agent",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-dk5d81-0001-nop-make-mips-interpreter/ec-dk5d81-0001-nop-make-mips-int__tnwqioH/agent",
+     "Type": "bind"
+    },
+    {
+     "Destination": "/logs/artifacts",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-dk5d81-0001-nop-make-mips-interpreter/ec-dk5d81-0001-nop-make-mips-int__tnwqioH/artifacts/logs/artifacts",
+     "Type": "bind"
+    },
+    {
+     "Destination": "/logs/verifier",
+     "Mode": "rw,z",
+     "Propagation": "rprivate",
+     "RW": true,
+     "Source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-dk5d81-0001-nop-make-mips-interpreter/ec-dk5d81-0001-nop-make-mips-int__tnwqioH/verifier",
+     "Type": "bind"
+    }
+   ],
+   "NetworkSettings": {
+    "Networks": {
+     "none": {
+      "Aliases": null,
+      "DNSNames": null,
+      "DriverOpts": null,
+      "EndpointID": "94c1c19a4df91a90fa413f19f644ef5f1045f4560b09b98f79099e6d8c7a55c0",
+      "Gateway": "",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "GwPriority": 0,
+      "IPAMConfig": null,
+      "IPAddress": "",
+      "IPPrefixLen": 0,
+      "IPv6Gateway": "",
+      "Links": null,
+      "MacAddress": "",
+      "NetworkID": "fea1ca85ae2486b9129f84a6fe7cf609c75e4ec8b31882d84881a0a0708d0c5f"
+     }
+    },
+    "Ports": {},
+    "SandboxID": "97c4963e56c48a8342a88fc39748a60a0e47a03a8b0ca89d351aa489ddd48bf6",
+    "SandboxKey": "/var/run/docker/netns/97c4963e56c4"
+   },
+   "Platform": "linux",
+   "State": {
+    "Dead": false,
+    "Error": "",
+    "ExitCode": 0,
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "OOMKilled": false,
+    "Paused": false,
+    "Pid": 31333,
+    "Restarting": false,
+    "Running": true,
+    "StartedAt": "2026-10-19T07:36:51.883335212Z",
+    "Status": "running"
+   },
+   "creation": {
+    "Cmd": [],
+    "Entrypoint": [
+     "/bin/sh",
+     "-c",
+     "exec sleep infinity"
+    ],
+    "Healthcheck": {
+     "Test": [
+      "NONE"
+     ]
+    },
+    "User": "0"
+   },
+   "services": {
+    "main": {
+     "Cmd": [],
+     "Entrypoint": [
+      "/bin/sh",
+      "-c",
+      "exec sleep infinity"
+     ],
+     "Healthcheck": {
+      "Test": [
+       "NONE"
+      ]
+     },
+     "User": "0"
+    }
+   }
+  },
+  "tool_image_digest": "sha256:930bce6cf6c0d3257386ba50f1a6ecd2628cc35aa9b930d5ad760dc0e4fc83a0"
+ },
+ "matrix": {
+  "benchmark_family": "make-mips-interpreter",
+  "concurrency": 1,
+  "environment": "docker",
+  "hypothesis": "The verifier of make-mips-interpreter rejects behavioural edits of the reference solution's output that the instruction does not allow.",
+  "jobs_dir": "runs",
+  "matrix_id": "01M59HEPQ02SWTXY7HMQ32W430",
+  "name": "envcheck-make-mips-interpreter-0001-nop-0",
+  "runs": [
+   {
+    "agent": "oracle",
+    "allow_billable": false,
+    "attempts": 1,
+    "expect_reward": 0.0,
+    "model": null,
+    "name": "ec-dk5d81-0001-nop-make-mips-interpreter",
+    "solution": "runs/px1-tb21-weak-tests-v1-20261019/campaign/make-mips-interpreter/native/scripts/0001-nop.sh"
+   }
+  ],
+  "schema_version": 2,
+  "task": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/px1-tb21-weak-tests-v1-20261019/packages/tb21/make-mips-interpreter",
+  "task_id": "make-mips-interpreter",
+  "task_package_digest": "sha256:e987ecd2373d93960287c135dbc733bdae874b8459f2a23833e87ad014dfe73a",
+  "timeout_seconds": 1800,
+  "verifier_digest": "sha256:692b181569e7b2f39700a72bdcea1b7751cb1f72db8be029048890ed9f759443"
+ },
+ "matrix_result": {
+  "error": null,
+  "expect_reward": 0.0,
+  "name": "ec-dk5d81-0001-nop-make-mips-interpreter",
+  "rewards": [
+   0.0
+  ],
+  "solution_sha256": "ba1e881e9150237ebbc35e5113298ceff10f321de2e52b465e241e3bd6227ea8",
+  "staged_task_digest": "sha256:ac443967188b8e07bc710905232e71ff257836a919a8cc14c29d1e5e2ce21e3d",
+  "status": "ok"
+ },
+ "oracle_execution": {
+  "exit_code_evidence": null,
+  "log_path": "evidence/make-mips-interpreter-cac7dc83c9/nop-oracle.txt",
+  "log_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+ },
+ "trial_result": {
+  "agent_execution": {
+   "finished_at": "2026-10-19T07:36:54.158580Z",
+   "started_at": "2026-10-19T07:36:53.755266Z"
+  },
+  "agent_info": {
+   "model_info": null,
+   "name": "oracle",
+   "version": "1.0.0"
+  },
+  "agent_result": {
+   "cost_usd": null,
+   "metadata": null,
+   "model_usage": null,
+   "n_cache_tokens": null,
+   "n_input_tokens": null,
+   "n_output_tokens": null,
+   "rollout_details": null
+  },
+  "agent_setup": {
+   "finished_at": "2026-10-19T07:36:53.241435Z",
+   "started_at": "2026-10-19T07:36:53.241313Z"
+  },
+  "config": {
+   "agent": {
+    "concurrency_group": null,
+    "env": {
+     "EVALLAB_SETUP_FINGERPRINT": "{\"budgets\":{\"cost_limit_usd\":null,\"max_input_tokens\":null,\"max_output_tokens\":null,\"max_requests\":null,\"max_total_tokens\":null,\"step_limit\":null,\"timeout_seconds\":1800},\"environment\":{\"backend\":\"docker\",\"egress_mechanism\":null},\"harness\":{\"additions\":{},\"id\":\"oracle\",\"version\":null},\"lock\":{\"declared\":null,\"effective\":\"open\",\"mode\":\"open\"},\"schema\":\"evallab.setup_fingerprint/v1\"}"
+    },
+    "extra_allowed_hosts": [],
+    "import_path": null,
+    "kwargs": {},
+    "load_trajectory": null,
+    "max_timeout_sec": null,
+    "mcp_servers": [],
+    "model_name": null,
+    "n_concurrent": null,
+    "name": "oracle",
+    "override_setup_timeout_sec": null,
+    "override_timeout_sec": null,
+    "resume_trajectory": false,
+    "skills": []
+   },
+   "agent_setup_timeout_multiplier": null,
+   "agent_timeout_multiplier": 1.0,
+   "artifacts": [],
+   "environment": {
+    "cpu_enforcement_policy": "auto",
+    "delete": true,
+    "extra_allowed_hosts": [],
+    "extra_docker_compose": [],
+    "force_build": false,
+    "import_path": "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment",
+    "kwargs": {
+     "isolation_lane": "oracle"
+    },
+    "memory_enforcement_policy": "auto",
+    "mounts": null,
+    "override_cpus": null,
+    "override_gpus": null,
+    "override_memory_mb": null,
+    "override_storage_mb": null,
+    "override_tpu": null,
+    "stream": false,
+    "type": null
+   },
+   "environment_build_timeout_multiplier": null,
+   "extra_instruction_paths": [],
+   "extra_instructions": [],
+   "install_only": false,
+   "job_id": "dbee364e-6d81-4867-9096-a115bafaaf81",
+   "source_trial": null,
+   "task": {
+    "download_dir": null,
+    "git_commit_id": null,
+    "git_url": null,
+    "name": null,
+    "overwrite": false,
+    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-dk5d81-0001-nop-make-mips-interpreter",
+    "ref": null,
+    "source": null
+   },
+   "timeout_multiplier": 1.0,
+   "trial_name": "ec-dk5d81-0001-nop-make-mips-int__tnwqioH",
+   "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-dk5d81-0001-nop-make-mips-interpreter",
+   "user_agent": null,
+   "verifier": {
+    "disable": false,
+    "max_timeout_sec": null,
+    "override_timeout_sec": null
+   },
+   "verifier_timeout_multiplier": null
+  },
+  "environment_setup": {
+   "finished_at": "2026-10-19T07:36:53.241128Z",
+   "started_at": "2026-10-19T07:36:48.085379Z"
+  },
+  "exception_info": null,
+  "finished_at": "2026-10-19T07:37:55.295705Z",
+  "id": "0e15adfb-5af2-4f34-8b60-2b121a19ea39",
+  "source": null,
+  "started_at": "2026-10-19T07:36:46.723236Z",
+  "step_results": null,
+  "task_checksum": "d12e82111c0ab586ae968db0de8a5a5b01795406e03ff14bd10910b7f0b07025",
+  "task_id": {
+   "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/.exec-stage/ec-dk5d81-0001-nop-make-mips-interpreter"
+  },
+  "task_name": "terminal-bench/make-mips-interpreter",
+  "trial_name": "ec-dk5d81-0001-nop-make-mips-int__tnwqioH",
+  "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/traces-tb21-weak-tests-v1-20261019/runs/ec-dk5d81-0001-nop-make-mips-interpreter/ec-dk5d81-0001-nop-make-mips-int__tnwqioH",
+  "verifier": {
+   "finished_at": "2026-10-19T07:37:48.047732Z",
+   "started_at": "2026-10-19T07:36:54.983042Z"
+  },
+  "verifier_environment_mode": "shared",
+  "verifier_result": {
+   "rewards": {
+    "reward": 0.0
+   }
+  }
+ }
+}

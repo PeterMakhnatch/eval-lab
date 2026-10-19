@@ -110,50 +110,50 @@
           "attempted_n": 16,
           "baseline_qualified_n": 16,
           "confirmed_rate_attempted": {
-            "count": 3,
+            "count": 2,
             "n": 16,
-            "rate": 0.1875,
+            "rate": 0.125,
             "wilson_95_ci": [
-              0.06591599071428142,
-              0.4300888096197414
+              0.03497748774324047,
+              0.36022827265758695
             ]
           },
           "confirmed_rate_baseline_qualified": {
-            "count": 3,
+            "count": 2,
             "n": 16,
-            "rate": 0.1875,
+            "rate": 0.125,
             "wilson_95_ci": [
-              0.06591599071428142,
-              0.4300888096197414
+              0.03497748774324047,
+              0.36022827265758695
             ]
           }
         }
       },
       "clean_negative_tasks": 0,
       "confirmed_rate_attempted": {
-        "count": 4,
+        "count": 3,
         "n": 18,
-        "rate": 0.2222222222222222,
+        "rate": 0.16666666666666666,
         "wilson_95_ci": [
-          0.09000928108601694,
-          0.45214584316212625
+          0.05836576805861446,
+          0.39222038103915724
         ]
       },
       "confirmed_rate_baseline_qualified": {
-        "count": 4,
+        "count": 3,
         "n": 18,
-        "rate": 0.2222222222222222,
+        "rate": 0.16666666666666666,
         "wilson_95_ci": [
-          0.09000928108601694,
-          0.45214584316212625
+          0.05836576805861446,
+          0.39222038103915724
         ]
       },
-      "confirmed_weak_tasks": 4,
-      "confirmed_witnesses": 12,
+      "confirmed_weak_tasks": 3,
+      "confirmed_witnesses": 7,
       "frame_n": 89,
       "grade_records": 184,
       "native_trials": 183,
-      "observed_frame_lower_bound": 0.0449438202247191,
+      "observed_frame_lower_bound": 0.033707865168539325,
       "primary_attempt_baseline_qualified_n": 18,
       "primary_search": {
         "candidate_bearing_tasks": 11,
@@ -175,15 +175,16 @@
       "semantic_review_counts": {
         "equivalent_or_allowed": 4,
         "outside_explicit_requirements": 11,
-        "required_gap": 12,
-        "unresolved": 4
+        "required_gap": 7,
+        "unresolved": 4,
+        "within_intentional_grader_slack": 5
       },
       "status_counts": {
         "measured": 5,
         "not_applicable": 13,
         "not_run": 71
       },
-      "unknown_tasks": 85
+      "unknown_tasks": 86
     }
   },
   "independent_detector_evaluation": false,

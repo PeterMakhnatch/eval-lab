@@ -24,7 +24,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | tb21-weak-tests-v1 | 23 (1/0) | 66 (4/0) heldout/test | 0 / 0 | 89 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
-| weak-tests-generalization-20261019 | 253 (4/0) | 0 (0/0) - | 0 / 0 | 253 | 0 |
+| weak-tests-generalization-20261019 | 253 (3/0) | 0 (0/0) - | 0 / 0 | 253 | 0 |
 
 ## Same task name in dev and in a reported split
 
@@ -198,6 +198,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | query-optimize | sha256:9c3951327bea | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | rstan-to-pystan | sha256:32094d1688d5 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | sam-cell-seg | sha256:57fe4ee6d3c5 | fail: tb21-weak-tests-v1, weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
+| sqlite-db-truncate | sha256:8d709a9557d7 | fail: tb21-weak-tests-v1; unknown: weak-tests-generalization-20261019 |
 | torch-pipeline-parallelism | sha256:0ee676b39d4a | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | torch-pipeline-parallelism | sha256:fee0c9db891e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | torch-tensor-parallelism | sha256:280efa2017af | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |

@@ -2813,7 +2813,7 @@ weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sam-c
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sanitize-git-repo,sanitize-git-repo,tb21/sanitize-git-repo,dev,unknown,
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:schemelike-metacircular-eval,schemelike-metacircular-eval,tb21/schemelike-metacircular-eval,dev,unknown,
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sparql-university,sparql-university,tb21/sparql-university,dev,unknown,
-weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sqlite-db-truncate,sqlite-db-truncate,tb21/sqlite-db-truncate,dev,fail,
+weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sqlite-db-truncate,sqlite-db-truncate,tb21/sqlite-db-truncate,dev,unknown,
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:sqlite-with-gcov,sqlite-with-gcov,tb21/sqlite-with-gcov,dev,unknown,
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:torch-pipeline-parallelism,torch-pipeline-parallelism,tb21/torch-pipeline-parallelism,dev,unknown,
 weak-tests-generalization-20261019,weak-tests-generalization-20261019:tb21:torch-tensor-parallelism,torch-tensor-parallelism,tb21/torch-tensor-parallelism,dev,unknown,

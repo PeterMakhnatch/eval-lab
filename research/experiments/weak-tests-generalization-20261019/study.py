@@ -149,7 +149,7 @@ def prepare(prior: Path) -> None:
     print(json.dumps({"tb21_selected": list(TB_TARGETS), "hef_selected": [r["task_id"] for r in hef_frame if r["selected"]]}), flush=True)
 
 
-def run(*, attempt: str | None = None, benchmark: str | None = None) -> None:
+def run(*, attempt: str | None = None, benchmark: str | None = None, resume_from: str | None = None) -> None:
     plan = json.loads((HERE / "cohort.json").read_text())
     os.environ["EVALLAB_DERIVED_ROOT"] = str(REPO / "derived/parquet")
     os.environ["EVALLAB_DOCKER_LOCK_SLOTS"] = "2"
@@ -163,6 +163,13 @@ def run(*, attempt: str | None = None, benchmark: str | None = None) -> None:
     if benchmark is not None:
         jobs = [(family, row) for family, row in jobs if family == benchmark]
     output = RUNS if attempt is None else RUNS / "attempts" / attempt
+    done: set[tuple[str, str]] = set()
+    if resume_from is not None:
+        prior = RUNS / "attempts" / resume_from
+        if Path(resume_from).name != resume_from or not (prior / "attempt.json").is_file():
+            raise ValueError("resume_from must name an existing attempt")
+        done = {(family, row["task_id"]) for family, row in jobs if (prior / family / row["task_id"] / "report.json").is_file()}
+        jobs = [(family, row) for family, row in jobs if (family, row["task_id"]) not in done]
     if (output / "attempt.json").exists() or (output / "completion.json").exists():
         raise ValueError("refusing to replace an existing survey attempt")
     method_files = (
@@ -179,6 +186,7 @@ def run(*, attempt: str | None = None, benchmark: str | None = None) -> None:
         "method_files": {name: "sha256:" + hashlib.sha256((REPO / name).read_bytes()).hexdigest()
                          for name in method_files},
         "first_pass_preserved": (RUNS / "completion.json").is_file(),
+        "resumed_from": resume_from, "skipped_completed": sorted(f"{family}/{task}" for family, task in done),
         "disposition": "Original selection, task bytes, declared limits and search operators unchanged. Named subsequent attempts follow native transport or schema fixes; no completed report is overwritten.",
     })
     for benchmark, row in jobs:
@@ -203,6 +211,7 @@ def main() -> None:
     parser.add_argument("command", choices=("prepare", "materialize", "run"))
     parser.add_argument("--prior-worktree", type=Path)
     parser.add_argument("--attempt")
+    parser.add_argument("--resume-from", help="skip tasks whose report.json exists in this earlier attempt")
     parser.add_argument("--benchmark", choices=("tb21", "humanevalfix"))
     args = parser.parse_args()
     if args.command == "prepare":
@@ -213,7 +222,7 @@ def main() -> None:
         plan = json.loads((HERE / "cohort.json").read_text())
         materialize(plan["tb21"]["frame"], {row["task_id"] for row in plan["tb21"]["selected"]})
     else:
-        run(attempt=args.attempt, benchmark=args.benchmark)
+        run(attempt=args.attempt, benchmark=args.benchmark, resume_from=args.resume_from)
 
 
 if __name__ == "__main__":

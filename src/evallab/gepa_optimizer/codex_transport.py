@@ -452,10 +452,12 @@ def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
             argv, cwd=cwd, env=_scrub_env(dict(os.environ)), stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=log, start_new_session=True, bufsize=0,
         )
+        stdin, stdout = process.stdin, process.stdout
+        assert stdin is not None and stdout is not None
         pending = b""
         received = 0
         deadline = time.monotonic() + 60
-        selector.register(process.stdout, selectors.EVENT_READ)
+        selector.register(stdout, selectors.EVENT_READ)
 
         def next_message() -> dict[str, Any] | None:
             nonlocal pending, received
@@ -463,7 +465,7 @@ def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0 or not selector.select(remaining):
                     raise CodexTransportError("Codex model-free seed creation timed out")
-                chunk = os.read(process.stdout.fileno(), 65536)
+                chunk = os.read(stdout.fileno(), 65536)
                 if not chunk:
                     if pending:
                         raise CodexTransportError("Codex seed server returned partial JSON")
@@ -494,8 +496,8 @@ def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
             payload = (json.dumps({"id": identifier, "method": method, "params": params}) + "\n").encode()
             requests.write(payload)
             requests.flush()
-            process.stdin.write(payload)
-            process.stdin.flush()
+            stdin.write(payload)
+            stdin.flush()
             while (message := next_message()) is not None:
                 if "id" not in message:
                     continue
@@ -564,7 +566,7 @@ def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
             snapshot = directory / "seed-rollout.jsonl"
             persist_private_bytes(snapshot, content, secrets=())
             seed = _EmptySeed(thread_id, rollout, snapshot, content)
-            process.stdin.close()
+            stdin.close()
             while next_message() is not None:
                 pass
             process.wait(timeout=max(0.01, deadline - time.monotonic()))
@@ -573,10 +575,10 @@ def _create_empty_seed(*, directory: Path, cwd: Path, model: str) -> _EmptySeed:
         except (KeyError, TypeError, AttributeError, OSError, subprocess.TimeoutExpired) as exc:
             raise CodexTransportError("Codex model-free seed creation failed; inspect retained evidence") from exc
         finally:
-            if not process.stdin.closed:
-                process.stdin.close()
+            if not stdin.closed:
+                stdin.close()
             _stop(process)
-            process.stdout.close()
+            stdout.close()
     seed.require_unchanged(cwd=cwd, model=model)
     _require_seed_policy_read_only(home)
     _require_empty_prefill_cwd(cwd)

@@ -327,9 +327,10 @@ and [task batch contract](../../../docs/qa-task.md#mutant-adjudication-batches).
 The profile also sets priorities: T1 owns most trace noncached-input-plus-output
 spend, but rubric S1, not mutant adjudication, owns most task spend. Batching the
 small adjudication stage alone cannot deliver a 30% whole-task reduction.
-Repeated full rubric packets and their low cache reuse are the next measured
-task-side investigation, not a claimed causal explanation or an unrequested S1
-behavior change in this patch.
+The separate native S1 cache experiment below addresses this measured bottleneck;
+it does not qualify the bounded QA Trace prefix.
+
+### Historical trace pilot limits (2026-10-18)
 
 A 15-item dev slice and per-item arm order were frozen before model outcomes.
 The original Codex comparison stopped at admission, before any study call, when
@@ -357,3 +358,49 @@ transport exception. The installed harness exposes per-call isolation flags.
 Context isolation and failure-accounting retention need their own measured,
 safety-preserving treatment; this patch does not silently disable standing
 instructions, add retries or claim those causes account for a measured fraction.
+
+### PS-1: independent S1 prefill reuse (2026-10-19)
+
+The preregistered six-turn probe used one archived, byte-identical 77,355-character
+rubric packet and the fixed interleaving control, candidate, candidate, control,
+control, candidate. Control used current-main fresh ephemeral exec/cwd requests;
+candidate used the actual `CodexLane` with supported ephemeral forks of one
+genuine, model-free empty seed. All six native thread IDs are distinct, all six
+prompt hashes match, and all source usage counters are complete.
+
+| Arm | Calls | Complete rubrics | Inclusive input | Cached input | Noncached input | Output | Noncached input + output |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Fresh exec/cwd control | 3 | 3 | 91,618 | 4,096 | 87,522 | 4,931 | 92,453 |
+| Independent empty-seed forks | 3 | 2 | 86,937 | 57,600 | 29,337 | 5,860 | 35,197 |
+
+The primary metric fell **61.93% including the cold first candidate vote**.
+That first vote had no cached input; each subsequent candidate vote cached
+28,800 of 28,979 input tokens (99.38%). Output increased, rather than being
+excluded from the denominator. Both cwd and native cache-routing behavior
+changed, and provider-framed cold inputs also differ: this is a combined-path
+measurement, not the isolated causal effect of cwd or a text-equivalent full
+provider request.
+
+No prior prompt or response is inherited. Native seed creation submits no
+model turn; it retains exactly one model-provenance metadata record. Child
+thread identities, seed bytes and empty cwd checks reject history contamination
+or lifecycle reuse. See the [production contract](../../../docs/qa-task.md#independent-rubric-cache-reuse).
+
+Offline replay through the actual production JSON parser and completeness rules
+found one malformed candidate response. It was not repaired or rerun, and all
+its tokens remain counted. Applying the existing complete-vote/majority rules
+also changes some criterion results. Thus even this one packet does **not**
+establish unchanged usable-vote performance; a complete native turn is not a
+complete rubric answer. The saved-output diagnostic is not ground-truth scoring.
+
+This establishes a one-packet cost result, not rubric correctness, statistical
+noninferiority, savings across tasks/models or an exact quota percentage.
+The separate [frozen QA Trace comparison](../../experiments/qa-trace/README.md#ps-1-native-frozen-slice-attempt-2026-10-19)
+did not meet acceptance; the PR remains draft and must not merge on this S1
+number alone. New paid API/compute spend was $0.
+
+Reviewable counters and limits are in [ps1-20261019-result.json](ps1-20261019-result.json).
+Preregistration, source archives, all raw native streams, quota admissions and
+immutable outcome files remain under
+`~/.local/share/eval-lab/studies/ps1-20261019/`.
+

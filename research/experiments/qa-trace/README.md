@@ -171,6 +171,39 @@ No held-out item was used. The new PS-1 comparison retains the exact frozen
 Its current merge gate is at least 30% fresh-input-plus-output reduction with no
 recall/false-alarm regression; >90% T1 cache remains a reported diagnostic target.
 
+### PS-1 native frozen-slice attempt (2026-10-19)
+
+The unchanged current-main qa-trace/8 control and bounded-prefix candidate
+ran the exact original frozen 15-item dev slice and per-item arm order. Each
+deliberate native process required a newly refreshed Codex usage reading below
+80%; reaching that ceiling sealed admission without continuing or substituting
+judges after outcomes. Production timeouts and inspection requirements were
+preserved. The exercised trace-source hashes match the delivered candidate.
+
+| Arm | Admitted processes | Usable items | Inclusive input | Cached input | Noncached input | Output | Noncached input + output |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Current-main control | 38 | 9 / 15 | 2,801,786 | 2,083,200 | 718,586 | 45,235 | 763,821 |
+| Bounded-prefix candidate | 38 | 8 / 15 | 2,818,080 | 2,060,416 | 757,664 | 45,045 | 802,709 |
+
+Every admitted process has complete reported usage, including cold calls and
+T3. These are unmatched admitted-call subtotals, **not a full paired-slice cost
+estimate**; the partial candidate T1 cache fraction is 71.22%, not a full-slice
+cache result. Unlaunched quota-stopped work remains unmeasured. One already
+control-correct clean item became unknown in the candidate, so even the
+observed results do not establish quality parity.
+
+Acceptance is **false**: the comparison is incomplete and establishes neither
+30% full-slice savings nor no-regression. Full-slice recall/false-alarm deltas and
+cost reduction remain unknown. No partial subset was promoted or retuned and
+no metered judge was substituted after viewing outcomes. New paid API/compute
+spend was $0; the PR remains draft, not merged.
+
+The compact [outcome receipt](../../explorations/agent-efficiency/ps1-20261019-result.json)
+links the retained private source/protocol/raw artifacts. The original frozen
+slice and stopped historical pilot remain unchanged. The separate S1 cache win
+does not replace this quality/whole-pipeline acceptance gate.
+
+
 ## qa-trace/7 (2026-10-18): tool-only evidence and outcome-based category routing
 
 Changes from qa-trace/6:

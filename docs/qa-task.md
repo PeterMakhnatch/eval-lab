@@ -54,6 +54,34 @@ a Python unified-diff fallback for minimal images without `git`/`patch`, or
 `patch`).
 Invalid submissions are unusable, never passes.
 
+### Independent rubric cache reuse
+
+`CodexLane` retains one transport for a task's independent text-only votes.
+It creates a genuine, model-free native seed with no user prompt, tool turn or
+response history; every vote uses a fresh `codex exec fork --ephemeral` child.
+Only the empty seed's cache routing and a blind empty cwd are shared. Each child
+must have a distinct thread ID and separate immutable request evidence outside
+that cwd. This is not resuming a populated conversation or caching vote output.
+
+The pinned native client must support the seed/fork protocol. Seed bytes and cwd
+purity are checked before and after calls; inherited instructions, changed seed
+history, symlinks, reused thread identities or unsupported configuration fail
+closed without a fresh-exec fallback. Existing text-only, subscription-only,
+read-only sandbox and parser guards remain in force.
+
+Vote execution ignores native user config and rules. Standalone app-server seed
+bootstrap cannot use those loader-level flags: it disables hooks, plugins, MCP
+and legacy notify, rejects custom instructions/provider overrides, and verifies
+an exclusively model-provenance metadata record. Local execution policy may
+load, but never enters vote history. An existing regular native
+`.sandbox_migration` marker is required so bootstrap cannot trigger a policy
+rewrite; the transport does not create it, migrate rules or change user settings.
+
+The [S1 measurement](../research/explorations/agent-efficiency/README.md#ps-1-independent-s1-prefill-reuse-2026-10-19)
+includes the cold first call. Its one-packet token result is not a population
+quality guarantee or a subscription-quota conversion. Production quota policy
+is unchanged; the overnight study's higher admission limit was study-local.
+
 ### Mutant adjudication batches
 
 The mutation hunt and reference-line pass adjudicate the same first six surviving

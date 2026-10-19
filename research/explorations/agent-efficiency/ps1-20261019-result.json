@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "study": "PS-1 / 2026-10-19 night",
+  "status": "draft_not_accepted_native_frozen_comparison_quota_blocked",
+  "new_paid_api_compute_usd": 0.0,
+  "paid_lane_cap_usd": 0.5,
+  "source": {
+    "control_commit": "fea4281c72701b20f0dfca896ed84c35552cf989",
+    "trace_candidate_git_tree_not_commit": "4ed93b6f487981c8449fcc1b71cdfc00703929ea",
+    "s1_implementation_commit": "10d1db9e19f30eaef1c1b385e376af0c26f8907f",
+    "delivered_trace_bytes_match_frozen_candidate": true,
+    "imported_native_caller_constants_unchanged": true,
+    "private_artifact_root": "~/.local/share/eval-lab/studies/ps1-20261019/",
+    "source_manifest": "source-freeze.json"
+  },
+  "s1_one_packet_probe": {
+    "registered_protocol": "s1-protocol-v1.json",
+    "raw_result": "s1-result-v1.json",
+    "saved_output_conformance": "s1-offline-conformance-v1.json",
+    "model_requested": "codex/gpt-6-luna",
+    "native_client": "codex-cli 0.162.1",
+    "prompt_characters": 77355,
+    "prompt_sha256": "dff6567482be8a6b83b887bc9db6939e3786789fd44dbd852242f10500a8ebf9",
+    "actual_prompt_hash_matches": 6,
+    "distinct_actual_native_thread_ids": 6,
+    "sequence": ["baseline", "candidate", "candidate", "baseline", "baseline", "candidate"],
+    "treatment": "Stable blind empty cwd plus supported fresh ephemeral forks of one genuine zero-turn native seed; no inherited prompt, vote or response history.",
+    "cold_first_candidate_included": true,
+    "all_reported_usage_complete": true,
+    "baseline": {
+      "processes": 3,
+      "input_tokens_inclusive": 91618,
+      "cached_input_tokens": 4096,
+      "noncached_input_tokens": 87522,
+      "output_tokens": 4931,
+      "noncached_input_plus_output_tokens": 92453,
+      "complete_rubric_votes": 3
+    },
+    "candidate": {
+      "processes": 3,
+      "input_tokens_inclusive": 86937,
+      "cached_input_tokens": 57600,
+      "noncached_input_tokens": 29337,
+      "output_tokens": 5860,
+      "noncached_input_plus_output_tokens": 35197,
+      "complete_rubric_votes": 2
+    },
+    "noncached_input_plus_output_reduction_fraction": 0.6192984543497777,
+    "warm_candidate_cached_input_tokens_each": 28800,
+    "warm_candidate_input_tokens_each": 28979,
+    "conformance_diagnostic": {
+      "new_model_calls": 0,
+      "actual_production_parser": "evallab.qa.task.parse_json_object",
+      "criteria_per_vote": 35,
+      "incomplete_candidate_sequence_position": 2,
+      "actual_reply_defect": "Malformed JSON: expected comma delimiter at EOF, character 7283. Not repaired or rerun; its tokens remain included.",
+      "majority_agreement_criteria": 21,
+      "ground_truth_correctness_measured": false,
+      "note": "Post-outcome descriptive replay of the actual saved responses using the production completeness/majority rules, not a registered semantic non-regression gate."
+    },
+    "performance_nonregression_established": false,
+    "limitations": [
+      "One packet and three calls per arm, not population noninferiority or cross-task/model savings.",
+      "Both cwd and native cache-routing path changed; provider-framed cold inputs differ despite identical user prompt bytes. Not a cwd-only causal estimate.",
+      "Complete provider usage and complete native turns do not imply complete, usable rubric answers.",
+      "Reported tokens do not establish exact subscription quota savings or physical backend model attestation."
+    ]
+  },
+  "frozen_trace_15_item_ab": {
+    "plan": "plan-full15.json",
+    "raw_result": "codex-full15/result-1792390179643112000.json",
+    "sealed_stop": "codex-full15/stop.json",
+    "same_original_slice_and_arm_order": true,
+    "analyst_requested": "codex/gpt-6.1-sol:medium",
+    "verifier_requested": "codex/gpt-6-luna:medium",
+    "planned_items_per_arm": 15,
+    "admitted_model_processes": 76,
+    "weekly_admission_stop_percent": 80,
+    "all_admitted_reported_usage_complete": true,
+    "candidate_t1_cache_fraction_partial": 0.7122402522205971,
+    "baseline_correct_to_candidate_unknown_items": 1,
+    "partial_admitted_call_totals_not_a_paired_slice_estimate": {
+      "baseline": {
+        "processes": 38,
+        "usable_items": 9,
+        "input_tokens_inclusive": 2801786,
+        "cached_input_tokens": 2083200,
+        "noncached_input_tokens": 718586,
+        "output_tokens": 45235,
+        "noncached_input_plus_output_tokens": 763821
+      },
+      "candidate": {
+        "processes": 38,
+        "usable_items": 8,
+        "input_tokens_inclusive": 2818080,
+        "cached_input_tokens": 2060416,
+        "noncached_input_tokens": 757664,
+        "output_tokens": 45045,
+        "noncached_input_plus_output_tokens": 802709
+      },
+      "unmatched_subtotal_ratio_not_acceptance": 1.0509124520011888
+    },
+    "full_slice_cost_reduction_fraction": null,
+    "full_slice_recall_delta": null,
+    "full_slice_clean_false_alarm_delta": null,
+    "accepted": false,
+    "merge_allowed": false,
+    "limitations": [
+      "The fresh absolute 80% shared Codex admission gate sealed the native run; not all frozen items are usable.",
+      "Partial arms have different coverage. Neither partial recall/false-alarm rows nor unmatched cost subtotals establish full-slice acceptance.",
+      "No missing usage, unlaunched work or unknown labels are admitted as zero or correct.",
+      "No post-outcome model substitution, selective rerun, retuning or partial-slice promotion."
+    ]
+  }
+}

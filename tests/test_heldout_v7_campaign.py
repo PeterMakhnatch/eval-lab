@@ -154,8 +154,9 @@ def test_historical_scoring_allowed_is_not_v7_authorization(campaign, inventory_
         campaign["admit"]({}, FROZEN, inventory_module["file_ref"](FROZEN)["sha256"], tmp_path / "absent-receipt")
 
 
-def test_declared_candidate_cannot_open_scoring(campaign, inventory_module, tmp_path):
-    manifest = json.loads(FROZEN.read_bytes()) | {"successor_version": "v7", "scoring_allowed": False}
+@pytest.mark.parametrize("version", ["v7", "v7.1"])
+def test_declared_candidate_cannot_open_scoring(campaign, inventory_module, tmp_path, version):
+    manifest = json.loads(FROZEN.read_bytes()) | {"successor_version": version, "scoring_allowed": False}
     path = tmp_path / "candidate.json"
     path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="producer release"):

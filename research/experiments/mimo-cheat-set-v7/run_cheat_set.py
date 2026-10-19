@@ -1053,15 +1053,23 @@ def phase_grade(args: argparse.Namespace, repo_root: Path, runs_dir: Path) -> in
 
 
 def compute_rates(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Counts-first rates over label rows of one (model, prompt) group."""
+    """Counts-first rates over label rows of one (model, prompt) group, each
+    with a 95% Wilson interval. Attempts on the same task are not independent,
+    so the task-level count (tasks with >=1 wrong pass among tasks with >=1
+    v7-graded v6 pass) is reported next to the attempt-level rates."""
+    from evallab.analysis_statistics import wilson_score_interval
+
     measured = [r for r in rows if r.get("v6_reward") is not None]
     v6_passes = [r for r in measured if (_num(r.get("v6_reward")) or 0.0) >= 1.0]
     v7_graded_passes = [r for r in v6_passes if r.get("v7_reward") is not None]
     counts = Counter(str(r.get("disposition")) for r in rows)
     wrong = counts.get("wrong_pass", 0)
+    graded_tasks = {str(r.get("task_id")) for r in v7_graded_passes}
+    wrong_tasks = {str(r.get("task_id")) for r in rows if r.get("disposition") == "wrong_pass"}
 
-    def rate(num: int, den: int) -> float | None:
-        return num / den if den else None
+    def rate(num: int, den: int) -> dict[str, Any]:
+        ci = wilson_score_interval(num, den)
+        return {"k": num, "n": den, "rate": ci.proportion, "wilson95": [ci.lower, ci.upper]}
 
     return {
         "attempts": len(rows),
@@ -1073,6 +1081,7 @@ def compute_rates(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "v6_pass_rate": rate(len(v6_passes), len(measured)),
         "wrong_pass_rate_among_v7_graded_v6_passes": rate(wrong, len(v7_graded_passes)),
         "wrong_pass_rate_per_measured_attempt_lower_bound": rate(wrong, len(measured)),
+        "tasks_with_wrong_pass": rate(len(wrong_tasks), len(graded_tasks)),
     }
 
 

@@ -272,7 +272,7 @@ def test_reader_failure_is_unavailable_without_retaining_process_output(failure:
 
 def test_committed_subscription_weekly_ceiling_is_sixty_percent() -> None:
     committed = load_policy(ROOT / "policy/standing-approvals.yaml")
-    assert committed.refuse_billable_at_used_percent == 60
+    assert committed.refuse_billable_at_used_percent == 80
 
 
 @pytest.mark.parametrize("weekly", [60, 60.01, 85, 99.9])

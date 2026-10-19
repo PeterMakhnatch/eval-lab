@@ -37,7 +37,7 @@ daily_cost_ceiling_overrides:
     card: HAR-126
 per_job_cost_ceiling_usd: 3
 quiet_failure_rule: 3
-refuse_billable_at_used_percent: 60
+refuse_billable_at_used_percent: 80
 auto_run:
   - name: local-controls
     agents: [oracle, nop]

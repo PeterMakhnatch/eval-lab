@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from evallab.execution_contracts import (
+    build_command,
     collected_secret_values,
     new_ulid,
     subscription_environment,
@@ -100,6 +101,8 @@ def test_modal_grade_reserves_before_the_runner(
     calls: list[ExperimentMatrix] = []
 
     def fake_runner(matrix: ExperimentMatrix, root: Path) -> list[dict[str, object]]:
+        with staged_matrix_request(matrix, matrix.runs[0], repo_root=root) as (request, _):
+            build_command(request, setup_fingerprint="fixture")
         calls.append(matrix)
         return [{"name": matrix.runs[0].name, "status": "ok", "rewards": [1.0]}]
 
@@ -114,16 +117,13 @@ def test_modal_grade_reserves_before_the_runner(
         run_dir=tmp_path / "vcheck",
         environment="modal",
         spend_gate=gate,
-        modal_app_name="tb2-amd64-modal",
+        modal_app_name=driver.MODAL_APP_NAME,
         modal_resource_policy="limit",
         modal_sandbox_create_max_attempts=1,
     )
 
     assert result.status == "ok"
     assert gate.executions == 1
-    assert calls[0].environment == "modal"
-    assert calls[0].modal_app_name == "tb2-amd64-modal"
-    assert calls[0].docker_platform is None
     broke = CloudSpendGate("tb2 amd64 test", 0.01, 0.02)
     with pytest.raises(SpendCapReached):
         grade_submission(

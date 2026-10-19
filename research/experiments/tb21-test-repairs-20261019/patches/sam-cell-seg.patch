@@ -1,0 +1,25 @@
+--- a/tests/test_outputs.py
++++ b/tests/test_outputs.py
+@@ -280,4 +280,20 @@
+             # Check that the list is not empty and contains only numbers
+             if parsed_value:
+                 assert all(isinstance(item, (int, float)) for item in parsed_value), \
+-                    f"Row {index}, column '{col}': list contains non-numeric items."
+\ No newline at end of file
++                    f"Row {index}, column '{col}': list contains non-numeric items."
++
++
++# --- Repair (append-only): the instruction defines xmin, xmax, ymin, ymax as
++# the upper-left and lower-right corners of each mask and requires them to be
++# updated together with coords_x/coords_y. Each corner must therefore match the
++# polyline's extent (1 px tolerance for inclusive/exclusive pixel conventions).
++def test_bbox_columns_match_polylines():
++    df = _read_polylines_csv("/app/test_output.csv")
++    for index, row in df.iterrows():
++        xs, ys = row["coords_x"], row["coords_y"]
++        assert xs and ys, f"Row {index}: empty polyline"
++        for col, extent in (("xmin", min(xs)), ("xmax", max(xs)),
++                            ("ymin", min(ys)), ("ymax", max(ys))):
++            assert abs(float(row[col]) - float(extent)) <= 1, (
++                f"Row {index}: {col}={row[col]} does not match polyline extent {extent}"
++            )

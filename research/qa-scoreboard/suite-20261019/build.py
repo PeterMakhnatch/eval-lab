@@ -102,10 +102,11 @@ def or1p_runs() -> list[dict]:
                 "run": f"reasoning-ablation test, sealed 2026-10-19T09:23:13Z ({OR1P / view})",
                 "notes": (
                     f"Single-call gpt-oss-120b judge on the {view} view (no tools, no T0/T3). "
-                    f"{len(records) - len(kept)} records on the {len(tuned_trials)} tuned trajectory-judge-400 test items dropped. "
-                    "Per-finding cost fields carry a third of each call's cost on all five question records, so their sum "
-                    "overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. "
-                    "Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md."
+                    f"{len(records) - len(kept)} records on the 15 tuned trajectory-judge-400 test items "
+                    "(research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. "
+                    "Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views "
+                    "they sum to the sealed ledger total ($0.6307 before the drop). "
+                    "Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099)."
                 ),
             })
     return runs
@@ -142,6 +143,10 @@ FROM_SCOREBOARD = [
      "Retrospective source reconciliation; committed findings name the unversioned producer `QA Task`."),
     ("task", "qa-task/mimo-sample100-strict",
      "Retrospective source reconciliation; committed findings name the unversioned producer `QA Task`."),
+    ("task", "weak-task@atlas-v2.1+sample100",
+     "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records."),
+    ("task", "weak-task-untouched@atlas-v2.1",
+     "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records."),
     ("breaker", "openai/gpt-6-luna (PinnedCodex, verifier-aware)",
      "Held-out findings directory was not found on disk (the producer was a dirty worktree); `codex-verifier-aware` is also not a versioned identity."),
     ("breaker", "openai/gpt-6-luna (PinnedCodex, blind)",
@@ -180,6 +185,41 @@ def scoreboard_entries() -> list[dict]:
                 ),
                 "reason": reason,
                 "source": f"research/qa-scoreboard/scoreboard.csv ({r['date_utc']})",
+            })
+    return entries
+
+
+def _rate_of(cell: dict) -> str:
+    return f"{cell['rate']:.4f} ({cell['k']}/{cell['n']})" if cell["n"] else "n/a (0/0)"
+
+
+def experiment_entries() -> list[dict]:
+    """Published experiment results with no scoreboard row, copied from their results.json."""
+    entries = []
+    window3 = "research/experiments/reasoning-ablation/window3-results.json"
+    head = json.loads((REPO / window3).read_text())["keys"]["mimo-fresh-window3"]["heads"]["any_finding"]
+    for view in ("full", "actions"):
+        entries.append({
+            "agent": "trace", "system": f"qa-trace/6-or1p/{view} (any finding)", "key": "mimo-fresh-window3",
+            "split": "test",
+            "reported": f"recall {_rate_of(head['recall'][view])}; false alarms {_rate_of(head['false_alarm'][view])}",
+            "reason": "Window-3 judge outputs (eval-lab #1100) were published as compact predictions without qa.finding/v1 records.",
+            "source": window3,
+        })
+    fresh = "research/experiments/cb-fresh-holdout-20261019/results.json"
+    pools = json.loads((REPO / fresh).read_text())["pools"]
+    for pool in ("test-family", "dev-family"):
+        for arm, metrics in sorted(pools[pool]["arms"].items()):
+            entries.append({
+                "agent": "tripwire",
+                "system": f"{arm} (frozen, eval-lab #1102)" + (" [secondary]" if metrics.get("secondary") else ""),
+                "key": f"cheatbench fresh {pool} (3,968 key-excluded traces)", "split": "fresh",
+                "reported": (
+                    f"recall {_rate_of(metrics['recall'])}; false alarms {_rate_of(metrics['false_alarm'])}; "
+                    f"precision {_rate_of(metrics['precision'])}"
+                ),
+                "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+                "source": fresh,
             })
     return entries
 
@@ -263,7 +303,7 @@ def main() -> None:
     ]
     document = {
         "runs": sorted(runs, key=lambda r: (r["agent"], r["version"], r["key"])),
-        "not_rescored": scoreboard_entries(),
+        "not_rescored": scoreboard_entries() + experiment_entries(),
     }
     (HERE / "runs.json").write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     versions = sorted({r["version"] for r in runs} | {"qa-task@s2a-ordinary-availability-verified"})

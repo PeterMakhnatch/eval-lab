@@ -523,6 +523,42 @@
       "system": "qa-task/mimo-sample100-strict"
     },
     {
+      "agent": "task",
+      "key": "mimo-fresh-window3",
+      "reason": "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.0000; false alarms 0.5882; paired n/a; measured 21/52; status: partial: 21 of 52 measured (v6 passes only)",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:34:07Z)",
+      "split": "test",
+      "system": "weak-task@atlas-v2.1+sample100"
+    },
+    {
+      "agent": "task",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.0000; false alarms 0.1406; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:34:07Z)",
+      "split": "test",
+      "system": "weak-task@atlas-v2.1+sample100"
+    },
+    {
+      "agent": "task",
+      "key": "mimo-fresh-window3",
+      "reason": "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.0000; false alarms 0.0000; paired n/a; measured 21/52; status: partial: 21 of 52 measured (v6 passes only)",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:34:07Z)",
+      "split": "test",
+      "system": "weak-task-untouched@atlas-v2.1"
+    },
+    {
+      "agent": "task",
+      "key": "mimo-v7-canonical-pass70",
+      "reason": "Task-evidence wrong-pass detector (eval-lab #1103): per-item predictions in a custom format, no qa.finding/v1 records.",
+      "reported": "recall 0.0000; false alarms 0.0000; paired n/a; measured 70/70; status: complete",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:34:07Z)",
+      "split": "test",
+      "system": "weak-task-untouched@atlas-v2.1"
+    },
+    {
       "agent": "breaker",
       "key": "breaker-bench-v1",
       "reason": "Held-out findings directory was not found on disk (the producer was a dirty worktree); `codex-verifier-aware` is also not a versioned identity.",
@@ -615,6 +651,33 @@
     {
       "agent": "breaker",
       "key": "breaker-bench-v1",
+      "reason": "Held-out findings directory was not found on disk (the producer was a dirty worktree); `codex-verifier-aware` is also not a versioned identity.",
+      "reported": "recall 0.3556; false alarms 0.8750; paired 0.0625; measured 61/503; status: partial: 61 of 503 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:08Z)",
+      "split": "test",
+      "system": "openai/gpt-6-luna (PinnedCodex, verifier-aware)"
+    },
+    {
+      "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out findings directory was not found on disk (the producer was a dirty worktree); `codex-verifier-aware` is also not a versioned identity.",
+      "reported": "recall 0.2000; false alarms 0.8333; paired 0.1111; measured 29/104; status: partial: 29 of 104 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:21Z)",
+      "split": "test",
+      "system": "openai/gpt-6-luna (PinnedCodex, verifier-aware)"
+    },
+    {
+      "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out findings directory was not found on disk (the producer was a dirty worktree); `codex-verifier-aware` is also not a versioned identity.",
+      "reported": "recall 0.2000; false alarms 0.8333; paired 0.1111; measured 29/80; status: partial: 29 of 80 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:25Z)",
+      "split": "test",
+      "system": "openai/gpt-6-luna (PinnedCodex, verifier-aware)"
+    },
+    {
+      "agent": "breaker",
+      "key": "breaker-bench-v1",
       "reason": "Held-out findings directory was not found on disk; `codex-blind` is not a versioned identity.",
       "reported": "recall n/a; false alarms n/a; paired n/a; measured 0/503; status: partial: 0 of 503 items measured",
       "source": "research/qa-scoreboard/scoreboard.csv (2026-10-17T12:47:50Z)",
@@ -677,6 +740,24 @@
     },
     {
       "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out findings directory was not found on disk; `codex-blind` is not a versioned identity.",
+      "reported": "recall 0.0000; false alarms 0.6429; paired 0.0000; measured 23/104; status: partial: 23 of 104 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:13Z)",
+      "split": "test",
+      "system": "openai/gpt-6-luna (PinnedCodex, blind)"
+    },
+    {
+      "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out findings directory was not found on disk; `codex-blind` is not a versioned identity.",
+      "reported": "recall 0.0000; false alarms 0.6429; paired 0.0000; measured 23/80; status: partial: 23 of 80 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:17Z)",
+      "split": "test",
+      "system": "openai/gpt-6-luna (PinnedCodex, blind)"
+    },
+    {
+      "agent": "breaker",
       "key": "breaker-bench-v1",
       "reason": "Held-out test-split findings directory was not found on disk; only the aggregate row survives.",
       "reported": "recall 1.0000; false alarms n/a; paired n/a; measured 7/503; status: partial: 7 of 503 items measured",
@@ -719,6 +800,132 @@
       "source": "research/qa-scoreboard/scoreboard.csv (2026-10-18T11:53:53Z)",
       "split": "test",
       "system": "cheat_ladder 3.0.0 (model-free)"
+    },
+    {
+      "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out test-split findings directory was not found on disk; only the aggregate row survives.",
+      "reported": "recall n/a; false alarms 1.0000; paired 0.0000; measured 33/104; status: partial: 33 of 104 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:29Z)",
+      "split": "test",
+      "system": "cheat_ladder 3.0.0 (model-free)"
+    },
+    {
+      "agent": "breaker",
+      "key": "tb2-to-tb21-v1",
+      "reason": "Held-out test-split findings directory was not found on disk; only the aggregate row survives.",
+      "reported": "recall n/a; false alarms 1.0000; paired 0.0000; measured 33/80; status: partial: 33 of 80 items measured",
+      "source": "research/qa-scoreboard/scoreboard.csv (2026-10-19T11:23:33Z)",
+      "split": "test",
+      "system": "cheat_ladder 3.0.0 (model-free)"
+    },
+    {
+      "agent": "trace",
+      "key": "mimo-fresh-window3",
+      "reason": "Window-3 judge outputs (eval-lab #1100) were published as compact predictions without qa.finding/v1 records.",
+      "reported": "recall 0.4412 (15/34); false alarms 0.4706 (8/17)",
+      "source": "research/experiments/reasoning-ablation/window3-results.json",
+      "split": "test",
+      "system": "qa-trace/6-or1p/full (any finding)"
+    },
+    {
+      "agent": "trace",
+      "key": "mimo-fresh-window3",
+      "reason": "Window-3 judge outputs (eval-lab #1100) were published as compact predictions without qa.finding/v1 records.",
+      "reported": "recall 0.5000 (17/34); false alarms 0.5882 (10/17)",
+      "source": "research/experiments/reasoning-ablation/window3-results.json",
+      "split": "test",
+      "system": "qa-trace/6-or1p/actions (any finding)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh test-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.7660 (36/47); false alarms 0.6588 (583/885); precision 0.0582 (36/619)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "logistic_frozen (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh test-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.3830 (18/47); false alarms 0.0497 (44/885); precision 0.2903 (18/62)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "logistic_oracle (frozen, eval-lab #1102) [secondary]"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh test-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.7660 (36/47); false alarms 0.0554 (49/885); precision 0.4235 (36/85)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "rule (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh test-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.0426 (2/47); false alarms 0.0147 (13/885); precision 0.1333 (2/15)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "tripwire (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh test-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.1064 (5/47); false alarms 0.0395 (35/885); precision 0.1250 (5/40)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "tripwire_shell_alias (frozen, eval-lab #1102) [secondary]"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh dev-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.9103 (609/669); false alarms 0.2624 (616/2348); precision 0.4971 (609/1225)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "logistic_frozen (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh dev-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.5635 (377/669); false alarms 0.0324 (76/2348); precision 0.8322 (377/453)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "logistic_oracle (frozen, eval-lab #1102) [secondary]"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh dev-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.5979 (400/669); false alarms 0.0937 (220/2348); precision 0.6452 (400/620)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "rule (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh dev-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.5979 (400/669); false alarms 0.0869 (204/2348); precision 0.6623 (400/604)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "tripwire (frozen, eval-lab #1102)"
+    },
+    {
+      "agent": "tripwire",
+      "key": "cheatbench fresh dev-family (3,968 key-excluded traces)",
+      "reason": "Fresh CheatBench pool is not a registered answer key; per-item predictions are a custom format.",
+      "reported": "recall 0.5979 (400/669); false alarms 0.0869 (204/2348); precision 0.6623 (400/604)",
+      "source": "research/experiments/cb-fresh-holdout-20261019/results.json",
+      "split": "fresh",
+      "system": "tripwire_shell_alias (frozen, eval-lab #1102) [secondary]"
     }
   ],
   "runs": [
@@ -798,7 +1005,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-actions.jsonl",
       "key": "cheatbench-actions-v1",
-      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
       "version": "qa-trace/6-or1p/actions"
     },
@@ -806,7 +1013,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-actions.jsonl",
       "key": "hacktrace-act-v1",
-      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
       "version": "qa-trace/6-or1p/actions"
     },
@@ -814,7 +1021,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-actions.jsonl",
       "key": "mimo-v7-canonical-pass70",
-      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
       "version": "qa-trace/6-or1p/actions"
     },
@@ -822,7 +1029,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-actions.jsonl",
       "key": "trace-paired-v1",
-      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
       "version": "qa-trace/6-or1p/actions"
     },
@@ -830,7 +1037,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-actions.jsonl",
       "key": "trajectory-judge-400",
-      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the actions view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/actions)",
       "version": "qa-trace/6-or1p/actions"
     },
@@ -838,7 +1045,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-full.jsonl",
       "key": "cheatbench-actions-v1",
-      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
       "version": "qa-trace/6-or1p/full"
     },
@@ -846,7 +1053,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-full.jsonl",
       "key": "hacktrace-act-v1",
-      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
       "version": "qa-trace/6-or1p/full"
     },
@@ -854,7 +1061,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-full.jsonl",
       "key": "mimo-v7-canonical-pass70",
-      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
       "version": "qa-trace/6-or1p/full"
     },
@@ -862,7 +1069,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-full.jsonl",
       "key": "trace-paired-v1",
-      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
       "version": "qa-trace/6-or1p/full"
     },
@@ -870,7 +1077,7 @@
       "agent": "trace",
       "findings": "findings/qa-trace-6-or1p-full.jsonl",
       "key": "trajectory-judge-400",
-      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 28 tuned trajectory-judge-400 test items dropped. Per-finding cost fields carry a third of each call's cost on all five question records, so their sum overstates spend by about 5/3; the sealed ledger total is $0.6307 for both views. Per-head paired tests: bridge/2026-10-19-deep/reasoning-ablation.md.",
+      "notes": "Single-call gpt-oss-120b judge on the full view (no tools, no T0/T3). 75 records on the 15 tuned trajectory-judge-400 test items (research/experiments/qa-trace/tuned_on/trajectory-judge-400.txt) dropped. Per-finding cost fields split each call's OpenRouter cost over its asked questions; across both views they sum to the sealed ledger total ($0.6307 before the drop). Per-head paired tests: research/experiments/reasoning-ablation/ (eval-lab #1099).",
       "run": "reasoning-ablation test, sealed 2026-10-19T09:23:13Z (/Users/petermakhnatch/Developer/eval-lab-results/2026-10-19/reasoning-ablation/test/findings/full)",
       "version": "qa-trace/6-or1p/full"
     },

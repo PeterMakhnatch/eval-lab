@@ -785,6 +785,51 @@ def test_watch_proxy_errors_and_fleet_spike(tmp_path: Path) -> None:
     assert "proxy_error_spike" in fleet_rules
 
 
+def test_watch_ignores_429_retries_recovered_by_later_200(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    out = tmp_path / "state"
+    t1 = _write_trial(runs, "job-retry", "taskA__1", [_step(1, "echo 1")])
+    pl = t1 / "proxy-live"
+    pl.mkdir()
+    now_ts = "2026-10-02T15:00:00Z"
+    records = [
+        {
+            "call_id": 1,
+            "state": "reconciled",
+            "status": 429,
+            "error": "upstream_error_429",
+            "timestamp": now_ts,
+        },
+        {
+            "call_id": 2,
+            "state": "reconciled",
+            "status": 429,
+            "error": "upstream_error_429",
+            "timestamp": now_ts,
+        },
+        {
+            "call_id": 3,
+            "state": "reconciled",
+            "status": 429,
+            "error": "upstream_error_429",
+            "timestamp": now_ts,
+        },
+        {
+            "call_id": 4,
+            "state": "reconciled",
+            "status": 200,
+            "error": None,
+            "timestamp": now_ts,
+            "cumulative_totals": {"cost_micros": 100, "input_tokens": 10, "output_tokens": 5},
+        },
+    ]
+    (pl / "calls.jsonl").write_text("\n".join(json.dumps(r) for r in records) + "\n")
+
+    summary = run_watch(runs_dirs=[runs], out_dir=out)
+    assert [a["rule"] for a in summary["statuses"][0]["open_alerts"]] == []
+    assert [a["rule"] for a in summary["fleet_alerts"]] == []
+
+
 def test_watch_stalled_advances_with_ledger(tmp_path: Path) -> None:
     runs = tmp_path / "runs"
     out = tmp_path / "state"

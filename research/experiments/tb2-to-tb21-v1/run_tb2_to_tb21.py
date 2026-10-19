@@ -661,6 +661,10 @@ def codex_round(
     actor: str,
     timeout_override: int | None,
     gate_mode: str,
+    agent: str = rh.DEFAULT_AGENT,
+    model: str = rh.DEFAULT_MODEL,
+    cost_limit_usd: float | None = None,
+    max_spend_usd: float | None = None,
 ) -> int:
     with _heldout_hooks():
         return rh.codex_round(
@@ -671,6 +675,10 @@ def codex_round(
             actor=actor,
             timeout_override=timeout_override,
             gate_mode=gate_mode,
+            agent=agent,
+            model=model,
+            cost_limit_usd=cost_limit_usd,
+            max_spend_usd=max_spend_usd,
         )
 
 
@@ -764,8 +772,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--approve", default=None, help="Recorded approval text required for Modal")
     parser.add_argument("--usd-per-execution", type=float, default=DEFAULT_USD_PER_EXECUTION)
+    parser.add_argument("--agent", default=rh.DEFAULT_AGENT)
+    parser.add_argument("--model", default=rh.DEFAULT_MODEL)
+    parser.add_argument("--cost-limit-usd", type=float, default=None)
+    parser.add_argument("--max-spend-usd", type=float, default=None)
     args = parser.parse_args(argv)
-
     try:
         backend = build_grade_backend(
             environment=args.environment,
@@ -811,6 +822,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             actor=args.actor,
             timeout_override=args.timeout_override,
             gate_mode=args.controls_gate,
+            agent=args.agent,
+            model=args.model,
+            cost_limit_usd=args.cost_limit_usd,
+            max_spend_usd=args.max_spend_usd,
         )
         rc |= round_rc
         if round_rc:

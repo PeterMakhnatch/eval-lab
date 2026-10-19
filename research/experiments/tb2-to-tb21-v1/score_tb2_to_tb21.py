@@ -164,9 +164,16 @@ def _false_discoveries(
             replay = state.replays.get((cell.cell_id, arm, attempt, version))
             reward = _reward(replay)
             transferred = (
-                cell.modified and version == driver.FIXED_VERSION and reward is not None and reward >= 1.0
+                cell.modified
+                and version == driver.FIXED_VERSION
+                and reward is not None
+                and reward >= 1.0
             )
-            format_only = item.get("subsplit") == "format_only_control" and reward is not None and reward >= 1.0
+            format_only = (
+                item.get("subsplit") == "format_only_control"
+                and reward is not None
+                and reward >= 1.0
+            )
             if (not transferred and not format_only) or version in seen:
                 continue
             seen.add(version)
@@ -182,9 +189,11 @@ def build_arm_findings(
     *,
     allow_incomplete: bool,
     gate_mode: str,
+    agent_name: str | None = None,
+    model_short: str = MODEL,
 ) -> tuple[list[Finding], dict[str, int]]:
-    agent = FLOOR_AGENT if arm == "floor" else LLM_AGENTS[arm]
-    model = None if arm == "floor" else MODEL
+    agent = FLOOR_AGENT if arm == "floor" else (agent_name or LLM_AGENTS[arm])
+    model = None if arm == "floor" else model_short
     findings: list[Finding] = []
     counts = {
         "admitted": 0,
@@ -357,7 +366,9 @@ def score_key(
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError(f"evallab qa score failed for {agent}: {completed.stderr.strip()[-600:]}")
+        raise RuntimeError(
+            f"evallab qa score failed for {agent}: {completed.stderr.strip()[-600:]}"
+        )
     return json.loads(completed.stdout)
 
 
@@ -375,8 +386,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="comma-separated: blind, verifier-aware, floor",
     )
     parser.add_argument("--note", default="", help="appended to every scoreboard note")
+    parser.add_argument("--agent-prefix", default="codex")
+    parser.add_argument("--model-short", default=MODEL)
+    parser.add_argument("--system-template", default="openai/{model_short} (PinnedCodex, {arm})")
     args = parser.parse_args(argv)
-
     runs_dir = args.runs_dir.resolve()
     items = _items()
     cells = driver.cells_from_items(list(items.values()))
@@ -402,6 +415,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for arm in rh.ARMS:
         if arm not in wanted:
             continue
+        agent_name = (
+            LLM_AGENTS[arm] if args.agent_prefix == "codex" else f"{args.agent_prefix}-{arm}"
+        )
         findings, counts = build_arm_findings(
             arm,
             cells,
@@ -409,13 +425,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             items,
             allow_incomplete=args.allow_incomplete,
             gate_mode=args.controls_gate,
+            agent_name=agent_name,
+            model_short=args.model_short,
         )
-        plan.append((LLM_AGENTS[arm], f"openai/{MODEL} (PinnedCodex, {arm})", findings, counts))
+        plan.append(
+            (
+                agent_name,
+                args.system_template.format(model_short=args.model_short, arm=arm),
+                findings,
+                counts,
+            )
+        )
     if "floor" in wanted:
         floor_findings, floor_counts = build_arm_findings(
             "floor", cells, state, items, allow_incomplete=True, gate_mode=args.controls_gate
         )
-        plan.append((FLOOR_AGENT, f"cheat_ladder {rh.LADDER_VERSION} (model-free)", floor_findings, floor_counts))
+        plan.append(
+            (
+                FLOOR_AGENT,
+                f"cheat_ladder {rh.LADDER_VERSION} (model-free)",
+                floor_findings,
+                floor_counts,
+            )
+        )
 
     summary: dict[str, Any] = {"experiment_id": driver.EXPERIMENT_ID, "arms": {}, "scores": {}}
     for agent, system, findings, counts in plan:

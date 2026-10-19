@@ -477,9 +477,7 @@ _FILE_ACCESS_READ_EVENTS = frozenset({"OPEN", "ACCESS"})
 _FILE_ACCESS_CATEGORIES = frozenset({"git_objects", "git_refs", "grader"})
 
 #: ``file_change`` values in ``evallab.file_access/v1`` records.
-_FILE_ACCESS_CHANGES = frozenset(
-    {"modified", "created", "deleted", "type_changed", "unavailable"}
-)
+_FILE_ACCESS_CHANGES = frozenset({"modified", "created", "deleted", "type_changed", "unavailable"})
 
 
 def _protected_change_fires(change: str, before: Any, after: Any) -> bool:
@@ -533,13 +531,16 @@ def _parse_access_record(record: dict[str, Any]) -> tuple[str, dict[str, Any] | 
     read_events = [item for item in events if item in _FILE_ACCESS_READ_EVENTS]
     if not read_events:
         return ("skip", None)
-    return ("hit", {
-        "path": observed,
-        "events": read_events,
-        "category": category,
-        "window_id": record.get("window_id"),
-        "observed_at": record.get("observed_at"),
-    })
+    return (
+        "hit",
+        {
+            "path": observed,
+            "events": read_events,
+            "category": category,
+            "window_id": record.get("window_id"),
+            "observed_at": record.get("observed_at"),
+        },
+    )
 
 
 def _parse_change_record(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -582,7 +583,9 @@ def _open_access_note(events: list[str]) -> str:
     if "OPEN" in events:
         bits.append("OPEN shows the file was opened, not proof bytes were read")
     if "ACCESS" in events:
-        bits.append("ACCESS records read/execute access, without PID, byte count, or model visibility")
+        bits.append(
+            "ACCESS records read/execute access, without PID, byte count, or model visibility"
+        )
     return "; ".join(bits)
 
 
@@ -667,7 +670,13 @@ def _read_file_access(trial_dir: Path) -> dict[str, Any]:
         if kind == "coverage":
             state = record.get("state")
             if not isinstance(state, str) or state not in {
-                "disabled", "starting", "active", "partial", "unavailable", "stopped", "error"
+                "disabled",
+                "starting",
+                "active",
+                "partial",
+                "unavailable",
+                "stopped",
+                "error",
             }:
                 summary["degraded"] = True
                 summary["malformed_lines"].append(lineno)
@@ -820,17 +829,23 @@ def _read_proxy_live(job_dir: Path, trial_dir: Path) -> dict[str, Any] | None:
     output_tokens = cum.get("output_tokens", 0)
 
     proxy_errors: list[dict[str, Any]] = []
-    for c in calls:
+    for idx, c in enumerate(calls):
         status = c.get("status")
         state = c.get("state")
         error_msg = str(c.get("error") or "")
-        if (isinstance(status, int) and status >= 500) or (
+        if isinstance(status, int) and status >= 500:
+            proxy_errors.append(c)
+        elif (
             status == 429
             and state != "exceeded"
             and "trial budget exhausted" not in error_msg.lower()
         ):
-            proxy_errors.append(c)
-
+            recovered_by_retry = any(
+                isinstance(later.get("status"), int) and 200 <= int(later["status"]) < 300
+                for later in calls[idx + 1 :]
+            )
+            if not recovered_by_retry:
+                proxy_errors.append(c)
     latest_timestamp = None
     if calls:
         latest_timestamp = _parse_time(last_call.get("timestamp"))
@@ -1328,9 +1343,7 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                     "path": hit.get("path"),
                     "events": events,
                     "line": hit.get("line"),
-                    "source": status.get("file_access", {}).get(
-                        "log", "agent/file-access.jsonl"
-                    ),
+                    "source": status.get("file_access", {}).get("log", "agent/file-access.jsonl"),
                 },
             )
         )
@@ -1366,9 +1379,7 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                     "events": events,
                     "line": hit.get("line"),
                     "corroborated": first.get("kind"),
-                    "source": status.get("file_access", {}).get(
-                        "log", "agent/file-access.jsonl"
-                    ),
+                    "source": status.get("file_access", {}).get("log", "agent/file-access.jsonl"),
                 },
             )
         )
@@ -1693,9 +1704,7 @@ def evaluate_fleet_alerts(
                     extra={"trials": sorted(trials)},
                 )
             )
-    flagged = sorted(
-        str(status["trial"]) for status in statuses if status.get("submission_tamper")
-    )
+    flagged = sorted(str(status["trial"]) for status in statuses if status.get("submission_tamper"))
     if flagged:
         jobs = sorted({str(status.get("job") or "") for status in statuses if status.get("job")})
         threshold_k = cluster_threshold(

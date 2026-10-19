@@ -168,12 +168,15 @@ behavioral intent. No model calls, submitted-code execution, or regrading occur.
   internal views above; `build.py` re-derives the manifest and checks every hash.
   Grading-correctness labels, not behavioural intent; the trajectories were already
   packaged for qa-trace-6 held-out v7 runs.
+<<<<<<< HEAD
 - [`mimo-fresh-window3`](mimo-fresh-window3/README.md): **52 fresh window-3 MiMo
   rollouts**, all `test`. 49 come from the CheatBench cheat-set (4 `wrong_pass`, 14
   `real_pass`, 31 `not_a_pass`; v6/v7 rewards) and 3 are native PD-1 `real_pass`
   cells. Blinded full and actions-only views; label sources are pinned in
   `source.json` and the 8 excluded cells are listed in `coverage.jsonl`. Prompted
   population; wrong passes are rare.
+=======
+>>>>>>> origin/main
 
 - `envcheck-tb4-39`: **39 items** on historical Terminal-Bench 4 checkouts (`v4.0.0`
   and `1dcda8716784`).

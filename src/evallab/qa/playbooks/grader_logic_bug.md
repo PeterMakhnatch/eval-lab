@@ -12,7 +12,7 @@
 
 **Useful moves (choose as needed).**
 - Read the comparison and parsing lines with `task-info`.
-- Build a minimal candidate with `probe` that hits the suspect edge: NaN or None in a numeric field, an empty result, unicode or a BOM, or numeric separators.
+- Build a minimal ordinary candidate for the suspect input boundary and score it with `run-upstream-grader`. Use `probe` only for a separate diagnostic assertion, never as a substitute for the upstream verdict.
 - Run a matching control input that the line handles correctly.
 
 **Sufficient evidence (confirmed).** All three:

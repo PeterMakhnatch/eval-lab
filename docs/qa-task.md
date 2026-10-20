@@ -34,6 +34,124 @@ that fact; their S3 replay stays `unverified` pending independent review.
 Unconfirmed/refuted candidates never count as verified defects, and unmeasured
 checks never count as passes.
 
+## Adaptive subscription reviewer: `qa env`
+
+`evallab qa env audit` is a separate **agent loop**, not another fixed S0–S3
+sequence. One task gets one persisted native Codex conversation; subsequent
+turns use `codex exec resume` and must report the same thread UUID. The reviewer
+chooses its next source read, ordinary functional check, finding, or stop.
+Native Codex tools are disabled; the host dispatches the seven JSON capabilities
+below. The historical `qa task` stages remain available independently.
+
+Requirements: the pinned Codex CLI 0.162.1 logged into a ChatGPT subscription,
+the locked Python environment, and the optional Harbor runtime for execution.
+No API-key provider or local-inference fallback is used. Supply the model and
+every task budget explicitly:
+
+```bash
+evallab qa env audit \
+  --task /absolute/dev-task \
+  --out /absolute/owned-qa-run \
+  --model codex/gpt-6.1-sol \
+  --max-seconds 600 --max-tokens 250000 --max-tool-calls 12 --max-usd 0
+```
+
+For sealed-key evaluation, also pass `--view /absolute/exported-agent-view`.
+This consumes the ground-truth lane's `tb4.audit.agent-view/v1` export through
+its released `research/answer-keys/tb4-audit-v1/views.py` capability provider;
+it does not open the private answer key. The canonical public task identity
+and digest must match the private upstream package used for native execution,
+and every selected source file must match that package. Only the selected
+task's inventoried, read-only files reach the reviewer, not `inputs.jsonl`,
+split assignments, source reviews or raw taxonomy examples. Changed view
+bytes or a replaced manifest stop subsequent calls. Development without a
+released key uses only the explicitly approved fallback DEV packages.
+
+The weekly subscription reading is checked before every model turn. Usage at
+or above 35%, or a missing/malformed reading, stops the session. `--max-usd`
+must be zero: it limits incremental **metered** spend, not subscription quota.
+The elapsed-time deadline includes preflight and tool work; in-flight model
+processes are stopped and native trials receive the remaining time. Bounded
+process/container cleanup can finish after the deadline. No further tool call is
+admitted once time or tool-call allowance is spent; a final action is still
+allowed after tool allowance runs out, but never after the elapsed deadline.
+The token limit is a
+**completed-turn stop threshold**: one in-flight turn can cross it, but its
+action is then discarded. Actual usage is retained, not clamped to the limit.
+
+### JSON capabilities
+
+Each capability can also be called directly:
+`evallab qa env <tool> --request request.json` (or `--request -` for stdin).
+The request binds one package and one disjoint, owned evidence directory:
+
+```json
+{"task":"/absolute/dev-task","out":"/absolute/owned-qa-run","args":{},"max_seconds":600}
+```
+
+For sealed-key input, add the owner-controlled `"view"` path to this request.
+It cannot be supplied or changed through a model's tool arguments. Writable
+output must be disjoint from both the original source and exported view.
+
+The response is one JSON object. Setup/argument errors have `ok: false`, an
+explicit error and null reward. A successful tool invocation is **not** evidence
+of a passing grader: inspect its result's execution status and reward.
+
+| Capability | Input and result | Evidence boundary |
+|---|---|---|
+| `task-info` | `{}` inventories instruction, configuration, environment, tests and reference; `path` plus `start_line`/`end_line` reads at most 200 lines; `path` plus literal `pattern` searches | Citable package-relative lines. Root README/cheat material and out-of-package files are excluded. Reviewer access is not solver access. |
+| `run-upstream-grader` | `solution_dir` relative to this run's `candidates/`, **or** a structured `submission`; returns the first-party runner's reward, per-test results, errors and raw evidence paths | Original task/verifier bytes are unchanged. Raw reward does not establish semantic correctness. |
+| `run-reference` | `{}` runs the task's reference/oracle in a fresh environment | A failed, timed-out or unmeasured reference is not proof that the task is infeasible. |
+| `run-blank` | `{}` runs a fresh empty/no-op attempt | No usable result means unknown, not zero reward or a clean task. |
+| `probe` | Python assertions in `test`, plus `solution_dir` or `submission`; compares a fresh reference and candidate under the added check | A derived diagnostic package replaces only the verifier entrypoint for this check. Its scores are **not upstream scores**. `distinguishes` is null unless both runs are usable and the reference passes. |
+| `diff` | `left`/`right` package files, or `candidate/<relative-file>` | Bounded source comparison only, never an execution witness. |
+| `record-finding` | `defect_class` plus the existing `qa.finding/v1` object | Canonical class, exact task identity and every evidence reference are validated; recording does not certify the claim. |
+
+Structured submissions reuse `qa.task.submission_to_script`: `kind` is
+`command`, `file`, `json` or `patch`; `content` contains the ordinary candidate
+program/output and file/JSON submissions also name their in-container `path`.
+The compiler writes only inside the owned candidate directory. Candidate
+programs and added Python checks execute **only through the first-party runner**,
+never as host-side shell/Python. Runtime tools accept `plan`, `timeout_seconds`
+and `platform`; a plan allocates nothing and cannot mint a witness.
+
+Execution uses `evallab.upstream_grader.run_upstream_grader` with Docker and its
+exact-resource, shared-FIFO, host-isolated admission. This reviewer does not
+weaken that gate, downsize the declared environment, bypass the runner or
+silently select paid Modal. Unsupported or unavailable execution remains
+unmeasured with its reason.
+
+### Playbooks, findings and receipts
+
+`evallab.qa.env_playbooks` loads the packaged common rules and one short playbook
+for each of taxonomy v1's eleven **task-side** classes. The plain-language
+unstated-rule, ambiguous-instruction and withheld-information cases map to
+`unstated_requirement`; grader-surface and isolation review span
+`answer_reachable`/`grader_tamperable`; broken environments span
+`env_mismatch_or_flaky`/`infeasible_as_written`. Run-side classes require traces
+and are not silently inferred from a package.
+
+This is defensive review with ordinary functional counterexamples. Permission,
+oracle-exposure, network and grader-trust concerns are reviewed from source and
+configuration, not by generating privilege escalation, exfiltration, network
+attacks or grading-tamper programs. Such source-only leads explicitly retain
+“runtime behaviour unverified.”
+
+A recorded finding uses its canonical class in `root_cause`, the bound
+`subject.task_id` and `subject.task_digest`, and at least one resolvable
+`path:line[-end]` or `witness:<32-hex-id>`. Only measured, task-bound runtime
+receipts can be witnesses. Source-only findings use `measurement: "not_run"`.
+The reviewer cannot set its own independent `refutation.status` to `verified`;
+recorded defects remain suspected. Source citations and a reward alone never
+become a semantic confirmation.
+
+The output retains `task.json`, immutable `findings/`, native evidence and
+`observations/`, plus `agent/session.json`, `agent/journal.jsonl` and per-turn
+Codex prompts/events. The session records the actual thread, quota readings,
+usage, tool errors and stop reason. Failed-turn token usage is null, not an
+invented zero. CLI exit zero means a valid **model-authored final**, not “task
+clean”; budget/quota/model failures have no final and exit nonzero.
+
 ## Stages
 
 | Stage | What runs | Output rule |

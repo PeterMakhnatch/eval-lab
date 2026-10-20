@@ -11,7 +11,7 @@ This class also covers hidden rules, ambiguous instructions and withheld informa
 **Useful moves (choose as needed).**
 - Use `task-info` to quote the enforcing line and the instruction passage, or to show the instruction is silent on the point.
 - List the readings a competent solver could reasonably take.
-- Change the reference to follow one other reasonable reading. Score it with `probe`, and use `diff` to show which check alone changed.
+- Change the reference to follow one other reasonable reading. Score it with `run-upstream-grader`; use per-test output to isolate the rejection and `diff` to show the alternate implementation.
 
 **Sufficient evidence (confirmed).** All three:
 - The instruction quote, or its silence.

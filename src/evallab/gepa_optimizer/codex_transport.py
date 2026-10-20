@@ -146,7 +146,16 @@ def _executable() -> Path:
     return path
 
 
-def _run_probe(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
+def _probe_timeout(deadline: float | None, limit: float) -> float:
+    if deadline is None:
+        return limit
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise CodexTransportError("Codex turn deadline expired during preflight")
+    return min(limit, remaining)
+
+
+def _run_probe(argv: list[str], *, timeout: float) -> subprocess.CompletedProcess[bytes]:
     return _RUN(
         argv,
         capture_output=True,
@@ -408,8 +417,10 @@ class CodexTransport:
         self.model = _bare_model(model)
         self.timeout_seconds = timeout_seconds
 
-    def _version_digest(self, executable: Path) -> tuple[str, str]:
-        completed = _run_probe([str(executable), "--version"], timeout=20)
+    def _version_digest(
+        self, executable: Path, *, deadline: float | None = None,
+    ) -> tuple[str, str]:
+        completed = _run_probe([str(executable), "--version"], timeout=_probe_timeout(deadline, 20))
         if completed.returncode != 0:
             raise CodexTransportError("Codex version probe failed")
         version = completed.stdout.decode(errors="replace").strip()
@@ -419,11 +430,13 @@ class CodexTransport:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         return version, "sha256:" + digest
 
-    def preflight(self) -> dict[str, Any]:
+    def preflight(self, *, deadline: float | None = None) -> dict[str, Any]:
         """Verify the ChatGPT-subscription route; return stable JSON-safe facts."""
         executable = _executable()
-        version, digest = self._version_digest(executable)
-        completed = _run_probe([str(executable), "login", "status"], timeout=30)
+        version, digest = self._version_digest(executable, deadline=deadline)
+        completed = _run_probe(
+            [str(executable), "login", "status"], timeout=_probe_timeout(deadline, 30),
+        )
         output = completed.stdout.decode(errors="replace") + completed.stderr.decode(
             errors="replace"
         )
@@ -590,7 +603,8 @@ class CodexSession:
             raise ValueError("Codex session prompt must not be empty")
         if not timeout_seconds > 0:
             raise CodexTransportError("Codex session has no time left for a turn")
-        facts = self.transport.preflight()
+        deadline = time.monotonic() + timeout_seconds
+        facts = self.transport.preflight(deadline=deadline)
         facts = {
             **facts,
             "text_only": {**facts["text_only"], "ephemeral": False},
@@ -623,7 +637,7 @@ class CodexSession:
                 prompt_file=prompt_file,
                 events_path=events_path,
                 log_path=log_path,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=_probe_timeout(deadline, timeout_seconds),
             )
         finally:
             self._bind_thread(events_path, required=False)

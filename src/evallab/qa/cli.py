@@ -92,3 +92,7 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     from evallab.qa.ask import add_ask_commands
 
     add_ask_commands(sub)
+
+    from evallab.qa.env import add_env_commands
+
+    add_env_commands(sub)

@@ -30,12 +30,12 @@ Plain-language names map to classes as follows:
   - Network or file access to answers: `answer_reachable`.
 - **Broken environment:**
   - Varies between runs or environments: `env_mismatch_or_flaky`.
-  - Reference never passes: `infeasible_as_written`.
+  - Consistent reference failure is a lead for `infeasible_as_written`, not proof that every correct solution fails.
 
 ## Evidence
 
 - **Citations.** Cite `path:line` in the package for every claim about the instruction, tests, reference, Dockerfile or config. Read the lines with `task-info` before citing them.
-- **Execution claims.** Any claim about execution needs a receipt from a tool call in this session: `run-upstream-grader`, `run-reference`, `run-blank`, `probe` or `diff`.
+- **Execution claims.** Any claim about execution needs a measured receipt from `run-upstream-grader`, `run-reference`, `run-blank` or `probe` in this session. `diff` only compares source text; it is never executed evidence.
 - **Reward.** A reward shows the grader's verdict, not whether the answer is right. Pair it with what the program actually output or did.
 - **Controls first.** Before you use a reward as evidence, get a reference result (should pass) and a blank result (should fail) if they are cheap.
   - A control that misbehaves is itself the lead: a reference that fails points to `infeasible_as_written` or `env_mismatch_or_flaky`; a blank that passes points to `weak_check`.
@@ -54,7 +54,7 @@ Plain-language names map to classes as follows:
   - escalates privilege;
   - uses the network;
   - touches credentials.
-- **Probes are ordinary candidate solutions**: honest-but-wrong outputs, other correct forms, or edge-case inputs. Run them only through the tools provided.
+- **Candidates must be ordinary solutions**: honest-but-wrong outputs, other correct forms, or edge-case inputs. Added `probe` checks must be ordinary functional assertions. Run both only through the tools provided.
 - **Reviewer access is not solver access.** As the QA reviewer, you are authorised to read the instruction, tests, reference and solution. Whether the solver can see them is a separate question (`answer_reachable`).
 
 ## Stopping

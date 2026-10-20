@@ -23,7 +23,7 @@ This class also covers a broken environment.
 
 **Not this / false alarms.**
 - The grader always rejects an answer for a code reason → `grader_logic_bug` or `overstrict_oracle`.
-- The reference fails on every run → `infeasible_as_written`.
+- Consistent reference failure is a lead for `infeasible_as_written`, not proof: the reference itself may be incorrect.
 - A failure of our own runner (Docker missing, tool timeout, budget stop) is unknown, not a task defect.
 
 **Stop / unknown.**

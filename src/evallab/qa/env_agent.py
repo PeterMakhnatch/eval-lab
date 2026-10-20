@@ -12,11 +12,11 @@ than a valid final action carries no final, a final is a model-authored summary
 (never a pass certificate), and findings exist only as ``record-finding``
 receipts that ``EnvTools`` validated against the pinned package.
 
-Budgets are per task and hard: wall clock (forwarded to ``EnvTools`` and to each
-Codex turn), tokens (cumulative thread usage reported by Codex; unknown after any
-failed turn, never zero), tool calls, and $0 metered spend. The weekly Codex
-subscription window is read before every model turn and must be below 35%; an
-unreadable or malformed reading stops the session.
+Budgets are per task: wall clock (including preflight and tool runs), tool-call
+admission and $0 metered spend. Tokens are a stop threshold on reported completed
+turns; an in-flight subscription turn can cross it, after which no action is run.
+Failed-turn usage is unknown, never zero. The weekly subscription reading before
+each model turn must be below 35%; a missing or malformed reading stops the audit.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from contextlib import redirect_stdout
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -194,6 +195,9 @@ def _bounded(value: Any) -> Any:
     if len(text) <= MAX_OBSERVATION_CHARS:
         return value
     return {
+        "tool": value.get("tool"),
+        "task_id": value.get("task_id"),
+        "task_digest": value.get("task_digest"),
         "truncated": True,
         "chars": len(text),
         "head": text[:MAX_OBSERVATION_CHARS],
@@ -206,12 +210,19 @@ Tools (each call returns {"tool", "task_id", "task_digest", "result"} or an erro
 - task-info: {} gives the package inventory (file roles), the instruction, the defect classes and
   tool names. {"path": P, "start_line": A, "end_line": B} reads package file P with line numbers.
   Reviewer access to tests/reference does not mean a solver can reach them.
-- run-upstream-grader, run-reference, run-blank: run the task's own grader through the first-party
-  sandbox runner (unmodified package, reference solution, empty/no-op attempt). probe: run one
-  benign, ordinary functional candidate through the same runner. Results state whether execution
-  was measured; their observation ids are the only valid execution witnesses (witness:<id>).
+- run-upstream-grader: grade an ordinary candidate with the unchanged upstream verifier.
+  Supply either {"solution_dir":"relative/directory"} under this run's candidates/ or
+  {"submission":{"kind":"command|file|json|patch","content":"ordinary program or output",
+                 "path":"absolute in-container path for file/json"}}. The existing QA Task
+  compiler stages submissions; they never execute on the host.
+- run-reference and run-blank: {} runs the corresponding fresh upstream control.
+- probe: {"test":"Python assertions", "submission":{...}} (or solution_dir) compares an added
+  diagnostic check on fresh reference and candidate environments. It is NOT an unchanged
+  upstream-grader result. A failing reference invalidates the check.
+  Runtime tools also accept plan (boolean), timeout_seconds and platform; plans never mint a
+  witness. Only measured observation ids can be cited as witness:<id>.
   Missing dependencies, runtime or controls are unknown, never clean.
-- diff: compare two package- or evidence-relative files.
+- diff: {"left":"package/path", "right":"candidate/relative-file"} compares source text only.
 - record-finding: {"defect_class": <class id>, "finding": <qa.finding/v1 object>} persists one
   suspected defect after validating its evidence.
 Tool errors state what was wrong or which arguments are required; an error is not evidence."""
@@ -256,9 +267,10 @@ Final: when evidence suffices or a budget is nearly spent, return final. The sum
 source-read observations from executed witnesses and name recorded findings; limitations must list
 checks not run, unknown results and anything you could not establish.
 
-Budgets for this task (hard; exceeding any ends the session): {budget.max_tool_calls} tool calls,
-{budget.max_tokens} model tokens, {int(budget.max_seconds)} seconds wall clock including tool runs.
-Each observation message reports what remains.
+Task limits: {budget.max_tool_calls} tool calls and {int(budget.max_seconds)} seconds wall clock,
+including preflight and tool runs. After tool allowance is spent, return final without more calls.
+The {budget.max_tokens}-token limit is checked after each completed turn; an over-limit turn's
+action is discarded. Each observation reports what remains. Bounded cleanup may finish later.
 
 Defect classes (canonical ids):
 {classes}
@@ -283,6 +295,7 @@ class EnvAuditSession:
         repo_root: Path,
         model: str,
         budget: AuditBudget,
+        view_dir: Path | None = None,
         quota_reader: Callable[[float], float] = weekly_codex_used,
     ) -> None:
         self.started = time.monotonic()
@@ -293,7 +306,10 @@ class EnvAuditSession:
         self.transport = CodexTransport(
             repo_root=repo_root, model=model, timeout_seconds=max(1, int(budget.max_seconds))
         )
-        self.tools = EnvTools(task_dir, out_dir, repo_root=repo_root, max_seconds=budget.max_seconds)
+        self.tools = EnvTools(
+            task_dir, out_dir, repo_root=repo_root, max_seconds=budget.max_seconds, view_dir=view_dir,
+        )
+        self.tools.deadline = self.deadline
         # Same directory EnvTools just validated and owns (it refuses symlinked paths).
         self.out_dir = Path(out_dir).expanduser().absolute()
         self.agent_dir = self.out_dir / "agent"
@@ -311,6 +327,7 @@ class EnvAuditSession:
             "ended_at": None,
             "task_dir": str(Path(task_dir).expanduser().resolve()),
             "out_dir": str(self.out_dir),
+            "view_dir": str(self.tools.view_dir) if self.tools.view_dir is not None else None,
             "task_identity": None,
             "model": model,
             "session_id": None,
@@ -470,16 +487,16 @@ class EnvAuditSession:
                 "observation": _bounded(observation)}
 
     def run(self) -> dict[str, Any]:
-        prompt = _initial_prompt(
-            task_name=Path(self.record["task_dir"]).name,
-            model=self.model,
-            budget=self.budget,
-            finding_schema=Finding.model_json_schema(by_alias=True),
-        )
-        self._journal("session_started", budgets=self.record["budgets"], model=self.model,
-                      tools=list(TOOL_NAMES))
         invalid_streak = 0
         try:
+            prompt = _initial_prompt(
+                task_name=Path(self.record["task_dir"]).name,
+                model=self.model,
+                budget=self.budget,
+                finding_schema=Finding.model_json_schema(by_alias=True),
+            )
+            self._journal("session_started", budgets=self.record["budgets"], model=self.model,
+                          tools=list(TOOL_NAMES))
             while self.record["status"] == "running":
                 self._persist()
                 if self.record["used"]["tokens"] >= self.budget.max_tokens:
@@ -487,6 +504,9 @@ class EnvAuditSession:
                     break
                 reply = self._model_turn(prompt)
                 if reply is None:
+                    break
+                if self._remaining_seconds() <= 0:
+                    self._stop("time_budget_exhausted", "model turn completed after the deadline; action discarded")
                     break
                 if self.record["used"]["tokens"] > self.budget.max_tokens:
                     self._stop("token_budget_exhausted",
@@ -567,7 +587,6 @@ class EnvAuditSession:
             self._error("harness_error", f"{type(exc).__name__}: {exc}")
             self.record["status"] = "harness_error"
             self.record["stop_reason"] = f"harness error: {type(exc).__name__}: {exc}"
-            raise
         finally:
             if self.record["status"] == "running":
                 self.record["status"] = "harness_error"
@@ -593,12 +612,14 @@ def _audit_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             repo_root=root,
             model=args.model,
             budget=budget,
+            view_dir=args.view,
         )
     except (OSError, ValueError) as exc:
         print(_dumps({"schema": SESSION_SCHEMA, "status": "setup_error",
                       "error": f"{type(exc).__name__}: {exc}"}))
         return 2
-    record = session.run()
+    with redirect_stdout(sys.stderr):
+        record = session.run()
     print(json.dumps(record, indent=2, sort_keys=True, default=str))
     print(f"qa env audit: {record['status']} ({record['stop_reason']}); "
           f"session {record['session_id']}; journal {record['journal']}", file=sys.stderr)
@@ -617,6 +638,7 @@ def add_env_agent_command(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     audit.add_argument("--task", type=Path, required=True, help="Absolute Harbor task package")
+    audit.add_argument("--view", type=Path, help="Exported label-free agent view (required for sealed-key evaluation)")
     audit.add_argument("--out", type=Path, required=True, help="Absolute owned evidence directory")
     audit.add_argument("--model", required=True, help="Explicit codex/<model> subscription model")
     audit.add_argument("--max-seconds", type=float, required=True,

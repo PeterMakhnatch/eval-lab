@@ -9,7 +9,7 @@
 - Geometry or format read from one representation only.
 
 **Useful moves (choose as needed).**
-- Rewrite the reference in another form the instruction allows: other structure, names, ordering or formatting. Score the rewrite with `probe`.
+- Rewrite the reference in another form the instruction allows: other structure, names, ordering or formatting. Score the rewrite with `run-upstream-grader`.
 - Use `diff`, or an independent check, to show that it behaves the same as the reference.
 
 **Sufficient evidence (confirmed).** All three:

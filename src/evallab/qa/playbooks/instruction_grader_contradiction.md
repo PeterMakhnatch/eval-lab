@@ -10,7 +10,7 @@
 
 **Useful moves (choose as needed).**
 - Use `task-info` to quote both sides.
-- Write a candidate with `probe` that follows the instruction exactly. Where possible, place it in the gap between the stated and the graded value. Then score it.
+- Write an ordinary candidate that follows the instruction exactly. Where possible, place it in the gap between the stated and graded value; score it with `run-upstream-grader`.
 
 **Sufficient evidence (confirmed).**
 - Both quotes side by side that cannot both hold.

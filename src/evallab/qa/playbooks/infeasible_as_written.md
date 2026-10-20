@@ -1,6 +1,6 @@
 ## TS10 `infeasible_as_written`: infeasible as written
 
-**Question.** Is there no correct solution that can get full reward as the task stands? For example, the reference fails, the inputs make the goal impossible, or a defect elsewhere blocks every route.
+**Question.** Do the requirements or supplied inputs make every correct solution fail? A failing reference is only a trigger: the reference may itself be wrong.
 
 **Where to look.**
 - The `run-reference` result.
@@ -13,13 +13,11 @@
 - Identify the smallest controlled change that would make the task passable. Cite it; do not apply it to grading files.
 
 **Sufficient evidence (confirmed).**
-- One of:
-  - the reference or an expert solution fails in a clean run (receipt);
-  - a proof that the requirements cannot all hold.
-- A controlled change that makes the task passable.
-- If that change was cited but not executed, say so.
+- A cited contradiction or input constraint that rules out every solution satisfying the instruction.
+- A clean, usable execution showing the corresponding rejection, with independently justified correct behavior; a reference failure by itself is insufficient.
+- A controlled, task-specification-level correction that removes the contradiction. If it was only cited rather than executed, retain the finding as suspected.
 
-**Distinguishing check.** Rerun the reference once. A consistent failure on the same check points here. A varying result points to `env_mismatch_or_flaky`.
+**Distinguishing check.** Rerun the same justified artifact to separate a stable rejection from flakiness. Investigate reference correctness before concluding that the task is impossible.
 
 **Not this / false alarms.**
 - Hard is not infeasible. Zero passes across solvers is only a trigger.

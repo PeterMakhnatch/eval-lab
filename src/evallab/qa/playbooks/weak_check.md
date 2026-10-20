@@ -10,7 +10,7 @@
 
 **Useful moves (choose as needed).**
 - Map requirements to the test lines with `task-info`. A requirement with no assertion is a lead, not a finding.
-- Write a small wrong candidate and score it on the unmodified grader with `probe`. Options:
+- Write a small wrong candidate and score it on the unmodified grader with `run-upstream-grader`. Options:
   - the reference with one requirement removed;
   - output with the right shape and wrong values;
   - a constant that matches the fixture.
@@ -22,7 +22,7 @@
 - The quoted requirement that the candidate violates.
 - Output or a diff showing that the candidate really is wrong.
 
-**Distinguishing check.** Give the same candidate one input outside the fixtures that exercises the quoted requirement. The candidate gets it wrong and the reference gets it right.
+**Distinguishing check.** Use `probe` for an added ordinary functional assertion outside the fixed fixtures. It must pass on the reference and fail on the candidate. This diagnostic score is separate from the original upstream reward.
 
 **Not this / false alarms.**
 - The candidate passes by changing grader files → `grader_tamperable`; do not try this.

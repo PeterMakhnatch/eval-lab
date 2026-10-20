@@ -1191,8 +1191,13 @@ and prints pass or the exact drift reason.
 `evallab.hub_trials` is a standalone, read/download-only Python module. It uses
 the native Harbor 0.24 CLI and its existing credential resolver; it does not run
 agents, verifiers, containers, or model calls. An installed lab Python environment
-and a working Harbor executable/authentication are prerequisites. `verify` is
-offline and does not import Harbor or require its installation.
+and a Harbor 0.24 executable are prerequisites. Observed with no credentials
+(`HARBOR_API_KEY` unset, empty `HOME`): `list` and the board, board-row
+association and dataset-version reads work anonymously, but the native trial/job
+metadata reads and trial downloads that `download` needs fail with
+`NotAuthenticatedError`, so `download` needs a Harbor personal API key
+(`HARBOR_API_KEY` or `harbor auth login`). Never print or copy that key. `verify`
+is offline and does not import Harbor or require its installation.
 
 List the pinned TB4 board's stable row UUIDs and exact model labels first:
 

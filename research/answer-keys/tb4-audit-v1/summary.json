@@ -327,6 +327,242 @@
       "with_epoch_shared_issue": 7
     }
   },
+  "exposure_stratification": {
+    "exposures_by_task": {
+      "atrx-vep-crispr": [
+        "qa-task-s2-prompt-dev",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "batched-eval-parity": [
+        "breaker-rediscovery-pilot",
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "bun-sourcemap-leak": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "cargo-flight-dispatch": [
+        "breaker-rediscovery-pilot",
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-903-separate-verifier-dev",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "coq-block-bound": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "cumulative-layout-shift": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "data-anonymization": [
+        "qa-task-s2-prompt-dev",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "embedding-drift-monitor": [
+        "breaker-rediscovery-pilot",
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "fin-saccr-rwa": [
+        "breaker-rediscovery-pilot",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "formal-crypto": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "fp8-rmsnorm-gemm": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "freecad-impeller": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "glycan-ms2-elucidation": [
+        "breaker-rediscovery-pilot",
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "hof-topology-interpenetration": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "interleaved-vigenere": [
+        "qa-task-s2-prompt-dev",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "intrastat-meldung": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "jax-speedrun-gpu": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "ks-solver-cpp": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "lake-temp-glm": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "layout-config-recreation": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "legacy-utility-triage": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "live-database-cutover": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "math-eval-grader": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "mvcc-lsm-compaction": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "nextjs-performance": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "ontology-kg-querying": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "payments-pipeline-fix": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "production-planning": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "react-lead-form": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "retro-console-soc": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "session-window-debug": [
+        "breaker-rediscovery-pilot",
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "sglang-qwen-burst": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "shadow-relay": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "takens-embedding-lean": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "telecom-entity-resolution": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "uefi-bootkit": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "vf2-speedup-networkx": [
+        "qa-task-s1-heldout-read",
+        "qa-task-s2-heldout-metadata",
+        "qa-task-s2a-ordinary-heldout-20261019",
+        "ref-subset-tb4-39-sweep"
+      ],
+      "vpp-loss-divergence": [
+        "ref-subset-tb4-39-sweep"
+      ],
+      "wal-recovery-ordering": [
+        "qa-task-s2-prompt-dev",
+        "ref-subset-tb4-39-sweep"
+      ]
+    },
+    "rule": "tuned if any matching exposure is tuned, else inspected_only if any is inspected, else unexposed",
+    "source": "research/answer-keys/splits/exposure.jsonl",
+    "task_findings": {
+      "dev": {
+        "inspected_only": 40,
+        "tuned": 7,
+        "unexposed": 39
+      },
+      "test": {
+        "inspected_only": 78,
+        "tuned": 38,
+        "unexposed": 36
+      }
+    },
+    "tasks": {
+      "dev": {
+        "inspected_only": 10,
+        "tuned": 2,
+        "unexposed": 13
+      },
+      "test": {
+        "inspected_only": 19,
+        "tuned": 8,
+        "unexposed": 14
+      }
+    }
+  },
   "finding_scope": {
     "benchmark": 3,
     "task": 238
@@ -336,13 +572,13 @@
     "test": 152
   },
   "key_id": "tb4-audit-v1",
-  "native_reproductions_performed": 0,
+  "native_reproductions_performed": 10,
   "native_task_splits": {
     "dev": 25,
     "test": 41
   },
   "native_tasks": 66,
-  "paid_cost_usd": 0,
+  "paid_cost_usd": 0.786752,
   "pm_execution_claims": {
     "false": 4,
     "true": 137,
@@ -451,7 +687,7 @@
       "taxonomy_first_pass": 160
     }
   ],
-  "source_manifest_sha256": "db99c23bb3de6e9e6892d5e432e57128266d36cf459b651b52cf6d23ec39122a",
+  "source_manifest_sha256": "1fe7727a82ce9e67c4bae144a9f5695314ab781b0d36ed5a2c093861d3f9db85",
   "split_method": "ascending sha256(key_id:seed:task), first 25 tasks dev, remainder test",
   "split_seed": 20261020,
   "task_scoped_finding_splits": {
@@ -473,5 +709,18 @@
     "changed": 10,
     "uncertain": 6,
     "unchanged": 225
+  },
+  "witness_replay": {
+    "confirmed": 10,
+    "registered": 10,
+    "splits": {
+      "dev": 10
+    },
+    "tasks": {
+      "cargo-flight-dispatch": 4,
+      "fin-saccr-rwa": 1,
+      "html-js-filter": 3,
+      "vf2-speedup-networkx": 2
+    }
   }
 }

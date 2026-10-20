@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from collections import Counter
 from pathlib import Path
@@ -48,8 +49,134 @@ def _counts(values: Any) -> dict[str, int]:
     return dict(sorted(Counter(values).items()))
 
 
-def build_outputs(source: dict[str, Any]) -> dict[str, str]:
-    """Build all registered labels without reading a task package or using a model."""
+WITNESS_SCHEMA = "tb4.audit.witnesses/v1"
+KEY_PATH = "research/answer-keys/tb4-audit-v1"
+
+
+def load_witnesses(path: Path = HERE / "witnesses.json") -> dict[str, Any] | None:
+    """Load the scorer-only witness registry, if one has been registered."""
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _verify_witnesses(
+    registry: dict[str, Any] | None,
+    splits: dict[str, str],
+    finding_ids: set[str],
+    root: Path,
+) -> list[dict[str, Any]]:
+    """Check dev-only placement, file digests and replay rewards of every witness."""
+    if registry is None:
+        return []
+    if registry.get("schema") != WITNESS_SCHEMA:
+        raise ValueError("not a TB4 audit witness registry")
+    witnesses = registry["witnesses"]
+    if len({w["witness_id"] for w in witnesses}) != len(witnesses):
+        raise ValueError("witness ids must be unique")
+    if len({w["finding_id"] for w in witnesses}) != len(witnesses):
+        raise ValueError("each finding may carry at most one witness")
+    for w in witnesses:
+        wid = w["witness_id"]
+        if w["finding_id"] not in finding_ids:
+            raise ValueError(f"witness {wid} names an unknown finding")
+        if splits.get(w["task"]) != "dev" or w.get("split") != "dev":
+            raise ValueError(f"witness {wid} must target a dev-split task")
+        directory = (root / w["solution_dir"]).resolve()
+        if not directory.is_relative_to((root / "witnesses").resolve()):
+            raise ValueError(f"witness {wid} leaves the witnesses directory")
+        if not (directory / "solve.sh").is_file():
+            raise ValueError(f"witness {wid} has no solve.sh")
+        actual = {
+            path.relative_to(directory).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(directory.rglob("*"))
+            if path.is_file()
+        }
+        if any(path.is_symlink() for path in directory.rglob("*")):
+            raise ValueError(f"witness {wid} must not contain symlinks")
+        if actual != w["files"]:
+            raise ValueError(f"witness {wid} files do not match their registered sha256 digests")
+        if w["confirmed"]:
+            upstream = w.get("upstream_replay") or {}
+            port = w.get("port_replay") or {}
+            if upstream.get("reward") != 1.0 or port.get("reward") != 0.0:
+                raise ValueError(
+                    f"confirmed witness {wid} needs upstream reward 1.0 and port reward 0.0"
+                )
+    return witnesses
+
+
+EXPOSURE_PATH = HERE.parent / "splits/exposure.jsonl"
+EXPOSURE_STRATA = ("unexposed", "inspected_only", "tuned")
+
+
+def _split_guard() -> Any:
+    spec = importlib.util.spec_from_file_location("_splits_guard", HERE.parent / "splits/guard.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def historical_exposures(names: list[str], path: Path = EXPOSURE_PATH) -> dict[str, dict[str, Any]]:
+    """Exposure ids and stratum per task, from the shared historical exposure log.
+
+    Touched slugs follow ``splits/guard.py``: explicit ``tasks`` plus every item
+    selected by ``items``/``items_file``/``where`` in another registered key.
+    This key's own rows are excluded so the stratum never depends on itself.
+    """
+    guard = _split_guard()
+    keys = {k: v for k, v in guard.load_keys().items() if k != KEY_ID}
+    exposures = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    touched: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
+    for exposure in exposures:
+        record = exposure | {
+            "items": {k: v for k, v in (exposure.get("items") or {}).items() if k in keys},
+            "items_file": {
+                k: v for k, v in (exposure.get("items_file") or {}).items() if k in keys
+            },
+            "where": {k: v for k, v in (exposure.get("where") or {}).items() if k in keys},
+        }
+        by_key = {k: set(v) for k, v in guard.exposed_items(record, keys).items()}
+        slugs = set(exposure.get("tasks") or [])
+        for key_id, ids in by_key.items():
+            slugs.update(
+                guard.task_name(item["subject"]["task_id"])
+                for item in keys.get(key_id, {"items": []})["items"]
+                if item["item_id"] in ids
+            )
+        for slug in slugs & touched.keys():
+            touched[slug].append(exposure)
+    out = {}
+    for name, matches in touched.items():
+        kinds = {e["kind"] for e in matches}
+        stratum = (
+            "tuned"
+            if "tuned" in kinds
+            else "inspected_only"
+            if "inspected" in kinds
+            else "unexposed"
+        )
+        out[name] = {
+            "historical_exposures": sorted({e["exposure_id"] for e in matches}),
+            "exposure_stratum": stratum,
+        }
+    return out
+
+
+def build_outputs(
+    source: dict[str, Any],
+    witnesses: dict[str, Any] | None = None,
+    *,
+    witness_root: Path = HERE,
+) -> dict[str, str]:
+    """Build all registered labels without reading a task package or using a model.
+
+    ``witnesses`` defaults to the scorer-only ``witnesses.json`` beside this file.
+    """
+    if witnesses is None:
+        witnesses = load_witnesses(witness_root / "witnesses.json")
     if source.get("schema") != "tb4.audit.sources/v1":
         raise ValueError("not a frozen TB4 audit source manifest")
     findings = source["findings"]
@@ -60,6 +187,7 @@ def build_outputs(source: dict[str, Any]) -> dict[str, str]:
     if len(by_name) != len(tasks):
         raise ValueError("the source cohort contains duplicate task identities")
     splits = task_splits(by_name, seed=SPLIT_SEED, dev_count=25)
+    exposure = historical_exposures(sorted(by_name))
     taxonomy = source["taxonomy"]
     class_ids = {row["key"]: row["id"] for row in taxonomy["task_side"]}
     if set(class_ids) != set(CATEGORY):
@@ -137,10 +265,48 @@ def build_outputs(source: dict[str, Any]) -> dict[str, str]:
             "auditor_evidence": finding["auditor_evidence"],
             "source_url": finding["source_url"],
             "label_binding": "auditor report on the named task; not re-executed on the input digest",
+            **(
+                exposure[name]
+                if scope == "task"
+                else {"historical_exposures": [], "exposure_stratum": "unexposed"}
+            ),
         }
         AnswerKeyItem.model_validate(item)
         items.append(item)
     items.sort(key=lambda row: row["item_id"])
+    registered = _verify_witnesses(
+        witnesses, splits, {row["item_id"] for row in items}, witness_root
+    )
+    by_item = {row["item_id"]: row for row in items}
+    for w in registered:
+        item = by_item[w["finding_id"]]
+        if item["task"] != w["task"]:
+            raise ValueError(f"witness {w['witness_id']} names the wrong task")
+        item["reproducer"] = {
+            "kind": "command",
+            "path": f"{KEY_PATH}/{w['solution_dir']}/solve.sh",
+            "expected_reward": 1.0,
+        }
+        item["witness"] = {
+            key: w.get(key)
+            for key in (
+                "witness_id",
+                "solution_dir",
+                "files",
+                "port_test",
+                "upstream_replay",
+                "port_replay",
+                "confirmed",
+            )
+        }
+        if w["confirmed"]:
+            item["label_strength"] = "confirmed"
+            item["label_binding"] = (
+                "witness program replayed: upstream TB4 grader reward 1.0 in a fresh "
+                "container and fixed port grader reward 0.0"
+            )
+        AnswerKeyItem.model_validate(item)
+    confirmed = [w for w in registered if w["confirmed"]]
     cohort = []
     for name, task in sorted(by_name.items()):
         # Keep unmatched Epoch/Tokenless flags and PM's no-issue/not-reviewed
@@ -152,6 +318,7 @@ def build_outputs(source: dict[str, Any]) -> dict[str, str]:
                 "scope": "task",
                 "split": splits[name],
             }
+            | exposure[name]
         )
     for item in items:
         if item["scope"] == "task" and item["split"] != splits[item["task"]]:
@@ -184,8 +351,50 @@ def build_outputs(source: dict[str, Any]) -> dict[str, str]:
         "agreement": agreement,
         "source_discrepancies": source["discrepancies"],
         "source_manifest_sha256": hashlib.sha256(_json(source).encode()).hexdigest(),
-        "native_reproductions_performed": 0,
-        "paid_cost_usd": 0,
+        "witness_replay": {
+            "registered": len(registered),
+            "confirmed": len(confirmed),
+            "splits": _counts(w["split"] for w in registered),
+            "tasks": _counts(w["task"] for w in registered),
+        },
+        "native_reproductions_performed": len(confirmed),
+        "paid_cost_usd": round(
+            sum((w.get("upstream_replay") or {}).get("cost_usd", 0) for w in registered), 6
+        ),
+        "exposure_stratification": {
+            "source": "research/answer-keys/splits/exposure.jsonl",
+            "rule": "tuned if any matching exposure is tuned, else inspected_only if any is "
+            "inspected, else unexposed",
+            "tasks": {
+                split: {
+                    stratum: sum(
+                        1
+                        for row in cohort
+                        if row["split"] == split and row["exposure_stratum"] == stratum
+                    )
+                    for stratum in EXPOSURE_STRATA
+                }
+                for split in ("dev", "test")
+            },
+            "task_findings": {
+                split: {
+                    stratum: sum(
+                        1
+                        for row in items
+                        if row["scope"] == "task"
+                        and row["split"] == split
+                        and row["exposure_stratum"] == stratum
+                    )
+                    for stratum in EXPOSURE_STRATA
+                }
+                for split in ("dev", "test")
+            },
+            "exposures_by_task": {
+                row["task"]: row["historical_exposures"]
+                for row in cohort
+                if row["historical_exposures"]
+            },
+        },
     }
     return {
         "items.jsonl": _jsonl(items),

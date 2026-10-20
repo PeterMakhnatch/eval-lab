@@ -29,6 +29,17 @@ TOOL_NAMES = (
 )
 _RUNTIME_TOOLS = frozenset({"run-upstream-grader", "run-reference", "run-blank", "probe"})
 _CITATION = re.compile(r"([^:\n]+):([1-9][0-9]*)(?:-([1-9][0-9]*))?")
+#: Source-read window for ``task-info`` (v1): a call with no ``end_line`` returns up to this
+#: many lines, and a longer range is clipped with a continuation note instead of refused.
+READ_WINDOW_LINES = 2_000
+READ_WINDOW_CHARS = 120_000
+
+
+def _reader(root: Path, files: set[str]) -> WorkspaceTools:
+    return WorkspaceTools(
+        root, files, max_read_lines=READ_WINDOW_LINES, default_read_lines=READ_WINDOW_LINES,
+        max_chars=READ_WINDOW_CHARS, clamp_reads=True,
+    )
 
 
 def _write_new(path: Path, value: Any) -> None:
@@ -88,7 +99,7 @@ class EnvTools:
                 or path.relative_to(self.task_dir).parts[0] in {"tests", "solution", "environment"}
             )
         }
-        self.reader = WorkspaceTools(self.task_dir, self.files)
+        self.reader = _reader(self.task_dir, self.files)
         self.view_dir: Path | None = None
         self._view_module: Any = None
         self._view_manifest_digest: str | None = None
@@ -139,7 +150,7 @@ class EnvTools:
         self._view_module = provider
         self._view_manifest_digest = hashlib.sha256((self.view_dir / "bundle.json").read_bytes()).hexdigest()
         self.files = selected
-        self.reader = WorkspaceTools(root, selected)
+        self.reader = _reader(root, selected)
 
     def remaining_seconds(self) -> float:
         remaining = self.deadline - time.monotonic()
@@ -199,7 +210,8 @@ class EnvTools:
             "finding_schema": Finding.model_json_schema(),
             "tool_arguments": {
                 "task-info": {"path": "optional package-relative path", "start_line": 1,
-                              "end_line": 100, "pattern": "optional literal search instead of read"},
+                              "end_line": READ_WINDOW_LINES,
+                              "pattern": "optional literal search instead of read"},
                 "run-upstream-grader": {
                     "solution_dir": "relative directory under out/candidates/",
                     "submission": {"kind": "command | file | json | patch",

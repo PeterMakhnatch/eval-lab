@@ -62,9 +62,17 @@ checks. Do not infer execution, final state or correctness from a proposed comma
 class WorkspaceTools:
     """A capability limited to the sealed file inventory, with no executable tools."""
 
-    def __init__(self, root: Path, files: set[str]) -> None:
+    def __init__(
+        self, root: Path, files: set[str], *, max_read_lines: int = MAX_READ_LINES,
+        default_read_lines: int = 100, max_chars: int = MAX_TOOL_CHARS, clamp_reads: bool = False,
+    ) -> None:
         self.root = root.resolve(strict=True)
         self.files = files - {"bundle.json"}
+        self.max_read_lines = max_read_lines
+        self.default_read_lines = default_read_lines
+        self.max_chars = max_chars
+        #: Clip an over-long range to the window (with a continuation note) instead of refusing it.
+        self.clamp_reads = clamp_reads
 
     def _relative(self, raw: str) -> str:
         if raw.startswith("/workspace/"):
@@ -115,7 +123,7 @@ class WorkspaceTools:
                 for number, line in enumerate(self._read(name).splitlines(), 1):
                     if pattern.casefold() in line.casefold():
                         row = f"{name}:{number}: {line}"
-                        if size + len(row) + 1 > MAX_TOOL_CHARS:
+                        if size + len(row) + 1 > self.max_chars:
                             return "\n".join(rows) + "\n[more matches omitted; narrow the search]"
                         rows.append(row)
                         size += len(row) + 1
@@ -126,25 +134,31 @@ class WorkspaceTools:
             names = self._files_below(rel)
             if not names:
                 raise ValueError("path is not in the sealed evidence inventory")
-            return ("\n".join(names))[:MAX_TOOL_CHARS]
+            return ("\n".join(names))[: self.max_chars]
         if tool == "diff" and not rel.endswith((".diff", ".patch")):
             raise ValueError("diff needs a retained .diff or .patch file")
         start, end = args.get("start_line", 1), args.get("end_line")
-        end = start + 99 if end is None and type(start) is int else end
+        end = start + self.default_read_lines - 1 if end is None and type(start) is int else end
         if type(start) is not int or type(end) is not int or not 1 <= start <= end:
             raise ValueError("line bounds must be positive ordered integers")
-        if end - start + 1 > MAX_READ_LINES:
-            raise ValueError(f"read at most {MAX_READ_LINES} lines per call")
+        clamped = None
+        if end - start + 1 > self.max_read_lines:
+            if not self.clamp_reads:
+                raise ValueError(f"read at most {self.max_read_lines} lines per call")
+            clamped, end = end, start + self.max_read_lines - 1
         lines = self._read(rel).splitlines()
         rows, size = [], 0
         for number in range(start, min(end, len(lines)) + 1):
             row = f"{rel}:{number}: {lines[number - 1]}"
-            remaining = MAX_TOOL_CHARS - size
+            remaining = self.max_chars - size
             if len(row) + 1 > remaining:
                 rows.append(row[: max(0, remaining)] + "\n[line or range clipped; narrow the read]")
                 break
             rows.append(row)
             size += len(row) + 1
+        if clamped is not None and rows and end < min(clamped, len(lines)):
+            rows.append(f"[read clipped to {self.max_read_lines} lines; continue at "
+                        f"{rel}:{end + 1} (total lines: {len(lines)})]")
         return "\n".join(rows) or f"[no lines at {rel}:{start}; total lines: {len(lines)}]"
 
     def _files_below(self, rel: str) -> list[str]:

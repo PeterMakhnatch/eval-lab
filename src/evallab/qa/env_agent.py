@@ -49,11 +49,12 @@ SESSION_SCHEMA = "qa.env.audit/v1"
 #: Hard account-wide weekly ceiling for this lane (fraction of the 7d window).
 WEEKLY_QUOTA_CEILING = 0.35
 #: Calls one action may batch; each counts against ``--max-tool-calls``.
-MAX_CALLS_PER_ACTION = 4
+MAX_CALLS_PER_ACTION = 8
 #: Consecutive unusable replies tolerated before the session stops.
 MAX_INVALID_ACTIONS = 2
 #: Serialized size of one observation shown to the model; the journal keeps all.
-MAX_OBSERVATION_CHARS = 20_000
+#: Large enough for one full ``task-info`` read window (``env.READ_WINDOW_CHARS``) plus framing.
+MAX_OBSERVATION_CHARS = 130_000
 MAX_SUMMARY_CHARS = 20_000
 #: A Codex turn with less wall clock than this cannot usefully complete.
 MIN_TURN_SECONDS = 15.0
@@ -208,7 +209,8 @@ def _bounded(value: Any) -> Any:
 _TOOL_GUIDE = """\
 Tools (each call returns {"tool", "task_id", "task_digest", "result"} or an error):
 - task-info: {} gives the package inventory (file roles), the instruction, the defect classes and
-  tool names. {"path": P, "start_line": A, "end_line": B} reads package file P with line numbers.
+  tool names. {"path": P} reads package file P with line numbers (up to 2000 lines per call;
+  add "start_line"/"end_line" to continue a longer file). {"path": P, "pattern": S} searches.
   Reviewer access to tests/reference does not mean a solver can reach them.
 - run-upstream-grader: grade an ordinary candidate with the unchanged upstream verifier.
   Supply either {"solution_dir":"relative/directory"} under this run's candidates/ or
@@ -261,7 +263,9 @@ Evidence rules for record-finding:
 - reviewer: {{"agent": "qa-env-audit", "model": "{model}", "cost_usd": 0}}.
 - Never set refutation.status to "verified": you cannot independently verify your own claim.
 - A raw reward alone is not semantic wrongness; say what behavior is wrong and why.
-Record only defects your evidence supports. Recording nothing is a valid outcome.
+Record each distinct defect as its own record-finding call: a task can have several defects,
+including several in one class. Record only defects your evidence supports. Recording nothing
+is a valid outcome.
 
 Final: when evidence suffices or a budget is nearly spent, return final. The summary must separate
 source-read observations from executed witnesses and name recorded findings; limitations must list

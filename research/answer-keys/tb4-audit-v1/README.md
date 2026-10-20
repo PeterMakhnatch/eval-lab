@@ -133,11 +133,16 @@ bound to one finding on a **dev-split** task (`cargo-flight-dispatch`,
 scripts; `files` records the sha256 of every file. `build.py` refuses any
 witness on a test-split task or unknown finding, a missing `solve.sh`, any
 digest mismatch, and any `confirmed` witness without upstream TB4 reward `1.0`
-and fixed-port reward `0.0`. Each matching `items.jsonl` row gains a `witness`
+and full-mode (`mode="full"`) fixed-port reward `0.0` bound to contemporaneous
+sha256 digests of the port `scoring_script.py`, task tree, submitted artifacts,
+and raw stdout/stderr logs (including all 444 attack vectors and 12 clean
+samples on `html-js-filter`). Each matching `items.jsonl` row gains a `witness`
 record and a `reproducer` command; confirmed rows become
 `label_strength=confirmed`. `summary.json` reports `witness_replay`,
-`native_reproductions_performed` and `paid_cost_usd` (sum of upstream
-`cost_usd`). Witness files and the registry never enter an auditor view:
+`native_reproductions_performed` and `paid_cost_usd` (`$0.786752` finalized
+across 10 trials, `$0.922084` incl. 2 aborted attempts, `$0.1862` actual task
+sandbox runtime; 9/10 strictly `<= $1.50` under worst-case pre-run builder
+reservation `$1.434147`, with all 21 sandboxes and Modal app confirmed closed).
 `views.py` drops any `witnesses`/`witnesses.json` path at export and
 `agent_tools` rejects a view inventory that lists one.
 
@@ -152,6 +157,10 @@ uv run python research/answer-keys/tb4-audit-v1/build.py \
   --task-root /path/to/original-v4.0.0/tasks
 uv run python research/answer-keys/tb4-audit-v1/score_audit.py \
   --benchmark-baselines --out /private/tmp/tb4-audit-scorer-baselines.json
+uv run python research/answer-keys/tb4-audit-v1/triage_signals.py \
+  --dev-view /private/tmp/tb4-audit-dev-inputs \
+  --test-view /private/tmp/tb4-audit-test-inputs \
+  --out /private/tmp/tb4-audit-triage.json
 ```
 
 `pm_source.py --help` and `import_sources.py --help` describe source refresh

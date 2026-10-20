@@ -1,9 +1,12 @@
-"""One text-only GEPA reflection through an authenticated Codex subscription.
+"""Text-only turns through an authenticated Codex subscription.
 
 User config, project instructions and tool features are disabled; the CLI runs
-ephemerally in an empty read-only workspace. This is not host file-read isolation.
-Only a complete, single-turn text response is usable. Quota and billing remain
-unknown; request limits count CLI invocations, not physical upstream requests.
+in an empty read-only workspace. This is not host file-read isolation.
+``CodexTransport.request`` is one ephemeral, complete, single-turn text response.
+``CodexSession`` advances one persisted native thread with ``codex exec resume``
+under the same pins, one completed text-only turn per invocation.
+Quota and billing remain unknown; request limits count CLI invocations, not
+physical upstream requests.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import re
 import signal
 import subprocess
 import time
+import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -105,6 +109,15 @@ _KNOWN_EVENT_TYPES = frozenset(
     }
 )
 
+#: Token fields Codex reports on ``turn.completed``.
+USAGE_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "cache_write_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+)
+
 # Probe points so deterministic tests can stub the CLI/Keychain boundary
 # without touching stdlib subprocess globally.
 _RUN = subprocess.run
@@ -133,7 +146,16 @@ def _executable() -> Path:
     return path
 
 
-def _run_probe(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
+def _probe_timeout(deadline: float | None, limit: float) -> float:
+    if deadline is None:
+        return limit
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise CodexTransportError("Codex turn deadline expired during preflight")
+    return min(limit, remaining)
+
+
+def _run_probe(argv: list[str], *, timeout: float) -> subprocess.CompletedProcess[bytes]:
     return _RUN(
         argv,
         capture_output=True,
@@ -221,17 +243,7 @@ def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, 
             payload = event.get("usage")
             if not isinstance(payload, dict):
                 raise CodexTransportError("Codex completion is missing usage")
-            usage = {
-                name: payload[name]
-                for name in (
-                    "input_tokens",
-                    "cached_input_tokens",
-                    "cache_write_input_tokens",
-                    "output_tokens",
-                    "reasoning_output_tokens",
-                )
-                if name in payload
-            }
+            usage = {name: payload[name] for name in USAGE_FIELDS if name in payload}
             for value in usage.values():
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                     raise CodexTransportError("Codex usage report is invalid")
@@ -269,6 +281,26 @@ def parse_transcript(path: Path, *, allow_preamble: bool = False) -> tuple[str, 
     if len(agent_texts) > 1:
         usage["text_selection"] = "final completed message of one text-only turn"
     return response, usage
+
+
+def transcript_thread_ids(path: Path) -> list[str]:
+    """Every ``thread.started`` id in a transcript, tolerating unparsable lines.
+
+    Used only to bind a turn to its native thread; ``parse_transcript``
+    remains the authority on whether the turn itself is usable.
+    """
+    if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
+        raise CodexTransportError("Codex transcript exceeded its bound")
+    ids: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "thread.started":
+            thread_id = event.get("thread_id")
+            ids.append(thread_id if isinstance(thread_id, str) else "")
+    return ids
 
 
 def _poll_events(
@@ -331,6 +363,52 @@ def _stop(process: Any) -> None:
             process.wait()
 
 
+def _execute(
+    argv: list[str],
+    *,
+    cwd: Path,
+    prompt_file: Path,
+    events_path: Path,
+    log_path: Path,
+    timeout_seconds: float,
+) -> None:
+    """Run one CLI invocation, failing fast on tool/error output or timeout."""
+    env = _scrub_env(dict(os.environ))
+    with (
+        events_path.open("ab") as stdout,
+        log_path.open("ab") as stderr,
+        prompt_file.open("rb") as stdin,
+    ):
+        process = _POPEN(
+            argv,
+            env=env,
+            cwd=cwd,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=True,
+        )
+        try:
+            event_offset, pending_event = 0, b""
+            turn_started = False
+            deadline = time.monotonic() + timeout_seconds
+            while process.poll() is None:
+                event_offset, pending_event, turn_started = _poll_events(
+                    events_path, event_offset, pending_event, turn_started
+                )
+                if log_path.stat().st_size > MAX_TRANSCRIPT_BYTES:
+                    raise CodexTransportError("Codex output limit reached")
+                if time.monotonic() >= deadline:
+                    raise CodexTransportError("Codex timed out; no automatic retry")
+                time.sleep(0.1)
+            if process.returncode != 0:
+                raise CodexTransportError(
+                    f"Codex exited with status {process.returncode}; inspect retained logs"
+                )
+        finally:
+            _stop(process)
+
+
 class CodexTransport:
     """One text-only GEPA reflection turn via the Codex subscription CLI."""
 
@@ -339,8 +417,10 @@ class CodexTransport:
         self.model = _bare_model(model)
         self.timeout_seconds = timeout_seconds
 
-    def _version_digest(self, executable: Path) -> tuple[str, str]:
-        completed = _run_probe([str(executable), "--version"], timeout=20)
+    def _version_digest(
+        self, executable: Path, *, deadline: float | None = None,
+    ) -> tuple[str, str]:
+        completed = _run_probe([str(executable), "--version"], timeout=_probe_timeout(deadline, 20))
         if completed.returncode != 0:
             raise CodexTransportError("Codex version probe failed")
         version = completed.stdout.decode(errors="replace").strip()
@@ -350,11 +430,13 @@ class CodexTransport:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         return version, "sha256:" + digest
 
-    def preflight(self) -> dict[str, Any]:
+    def preflight(self, *, deadline: float | None = None) -> dict[str, Any]:
         """Verify the ChatGPT-subscription route; return stable JSON-safe facts."""
         executable = _executable()
-        version, digest = self._version_digest(executable)
-        completed = _run_probe([str(executable), "login", "status"], timeout=30)
+        version, digest = self._version_digest(executable, deadline=deadline)
+        completed = _run_probe(
+            [str(executable), "login", "status"], timeout=_probe_timeout(deadline, 30),
+        )
         output = completed.stdout.decode(errors="replace") + completed.stderr.decode(
             errors="replace"
         )
@@ -384,44 +466,63 @@ class CodexTransport:
             },
         }
 
-    def _argv(self, *, cwd: Path, last_message: Path) -> list[str]:
+    def _argv(
+        self,
+        *,
+        cwd: Path,
+        last_message: Path,
+        persist: bool = False,
+        resume_thread_id: str | None = None,
+    ) -> list[str]:
+        """Pinned argv; the default is the ephemeral single-turn invocation.
+
+        ``persist`` keeps the native rollout so ``resume_thread_id`` can continue
+        it. ``exec resume`` has no ``--sandbox``/``-C`` flags: the read-only
+        policy is the equivalent ``sandbox_mode`` config key and the workspace is
+        the child's process cwd (``config.cwd``), which callers keep identical.
+        """
+        if resume_thread_id is not None and not persist:
+            raise ValueError("a resumed Codex thread must stay persisted")
         executable = _executable()
-        argv = [
-            str(executable),
-            "exec",
-            "--json",
-            "--sandbox",
-            "read-only",
-            "--skip-git-repo-check",
-            "--ephemeral",
-            "--ignore-user-config",
-            "--ignore-rules",
-            "-m",
-            self.model,
-            "-c",
-            f'model_provider="{MODEL_PROVIDER}"',
-            "-c",
-            'web_search="disabled"',
-            "-c",
-            "analytics.enabled=false",
-            "-c",
-            "feedback.enabled=false",
-            "-c",
-            "project_doc_max_bytes=0",
-            "-c",
-            "features.skip_host_skill_discovery=true",
-        ]
-        for feature in DISABLED_FEATURES:
-            argv.extend(("--disable", feature))
+        argv = [str(executable), "exec"]
+        if resume_thread_id is not None:
+            argv.append("resume")
+        argv.append("--json")
+        if resume_thread_id is None:
+            argv.extend(("--sandbox", "read-only"))
+        argv.append("--skip-git-repo-check")
+        if not persist:
+            argv.append("--ephemeral")
         argv.extend(
             (
-                "-C",
-                str(cwd),
-                "-o",
-                str(last_message),
-                "-",
+                "--ignore-user-config",
+                "--ignore-rules",
+                "-m",
+                self.model,
+                "-c",
+                f'model_provider="{MODEL_PROVIDER}"',
+                "-c",
+                'web_search="disabled"',
+                "-c",
+                "analytics.enabled=false",
+                "-c",
+                "feedback.enabled=false",
+                "-c",
+                "project_doc_max_bytes=0",
+                "-c",
+                "features.skip_host_skill_discovery=true",
             )
         )
+        if resume_thread_id is not None:
+            argv.extend(("-c", 'sandbox_mode="read-only"'))
+        for feature in DISABLED_FEATURES:
+            argv.extend(("--disable", feature))
+        if resume_thread_id is None:
+            argv.extend(("-C", str(cwd)))
+        argv.extend(("-o", str(last_message)))
+        if resume_thread_id is not None:
+            argv.append(resume_thread_id)
+        argv.append("-")
         return argv
 
     def request(self, prompt: str | list[dict[str, Any]], *, directory: Path) -> dict[str, Any]:
@@ -444,40 +545,14 @@ class CodexTransport:
         log_path.touch(mode=0o600, exist_ok=False)
         last_message.touch(mode=0o600, exist_ok=False)
         argv = self._argv(cwd=cwd, last_message=last_message)
-        env = _scrub_env(dict(os.environ))
-        with (
-            events_path.open("ab") as stdout,
-            log_path.open("ab") as stderr,
-            prompt_file.open("rb") as stdin,
-        ):
-            process = _POPEN(
-                argv,
-                env=env,
-                cwd=cwd,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                start_new_session=True,
-            )
-            try:
-                event_offset, pending_event = 0, b""
-                turn_started = False
-                deadline = time.monotonic() + self.timeout_seconds
-                while process.poll() is None:
-                    event_offset, pending_event, turn_started = _poll_events(
-                        events_path, event_offset, pending_event, turn_started
-                    )
-                    if log_path.stat().st_size > MAX_TRANSCRIPT_BYTES:
-                        raise CodexTransportError("Codex output limit reached")
-                    if time.monotonic() >= deadline:
-                        raise CodexTransportError("Codex timed out; no automatic retry")
-                    time.sleep(0.1)
-                if process.returncode != 0:
-                    raise CodexTransportError(
-                        f"Codex exited with status {process.returncode}; inspect retained logs"
-                    )
-            finally:
-                _stop(process)
+        _execute(
+            argv,
+            cwd=cwd,
+            prompt_file=prompt_file,
+            events_path=events_path,
+            log_path=log_path,
+            timeout_seconds=self.timeout_seconds,
+        )
         if any(
             path.stat().st_size > MAX_TRANSCRIPT_BYTES
             for path in (events_path, log_path, last_message)
@@ -490,3 +565,141 @@ class CodexTransport:
             "usage": {**usage, "requested_model": f"codex/{self.model}"},
             "transport": facts,
         }
+
+
+class CodexSession:
+    """One persisted native Codex thread advanced by ``codex exec resume``.
+
+    The first turn starts a non-ephemeral thread; every later turn resumes that
+    exact UUID with the same pins, cwd and disabled tools. Each invocation must
+    be one completed text-only turn bound to the same ``thread.started`` id:
+    ``exec resume`` silently starts a new thread when an id is unresolvable
+    (``codex-rs/exec/src/lib.rs``), so a changed id fails the session closed.
+
+    ``turn.completed`` usage is the thread's cumulative total
+    (``usage_from_last_total`` in ``exec/src/event_processor_with_jsonl_output.rs``;
+    resume seeds it from the rollout via ``last_token_info_from_rollout`` in
+    ``core/src/session/mod.rs``). Per-turn usage is therefore the delta from the
+    previous report; a decrease, a dropped field, or a zero delta is unknown
+    usage and fails closed. A failed invocation leaves usage unknown.
+    """
+
+    def __init__(self, transport: CodexTransport, *, directory: Path) -> None:
+        if any(part.is_symlink() for part in (directory, *directory.parents)):
+            raise ValueError("Codex session directories must not follow symlinks")
+        directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+        self.transport = transport
+        self.directory = directory
+        self.cwd = directory / "cwd"
+        self.cwd.mkdir(mode=0o700)
+        self.thread_id: str | None = None
+        self.invocations = 0
+        self.cumulative: dict[str, int] = {}
+        self.facts: dict[str, Any] | None = None
+
+    def turn(self, prompt: str, *, timeout_seconds: float) -> dict[str, Any]:
+        """Run one more turn of the thread; never retry, reroute or fork."""
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("Codex session prompt must not be empty")
+        if not timeout_seconds > 0:
+            raise CodexTransportError("Codex session has no time left for a turn")
+        deadline = time.monotonic() + timeout_seconds
+        facts = self.transport.preflight(deadline=deadline)
+        facts = {
+            **facts,
+            "text_only": {**facts["text_only"], "ephemeral": False},
+            "native_session": "codex exec resume <thread_id>; rollout persisted in CODEX_HOME",
+        }
+        if self.facts is None:
+            self.facts = facts
+        elif facts != self.facts:
+            raise CodexTransportError("Codex route changed during the session")
+        self.invocations += 1
+        turn_dir = self.directory / f"turn-{self.invocations:03d}"
+        turn_dir.mkdir(mode=0o700)
+        prompt_file = turn_dir / "prompt.txt"
+        persist_private_bytes(prompt_file, prompt.encode(), secrets=())
+        events_path = turn_dir / "events.jsonl"
+        log_path = turn_dir / "client.log"
+        last_message = turn_dir / "last_message.txt"
+        for path in (events_path, log_path, last_message):
+            path.touch(mode=0o600, exist_ok=False)
+        argv = self.transport._argv(
+            cwd=self.cwd,
+            last_message=last_message,
+            persist=True,
+            resume_thread_id=self.thread_id,
+        )
+        try:
+            _execute(
+                argv,
+                cwd=self.cwd,
+                prompt_file=prompt_file,
+                events_path=events_path,
+                log_path=log_path,
+                timeout_seconds=_probe_timeout(deadline, timeout_seconds),
+            )
+        finally:
+            self._bind_thread(events_path, required=False)
+        if any(
+            path.stat().st_size > MAX_TRANSCRIPT_BYTES
+            for path in (events_path, log_path, last_message)
+        ):
+            raise CodexTransportError("Codex output limit reached")
+        self._bind_thread(events_path, required=True)
+        response, usage = parse_transcript(events_path, allow_preamble=True)
+        delta: dict[str, int] = {}
+        for name in USAGE_FIELDS:
+            previous = self.cumulative.get(name)
+            current = usage.get(name)
+            if current is None:
+                if previous is not None:
+                    raise CodexTransportError(f"Codex stopped reporting {name}; usage unknown")
+                continue
+            if current < (previous or 0):
+                raise CodexTransportError(f"Codex cumulative {name} decreased; usage unknown")
+            delta[name] = current - (previous or 0)
+        if delta.get("input_tokens", 0) <= 0 or delta.get("output_tokens", 0) <= 0:
+            raise CodexTransportError("Codex reported no usage for a completed turn; usage unknown")
+        self.cumulative = {name: usage[name] for name in USAGE_FIELDS if name in usage}
+        return {
+            "response": response,
+            "thread_id": self.thread_id,
+            "invocation": self.invocations,
+            "directory": str(turn_dir),
+            "usage": delta,
+            "cumulative_usage": dict(self.cumulative),
+            "text_selection": usage.get("text_selection"),
+            "requested_model": f"codex/{self.transport.model}",
+            "upstream_estimated_cost_usd": None,
+            "transport": facts,
+        }
+
+    def _bind_thread(self, events_path: Path, *, required: bool) -> None:
+        try:
+            ids = transcript_thread_ids(events_path)
+        except (OSError, CodexTransportError):
+            if required:
+                raise
+            return
+        if len(ids) != 1:
+            if required:
+                raise CodexTransportError("Codex turn did not report exactly one thread id")
+            return
+        (thread_id,) = ids
+        if self.thread_id is None:
+            try:
+                canonical = str(uuid.UUID(thread_id))
+            except ValueError as exc:
+                if required:
+                    raise CodexTransportError("Codex thread id is not a UUID") from exc
+                return
+            if canonical != thread_id:
+                if required:
+                    raise CodexTransportError("Codex thread id is not a canonical UUID")
+                return
+            self.thread_id = thread_id
+        elif thread_id != self.thread_id:
+            raise CodexTransportError(
+                "Codex resumed a different thread; the session is not one conversation"
+            )

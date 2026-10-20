@@ -712,7 +712,21 @@
   },
   "witness_replay": {
     "confirmed": 10,
+    "port_replay_modes": {
+      "full": 10
+    },
     "registered": 10,
+    "spend": {
+      "aborted_sandboxes_affirmatively_closed": true,
+      "actual_task_sandbox_runtime_excl_cached_builder_usd": 0.1862,
+      "all_confirmed_witnesses": 10,
+      "cap_usd": 1.5,
+      "combined_incl_aborted_elapsed_usd": 0.922084,
+      "finalized_usd": 0.786752,
+      "peak_reservation_usd": 1.434147,
+      "single_cap_strict_peak_qualified_witnesses": 9,
+      "strict_finalized_usd": 0.649567
+    },
     "splits": {
       "dev": 10
     },

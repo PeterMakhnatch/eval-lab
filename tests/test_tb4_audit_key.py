@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -181,7 +182,7 @@ def _confirmed_registry(root: Path) -> dict:
     shutil.copytree(KEY / witness["solution_dir"], root / witness["solution_dir"])
     witness |= {
         "upstream_replay": {"reward": 1.0, "cost_usd": 0.02},
-        "port_replay": {"reward": 0.0},
+        "port_replay": witness["port_replay"] | {"reward": 0.0},
         "confirmed": True,
     }
     return {"schema": REGISTRY["schema"], "witnesses": [witness]}
@@ -213,6 +214,86 @@ def test_confirmed_witness_is_attached_to_its_item(tmp_path: Path) -> None:
     assert summary["witness_replay"]["confirmed"] == 1
     assert summary["native_reproductions_performed"] == 1
     assert summary["paid_cost_usd"] == 0.02
+    assert summary["witness_replay"]["port_replay_modes"] == {"full": 1}
+
+
+GT2_RESULTS = Path("/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-gt2")
+
+
+def test_registered_port_replays_are_full_mode_with_custody() -> None:
+    for witness in REGISTRY["witnesses"]:
+        port = witness["port_replay"]
+        assert port["mode"] == "full", witness["witness_id"]
+        assert port["reward"] == 0.0
+        for field in build.PORT_CUSTODY_FIELDS:
+            assert build._is_sha256(port[field]), (witness["witness_id"], field)
+        assert port["submitted_artifact_files_sha256"]
+        assert all(map(build._is_sha256, port["submitted_artifact_files_sha256"].values()))
+
+
+@pytest.mark.skipif(not GT2_RESULTS.is_dir(), reason="GT-2 result bundle not on this machine")
+def test_registered_port_receipts_match_the_result_bundle() -> None:
+    for witness in REGISTRY["witnesses"]:
+        wid = witness["witness_id"]
+        port = witness["port_replay"]
+        receipt_path = GT2_RESULTS / "port" / f"{wid}.score.json"
+        digest = "sha256:" + hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        assert digest == port["receipt_sha256"], wid
+        receipt = json.loads(receipt_path.read_text())
+        custody = receipt["custody"]
+        assert receipt["mode"] == "full" and receipt["score"] == 0.0
+        assert custody["registered_witness_files_sha256"] == witness["files"]
+        assert "sha256:" + custody["port_scoring_script_sha256"] == port["port_scoring_script_sha256"]
+        assert {
+            k: "sha256:" + v for k, v in custody["submitted_artifact_files_sha256"].items()
+        } == port["submitted_artifact_files_sha256"]
+        for stream in ("stdout", "stderr"):
+            log = custody[f"raw_{stream}_log"]
+            data = (GT2_RESULTS / "port" / log["path"]).read_bytes()
+            assert len(data) == log["bytes"]
+            assert hashlib.sha256(data).hexdigest() == log["sha256"]
+        assert "sha256:" + custody["raw_stdout_log"]["sha256"] == port["raw_stdout_log_sha256"]
+        if witness["task"] == "html-js-filter":
+            assert receipt["corpus"] == {
+                "corpus_vectors": 417,
+                "embedded_vectors": 27,
+                "clean_samples": 12,
+            }
+    closure = json.loads((GT2_RESULTS / "modal-closure-verification.json").read_text())
+    assert closure["sandboxes_terminal"] == closure["sandboxes_checked"] == 21
+    assert closure["active_tasks"] == 0 and closure["running_containers"] == 0
+    assert closure["closed"] is True
+
+
+def test_single_cap_accounting_reaches_the_summary() -> None:
+    summary = json.loads(build.build_outputs(SOURCE)["summary.json"])
+    spend = summary["witness_replay"]["spend"]
+    assert spend["single_cap_strict_peak_qualified_witnesses"] == 9
+    assert spend["peak_reservation_usd"] == 1.434147 <= spend["cap_usd"] == 1.5
+    assert spend["strict_finalized_usd"] == 0.649567
+    assert spend["all_confirmed_witnesses"] == 10
+    assert spend["finalized_usd"] == 0.786752
+    assert spend["combined_incl_aborted_elapsed_usd"] == 0.922084
+    assert spend["actual_task_sandbox_runtime_excl_cached_builder_usd"] == 0.1862
+    assert spend["aborted_sandboxes_affirmatively_closed"] is True
+    assert summary["witness_replay"]["port_replay_modes"] == {"full": 10}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"mode": "embedded-vectors-only (corpus_vectors=lambda: [])"},
+        {"receipt_sha256": None},
+        {"port_scoring_script_sha256": "sha256:not-a-digest"},
+        {"raw_stdout_log_sha256": None},
+        {"submitted_artifact_files_sha256": {}},
+    ],
+)
+def test_confirmed_port_replay_needs_full_mode_custody(tmp_path: Path, change: dict) -> None:
+    registry = _confirmed_registry(tmp_path)
+    registry["witnesses"][0]["port_replay"] |= change
+    with pytest.raises(ValueError, match="full-mode|custody|artifact"):
+        build.build_outputs(SOURCE, registry, witness_root=tmp_path)
 
 
 def test_witness_on_a_test_split_task_is_rejected(tmp_path: Path) -> None:

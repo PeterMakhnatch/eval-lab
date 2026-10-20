@@ -346,13 +346,50 @@ class SealedWorkspaceTools(WorkspaceTools):
         super().__init__(root, set(inventory))
         self._manifest = manifest
         self._inventory = inventory
+        self._stats = {
+            rel: (st.st_ino, st.st_size, st.st_mtime_ns)
+            for rel in inventory
+            if (st := (root / rel).lstat())
+        }
+
+    def _recheck_large_view(self, target_prefix: str) -> None:
+        _reject_symlinks(self.root)
+        manifest_path = self.root / "bundle.json"
+        if (
+            manifest_path.is_symlink()
+            or not manifest_path.is_file()
+            or manifest_path.read_bytes() != self._manifest
+        ):
+            raise ValueError("the auditor view changed after export")
+        present = set()
+        for path in self.root.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("view paths must not traverse symlinks")
+            if path.is_file():
+                present.add(path.relative_to(self.root).as_posix())
+            elif not path.is_dir():
+                raise ValueError("auditor view entries must be regular files")
+        if present - {"bundle.json"} != set(self._inventory):
+            raise ValueError("the auditor view contains files not listed in its manifest")
+        for rel, expected in self._inventory.items():
+            path = self.root / rel
+            st = path.lstat()
+            if (
+                (st.st_ino, st.st_size, st.st_mtime_ns) != self._stats.get(rel)
+                or rel in {"inputs.jsonl", "taxonomy.json"}
+                or (target_prefix and (rel == target_prefix or rel.startswith(target_prefix + "/")))
+            ) and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise ValueError("the auditor view changed after export")
 
     def run(self, tool: str, args: dict[str, Any]) -> str:
-        manifest, inventory = _validate_view_root(self.root)
-        if manifest != self._manifest or inventory != self._inventory:
-            raise ValueError("the auditor view changed after export")
+        if len(self._inventory) <= 250:
+            manifest, inventory = _validate_view_root(self.root)
+            if manifest != self._manifest or inventory != self._inventory:
+                raise ValueError("the auditor view changed after export")
+        else:
+            raw_target = str(args.get("path", "")).strip().removeprefix("/workspace/").strip("/")
+            self._recheck_large_view(raw_target)
         return super().run(tool, args)
-
 
 def agent_tools(directory: Path) -> SealedWorkspaceTools:
     """Load the read-only capability after checking the exported bytes and schemas."""

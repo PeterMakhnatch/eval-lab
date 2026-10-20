@@ -189,7 +189,8 @@ def test_fingerprint_cannot_claim_another_locks_key() -> None:
 def test_every_unmatched_ambiguous_conflicting_and_duplicate_label_is_retained() -> None:
     trial = _trial()
     other = _trial() | {"hub_trial_id": OTHER_TRIAL}
-    labels = [_label(), _label(), _label(trial_id=ARCHIVE), _label(trial_id=OTHER_TRIAL, row_id=JOB)]
+    unmatched_id = "66666666-6666-4666-8666-666666666666"
+    labels = [_label(), _label(), _label(trial_id=unmatched_id), _label(trial_id=OTHER_TRIAL, row_id=JOB)]
     joined = stratify.join_labels(labels, [trial, other, other.copy()], {})
     assert len(joined) == len(labels)
     assert [entry["existing_label"] for entry in joined] == labels

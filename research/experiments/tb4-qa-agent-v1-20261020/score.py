@@ -56,15 +56,12 @@ def v0_rows() -> list[dict[str, Any]]:
 
 
 def static_rows(work: Path) -> list[dict[str, Any]]:
-    out = work / "static-triage"
-    subprocess.run([sys.executable, str(KEY / "triage_signals.py"), "--dev-view", str(VIEWS / "dev"),
-                    "--test-view", str(VIEWS / "test"), "--out", str(out)], check=True,
-                   capture_output=True, cwd=REPO)
-    files = sorted(out.rglob("*.jsonl")) if out.is_dir() else [out]
-    rows = []
-    for path in files:
-        rows += [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    return [r for r in rows if r.get("schema") == "qa.finding/v1"]
+    out = work / "static-triage.json"
+    if not out.is_file():
+        subprocess.run([sys.executable, str(KEY / "triage_signals.py"), "--dev-view", str(VIEWS / "dev"),
+                        "--test-view", str(VIEWS / "test"), "--out", str(out)], check=True,
+                       capture_output=True, cwd=REPO)
+    return [r for r in json.loads(out.read_text())["predictions"] if r.get("schema") == "qa.finding/v1"]
 
 
 def reader_rows() -> list[dict[str, Any]]:

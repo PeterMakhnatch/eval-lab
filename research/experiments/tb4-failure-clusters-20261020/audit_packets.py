@@ -62,15 +62,8 @@ def failure_block(stdout: str, test: str) -> str:
     return stdout[match.start(): match.start() + 1800]
 
 
-def packet(task: str, feature: dict[str, Any], trials: list[dict[str, Any]], out: Path) -> dict[str, Any]:
-    out.mkdir(parents=True, exist_ok=True)
-    omitted: list[str] = []
-    src = TASKS / task
-    shutil.copy2(src / "instruction.md", out / "instruction.md")
-    shutil.copy2(src / "task.toml", out / "task.toml")
-    for name in ("tests", "solution", "environment"):
-        if (src / name).is_dir():
-            copy_text_tree(src / name, out / name, omitted)
+def failure_evidence(task: str, trials: list[dict[str, Any]]) -> str:
+    """Public-leaderboard failure evidence for one task, as markdown."""
     fails = [t for t in trials if t["task"] == task and t["reward"] == 0 and t["failed"]]
     counts = Counter(name for t in fails for name in t["failed"])
     passes = [t for t in trials if t["task"] == task and t["reward"] is not None]
@@ -89,7 +82,19 @@ def packet(task: str, feature: dict[str, Any], trials: list[dict[str, Any]], out
             text = stdout_path.read_text(encoding="utf-8", errors="replace") if stdout_path.is_file() else ""
             lines += [f"Trial sample (failed tests in that trial: {len(t['failed'])}):", "```",
                       failure_block(text, test), "```", ""]
-    (out / "failure-evidence.md").write_text("\n".join(lines), encoding="utf-8")
+    return "\n".join(lines)
+
+
+def packet(task: str, feature: dict[str, Any], trials: list[dict[str, Any]], out: Path) -> dict[str, Any]:
+    out.mkdir(parents=True, exist_ok=True)
+    omitted: list[str] = []
+    src = TASKS / task
+    shutil.copy2(src / "instruction.md", out / "instruction.md")
+    shutil.copy2(src / "task.toml", out / "task.toml")
+    for name in ("tests", "solution", "environment"):
+        if (src / name).is_dir():
+            copy_text_tree(src / name, out / name, omitted)
+    (out / "failure-evidence.md").write_text(failure_evidence(task, trials), encoding="utf-8")
     (out / "OMITTED.txt").write_text("\n".join(omitted) + ("\n" if omitted else ""), encoding="utf-8")
     return {"aid": aid(task), "files_omitted": len(omitted)}
 

@@ -1186,6 +1186,100 @@ INGEST pins (`aime`, `gpqa-diamond`, `humanevalfix`, `terminal-bench-sample`)
 are never rewritten. `--audit` walks every `library/benchmarks/*/MANIFEST.md`
 and prints pass or the exact drift reason.
 
+## Native TB4 Hub trial acquisition
+
+`evallab.hub_trials` is a standalone, read/download-only Python module. It uses
+the native Harbor 0.24 CLI and its existing credential resolver; it does not run
+agents, verifiers, containers, or model calls. An installed lab Python environment
+and a Harbor 0.24 executable are prerequisites. Observed with no credentials
+(`HARBOR_API_KEY` unset, empty `HOME`): `list` and the board, board-row
+association and dataset-version reads work anonymously, but the native trial/job
+metadata reads and trial downloads that `download` needs fail with
+`NotAuthenticatedError`, so `download` needs a Harbor personal API key
+(`HARBOR_API_KEY` or `harbor auth login`). Never print or copy that key. `verify`
+is offline and does not import Harbor or require its installation.
+
+List the pinned TB4 board's stable row UUIDs and exact model labels first:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evallab.hub_trials \
+  --harbor .venv/bin/harbor list
+```
+
+Acquire this explicit two-task/five-model **smoke sample** (one native
+board-associated trial per cell, not the five-trial public cell census):
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evallab.hub_trials \
+  --harbor .venv/bin/harbor download \
+  --output runs/in2-hub-downloader-smoke \
+  --task terminal-bench/foodstuff-beta-activity \
+  --task terminal-bench/heat-pump-warranty \
+  --model 'Opus 5.5' --model 'Sonnet 5.5' --model 'GPT-6.1 Sol' \
+  --model 'GLM-5.3' --model 'Grok 4.7' \
+  --smoke-trials-per-cell 1
+```
+
+Omit `--smoke-trials-per-cell` and use a new output directory for the full
+filtered census. Every board association is enumerated, native jobs are
+enumerated with `--include-retries`, and every requested-task attempt retains its
+job/trial UUID, native attempt/retry fields, and board association. Job-only
+attempts are explicitly `not_board_associated`, not counted as board evidence.
+Duplicate public model labels are refused: select the desired effort row with
+`--row-id UUID` instead of `--model`. Task names and labels match exactly.
+Pagination defaults to 1,000 entries/page and at most 100 pages per listing;
+`--page-size`/`--max-pages` are frozen request bounds, not truncation controls.
+An incomplete/unstable pagination census fails before selection is frozen.
+`--timeout-seconds 600` (before the subcommand) bounds each native command;
+there is no automatic network retry.
+
+`manifest.json` is atomically replaced. Its immutable selection digest freezes
+board, dataset, task/model/agent identity, jobs, attempts, cells, exclusions, and
+explicit smoke omissions. Raw native JSON responses live in `metadata/`;
+original extracted trial bytes live in `trials/JOB_UUID/HUB_TRIAL_UUID/`.
+Every recorded evidence file has a SHA-256 and byte count. Download staging and
+failed/interrupted attempt history remain under `staging/`; native stderr and
+signed download URLs are not copied into receipts. Keep these raw artifacts
+under ignored `runs/`, not in Git.
+
+Resume by repeating the **identical download command**. Existing recorded hashes
+are verified before network access; completed or known-missing native evidence
+is not silently fetched again. Each failed/interrupted native download can be
+attempted once on a later invocation in a fresh stage, preserving earlier bytes
+and attempt identity. Publication uses a hashed receipt before an atomic
+same-filesystem rename; a receipted interrupted publication resumes offline.
+Corrupt, missing, symlinked, unexpected, or untracked existing evidence is never
+overwritten or adopted as valid. Preserve it and use a new output directory;
+there is no force/repair option. Cached discovery can resume, but frozen filters,
+bounds, and sampling cannot change in place.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evallab.hub_trials verify \
+  --output runs/in2-hub-downloader-smoke
+```
+
+The pinned board is `terminal-bench/terminal-bench/4-0-0`
+(`9f966760-00f1-424e-90f5-c964fb6f6091`), dataset UUID
+`1922072f-a433-429a-8929-350d5e1bcf02`, digest
+`sha256:39d9f44b40420cde8fdcc087579c0d72a7e14fa3656d603c3f0d22fb35e27732`.
+Native revision 4/tags `4.0.0` and `v4.0.0` coexist with descriptive
+`version: "3.0.1"`; the manifest preserves that mismatch, never relabels it.
+Each job ref is resolved through native singular `harbor version show`, and
+each trial must match the pinned task **lock source and digest**. Board
+membership alone is insufficient (some public rows use a different task source).
+`config.task.ref` is not required. Public Hub trial UUID and original
+`result.json.id` may legitimately differ; both are retained.
+
+Native reward authority is original `result.json.verifier_result.rewards` plus
+whichever original `verifier/reward.txt`/`reward.json` files exist; no reward file
+is synthesized. Required trajectory, result, lock, native reward, and verifier
+stdout evidence is reported separately as missing/invalid/mismatched. Original
+trial failures/exception information remain failures, even when their evidence
+is complete. JSON output distinguishes `integrity_ok` from `evidence_complete`
+and labels smoke scope explicitly. Exit 0 means complete evidence **within that
+declared scope** (or successful listing); exit 2 means failure/incompleteness.
+An intact hash or a successful source-only test is not public-corpus coverage.
+
 ## Disk retention (`evallab gc`)
 
 Unpromoted Harbor jobs under `runs/` are eligible only after they are

@@ -336,13 +336,13 @@
     "test": 152
   },
   "key_id": "tb4-audit-v1",
-  "native_reproductions_performed": 0,
+  "native_reproductions_performed": 10,
   "native_task_splits": {
     "dev": 25,
     "test": 41
   },
   "native_tasks": 66,
-  "paid_cost_usd": 0,
+  "paid_cost_usd": 0.786752,
   "pm_execution_claims": {
     "false": 4,
     "true": 137,
@@ -473,5 +473,18 @@
     "changed": 10,
     "uncertain": 6,
     "unchanged": 225
+  },
+  "witness_replay": {
+    "confirmed": 10,
+    "registered": 10,
+    "splits": {
+      "dev": 10
+    },
+    "tasks": {
+      "cargo-flight-dispatch": 4,
+      "fin-saccr-rwa": 1,
+      "html-js-filter": 3,
+      "vf2-speedup-networkx": 2
+    }
   }
 }

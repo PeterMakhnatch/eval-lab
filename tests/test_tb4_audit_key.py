@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
+import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -150,3 +153,127 @@ def test_symlinked_source_and_changed_exports_cannot_cross_the_read_boundary(
     changed.write_text("Mutated after the frozen export.\n")
     with pytest.raises(ValueError, match="changed after export"):
         views.agent_tools(destination)
+
+
+KEY = ROOT / "research/answer-keys/tb4-audit-v1"
+
+
+def _build_module():
+    sys.path.insert(0, str(KEY))
+    try:
+        spec = importlib.util.spec_from_file_location("tb4_audit_build", KEY / "build.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(str(KEY))
+    return module
+
+
+build = _build_module()
+SOURCE = json.loads((KEY / "source.json").read_text(encoding="utf-8"))
+REGISTRY = json.loads((KEY / "witnesses.json").read_text(encoding="utf-8"))
+
+
+def _confirmed_registry(root: Path) -> dict:
+    """One registered witness, copied to a scratch root and marked as confirmed."""
+    witness = copy.deepcopy(REGISTRY["witnesses"][0])
+    shutil.copytree(KEY / witness["solution_dir"], root / witness["solution_dir"])
+    witness |= {
+        "upstream_replay": {"reward": 1.0, "cost_usd": 0.02},
+        "port_replay": {"reward": 0.0},
+        "confirmed": True,
+    }
+    return {"schema": REGISTRY["schema"], "witnesses": [witness]}
+
+
+def test_registered_witnesses_are_dev_only_and_digest_bound() -> None:
+    assert REGISTRY["schema"] == "tb4.audit.witnesses/v1"
+    assert len(REGISTRY["witnesses"]) == 10
+    for witness in REGISTRY["witnesses"]:
+        assert witness["split"] == "dev"
+        assert (KEY / witness["solution_dir"] / "solve.sh").is_file()
+    build.build_outputs(SOURCE)
+
+
+def test_confirmed_witness_is_attached_to_its_item(tmp_path: Path) -> None:
+    registry = _confirmed_registry(tmp_path)
+    witness = registry["witnesses"][0]
+    outputs = build.build_outputs(SOURCE, registry, witness_root=tmp_path)
+    items = {row["item_id"]: row for row in map(json.loads, outputs["items.jsonl"].splitlines())}
+    item = items[witness["finding_id"]]
+    assert item["label_strength"] == "confirmed"
+    assert item["reproducer"] == {
+        "kind": "command",
+        "path": f"research/answer-keys/tb4-audit-v1/{witness['solution_dir']}/solve.sh",
+        "expected_reward": 1.0,
+    }
+    assert item["witness"]["witness_id"] == witness["witness_id"]
+    summary = json.loads(outputs["summary.json"])
+    assert summary["witness_replay"]["confirmed"] == 1
+    assert summary["native_reproductions_performed"] == 1
+    assert summary["paid_cost_usd"] == 0.02
+
+
+def test_witness_on_a_test_split_task_is_rejected(tmp_path: Path) -> None:
+    registry = _confirmed_registry(tmp_path)
+    tasks = [json.loads(line) for line in (KEY / "tasks.jsonl").read_text().splitlines()]
+    held_out = next(row["task"] for row in tasks if row["split"] == "test")
+    finding = next(row for row in SOURCE["findings"] if row["task"] == held_out)
+    registry["witnesses"][0] |= {"task": held_out, "finding_id": finding["finding_id"]}
+    with pytest.raises(ValueError, match="dev-split"):
+        build.build_outputs(SOURCE, registry, witness_root=tmp_path)
+    registry["witnesses"][0]["finding_id"] = "pm-tb4:unknown:0000000000"
+    with pytest.raises(ValueError, match="unknown finding"):
+        build.build_outputs(SOURCE, registry, witness_root=tmp_path)
+
+
+def test_tampered_witness_files_are_rejected(tmp_path: Path) -> None:
+    registry = _confirmed_registry(tmp_path)
+    solve = tmp_path / registry["witnesses"][0]["solution_dir"] / "solve.sh"
+    solve.write_text(solve.read_text() + "echo tampered\n")
+    with pytest.raises(ValueError, match="sha256"):
+        build.build_outputs(SOURCE, registry, witness_root=tmp_path)
+
+
+@pytest.mark.parametrize(("upstream", "port"), [(0.0, 0.0), (1.0, 1.0), (None, 0.0), (1.0, None)])
+def test_unconfirmed_rewards_cannot_be_registered_as_confirmed(
+    tmp_path: Path, upstream: float | None, port: float | None
+) -> None:
+    registry = _confirmed_registry(tmp_path)
+    registry["witnesses"][0] |= {
+        "upstream_replay": {"reward": upstream},
+        "port_replay": {"reward": port},
+    }
+    with pytest.raises(ValueError, match="upstream reward 1.0"):
+        build.build_outputs(SOURCE, registry, witness_root=tmp_path)
+
+
+def test_witness_files_never_enter_the_auditor_view(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    row, upstream = _task(root)
+    package = upstream / "square"
+    (package / "tests/witnesses.json").write_text(SECRET + "\n")
+    (package / "solution/witnesses").mkdir()
+    (package / "solution/witnesses/solve.sh").write_text(SECRET + "\n")
+    row["subject"]["task_digest"] = task_directory_digest(package)
+    destination = root / "actor"
+    manifest = views.materialize_agent_view([row], destination, split="test", task_root=upstream)
+    assert not any("witnesses" in name for name in manifest["files"])
+    tools = views.agent_tools(destination)
+    assert tools.run("grep", {"path": ".", "pattern": SECRET}).startswith("[no matches")
+    for path in ("tasks/square/tests/witnesses.json", "tasks/square/solution/witnesses/solve.sh"):
+        with pytest.raises(ValueError):
+            tools.run("read", {"path": path})
+
+    # A view whose manifest was edited to list a witness file is refused outright.
+    forged = root / "forged"
+    views.materialize_agent_view([row], forged, split="test", task_root=upstream)
+    (forged / "witnesses.json").write_text(SECRET)
+    bundle = forged / "bundle.json"
+    manifest = json.loads(bundle.read_text())
+    manifest["files"]["witnesses.json"] = views.hashlib.sha256(SECRET.encode()).hexdigest()
+    bundle.chmod(0o600)
+    bundle.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="scorer-only"):
+        views.agent_tools(forged)

@@ -61,8 +61,10 @@ This consumes the ground-truth lane's `tb4.audit.agent-view/v1` export through
 its released `research/answer-keys/tb4-audit-v1/views.py` capability provider;
 it does not open the private answer key. The canonical public task identity
 and digest must match the private upstream package used for native execution,
-and every selected source file must match that package. Only the selected
-task's inventoried, read-only files reach the reviewer, not `inputs.jsonl`,
+and every selected source file must match that package.
+The strict `tb4.audit.task_input/v1` record supplies identity, not file paths:
+the task capability's root is derived from its validated package name.
+Only the selected task's inventoried, read-only files reach the reviewer, not `inputs.jsonl`,
 split assignments, source reviews or raw taxonomy examples. Changed view
 bytes or a replaced manifest stop subsequent calls. Development without a
 released key uses only the explicitly approved fallback DEV packages.

@@ -127,8 +127,6 @@ class EnvTools:
         if not isinstance(subject.get("task_id"), str) or not subject["task_id"]:
             raise ValueError("exported view has no canonical task identity")
         prefix = f"tasks/{self.task_dir.name}/"
-        if public.get("files_root") != prefix.removesuffix("/"):
-            raise ValueError("exported task files are not under their canonical view root")
         selected = {name.removeprefix(prefix) for name in capability.files if name.startswith(prefix)}
         if "instruction.md" not in selected or not selected <= self.files:
             raise ValueError("exported view contains missing or unsupported task input surfaces")

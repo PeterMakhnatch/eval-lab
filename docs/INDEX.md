@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:fd003b2a613397b3e797071f9441b09d42cb863c5c143899ee941408cf42d5cc
+    digest: sha256:fecd7af9c7cc6b7e400cd469a2964013dcb7cb1eea0ce764adec218970e6e4a0
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -97,13 +97,13 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:ba53910cce6237c1bc57eb8c1b22a94c74e981a2abde4821a04044af1c272ffb
+    digest: sha256:7ada2ac1ad1a92ba20cd280dc82c45580f8933e88f6d8c44d70f8c6265bd29cd
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
-    digest: sha256:a0f85a30fa6c77647c38d60e2a1c0836ed18ddd6764e5766308ccd439b5b76df
+    digest: sha256:59bd3f60192fef0eabbbf5d7828b943e886ef82d7c5a0b5aab146bc887f36139
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md

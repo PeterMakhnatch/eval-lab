@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 from typing import Any
@@ -203,3 +204,52 @@ def test_rejected_output_inside_exported_view_does_not_change_the_view(tmp_path:
     with pytest.raises(ValueError, match="disjoint"):
         EnvTools(tools.task_dir, output, repo_root=tmp_path.resolve(), view_dir=view)
     assert not output.exists()
+
+
+def _sealed_tools(tmp_path: Path) -> EnvTools:
+    original = _tools(tmp_path)
+    repo = Path(__file__).resolve().parents[1]
+    helper = repo / "research/answer-keys/tb4-audit-v1/views.py"
+    spec = importlib.util.spec_from_file_location("_qa_env_test_views", helper)
+    assert spec is not None and spec.loader is not None
+    provider = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(provider)
+    view = tmp_path.resolve() / "view"
+    provider.materialize_agent_view([{
+        "split": "dev",
+        "subject": {"kind": "task", "task_id": "terminal-bench/package",
+                    "task_digest": original.task_digest},
+        "package": {"name": "package", "pin": "synthetic", "version": "4.0.0"},
+    }], view, split="dev", task_root=original.task_dir.parent)
+    return EnvTools(original.task_dir, tmp_path.resolve() / "sealed-run", repo_root=repo, view_dir=view)
+
+
+def test_current_sealed_view_preserves_scorer_identity_and_denies_root_metadata(tmp_path: Path) -> None:
+    tools = _sealed_tools(tmp_path)
+    packet = tools.call("task-info", {"path": "tests/check.py"})
+    assert packet["task_id"] == "terminal-bench/package"
+    _record(tools, _finding(tools))
+    retained, = load_findings_dir(tools.run_dir / "findings")
+    assert retained.subject.task_id == "terminal-bench/package"
+    assert retained.subject.task_digest == tools.task_digest
+    for path in ("inputs.jsonl", "../bundle.json", "taxonomy.json"):
+        with pytest.raises(ValueError):
+            tools.call("task-info", {"path": path})
+
+
+@pytest.mark.parametrize("change", ["source", "manifest"])
+def test_sealed_view_changes_cannot_be_read_under_old_identity(tmp_path: Path, change: str) -> None:
+    tools = _sealed_tools(tmp_path)
+    assert tools.view_dir is not None
+    if change == "source":
+        path = tools.view_dir / "tasks/package/tests/check.py"
+        path.chmod(0o644)
+        path.write_text("raise RuntimeError('modified view')\n")
+    else:
+        path = tools.view_dir / "bundle.json"
+        data = json.loads(path.read_text())
+        data["split"] = "test"
+        path.chmod(0o644)
+        path.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        tools.call("task-info", {"path": "tests/check.py"})

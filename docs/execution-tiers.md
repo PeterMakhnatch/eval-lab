@@ -75,6 +75,82 @@ Hub with all 1,476 baseline trials; its tasks follow the same classification
 rules. The exact dataset slug should be read off hub.harborframework.com
 before first use — do not guess it.
 
+## Fresh unchanged upstream graders
+
+`evallab.upstream_grader.run_upstream_grader(task, solution_dir=...)` and
+`python -m evallab.upstream_grader` execute an **original Harbor task directory**,
+not ported tests. Use the locked native Harbor runtime, not a global older CLI.
+The task, tests, and input are digested and frozen under a fresh `--output-dir`;
+native `tests/test.sh`, reward files, structured per-test evidence, and raw
+verifier logs are retained. Missing/invalid rewards, timeouts, and input drift
+are unmeasured errors, never synthetic zeroes or passes. No model agent is
+constructed; arbitrary upstream solution/verifier external API calls are not
+measured by this primitive.
+
+```bash
+# Local-byte planning only: no Docker/Modal probe, allocation, or ledger write.
+.venv/bin/python -m evallab.upstream_grader /path/to/upstream/task \
+  --oracle --backend docker --timeout-seconds 140 --plan
+
+# Run only under the CURRENT explicit approval; reuse THIS ledger for all controls.
+.venv/bin/python -m evallab.upstream_grader /path/to/upstream/task \
+  --oracle --backend modal --timeout-seconds 140 \
+  --approval 'Current IN-1 operator approval' --max-usd 1.50 \
+  --spend-ledger /tmp/in1-campaign/spend.json \
+  --billing-tag 2026-10-20-open-qa --modal-app-name 2026-10-20-open-qa-upstream \
+  --output-dir /tmp/in1-campaign/task-oracle
+```
+
+Use `--blank` instead of `--oracle` for a fresh base with no solution upload or
+commands, and a different fresh output directory. `--solution-dir DIR` copies
+`DIR` to `/solution` and executes its real `solve.sh` with native task workdir
+and solution environment. `--container-snapshot app.tar --snapshot-target /app
+--snapshot-platform linux/amd64` (Python: `ContainerSnapshot(archive, target,
+platform)`) replaces **only that directory's contents** in a fresh original
+task image. For example, export with `docker cp candidate:/app/. - > app.tar`.
+This is not attachment to a candidate container, image/process replay, or replay
+of dependencies elsewhere. Only regular files/directories are supported; links,
+special files, special permission bits, traversal, and system-root replacement
+are refused. JSON requests use `--request FILE` or `--request -` for stdin;
+snapshot objects have exactly `archive`, `target`, and `platform` fields.
+Stdout is one JSON result, with native diagnostics on stderr.
+
+CPU/RAM declarations remain exact applied limits; no resource override or
+downsizing is permitted. Declared storage is checked against **kernel-reported
+free root-filesystem capacity** before task commands, not an applied disk quota
+or provider physical-storage reservation. Virtualized filesystem totals remain
+reported observations, not independently measured physical capacity.
+Unbounded competing Docker containers fail admission. Docker records its
+selected Linux architecture/emulation; `auto` can choose approved Modal only
+after Docker's **pre-execution admission** fails, never after a run starts.
+Compose sidecars, accelerators, multi-step tasks, and unsupported transports
+are refused rather than partially graded.
+
+Modal requires current approval, an owned billing-tag-prefixed app, and **one
+persisted campaign ledger**, protected across processes. This ledger covers
+**Modal infrastructure only**, not external APIs called by arbitrary task,
+solution, or verifier code. Credential names cannot prove whether calls incur
+charges; inspect and separately authorize such dependencies before execution.
+The IN-1 control approval covers only the three inspected credential-free
+controls, not arbitrary model-calling tasks. Each infrastructure admission reserves
+all roles' full declared image-build allowances at at least 8 CPU/16 GiB,
+plus each role's full watchdog + 90-second Sandbox lifetime, with a 25% margin.
+Sandbox rates are $0.00003942/physical-core-second and $0.00000667/GiB-second
+([pricing](https://modal.com/pricing), observed 2026-10-20); the larger builder
+allowance conservatively uses those rates too, not unproven Functions pricing.
+For two 2-CPU/4-GiB roles, 600-second build allowances and a stated 140-second
+watchdog, initial reservation is about $0.693794 **per attempt**, not six fresh
+$1.50 caps. Errors, cancellation, or unknown closure retain the full reservation.
+Only native successful verification plus completed image hydration and terminal
+public SDK `Sandbox.wait` **and `Sandbox.returncode`** evidence for every owned
+sandbox permits releasing unused reserve. `wait()` itself returns no value.
+The final conservative estimate charges both roles' builder
+and task resources for rounded-up **whole-lifecycle elapsed time**, plus margin.
+A completed native grade survives budget/cleanup uncertainty, which is reported
+separately and can prevent the next allocation. These are reservation estimates,
+**not invoices or a provider-wide dollar kill switch**; Sandbox TTL does not
+claim to terminate an image builder. Planning is not spending authorization.
+
 ## Modal Sandbox controls
 
 Modal launches pass `sandbox_timeout_secs` to Harbor rather than inheriting its

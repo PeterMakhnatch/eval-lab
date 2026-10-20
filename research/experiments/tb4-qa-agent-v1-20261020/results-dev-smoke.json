@@ -1,0 +1,80 @@
+{
+ "campaign": "dev-smoke",
+ "note": "DEV smoke: denominators are every DEV finding, but v1 ran only on the smoke tasks; read the per-task cells. Tasks with a claim: ['math-eval-grader', 'vf2-speedup-networkx', 'vpp-loss-divergence']",
+ "rows": {
+  "v1": {
+   "category_1to1": {
+    "all": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 5,
+     "precision_hits": 5
+    },
+    "matched_item_ids": [
+     "pm-tb4:vf2-speedup-networkx:4cfd6f89a6",
+     "pm-tb4:vf2-speedup-networkx:85dfe97f15",
+     "pm-tb4:vf2-speedup-networkx:8d0fce1596",
+     "pm-tb4:vf2-speedup-networkx:bcd5816d09",
+     "pm-tb4:vpp-loss-divergence:85318dcb13"
+    ],
+    "nobiped": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 5
+    }
+   },
+   "claims": 13,
+   "claims_by_class": {
+    "env_mismatch_or_flaky": 3,
+    "grader_tamperable": 2,
+    "unstated_requirement": 2,
+    "weak_check": 5,
+    "wrong_answer_key": 1
+   },
+   "claims_nobiped": 13,
+   "locus_and_class": {
+    "all": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 0,
+     "precision_hits": 0
+    },
+    "matched_item_ids": [],
+    "nobiped": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 0
+    }
+   },
+   "split": "dev",
+   "task_any_1to1": {
+    "all": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 10,
+     "precision_hits": 10
+    },
+    "matched_item_ids": [
+     "pm-tb4:math-eval-grader:16aab0dcba",
+     "pm-tb4:math-eval-grader:3fc795c698",
+     "pm-tb4:vf2-speedup-networkx:4cfd6f89a6",
+     "pm-tb4:vf2-speedup-networkx:85dfe97f15",
+     "pm-tb4:vf2-speedup-networkx:8d0fce1596",
+     "pm-tb4:vf2-speedup-networkx:afb319eb5f",
+     "pm-tb4:vf2-speedup-networkx:bcd5816d09",
+     "pm-tb4:vpp-loss-divergence:85318dcb13",
+     "pm-tb4:vpp-loss-divergence:867ea92585",
+     "pm-tb4:vpp-loss-divergence:bcdcd8ca48"
+    ],
+    "nobiped": {
+     "claims": 13,
+     "findings": 86,
+     "hits": 10
+    }
+   },
+   "tasks_with_claim": 3
+  }
+ },
+ "schema": "tb4-qa-agent-v1/score/v1",
+ "split": "dev"
+}

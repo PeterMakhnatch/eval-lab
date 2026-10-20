@@ -1,0 +1,1056 @@
+{
+ "declared": "post hoc, after primary results",
+ "evaluation": {
+  "any_wrong_fail": {
+   "auroc": {
+    "fail_rate": {
+     "all": {
+      "ci95": [
+       0.5381944444444444,
+       0.8166894664842681
+      ],
+      "value": 0.6770451770451771
+     },
+     "dev": {
+      "ci95": [
+       0.5,
+       0.9242424242424242
+      ],
+      "value": 0.7307692307692307
+     },
+     "test": {
+      "ci95": [
+       0.46474358974358976,
+       0.8380952380952381
+      ],
+      "value": 0.6643356643356644
+     }
+    },
+    "low_discrimination": {
+     "all": {
+      "ci95": [
+       0.47586980920314254,
+       0.7650462962962963
+      ],
+      "value": 0.6275946275946276
+     },
+     "dev": {
+      "ci95": [
+       0.36153846153846153,
+       0.8333333333333334
+      ],
+      "value": 0.6153846153846154
+     },
+     "test": {
+      "ci95": [
+       0.41025641025641024,
+       0.7976190476190477
+      ],
+      "value": 0.6118881118881119
+     }
+    },
+    "low_strong_weak_gap": {
+     "all": {
+      "ci95": [
+       0.4739583333333333,
+       0.7719907407407407
+      ],
+      "value": 0.6263736263736264
+     },
+     "dev": {
+      "ci95": [
+       0.3333333333333333,
+       0.8166666666666667
+      ],
+      "value": 0.5923076923076923
+     },
+     "test": {
+      "ci95": [
+       0.42962962962962964,
+       0.8060897435897436
+      ],
+      "value": 0.6206293706293706
+     }
+    }
+   },
+   "dev": {
+    "positives": 13,
+    "tasks": 23
+   },
+   "flag_all": {
+    "false_flags_not_in_key": [
+     "coq-block-bound",
+     "react-lead-form",
+     "uefi-bootkit"
+    ],
+    "flagged": 23,
+    "precision": {
+     "k": 20,
+     "n": 23,
+     "rate": 0.8695652173913043,
+     "wilson95": [
+      0.6787251771166551,
+      0.9546234090999188
+     ]
+    },
+    "recall": {
+     "k": 20,
+     "n": 39,
+     "rate": 0.5128205128205128,
+     "wilson95": [
+      0.36199362873303487,
+      0.6613482468095501
+     ]
+    }
+   },
+   "flag_dev": {
+    "false_flags_not_in_key": [
+     "uefi-bootkit"
+    ],
+    "flagged": 7,
+    "precision": {
+     "k": 6,
+     "n": 7,
+     "rate": 0.8571428571428571,
+     "wilson95": [
+      0.4868721704328627,
+      0.974320375684582
+     ]
+    },
+    "recall": {
+     "k": 6,
+     "n": 13,
+     "rate": 0.46153846153846156,
+     "wilson95": [
+      0.23206067795783372,
+      0.7085620430143273
+     ]
+    }
+   },
+   "flag_test": {
+    "false_flags_not_in_key": [
+     "coq-block-bound",
+     "react-lead-form"
+    ],
+    "flagged": 16,
+    "precision": {
+     "k": 14,
+     "n": 16,
+     "rate": 0.875,
+     "wilson95": [
+      0.6397717271212133,
+      0.9650225122891567
+     ]
+    },
+    "recall": {
+     "k": 14,
+     "n": 26,
+     "rate": 0.5384615384615384,
+     "wilson95": [
+      0.3545793873358501,
+      0.7124414648149144
+     ]
+    }
+   },
+   "positives": 39,
+   "primary_score": "low_discrimination",
+   "target": "any_wrong_fail",
+   "tasks_scored": 60,
+   "test": {
+    "positives": 26,
+    "tasks": 37
+   },
+   "threshold": {
+    "rule": "precision>=0.8",
+    "threshold": -0.48626636285400504
+   }
+  },
+  "epoch_fn": {
+   "auroc": {
+    "fail_rate": {
+     "all": {
+      "ci95": [
+       0.4455337690631808,
+       0.866
+      ],
+      "value": 0.6699346405228758
+     },
+     "dev": {
+      "ci95": [
+       0.14285714285714285,
+       0.8636363636363636
+      ],
+      "value": 0.55
+     },
+     "test": {
+      "ci95": [
+       0.44285714285714284,
+       0.9901960784313726
+      ],
+      "value": 0.7258064516129032
+     }
+    },
+    "low_discrimination": {
+     "all": {
+      "ci95": [
+       0.4366576819407008,
+       0.8333333333333334
+      ],
+      "value": 0.6383442265795207
+     },
+     "dev": {
+      "ci95": [
+       0.22727272727272727,
+       0.8571428571428571
+      ],
+      "value": 0.55
+     },
+     "test": {
+      "ci95": [
+       0.40625,
+       0.9242424242424242
+      ],
+      "value": 0.6827956989247311
+     }
+    },
+    "low_strong_weak_gap": {
+     "all": {
+      "ci95": [
+       0.38544474393531,
+       0.8214285714285714
+      ],
+      "value": 0.6045751633986928
+     },
+     "dev": {
+      "ci95": [
+       0.07142857142857142,
+       0.8571428571428571
+      ],
+      "value": 0.44166666666666665
+     },
+     "test": {
+      "ci95": [
+       0.4125,
+       0.9411764705882353
+      ],
+      "value": 0.6935483870967742
+     }
+    }
+   },
+   "dev": {
+    "positives": 3,
+    "tasks": 23
+   },
+   "flag_all": {
+    "false_flags_not_in_key": [
+     "batched-eval-parity",
+     "biped-contact-dynamics",
+     "coq-block-bound",
+     "distributed-dedup",
+     "embedding-drift-monitor",
+     "fin-saccr-rwa",
+     "freecad-impeller",
+     "freecad-spring-clip",
+     "html-js-filter",
+     "intrastat-meldung",
+     "jax-speedrun-gpu",
+     "ks-solver-cpp",
+     "kv-live-surgery",
+     "lake-temp-glm",
+     "layout-config-recreation",
+     "layout-config-recreation2",
+     "live-database-cutover",
+     "medical-claims-processing",
+     "mp-checkpoint-consolidation",
+     "mvcc-lsm-compaction",
+     "photonic-waveguide-routing",
+     "production-planning",
+     "react-lead-form",
+     "roy-polymorph-cn",
+     "session-window-debug",
+     "sglang-qwen-burst",
+     "shadow-relay",
+     "takens-embedding-lean",
+     "uefi-bootkit",
+     "vba-userform-port",
+     "vf2-speedup-networkx",
+     "vllm-deepseek-streaming",
+     "vpp-loss-divergence",
+     "wal-recovery-ordering",
+     "wdm-design"
+    ],
+    "flagged": 43,
+    "precision": {
+     "k": 8,
+     "n": 43,
+     "rate": 0.18604651162790697,
+     "wilson95": [
+      0.09741751423913442,
+      0.32617003669979305
+     ]
+    },
+    "recall": {
+     "k": 8,
+     "n": 9,
+     "rate": 0.8888888888888888,
+     "wilson95": [
+      0.565000294137759,
+      0.9801091123841079
+     ]
+    }
+   },
+   "flag_dev": {
+    "false_flags_not_in_key": [
+     "distributed-dedup",
+     "fin-saccr-rwa",
+     "freecad-impeller",
+     "freecad-spring-clip",
+     "html-js-filter",
+     "jax-speedrun-gpu",
+     "layout-config-recreation2",
+     "live-database-cutover",
+     "photonic-waveguide-routing",
+     "sglang-qwen-burst",
+     "uefi-bootkit",
+     "vba-userform-port",
+     "vf2-speedup-networkx",
+     "vpp-loss-divergence"
+    ],
+    "flagged": 17,
+    "precision": {
+     "k": 3,
+     "n": 17,
+     "rate": 0.17647058823529413,
+     "wilson95": [
+      0.06191126632666469,
+      0.4102945858947459
+     ]
+    },
+    "recall": {
+     "k": 3,
+     "n": 3,
+     "rate": 1.0,
+     "wilson95": [
+      0.43850296784794796,
+      1.0
+     ]
+    }
+   },
+   "flag_test": {
+    "false_flags_not_in_key": [
+     "batched-eval-parity",
+     "biped-contact-dynamics",
+     "coq-block-bound",
+     "embedding-drift-monitor",
+     "intrastat-meldung",
+     "ks-solver-cpp",
+     "kv-live-surgery",
+     "lake-temp-glm",
+     "layout-config-recreation",
+     "medical-claims-processing",
+     "mp-checkpoint-consolidation",
+     "mvcc-lsm-compaction",
+     "production-planning",
+     "react-lead-form",
+     "roy-polymorph-cn",
+     "session-window-debug",
+     "shadow-relay",
+     "takens-embedding-lean",
+     "vllm-deepseek-streaming",
+     "wal-recovery-ordering",
+     "wdm-design"
+    ],
+    "flagged": 26,
+    "precision": {
+     "k": 5,
+     "n": 26,
+     "rate": 0.19230769230769232,
+     "wilson95": [
+      0.08507061143441572,
+      0.3787625713594678
+     ]
+    },
+    "recall": {
+     "k": 5,
+     "n": 6,
+     "rate": 0.8333333333333334,
+     "wilson95": [
+      0.4364971775233289,
+      0.9699466302860857
+     ]
+    }
+   },
+   "positives": 9,
+   "primary_score": "low_discrimination",
+   "target": "epoch_fn",
+   "tasks_scored": 60,
+   "test": {
+    "positives": 6,
+    "tasks": 37
+   },
+   "threshold": {
+    "rule": "max_dev_f1",
+    "threshold": -0.7573716517551533
+   }
+  },
+  "pm_ambiguity": {
+   "auroc": {
+    "fail_rate": {
+     "all": {
+      "ci95": [
+       0.49333333333333335,
+       0.7858851674641149
+      ],
+      "value": 0.6429425837320574
+     },
+     "dev": {
+      "ci95": [
+       0.5,
+       0.9307692307692308
+      ],
+      "value": 0.7307692307692307
+     },
+     "test": {
+      "ci95": [
+       0.3904761904761905,
+       0.796969696969697
+      ],
+      "value": 0.6066666666666667
+     }
+    },
+    "low_discrimination": {
+     "all": {
+      "ci95": [
+       0.4557416267942584,
+       0.7452153110047847
+      ],
+      "value": 0.6016746411483254
+     },
+     "dev": {
+      "ci95": [
+       0.36507936507936506,
+       0.8384615384615385
+      ],
+      "value": 0.6153846153846154
+     },
+     "test": {
+      "ci95": [
+       0.375,
+       0.7589285714285714
+      ],
+      "value": 0.57
+     }
+    },
+    "low_strong_weak_gap": {
+     "all": {
+      "ci95": [
+       0.454172366621067,
+       0.7446172248803827
+      ],
+      "value": 0.6016746411483254
+     },
+     "dev": {
+      "ci95": [
+       0.3423076923076923,
+       0.8214285714285714
+      ],
+      "value": 0.5923076923076923
+     },
+     "test": {
+      "ci95": [
+       0.3814814814814815,
+       0.7827380952380952
+      ],
+      "value": 0.5816666666666667
+     }
+    }
+   },
+   "dev": {
+    "positives": 13,
+    "tasks": 23
+   },
+   "flag_all": {
+    "false_flags_not_in_key": [
+     "coq-block-bound",
+     "music-harmony",
+     "react-lead-form",
+     "uefi-bootkit"
+    ],
+    "flagged": 23,
+    "precision": {
+     "k": 19,
+     "n": 23,
+     "rate": 0.8260869565217391,
+     "wilson95": [
+      0.628623523419108,
+      0.9302134644190456
+     ]
+    },
+    "recall": {
+     "k": 19,
+     "n": 38,
+     "rate": 0.5,
+     "wilson95": [
+      0.3484992835330236,
+      0.6515007164669764
+     ]
+    }
+   },
+   "flag_dev": {
+    "false_flags_not_in_key": [
+     "uefi-bootkit"
+    ],
+    "flagged": 7,
+    "precision": {
+     "k": 6,
+     "n": 7,
+     "rate": 0.8571428571428571,
+     "wilson95": [
+      0.4868721704328627,
+      0.974320375684582
+     ]
+    },
+    "recall": {
+     "k": 6,
+     "n": 13,
+     "rate": 0.46153846153846156,
+     "wilson95": [
+      0.23206067795783372,
+      0.7085620430143273
+     ]
+    }
+   },
+   "flag_test": {
+    "false_flags_not_in_key": [
+     "coq-block-bound",
+     "music-harmony",
+     "react-lead-form"
+    ],
+    "flagged": 16,
+    "precision": {
+     "k": 13,
+     "n": 16,
+     "rate": 0.8125,
+     "wilson95": [
+      0.569911190170143,
+      0.9340840093384986
+     ]
+    },
+    "recall": {
+     "k": 13,
+     "n": 25,
+     "rate": 0.52,
+     "wilson95": [
+      0.33498516937238537,
+      0.6996871405826064
+     ]
+    }
+   },
+   "positives": 38,
+   "primary_score": "low_discrimination",
+   "target": "pm_ambiguity",
+   "tasks_scored": 60,
+   "test": {
+    "positives": 25,
+    "tasks": 37
+   },
+   "threshold": {
+    "rule": "precision>=0.8",
+    "threshold": -0.48626636285400504
+   }
+  }
+ },
+ "features": {
+  "atrx-vep-crispr": {
+   "discrimination": -0.13206294166997415,
+   "fail_rate": 0.6114285714285714,
+   "informative": true,
+   "low_discrimination": 0.13206294166997415,
+   "low_strong_weak_gap": 0.18000000000000005,
+   "strong_weak_gap": -0.18000000000000005
+  },
+  "batched-eval-parity": {
+   "discrimination": 0.43013906877686503,
+   "fail_rate": 0.5142857142857142,
+   "informative": true,
+   "low_discrimination": -0.43013906877686503,
+   "low_strong_weak_gap": -0.35999999999999993,
+   "strong_weak_gap": 0.35999999999999993
+  },
+  "biped-contact-dynamics": {
+   "discrimination": 0.41494523219780843,
+   "fail_rate": 0.5371428571428571,
+   "informative": true,
+   "low_discrimination": -0.41494523219780843,
+   "low_strong_weak_gap": -0.22000000000000003,
+   "strong_weak_gap": 0.22000000000000003
+  },
+  "cad-model": {
+   "discrimination": 0.8182037256147919,
+   "fail_rate": 0.4971428571428571,
+   "informative": true,
+   "low_discrimination": -0.8182037256147919,
+   "low_strong_weak_gap": -0.84,
+   "strong_weak_gap": 0.84
+  },
+  "coq-block-bound": {
+   "discrimination": 0.47424108656192804,
+   "fail_rate": 0.1657142857142857,
+   "informative": true,
+   "low_discrimination": -0.47424108656192804,
+   "low_strong_weak_gap": -0.36,
+   "strong_weak_gap": 0.36
+  },
+  "ctr-optimization": {
+   "discrimination": 0.7913413467554411,
+   "fail_rate": 0.72,
+   "informative": true,
+   "low_discrimination": -0.7913413467554411,
+   "low_strong_weak_gap": -0.5399999999999999,
+   "strong_weak_gap": 0.5399999999999999
+  },
+  "cumulative-layout-shift": {
+   "discrimination": 0.6868157637401695,
+   "fail_rate": 0.2899408284023669,
+   "informative": true,
+   "low_discrimination": -0.6868157637401695,
+   "low_strong_weak_gap": -0.495,
+   "strong_weak_gap": 0.495
+  },
+  "data-anonymization": {
+   "discrimination": 0.24665324677835515,
+   "fail_rate": 0.9942528735632183,
+   "informative": true,
+   "low_discrimination": -0.24665324677835515,
+   "low_strong_weak_gap": -0.02,
+   "strong_weak_gap": 0.02
+  },
+  "distributed-dedup": {
+   "discrimination": 0.5353790921370525,
+   "fail_rate": 0.5380116959064327,
+   "informative": true,
+   "low_discrimination": -0.5353790921370525,
+   "low_strong_weak_gap": -0.5,
+   "strong_weak_gap": 0.5
+  },
+  "embedding-drift-monitor": {
+   "discrimination": 0.755648435001353,
+   "fail_rate": 0.36,
+   "informative": true,
+   "low_discrimination": -0.755648435001353,
+   "low_strong_weak_gap": -0.8400000000000001,
+   "strong_weak_gap": 0.8400000000000001
+  },
+  "fin-saccr-rwa": {
+   "discrimination": 0.571425892317438,
+   "fail_rate": 0.20571428571428574,
+   "informative": true,
+   "low_discrimination": -0.571425892317438,
+   "low_strong_weak_gap": -0.42000000000000004,
+   "strong_weak_gap": 0.42000000000000004
+  },
+  "foodstuff-beta-activity": {
+   "discrimination": 0.08983824748820823,
+   "fail_rate": 0.9942857142857143,
+   "informative": true,
+   "low_discrimination": -0.08983824748820823,
+   "low_strong_weak_gap": -0.0,
+   "strong_weak_gap": 0.0
+  },
+  "formal-crypto": {
+   "discrimination": 0.8158806131230117,
+   "fail_rate": 0.4114285714285715,
+   "informative": true,
+   "low_discrimination": -0.8158806131230117,
+   "low_strong_weak_gap": -0.86,
+   "strong_weak_gap": 0.86
+  },
+  "fp8-rmsnorm-gemm": {
+   "discrimination": 0.8510235882004153,
+   "fail_rate": 0.2586206896551724,
+   "informative": true,
+   "low_discrimination": -0.8510235882004153,
+   "low_strong_weak_gap": -0.775,
+   "strong_weak_gap": 0.775
+  },
+  "freecad-impeller": {
+   "discrimination": -0.2047990021250026,
+   "fail_rate": 0.9942857142857143,
+   "informative": true,
+   "low_discrimination": 0.2047990021250026,
+   "low_strong_weak_gap": 0.02,
+   "strong_weak_gap": -0.02
+  },
+  "freecad-platform-drawing": {
+   "discrimination": 0.7573716517551533,
+   "fail_rate": 0.41714285714285715,
+   "informative": true,
+   "low_discrimination": -0.7573716517551533,
+   "low_strong_weak_gap": -0.86,
+   "strong_weak_gap": 0.86
+  },
+  "freecad-spring-clip": {
+   "discrimination": 0.6281553441390715,
+   "fail_rate": 0.5885714285714285,
+   "informative": true,
+   "low_discrimination": -0.6281553441390715,
+   "low_strong_weak_gap": -0.56,
+   "strong_weak_gap": 0.56
+  },
+  "gsea-proteomics": {
+   "discrimination": 0.35867109046273365,
+   "fail_rate": 0.7485714285714286,
+   "informative": true,
+   "low_discrimination": -0.35867109046273365,
+   "low_strong_weak_gap": -0.2,
+   "strong_weak_gap": 0.2
+  },
+  "heat-pump-warranty": {
+   "discrimination": 0.7805276264494315,
+   "fail_rate": 0.5771428571428572,
+   "informative": true,
+   "low_discrimination": -0.7805276264494315,
+   "low_strong_weak_gap": -0.6799999999999999,
+   "strong_weak_gap": 0.6799999999999999
+  },
+  "hof-topology-interpenetration": {
+   "discrimination": 0.8891114743489346,
+   "fail_rate": 0.33333333333333337,
+   "informative": true,
+   "low_discrimination": -0.8891114743489346,
+   "low_strong_weak_gap": -0.92,
+   "strong_weak_gap": 0.92
+  },
+  "html-js-filter": {
+   "discrimination": 0.4937376536287012,
+   "fail_rate": 0.7542857142857142,
+   "informative": true,
+   "low_discrimination": -0.4937376536287012,
+   "low_strong_weak_gap": -0.36,
+   "strong_weak_gap": 0.36
+  },
+  "interleaved-vigenere": {
+   "discrimination": 0.8298947675207801,
+   "fail_rate": 0.4114285714285715,
+   "informative": true,
+   "low_discrimination": -0.8298947675207801,
+   "low_strong_weak_gap": -0.74,
+   "strong_weak_gap": 0.74
+  },
+  "intrastat-meldung": {
+   "discrimination": 0.022029093996374233,
+   "fail_rate": 0.6171428571428572,
+   "informative": true,
+   "low_discrimination": -0.022029093996374233,
+   "low_strong_weak_gap": 0.06,
+   "strong_weak_gap": -0.06
+  },
+  "jax-speedrun-gpu": {
+   "discrimination": 0.7313536896805473,
+   "fail_rate": 0.7283236994219653,
+   "informative": true,
+   "low_discrimination": -0.7313536896805473,
+   "low_strong_weak_gap": -0.6799999999999999,
+   "strong_weak_gap": 0.6799999999999999
+  },
+  "ks-solver-cpp": {
+   "discrimination": 0.6331034390977549,
+   "fail_rate": 0.7514792899408285,
+   "informative": true,
+   "low_discrimination": -0.6331034390977549,
+   "low_strong_weak_gap": -0.525,
+   "strong_weak_gap": 0.525
+  },
+  "kv-live-surgery": {
+   "discrimination": 0.729318944903484,
+   "fail_rate": 0.6,
+   "informative": true,
+   "low_discrimination": -0.729318944903484,
+   "low_strong_weak_gap": -0.52,
+   "strong_weak_gap": 0.52
+  },
+  "lake-temp-glm": {
+   "discrimination": 0.5072561107743527,
+   "fail_rate": 0.7542857142857142,
+   "informative": true,
+   "low_discrimination": -0.5072561107743527,
+   "low_strong_weak_gap": -0.32,
+   "strong_weak_gap": 0.32
+  },
+  "layout-config-recreation": {
+   "discrimination": 0.5753580704079126,
+   "fail_rate": 0.84,
+   "informative": true,
+   "low_discrimination": -0.5753580704079126,
+   "low_strong_weak_gap": -0.44000000000000006,
+   "strong_weak_gap": 0.44000000000000006
+  },
+  "layout-config-recreation2": {
+   "discrimination": 0.628135910041413,
+   "fail_rate": 0.16091954022988508,
+   "informative": true,
+   "low_discrimination": -0.628135910041413,
+   "low_strong_weak_gap": -0.5,
+   "strong_weak_gap": 0.5
+  },
+  "legacy-utility-triage": {
+   "discrimination": 0.8115541774483489,
+   "fail_rate": 0.5542857142857143,
+   "informative": true,
+   "low_discrimination": -0.8115541774483489,
+   "low_strong_weak_gap": -0.7799999999999999,
+   "strong_weak_gap": 0.7799999999999999
+  },
+  "live-database-cutover": {
+   "discrimination": 0.48626636285400504,
+   "fail_rate": 0.5919540229885057,
+   "informative": true,
+   "low_discrimination": -0.48626636285400504,
+   "low_strong_weak_gap": -0.38000000000000006,
+   "strong_weak_gap": 0.38000000000000006
+  },
+  "math-eval-grader": {
+   "discrimination": 0.8278729333841162,
+   "fail_rate": 0.6857142857142857,
+   "informative": true,
+   "low_discrimination": -0.8278729333841162,
+   "low_strong_weak_gap": -0.64,
+   "strong_weak_gap": 0.64
+  },
+  "medical-claims-processing": {
+   "discrimination": 0.0972595401288727,
+   "fail_rate": 0.9823529411764705,
+   "informative": true,
+   "low_discrimination": -0.0972595401288727,
+   "low_strong_weak_gap": -0.02,
+   "strong_weak_gap": 0.02
+  },
+  "mp-checkpoint-consolidation": {
+   "discrimination": 0.629518123506208,
+   "fail_rate": 0.12,
+   "informative": true,
+   "low_discrimination": -0.629518123506208,
+   "low_strong_weak_gap": -0.4,
+   "strong_weak_gap": 0.4
+  },
+  "music-harmony": {
+   "discrimination": 0.2070398898442166,
+   "fail_rate": 0.9657142857142857,
+   "informative": true,
+   "low_discrimination": -0.2070398898442166,
+   "low_strong_weak_gap": -0.08,
+   "strong_weak_gap": 0.08
+  },
+  "mvcc-lsm-compaction": {
+   "discrimination": 0.6696847712354792,
+   "fail_rate": 0.43999999999999995,
+   "informative": true,
+   "low_discrimination": -0.6696847712354792,
+   "low_strong_weak_gap": -0.64,
+   "strong_weak_gap": 0.64
+  },
+  "nextjs-performance": {
+   "discrimination": 0.5834803799986713,
+   "fail_rate": 0.6342857142857143,
+   "informative": true,
+   "low_discrimination": -0.5834803799986713,
+   "low_strong_weak_gap": -0.6,
+   "strong_weak_gap": 0.6
+  },
+  "payments-pipeline-fix": {
+   "discrimination": 0.8424915111929139,
+   "fail_rate": 0.3160919540229885,
+   "informative": true,
+   "low_discrimination": -0.8424915111929139,
+   "low_strong_weak_gap": -0.74,
+   "strong_weak_gap": 0.74
+  },
+  "photonic-waveguide-routing": {
+   "discrimination": 0.3767206795555915,
+   "fail_rate": 0.5229885057471264,
+   "informative": true,
+   "low_discrimination": -0.3767206795555915,
+   "low_strong_weak_gap": -0.3949999999999999,
+   "strong_weak_gap": 0.3949999999999999
+  },
+  "pretrain-shard-corruption": {
+   "discrimination": 0.8938585786398895,
+   "fail_rate": 0.49142857142857144,
+   "informative": true,
+   "low_discrimination": -0.8938585786398895,
+   "low_strong_weak_gap": -1.0,
+   "strong_weak_gap": 1.0
+  },
+  "production-planning": {
+   "discrimination": 0.363910166265566,
+   "fail_rate": 0.7542857142857142,
+   "informative": true,
+   "low_discrimination": -0.363910166265566,
+   "low_strong_weak_gap": -0.19999999999999998,
+   "strong_weak_gap": 0.19999999999999998
+  },
+  "protein-autointerp-disulfide": {
+   "discrimination": -0.05050997381242975,
+   "fail_rate": 0.9257142857142857,
+   "informative": true,
+   "low_discrimination": 0.05050997381242975,
+   "low_strong_weak_gap": -0.02,
+   "strong_weak_gap": 0.02
+  },
+  "react-lead-form": {
+   "discrimination": -0.17282933414704235,
+   "fail_rate": 0.5657142857142857,
+   "informative": true,
+   "low_discrimination": 0.17282933414704235,
+   "low_strong_weak_gap": 0.18000000000000005,
+   "strong_weak_gap": -0.18000000000000005
+  },
+  "retro-console-soc": {
+   "discrimination": 0.8630538165216337,
+   "fail_rate": 0.3314285714285714,
+   "informative": true,
+   "low_discrimination": -0.8630538165216337,
+   "low_strong_weak_gap": -0.74,
+   "strong_weak_gap": 0.74
+  },
+  "risk-scorer-replay": {
+   "discrimination": 0.7997440344087777,
+   "fail_rate": 0.22285714285714286,
+   "informative": true,
+   "low_discrimination": -0.7997440344087777,
+   "low_strong_weak_gap": -0.6,
+   "strong_weak_gap": 0.6
+  },
+  "roy-polymorph-cn": {
+   "discrimination": 0.2971814805223366,
+   "fail_rate": 0.8571428571428572,
+   "informative": true,
+   "low_discrimination": -0.2971814805223366,
+   "low_strong_weak_gap": -0.09999999999999999,
+   "strong_weak_gap": 0.09999999999999999
+  },
+  "rs-archive-clone": {
+   "discrimination": 0.8571931041218079,
+   "fail_rate": 0.49142857142857144,
+   "informative": true,
+   "low_discrimination": -0.8571931041218079,
+   "low_strong_weak_gap": -0.7999999999999999,
+   "strong_weak_gap": 0.7999999999999999
+  },
+  "satb-audio-transcription": {
+   "discrimination": 0.8833874828426995,
+   "fail_rate": 0.5028571428571429,
+   "informative": true,
+   "low_discrimination": -0.8833874828426995,
+   "low_strong_weak_gap": -0.88,
+   "strong_weak_gap": 0.88
+  },
+  "session-window-debug": {
+   "discrimination": 0.26565169305521025,
+   "fail_rate": 0.8342857142857143,
+   "informative": true,
+   "low_discrimination": -0.26565169305521025,
+   "low_strong_weak_gap": -0.24,
+   "strong_weak_gap": 0.24
+  },
+  "sglang-qwen-burst": {
+   "discrimination": -0.12306775603718276,
+   "fail_rate": 0.8742857142857143,
+   "informative": true,
+   "low_discrimination": 0.12306775603718276,
+   "low_strong_weak_gap": 0.04000000000000001,
+   "strong_weak_gap": -0.04000000000000001
+  },
+  "shadow-relay": {
+   "discrimination": 0.5047129449161053,
+   "fail_rate": 0.16666666666666663,
+   "informative": true,
+   "low_discrimination": -0.5047129449161053,
+   "low_strong_weak_gap": -0.3600000000000001,
+   "strong_weak_gap": 0.3600000000000001
+  },
+  "sound-change-cascade": {
+   "discrimination": 0.9347242493802008,
+   "fail_rate": 0.3142857142857143,
+   "informative": true,
+   "low_discrimination": -0.9347242493802008,
+   "low_strong_weak_gap": -0.86,
+   "strong_weak_gap": 0.86
+  },
+  "takens-embedding-lean": {
+   "discrimination": 0.6158681124325969,
+   "fail_rate": 0.6685714285714286,
+   "informative": true,
+   "low_discrimination": -0.6158681124325969,
+   "low_strong_weak_gap": -0.6599999999999999,
+   "strong_weak_gap": 0.6599999999999999
+  },
+  "telecom-entity-resolution": {
+   "discrimination": 0.7860175942130262,
+   "fail_rate": 0.24,
+   "informative": true,
+   "low_discrimination": -0.7860175942130262,
+   "low_strong_weak_gap": -0.7400000000000001,
+   "strong_weak_gap": 0.7400000000000001
+  },
+  "uefi-bootkit": {
+   "discrimination": 0.33375537617318396,
+   "fail_rate": 0.2571428571428571,
+   "informative": true,
+   "low_discrimination": -0.33375537617318396,
+   "low_strong_weak_gap": -0.16000000000000003,
+   "strong_weak_gap": 0.16000000000000003
+  },
+  "vba-userform-port": {
+   "discrimination": 0.04410215869731,
+   "fail_rate": 0.8,
+   "informative": true,
+   "low_discrimination": -0.04410215869731,
+   "low_strong_weak_gap": 0.04000000000000002,
+   "strong_weak_gap": -0.04000000000000002
+  },
+  "vf2-speedup-networkx": {
+   "discrimination": 0.672698830357684,
+   "fail_rate": 0.6514285714285715,
+   "informative": true,
+   "low_discrimination": -0.672698830357684,
+   "low_strong_weak_gap": -0.48,
+   "strong_weak_gap": 0.48
+  },
+  "vllm-deepseek-streaming": {
+   "discrimination": -0.47737525974524103,
+   "fail_rate": 0.9371428571428572,
+   "informative": true,
+   "low_discrimination": 0.47737525974524103,
+   "low_strong_weak_gap": 0.18,
+   "strong_weak_gap": -0.18
+  },
+  "vpp-loss-divergence": {
+   "discrimination": 0.7289890422696441,
+   "fail_rate": 0.46285714285714286,
+   "informative": true,
+   "low_discrimination": -0.7289890422696441,
+   "low_strong_weak_gap": -0.6400000000000001,
+   "strong_weak_gap": 0.6400000000000001
+  },
+  "wal-recovery-ordering": {
+   "discrimination": -0.059390181344390204,
+   "fail_rate": 0.6514285714285715,
+   "informative": true,
+   "low_discrimination": 0.059390181344390204,
+   "low_strong_weak_gap": 0.020000000000000018,
+   "strong_weak_gap": -0.020000000000000018
+  },
+  "wdm-design": {
+   "discrimination": 0.40190608885884577,
+   "fail_rate": 0.15428571428571425,
+   "informative": true,
+   "low_discrimination": -0.40190608885884577,
+   "low_strong_weak_gap": -0.19999999999999996,
+   "strong_weak_gap": 0.19999999999999996
+  }
+ },
+ "schema": "tb4-failure-clusters/posthoc/v1",
+ "seed": 20261020,
+ "tasks": 61
+}

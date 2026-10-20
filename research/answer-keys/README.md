@@ -148,10 +148,12 @@ behavioral intent. No model calls, submitted-code execution, or regrading occur.
 
 - [`tb4-audit-v1`](tb4-audit-v1/README.md): **241 PM finding records** (238
   task-scoped + 3 benchmark-wide), all 30 Epoch flags and 39 historical EnvCheck
-  rows; 66-task cohort, seeded 25 dev / 41 test. Source-reported, not native
-  reproductions or certified-clean negatives. Reviewed taxonomy and explicit
-  partial/missing port-test mappings; scorer-side labels, whitelisted blind
-  task exports and existing split-guard registration. Offline build, $0.
+  rows; 66-task cohort, seeded 25 dev / 41 test. **10 dev-split witness
+  programs** replayed (`reward=1.0` upstream TB4 on Modal, `reward=0.0` on the
+  fixed port; $0.79 finalized Modal / $0.92 incl. 2 aborted attempts); the
+  remaining 231 findings stay source-reported, and there are no certified-clean
+  negatives. Reviewed taxonomy, explicit port-test mappings, scorer-side labels
+  and witnesses, whitelisted blind task exports, and split-guard registration.
 - [`cheatbench-actions-v1`](cheatbench-actions-v1/README.md): **300 external
   traces**, 75 positive + 75 negative in each dev/test split; benchmark-family
   holdout, blinded full normalized ATIF and assistant-prose-free actions view.

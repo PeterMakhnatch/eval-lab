@@ -3,10 +3,11 @@
 **Scorer-side answer key, not an auditor workspace.** The key preserves all **241
 Preference Model catalogue entries**: 238 task-scoped findings on 60 tasks and
 3 benchmark-wide findings. It merges every Epoch flag and every historical
-`envcheck-tb4-39` label without treating a non-finding as a clean task. No task,
-grader, submitted program or reproducer was executed to create this key; paid
-cost is **$0**. These are published source claims, not 241 native confirmations
-or 241 independent defect mechanisms.
+`envcheck-tb4-39` label without treating a non-finding as a clean task. The
+source labels themselves were not executed; the only executed programs are the
+dev-split witnesses in `witnesses/` (see "Dev-split witnesses"), whose replay
+count and paid cost are recorded in `summary.json`. These are published source
+claims, not 241 native confirmations or 241 independent defect mechanisms.
 
 ## Contents and identities
 
@@ -116,6 +117,23 @@ statically against that tree. Pytest functions, grader functions and registered
 check names remain distinguishable. Partial instruction-only associations do
 not prove an instruction-text regression test exists. A port status of fixed
 is PM's claim about its port, not proof of an upstream fix.
+
+## Dev-split witnesses (scorer-only)
+
+`witnesses.json` (`tb4.audit.witnesses/v1`) registers 10 witness programs, each
+bound to one finding on a **dev-split** task (`cargo-flight-dispatch`,
+`fin-saccr-rwa`, `vf2-speedup-networkx`, `html-js-filter`). Each
+`witnesses/<witness_id>/` directory holds an executable `solve.sh` plus companion
+scripts; `files` records the sha256 of every file. `build.py` refuses any
+witness on a test-split task or unknown finding, a missing `solve.sh`, any
+digest mismatch, and any `confirmed` witness without upstream TB4 reward `1.0`
+and fixed-port reward `0.0`. Each matching `items.jsonl` row gains a `witness`
+record and a `reproducer` command; confirmed rows become
+`label_strength=confirmed`. `summary.json` reports `witness_replay`,
+`native_reproductions_performed` and `paid_cost_usd` (sum of upstream
+`cost_usd`). Witness files and the registry never enter an auditor view:
+`views.py` drops any `witnesses`/`witnesses.json` path at export and
+`agent_tools` rejects a view inventory that lists one.
 
 ## Rebuild and blind export
 

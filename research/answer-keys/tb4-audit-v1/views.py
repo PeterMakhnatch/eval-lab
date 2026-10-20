@@ -22,6 +22,12 @@ VIEW_SCHEMA = "tb4.audit.agent-view/v1"
 SPLIT_SEED = 20261020
 _TASK_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*\Z")
 _TASK_INPUT_ROOTS = {"instruction.md", "task.toml", "tests", "solution", "environment"}
+# Scorer-only witness programs and their registry never enter an auditor view.
+_SCORER_ONLY_NAMES = {"witnesses.json", "witnesses"}
+
+
+def _scorer_only(relative: str) -> bool:
+    return any(part in _SCORER_ONLY_NAMES for part in PurePosixPath(relative).parts)
 
 
 def public_taxonomy(taxonomy: Mapping[str, Any]) -> dict[str, Any]:
@@ -134,6 +140,8 @@ def materialize_agent_view(
     inventory: dict[str, str] = {}
 
     def retain(relative: str, data: bytes) -> None:
+        if _scorer_only(relative):
+            raise ValueError("scorer-only witness files cannot enter an auditor view")
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("xb") as stream:
@@ -170,6 +178,8 @@ def materialize_agent_view(
             relative = relative_path.as_posix()
             if ".git" in PurePosixPath(relative).parts:
                 raise ValueError("repository history cannot enter an auditor view")
+            if _scorer_only(relative):
+                continue
             retain(f"tasks/{name}/{relative}", path.read_bytes())
         task["files_root"] = f"tasks/{name}"
     retain(
@@ -214,6 +224,8 @@ def agent_tools(directory: Path) -> WorkspaceTools:
         name = PurePosixPath(relative)
         if name.is_absolute() or ".." in name.parts or ":" in relative or "\\" in relative:
             raise ValueError("the auditor view inventory contains an unsafe path")
+        if _scorer_only(relative):
+            raise ValueError("scorer-only witness files cannot enter an auditor view")
         path = root / relative
         _reject_symlinks(path)
         if not path.is_file() or not path.resolve(strict=True).is_relative_to(root):

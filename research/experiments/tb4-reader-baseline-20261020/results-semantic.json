@@ -1,0 +1,496 @@
+{
+ "arms": {
+  "leaderboard": {
+   "partial_matches": 26,
+   "precision_same": {
+    "k": 71,
+    "n": 216,
+    "rate": 0.3287037037037037,
+    "wilson95": [
+     0.2695303554066911,
+     0.39386343576046756
+    ]
+   },
+   "predictions": 216,
+   "recall_same": {
+    "k": 71,
+    "n": 238,
+    "rate": 0.29831932773109243,
+    "wilson95": [
+     0.24377148392252582,
+     0.35927424502042815
+    ]
+   },
+   "recall_same_by_category": {
+    "broken": {
+     "k": 9,
+     "n": 26,
+     "rate": 0.34615384615384615,
+     "wilson95": [
+      0.19412230313492207,
+      0.5377942882620197
+     ]
+    },
+    "prompt_misaligned": {
+     "k": 18,
+     "n": 70,
+     "rate": 0.2571428571428571,
+     "wilson95": [
+      0.16929275735473925,
+      0.37026130156887094
+     ]
+    },
+    "reachable": {
+     "k": 5,
+     "n": 8,
+     "rate": 0.625,
+     "wilson95": [
+      0.3057423944034373,
+      0.8631557142872454
+     ]
+    },
+    "tamperable": {
+     "k": 12,
+     "n": 32,
+     "rate": 0.375,
+     "wilson95": [
+      0.22933887299852637,
+      0.547455926603815
+     ]
+    },
+    "weak": {
+     "k": 27,
+     "n": 102,
+     "rate": 0.2647058823529412,
+     "wilson95": [
+      0.18876402406557052,
+      0.3577274875593052
+     ]
+    }
+   },
+   "recall_same_by_label_strength": {
+    "confirmed": {
+     "k": 5,
+     "n": 10,
+     "rate": 0.5,
+     "wilson95": [
+      0.2365930903591401,
+      0.7634069096408599
+     ]
+    },
+    "pm_reported": {
+     "k": 66,
+     "n": 228,
+     "rate": 0.2894736842105263,
+     "wilson95": [
+      0.23448011407113684,
+      0.35144381650729567
+     ]
+    }
+   },
+   "recall_same_by_pm_type": {
+    "ambiguity": {
+     "k": 22,
+     "n": 74,
+     "rate": 0.2972972972972973,
+     "wilson95": [
+      0.205272160533993,
+      0.4093291014141279
+     ]
+    },
+    "grading_or_isolation": {
+     "k": 8,
+     "n": 25,
+     "rate": 0.32,
+     "wilson95": [
+      0.1720519029801073,
+      0.5158973074249666
+     ]
+    },
+    "reward_hack": {
+     "k": 42,
+     "n": 140,
+     "rate": 0.3,
+     "wilson95": [
+      0.23026240863161868,
+      0.3804200715329112
+     ]
+    }
+   },
+   "recall_same_by_split": {
+    "dev": {
+     "k": 26,
+     "n": 86,
+     "rate": 0.3023255813953488,
+     "wilson95": [
+      0.2154352167536865,
+      0.4061203496411868
+     ]
+    },
+    "test": {
+     "k": 45,
+     "n": 152,
+     "rate": 0.29605263157894735,
+     "wilson95": [
+      0.2292298812110236,
+      0.37292990048820396
+     ]
+    }
+   },
+   "recall_same_or_partial": {
+    "k": 97,
+    "n": 238,
+    "rate": 0.40756302521008403,
+    "wilson95": [
+     0.3470838952674319,
+     0.4709787304980886
+    ]
+   },
+   "same_item_ids": [
+    "pm-tb4:atrx-vep-crispr:2e389e7e2f",
+    "pm-tb4:batched-eval-parity:c8cf0d2627",
+    "pm-tb4:biped-contact-dynamics:0dd55d0654",
+    "pm-tb4:bun-sourcemap-leak:0456923af1",
+    "pm-tb4:bun-sourcemap-leak:a3daffeab1",
+    "pm-tb4:cargo-flight-dispatch:42b2eeeef9",
+    "pm-tb4:cargo-flight-dispatch:914347f275",
+    "pm-tb4:cargo-flight-dispatch:b45fefccc6",
+    "pm-tb4:cargo-flight-dispatch:f945f43925",
+    "pm-tb4:coq-block-bound:193d3f642a",
+    "pm-tb4:cumulative-layout-shift:06bca04a92",
+    "pm-tb4:cumulative-layout-shift:4d4fdd445e",
+    "pm-tb4:data-anonymization:7c23db3286",
+    "pm-tb4:distributed-dedup:025a6a8258",
+    "pm-tb4:distributed-dedup:47a3461718",
+    "pm-tb4:embedding-drift-monitor:5461ed14ac",
+    "pm-tb4:embedding-drift-monitor:8e495bc0e6",
+    "pm-tb4:fin-saccr-rwa:89ffd51aac",
+    "pm-tb4:foodstuff-beta-activity:3dea365c9b",
+    "pm-tb4:foodstuff-beta-activity:9db7705940",
+    "pm-tb4:freecad-platform-drawing:9b8d5d056e",
+    "pm-tb4:freecad-platform-drawing:cf807260cf",
+    "pm-tb4:freecad-spring-clip:240252f1e1",
+    "pm-tb4:glycan-ms2-elucidation:a0987c7eb2",
+    "pm-tb4:gsea-proteomics:8203fba3ef",
+    "pm-tb4:heat-pump-warranty:bcfee8ae8b",
+    "pm-tb4:html-js-filter:9103e69391",
+    "pm-tb4:html-js-filter:99452ecd66",
+    "pm-tb4:interleaved-vigenere:3b01e67d18",
+    "pm-tb4:jax-speedrun-gpu:1f3df28e39",
+    "pm-tb4:ks-solver-cpp:7676bfcc14",
+    "pm-tb4:ks-solver-cpp:b5bf1c2542",
+    "pm-tb4:layout-config-recreation:f0664fb411",
+    "pm-tb4:legacy-utility-triage:4e5245bec5",
+    "pm-tb4:mp-checkpoint-consolidation:d123e8c1fc",
+    "pm-tb4:music-harmony:81c7367cd7",
+    "pm-tb4:music-harmony:d1637b6f93",
+    "pm-tb4:music-harmony:e842c2e7bb",
+    "pm-tb4:mvcc-lsm-compaction:fa0ad727a5",
+    "pm-tb4:nextjs-performance:0a30da67e1",
+    "pm-tb4:nextjs-performance:826a162293",
+    "pm-tb4:ontology-kg-querying:15b1a1bb3e",
+    "pm-tb4:ontology-kg-querying:371023d3e5",
+    "pm-tb4:ontology-kg-querying:54d93ef4a7",
+    "pm-tb4:ontology-kg-querying:b31a52f129",
+    "pm-tb4:payments-pipeline-fix:b2d47141e7",
+    "pm-tb4:photonic-waveguide-routing:c7b7ba6862",
+    "pm-tb4:production-planning:7b99f088a6",
+    "pm-tb4:production-planning:ccd35c6a95",
+    "pm-tb4:production-planning:df591a9e41",
+    "pm-tb4:react-lead-form:23c0516de6",
+    "pm-tb4:react-lead-form:62ad344eee",
+    "pm-tb4:retro-console-soc:755809d059",
+    "pm-tb4:roy-polymorph-cn:ee62bcf386",
+    "pm-tb4:satb-audio-transcription:2770a8e37b",
+    "pm-tb4:session-window-debug:69a54d745c",
+    "pm-tb4:session-window-debug:a7961d6444",
+    "pm-tb4:session-window-debug:ab454b057c",
+    "pm-tb4:session-window-debug:d0e70d0faa",
+    "pm-tb4:sglang-qwen-burst:4127b3b8df",
+    "pm-tb4:sglang-qwen-burst:49af1915d4",
+    "pm-tb4:shadow-relay:825d8d0ef6",
+    "pm-tb4:uefi-bootkit:b05b83c350",
+    "pm-tb4:vba-userform-port:34228f201a",
+    "pm-tb4:vf2-speedup-networkx:4cfd6f89a6",
+    "pm-tb4:vf2-speedup-networkx:8d0fce1596",
+    "pm-tb4:vllm-deepseek-streaming:5c00ae7476",
+    "pm-tb4:vpp-loss-divergence:85318dcb13",
+    "pm-tb4:wal-recovery-ordering:20c5cd891d",
+    "pm-tb4:wal-recovery-ordering:8603a9520b",
+    "pm-tb4:wal-recovery-ordering:b30fd93cfe"
+   ],
+   "same_matches": 71,
+   "unmatched_high_confidence_pool": 115
+  },
+  "static": {
+   "partial_matches": 31,
+   "precision_same": {
+    "k": 71,
+    "n": 251,
+    "rate": 0.28286852589641437,
+    "wilson95": [
+     0.23074736256741002,
+     0.34153573257040726
+    ]
+   },
+   "predictions": 251,
+   "recall_same": {
+    "k": 71,
+    "n": 238,
+    "rate": 0.29831932773109243,
+    "wilson95": [
+     0.24377148392252582,
+     0.35927424502042815
+    ]
+   },
+   "recall_same_by_category": {
+    "broken": {
+     "k": 7,
+     "n": 26,
+     "rate": 0.2692307692307692,
+     "wilson95": [
+      0.1370444831443704,
+      0.4608304039510422
+     ]
+    },
+    "prompt_misaligned": {
+     "k": 14,
+     "n": 70,
+     "rate": 0.2,
+     "wilson95": [
+      0.12304739243473377,
+      0.3081664450591378
+     ]
+    },
+    "reachable": {
+     "k": 5,
+     "n": 8,
+     "rate": 0.625,
+     "wilson95": [
+      0.3057423944034373,
+      0.8631557142872454
+     ]
+    },
+    "tamperable": {
+     "k": 15,
+     "n": 32,
+     "rate": 0.46875,
+     "wilson95": [
+      0.30869387096784134,
+      0.6355048289327441
+     ]
+    },
+    "weak": {
+     "k": 30,
+     "n": 102,
+     "rate": 0.29411764705882354,
+     "wilson95": [
+      0.21446358188162612,
+      0.3887164907901401
+     ]
+    }
+   },
+   "recall_same_by_label_strength": {
+    "confirmed": {
+     "k": 6,
+     "n": 10,
+     "rate": 0.6,
+     "wilson95": [
+      0.31267376954840886,
+      0.8318196704143527
+     ]
+    },
+    "pm_reported": {
+     "k": 65,
+     "n": 228,
+     "rate": 0.2850877192982456,
+     "wilson95": [
+      0.2304273579744171,
+      0.34686998782439943
+     ]
+    }
+   },
+   "recall_same_by_pm_type": {
+    "ambiguity": {
+     "k": 16,
+     "n": 74,
+     "rate": 0.21621621621621623,
+     "wilson95": [
+      0.13770451650798582,
+      0.32273725021938354
+     ]
+    },
+    "grading_or_isolation": {
+     "k": 6,
+     "n": 25,
+     "rate": 0.24,
+     "wilson95": [
+      0.11496313686558671,
+      0.4342968337195201
+     ]
+    },
+    "reward_hack": {
+     "k": 50,
+     "n": 140,
+     "rate": 0.35714285714285715,
+     "wilson95": [
+      0.2825610826557536,
+      0.43935497460462497
+     ]
+    }
+   },
+   "recall_same_by_split": {
+    "dev": {
+     "k": 25,
+     "n": 86,
+     "rate": 0.29069767441860467,
+     "wilson95": [
+      0.20532573742794957,
+      0.39396839169603404
+     ]
+    },
+    "test": {
+     "k": 46,
+     "n": 152,
+     "rate": 0.3026315789473684,
+     "wilson95": [
+      0.23520627577954917,
+      0.3797870613487357
+     ]
+    }
+   },
+   "recall_same_or_partial": {
+    "k": 102,
+    "n": 238,
+    "rate": 0.42857142857142855,
+    "wilson95": [
+     0.36732575973754217,
+     0.49208626926308724
+    ]
+   },
+   "same_item_ids": [
+    "pm-tb4:atrx-vep-crispr:2e389e7e2f",
+    "pm-tb4:batched-eval-parity:c8cf0d2627",
+    "pm-tb4:biped-contact-dynamics:0dd55d0654",
+    "pm-tb4:biped-contact-dynamics:cc83973312",
+    "pm-tb4:bun-sourcemap-leak:0456923af1",
+    "pm-tb4:bun-sourcemap-leak:a3daffeab1",
+    "pm-tb4:cargo-flight-dispatch:914347f275",
+    "pm-tb4:cargo-flight-dispatch:da28460317",
+    "pm-tb4:cargo-flight-dispatch:f945f43925",
+    "pm-tb4:coq-block-bound:193d3f642a",
+    "pm-tb4:cumulative-layout-shift:06bca04a92",
+    "pm-tb4:cumulative-layout-shift:4d4fdd445e",
+    "pm-tb4:data-anonymization:7c23db3286",
+    "pm-tb4:distributed-dedup:025a6a8258",
+    "pm-tb4:distributed-dedup:47a3461718",
+    "pm-tb4:embedding-drift-monitor:50192349f7",
+    "pm-tb4:embedding-drift-monitor:5461ed14ac",
+    "pm-tb4:embedding-drift-monitor:8e495bc0e6",
+    "pm-tb4:fin-saccr-rwa:89ffd51aac",
+    "pm-tb4:foodstuff-beta-activity:3dea365c9b",
+    "pm-tb4:fp8-rmsnorm-gemm:340723b694",
+    "pm-tb4:freecad-platform-drawing:cf807260cf",
+    "pm-tb4:freecad-spring-clip:240252f1e1",
+    "pm-tb4:glycan-ms2-elucidation:a0987c7eb2",
+    "pm-tb4:gsea-proteomics:8203fba3ef",
+    "pm-tb4:heat-pump-warranty:bcfee8ae8b",
+    "pm-tb4:html-js-filter:3f0a3d0cb4",
+    "pm-tb4:html-js-filter:9103e69391",
+    "pm-tb4:html-js-filter:99452ecd66",
+    "pm-tb4:interleaved-vigenere:3b01e67d18",
+    "pm-tb4:intrastat-meldung:6d0d5e4e89",
+    "pm-tb4:jax-speedrun-gpu:1f3df28e39",
+    "pm-tb4:ks-solver-cpp:7676bfcc14",
+    "pm-tb4:ks-solver-cpp:b5bf1c2542",
+    "pm-tb4:kv-live-surgery:e4d3d4de75",
+    "pm-tb4:legacy-utility-triage:4e5245bec5",
+    "pm-tb4:live-database-cutover:a3d505bfdc",
+    "pm-tb4:music-harmony:d1637b6f93",
+    "pm-tb4:music-harmony:e842c2e7bb",
+    "pm-tb4:nextjs-performance:0a30da67e1",
+    "pm-tb4:nextjs-performance:826a162293",
+    "pm-tb4:ontology-kg-querying:15b1a1bb3e",
+    "pm-tb4:ontology-kg-querying:371023d3e5",
+    "pm-tb4:ontology-kg-querying:54d93ef4a7",
+    "pm-tb4:ontology-kg-querying:c16149b134",
+    "pm-tb4:payments-pipeline-fix:b2d47141e7",
+    "pm-tb4:photonic-waveguide-routing:c7b7ba6862",
+    "pm-tb4:production-planning:7b99f088a6",
+    "pm-tb4:production-planning:df591a9e41",
+    "pm-tb4:react-lead-form:23c0516de6",
+    "pm-tb4:react-lead-form:62ad344eee",
+    "pm-tb4:retro-console-soc:0951aff13e",
+    "pm-tb4:retro-console-soc:755809d059",
+    "pm-tb4:roy-polymorph-cn:ee62bcf386",
+    "pm-tb4:rs-archive-clone:0c2feeb951",
+    "pm-tb4:satb-audio-transcription:2770a8e37b",
+    "pm-tb4:session-window-debug:69a54d745c",
+    "pm-tb4:session-window-debug:a7961d6444",
+    "pm-tb4:session-window-debug:ab454b057c",
+    "pm-tb4:session-window-debug:d0e70d0faa",
+    "pm-tb4:sglang-qwen-burst:4127b3b8df",
+    "pm-tb4:sglang-qwen-burst:49af1915d4",
+    "pm-tb4:shadow-relay:825d8d0ef6",
+    "pm-tb4:uefi-bootkit:b05b83c350",
+    "pm-tb4:vba-userform-port:34228f201a",
+    "pm-tb4:vf2-speedup-networkx:8d0fce1596",
+    "pm-tb4:vf2-speedup-networkx:bf9869e0ae",
+    "pm-tb4:vllm-deepseek-streaming:511c78f7c7",
+    "pm-tb4:wal-recovery-ordering:20c5cd891d",
+    "pm-tb4:wal-recovery-ordering:8603a9520b",
+    "pm-tb4:wal-recovery-ordering:b30fd93cfe"
+   ],
+   "same_matches": 71,
+   "unmatched_high_confidence_pool": 139
+  }
+ },
+ "intersection_same": {
+  "k": 58,
+  "n": 238,
+  "rate": 0.24369747899159663,
+  "wilson95": [
+   0.19350837665420717,
+   0.3020289038774635
+  ]
+ },
+ "missed_by_both": {
+  "by_category": {
+   "broken": 16,
+   "prompt_misaligned": 49,
+   "reachable": 3,
+   "tamperable": 15,
+   "weak": 71
+  },
+  "by_execution_claim": {
+   "false": 1,
+   "true": 88,
+   "unknown": 65
+  },
+  "by_pm_type": {
+   "ambiguity": 50,
+   "grading_or_isolation": 15,
+   "reward_hack": 89
+  },
+  "count": 154
+ },
+ "paired_leaderboard_minus_static_same": {
+  "ci95": [
+   -0.03619909502262444,
+   0.034482758620689655
+  ],
+  "difference": 0.0
+ },
+ "problems": [],
+ "schema": "tb4-reader-baseline/semantic/v1",
+ "tasks_with_all_findings_found_static": 7,
+ "union_same": {
+  "k": 84,
+  "n": 238,
+  "rate": 0.35294117647058826,
+  "wilson95": [
+   0.29500279286225284,
+   0.41555138449198437
+  ]
+ }
+}

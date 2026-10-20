@@ -761,17 +761,35 @@ def _truthy_claim(value: Any) -> bool:
     return value is True or (isinstance(value, str) and value.strip().lower() == "true")
 
 
+_COMMENT_FRAGMENTS = ("#issuecomment-", "#discussion_r", "#pullrequestreview-")
+
+
+def _is_pr_comment_ref(ref: dict[str, Any]) -> bool:
+    """A comment on an issue or pull request does not name that thread as a report."""
+    href = str(ref.get("href") or ref.get("url") or "")
+    if any(fragment in href for fragment in _COMMENT_FRAGMENTS):
+        return True
+    return str(ref.get("kind", "")).startswith("comment")
+
+
 def _finding_issue_refs(row: dict[str, Any]) -> tuple[set[int], set[int]]:
     """Return (concrete, other) terminal-bench issue numbers cited by a PM finding.
 
     Concrete = issue links in PM's attribution ("sources") or upstream-status
-    spans; other = PR links and links in the finding body.
+    spans; other = PR links and links in the finding body. Links to individual
+    comments or reviews (``#issuecomment-``, ``#discussion_r``,
+    ``#pullrequestreview-``) are excluded before any number is collected.
     """
-    concrete: set[int] = set(int(n) for n in row.get("github_issue_numbers") or [])
+    concrete: set[int] = set()
     other: set[int] = set()
-    for ref in row.get("github_refs") or []:
+    refs = row.get("github_refs") or []
+    comment_numbers = {int(r["number"]) for r in refs if _is_pr_comment_ref(r) and r.get("number")}
+    for n in row.get("github_issue_numbers") or []:
+        if int(n) not in comment_numbers:
+            concrete.add(int(n))
+    for ref in refs:
         n = ref.get("number")
-        if n is None:
+        if n is None or _is_pr_comment_ref(ref):
             continue
         if ref.get("where") in ("sources", "upstream") and ref.get("kind", "issue") == "issue":
             concrete.add(int(n))

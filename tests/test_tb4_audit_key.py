@@ -277,3 +277,230 @@ def test_witness_files_never_enter_the_auditor_view(tmp_path: Path) -> None:
     bundle.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="scorer-only"):
         views.agent_tools(forged)
+
+
+def _rewrite(view: Path, relative: str, data: bytes, *, listed: bool = True) -> None:
+    """Forge a view file and, if listed, rehash it into bundle.json."""
+    target = view / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        target.chmod(0o600)
+    target.write_bytes(data)
+    if listed:
+        bundle = view / "bundle.json"
+        manifest = json.loads(bundle.read_text())
+        manifest["files"][relative] = views.hashlib.sha256(data).hexdigest()
+        bundle.chmod(0o600)
+        bundle.write_text(json.dumps(manifest))
+
+
+def _export(root: Path, name: str = "actor", taxonomy: dict | None = None) -> Path:
+    row, upstream = _task(root)
+    destination = root / name
+    views.materialize_agent_view(
+        [row], destination, split="test", task_root=upstream, taxonomy=taxonomy
+    )
+    return destination
+
+
+def test_files_outside_the_package_digest_are_not_exported(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    row, upstream = _task(root)
+    package = upstream / "square"
+    (package / "tests/scratch.tmp").write_text(SECRET)
+    (package / "solution/__pycache__").mkdir()
+    (package / "solution/__pycache__/solve.cpython-312.pyc").write_bytes(SECRET.encode())
+    (package / "environment/.DS_Store").write_text(SECRET)
+    assert task_directory_digest(package) == row["subject"]["task_digest"]
+    destination = root / "actor"
+    manifest = views.materialize_agent_view([row], destination, split="test", task_root=upstream)
+    assert not any(n.endswith((".tmp", ".pyc", ".DS_Store")) for n in manifest["files"])
+    assert (
+        views.agent_tools(destination)
+        .run("grep", {"path": ".", "pattern": SECRET})
+        .startswith("[no matches")
+    )
+    _rewrite(destination, "tasks/square/tests/scratch.tmp", SECRET.encode())
+    with pytest.raises(ValueError, match="non-input"):
+        views.agent_tools(destination)
+
+
+@pytest.mark.parametrize(
+    ("relative", "listed"),
+    [
+        ("answers.json", True),
+        ("tasks/square/README.md", True),
+        ("tasks/square/cheat/review.txt", True),
+        ("tasks/other/instruction.md", True),
+        ("notes.txt", False),
+        ("tasks/square/tests/sidecar.py", False),
+    ],
+)
+def test_unlisted_sidecars_and_extra_metadata_are_rejected(
+    tmp_path: Path, relative: str, listed: bool
+) -> None:
+    destination = _export(tmp_path.resolve())
+    _rewrite(destination, relative, SECRET.encode(), listed=listed)
+    with pytest.raises(ValueError):
+        views.agent_tools(destination)
+
+
+@pytest.mark.parametrize(
+    "manifest_patch",
+    [{"split": "train"}, {"key_id": "other"}, {"schema": "other"}, {"task_count": 2}],
+)
+def test_manifest_semantics_are_checked(tmp_path: Path, manifest_patch: dict) -> None:
+    destination = _export(tmp_path.resolve())
+    bundle = destination / "bundle.json"
+    manifest = json.loads(bundle.read_text()) | manifest_patch
+    bundle.chmod(0o600)
+    bundle.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        views.agent_tools(destination)
+
+
+def test_rehashed_inputs_and_taxonomy_with_labels_are_rejected(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    taxonomy = {
+        "version": 1,
+        "label_rules": [],
+        "decision_order": [],
+        "task_side": [{"id": "TS01", "key": "weak_check", "examples": [SECRET]}],
+        "run_side": [],
+    }
+    clean = _export(root / "clean", taxonomy=taxonomy)
+    views.agent_tools(clean)
+    record = json.loads((clean / "inputs.jsonl").read_text())
+    assert set(record) == {"schema", "key_id", "split", "subject", "package"}
+
+    forged_inputs = [
+        record | {"title": SECRET},
+        record | {"split": "dev"},
+        record | {"package": record["package"] | {"label": SECRET}},
+        record | {"subject": record["subject"] | {"task_digest": "sha256:bad"}},
+        record | {"subject": record["subject"] | {"task_id": "terminal-bench/other"}},
+    ]
+    for index, forged in enumerate(forged_inputs):
+        view = _export(root / f"inputs-{index}", taxonomy=taxonomy)
+        _rewrite(view, "inputs.jsonl", (json.dumps(forged) + "\n").encode())
+        with pytest.raises(ValueError, match="input"):
+            views.agent_tools(view)
+
+    public = json.loads((clean / "taxonomy.json").read_text())
+    for index, forged in enumerate(
+        [
+            public | {"private_findings": [SECRET]},
+            public | {"task_side": [public["task_side"][0] | {"examples": [SECRET]}]},
+            public | {"run_side": [{"id": "RS01", "finding_id": SECRET}]},
+        ]
+    ):
+        view = _export(root / f"taxonomy-{index}", taxonomy=taxonomy)
+        _rewrite(view, "taxonomy.json", json.dumps(forged).encode())
+        with pytest.raises(ValueError, match="taxonomy"):
+            views.agent_tools(view)
+
+
+def test_postload_mutation_is_rejected_on_the_next_call(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    destination = _export(root)
+    tools = views.agent_tools(destination)
+    path = {"path": "tasks/square/instruction.md"}
+    assert "square" in tools.run("read", path)
+
+    changed = destination / "tasks/square/instruction.md"
+    changed.chmod(0o600)
+    changed.write_text(SECRET + "\n")
+    with pytest.raises(ValueError, match="changed after export"):
+        tools.run("read", path)
+
+    # Rehashing the manifest after load does not re-legitimise the bytes.
+    other = _export(root, "other")
+    tools = views.agent_tools(other)
+    _rewrite(other, "tasks/square/instruction.md", SECRET.encode())
+    with pytest.raises(ValueError, match="changed after export"):
+        tools.run("read", path)
+
+    third = _export(root, "third")
+    tools = views.agent_tools(third)
+    (third / "sidecar.txt").write_text(SECRET)
+    with pytest.raises(ValueError, match="not listed"):
+        tools.run("grep", {"path": ".", "pattern": "square"})
+
+
+def test_pr_comment_links_are_not_concrete_issue_reports() -> None:
+    sys.path.insert(0, str(KEY))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "tb4_audit_sources", KEY / "auditor_sources.py"
+        )
+        assert spec is not None and spec.loader is not None
+        sources = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sources)
+    finally:
+        sys.path.remove(str(KEY))
+    base = "https://github.com/harbor-framework/terminal-bench"
+    row = {
+        "github_issue_numbers": [1972, 1645],
+        "github_refs": [
+            {
+                "number": 1972,
+                "where": "sources",
+                "kind": "issue",
+                "href": f"{base}/issues/1972#issuecomment-123",
+            },
+            {
+                "number": 1980,
+                "where": "sources",
+                "kind": "issue",
+                "href": f"{base}/pull/1980#discussion_r9",
+            },
+            {
+                "number": 1981,
+                "where": "upstream",
+                "kind": "issue",
+                "href": f"{base}/pull/1981#pullrequestreview-7",
+            },
+            {"number": 1645, "where": "sources", "kind": "issue", "href": f"{base}/issues/1645"},
+        ],
+    }
+    assert sources._finding_issue_refs(row) == ({1645}, set())
+    for finding in SOURCE["findings"]:
+        if any(
+            r.get("kind") == "comment_on_pr" and r["number"] == 1972 for r in finding["github_refs"]
+        ):
+            assert 1972 not in finding["auditor_evidence"]["github_issue_numbers_concrete"]
+    items = [json.loads(line) for line in (KEY / "items.jsonl").read_text().splitlines()]
+    assert not any(1972 in i["auditor_evidence"]["github_issue_numbers_concrete"] for i in items)
+
+
+def test_exposure_stratification_partitions_tasks_and_findings() -> None:
+    outputs = build.build_outputs(SOURCE)
+    assert outputs["summary.json"] == (KEY / "summary.json").read_text()
+    summary = json.loads(outputs["summary.json"])["exposure_stratification"]
+    tasks = [json.loads(line) for line in outputs["tasks.jsonl"].splitlines()]
+    items = [json.loads(line) for line in outputs["items.jsonl"].splitlines()]
+    strata = {"unexposed", "inspected_only", "tuned"}
+    assert set(summary["tasks"]) == set(summary["task_findings"]) == {"dev", "test"}
+    assert sum(sum(v.values()) for v in summary["tasks"].values()) == len(tasks) == 66
+    assert sum(sum(v.values()) for v in summary["task_findings"].values()) == 238
+    by_task = {row["task"]: row for row in tasks}
+    for row in tasks:
+        assert row["exposure_stratum"] in strata
+        assert (row["exposure_stratum"] == "unexposed") == (not row["historical_exposures"])
+        assert summary["tasks"][row["split"]][row["exposure_stratum"]] > 0
+    for item in items:
+        if item["scope"] == "task":
+            task = by_task[item["task"]]
+            assert item["historical_exposures"] == task["historical_exposures"]
+            assert item["exposure_stratum"] == task["exposure_stratum"]
+        else:
+            assert (item["historical_exposures"], item["exposure_stratum"]) == ([], "unexposed")
+    # The S2 prompt was hardened on these four dev positives: tuned, not held out.
+    for name in (
+        "interleaved-vigenere",
+        "wal-recovery-ordering",
+        "data-anonymization",
+        "atrx-vep-crispr",
+    ):
+        assert "qa-task-s2-prompt-dev" in by_task[name]["historical_exposures"]
+        assert by_task[name]["exposure_stratum"] == "tuned"

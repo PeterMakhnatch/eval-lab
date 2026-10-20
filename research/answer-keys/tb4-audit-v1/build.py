@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from collections import Counter
 from pathlib import Path
@@ -105,6 +106,65 @@ def _verify_witnesses(
     return witnesses
 
 
+EXPOSURE_PATH = HERE.parent / "splits/exposure.jsonl"
+EXPOSURE_STRATA = ("unexposed", "inspected_only", "tuned")
+
+
+def _split_guard() -> Any:
+    spec = importlib.util.spec_from_file_location("_splits_guard", HERE.parent / "splits/guard.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def historical_exposures(names: list[str], path: Path = EXPOSURE_PATH) -> dict[str, dict[str, Any]]:
+    """Exposure ids and stratum per task, from the shared historical exposure log.
+
+    Touched slugs follow ``splits/guard.py``: explicit ``tasks`` plus every item
+    selected by ``items``/``items_file``/``where`` in another registered key.
+    This key's own rows are excluded so the stratum never depends on itself.
+    """
+    guard = _split_guard()
+    keys = {k: v for k, v in guard.load_keys().items() if k != KEY_ID}
+    exposures = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+    touched: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
+    for exposure in exposures:
+        record = exposure | {
+            "items": {k: v for k, v in (exposure.get("items") or {}).items() if k in keys},
+            "items_file": {
+                k: v for k, v in (exposure.get("items_file") or {}).items() if k in keys
+            },
+            "where": {k: v for k, v in (exposure.get("where") or {}).items() if k in keys},
+        }
+        by_key = {k: set(v) for k, v in guard.exposed_items(record, keys).items()}
+        slugs = set(exposure.get("tasks") or [])
+        for key_id, ids in by_key.items():
+            slugs.update(
+                guard.task_name(item["subject"]["task_id"])
+                for item in keys.get(key_id, {"items": []})["items"]
+                if item["item_id"] in ids
+            )
+        for slug in slugs & touched.keys():
+            touched[slug].append(exposure)
+    out = {}
+    for name, matches in touched.items():
+        kinds = {e["kind"] for e in matches}
+        stratum = (
+            "tuned"
+            if "tuned" in kinds
+            else "inspected_only"
+            if "inspected" in kinds
+            else "unexposed"
+        )
+        out[name] = {
+            "historical_exposures": sorted({e["exposure_id"] for e in matches}),
+            "exposure_stratum": stratum,
+        }
+    return out
+
+
 def build_outputs(
     source: dict[str, Any],
     witnesses: dict[str, Any] | None = None,
@@ -127,6 +187,7 @@ def build_outputs(
     if len(by_name) != len(tasks):
         raise ValueError("the source cohort contains duplicate task identities")
     splits = task_splits(by_name, seed=SPLIT_SEED, dev_count=25)
+    exposure = historical_exposures(sorted(by_name))
     taxonomy = source["taxonomy"]
     class_ids = {row["key"]: row["id"] for row in taxonomy["task_side"]}
     if set(class_ids) != set(CATEGORY):
@@ -204,6 +265,11 @@ def build_outputs(
             "auditor_evidence": finding["auditor_evidence"],
             "source_url": finding["source_url"],
             "label_binding": "auditor report on the named task; not re-executed on the input digest",
+            **(
+                exposure[name]
+                if scope == "task"
+                else {"historical_exposures": [], "exposure_stratum": "unexposed"}
+            ),
         }
         AnswerKeyItem.model_validate(item)
         items.append(item)
@@ -252,6 +318,7 @@ def build_outputs(
                 "scope": "task",
                 "split": splits[name],
             }
+            | exposure[name]
         )
     for item in items:
         if item["scope"] == "task" and item["split"] != splits[item["task"]]:
@@ -294,6 +361,40 @@ def build_outputs(
         "paid_cost_usd": round(
             sum((w.get("upstream_replay") or {}).get("cost_usd", 0) for w in registered), 6
         ),
+        "exposure_stratification": {
+            "source": "research/answer-keys/splits/exposure.jsonl",
+            "rule": "tuned if any matching exposure is tuned, else inspected_only if any is "
+            "inspected, else unexposed",
+            "tasks": {
+                split: {
+                    stratum: sum(
+                        1
+                        for row in cohort
+                        if row["split"] == split and row["exposure_stratum"] == stratum
+                    )
+                    for stratum in EXPOSURE_STRATA
+                }
+                for split in ("dev", "test")
+            },
+            "task_findings": {
+                split: {
+                    stratum: sum(
+                        1
+                        for row in items
+                        if row["scope"] == "task"
+                        and row["split"] == split
+                        and row["exposure_stratum"] == stratum
+                    )
+                    for stratum in EXPOSURE_STRATA
+                }
+                for split in ("dev", "test")
+            },
+            "exposures_by_task": {
+                row["task"]: row["historical_exposures"]
+                for row in cohort
+                if row["historical_exposures"]
+            },
+        },
     }
     return {
         "items.jsonl": _jsonl(items),

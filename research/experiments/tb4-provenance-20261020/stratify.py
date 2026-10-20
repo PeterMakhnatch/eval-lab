@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import acquire
+
 from evallab import hub_trials as hub
 
 JOIN_SCHEMA = "evallab.tb4_provenance_join/v1"

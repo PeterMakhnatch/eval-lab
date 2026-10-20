@@ -740,6 +740,17 @@ def test_unknown_raw_configuration_fields_are_retained_but_metadata_dict_keys_ar
     ) == "raw_unknown_fields_changed_sdk_declarations_equal"
 
 
+def test_unknown_raw_fields_never_silently_truncate_unmapped_sdk_list_items(fingerprint):
+    class TaskModel:
+        model_fields = {"entries": SimpleNamespace(alias=None)}
+        entries = []
+
+    with pytest.raises(ValueError, match="zip"):
+        fingerprint.unknown_configuration_fields({
+            "entries": [{"future_option": True}],
+        }, TaskModel())
+
+
 def test_configuration_package_identity_changes_are_not_resource_changes(fingerprint):
     changes = fingerprint.field_changes(
         {"task": {"name": "terminal-bench/sample"}},

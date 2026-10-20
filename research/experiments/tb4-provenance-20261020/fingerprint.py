@@ -19,7 +19,7 @@ import tempfile
 import tomllib
 import warnings
 from collections import Counter
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -298,7 +298,7 @@ def dataset_receipt(root: Path, source: str, native: NativeHarbor) -> tuple[dict
         raw = native.json(args[:-1])
         immutable_write(stdout, raw)
         receipt = {
-            "args": args, "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "args": args, "observed_at_utc": datetime.now(UTC).isoformat(),
             "path": str(stdout.relative_to(root)), "sha256": sha256(raw),
             "size_bytes": len(raw), "status": "complete",
         }
@@ -380,7 +380,7 @@ def download_package(root: Path, pin: str, native: NativeHarbor) -> tuple[Path |
     export = directory / "original"
     args = ["task", "download", pin, "--export", "--output-dir", str(export)]
     receipt: dict[str, Any] = {
-        "pin": pin, "args": args, "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "pin": pin, "args": args, "observed_at_utc": datetime.now(UTC).isoformat(),
         "receipt_path": str(receipt_path.relative_to(root)),
     }
     task_root = None
@@ -800,7 +800,7 @@ def unknown_configuration_fields(raw: dict[str, Any], model: Any, path: str = ""
         if isinstance(value, dict) and hasattr(type(child), "model_fields"):
             unknown.update(unknown_configuration_fields(value, child, child_path))
         elif isinstance(value, list) and isinstance(child, list):
-            for index, (raw_item, model_item) in enumerate(zip(value, child)):
+            for index, (raw_item, model_item) in enumerate(zip(value, child, strict=True)):
                 if isinstance(raw_item, dict) and hasattr(type(model_item), "model_fields"):
                     unknown.update(unknown_configuration_fields(raw_item, model_item, f"{child_path}/{index}"))
     return unknown

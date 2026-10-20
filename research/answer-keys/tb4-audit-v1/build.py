@@ -60,6 +60,40 @@ def load_witnesses(path: Path = HERE / "witnesses.json") -> dict[str, Any] | Non
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+PORT_CUSTODY_FIELDS = ("receipt_sha256", "port_scoring_script_sha256", "raw_stdout_log_sha256")
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 71
+        and value.startswith("sha256:")
+        and all(c in "0123456789abcdef" for c in value[7:])
+    )
+
+
+def _spend_accounting(spend: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Single-cap accounting: strict peak-reservation subset vs all confirmed witnesses."""
+    if not spend or "single_cap_strict_peak" not in spend:
+        return None
+    strict, every = spend["single_cap_strict_peak"], spend["all_confirmed"]
+    if strict["peak_reservation_usd"] > spend["cap_usd"]:
+        raise ValueError("strict single-cap subset exceeds the cap at peak reservation")
+    return {
+        "cap_usd": spend["cap_usd"],
+        "single_cap_strict_peak_qualified_witnesses": strict["witnesses"],
+        "peak_reservation_usd": strict["peak_reservation_usd"],
+        "strict_finalized_usd": strict["finalized_usd"],
+        "all_confirmed_witnesses": every["witnesses"],
+        "finalized_usd": every["finalized_usd"],
+        "combined_incl_aborted_elapsed_usd": every["combined_incl_aborted_elapsed_usd"],
+        "actual_task_sandbox_runtime_excl_cached_builder_usd": every[
+            "actual_task_sandbox_runtime_excl_cached_builder_usd"
+        ],
+        "aborted_sandboxes_affirmatively_closed": every["aborted_sandboxes_affirmatively_closed"],
+    }
+
+
 def _verify_witnesses(
     registry: dict[str, Any] | None,
     splits: dict[str, str],
@@ -102,6 +136,16 @@ def _verify_witnesses(
             if upstream.get("reward") != 1.0 or port.get("reward") != 0.0:
                 raise ValueError(
                     f"confirmed witness {wid} needs upstream reward 1.0 and port reward 0.0"
+                )
+            if port.get("mode") != "full":
+                raise ValueError(f"confirmed witness {wid} needs a full-mode port replay")
+            for field in PORT_CUSTODY_FIELDS:
+                if not _is_sha256(port.get(field)):
+                    raise ValueError(f"confirmed witness {wid} port replay lacks custody {field}")
+            artifacts = port.get("submitted_artifact_files_sha256")
+            if not artifacts or not all(map(_is_sha256, artifacts.values())):
+                raise ValueError(
+                    f"confirmed witness {wid} port replay lacks submitted artifact sha256 digests"
                 )
     return witnesses
 
@@ -356,6 +400,10 @@ def build_outputs(
             "confirmed": len(confirmed),
             "splits": _counts(w["split"] for w in registered),
             "tasks": _counts(w["task"] for w in registered),
+            "port_replay_modes": _counts(
+                (w.get("port_replay") or {}).get("mode", "none") for w in confirmed
+            ),
+            "spend": _spend_accounting((witnesses or {}).get("spend_summary")),
         },
         "native_reproductions_performed": len(confirmed),
         "paid_cost_usd": round(

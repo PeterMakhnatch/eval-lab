@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
 import json
 import sys
@@ -25,6 +26,33 @@ def load_fingerprint():
 @pytest.fixture
 def fingerprint():
     return load_fingerprint()
+
+
+@pytest.fixture
+def native_task_config():
+    try:
+        importlib.metadata.version("harbor")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("native Harbor SDK regressions require uv sync --extra laminar")
+    from harbor.models.task.config import TaskConfig
+
+    return TaskConfig
+
+
+def test_importable_harbor_stub_is_not_an_installed_native_sdk(monkeypatch, request):
+    stub = ModuleType("harbor.models.task.config")
+    monkeypatch.setitem(sys.modules, stub.__name__, stub)
+    version = importlib.metadata.version
+
+    def missing_harbor(name):
+        if name == "harbor":
+            raise importlib.metadata.PackageNotFoundError(name)
+        return version(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", missing_harbor)
+    assert pytest.importorskip(stub.__name__) is stub
+    with pytest.raises(pytest.skip.Exception, match="native Harbor SDK"):
+        request.getfixturevalue("native_task_config")
 
 
 def task_tree(root: Path) -> Path:
@@ -790,8 +818,8 @@ def test_frozen_in1_inventory_hash_uses_component_order_and_ignores_directories(
     assert expected != flat_order
 
 
+@pytest.mark.usefixtures("native_task_config")
 def test_sdk_declared_verifier_environment_copy_does_not_invent_resource_changes(fingerprint):
-    pytest.importorskip("harbor.models.task.config", reason="Optional benchmark SDK")
     inherited = (
         b'[environment]\ncpus = 2\nmemory_mb = 4096\nstorage_mb = 10240\ngpus = 0\n'
         b'[verifier]\nenvironment_mode = "separate"\n'
@@ -813,8 +841,8 @@ def test_sdk_declared_verifier_environment_copy_does_not_invent_resource_changes
     assert after["verifier_environment_origin"] == "explicit_verifier_environment"
 
 
+@pytest.mark.usefixtures("native_task_config")
 def test_sdk_legacy_units_are_normalization_not_changed_resource_declarations(fingerprint):
-    pytest.importorskip("harbor.models.task.config", reason="Optional benchmark SDK")
     before = fingerprint.parse_configuration(b'[environment]\nmemory = "4G"\n')
     after = fingerprint.parse_configuration(b'[environment]\nmemory_mb = 4096\n')
     assert before["error"] is None and after["error"] is None
@@ -824,8 +852,8 @@ def test_sdk_legacy_units_are_normalization_not_changed_resource_declarations(fi
     assert before["unknown_raw_fields"] == after["unknown_raw_fields"] == {}
 
 
+@pytest.mark.usefixtures("native_task_config")
 def test_invalid_toml_is_unmeasured_not_an_empty_default_configuration(fingerprint):
-    pytest.importorskip("harbor.models.task.config", reason="Optional benchmark SDK")
     original = b"[environment\n"
     parsed = fingerprint.parse_configuration(original)
     assert parsed["error"]["type"] == "TOMLDecodeError"

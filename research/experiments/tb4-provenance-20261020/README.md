@@ -249,6 +249,15 @@ reconciliation default to `source-family-fingerprints.json` under `--output`;
 use explicit inputs as above. Neither mode can be combined with bootstrap,
 and reconciliation cannot be combined with configuration.
 
+The declaration-parser regressions require an **installed native Harbor SDK**,
+checked through distribution metadata, not merely importable Harbor stubs in
+the base CI environment. Exercise the complete focused checkpoint in the
+locked native profile (`uv sync --locked --extra laminar --group benchmarks
+--group lance`) with `uv run --no-sync pytest tests/test_tb4_fingerprints.py
+tests/test_tb4_provenance.py tests/test_hub_trials.py -q -n0`. The SDK-specific
+assertions must execute there; their absence from a base-profile run is not
+native SDK validation. These tests do not execute benchmark package code.
+
 ## Reading the outputs and scientific boundary
 
 `stratify.py` writes receipted `primary.json`, `board.json` and `summary.json`,

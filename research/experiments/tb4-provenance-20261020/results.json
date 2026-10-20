@@ -1,0 +1,215 @@
+{
+  "schema": "evallab.tb4_provenance_result/v1",
+  "experiment": "pC-SELF-1",
+  "retained_worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/infra-tb4-provenance-20261020",
+  "upstream_git_ref": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+  "binding_scope": "native_packager_digest_bytes_not_source_membership",
+  "historical_full_inventory_binding": "unmeasured",
+  "runtime_equivalence": "not_established",
+  "boundaries": [
+    "Existing behavior labels are preserved, not relabelled or newly adjudicated.",
+    "Different source or digest is not itself bad data or a task defect.",
+    "Observed public export edges do not attest historical dataset membership.",
+    "Equal instruction/tests content does not prove executed-runtime equality.",
+    "Native content hashes do not bind all historical inventory or mode/link metadata.",
+    "No behavior labels are extrapolated to the additional 10150 board members.",
+    "The 856-cell qualified labelled subset includes 9 original unmeasured judgments."
+  ],
+  "artifacts": {
+    "spec": {
+      "path": "research/experiments/tb4-provenance-20261020/spec.json",
+      "sha256": "f710f8b6c4619ded8ab7113f0ea727a59ea0011fc3ebff9e65f34c474b3f219c"
+    },
+    "native_input": {
+      "path": "runs/pc-self1-provenance/native/exports/input-manifest-3083c03284de00d4c4025ee28fac9635da738a4d2fca07c8163fdd0665e89f98.json",
+      "sha256": "3083c03284de00d4c4025ee28fac9635da738a4d2fca07c8163fdd0665e89f98",
+      "bytes": 32753612
+    },
+    "package_locks": {
+      "path": "runs/pc-self1-provenance/native/exports/package-locks-80e9985e8bacf706c673d58c5e34376b504ca17c14647e3e9423a5fdef4f2548.json",
+      "sha256": "80e9985e8bacf706c673d58c5e34376b504ca17c14647e3e9423a5fdef4f2548",
+      "bytes": 118576
+    },
+    "fingerprints": {
+      "path": "runs/pc-self1-provenance/packages/fingerprint-stages/c0b7c047bbaf2a1d1d321cfca01f21138ff63898654a7415f7c7cb360af0ca65.json",
+      "sha256": "c0b7c047bbaf2a1d1d321cfca01f21138ff63898654a7415f7c7cb360af0ca65",
+      "bytes": 8197073
+    },
+    "summary": {
+      "path": "runs/pc-self1-provenance/join/exports/summary-9976adb39749d310874dbd1b5093d4e08e0ff67375f7c54014248721f8f0a136.json",
+      "sha256": "9976adb39749d310874dbd1b5093d4e08e0ff67375f7c54014248721f8f0a136",
+      "bytes": 20827
+    },
+    "primary_join": {
+      "path": "runs/pc-self1-provenance/join/exports/primary-32d65fe9478a30bd8b147f8226099e67aca5acf3289ac034e43e09c82eb89453.json",
+      "sha256": "32d65fe9478a30bd8b147f8226099e67aca5acf3289ac034e43e09c82eb89453",
+      "bytes": 17676635
+    },
+    "board_join": {
+      "path": "runs/pc-self1-provenance/join/exports/board-8fe689230a3a9cf3c2bdd6943c3056e2859525f027991077dc604908f1226444.json",
+      "sha256": "8fe689230a3a9cf3c2bdd6943c3056e2859525f027991077dc604908f1226444",
+      "bytes": 99421503
+    },
+    "source_family_controls": {
+      "path": "runs/pc-self1-provenance/packages/source-family-fingerprints.json",
+      "sha256": "310ec35c8302226bf52c478648b2eef8bbcd368412c756bfb6d273772923d67f"
+    },
+    "configuration_comparison": {
+      "path": "runs/pc-self1-provenance/packages/configuration-stages/e2eefd29146d6134b171cf8d5d3e1c0013a43f545a24d40d870b68def04da574.json",
+      "sha256": "e2eefd29146d6134b171cf8d5d3e1c0013a43f545a24d40d870b68def04da574",
+      "bytes": 2629814
+    },
+    "verifier_reconciliation": {
+      "path": "runs/pc-self1-provenance/packages/reconciliation-stages/65e3e3eeacd4ade2878ae1a3db1b882bb3b53017d8d8958e071ffdf88ac4df2f.json",
+      "sha256": "65e3e3eeacd4ade2878ae1a3db1b882bb3b53017d8d8958e071ffdf88ac4df2f",
+      "bytes": 78275
+    }
+  },
+  "native_coverage": {
+    "rows": 35,
+    "tasks": 66,
+    "attempts_per_row_task": 5,
+    "distinct_associated_trials": 11550,
+    "row_trial_memberships": 11550,
+    "details_acquired": 11550,
+    "job_summaries_acquired": 35,
+    "unassociated_job_trials_excluded": 422,
+    "missing_details": 0,
+    "api_refusals": 0,
+    "native_completed": 11545,
+    "native_failed": 5,
+    "null_task_locks": 5,
+    "null_task_lock_task": "medical-claims-processing"
+  },
+  "package_qualification": {
+    "distinct_recorded_keys": 198,
+    "digest_byte_bound_keys": 198,
+    "unmeasured_available_keys": 0,
+    "distinct_public_exports": 132,
+    "native_task_download_invocations": 133,
+    "native_public_version_show_invocations": 2,
+    "local_unreceipted_download_failures_retained": 1,
+    "new_downloads_for_final_key_join": 0,
+    "canonical_dataset_eligible_keys": 66,
+    "declared_source_bindings": {
+      "observed_in_pinned_canonical_dataset_edge": 66,
+      "observed_in_public_export_dataset_edge_only": 66,
+      "unproven": 66
+    },
+    "content_equal_key_counts": {
+      "instruction": 198,
+      "tests": 196,
+      "environment": 185,
+      "config": 0,
+      "reference": 198,
+      "support": 105
+    },
+    "full_compared_content_digest_covered_key_counts": {
+      "instruction": 198,
+      "tests": 196,
+      "environment": 193,
+      "config": 198,
+      "reference": 198,
+      "support": 105
+    },
+    "full_byte_and_path_equal_keys": 0,
+    "native_digest_binds_mode_and_symlink_metadata": false
+  },
+  "primary": {
+    "label_cells": 1400,
+    "distinct_native_trial_ids": 1400,
+    "matched_archive_native_links": 1400,
+    "archive_uuid_equals_native_uuid": 800,
+    "archive_uuid_differs_but_explicitly_linked": 600,
+    "original_sides": {"pass": 556, "fail": 833, "unscored": 11},
+    "existing_label_counts": {
+      "task_defect": 478,
+      "task_defect_gray": 29,
+      "known_exploit": 39,
+      "neither": 829,
+      "unmeasured": 25
+    },
+    "lock_strata": {
+      "canonical_exact_lock": 1160,
+      "canonical_source_different_digest": 200,
+      "different_source": 40
+    },
+    "strict_instruction_tests_equal": 1110,
+    "strict_instruction_tests_unequal": 290,
+    "reported_outcomes_measured": 1374,
+    "reported_outcomes_unmeasured": 26,
+    "positive_reward_with_error_excluded": 3,
+    "qualified_canonical_static_cells": 856,
+    "qualified_canonical_hash_covered_cells": 856,
+    "qualified_existing_labels": {
+      "task_defect": 355,
+      "task_defect_gray": 28,
+      "known_exploit": 18,
+      "neither": 446,
+      "unmeasured": 9
+    },
+    "qualified_original_sides": {"pass": 287, "fail": 569},
+    "qualified_decidable_original_fail_labels": 560
+  },
+  "board": {
+    "lock_strata": {
+      "canonical_exact_lock": 9565,
+      "canonical_source_different_digest": 1650,
+      "different_source": 330,
+      "unmeasured_null_lock": 5
+    },
+    "strict_instruction_tests_equal": 11255,
+    "strict_instruction_tests_unequal": 290,
+    "static_unmeasured_null_lock": 5,
+    "reported_measured_outcomes": {"pass": 4646, "fail": 6609},
+    "reported_outcomes_unmeasured": 295,
+    "static_equal_but_outcome_unmeasured": 278,
+    "outcome_measured_but_static_unequal": 278,
+    "canonical_exact_static_equal_reported_measured": {
+      "trials": 9009,
+      "pass": 3497,
+      "fail": 5512,
+      "scope": "Necessary-condition coverage only; not an extended labelled corpus, full archive binding or runtime attestation."
+    }
+  },
+  "configuration": {
+    "scope": "132 distinct public exports, not 198 repeated recorded keys",
+    "harbor_version": "0.24.0",
+    "parser": "harbor.models.task.config.TaskConfig.model_validate_toml",
+    "compose_parser": "yaml.safe_load",
+    "pyyaml_version": "6.0.3",
+    "sdk_pairs": 132,
+    "unmeasured_pairs": 0,
+    "errors": 0,
+    "packages_with_unknown_raw_fields": 0,
+    "raw_formatting_only_pairs": 0,
+    "alternate_task_name_only_pairs": 66,
+    "canonical_image_declaration_change_pairs": 66,
+    "canonical_new_explicit_verifier_environment_tables": 60,
+    "canonical_existing_verifier_environment_image_changes": 6,
+    "projected_cpu_ram_gpu_tpu_storage_network_timeout_changes": 0,
+    "compose_pairs": 22,
+    "compose_byte_changed_pairs": 11,
+    "equal_instruction_tests_with_changed_projected_declarations": 64,
+    "historically_applied_runtime_values": "unmeasured"
+  },
+  "verifier_reconciliation": {
+    "strict_unequal_primary_cells": 290,
+    "unequal_task_groups": {
+      "cumulative-layout-shift": {"native_trials": 145, "omitted_test_files": 2},
+      "distributed-dedup": {"native_trials": 145, "omitted_test_files": 5}
+    },
+    "common_instruction_test_files_with_content_changes": 0,
+    "git_content_drift_since_frozen_IN1": false,
+    "canonical_export_content_drift_since_frozen_IN1": false,
+    "all_66_git_content_inventory_sha256": "f77f8dd3cfb6064f6711056361345e57fd3787cc417b4fb7e24605781212b28d",
+    "behavioral_impact_of_omissions": "unmeasured"
+  },
+  "execution_limits_observed": {
+    "new_paid_experiments": 0,
+    "benchmark_model_executions": 0,
+    "benchmark_container_executions": 0,
+    "new_remote_experiments": 0,
+    "sealed_answer_key_reads": 0
+  }
+}

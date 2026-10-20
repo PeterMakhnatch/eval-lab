@@ -1,0 +1,51 @@
+{
+  "schema": "evallab.tb4_provenance_experiment/v1",
+  "frozen_at": "2026-10-20T07:27:36.086261+00:00",
+  "question": "Do the existing eight-task TB4 bad-data counts survive per-trial task/grader provenance qualification?",
+  "label_source_main": "55375964679c88aa2e413e436ee280aff496b551",
+  "label_inputs": [
+    {
+      "path": "research/experiments/tb4-run-census-20261020/labels-pass.compact.jsonl",
+      "bytes": 149833,
+      "sha256": "adcde15bdecba3854a8e6a150282d071ef3acd1ee591a17671748b105de35bf6"
+    },
+    {
+      "path": "research/experiments/tb4-run-census-20261020/labels-fail.compact.jsonl",
+      "bytes": 277299,
+      "sha256": "d1992ae09d577e4617fdd18ecd7b66416596c5919af11686b29b11fb5ada0289"
+    },
+    {
+      "path": "research/experiments/tb4-run-census-20261020/census.json",
+      "bytes": 255675,
+      "sha256": "1d15cb75344b5efd14c04a62fb16206b4193ff7d7a87a3f9905b3a231924fff9"
+    }
+  ],
+  "primary_tasks": [
+    "atrx-vep-crispr",
+    "batched-eval-parity",
+    "biped-contact-dynamics",
+    "cumulative-layout-shift",
+    "data-anonymization",
+    "distributed-dedup",
+    "vf2-speedup-networkx",
+    "wal-recovery-ordering"
+  ],
+  "canonical_git_ref": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+  "canonical_board": "terminal-bench/terminal-bench/4-0-0",
+  "canonical_dataset_id": "1922072f-a433-429a-8929-350d5e1bcf02",
+  "canonical_dataset_digest": "sha256:39d9f44b40420cde8fdcc087579c0d72a7e14fa3656d603c3f0d22fb35e27732",
+  "primary_scope": "Every originally labelled row/trial cell, including explicit missing/unmatched/ambiguous rows; no relabelling.",
+  "extension_scope": "Every associated trial in one frozen native board snapshot; ambient retries excluded.",
+  "classification_limits": [
+    "Source mismatch alone is not a task defect.",
+    "Equal verifier/instruction bytes do not prove equal runtime or grader behavior.",
+    "Canonical Hub identity and exact upstream Git bytes are separate claims.",
+    "Reported native reward is not a new integrity adjudication.",
+    "Existing exact-source downloader admissibility remains unchanged."
+  ],
+  "new_paid_experiment_cap_usd": 0,
+  "container_or_model_execution": false,
+  "sealed_answer_keys_read": false,
+  "work_until_et": "2026-10-20T09:30:00-04:00",
+  "work_until_utc": "2026-10-20T13:30:00Z"
+}

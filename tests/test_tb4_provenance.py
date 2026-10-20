@@ -250,6 +250,37 @@ def test_derived_export_keeps_snapshots_and_never_repairs_corrupt_view(tmp_path:
     assert (tmp_path / "view.json").read_bytes() == b"corrupt"
 
 
+@pytest.mark.parametrize("alias", ["snapshot", "exports_directory"])
+def test_derived_export_rejects_equal_bytes_outside_symlink_before_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, alias: str,
+) -> None:
+    root = tmp_path / "derived"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    value = {"cohort": "primary"}
+    raw = hub._json_bytes(value)
+    filename = f"view-{hub._digest(raw)}.json"
+    original = outside / filename
+    original.write_bytes(raw)
+    if alias == "snapshot":
+        (root / "exports").mkdir()
+        (root / "exports" / filename).symlink_to(original)
+    else:
+        (root / "exports").symlink_to(outside, target_is_directory=True)
+    read_bytes = Path.read_bytes
+
+    def guarded_read(path: Path) -> bytes:
+        assert not path.resolve().is_relative_to(outside), "followed a derived-export symlink"
+        return read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", guarded_read)
+    with pytest.raises(hub.IntegrityError, match="Symlink"):
+        acquire.publish(root, "view.json", value)
+    assert not (root / "view.json").exists()
+    assert read_bytes(original) == raw
+
+
 def test_frozen_labels_reject_changed_input_without_reading_any_other_sources(tmp_path: Path) -> None:
     label = tmp_path / "labels.jsonl"
     label.write_text(json.dumps(_label()) + "\n")

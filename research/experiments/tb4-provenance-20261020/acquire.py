@@ -52,14 +52,14 @@ def publish(root: Path, name: str, value: Any) -> dict[str, Any]:
     """Replace a derived view only after checking its prior receipt; retain snapshots."""
     raw = hub._json_bytes(value)
     digest = hub._digest(raw)
-    snapshot = root / "exports" / f"{name.removesuffix('.json')}-{digest}.json"
+    snapshot = hub._safe(root / "exports" / f"{name.removesuffix('.json')}-{digest}.json")
     if snapshot.exists():
         if snapshot.read_bytes() != raw:
             raise hub.IntegrityError("Derived snapshot hash mismatch")
     else:
         hub._atomic(snapshot, raw)
-    target = root / name
-    sidecar = root / f"{name}.receipt.json"
+    target = hub._safe(root / name)
+    sidecar = hub._safe(root / f"{name}.receipt.json")
     if target.exists() or sidecar.exists():
         if not target.exists() or not sidecar.exists():
             raise hub.IntegrityError("Untracked derived export; refusing replacement")

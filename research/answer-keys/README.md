@@ -146,6 +146,12 @@ behavioral intent. No model calls, submitted-code execution, or regrading occur.
 
 ## Keys and provenance caveats
 
+- [`tb4-audit-v1`](tb4-audit-v1/README.md): **241 PM finding records** (238
+  task-scoped + 3 benchmark-wide), all 30 Epoch flags and 39 historical EnvCheck
+  rows; 66-task cohort, seeded 25 dev / 41 test. Source-reported, not native
+  reproductions or certified-clean negatives. Reviewed taxonomy and explicit
+  partial/missing port-test mappings; scorer-side labels, whitelisted blind
+  task exports and existing split-guard registration. Offline build, $0.
 - [`cheatbench-actions-v1`](cheatbench-actions-v1/README.md): **300 external
   traces**, 75 positive + 75 negative in each dev/test split; benchmark-family
   holdout, blinded full normalized ATIF and assistant-prose-free actions view.

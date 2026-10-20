@@ -54,9 +54,15 @@ entries. The existing split guard registers all 241 finding items. The offline
 builder also binds the full task cohort and rejects finding/task split drift.
 The key does not supply a certified-clean set or justify a false-alarm rate or
 an unbiased bad-data prevalence estimate.
-The global guard also records **17 test finding items overlapping an older QA
-Task prompt-development exposure**. This is a sealed input protocol for fresh
-actors, not a claim that the cohort is unseen by every existing agent.
+The global guard and `build.py` also record task-level historical exposures from
+`splits/exposure.jsonl` on every task and finding (`historical_exposures` and
+`exposure_stratum`: `unexposed`, `inspected_only`, or `tuned`). On the **25 dev
+tasks (86 findings)**, 13 tasks (39 findings) are `unexposed`, 10 (40) are
+`inspected_only`, and 2 (7) are `tuned`. On the **41 test tasks (152 findings)**,
+14 tasks (36 findings) are strictly `unexposed`, 19 (78) are `inspected_only`,
+and 8 (38) are `tuned` (`untuned` test = 33 tasks / 114 findings). This is a
+sealed input protocol for fresh actors, not a claim that the cohort is unseen
+by every existing agent.
 
 
 Original input packages are digest-bound from the retained v4.0.0 cache. Their
@@ -144,6 +150,8 @@ uv run python research/answer-keys/splits/guard.py --check
 uv run python research/answer-keys/tb4-audit-v1/build.py \
   --agent-view /private/tmp/tb4-audit-test-inputs --split test \
   --task-root /path/to/original-v4.0.0/tasks
+uv run python research/answer-keys/tb4-audit-v1/score_audit.py \
+  --benchmark-baselines --out /private/tmp/tb4-audit-scorer-baselines.json
 ```
 
 `pm_source.py --help` and `import_sources.py --help` describe source refresh
@@ -155,8 +163,12 @@ digests. Normal rebuilds require none of those external files or a model.
 An export whitelists only task ID/input digest/package pin and original
 `instruction.md`, `task.toml`, `tests/`, `solution/`, `environment/`. It excludes
 top-level maintainer READMEs, cheat directories, audit prose, titles, port tests, source
-labels and per-task finding counts. A new destination is required; symlinks,
-changed packages and changed exported bytes are rejected. Full source snapshots,
+labels and per-task finding counts, and skips files ignored by
+`task_directory_digest` (`.tmp`, `.pyc`, `.DS_Store`). `agent_tools` validates
+the exact `inputs.jsonl` (`tb4.audit.task_input/v1`) and `taxonomy.json`
+schemas, enforces surface whitelists, rejects symlinks and unlisted sidecar
+files, and returns `SealedWorkspaceTools`, which re-verifies `bundle.json` and
+every exported file digest on each `.run(...)` call. Full source snapshots,
 this key, split assignments/report and bridge files must stay scorer-side.
 
 **Required harness boundary:** provide only the exported view's inventoried
@@ -166,9 +178,10 @@ raw `taxonomy.md`/YAML with task-specific examples. Use fresh actor contexts,
 never a key curator's or previously label-exposed conversation. A file layout
 is not an OS sandbox. Container-based checks must likewise mount only approved
 task inputs, never scorer-side roots. Public/pretraining familiarity is not
-ruled out by this workspace boundary. Task-level hit rate is not per-finding
-recall; any per-finding scorer must match the actual finding rather than
-crediting every label on a flagged task.
+ruled out by this workspace boundary. `score_audit.py` enforces 1-to-1
+bipartite finding matching (`exact_id`, `locus_and_class`, `category_1to1`,
+`task_any_1to1`) alongside `legacy_task_broadcast` / `legacy_any` so a single
+generic task flag cannot be broadcast to every finding on that task.
 
 ## Sources and licences
 

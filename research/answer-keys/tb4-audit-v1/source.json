@@ -15989,11 +15989,10 @@
           "pm": "unknown",
           "tokenless": "none"
         },
-        "github_issue_numbers_concrete": [
-          1972
-        ],
+        "github_issue_numbers_concrete": [],
         "github_issue_numbers_other": [
-          1645
+          1645,
+          1972
         ],
         "notes": []
       },

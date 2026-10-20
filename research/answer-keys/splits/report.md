@@ -22,6 +22,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | mimo-weak-tests-v2.1 | 46 (46/0) | 68 (68/0) test | 0 / 0 | 114 | 0 |
 | tb2-to-tb21-v1 | 0 (0/0) | 104 (26/78) test | 0 / 52 | 52 | 0 |
 | tb21-weak-tests-v1 | 23 (1/0) | 66 (4/0) heldout/test | 0 / 0 | 89 | 0 |
+| tb4-audit-v1 | 89 (89/0) | 152 (152/0) test | 0 / 0 | 61 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
 | weak-tests-generalization-20261019 | 253 (3/0) | 0 (0/0) - | 0 / 0 | 253 | 0 |
@@ -35,6 +36,7 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | task | dev in | reported in |
 |---|---|---|
 | adaptive-rejection-sampler | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| atrx-vep-crispr | envcheck-tb4-39 | tb4-audit-v1 |
 | bn-fit-modify | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | break-filter-js-from-html | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | build-cython-ext | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
@@ -42,6 +44,7 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | build-pov-ray | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | caffe-cifar-10 | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | cancel-async-tasks | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| cargo-flight-dispatch | tb4-audit-v1 | envcheck-tb4-39, executed-outcomes-v1 |
 | chess-best-move | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | circuit-fibsqrt | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | cobol-modernization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
@@ -52,6 +55,7 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | count-dataset-tokens | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | crack-7z-hash | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | custom-memory-heap-crash | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1 |
+| data-anonymization | envcheck-tb4-39 | tb4-audit-v1 |
 | db-wal-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | distribution-search | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | dna-assembly | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
@@ -69,6 +73,8 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | format-code-task-001246 | mimo-weak-tests-v1 | mimo-fresh-window3, mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
 | format-code-task-001480 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7 |
 | format-code-task-001590 | mimo-weak-tests-v1 | mimo-heldout-v6-to-v7, mimo-v7-canonical-pass70 |
+| fp8-rmsnorm-gemm | envcheck-tb4-39 | tb4-audit-v1 |
+| freecad-impeller | tb4-audit-v1 | envcheck-tb4-39 |
 | gcode-to-text | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | git-leak-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | git-multibranch | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
@@ -76,26 +82,34 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | headless-terminal | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | hf-model-inference | weak-tests-generalization-20261019 | tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | install-windows-3.11 | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| interleaved-vigenere | envcheck-tb4-39 | tb4-audit-v1 |
+| intrastat-meldung | envcheck-tb4-39 | tb4-audit-v1 |
 | kv-store-grpc | weak-tests-generalization-20261019 | tb2-to-tb21-v1, tb21-weak-tests-v1 |
+| lake-temp-glm | envcheck-tb4-39 | tb4-audit-v1 |
 | large-scale-text-editing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | largest-eigenval | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| live-database-cutover | tb4-audit-v1 | envcheck-tb4-39 |
 | llm-inference-batching-scheduler | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | log-summary-date-ranges | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 | mailman | weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | make-doom-for-mips | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | make-mips-interpreter | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| math-eval-grader | tb4-audit-v1 | envcheck-tb4-39 |
 | mcmc-sampling-stan | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | model-extraction-relu-logits | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | modernize-scientific-stack | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 | mteb-leaderboard | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2, tb2-to-tb21-v1 |
 | mteb-retrieve | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | multi-source-data-merger | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| mvcc-lsm-compaction | envcheck-tb4-39 | tb4-audit-v1 |
+| nextjs-performance | tb4-audit-v1 | envcheck-tb4-39 |
 | nginx-request-logging | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | openssl-selfsigned-cert | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 | overfull-hbox | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | password-recovery | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 | path-tracing | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
 | path-tracing-reverse | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| payments-pipeline-fix | envcheck-tb4-39 | tb4-audit-v1 |
 | polyglot-c-py | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | polyglot-rust-c | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | portfolio-optimization | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
@@ -115,13 +129,18 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | sam-cell-seg | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | sanitize-git-repo | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
 | schemelike-metacircular-eval | tb21-weak-tests-v1, weak-tests-generalization-20261019 | breaker-bench-v1 |
+| sglang-qwen-burst | tb4-audit-v1 | envcheck-tb4-39 |
+| shadow-relay | envcheck-tb4-39 | tb4-audit-v1 |
 | sqlite-db-truncate | breaker-bench-v1, tb21-weak-tests-v1, weak-tests-generalization-20261019 | delphik-open-defect-tb2 |
 | sqlite-with-gcov | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
 | torch-pipeline-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | torch-tensor-parallelism | weak-tests-generalization-20261019 | breaker-bench-v1, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | train-fasttext | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb2-to-tb21-v1, tb21-weak-tests-v1 |
 | tune-mjcf | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
+| uefi-bootkit | tb4-audit-v1 | envcheck-tb4-39 |
+| vf2-speedup-networkx | tb4-audit-v1 | envcheck-tb4-39 |
 | video-processing | weak-tests-generalization-20261019 | breaker-bench-v1, delphik-open-defect-tb2, tb21-weak-tests-v1 |
+| wal-recovery-ordering | envcheck-tb4-39 | tb4-audit-v1 |
 | winning-avg-corewars | weak-tests-generalization-20261019 | breaker-bench-v1, tb21-weak-tests-v1 |
 
 ## Same package bytes, different verdicts
@@ -150,6 +169,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | compile-compcert | sha256:c4c0fcaa95bc | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | configure-git-webserver | sha256:47abd3aa255d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | constraints-scheduling | sha256:c0146b993663 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| coq-block-bound | sha256:5ef120ba3b15 | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | count-dataset-tokens | sha256:e5387bc1be89 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | custom-memory-heap-crash | sha256:84aaaa6b70b5 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | db-wal-recovery | sha256:5b52bc6eca9d | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
@@ -161,7 +181,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | feal-differential-cryptanalysis | sha256:26d4b179e89b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | feal-linear-cryptanalysis | sha256:10799d1e76fe | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | filter-js-from-html | sha256:50db1e57cdee | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
-| fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1; pass: envcheck-tb4-39 |
+| fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1, tb4-audit-v1; pass: envcheck-tb4-39 |
 | financial-document-processor | sha256:f84178ede1eb | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | fix-code-vulnerability | sha256:fea5863aa6fd | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | fix-git | sha256:f264d981302b | fail: executed-outcomes-v1, tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
@@ -175,15 +195,20 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | format-code-task-002742 | sha256:eebc07e8d34a | pass: executed-outcomes-v1, mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002866 | sha256:c1fa445d03cd | fail: executed-outcomes-v1; unknown: mimo-stratified-sample100 |
 | format-code-task-002884 | sha256:85fbd05efb9a | pass: mimo-weak-tests-v1; unknown: mimo-stratified-sample100 |
+| fp8-rmsnorm-gemm | sha256:88f68063f75c | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | gcode-to-text | sha256:8ae8f633b879 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | git-leak-recovery | sha256:d681de43f546 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | git-multibranch | sha256:4512d76e39b6 | fail: delphik-open-defect-tb2; pass: tb2-to-tb21-v1 |
 | git-multibranch | sha256:19c20a15160b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | headless-terminal | sha256:9d82d212ec58 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | hf-model-inference | sha256:655b162d513b | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| hof-topology-interpenetration | sha256:c9a535add7ef | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | install-windows-3.11 | sha256:37bca2642f89 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| intrastat-meldung | sha256:ed0a082aa0ef | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | kv-store-grpc | sha256:7ddb52adbc4e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | large-scale-text-editing | sha256:1a4c47c3843c | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| layout-config-recreation | sha256:1cf139e37fd9 | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
+| live-database-cutover | sha256:751ffe6fbf2c | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | make-doom-for-mips | sha256:5000b91dbdb4 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | make-mips-interpreter | sha256:e987ecd2373d | fail: tb21-weak-tests-v1; unknown: weak-tests-generalization-20261019 |
 | mcmc-sampling-stan | sha256:f48e3ab0a271 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
@@ -191,19 +216,25 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | mteb-leaderboard | sha256:59d008cd5c5e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | mteb-retrieve | sha256:862616912f37 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | overfull-hbox | sha256:d013ea7ea644 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| payments-pipeline-fix | sha256:86aadee0bc8f | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | polyglot-c-py | sha256:d04bb722a5a5 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | polyglot-c-py | sha256:64b82e4f9066 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | polyglot-rust-c | sha256:46c294fcde77 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| production-planning | sha256:2bca5b6ac97d | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | protein-assembly | sha256:29be4b9e19d1 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | query-optimize | sha256:9c3951327bea | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| react-lead-form | sha256:2fb34e518a75 | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
+| retro-console-soc | sha256:b2c4e0d395cd | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | rstan-to-pystan | sha256:32094d1688d5 | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | sam-cell-seg | sha256:57fe4ee6d3c5 | fail: tb21-weak-tests-v1, weak-tests-generalization-20261019; pass: tb2-to-tb21-v1 |
+| shadow-relay | sha256:d359d3d585a1 | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 | sqlite-db-truncate | sha256:8d709a9557d7 | fail: tb21-weak-tests-v1; unknown: weak-tests-generalization-20261019 |
 | torch-pipeline-parallelism | sha256:0ee676b39d4a | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | torch-pipeline-parallelism | sha256:fee0c9db891e | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | torch-tensor-parallelism | sha256:280efa2017af | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
 | train-fasttext | sha256:dd9463a06f82 | fail: tb2-to-tb21-v1; pass: delphik-open-defect-tb2 |
 | train-fasttext | sha256:efef66833f2a | pass: tb2-to-tb21-v1; unknown: tb21-weak-tests-v1, weak-tests-generalization-20261019 |
+| uefi-bootkit | sha256:9dc89fe206d7 | fail: tb4-audit-v1; pass: envcheck-tb4-39 |
 
 ## Exposures (who was tuned on or read what)
 
@@ -217,6 +248,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | executed-outcomes-v1 | 1 | 4 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb2-to-tb21-v1 | 0 | 2 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb21-weak-tests-v1 | 0 | 1 |
+| breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | tb4-audit-v1 | 7 | 21 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | weak-tests-generalization-20261019 | 1 | 0 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
@@ -249,8 +281,10 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | executed-outcomes-probe | selected | Verifier hardening, Breaker | executed-outcomes-v1 | 3 | 3 |
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 1 |
 | ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | executed-outcomes-v1 | 0 | 1 |
+| ref-subset-903-separate-verifier-dev | tuned | QA Task from 2026-10-15 | tb4-audit-v1 | 6 | 0 |
 | ref-subset-tb4-39-sweep | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 13 | 26 |
 | qa-task-s2-prompt-dev | tuned | QA Task from 2026-10-15 | envcheck-tb4-39 | 4 | 0 |
+| qa-task-s2-prompt-dev | tuned | QA Task from 2026-10-15 | tb4-audit-v1 | 0 | 17 |
 | qa-task-s2-heldout-metadata | inspected | QA Task from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | executed-outcomes-v1 | 0 | 3 |
 | qa-task-mimo-heldout-audit-3 | inspected | QA Task from 2026-10-16 | mimo-fresh-window3 | 0 | 12 |

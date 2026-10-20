@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""Rebuild the TB4 audit key offline from its frozen, reviewed source metadata.
+
+Raw PM prose, port code, original task packages and actor views stay outside Git.
+``source.json`` retains factual metadata, short titles, source identities, every
+historical auditor row, and the reviewed class decisions; it is scorer-only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+from views import KEY_ID, SPLIT_SEED, materialize_agent_view, task_splits
+
+from evallab.qa.models import AnswerKeyItem
+
+HERE = Path(__file__).resolve().parent
+BENCHMARK_CONTEXT_ID = "__benchmark__/terminal-bench-4"
+CATEGORY = {
+    "weak_check": "weak",
+    "grader_logic_bug": "broken",
+    "answer_reachable": "reachable",
+    "grader_tamperable": "tamperable",
+    "unstated_requirement": "prompt_misaligned",
+    "instruction_grader_contradiction": "prompt_misaligned",
+    "overstrict_oracle": "broken",
+    "wrong_answer_key": "broken",
+    "env_mismatch_or_flaky": "broken",
+    "infeasible_as_written": "broken",
+    "exploitable_llm_judge": "weak",
+}
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
+def _jsonl(rows: list[dict[str, Any]]) -> str:
+    return "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows)
+
+
+def _counts(values: Any) -> dict[str, int]:
+    return dict(sorted(Counter(values).items()))
+
+
+def build_outputs(source: dict[str, Any]) -> dict[str, str]:
+    """Build all registered labels without reading a task package or using a model."""
+    if source.get("schema") != "tb4.audit.sources/v1":
+        raise ValueError("not a frozen TB4 audit source manifest")
+    findings = source["findings"]
+    if len(findings) != 241 or len({row["finding_id"] for row in findings}) != 241:
+        raise ValueError("tb4-audit-v1 must preserve all 241 unique PM findings")
+    tasks = source["tasks"]
+    by_name = {row["task"]: row for row in tasks}
+    if len(by_name) != len(tasks):
+        raise ValueError("the source cohort contains duplicate task identities")
+    splits = task_splits(by_name, seed=SPLIT_SEED, dev_count=25)
+    taxonomy = source["taxonomy"]
+    class_ids = {row["key"]: row["id"] for row in taxonomy["task_side"]}
+    if set(class_ids) != set(CATEGORY):
+        raise ValueError("the key and pinned task-side taxonomy disagree")
+    items = []
+    for finding in findings:
+        name = finding["task"]
+        scope = finding["scope"]
+        if scope not in {"task", "benchmark"} or (scope == "benchmark") != (name is None):
+            raise ValueError("the PM task and benchmark scopes are inconsistent")
+        review = finding["taxonomy_review"]
+        cls = review["final_class"]
+        if cls not in class_ids or review["evidence_status"] != "suspected_source_claim":
+            raise ValueError("class labels must be explicit, known, and not native-confirmed")
+        if review["decision"] in {"changed", "uncertain"} and not review.get("parent_decision"):
+            raise ValueError(
+                "changed or uncertain first-pass labels require a recorded final review"
+            )
+        if scope == "task":
+            task = by_name[name]
+            subject = task["subject"]
+            package = task["package"]
+            split = splits[name]
+        else:
+            # The legacy answer-key subject schema is task|trace. This explicit
+            # context carrier is NOT a native task, has no package or digest,
+            # is excluded from actor views/task metrics, and is never held out.
+            subject = {"kind": "task", "task_id": BENCHMARK_CONTEXT_ID}
+            package = None
+            split = "dev"
+        tests = finding["port_tests"]
+        item = {
+            "schema": "qa.answer_key/v1",
+            "key_id": KEY_ID,
+            "item_id": finding["finding_id"],
+            "subject": subject,
+            "scope": scope,
+            "task": name,
+            "role": "finding" if scope == "task" else "benchmark_context",
+            "package": package,
+            "split": split,
+            "title": finding["title"],
+            "expected_category": CATEGORY[cls],
+            "expected_verdict": "fail",
+            "expected_fault": "eval",
+            "expected_root_causes": [finding["finding_id"]],
+            "root_cause": [
+                {
+                    "id": finding["finding_id"],
+                    "category": CATEGORY[cls],
+                    "source_class": cls,
+                    "summary": finding["title"],
+                }
+            ],
+            "label_source": source["pm"]["source"]["url"]
+            + "@sha256:"
+            + source["pm"]["source"]["sha256"],
+            "label_strength": "pm_reported",
+            "pm_types": finding["pm_types"],
+            "taxonomy_class": cls,
+            "taxonomy_class_id": class_ids[cls],
+            "taxonomy_review": review,
+            "port": {
+                "status": finding["port_status"],
+                "status_label": finding["port_status_label"],
+                "revision": source["pm"]["port"]["revision"],
+                "mapping_status": finding["port_mapping_status"],
+                "tests": tests,
+                "mapping_review": finding["port_mapping_review"],
+            },
+            "sources": finding["attribution"],
+            "github_refs": finding["github_refs"],
+            "pm_execution": finding["pm_execution"],
+            "harbor_trial_urls": finding["harbor_trial_urls"],
+            "auditor_evidence": finding["auditor_evidence"],
+            "source_url": finding["source_url"],
+            "label_binding": "auditor report on the named task; not re-executed on the input digest",
+        }
+        AnswerKeyItem.model_validate(item)
+        items.append(item)
+    items.sort(key=lambda row: row["item_id"])
+    cohort = []
+    for name, task in sorted(by_name.items()):
+        # Keep unmatched Epoch/Tokenless flags and PM's no-issue/not-reviewed
+        # statements, but do not invent additional PM findings or clean labels.
+        cohort.append(
+            task
+            | {
+                "schema": "tb4.audit.task/v1",
+                "scope": "task",
+                "split": splits[name],
+            }
+        )
+    for item in items:
+        if item["scope"] == "task" and item["split"] != splits[item["task"]]:
+            raise ValueError("a finding straddles its task's split")
+    agreement = source["agreement"]
+    for kind in ("counted_source_count", "direct_source_count", "attributed_source_count"):
+        if sum(agreement["overall"][kind].values()) != len(items):
+            raise ValueError("finding-level source agreement does not sum to the finding cohort")
+    if sum(agreement["task_level_overlap"]["source_count"].values()) != len(cohort):
+        raise ValueError("task-level source overlap does not sum to the task cohort")
+    summary = {
+        "schema": "tb4.audit.summary/v1",
+        "key_id": KEY_ID,
+        "split_seed": SPLIT_SEED,
+        "split_method": "ascending sha256(key_id:seed:task), first 25 tasks dev, remainder test",
+        "native_tasks": len(cohort),
+        "native_task_splits": _counts(row["split"] for row in cohort),
+        "pm_findings": len(items),
+        "finding_scope": _counts(row["scope"] for row in items),
+        "finding_splits": _counts(row["split"] for row in items),
+        "task_scoped_finding_splits": _counts(
+            row["split"] for row in items if row["scope"] == "task"
+        ),
+        "taxonomy_classes": _counts(row["taxonomy_class"] for row in items),
+        "taxonomy_review_decisions": _counts(row["taxonomy_review"]["decision"] for row in items),
+        "pm_type_labels": _counts(cls for row in items for cls in row["pm_types"]),
+        "port_status": _counts(row["port"]["status"] for row in items),
+        "port_mapping_status": _counts(row["port"]["mapping_status"] for row in items),
+        "pm_execution_claims": _counts(row["pm_execution"]["execution_claim"] for row in items),
+        "agreement": agreement,
+        "source_discrepancies": source["discrepancies"],
+        "source_manifest_sha256": hashlib.sha256(_json(source).encode()).hexdigest(),
+        "native_reproductions_performed": 0,
+        "paid_cost_usd": 0,
+    }
+    return {
+        "items.jsonl": _jsonl(items),
+        "tasks.jsonl": _jsonl(cohort),
+        "summary.json": _json(summary),
+        "taxonomy.json": _json(taxonomy),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="fail on stale registered outputs")
+    parser.add_argument("--agent-view", type=Path, help="new, label-free output directory")
+    parser.add_argument("--split", choices=("dev", "test"))
+    parser.add_argument(
+        "--task-root", type=Path, help="original upstream package root, not the fixed port"
+    )
+    args = parser.parse_args()
+    if args.agent_view is not None and (args.split is None or args.task_root is None):
+        parser.error("--agent-view requires --split and --task-root")
+    if args.agent_view is not None and args.check:
+        parser.error("--check and --agent-view are separate operations")
+    source = json.loads((HERE / "source.json").read_text(encoding="utf-8"))
+    outputs = build_outputs(source)
+    stale = []
+    for name, content in outputs.items():
+        path = HERE / name
+        if args.check or args.agent_view is not None:
+            if not path.is_file() or path.read_text(encoding="utf-8") != content:
+                stale.append(name)
+        else:
+            path.write_text(content, encoding="utf-8")
+    if stale:
+        print("stale TB4 audit outputs: " + ", ".join(stale))
+        return 1
+    if args.agent_view is not None:
+        tasks = [json.loads(line) for line in outputs["tasks.jsonl"].splitlines()]
+        manifest = materialize_agent_view(
+            tasks,
+            args.agent_view,
+            split=args.split,
+            task_root=args.task_root,
+            taxonomy=source["taxonomy"],
+        )
+        print(
+            json.dumps(
+                {
+                    "agent_view": str(args.agent_view),
+                    "split": args.split,
+                    "tasks": manifest["task_count"],
+                    "files": len(manifest["files"]),
+                }
+            )
+        )
+    else:
+        summary = json.loads(outputs["summary.json"])
+        print(
+            json.dumps(
+                {
+                    "key_id": KEY_ID,
+                    "checked": args.check,
+                    "findings": summary["pm_findings"],
+                    "native_tasks": summary["native_tasks"],
+                    "task_splits": summary["native_task_splits"],
+                },
+                sort_keys=True,
+            )
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -80,3 +80,21 @@ def test_inert_batch_metadata_does_not_discard_authorized_work() -> None:
     assert plain.parse_action({"requests": [{"tool": "read", "args": {"path": "instruction.md"}}],
                                "requests_count": 1}) == (
         "requests", [{"tool": "read", "args": {"path": "instruction.md"}}])
+
+
+@pytest.mark.parametrize("text", [
+    '{"requests": [{"tool": "read", "args": {"path": "instruction.md"}}]}',
+    '```json\n{"requests": [{"tool": "read", "args": {"path": "instruction.md"}}]}\n```',
+    'Here is my next step:\n{"requests": [{"tool": "read", "args": {"path": "instruction.md"}}]}',
+    '{"requests": [{"tool": "read", "args": {"path": "instruction.md",}}]}',
+])
+def test_extract_json_recovers_one_action_object(text: str) -> None:
+    kind, action = plain.parse_action(plain.extract_json(text))
+    assert kind == "requests"
+    assert action == [{"tool": "read", "args": {"path": "instruction.md"}}]
+
+
+@pytest.mark.parametrize("text", ["", "no json here", "[1, 2] trailing"])
+def test_extract_json_refuses_non_object_content(text: str) -> None:
+    with pytest.raises(ValueError):
+        plain.parse_action(plain.extract_json(text))

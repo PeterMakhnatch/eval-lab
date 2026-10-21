@@ -207,6 +207,31 @@ so a task needing more than the remaining capacity is still refused. On this
 host (7.75 GiB Docker VM, three unbounded services using ~0.7 GiB observed)
 that admits the 4096 MiB `fin-saccr-rwa` and `cargo-flight-dispatch` ports.
 
+Modal build for those ports (2026-10-21): the generated port verifier
+Dockerfile now inserts `RUN printf 'tsflags=nocaps\n' >> /etc/dnf/dnf.conf`
+after every `FROM` in dnf-based Containerfiles
+(`candidate_port._image_dockerfile`). `tsflags=nocaps` makes rpm skip
+setting file capabilities at install time, which is the step Modal's
+builder cannot perform. Only the cap_setgid/cap_setuid metadata on
+`newgidmap`/`newuidmap` (rootless user-namespace helpers) is dropped;
+packages, scoring scripts, locks and assertions are installed unchanged,
+and the verifier runs as root and demotes via setuid syscalls. Non-dnf
+Containerfiles are untouched.
+
+Compose tasks are Modal-only (explicit `backend="modal"`): Harbor's Modal
+environment runs the Compose stack Docker-in-Docker inside one sandbox
+allocated at the exact declared agent CPU/memory, which is the resource
+bound (Compose services declare no per-service limits). Local Docker and
+`auto` still refuse Compose tasks at plan time, so nothing silently falls
+back. In DinD mode Harbor uses host networking inside the sandbox and
+cannot apply the usual egress allowlist; the egress-lock record says so.
+
+Port artifact binding: upstream artifacts under `/app` or `/workdir` bind
+by path. Other absolute artifact dirs (e.g. `/results`) bind only by a
+unique basename against the port's submission paths; duplicate artifact
+basenames refuse at describe time, and a missing/ambiguous binding at
+runtime is an infrastructure error, never a synthetic reward.
+
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,
 `outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the

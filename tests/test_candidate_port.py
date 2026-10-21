@@ -300,6 +300,46 @@ def test_explicit_full_scorer_results_are_preserved_without_inventing_aggregate_
     }
 
 
+def test_image_dockerfile_skips_file_capabilities_only_for_dnf_builds() -> None:
+    dnf = "FROM docker.io/library/amazonlinux:2023\nRUN dnf install -y shadow-utils\n"
+    made = port._image_dockerfile(dnf)
+    assert made.splitlines()[1].startswith("RUN printf 'tsflags=nocaps")
+    assert "RUN dnf install -y shadow-utils" in made
+    plain = "FROM scratch\nCOPY src/ /root/src/\n"
+    assert port._image_dockerfile(plain) == plain
+
+
+def test_driver_binds_non_app_artifacts_by_unique_basename() -> None:
+    namespace: dict[str, Any] = {"__name__": "candidate_port_driver_binding"}
+    exec(port._DRIVER, namespace)
+    source_for = namespace["source_for"]
+    assert source_for(Path("/workdir/output/gsea_stats.tsv"), ["/results/gsea_stats.tsv", "/results/output.csv"]) == Path("/results/gsea_stats.tsv")
+    with pytest.raises(RuntimeError, match="no unambiguous"):
+        source_for(Path("/workdir/output/gsea_stats.tsv"), ["/a/gsea_stats.tsv", "/b/gsea_stats.tsv"])
+
+
+def test_gitkeep_only_copy_sources_are_rewritten_for_modal(tmp_path: Path) -> None:
+    context = tmp_path / "ctx"
+    (context / "student_data").mkdir(parents=True)
+    (context / "student_data" / ".gitkeep").touch()
+    (context / "shared_data").mkdir()
+    (context / "shared_data" / "real.txt").write_text("data")
+    text = "FROM x\nCOPY --chown=student student_data/ /workdir/data/\nCOPY shared_data/ /workdir/shared/\n"
+    made = port._copy_gitkeep_form(text, context, [])
+    assert "RUN mkdir -p /workdir/data && chown student /workdir/data" in made
+    assert "COPY shared_data/ /workdir/shared/" in made
+    # A prepared asset filling the dir keeps the real directory COPY.
+    filled = port._copy_gitkeep_form(text, context, [{"destination": "student_data/a.csv", "source": "environment/data/a.csv", "sha256": "0" * 64}])
+    assert "COPY --chown=student student_data/ /workdir/data/" in filled
+
+
+def test_agent_environment_compose_is_admitted_for_modal(packages: tuple[Path, Path]) -> None:
+    original, fixed = packages
+    put(original / "environment/docker-compose.yaml", "services: {main: {}}\n")
+    described = port.describe_port_task(original, fixed)
+    assert described["task_id"] == "native-task"
+
+
 @pytest.mark.parametrize("mutation,reason", [
     ("compose", "Compose"),
     ("gpu", "accelerator"),
@@ -309,14 +349,14 @@ def test_explicit_full_scorer_results_are_preserved_without_inventing_aggregate_
     ("external-fetch", "nonlocal/transforming"),
     ("escape-destination", "unsafe setup-data path"),
     ("external-model", "external model/provider"),
-    ("unbound-artifact", "explicit port binding"),
+    ("unbound-artifact", "ambiguous"),
     ("custom-judge", "custom/composite/model-backed"),
 ])
 def test_invalid_or_unqualified_packages_refuse_before_creating_output(packages: tuple[Path, Path], tmp_path: Path, mutation: str, reason: str) -> None:
     original, fixed = packages
     source = fixed / "src/environment/tasks/native_task/__init__.py"
     if mutation == "compose":
-        put(original / "environment/compose.yaml", "services: {}\n")
+        put(original / "tests/compose.yaml", "services: {}\n")
     elif mutation == "gpu":
         put(original / "task.toml", (original / "task.toml").read_text().replace("gpus = 0", "gpus = 1"))
     elif mutation == "zero-cpu":
@@ -334,7 +374,7 @@ def test_invalid_or_unqualified_packages_refuse_before_creating_output(packages:
         put(fixed / "src/environment/provider.py", "import openai\n")
     elif mutation == "unbound-artifact":
         path = original / "task.toml"
-        put(path, path.read_text().replace("/app/result.txt", "/state/result.txt"))
+        put(path, path.read_text().replace('"/app/result.txt"', '"/app/result.txt", "/state/result.txt"'))
     elif mutation == "custom-judge":
         put(source, source.read_text().replace("ExecutableJudge(", "RubricJudge("))
     output = tmp_path / "must-not-exist"

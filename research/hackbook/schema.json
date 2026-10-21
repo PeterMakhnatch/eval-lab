@@ -186,6 +186,7 @@
         "evidence_status": {
           "enum": [
             "executed",
+            "observed",
             "claimed"
           ],
           "title": "Evidence Status",
@@ -211,6 +212,8 @@
             "automationbench_verified",
             "rea_environments",
             "wandr",
+            "reward_seeker",
+            "tb4_run_census",
             "taxonomy_v1",
             "delphik_open_defect"
           ],
@@ -409,7 +412,9 @@
           "bespoke_tb4",
           "automationbench_verified",
           "rea_environments",
-          "wandr"
+          "wandr",
+          "reward_seeker",
+          "tb4_run_census"
         ],
         "type": "string"
       },
@@ -467,7 +472,9 @@
     "bespoke_tb4",
     "automationbench_verified",
     "rea_environments",
-    "wandr"
+    "wandr",
+    "reward_seeker",
+    "tb4_run_census"
   ],
   "x-canonical-structural-signals": [
     "unread_output_mentions",

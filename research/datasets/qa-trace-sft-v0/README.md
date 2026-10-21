@@ -40,3 +40,41 @@ when the checked mechanism is not witnessed in actions.
 - `baseline.py`, `baseline-results.json` — zero-shot cheap-model baseline (dev, then test once)
 
 Rebuild: `python3 research/datasets/qa-trace-sft-v0/build_dataset.py`
+
+## Entry point: `evallab qa trace-cheap <trial|dir>`
+
+Single cheap-trace-QA command (code: `src/evallab/qa/trace_cheap.py`):
+tripwires-v3 prefilter ($0, deterministic) → hackbook candidates for the
+trace (task-gated with `--task-dir`) → cheap judge in **confirmation mode**
+when a candidate exists (asked about that one mechanism) or **discovery
+mode** otherwise (whole hackbook short list) → one `qa.finding/v1` finding
+with step citations and the mode stated in its summary. `--offline` runs
+only the $0 stages; otherwise the judge is an OpenRouter model
+(`--model`, default `openai/gpt-oss-120b`) using structured JSON-schema
+output + one repair retry, with cite-the-step-or-abstain enforced.
+
+Measured on this dataset (same stratified samples; test run once per frozen
+version; zero-shot → harness v2 confirmation → v3 discovery/defect):
+
+| model | exploit recall: zero-shot → confirmation → discovery | false alarms (neither) | defect recall |
+|---|---|---|---|
+| GPT-OSS-120b | 0.05 → **0.75** → 0.20 | 0.25 → 0.05 → 0.30 | 0 → 0 → **1.00** (defect variant, n=7) |
+| GLM 5.3 Flash | 0.25 → 0.30 → 0.20 | 0.45 → 0.00 → 0.00 | 0 → 0 → 0.29 |
+| Qwen 3.6 35B-A3B | 0.00 → 0.15 → 0.00 | 0.85 → 0.05 → 0.10 | 0 → 0 → 0.00 |
+
+Caveats — read before trusting a finding:
+
+- **Confirmation ≠ discovery.** Most of the confirmation gain is the
+  candidate: without it, GPT-OSS exploit recall falls 0.70→0.20 (same
+  subset) and false alarms triple; mechanism-id match in discovery was
+  0/4 even when the label was right. A discovery-mode flag is a lead for
+  review, not a verdict of the same strength.
+- Defect recall was 0 for every model until the v3 defect variant added
+  verifier output + wrong-fail hackbook entries; GPT-OSS then hit 7/7 on a
+  small TB4-only test sample (n=7 defect + 7 neither). GLM/Qwen defect
+  gains remain capped by output-envelope (parse) failures.
+- `neither` means the checked mechanism was not witnessed in the actions
+  shown — it is never evidence that a run is clean, and TB4 labels behind
+  this dataset are mechanism-supported, not replay-confirmed.
+- Samples are small (20/label dev, 50 test for v2; 10/label and 7/label
+  subsets for v3 under budget caps). Treat rates as directional.

@@ -899,11 +899,27 @@ def score_task_surface(
     return _rank(hits, top)
 
 
+DIRECTIONS = ("false_pass", "false_fail")
+
+
 def _pool(
-    entries: Sequence[HackbookEntry] | None, taxonomy_class: str | None, root: Path | None
+    entries: Sequence[HackbookEntry] | None,
+    taxonomy_class: str | None,
+    root: Path | None,
+    direction: str | None = None,
 ) -> list[HackbookEntry]:
+    """Entries of a class and direction. ``direction`` is what the caller is hunting:
+    ``false_pass`` keeps entries that let a wrong run pass (plus ``either``), ``false_fail`` the
+    entries that fail a right one. A reward seeker has no use for a false-fail entry."""
+    if direction is not None and direction not in DIRECTIONS:
+        raise ValueError(f"direction must be one of {DIRECTIONS}, got {direction!r}")
     pool = list(entries) if entries is not None else load_hackbook(root)
-    return [e for e in pool if class_matches(e, taxonomy_class)]
+    return [
+        e
+        for e in pool
+        if class_matches(e, taxonomy_class)
+        and (direction is None or e.direction in {direction, "either"})
+    ]
 
 
 # --------------------------------------------------------------------------- task / view matching
@@ -940,11 +956,11 @@ def match_task(
     taxonomy_class: str | None = None,
     top: int = 25,
     root: Path | None = None,
+    direction: str | None = None,
 ) -> dict[str, Any]:
     """Match one task package, or every task of an exported view root."""
-    return _match_task_model(Path(task_dir), _pool(entries, taxonomy_class, root), top).model_dump(
-        by_alias=True, mode="json"
-    )
+    pool = _pool(entries, taxonomy_class, root, direction)
+    return _match_task_model(Path(task_dir), pool, top).model_dump(by_alias=True, mode="json")
 
 
 def _match_task_model(
@@ -1479,6 +1495,7 @@ def match_trace(
     root: Path | None = None,
     outcome: str | None = "auto",
     task_dir: Path | None = None,
+    direction: str | None = None,
 ) -> dict[str, Any]:
     """Match one agent trace against trace regexes and built-in tripwires.
 
@@ -1487,7 +1504,7 @@ def match_trace(
     """
     return _match_trace_model(
         Path(trace_path),
-        _pool(entries, taxonomy_class, root),
+        _pool(entries, taxonomy_class, root, direction),
         top,
         outcome=outcome,
         task_dir=task_dir,
@@ -1696,16 +1713,19 @@ def match_target(
     task_dir: Path | None = None,
     fleet_rates: Path | Mapping[str, float] | None = None,
     non_discriminating_above: float = NON_DISCRIMINATING_RATE,
+    direction: str | None = None,
 ) -> dict[str, Any]:
     """Auto-detect and match a task, view, or trace; optionally emit findings.
 
-    ``outcome`` and ``task_dir`` apply to traces (see :func:`match_trace`). ``fleet_rates`` is a
+    ``outcome`` and ``task_dir`` apply to traces (see :func:`match_trace`). ``direction`` limits
+    the pool to entries that let a wrong run pass (``false_pass``) or fail a right one
+    (``false_fail``); ``either`` entries always stay. ``fleet_rates`` is a
     ``calibrate --write-rates`` file (or its ``rates`` mapping): hits on entries above
     ``non_discriminating_above`` carry ``non_discriminating`` and are never emitted as findings.
     """
     target = Path(target)
     resolved = detect_kind(target) if kind == "auto" else kind
-    pool = _pool(entries, taxonomy_class, root)
+    pool = _pool(entries, taxonomy_class, root, direction)
     if resolved in {"task", "view"}:
         result = _match_task_model(target, pool, top)
         if resolved == "view" and result.kind != "view":

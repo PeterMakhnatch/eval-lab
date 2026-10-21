@@ -130,6 +130,27 @@ def test_hackbook_page_has_mechanism_without_examples(tmp_path: Path) -> None:
     assert "Examples" not in page
 
 
+def test_hackbook_page_spends_no_slot_on_a_false_fail_entry(tmp_path: Path) -> None:
+    from evallab.hackbook.matcher import match_target
+    from evallab.hackbook.models import get_entry
+    from evallab.seeker.packets import hackbook_markdown
+
+    task = tmp_path / "task-y"
+    (task / "tests").mkdir(parents=True)
+    (task / "instruction.md").write_text("Write the plan to /app/plan.json.\n")
+    (task / "tests/test_outputs.py").write_text(
+        "import json\n"
+        "def test_plan():\n"
+        "    plan = json.load(open('/app/plan.json'))\n"
+        "    assert plan['route_label'] == 'ALPHA_ROUTE'\n"
+        "    assert plan['fuel_margin_kg'] == 12.5\n"
+    )
+    unfiltered = match_target(task, kind="task", top=100)["matches"]
+    assert any(m["direction"] == "false_fail" for m in unfiltered)  # the fixture does tempt it
+    _, ids = hackbook_markdown(task, top=100)
+    assert ids and {get_entry(i).direction for i in ids} <= {"false_pass", "either"}
+
+
 def test_confined_tools_can_read_hackbook_page(tmp_path: Path) -> None:
     (tmp_path / "task").mkdir()
     (tmp_path / "submission").mkdir()

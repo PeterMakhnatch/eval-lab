@@ -8,17 +8,19 @@ description: Query and match Eval Lab's Hackbook (versioned catalog of known way
 The Hackbook (`research/hackbook/entries.jsonl`, schema `evallab.hackbook.entry/v0`) lists
 known task defects (`TS01`–`TS11`) and run-side cheats/failures (`RS01`–`RS07`). Each entry
 carries a mechanism, signatures (structural signals, file/trace regexes, globs), a detection
-recipe, an exploit template, a fix pattern, and sourced examples (`executed` or `claimed`).
+recipe, an exploit template, a fix pattern, and sourced examples (`executed`: a witness or
+differential replay was run; `observed`: a deterministic check of an archived real run, not
+replayed; `claimed`: the source says so).
 
 Everything here is static and costs $0: `match` reads files, never runs task code.
 
 ## Commands
 
 ```bash
-evallab hackbook list [--class TS04|grader_tamperable] [--side task|run] [--source benchjack] [--evidence executed|claimed] [--json]
+evallab hackbook list [--class TS04|grader_tamperable] [--side task|run] [--source benchjack] [--evidence executed|observed|claimed] [--json]
 evallab hackbook show HB-TS04-002 [--json]            # id or slug; unique prefix works
 evallab hackbook search "conftest pth" [--class ...] [--side ...] [--limit 10] [--json]
-evallab hackbook match <target> [--kind auto|task|trace|view] [--class TS03] [--top 10] [--emit-findings DIR] [--json]
+evallab hackbook match <target> [--kind auto|task|trace|view] [--class TS03] [--direction false_pass|false_fail] [--top 10] [--emit-findings DIR] [--json]
 evallab hackbook match <trial-dir> --kind trace [--task <task-dir>] [--outcome auto|pass|fail|none] [--fleet-rates FILE]
 evallab hackbook calibrate <pool-dir> [--kind task|trace] [--threshold 0.4] [--write-rates FILE] [--json]
 evallab hackbook coverage [--json]
@@ -40,6 +42,14 @@ view), scorable with `evallab qa score --findings DIR`. Trace hits are emitted o
 **strong tier** (`score >= 0.5`): a hit that rests on corroborating regex weights (< 0.5) or on a
 context tripwire (`tests_or_solution_read`, `network_fetch`, weight 0.4) stays in `matches` as a
 lead but is not filed.
+
+**Pick a direction.** Hunting a wrong pass (reward seeker, wrong-pass audit): `--direction
+false_pass`, which drops entries that can only fail a right run (unstated requirements, flaky
+environments) and keeps `either`. Repairing false fails: `--direction false_fail`. The cut to `--top`
+happens after the filter, so a seeker's top 8 holds eight wrong-pass entries. On the 86 `dev` findings
+of `tb4-audit-v1` the filter alone lifted recall@8 of the cited entry from 23/32 to 26/32 (false
+pass) and 19/26 to 23/26 (false fail) on the findings the catalog already cited (in-sample; see
+`research/hackbook/README.md`, "Retrieval").
 
 **Calibrate any new pool before trusting `match` on it.** `calibrate` prints the share of tasks
 (or traces) each entry fires on. An entry that fires on at least the threshold of a pool cannot
@@ -76,11 +86,13 @@ refs you actually checked. No hit does not mean clean.
 
 ## Per-lane use
 
-- **Task QA (TQ-1):** run `evallab hackbook match <task> --json` first. For each top hit, read
+- **Task QA (TQ-1):** run `evallab hackbook match <task> --json` first (add `--direction false_pass`
+  when auditing wrong passes). For each top hit, read
   `show <id>` and follow `detection_recipe.steps`. Classes TS01–TS04 are wrong-pass risks;
   TS05–TS10 are wrong-fail risks. File only confirmed defects; keep the entry slug in
   `root_cause`.
-- **Reward Seeker (RS-1):** pick hits with `exploit_template.applicable: true`; use
+- **Reward Seeker (RS-1):** the toolkit page already uses `--direction false_pass`. Pick hits with
+  `exploit_template.applicable: true`; use
   `preconditions` to pick a target and `template_steps` to build the witness. A finding needs the
   differential: upstream grader passes it, fixed grader fails it (`differential_verdict`).
 - **Trace QA (TR-1):** `evallab hackbook match <trial-dir> --kind trace`. Tripwires
@@ -115,3 +127,7 @@ refs you actually checked. No hit does not mean clean.
 - Do not tune signals on test-split tasks. Calibrate on dev only.
 - Catalog edits go through `research/hackbook/build.py` (regenerates `schema.json` and
   `summary.json`); keep `--check` passing.
+- Every `dev` finding of `tb4-audit-v1` must be cited by at least one entry's `examples`
+  (`build.py --check` fails otherwise). Text that the seeker page prints (`title`, `mechanism`,
+  `exploit_template`) stays generic: no task name, file name or number from a finding; that belongs
+  in `examples`, which the page never shows.

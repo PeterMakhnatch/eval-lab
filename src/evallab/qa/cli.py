@@ -89,6 +89,10 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
 
     add_trace_commands(sub)
 
+    from evallab.qa.trace_cheap import add_trace_cheap_commands
+
+    add_trace_cheap_commands(sub)
+
     from evallab.qa.ask import add_ask_commands
 
     add_ask_commands(sub)

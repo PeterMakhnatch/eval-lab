@@ -143,8 +143,8 @@ def parse_action(text: str) -> Action:
         stripped = fenced[1].strip()
     try:
         value = json.loads(stripped)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"reply is not exactly one JSON object ({exc.msg})") from exc
+    except json.JSONDecodeError:
+        value = _extract_json_object(stripped)
     if not isinstance(value, dict):
         raise ValueError("reply must be a JSON object")
     if set(value) == {"final"}:
@@ -175,6 +175,45 @@ def parse_action(text: str) -> Action:
             raise ValueError(f"calls[{index}].args must be a JSON object")
         parsed.append((tool, args))
     return Action(calls=tuple(parsed))
+
+
+def _extract_json_object(text: str) -> Any:
+    """Recover one balanced JSON object from prose-wrapped or lightly damaged text.
+
+    Only parsing is relaxed: the recovered value must still satisfy the strict
+    action schema in :func:`parse_action`, so no evidence rule is loosened.
+    """
+    start = text.find('{')
+    if start < 0:
+        raise ValueError("reply is not exactly one JSON object (no object found)")
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = text[start:index + 1]
+                for attempt in (candidate, re.sub(r',\s*([}\]])', r'\1', candidate)):
+                    try:
+                        return json.loads(attempt)
+                    except json.JSONDecodeError:
+                        continue
+                raise ValueError("reply is not exactly one JSON object (unrecoverable object)")
+    raise ValueError("reply is not exactly one JSON object (unbalanced object)")
 
 
 def _dumps(value: Any) -> str:

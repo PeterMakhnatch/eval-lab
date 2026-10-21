@@ -52,3 +52,25 @@ T=cad-model,html-js-filter,nextjs-performance,pretrain-shard-corruption,uefi-boo
   --work-root /private/tmp/reward-seeker-v1-work run --hackbook --driver sonnet --tasks $T --jobs 2
 # same for --driver codex; GPT-OSS under `keys run --`
 ```
+
+## Replay attempt (pA-SELF-2, 2026-10-21): all 17 refused, with the arithmetic
+
+All 17 valid v1 submissions were run through ExecFix's `candidate_runner` (PR #1140 worktree),
+local Docker first. Every one was refused before execution:
+
+| reason | submissions |
+|---|---|
+| Docker admission: task needs 8192 MiB, admitted capacity ≈ 5409 MiB | 12 (cad-model, html-js-filter, pretrain-shard-corruption, vpp-loss-divergence) |
+| Docker admission: task needs 16384 MiB | 3 (uefi-bootkit) |
+| Compose tasks unsupported by the exact-resource primitive | 3 (nextjs-performance) |
+
+The admitted ceiling is structural on this laptop: 7.75 GiB VM − 2 GiB controller margin −
+bounded reserves for the 3 pre-existing unbounded containers ≈ 5.4 GiB, below every 8192 MiB
+declaration (declared limits are never lowered). One Modal attempt (Sonnet html-js-filter,
+this lane's own ledger) was also refused: the reservation exceeds the $0.48 left of the lane's
+$2 ledger after the v0 errored run retained its reservation.
+
+So the v1 claims remain unconfirmed. The cheapest confirmation path is the Execution lane's
+shared ledger ($2.25 of $3 left) plus the same runner on Modal, or a local Docker slot with
+≥ 8 GiB admitted. Replay order when capacity exists: html-js-filter (3 claimed, PM-matched),
+uefi-bootkit (GPT-OSS, PM-matched), vpp-loss-divergence (2 claimed), cad-model, nextjs-performance.

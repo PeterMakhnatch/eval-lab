@@ -188,3 +188,20 @@ def test_confined_tools_can_read_feedback(tmp_path: Path) -> None:
     assert "reward" in tools.read_file("feedback.md")
     assert tools.write_file("submission/solve.sh", "x") 
     assert "x" in tools.read_file("submission/solve.sh")
+
+
+
+def test_failure_excerpts_read_ctrf(tmp_path: Path) -> None:
+    import json as _json
+
+    from evallab.seeker.feedback import failure_excerpts
+
+    ctrf = tmp_path / "ctrf.json"
+    ctrf.write_text(_json.dumps({"results": {"tests": [
+        {"name": "t_pass", "status": "passed", "trace": ""},
+        {"name": "t_fail", "status": "failed", "trace": "x" * 900 + "AssertionError: 1 != 2"},
+    ]}}))
+    out = failure_excerpts({"per_test": {"sources": [str(ctrf)]}})
+    assert len(out) == 1 and out[0][0] == "t_fail" and out[0][1].endswith("1 != 2")
+    assert failure_excerpts({"per_test": {"sources": ["/nonexistent"]}}) == []
+    assert failure_excerpts({}) == []

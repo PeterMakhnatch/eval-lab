@@ -37,8 +37,15 @@ Source = Literal[
     "mimo_atlas",
     "eval3",
     "tb2_to_tb21",
+    "bespoke_tb4",
+    "automationbench_verified",
+    "rea_environments",
+    "wandr",
 ]
-ExampleSource = Literal[Source, Literal["taxonomy_v1", "delphik_open_defect"]]
+ExampleSource = Literal[
+    Source,
+    Literal["taxonomy_v1", "delphik_open_defect"],
+]
 RecipeKind = Literal["static_check", "tripwire_rule", "probe_test"]
 MethodId = Literal[
     "reference_mutation",
@@ -401,3 +408,93 @@ def validate_no_tb4_test_leak(
         text = json.dumps(entry.dump(), sort_keys=True)
         problems += [f"{entry.id}: {term}" for term in find_tb4_test_leaks(text, root=root)]
     return problems
+
+
+def coverage_summary(
+    entries: Sequence[HackbookEntry] | None = None, *, root: Path | None = None
+) -> dict[str, Any]:
+    """Build coverage tables by taxonomy class, seed source, and executed evidence."""
+    pool = list(_entries(entries, root))
+    taxonomy = load_taxonomy(root)
+    class_meta: dict[str, dict[str, str]] = {}
+    for side_key, side_name in (("task_side", "task"), ("run_side", "run")):
+        for row in taxonomy.get(side_key, []):
+            class_meta[row["id"]] = {
+                "taxonomy_class_id": row["id"],
+                "taxonomy_class": row["key"],
+                "name": row.get("name", row["key"]),
+                "side": side_name,
+                "direction": str(row.get("direction", "")),
+            }
+    by_class: list[dict[str, Any]] = []
+    for cid in sorted(class_meta):
+        c_entries = [e for e in pool if e.taxonomy_class_id == cid]
+        exec_entries = [
+            e for e in c_entries if any(ex.evidence_status == "executed" for ex in e.examples)
+        ]
+        examples = [ex for e in c_entries for ex in e.examples]
+        exec_examples = [ex for ex in examples if ex.evidence_status == "executed"]
+        srcs = sorted({s for e in c_entries for s in e.sources} | {ex.source for ex in examples})
+        by_class.append(
+            {
+                **class_meta[cid],
+                "entries": len(c_entries),
+                "executed_entries": len(exec_entries),
+                "claimed_only_entries": len(c_entries) - len(exec_entries),
+                "examples": len(examples),
+                "executed_examples": len(exec_examples),
+                "claimed_examples": len(examples) - len(exec_examples),
+                "entry_ids": [e.id for e in c_entries],
+                "sources": srcs,
+            }
+        )
+    all_sources = sorted(
+        {s for e in pool for s in e.sources} | {ex.source for e in pool for ex in e.examples}
+    )
+    by_source: list[dict[str, Any]] = []
+    for src in all_sources:
+        s_entries = [
+            e for e in pool if src in e.sources or any(ex.source == src for ex in e.examples)
+        ]
+        s_exec_entries = [
+            e
+            for e in s_entries
+            if any(
+                ex.evidence_status == "executed" and (ex.source == src or src in e.sources)
+                for ex in e.examples
+            )
+        ]
+        s_examples = [ex for e in pool for ex in e.examples if ex.source == src]
+        s_exec_examples = [ex for ex in s_examples if ex.evidence_status == "executed"]
+        by_source.append(
+            {
+                "source": src,
+                "entries": len(s_entries),
+                "executed_entries": len(s_exec_entries),
+                "examples": len(s_examples),
+                "executed_examples": len(s_exec_examples),
+                "claimed_examples": len(s_examples) - len(s_exec_examples),
+                "classes": sorted({e.taxonomy_class_id for e in s_entries}),
+            }
+        )
+    exec_entry_ids = [
+        e.id for e in pool if any(ex.evidence_status == "executed" for ex in e.examples)
+    ]
+    claimed_only_ids = [e.id for e in pool if e.id not in set(exec_entry_ids)]
+    all_examples = [ex for e in pool for ex in e.examples]
+    exec_examples_total = sum(1 for ex in all_examples if ex.evidence_status == "executed")
+    return {
+        "total_entries": len(pool),
+        "task_side_entries": sum(1 for e in pool if e.side == "task"),
+        "run_side_entries": sum(1 for e in pool if e.side == "run"),
+        "entries_with_executed_evidence": len(exec_entry_ids),
+        "entries_claimed_only": len(claimed_only_ids),
+        "executed_entry_share": round(len(exec_entry_ids) / len(pool), 4) if pool else 0.0,
+        "total_examples": len(all_examples),
+        "executed_examples": exec_examples_total,
+        "claimed_examples": len(all_examples) - exec_examples_total,
+        "executed_entry_ids": exec_entry_ids,
+        "claimed_only_entry_ids": claimed_only_ids,
+        "by_class": by_class,
+        "by_source": by_source,
+    }

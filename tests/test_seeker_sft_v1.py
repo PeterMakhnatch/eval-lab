@@ -226,3 +226,32 @@ def test_seeker_findings_hook_admits_tb4_dev_and_drops_tb4_test(tmp_path: Path) 
     assert seeker_rows[0]["task_id"] == dev_task
     assert seeker_rows[0]["verified_differential"] is True
     assert seeker_rows[0]["curated_seeker_sft"] is True
+
+
+def test_seeker_sft_pilot_uses_the_committed_corpus_and_reports_every_replay() -> None:
+    """pE-SELF-5: the pilot's container saw exactly the committed corpus, and no run is silently unreplayed."""
+    pilot_dir = REPO_ROOT / "research/experiments/seeker-sft-pilot-20261021"
+    validation = json.loads((pilot_dir / "validation.json").read_text(encoding="utf-8"))
+    committed = [
+        json.loads(line)
+        for line in (DATASET_DIR / "seeker_tool_sft.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert validation["conversations"] == len(committed) == 90
+    assert [row["example_id"] for row in validation["rows"]] == [
+        row["example_id"] for row in committed
+    ]
+
+    summary = json.loads((pilot_dir / "replay-summary.json").read_text(encoding="utf-8"))
+    runs = summary["runs"]
+    assert len(runs) == 12
+    assert {run["arm"] for run in runs} == {"base", "trained"}
+    assert len({run["task"] for run in runs}) == 6
+    # A run with no recorded replay outcome would let a partial replay read as complete.
+    assert all(run["upstream_status"] for run in runs)
+    # Confirmation is the measured 1/0 differential, never the model's own claim.
+    for run in runs:
+        assert run["confirmed_1_0"] is (run["upstream_reward"] == 1.0 and run["port_reward"] == 0.0)
+        if run["confirmed_1_0"]:
+            assert run["claimed_exploit"] is True

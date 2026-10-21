@@ -1,0 +1,1125 @@
+{
+  "artifacts": {
+    "dispositions.json": {
+      "bytes": 128484,
+      "sha256": "sha256:f271b12ebcd055e0543d0606029a5ed0ba0f43efbd7af5520807f99fe92b78d2"
+    },
+    "findings.json": {
+      "bytes": 1172705,
+      "sha256": "sha256:a615bfec8f1c7b84e3d8c4c4c5ea3d97f3c939236a63cb8635ce9064e1310fce"
+    },
+    "inventory.json": {
+      "bytes": 960200,
+      "sha256": "sha256:33d0a46b7069572d013e27932059c304c3174dac0669a436f6d8ddc7fd685065"
+    },
+    "new-predictions.json": {
+      "bytes": 23,
+      "sha256": "sha256:ad211a82dcba4781fae8ee4c73c0954b2b66a29db98c2f709c1bf01fc2ef98a0"
+    },
+    "predictions.json": {
+      "bytes": 333796,
+      "sha256": "sha256:b71de3ea907def09d50bf2fca78ef0d21be0f050eabb3bd153217b18b9ee899d"
+    },
+    "repairs.json": {
+      "bytes": 459002,
+      "sha256": "sha256:5bb64846f7b8130fdd2918e631661f997ddfe946db109d647c1e3c8eefd2f8b2"
+    }
+  },
+  "completion_state": "source_map_complete_matcher_blocked",
+  "counts": {
+    "distinct_finding_task_ids": 138,
+    "findings": 315,
+    "inventory": {
+      "verified_exact_package": 567
+    },
+    "matcher_measured": 0,
+    "new_prediction_candidates": 0,
+    "repair_rows": 37,
+    "roster_tasks": 567
+  },
+  "dataset_id": "mimo-defect-map-v1",
+  "hardening_round_totals": {
+    "complete_rounds_with_zero_programs": [
+      "round4"
+    ],
+    "rounds": [
+      "round2",
+      "round3",
+      "round4",
+      "round5",
+      "round6"
+    ],
+    "source_programs": 25,
+    "source_qualified_repair_rows": 14,
+    "source_repair_rows": 15,
+    "source_supported_programs": 15,
+    "source_unqualified_repair_rows": 1,
+    "source_unsupported_programs": 10
+  },
+  "matcher": {
+    "catalog": null,
+    "known_labels_supplied_to_matcher": false,
+    "options": null,
+    "raw_output": null,
+    "reason": "Official hackbook match v0 code/catalog is absent from the frozen base 4b6f766674c18ab91486d95a270f419df5a4ac10. No substitute matcher or invented CLI/output schema is used.",
+    "revision": null,
+    "status": "unavailable"
+  },
+  "pools": {
+    "bounded_screen_pool": {
+      "count": null,
+      "members": []
+    },
+    "certified_semantic_clean_count": 0,
+    "control_qualified_subset": {
+      "count": null,
+      "definition": "Screen pool plus source-bound, scored reference-all1/nop-all0 controls on the exact package; case/assertion scope remains source-local.",
+      "members": []
+    },
+    "definition": "Frozen-atlas567 exact-package screen pool: verified materialized bytes, successful complete real-matcher scan, no predicted class, no unresolved source-supported finding on those exact bytes.",
+    "excluded_by_first_failed_condition": {
+      "not_fully_measured_by_real_matcher": 567
+    },
+    "heldout_task_ids_excluded_from_training_all_versions": [
+      "format-code-task-001248",
+      "format-code-task-000161",
+      "format-code-task-000142",
+      "format-code-task-000783",
+      "format-code-task-001399",
+      "format-code-task-001914",
+      "format-code-task-002871",
+      "format-code-task-002335",
+      "format-code-task-001590",
+      "format-code-task-001480",
+      "format-code-task-001371",
+      "format-code-task-001246",
+      "format-code-task-001948",
+      "format-code-task-001425",
+      "format-code-task-002395",
+      "format-code-task-002092",
+      "format-code-task-000144",
+      "format-code-task-002915",
+      "format-code-task-000143",
+      "format-code-task-000149",
+      "format-code-task-002989",
+      "format-code-task-001199",
+      "format-code-task-000878",
+      "format-code-task-001220",
+      "format-code-task-000905",
+      "format-code-task-002371",
+      "format-code-task-001891",
+      "format-code-task-002451",
+      "format-code-task-002304",
+      "format-code-task-000582",
+      "format-code-task-000657",
+      "format-code-task-000371",
+      "format-code-task-001686"
+    ],
+    "measured_selections": 0,
+    "not_current_descendant_or_semantic_clean_certificate": true,
+    "roster_selections": 567,
+    "scan_state": "unmeasured",
+    "training_authorized_by_this_release": false,
+    "training_authorized_count": 0,
+    "training_exclusion_filtered_subset": {
+      "count": null,
+      "definition": "Control-qualified screen members with none of the frozen33 heldout IDs; a necessary filter, not training approval or answer-exposure clearance.",
+      "members": []
+    },
+    "unknown_not_negative": true
+  },
+  "producer": {
+    "path": "research/experiments/mimo-defect-map-v1/build_map.py",
+    "sha256": "sha256:a1eb991a03fe09c5683c69ec88f214b90d7a5ebdb2def5c605542b08ea7e3290"
+  },
+  "raw_private_evidence_exported": false,
+  "recall": {
+    "by_category": {
+      "atlas114": {
+        "class_label_recall": null,
+        "coverage_status": "mapped_source_supported_historical_witnesses",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "matcher_unavailable": 242
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 114,
+        "known_findings": 242,
+        "known_task_packages": 114,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 242
+      },
+      "initial_v7": {
+        "class_label_recall": null,
+        "coverage_status": "pinned_initial_source_cases_and_control_scopes",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 34
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 20,
+        "known_findings": 34,
+        "known_task_packages": 20,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 34
+      },
+      "round2": {
+        "class_label_recall": null,
+        "coverage_status": "retained_complete_round",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 7
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 7,
+        "known_findings": 7,
+        "known_task_packages": 7,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 7
+      },
+      "round3": {
+        "class_label_recall": null,
+        "coverage_status": "retained_complete_round",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 1
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 1,
+        "known_findings": 1,
+        "known_task_packages": 1,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 1
+      },
+      "round4": {
+        "class_label_recall": null,
+        "coverage_status": "retained_complete_round_with_zero_programs",
+        "denominator_state": "no_known_findings",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {},
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 0,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 0
+      },
+      "round5": {
+        "class_label_recall": null,
+        "coverage_status": "retained_complete_round",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 3,
+          "unjoinable_missing_package_identity": 1
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 3,
+        "known_findings": 4,
+        "known_task_packages": 3,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 4
+      },
+      "round6": {
+        "class_label_recall": null,
+        "coverage_status": "retained_complete_round",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 6
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 6,
+        "known_findings": 6,
+        "known_task_packages": 5,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 6
+      },
+      "training_wrong_pass8": {
+        "class_label_recall": null,
+        "coverage_status": "all_eight_current_source_observations_identity_bound_originals",
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "unjoinable_missing_package_identity": 7
+        },
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 7,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 7
+      },
+      "vals_answer_leak": {
+        "class_label_recall": null,
+        "coverage_status": "aggregate_claim_unjoinable_to_fleet",
+        "denominator_state": "no_known_findings",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {},
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 0,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 0
+      }
+    },
+    "by_primary_class": {
+      "answer_reachable": {
+        "all_mapped_findings": 1,
+        "class_label_recall": null,
+        "denominator_state": "no_known_findings",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {},
+        "excluded_source_findings": 1,
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 0,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 0
+      },
+      "env_mismatch_or_flaky": {
+        "all_mapped_findings": 3,
+        "class_label_recall": null,
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 2
+        },
+        "excluded_source_findings": 1,
+        "finding_recall": null,
+        "known_exact_package_class_labels": 2,
+        "known_findings": 2,
+        "known_task_packages": 2,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 2
+      },
+      "unstated_requirement": {
+        "all_mapped_findings": 1,
+        "class_label_recall": null,
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "unjoinable_missing_package_identity": 1
+        },
+        "excluded_source_findings": 0,
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 1,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 1
+      },
+      "weak_check": {
+        "all_mapped_findings": 297,
+        "class_label_recall": null,
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "historical_or_other_package_not_scanned": 49,
+          "matcher_unavailable": 240,
+          "unjoinable_missing_package_identity": 7
+        },
+        "excluded_source_findings": 1,
+        "finding_recall": null,
+        "known_exact_package_class_labels": 147,
+        "known_findings": 296,
+        "known_task_packages": 147,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 296
+      },
+      "wrong_answer_key": {
+        "all_mapped_findings": 2,
+        "class_label_recall": null,
+        "denominator_state": "none_evaluable",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {
+          "matcher_unavailable": 2
+        },
+        "excluded_source_findings": 0,
+        "finding_recall": null,
+        "known_exact_package_class_labels": 2,
+        "known_findings": 2,
+        "known_task_packages": 2,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 2
+      }
+    },
+    "claims_excluded_from_recall": 3,
+    "differential_confirmed_only": {
+      "class_label_recall": null,
+      "denominator_state": "no_known_findings",
+      "evaluable_exact_package_class_labels": 0,
+      "evaluable_findings": 0,
+      "evaluable_task_packages": 0,
+      "excluded_findings_by_reason": {},
+      "finding_recall": null,
+      "known_exact_package_class_labels": 0,
+      "known_findings": 0,
+      "known_task_packages": 0,
+      "matched_exact_package_class_labels": 0,
+      "matched_findings": 0,
+      "matched_task_packages_any_known_class": 0,
+      "task_recall_any_known_class": null,
+      "unevaluable_findings": 0
+    },
+    "excluded_from_supported_recall": {
+      "by_category_and_evidence_status": {
+        "initial_v7": {
+          "source_claim": 1,
+          "source_optional_diagnostic": 1
+        },
+        "round2": {
+          "source_refuted_or_unverified": 3
+        },
+        "round3": {
+          "source_refuted_or_unverified": 2
+        },
+        "round5": {
+          "source_refuted_or_unverified": 3
+        },
+        "round6": {
+          "source_refuted_or_unverified": 2
+        },
+        "training_wrong_pass8": {
+          "source_claim": 1
+        },
+        "vals_answer_leak": {
+          "source_claim": 1
+        }
+      },
+      "by_evidence_status": {
+        "source_claim": 3,
+        "source_optional_diagnostic": 1,
+        "source_refuted_or_unverified": 10
+      },
+      "interpretation": "Refuted or unverified programs, optional diagnostics and disputed or aggregate claims stay visible and enter neither a recall numerator nor denominator."
+    },
+    "interpretation": "Retrospective source coverage only; no unlabelled task is a certified negative.",
+    "negative_denominator": 0,
+    "precision": null,
+    "source_supported": {
+      "class_label_recall": null,
+      "denominator_state": "none_evaluable",
+      "evaluable_exact_package_class_labels": 0,
+      "evaluable_findings": 0,
+      "evaluable_task_packages": 0,
+      "excluded_findings_by_reason": {
+        "historical_or_other_package_not_scanned": 51,
+        "matcher_unavailable": 242,
+        "unjoinable_missing_package_identity": 8
+      },
+      "finding_recall": null,
+      "known_exact_package_class_labels": 151,
+      "known_findings": 301,
+      "known_task_packages": 150,
+      "matched_exact_package_class_labels": 0,
+      "matched_findings": 0,
+      "matched_task_packages_any_known_class": 0,
+      "task_recall_any_known_class": null,
+      "unevaluable_findings": 301
+    },
+    "specificity": null
+  },
+  "release_complete": false,
+  "schema": "mimo.defect-map/v1",
+  "source_artifacts": [
+    {
+      "access": "public",
+      "bytes": 7136695,
+      "category": "atlas567",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+      "source_id": "atlas"
+    },
+    {
+      "access": "public",
+      "bytes": 292235,
+      "category": "atlas114",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/items.jsonl",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:3f08c256ccefffb2b106bb34b9501ff71d53fb566c585d3fb96e1dae9a6121b3",
+      "source_id": "atlas_items"
+    },
+    {
+      "access": "public",
+      "bytes": 898404,
+      "category": "atlas114",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/findings-supported-v2.1.jsonl",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:12aaa0f0f14f8aba088ad62576e693729ba002145b0f8feb659c7486fc2c176a",
+      "source_id": "atlas_findings"
+    },
+    {
+      "access": "public",
+      "bytes": 1333804,
+      "category": "initial_v7",
+      "path": "research/experiments/mimo-clean-v7/manifest.json",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:ba553cd2c002c18582bca3b77c0c97b689df2dc3ac3fca83534a86dbb5ef74a7",
+      "source_id": "clean_v7"
+    },
+    {
+      "access": "public",
+      "bytes": 1725,
+      "category": "heldout_exclusion",
+      "path": "research/experiments/mimo-training-20261016/heldout.json",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de",
+      "source_id": "frozen_heldout"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 40606,
+      "category": "taxonomy",
+      "path": "bridge/2026-10-20-open-qa/taxonomy.yaml",
+      "repository": "research-context",
+      "revision": "a91ddb91ef502336f2683b028bd94dc86ef6cf57",
+      "sha256": "sha256:64a54531b106d8d6f58efd04fe11727eddbff40436ec370d747246ab83038ff4",
+      "source_id": "interim_taxonomy"
+    },
+    {
+      "access": "public",
+      "bytes": 93095,
+      "category": "round2",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/hardening-round-2.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:3e8b77b3615de6161e4a0a41f6cbaea52bf9efe490a37f749a9279a3d078b70e",
+      "source_id": "round2_hardening"
+    },
+    {
+      "access": "public",
+      "bytes": 29912,
+      "category": "round2",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/repairs-round-2.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:da9287d1441ef342033e200717922a1c48324bca559298beafd2764e6408ec3b",
+      "source_id": "round2_repairs"
+    },
+    {
+      "access": "public",
+      "bytes": 25734,
+      "category": "round3",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/hardening-round-3.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:de3027e3ab13868e48ce92e813c66288a13e7252b6be9f3c8254d9276de4a741",
+      "source_id": "round3_hardening"
+    },
+    {
+      "access": "public",
+      "bytes": 6139,
+      "category": "round3",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/repairs-round-3.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:d583c3f8c7dcfae9de85eb69f01a0ee36cc1349b4864f5067ad85ad0bc0f4fcb",
+      "source_id": "round3_repairs"
+    },
+    {
+      "access": "public",
+      "bytes": 2470,
+      "category": "round4",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/hardening-round-4.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:25722c9a97b4d6cc12b39060a4ec68fd5e4644fd0d8e0077d73dd8a49bd472b0",
+      "source_id": "round4_hardening"
+    },
+    {
+      "access": "public",
+      "bytes": 1215,
+      "category": "round4",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/repairs-round-4.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:8d7c5f23061c3cddedb88a64f96e318665eab5628ab908143c0a86cacbab79b6",
+      "source_id": "round4_repairs"
+    },
+    {
+      "access": "public",
+      "bytes": 42137,
+      "category": "round5",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/hardening-round-5.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:32f0bf254f5934391fbb31e74e7f93a91429846b3c6adc8ca474ddb6ae30d278",
+      "source_id": "round5_hardening"
+    },
+    {
+      "access": "public",
+      "bytes": 16211,
+      "category": "round5",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/repairs-round-5.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:8eddb34980d0be72f9a1809bca0a41ac603188d71aa257d68ea8480b9d09187d",
+      "source_id": "round5_repairs"
+    },
+    {
+      "access": "public",
+      "bytes": 46209,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/hardening-round-6.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:2404b259f9e469707ae46d8196c746d809a6ff81e8bef59bb9fbca05d06f5c0c",
+      "source_id": "round6_hardening"
+    },
+    {
+      "access": "public",
+      "bytes": 22074,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "bridge/repairs-round-6.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:b6c8fb53ffbb8fef284abdcee20684c295f409243201973c7130dacb60863e25",
+      "source_id": "round6_repairs"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 7873985,
+      "category": "initial_v7",
+      "path": "bridge/2026-10-17-v7/heldout-v7.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:83210b23c28f9d42ace20d3fd48fcd499dece01d78cbe3dd3699e211cb471a39",
+      "source_id": "heldout"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 143374,
+      "category": "initial_v7",
+      "path": "bridge/2026-10-17-v7/repairs-train-v7.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:c10764419b8a359e8bd2c0466a94700bc5690f713269a9ae440f80ac997eed59",
+      "source_id": "train_repairs"
+    },
+    {
+      "access": "authorized-local",
+      "bytes": 11569,
+      "category": "vals_answer_leak",
+      "kind": "authorized-file",
+      "path": "sources/links/www.vals.ai/2026-10-09-two-thirds-of-mimo-v2-6-s-coding-tasks-leak-the-answer-are-m.md",
+      "repository": "research-context",
+      "retrieved_at": "2026-10-09T00:57:40Z",
+      "revision": null,
+      "revision_note": "The archived public page is locally retained outside Git; no Git revision is invented.",
+      "sha256": "sha256:195609fd66687bc83c4537b728212a31d76c58fa8ed4ce163376665347af9729",
+      "source_id": "vals_primary",
+      "source_lines": [
+        81,
+        85
+      ],
+      "source_url": "https://www.vals.ai/blogs/mimo-reward-hacking"
+    },
+    {
+      "access": "authorized-local",
+      "bytes": 940210,
+      "category": "training_wrong_pass8",
+      "kind": "authorized-file",
+      "path": "2026-10-17/envcheck-gains-overnight/mission/m2/inventory-v6/passes.jsonl",
+      "repository": "eval-lab-results",
+      "revision": null,
+      "revision_note": "Retained original execution inventory; file/result identities are source-declared metadata, not fresh executions.",
+      "sha256": "sha256:83817de2435c7cb24552fe31d157493ecd250228229cf7aaf9684294c5c4c854",
+      "source_id": "training_original_inventory"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 18430,
+      "category": "training_wrong_pass8",
+      "path": "bridge/2026-10-19-deep/data-curve.md",
+      "repository": "research-context",
+      "revision": "a91ddb91ef502336f2683b028bd94dc86ef6cf57",
+      "sha256": "sha256:c7fd878dfd5da272344fe7ed5ad3bf69b878786a874a091412323d7d4f995f82",
+      "source_id": "training_wrong_claims"
+    },
+    {
+      "access": "public",
+      "bytes": 1474,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "findings/r6/000657/parent-v71-reference-x3.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:0a1594c31411f2c078ef71847a306b0d3646a75e27e47b3c6e123853203d90fe",
+      "source_id": "round6_timing_parent"
+    },
+    {
+      "access": "public",
+      "bytes": 9475,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "member": "findings/r6/000657/variant.json",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:300be671ab3f81e79256e6cd6c3fbe458e14f7b69ba065b63fde4bcae4b0e348",
+      "source_id": "round6_timing_lineage"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 82696,
+      "category": "initial_v7",
+      "path": "bridge/2026-10-17-v7/mimo-data-heldout-v7-independent-v7-053-proof-20261018.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:85807572257b09a2a4d9c90f416ae46ba2367537df14dd2c84e1234814993f52",
+      "source_id": "initial_release_review"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 85595,
+      "category": "initial_v7",
+      "path": "bridge/2026-10-17-v7/mimo-data-heldout-v7-release-adoption-20261018.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:53703bbb66a112d4d5a357af105257c18cd539cb5fe4985212498f5a64aed970",
+      "source_id": "initial_release_adoption"
+    },
+    {
+      "access": "public",
+      "bytes": 4554,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "export_policy": "Only the failed pytest node id and whether the assertion is a measured-elapsed lower bound are extracted; no log or test body is exported.",
+      "member": "findings/r6/000657/parent-v71-reference-x3/02-oracle-reference/trial/verifier/test_output.log",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:862bebac8afef3c30367debbf565ba62f6b341beb2290fc18017abd733fcf10d",
+      "source_id": "round6_timing_parent_failed_reference_log"
+    },
+    {
+      "access": "public",
+      "bytes": 4950,
+      "category": "round6",
+      "container": {
+        "bytes": 1069735,
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827"
+      },
+      "export_policy": "Only the failed pytest node id and whether the assertion is a measured-elapsed lower bound are extracted; no log or test body is exported.",
+      "member": "findings/r6/000657/qualification/02-oracle-reference/trial/verifier/test_output.log",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:77a6c7f9bb6725ab8e67f654211d92e14ebc7bef8badfb0e6a3df647550314f9",
+      "source_id": "round6_timing_child_failed_reference_log"
+    },
+    {
+      "access": "authorized-local",
+      "bytes": 12694,
+      "category": "independent_review",
+      "kind": "authorized-file",
+      "path": "bridge/2026-10-19-deep/morning-results.md",
+      "repository": "research-context",
+      "revision": null,
+      "revision_note": "Retained authorized-local file (07:30 ET, 2026-10-19) that is untracked in the private evidence repository at this pin; no Git revision is invented. Only the cited line ranges are consumed.",
+      "sha256": "sha256:3c030ea562b98d499e401f92b0e38cbc660843e390b2e42143501187a0041559",
+      "source_id": "morning_review",
+      "source_line_ranges": [
+        [
+          12,
+          40
+        ],
+        [
+          98,
+          121
+        ]
+      ]
+    }
+  ],
+  "source_coverage": {
+    "atlas114": {
+      "certified_negative_tasks": 0,
+      "finding_count": 242,
+      "mapping_scope": "240 TS01 weak_check and the two concrete inherited-reference block witnesses TS08 wrong_answer_key; all class mappings are INFERENCE.",
+      "not_established_tasks": 453,
+      "physical_witnesses": 242,
+      "positive_task_ids": 114,
+      "status": "mapped_source_supported_historical_witnesses"
+    },
+    "initial_v7": {
+      "expanded_scope_blocked_train_ids": [
+        "format-code-task-000232",
+        "format-code-task-001809",
+        "format-code-task-001985"
+      ],
+      "finding_count": 36,
+      "optional_diagnostics": 1,
+      "physical_reproducer_rows": 35,
+      "release_provenance": {
+        "independent_review": {
+          "candidate_flags_observed": {
+            "freeze_ready": false,
+            "scoring_allowed": false,
+            "status": "candidate"
+          },
+          "counts": {
+            "adjudicated_wrong_zero": 21,
+            "baseline_grader_observations": 198,
+            "baseline_native_uuids": 66,
+            "baseline_pairs": 33,
+            "correct_grader_observations": 14,
+            "correct_native_uuids": 8,
+            "normalized_docker_wrong_records_not_falsely_counted_as_harbor_sessions": 8,
+            "proven_physical_native_uuids_all_roles": 87,
+            "supported_correct_pass": 8
+          },
+          "created_utc": "2026-10-18T13:20:51.249225+00:00",
+          "new_grader_invocations": 0,
+          "new_native_trials": 0,
+          "proof": {
+            "bytes": 82696,
+            "sha256": "sha256:85807572257b09a2a4d9c90f416ae46ba2367537df14dd2c84e1234814993f52"
+          },
+          "reviewed_candidate": {
+            "bytes": 7873515,
+            "sha256": "sha256:5e8bb254019aaa890c1589743586d5578b7360f51decd83ad183138ff071e801"
+          },
+          "same33_ordered_ids": true,
+          "status": "PASS_EXACT_CURRENT_HELDOUT_SCIENTIFIC_RELEASE"
+        },
+        "independent_verifier_rehashed_final_released_bytes": false,
+        "nested_pending_scope": "Historical nested per-task statuses in the released bytes were not rewritten by the five root-gate changes; they are not current release gates.",
+        "nested_status_pending_nodes_in_released_bytes": 34,
+        "owner_adoption": {
+          "changed_root_keys": [
+            "freeze_ready",
+            "independent_verifier",
+            "pending_gates",
+            "scoring_allowed",
+            "status"
+          ],
+          "protected_admission_graders": 33,
+          "released_flags_observed": {
+            "freeze_ready": true,
+            "pending_gates_empty": true,
+            "scoring_allowed": true,
+            "status": "released"
+          },
+          "released_manifest": {
+            "bytes": 7873985,
+            "sha256": "sha256:83210b23c28f9d42ace20d3fd48fcd499dece01d78cbe3dd3699e211cb471a39"
+          }
+        },
+        "scope": "The independent proof hashes the candidate bytes. The owner's gate-only adoption produced the released bytes; this map consumes them as owner-adopted, not as a verifier-rehashed artifact. No release rights are granted here."
+      },
+      "runtime_repair": {
+        "controls_not_on_selected_package": [
+          "prompt-valid-alternate"
+        ],
+        "parent_package_digest": "sha256:c4d94db236a5f7a920321f495e2ddecb1398d7ebdbfff521b1ce1a39e2bcf670",
+        "selected_package_controls": {
+          "nop": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "selected_package_digest": "sha256:aa6cae30652ed7f270b3279a4ef1f6b9924efb799f8858d0344c827be9441d9d",
+        "semantic_clean": false,
+        "task_id": "format-code-task-001246"
+      },
+      "selected_heldout_semantic_repairs": 12,
+      "selected_train_semantic_repairs": 9,
+      "semantic_clean_count": 0,
+      "source_heldout_authoritative_weak_ids": 11,
+      "source_supported_wrong_cases": 34,
+      "status": "pinned_initial_source_cases_and_control_scopes"
+    },
+    "round2": {
+      "finding_count": 10,
+      "independent_review": {
+        "scope": "wrong-program counts, append-only repairs, qualification reward files; 001248 adjudicated with a docstring-based caveat",
+        "verdict": "PASS"
+      },
+      "independent_review_scope": "Author-side qualification is not independent release acceptance; only the stated independent verdict applies.",
+      "repair_count": 7,
+      "source_independent_incorrectness_verdicts": {
+        "refuted_by_probe": 1,
+        "unverified_not_promoted": 2,
+        "verified": 7
+      },
+      "source_program_count": 10,
+      "source_qualified_repair_count": 7,
+      "source_supported_program_count": 7,
+      "source_unqualified_repair_count": 0,
+      "source_unsupported_program_count": 3,
+      "source_verified_wrong_program_count": 7,
+      "status": "retained_complete_round"
+    },
+    "round3": {
+      "finding_count": 3,
+      "independent_review": {
+        "scope": "wrong-program count and qualification reward files",
+        "verdict": "PASS"
+      },
+      "independent_review_scope": "Author-side qualification is not independent release acceptance; only the stated independent verdict applies.",
+      "repair_count": 1,
+      "source_independent_incorrectness_verdicts": {
+        "refuted_by_parent_review": 2,
+        "verified": 1
+      },
+      "source_program_count": 3,
+      "source_qualified_repair_count": 1,
+      "source_supported_program_count": 1,
+      "source_unqualified_repair_count": 0,
+      "source_unsupported_program_count": 2,
+      "source_verified_wrong_program_count": 1,
+      "status": "retained_complete_round"
+    },
+    "round4": {
+      "finding_count": 0,
+      "independent_review": {
+        "scope": "zero wrong programs at one task and K<=3; measures that budget, not exhaustion",
+        "verdict": "PASS"
+      },
+      "independent_review_scope": "Author-side qualification is not independent release acceptance; only the stated independent verdict applies.",
+      "repair_count": 0,
+      "source_independent_incorrectness_verdicts": {},
+      "source_program_count": 0,
+      "source_qualified_repair_count": 0,
+      "source_supported_program_count": 0,
+      "source_unqualified_repair_count": 0,
+      "source_unsupported_program_count": 0,
+      "source_verified_wrong_program_count": 0,
+      "status": "retained_complete_round_with_zero_programs"
+    },
+    "round5": {
+      "finding_count": 7,
+      "independent_review": {
+        "scope": "round in progress at 07:29 ET with no repairs file at review time; not independently checked",
+        "verdict": "UNVERIFIED"
+      },
+      "independent_review_scope": "Author-side qualification is not independent release acceptance; only the stated independent verdict applies.",
+      "repair_count": 3,
+      "source_independent_incorrectness_verdicts": {
+        "refuted_by_parent_review": 2,
+        "verified": 3,
+        "withdrawn_overtightening": 1
+      },
+      "source_program_count": 6,
+      "source_qualified_repair_count": 3,
+      "source_supported_program_count": 3,
+      "source_unqualified_repair_count": 0,
+      "source_unsupported_program_count": 3,
+      "source_verified_wrong_program_count": 3,
+      "status": "retained_complete_round"
+    },
+    "round6": {
+      "finding_count": 8,
+      "independent_review": {
+        "scope": "absent from the cited review ranges",
+        "verdict": "NOT_CHECKED"
+      },
+      "independent_review_scope": "Author-side qualification is not independent release acceptance; only the stated independent verdict applies.",
+      "repair_count": 4,
+      "source_independent_incorrectness_verdicts": {
+        "refuted_by_parent_review": 2,
+        "verified": 4
+      },
+      "source_program_count": 6,
+      "source_qualified_repair_count": 3,
+      "source_supported_program_count": 4,
+      "source_unqualified_repair_count": 1,
+      "source_unsupported_program_count": 2,
+      "source_verified_wrong_program_count": 4,
+      "status": "retained_complete_round"
+    },
+    "training_wrong_pass8": {
+      "differential_confirmed_here": 0,
+      "disputed_wrongness_execution_ids": [
+        "c5625dc0-ffd0-4204-88f0-2e79f587d528"
+      ],
+      "disputed_wrongness_rows": 1,
+      "exact_package_original_bindings": 0,
+      "finding_count": 8,
+      "independent_morning_review_row_status": {
+        "independently_reproduced_fail_on_repaired_grader": 2,
+        "located_in_repair_source_not_independently_replayed": 3,
+        "not_independently_located": 3
+      },
+      "original_artifact_modified_for_current_replay_rows": 1,
+      "review_scope": "Historical source observations, not eight newly independently confirmed wrong submissions; biased old7 and new7 remain distinct in the pinned source.",
+      "reviewed_correct_annotation_rows": 2,
+      "same_program_source_initial_repair_pairs": 3,
+      "source_cohort_original_executions": 8,
+      "source_cohort_programs": 8,
+      "source_cohort_task_ids": 6,
+      "source_reported_A_rows": 70,
+      "source_reported_regraded_rows": 14,
+      "source_reported_unmeasured_rows": 56,
+      "source_reported_wrong_rows": 8,
+      "status": "all_eight_current_source_observations_identity_bound_originals",
+      "supported_rows_after_exclusions": 7
+    },
+    "vals_answer_leak": {
+      "exact_fleet_task_package_labels": 0,
+      "finding_count": 1,
+      "source_claimed_answer_reachable": 1795,
+      "source_population": 2698,
+      "status": "aggregate_claim_unjoinable_to_fleet"
+    }
+  },
+  "source_manifest": {
+    "path": "sources.json",
+    "sha256": "sha256:c7f98a82c764b5141d4709fcac5c2f334bc3290a594fb884fe46aa81a7e01900"
+  },
+  "spend_usd": 0,
+  "taxonomy": {
+    "purpose": "known_class_mapping_only",
+    "source_id": "interim_taxonomy"
+  },
+  "training_or_dispatch_authorized": false
+}

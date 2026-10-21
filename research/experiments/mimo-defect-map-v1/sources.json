@@ -1,0 +1,360 @@
+{
+  "schema": "mimo.defect-map.sources/v1",
+  "dataset_id": "mimo-defect-map-v1",
+  "taxonomy_source_id": "interim_taxonomy",
+  "scan_selection": "frozen_atlas567_historical_packages",
+  "matcher": {
+    "status": "unavailable",
+    "reason": "Official hackbook match v0 code/catalog is absent from the frozen base 4b6f766674c18ab91486d95a270f419df5a4ac10. No substitute matcher or invented CLI/output schema is used.",
+    "revision": null,
+    "catalog": null,
+    "options": null,
+    "raw_output": null,
+    "known_labels_supplied_to_matcher": false
+  },
+  "training_wrong_pass_execution_ids": [
+    "c5625dc0-ffd0-4204-88f0-2e79f587d528",
+    "c65962f1-b0eb-4706-ac9c-d65f1dd24c30",
+    "dfd522f8-703d-491e-b7bd-616e17a095bd",
+    "affd5ea5-7a51-459e-92d5-d08668d7ec16",
+    "bb7d135d-77eb-4759-a2e9-7ef211735cbc",
+    "bb7aebe3-a7f8-4cf8-a2b9-968b2f0f413d",
+    "a6bee1be-0f52-4972-9248-cff576af61a6",
+    "772a78ad-799b-4b76-8ec0-399c08a97474"
+  ],
+  "training_wrong_pass_selection_scope": "The current eight claimed wrong-pass programs on six training task IDs, not the separate canonical heldout six. Exact original UUIDs select metadata, not matcher inputs. Conflicting adjudications and modified replay artifacts remain explicit.",
+  "sources": [
+    {
+      "source_id": "atlas",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "category": "atlas567",
+      "access": "public",
+      "sha256": "sha256:84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+      "bytes": 7136695
+    },
+    {
+      "source_id": "atlas_items",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/items.jsonl",
+      "category": "atlas114",
+      "access": "public",
+      "sha256": "sha256:3f08c256ccefffb2b106bb34b9501ff71d53fb566c585d3fb96e1dae9a6121b3",
+      "bytes": 292235
+    },
+    {
+      "source_id": "atlas_findings",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/findings-supported-v2.1.jsonl",
+      "category": "atlas114",
+      "access": "public",
+      "sha256": "sha256:12aaa0f0f14f8aba088ad62576e693729ba002145b0f8feb659c7486fc2c176a",
+      "bytes": 898404
+    },
+    {
+      "source_id": "clean_v7",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/experiments/mimo-clean-v7/manifest.json",
+      "category": "initial_v7",
+      "access": "public",
+      "sha256": "sha256:ba553cd2c002c18582bca3b77c0c97b689df2dc3ac3fca83534a86dbb5ef74a7",
+      "bytes": 1333804
+    },
+    {
+      "source_id": "frozen_heldout",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/experiments/mimo-training-20261016/heldout.json",
+      "category": "heldout_exclusion",
+      "access": "public",
+      "sha256": "sha256:d6b0336b4d475f9e9631f295cbde554630e5087c630f3093cc56b13a6e73f9de",
+      "bytes": 1725
+    },
+    {
+      "source_id": "interim_taxonomy",
+      "repository": "research-context",
+      "revision": "a91ddb91ef502336f2683b028bd94dc86ef6cf57",
+      "path": "bridge/2026-10-20-open-qa/taxonomy.yaml",
+      "category": "taxonomy",
+      "access": "private-repository",
+      "sha256": "sha256:64a54531b106d8d6f58efd04fe11727eddbff40436ec370d747246ab83038ff4",
+      "bytes": 40606
+    },
+    {
+      "source_id": "round2_hardening",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/hardening-round-2.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round2",
+      "access": "public",
+      "sha256": "sha256:3e8b77b3615de6161e4a0a41f6cbaea52bf9efe490a37f749a9279a3d078b70e",
+      "bytes": 93095
+    },
+    {
+      "source_id": "round2_repairs",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/repairs-round-2.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round2",
+      "access": "public",
+      "sha256": "sha256:da9287d1441ef342033e200717922a1c48324bca559298beafd2764e6408ec3b",
+      "bytes": 29912
+    },
+    {
+      "source_id": "round3_hardening",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/hardening-round-3.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round3",
+      "access": "public",
+      "sha256": "sha256:de3027e3ab13868e48ce92e813c66288a13e7252b6be9f3c8254d9276de4a741",
+      "bytes": 25734
+    },
+    {
+      "source_id": "round3_repairs",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/repairs-round-3.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round3",
+      "access": "public",
+      "sha256": "sha256:d583c3f8c7dcfae9de85eb69f01a0ee36cc1349b4864f5067ad85ad0bc0f4fcb",
+      "bytes": 6139
+    },
+    {
+      "source_id": "round4_hardening",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/hardening-round-4.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round4",
+      "access": "public",
+      "sha256": "sha256:25722c9a97b4d6cc12b39060a4ec68fd5e4644fd0d8e0077d73dd8a49bd472b0",
+      "bytes": 2470
+    },
+    {
+      "source_id": "round4_repairs",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/repairs-round-4.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round4",
+      "access": "public",
+      "sha256": "sha256:8d7c5f23061c3cddedb88a64f96e318665eab5628ab908143c0a86cacbab79b6",
+      "bytes": 1215
+    },
+    {
+      "source_id": "round5_hardening",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/hardening-round-5.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round5",
+      "access": "public",
+      "sha256": "sha256:32f0bf254f5934391fbb31e74e7f93a91429846b3c6adc8ca474ddb6ae30d278",
+      "bytes": 42137
+    },
+    {
+      "source_id": "round5_repairs",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/repairs-round-5.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round5",
+      "access": "public",
+      "sha256": "sha256:8eddb34980d0be72f9a1809bca0a41ac603188d71aa257d68ea8480b9d09187d",
+      "bytes": 16211
+    },
+    {
+      "source_id": "round6_hardening",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/hardening-round-6.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round6",
+      "access": "public",
+      "sha256": "sha256:2404b259f9e469707ae46d8196c746d809a6ff81e8bef59bb9fbca05d06f5c0c",
+      "bytes": 46209
+    },
+    {
+      "source_id": "round6_repairs",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "bridge/repairs-round-6.json",
+      "container": {"sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827", "bytes": 1069735},
+      "category": "round6",
+      "access": "public",
+      "sha256": "sha256:b6c8fb53ffbb8fef284abdcee20684c295f409243201973c7130dacb60863e25",
+      "bytes": 22074
+    },
+    {
+      "source_id": "heldout",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/heldout-v7.json",
+      "category": "initial_v7",
+      "access": "private-repository",
+      "sha256": "sha256:83210b23c28f9d42ace20d3fd48fcd499dece01d78cbe3dd3699e211cb471a39",
+      "bytes": 7873985
+    },
+    {
+      "source_id": "train_repairs",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/repairs-train-v7.json",
+      "category": "initial_v7",
+      "access": "private-repository",
+      "sha256": "sha256:c10764419b8a359e8bd2c0466a94700bc5690f713269a9ae440f80ac997eed59",
+      "bytes": 143374
+    },
+    {
+      "source_id": "vals_primary",
+      "kind": "authorized-file",
+      "repository": "research-context",
+      "revision": null,
+      "path": "sources/links/www.vals.ai/2026-10-09-two-thirds-of-mimo-v2-6-s-coding-tasks-leak-the-answer-are-m.md",
+      "source_url": "https://www.vals.ai/blogs/mimo-reward-hacking",
+      "retrieved_at": "2026-10-09T00:57:40Z",
+      "source_lines": [81, 85],
+      "category": "vals_answer_leak",
+      "access": "authorized-local",
+      "sha256": "sha256:195609fd66687bc83c4537b728212a31d76c58fa8ed4ce163376665347af9729",
+      "bytes": 11569,
+      "revision_note": "The archived public page is locally retained outside Git; no Git revision is invented."
+    },
+    {
+      "source_id": "training_original_inventory",
+      "kind": "authorized-file",
+      "repository": "eval-lab-results",
+      "revision": null,
+      "path": "2026-10-17/envcheck-gains-overnight/mission/m2/inventory-v6/passes.jsonl",
+      "category": "training_wrong_pass8",
+      "access": "authorized-local",
+      "sha256": "sha256:83817de2435c7cb24552fe31d157493ecd250228229cf7aaf9684294c5c4c854",
+      "bytes": 940210,
+      "revision_note": "Retained original execution inventory; file/result identities are source-declared metadata, not fresh executions."
+    },
+    {
+      "source_id": "training_wrong_claims",
+      "repository": "research-context",
+      "revision": "a91ddb91ef502336f2683b028bd94dc86ef6cf57",
+      "path": "bridge/2026-10-19-deep/data-curve.md",
+      "category": "training_wrong_pass8",
+      "access": "private-repository",
+      "sha256": "sha256:c7fd878dfd5da272344fe7ed5ad3bf69b878786a874a091412323d7d4f995f82",
+      "bytes": 18430
+    },
+    {
+      "source_id": "round6_timing_parent",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "findings/r6/000657/parent-v71-reference-x3.json",
+      "category": "round6",
+      "access": "public",
+      "container": {
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827",
+        "bytes": 1069735
+      },
+      "sha256": "sha256:0a1594c31411f2c078ef71847a306b0d3646a75e27e47b3c6e123853203d90fe",
+      "bytes": 1474
+    },
+    {
+      "source_id": "round6_timing_lineage",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "findings/r6/000657/variant.json",
+      "category": "round6",
+      "access": "public",
+      "container": {
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827",
+        "bytes": 1069735
+      },
+      "sha256": "sha256:300be671ab3f81e79256e6cd6c3fbe458e14f7b69ba065b63fde4bcae4b0e348",
+      "bytes": 9475
+    },
+    {
+      "source_id": "initial_release_review",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/mimo-data-heldout-v7-independent-v7-053-proof-20261018.json",
+      "category": "initial_v7",
+      "access": "private-repository",
+      "sha256": "sha256:85807572257b09a2a4d9c90f416ae46ba2367537df14dd2c84e1234814993f52",
+      "bytes": 82696
+    },
+    {
+      "source_id": "initial_release_adoption",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/mimo-data-heldout-v7-release-adoption-20261018.json",
+      "category": "initial_v7",
+      "access": "private-repository",
+      "sha256": "sha256:53703bbb66a112d4d5a357af105257c18cd539cb5fe4985212498f5a64aed970",
+      "bytes": 85595
+    },
+    {
+      "source_id": "round6_timing_parent_failed_reference_log",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "findings/r6/000657/parent-v71-reference-x3/02-oracle-reference/trial/verifier/test_output.log",
+      "category": "round6",
+      "access": "public",
+      "container": {
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827",
+        "bytes": 1069735
+      },
+      "sha256": "sha256:862bebac8afef3c30367debbf565ba62f6b341beb2290fc18017abd733fcf10d",
+      "bytes": 4554,
+      "export_policy": "Only the failed pytest node id and whether the assertion is a measured-elapsed lower bound are extracted; no log or test body is exported."
+    },
+    {
+      "source_id": "round6_timing_child_failed_reference_log",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "research/evidence/hardening-loop-20261019.tar.gz",
+      "member": "findings/r6/000657/qualification/02-oracle-reference/trial/verifier/test_output.log",
+      "category": "round6",
+      "access": "public",
+      "container": {
+        "sha256": "sha256:da3a3f3bb3d5369730163ce5109e3067191710271a6bc579ccb3da7f14923827",
+        "bytes": 1069735
+      },
+      "sha256": "sha256:77a6c7f9bb6725ab8e67f654211d92e14ebc7bef8badfb0e6a3df647550314f9",
+      "bytes": 4950,
+      "export_policy": "Only the failed pytest node id and whether the assertion is a measured-elapsed lower bound are extracted; no log or test body is exported."
+    },
+    {
+      "source_id": "morning_review",
+      "kind": "authorized-file",
+      "repository": "research-context",
+      "revision": null,
+      "path": "bridge/2026-10-19-deep/morning-results.md",
+      "category": "independent_review",
+      "access": "authorized-local",
+      "source_line_ranges": [[12, 40], [98, 121]],
+      "sha256": "sha256:3c030ea562b98d499e401f92b0e38cbc660843e390b2e42143501187a0041559",
+      "bytes": 12694,
+      "revision_note": "Retained authorized-local file (07:30 ET, 2026-10-19) that is untracked in the private evidence repository at this pin; no Git revision is invented. Only the cited line ranges are consumed."
+    }
+  ]
+}

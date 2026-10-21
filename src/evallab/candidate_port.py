@@ -24,7 +24,7 @@ from evallab.upstream_grader import GraderRefusal, _resources, _tree_digest
 
 PM_FIXED_PIN = "a3ec9e22725b490a30b35d127bc9e7ac8a28de82"
 UPSTREAM_EXPORT_PIN = "452bf305c6daa62fc59061d22133a7cbc7c1572e"
-_DATA_DIRS = ("student_data", "shared_data", "root_data", "intermediate_data")
+_DATA_DIRS = ("student_data", "shared_data", "root_data", "intermediate_data", "image_data")
 _COMPOSE_NAMES = ("docker-compose.yaml", "docker-compose.yml", "compose.yaml", "compose.yml")
 _PROVIDER_IMPORTS = {"openai", "anthropic", "litellm", "google.genai", "google.generativeai"}
 
@@ -284,6 +284,11 @@ def _relative(value: str) -> PurePosixPath:
     return path
 
 
+class _HelperReturn:
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+
 class _SetupRecipe:
     """Interpret only local data declarations, never arbitrary setup Python.
 
@@ -295,6 +300,11 @@ class _SetupRecipe:
 
     def __init__(self, tree: ast.Module, task_id: str) -> None:
         self.names: dict[str, Any] = {"ctx": {name: PurePosixPath(name) for name in _DATA_DIRS}}
+        # Port recipes that address data dirs through module constants
+        # (ROOT / "intermediate_data", INTERMEDIATE / "file") resolve offline
+        # to the same relative data-dir paths as ctx attributes.
+        self.names["ROOT"] = PurePosixPath("")
+        self.helpers = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name not in {"setup", "main"}}
         self.task_id = task_id
         self.assets: list[dict[str, str]] = []
         for statement in tree.body:
@@ -303,13 +313,60 @@ class _SetupRecipe:
                 if isinstance(target, ast.Name) and statement.value is not None:
                     with contextlib.suppress(ValueError, TypeError):
                         self.names[target.id] = ast.literal_eval(statement.value)
+                    if target.id not in self.names or isinstance(self.names.get(target.id), ast.AST):
+                        with contextlib.suppress(ValueError, TypeError, KeyError):
+                            value = self.expression(statement.value)
+                            if isinstance(value, (str, PurePosixPath, dict, tuple, list, int, float)):
+                                self.names[target.id] = value
+        self.helpers = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name not in {"setup", "main"}}
         setup = next((node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "setup"), None)
-        if setup is None or len(setup.args.args) != 1:
+        if setup is None:
+            self._declared_file_maps(tree)
+        elif len(setup.args.args) != 1:
             raise GraderRefusal("setup_data.py has no single-argument offline setup recipe")
-        self.names[setup.args.args[0].arg] = self.names["ctx"]
-        self.statements(setup.body)
+        else:
+            self.names[setup.args.args[0].arg] = self.names["ctx"]
+            self.statements(setup.body)
         if not self.assets:
             raise GraderRefusal("setup_data.py declared no locally resolvable hash-pinned assets")
+
+    def _add_asset(self, source: Any, destination: Any, digest: Any) -> None:
+        if not isinstance(source, str) or not isinstance(digest, str):
+            raise GraderRefusal("setup-data asset has no safe destination and exact sha256")
+        relative = _relative(str(destination))
+        _relative(source)
+        if relative.parts[0] not in _DATA_DIRS or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+            raise GraderRefusal("setup-data asset has no safe destination and exact sha256")
+        self.assets.append({"source": source, "destination": str(relative), "sha256": digest})
+
+    def _declared_file_maps(self, tree: ast.Module) -> None:
+        """Port recipes with no setup(ctx): a declared {source: (dest, sha)} map.
+
+        Some ports (e.g. vf2) ship a FILES dict and a network main() instead
+        of the DataContext convention. The dict itself is the same
+        hash-pinned copy declaration, so it resolves offline identically.
+        """
+        for statement in tree.body:
+            if not isinstance(statement, (ast.Assign, ast.AnnAssign)) or statement.value is None:
+                continue
+            if not isinstance(statement.value, ast.Dict):
+                continue
+            try:
+                mapping = self.expression(statement.value)
+            except (ValueError, TypeError, KeyError):
+                continue
+            if not isinstance(mapping, dict) or not mapping:
+                continue
+            if all(isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], PurePosixPath) for value in mapping.values()):
+                for source, (destination, digest) in mapping.items():
+                    self._add_asset(source, destination, digest)
+            elif all(isinstance(value, str) and len(value) == 64 for value in mapping.values()) and "destination" in self.helpers and len(self.helpers["destination"].args.args) == 1:
+                # Flat {hub_path: sha} map plus a pure destination() helper
+                # (a main()-style recipe); destinations resolve offline.
+                destination_helper = ast.Call(func=ast.Name(id="destination", ctx=ast.Load()), args=[ast.Constant(value="")], keywords=[])
+                for source, digest in mapping.items():
+                    destination_helper.args[0] = ast.Constant(value=source)
+                    self._add_asset(source, self._call_helper(destination_helper), digest)
 
     def expression(self, node: ast.AST) -> Any:
         if isinstance(node, ast.Constant):
@@ -320,8 +377,12 @@ class _SetupRecipe:
             base = self.expression(node.value)
             if isinstance(base, dict) and node.attr in _DATA_DIRS:
                 return base[node.attr]
-        if isinstance(node, (ast.Tuple, ast.List)):
+            if isinstance(base, PurePosixPath) and node.attr in {"parts", "name"}:
+                return getattr(base, node.attr)
+        if isinstance(node, ast.Tuple):
             return tuple(self.expression(item) for item in node.elts)
+        if isinstance(node, ast.List):
+            return [self.expression(item) for item in node.elts]
         if isinstance(node, ast.Dict):
             result: dict[Any, Any] = {}
             for key, value in zip(node.keys, node.values, strict=True):
@@ -331,7 +392,13 @@ class _SetupRecipe:
                     result[self.expression(key)] = self.expression(value)
             return result
         if isinstance(node, ast.Subscript):
-            return self.expression(node.value)[self.expression(node.slice)]
+            value = self.expression(node.value)
+            if isinstance(node.slice, ast.Slice):
+                lower = self.expression(node.slice.lower) if node.slice.lower is not None else None
+                upper = self.expression(node.slice.upper) if node.slice.upper is not None else None
+                step = self.expression(node.slice.step) if node.slice.step is not None else None
+                return value[slice(lower, upper, step)]
+            return value[self.expression(node.slice)]
         if isinstance(node, ast.JoinedStr):
             parts: list[str] = []
             for item in node.values:
@@ -350,20 +417,149 @@ class _SetupRecipe:
                 return left | right
             if isinstance(node.op, ast.Add) and isinstance(left, str) and isinstance(right, str):
                 return left + right
+            if isinstance(node.op, ast.Mult) and isinstance(left, (str, int, float)) and isinstance(right, (int, float)):
+                return left * right
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "items" and not node.args and not node.keywords:
             value = self.expression(node.func.value)
             if isinstance(value, dict):
                 return tuple(value.items())
         if isinstance(node, ast.DictComp) and len(node.generators) == 1:
             generator = node.generators[0]
-            if generator.ifs or generator.is_async:
+            if generator.is_async:
                 raise GraderRefusal("conditional/async setup-data comprehension is unsupported")
             result = {}
             for value in self.expression(generator.iter):
                 self.assign(generator.target, value)
-                result[self.expression(node.key)] = self.expression(node.value)
+                if all(self.expression(condition) for condition in generator.ifs):
+                    result[self.expression(node.key)] = self.expression(node.value)
             return result
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)) and len(node.generators) == 1:
+            generator = node.generators[0]
+            if generator.is_async:
+                raise GraderRefusal("conditional/async setup-data comprehension is unsupported")
+            values = []
+            for value in self.expression(generator.iter):
+                self.assign(generator.target, value)
+                if all(self.expression(condition) for condition in generator.ifs):
+                    values.append(self.expression(node.elt))
+            return set(values) if isinstance(node, ast.SetComp) else values
+        if isinstance(node, ast.Compare):
+            left = self.expression(node.left)
+            for operator, comparator in zip(node.ops, node.comparators, strict=True):
+                right = self.expression(comparator)
+                outcome = self._compare(operator, left, right)
+                if not outcome:
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.BoolOp):
+            values = [self.expression(value) for value in node.values]
+            return all(values) if isinstance(node.op, ast.And) else any(values)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not self.expression(node.operand)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)) and isinstance(self.expression(node.operand), (int, float)):
+            value = self.expression(node.operand)
+            return -value if isinstance(node.op, ast.USub) else value
+        if isinstance(node, ast.IfExp):
+            return self.expression(node.body if self.expression(node.test) else node.orelse)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"any", "all"} and len(node.args) == 1 and not node.keywords:
+            values = self.expression(node.args[0])
+            return any(values) if node.func.id == "any" else all(values)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in self.helpers and not node.keywords:
+            return self._call_helper(node)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and not node.keywords:
+            base = self.expression(node.func.value)
+            args = [self.expression(arg) for arg in node.args]
+            if isinstance(base, str) and node.func.attr == "split" and len(args) <= 1:
+                return base.split(*args)
+            if isinstance(base, str) and node.func.attr == "join" and len(args) == 1:
+                return base.join(args[0])
+            if isinstance(base, str) and node.func.attr in {"startswith", "removeprefix", "strip"} and len(args) <= 1:
+                return getattr(base, node.func.attr)(*args)
+            if isinstance(base, PurePosixPath) and node.func.attr == "joinpath" and all(isinstance(arg, str) for arg in args):
+                result = base
+                for arg in args:
+                    result = result / _relative(arg)
+                return result
         raise GraderRefusal(f"setup-data recipe needs unsupported expression {type(node).__name__}")
+
+    @staticmethod
+    def _compare(operator: ast.cmpop, left: Any, right: Any) -> bool:
+        if isinstance(operator, ast.Eq):
+            return left == right
+        if isinstance(operator, ast.NotEq):
+            return left != right
+        if isinstance(operator, ast.In):
+            return left in right
+        if isinstance(operator, ast.NotIn):
+            return left not in right
+        if isinstance(operator, ast.Lt):
+            return left < right
+        if isinstance(operator, ast.LtE):
+            return left <= right
+        if isinstance(operator, ast.Gt):
+            return left > right
+        if isinstance(operator, ast.GtE):
+            return left >= right
+        if isinstance(operator, ast.Is):
+            return left is right
+        if isinstance(operator, ast.IsNot):
+            return left is not right
+        raise GraderRefusal("unsupported setup-data comparison")
+
+    def _call_helper(self, node: ast.Call) -> Any:
+        """Evaluate a module-local pure helper (Assign/If/Return only).
+
+        Recipe files use small destination/predicate helpers next to the
+        fetch declarations. Only helpers whose bodies are assignments,
+        conditionals and a return of supported expressions are callable;
+        anything with side-effecting statements refuses as before.
+        """
+        assert isinstance(node.func, ast.Name)
+        function = self.helpers[node.func.id]
+        params = [arg.arg for arg in function.args.args]
+        defaults = [self.expression(item) for item in function.args.defaults]
+        args = [self.expression(arg) for arg in node.args]
+        if len(args) > len(params) or len(args) < len(params) - len(defaults):
+            raise GraderRefusal("unsupported setup-data helper arity")
+        bindings = dict(zip(params, args))
+        if len(args) < len(params):
+            bindings.update(zip(params[len(args):], defaults[-(len(params) - len(args)):], strict=True))
+        saved = self.names
+        self.names = {**saved, **bindings}
+        try:
+            result = self._helper_body(function.body, depth=0)
+        finally:
+            self.names = saved
+        if isinstance(result, _HelperReturn):
+            return result.value
+        raise GraderRefusal("setup-data helper did not return a value")
+
+    def _helper_body(self, statements: list[ast.stmt], depth: int) -> Any:
+        if depth > 8:
+            raise GraderRefusal("setup-data helper nesting is too deep")
+        for statement in statements:
+            if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                if statement.value is None:
+                    continue
+                targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+                value = self.expression(statement.value)
+                for target in targets:
+                    self.assign(target, value)
+            elif isinstance(statement, ast.If):
+                branch = statement.body if self.expression(statement.test) else statement.orelse
+                result = self._helper_body(branch, depth + 1)
+                if isinstance(result, _HelperReturn):
+                    return result
+            elif isinstance(statement, ast.Return):
+                return _HelperReturn(self.expression(statement.value) if statement.value is not None else None)
+            elif isinstance(statement, ast.Raise):
+                raise GraderRefusal("setup-data helper raised; recipe is not offline-resolvable")
+            elif isinstance(statement, ast.Pass):
+                continue
+            else:
+                raise GraderRefusal(f"setup-data recipe requires unsupported statement {type(statement).__name__}")
+        return None
 
     def assign(self, target: ast.AST, value: Any) -> None:
         if isinstance(target, ast.Name):
@@ -391,6 +587,10 @@ class _SetupRecipe:
                 for value in self.expression(statement.iter):
                     self.assign(statement.target, value)
                     self.statements(statement.body)
+            elif isinstance(statement, ast.If):
+                # Only taken branches are interpreted; an untaken branch's
+                # external/transforming calls never become assets.
+                self.statements(statement.body if self.expression(statement.test) else statement.orelse)
             elif isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
                 call = statement.value
                 if isinstance(call.func, ast.Attribute) and call.func.attr == "update" and len(call.args) == 1 and not call.keywords:
@@ -400,11 +600,15 @@ class _SetupRecipe:
                     if task != self.task_id or revision != "4.0.0" or not isinstance(assets, dict):
                         raise GraderRefusal("setup-data Hub task/revision differs from the matched original v4 task")
                     for source, (destination, digest) in assets.items():
-                        relative = _relative(str(destination))
-                        _relative(source)
-                        if relative.parts[0] not in _DATA_DIRS or not isinstance(digest, str) or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
-                            raise GraderRefusal("setup-data asset has no safe destination and exact sha256")
-                        self.assets.append({"source": source, "destination": str(relative), "sha256": digest})
+                        self._add_asset(source, destination, digest)
+                elif isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id in {"ctx", "context"} and call.func.attr == "fetch" and len(call.args) == 3 and not call.keywords and isinstance(call.args[0], ast.Call) and isinstance(call.args[0].func, ast.Attribute) and call.args[0].func.attr == "hub_url" and isinstance(call.args[0].func.value, ast.Name) and call.args[0].func.value.id in {"ctx", "context"} and len(call.args[0].args) == 3:
+                    # ctx.fetch(ctx.hub_url(task, rev, path), dest, sha) is the
+                    # per-file form of fetch_hub: same hub object, resolved
+                    # offline from the local upstream tree and hash-checked.
+                    task, revision, source = map(self.expression, call.args[0].args)
+                    if task != self.task_id or revision != "4.0.0":
+                        raise GraderRefusal("setup-data Hub task/revision differs from the matched original v4 task")
+                    self._add_asset(source, self.expression(call.args[1]), self.expression(call.args[2]))
                 else:
                     raise GraderRefusal(f"setup-data recipe requires nonlocal/transforming call {ast.unparse(call.func)}")
             else:
@@ -539,8 +743,19 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
     verifier_raw = dict(interface["hardware"])
     verifier_raw["build_timeout_sec"] = agent_resource["build_timeout_sec"]
     verifier_resource = _resources(verifier_raw, role="verifier")
-    artifacts = config.get("artifacts")
-    if not isinstance(artifacts, list) or not artifacts or not all(isinstance(value, str) and PurePosixPath(value).is_absolute() and ".." not in PurePosixPath(value).parts for value in artifacts):
+    raw_artifacts = config.get("artifacts")
+    # Harbor also declares artifacts as {source, service} / {source, exclude}
+    # mappings; the port binding needs only the source path (the prepared
+    # task.toml keeps the original mapping, so Harbor still collects it
+    # with its service/exclude semantics).
+    artifacts = []
+    if isinstance(raw_artifacts, list):
+        for entry in raw_artifacts:
+            if isinstance(entry, str):
+                artifacts.append(entry)
+            elif isinstance(entry, dict) and isinstance(entry.get("source"), str):
+                artifacts.append(entry["source"])
+    if not artifacts or len(artifacts) != len(raw_artifacts if isinstance(raw_artifacts, list) else []) or not all(PurePosixPath(value).is_absolute() and ".." not in PurePosixPath(value).parts for value in artifacts):
         raise GraderRefusal("original task must declare absolute file/directory artifact sources")
     # Artifacts under /app or /workdir bind by path; any other absolute
     # artifact dir (e.g. /results) binds at runtime only by unique basename

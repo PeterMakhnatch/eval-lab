@@ -923,6 +923,38 @@ async def _capture_extra_reports(environment: Any) -> None:
             active.evidence_errors.append(f"native extra report {remote}: {exc}")
 
 
+def _observed_image_identity(
+    environment: Any, *, container: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
+    """Read hydrated native handles only; never query a provider or infer a hit."""
+    identity: dict[str, Any] = {
+        "environment_id": None,
+        "docker_image_reference": None,
+        "docker_image_id": None,
+        "modal_image_id": None,
+        "cache_hit": None,
+        "semantics": "observed native identities; repeated identity does not prove a cache hit",
+    }
+    errors = []
+    try:
+        identity["environment_id"] = getattr(environment, "environment_id", None)
+    except Exception as exc:
+        errors.append(f"native environment identity unavailable: {exc}")
+    if container is not None:
+        identity["docker_image_reference"] = (container.get("Config") or {}).get("Image")
+        identity["docker_image_id"] = container.get("Image")
+    else:
+        try:
+            image = getattr(environment, "_image", None)
+            identity["modal_image_id"] = getattr(image, "object_id", None)
+        except Exception as exc:
+            # Optional evidence must not invalidate an otherwise completed grade.
+            errors.append(f"native hydrated Modal image identity unavailable: {exc}")
+    if errors:
+        identity["errors"] = errors
+    return identity
+
+
 @cache
 def _runtime_type(name: str) -> type:
     """Lazily expose native subclasses to Harbor's import-path factory, never a plan."""
@@ -979,12 +1011,16 @@ def _runtime_type(name: str) -> type:
                 active.observations.append(
                     {
                         "backend": "docker",
+                        "role": self._upstream_role,
                         "session_id": self.session_id,
                         "container_id": self._container_id,
                         "cpus": self._effective_cpus,
                         "memory_mb": self._effective_memory_mb,
                         "platform": self._upstream_platform,
                         "limits_verified": True,
+                        "native_image_identity": _observed_image_identity(
+                            self, container=container[0]
+                        ),
                     }
                 )
 
@@ -1048,6 +1084,7 @@ def _runtime_type(name: str) -> type:
                 active.observations.append(
                     {
                         "backend": "modal",
+                        "role": self._upstream_role,
                         "session_id": self.session_id,
                         "sandbox_id": getattr(self._sandbox, "object_id", None),
                         "cpus": self._effective_cpus,
@@ -1056,6 +1093,7 @@ def _runtime_type(name: str) -> type:
                         "cpu_request_and_limit": list(cpu_config),
                         "memory_request_and_limit_mb": list(memory_config),
                         "sandbox_lifetime_seconds": self._sandbox_timeout,
+                        "native_image_identity": _observed_image_identity(self),
                     }
                 )
 

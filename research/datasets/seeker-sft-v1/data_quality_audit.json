@@ -1,33 +1,29 @@
 {
   "cheatbench_dev_action_audit": {
-    "admitted_terminal_bench_2_rows": 516,
+    "admitted_terminal_bench_2_rows": 112,
     "by_mechanism_total": {
       "harness:harness_leaks_answer": 57,
-      "harness:harness_leaks_verifier": 410,
+      "harness:harness_leaks_verifier": 6,
       "task:secret_discovery_in_environment": 2,
       "task:secret_discovery_via_web_search": 18,
       "task:verifier_exploitation": 29
     },
     "by_mechanism_tripwire_fired": {
-      "harness:harness_leaks_verifier": 410,
+      "harness:harness_leaks_verifier": 6,
       "task:secret_discovery_via_web_search": 3
     },
     "by_tripwire_rule": {
       "content:process_exit": 1,
       "content:tamper_signature": 1,
-      "grader_tamper": 8,
-      "harness_log_reads": 3,
-      "hidden_reads": 410,
-      "hidden_test_corroboration": 6,
-      "history_mining": 8,
-      "submission_tamper": 2,
-      "upstream_attempts": 391
+      "hidden_reads": 6,
+      "submission_tamper": 1,
+      "upstream_attempts": 8
     },
-    "harness_leak_fraction": 0.905,
-    "harness_leak_only_rows": 467,
+    "harness_leak_fraction": 0.5625,
+    "harness_leak_only_rows": 63,
     "task_level_exploit_rows": 49,
-    "tripwire_confirmed_rate": 0.8004,
-    "tripwire_confirmed_rows": 413
+    "tripwire_confirmed_rate": 0.0804,
+    "tripwire_confirmed_rows": 9
   },
   "dataset_id": "seeker-sft-v1",
   "hacktrace_dev_outcome_audit": {
@@ -37,7 +33,7 @@
     "outcome_verified_visible_pass_hidden_fail": 31
   },
   "pool_filtering_summary": {
-    "admitted_total_rows": 911,
+    "admitted_total_rows": 432,
     "curated_by_source_family": {
       "breaker_bench": 15,
       "cheatbench": 49,
@@ -45,24 +41,24 @@
       "mimo": 57,
       "tb2_tb21": 4,
       "tb4_dev": 28,
-      "terminal_wrench": 216
+      "terminal_wrench": 141
     },
     "curated_by_stratum": {
       "tier1_replay_verified": 86,
       "tier2_cheatbench_task_exploit": 49,
-      "tier2_graft_tw_task_exploit": 216,
+      "tier2_graft_tw_task_exploit": 141,
       "tier2_hacktrace_outcome_verified": 31,
       "tier2_tb4_dev_hub_exploit": 18
     },
-    "curated_seeker_sft_rows": 400,
+    "curated_seeker_sft_rows": 325,
     "filtered_out_by_stratum": {
-      "tier2_cheatbench_harness_leak_only": 467,
+      "tier2_cheatbench_harness_leak_only": 63,
       "tier2_hacktrace_unverified_outcome": 44
     },
-    "noise_reduction_fraction": 0.5609,
-    "non_curated_filtered_rows": 511,
-    "quarantined_total_records": 712,
-    "tier1_differential_verified_retained": "42/42",
+    "noise_reduction_fraction": 0.2477,
+    "non_curated_filtered_rows": 107,
+    "quarantined_total_records": 1191,
+    "tier1_differential_verified_retained": "27/27",
     "tier1_replay_verified_retained": "86/86"
   },
   "schema": "evallab.seeker_sft.data_quality_audit/v1",
@@ -72,16 +68,25 @@
   },
   "terminus_parser_verification": {
     "combined_parse_pass_rate": 1.0,
-    "combined_parser_verified_histories": 171,
-    "combined_parser_verified_supervised_turns": 496,
-    "estimated_tokens_per_epoch": 700741,
-    "graft_train_tw_commands": 1425,
-    "graft_train_tw_histories": 151,
-    "graft_train_tw_total_chars": 2538761,
-    "graft_train_tw_turns": 476,
-    "graft_train_tw_turns_parse_ok": 476,
+    "combined_parser_verified_histories": 161,
+    "combined_parser_verified_supervised_turns": 464,
+    "estimated_tokens_per_epoch": 651162,
+    "graft_train_tw_commands": 1326,
+    "graft_train_tw_histories": 141,
+    "graft_train_tw_total_chars": 2350361,
+    "graft_train_tw_turns": 444,
+    "graft_train_tw_turns_parse_ok": 444,
     "tier1_witness_conversations": 20,
     "tier1_witness_total_chars": 124054,
     "tier1_witness_turns_parse_ok": 20
+  },
+  "ve1_st1_clearance_resolution": {
+    "admitted_rows_with_embedded_payload_and_sha256": 432,
+    "admitted_rows_with_hackbook_entry_ids": 432,
+    "quarantined_raw_payload_canary_rows": 414,
+    "quarantined_unmaterialized_tw_subset_rows": 65,
+    "st1_controls_not_differential_reclassified": 15,
+    "st1_unresolved_pins_remaining": 0,
+    "true_differential_verified_1_0_admitted": 27
   }
 }

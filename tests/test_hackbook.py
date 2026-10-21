@@ -266,6 +266,30 @@ def test_catalog_cites_no_test_split_item_of_the_mimo_weak_test_keys(
     assert [e for e in errors if "test-split item of mimo-weak-tests-v2.1" in e]
 
 
+def test_heldout_runner_lets_a_hackbook_version_spend_the_test_split_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = REPO / "research/experiments/hackbook-tb4-heldout-20261021/run.py"
+    spec = importlib.util.spec_from_file_location("hackbook_heldout_run", path)
+    assert spec and spec.loader
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+    version = run.version_id()
+    assert version.startswith("hackbook-match@") and version == run.version_id()
+    exposure = tmp_path / "exposure.jsonl"
+    _write(exposure, json.dumps({"system": f"{version}: frozen catalog and matcher"}) + "\n")
+    monkeypatch.setattr(run, "EXPOSURE", exposure)
+    assert run.already_exposed(version) and not run.already_exposed("hackbook-match@000000000000")
+    argv = ["run.py", "--splits", "dev,test", "--out", str(tmp_path / "out.json")]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit, match="--spend-the-test-split"):
+        run.main()
+    monkeypatch.setattr(sys, "argv", [*argv, "--spend-the-test-split"])
+    with pytest.raises(SystemExit, match="already has a TEST exposure"):
+        run.main()
+    assert not (tmp_path / "out.json").exists()
+
+
 def test_get_list_search(catalog: list[HackbookEntry]) -> None:
     assert get_entry("hb-ts01-001", catalog).slug == "hardcoded-fixture-outputs"
     assert get_entry("hardcoded-fixture-outputs", catalog).id == "HB-TS01-001"

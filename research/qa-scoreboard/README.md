@@ -59,6 +59,16 @@ Writers so far:
   v1 rows (`tripwires@731d849f84c0/<view>`) that were missing for the internal keys,
   using their committed v1 predictions. v1 rows are never rewritten. The per-item
   decision flips are in that directory's `results.json`.
+- `research/experiments/tripwires-v3-hackbook-20261021/run.py publish` writes the frozen
+  tripwire rules v3 rows (`tripwires-v3@<12-hex combined fingerprint>/<view>`): the OR of
+  verdict-eligible rules (v2 decision rules plus hackbook rules) per registered trace key and
+  split. Per-rule true positives, false alarms, denominators, step references and unknown
+  coverage are in that directory's `results-<split>.json` and `PROTOCOL.md`. It only appends,
+  skips already-published identities, refuses changed metrics under an existing identity, and
+  never touches `tripwires@…` (v1/v2) rows. Unavailable cohorts publish no row rather than
+  zeros, and the TB4 Harbor Hub DEV census populations (`tb4-hub-dev-official`, supplementary
+  `tb4-hub-dev-bootstrap`) are not registered answer keys, so they stay in `results-dev.json`
+  and never reach this CSV.
 - `research/experiments/history-cmds-window3-20261019/run.py --scoreboard` writes
   the one-shot blind test on `mimo-fresh-window3`. It covers the frozen
   dev-selected rule (`action-rule@88cf3b998fd3/history_cmds-or-tripwire/<view>`) and

@@ -2771,10 +2771,317 @@
           "supported_witness_ids": [
             "block"
           ]
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:390: \"        return super().transform(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:460: \"    primary_dtype = 'category'\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/8276ae2289.patch:30: \"+        elif not (not isinstance(self.order, (list, tuple))):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/8276ae2289.patch:22: \"+        self.order = order\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/8276ae2289.patch:24: \"+    def _validate_data(self, series):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:139: \"== mutant:8276ae2289 reward=1.0 rc=0 scored 2.7s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "8276ae2289"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/8276ae2289.patch",
+          "witness_sha256": "sha256:5c68af0814ceeecd96cd7985400719c382b0c7296c5156895b311e619defb84c"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:390: \"        return super().transform(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:460: \"    primary_dtype = 'category'\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/01ac60abd4.patch:33: \"+        if len(self.order) == len(set(self.order)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/01ac60abd4.patch:22: \"+        self.order = order\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/01ac60abd4.patch:24: \"+    def _validate_data(self, series):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:163: \"== mutant:01ac60abd4 reward=1.0 rc=0 scored 2.4s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "01ac60abd4"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/01ac60abd4.patch",
+          "witness_sha256": "sha256:28f8ea16b7649e499cd88572815bb05f8ec055b35403cd595bed089d579b0750"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:390: \"        return super().transform(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:460: \"    primary_dtype = 'category'\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/4ff036a4ff.patch:27: \"+        if not (self.order is None):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/4ff036a4ff.patch:22: \"+        self.order = order\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/4ff036a4ff.patch:24: \"+    def _validate_data(self, series):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:187: \"== mutant:4ff036a4ff reward=1.0 rc=0 scored 2.5s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "4ff036a4ff"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/4ff036a4ff.patch",
+          "witness_sha256": "sha256:4eecadd37ea9dade09643536e4b948d09a109f7e67f60e1e064b233faaebf9ad"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:390: \"        return super().transform(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:460: \"    primary_dtype = 'category'\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/aba776ad42.patch:33: \"+        if not (len(self.order) != len(set(self.order))):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/aba776ad42.patch:22: \"+        self.order = order\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/aba776ad42.patch:24: \"+    def _validate_data(self, series):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:211: \"== mutant:aba776ad42 reward=1.0 rc=0 scored 2.6s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "aba776ad42"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/aba776ad42.patch",
+          "witness_sha256": "sha256:0c125540dd47ed0189b20e31b0f257c6fea7ae18f8630339227cbef8adf16fe8"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:390: \"        return super().transform(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:460: \"    primary_dtype = 'category'\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/0594451fd9.patch:30: \"+        elif isinstance(self.order, (list, tuple)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/0594451fd9.patch:22: \"+        self.order = order\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/0594451fd9.patch:24: \"+    def _validate_data(self, series):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:235: \"== mutant:0594451fd9 reward=1.0 rc=0 scored 2.4s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "0594451fd9"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/mutants/0594451fd9.patch",
+          "witness_sha256": "sha256:59d0c32dfdc4f1785ad4304f08867844378677d861eb2ee66e801ab80ff9c11d"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch:13: \"-        if len(order) != len(set(order)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch:14: \"-            raise ValueError(\\\"Order values cannot contain duplicates\\\")\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/dropped.patch:29: \"+        if len(self.order) != len(set(self.order)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/dropped.patch:30: \"+            raise ValueError(\\\"Order values cannot contain duplicates\\\")\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:381: \"            missing_order_vals = set(series.dropna().values).difference(self.order)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:61: \"        return series\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:115: \"== confirm reward=1.0 rc=0 scored 2.4s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+          "grades_log_sha256": "sha256:d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/report.json",
+          "report_sha256": "sha256:4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+          "review_label": "confirmed_weak",
+          "selector": {
+            "task_id": "format-code-task-000371",
+            "witness_id": "block"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch",
+          "witness_sha256": "sha256:926f7c6868c57c50fabad6c6b5bbe6a7465ae9f482c91f0c79dfb658ef9afa32"
         }
       ],
       "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
-      "reason": "The instruction limits uninstantiated Ordinal support to a column schema \"not tied to data\". minimal.patch removes every order check; dropped.patch:25-30 restores missing-order, container-type, and duplicate checks in _validate_data, while hidden tests exercise only schema construction and a valid order.",
+      "reason": "The instruction limits uninstantiated Ordinal support to a column schema \"not tied to data\". minimal.patch removes every order check; dropped.patch:25-30 restores missing-order, container-type, and duplicate checks in _validate_data, while hidden tests exercise only schema construction and a valid order. The negated negation turns the invalid-container test into a valid-list/tuple test. A valid non-None order list reaches this branch and raises the container TypeError before membership or dtype conversion. The required schema-only constructor fix remains, but it must not break existing valid ordered data. The pinned retained source matches the exact reference base Git blob and shows public Ordinal.transform calling this validation before returning through LogicalType.transform; this is a reachable required public regression, not an unproven private-helper branch. The static valid-order/categorical-series counterexample would succeed under the full reference and fails under this mutant with the stated exception. Only constructor/repr/order-attribute tests are selected, so the recorded full=1/nop=0/mutant=1 scores do not test this transition. No transform execution was run for this review. The duplicate comparison is inverted: a valid unique list has equal list/set lengths, so data validation raises the duplicate-order ValueError even though no duplicate exists. The required schema-only constructor fix remains, but it must not break existing valid ordered data. The pinned retained source matches the exact reference base Git blob and shows public Ordinal.transform calling this validation before returning through LogicalType.transform; this is a reachable required public regression, not an unproven private-helper branch. The static valid-order/categorical-series counterexample would succeed under the full reference and fails under this mutant with the stated exception. Only constructor/repr/order-attribute tests are selected, so the recorded full=1/nop=0/mutant=1 scores do not test this transition. No transform execution was run for this review. The missing-order guard is inverted. Any supplied valid order is non-None, so public data transformation raises the missing-order TypeError before the container/duplicate checks. The required schema-only constructor fix remains, but it must not break existing valid ordered data. The pinned retained source matches the exact reference base Git blob and shows public Ordinal.transform calling this validation before returning through LogicalType.transform; this is a reachable required public regression, not an unproven private-helper branch. The static valid-order/categorical-series counterexample would succeed under the full reference and fails under this mutant with the stated exception. Only constructor/repr/order-attribute tests are selected, so the recorded full=1/nop=0/mutant=1 scores do not test this transition. No transform execution was run for this review. Negating the inequality makes the duplicate check true for a unique valid order, the same invalid public behavior as 01ac60abd4 but bound to this distinct surviving patch. The required schema-only constructor fix remains, but it must not break existing valid ordered data. The pinned retained source matches the exact reference base Git blob and shows public Ordinal.transform calling this validation before returning through LogicalType.transform; this is a reachable required public regression, not an unproven private-helper branch. The static valid-order/categorical-series counterexample would succeed under the full reference and fails under this mutant with the stated exception. Only constructor/repr/order-attribute tests are selected, so the recorded full=1/nop=0/mutant=1 scores do not test this transition. No transform execution was run for this review. Dropping not makes the type check reject exactly the permitted list/tuple order container. A valid list reaches this branch and raises before membership or dtype conversion. The required schema-only constructor fix remains, but it must not break existing valid ordered data. The pinned retained source matches the exact reference base Git blob and shows public Ordinal.transform calling this validation before returning through LogicalType.transform; this is a reachable required public regression, not an unproven private-helper branch. The static valid-order/categorical-series counterexample would succeed under the full reference and fails under this mutant with the stated exception. Only constructor/repr/order-attribute tests are selected, so the recorded full=1/nop=0/mutant=1 scores do not test this transition. No transform execution was run for this review. The instruction permits uninstantiated Ordinal only while the schema is not tied to data. The accepted minimal patch removes all original constructor order checks but omits their restoration at data validation, so it can accept invalid supplied order when the public Ordinal.transform path receives data. This is not inferred from the private helper name: the retained full baseline logical_types.py is byte-bound to the exact old Git blob d71f8d88 named by the reference and explicitly calls self._validate_data(series) from Ordinal.transform. With duplicate order [\"a\",\"a\"] and a categorical pandas Series containing \"a\", the minimal patch's membership-only validation passes; the base transform sees the already-correct category dtype and returns the series without another duplicate-order check. The full reference raises the preserved duplicate-order ValueError when data is validated. Thus construction-only success is an incomplete fix that loses required validation on a reachable public path. Current full=1/nop=0/confirm=1 controls bind the exact omission; historical atlas/custody labels and historical trial scores are not the basis for the adjudication.",
       "task_id": "format-code-task-000371",
       "verify": "fail:weak-tests"
     },
@@ -12046,6 +12353,67 @@
       "defect_class": "accepted-required-gap",
       "evidence": [
         {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/instruction.md:82: \"self.cache.set(\\\"auth\\\", self.auth, expires_at=data[\\\"expires\\\"])\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch:18: \"-        expires += time()\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch:22: \"+        if expires_at is None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch:23: \"+            pass\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch:30: \"         self._cache[key] = dict(value=value, expires=expires)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch:11: \"             if expires <= now:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/tests/test.patch:30: \"+        self.cache.set(\\\"value\\\", 10, expires_at=datetime.datetime(1970, 1, 1))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/tests/test.patch:38: \"+                       expires_at=datetime.datetime(1970, 1, 1))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:1: \"== full reward=1.0 rc=0 scored 1.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:21: \"== nop reward=0.0 rc=0 scored 1.8s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:147: \"== mutant:2b2e4442fa reward=1.0 rc=0 scored 1.9s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log",
+          "grades_log_sha256": "sha256:e10f9674aa0912ab10332e4faee57c063757726c37ec2a0ff2713ef2a4930d47",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:175abc8664e4f11ce6c8848b1d5ce4826d433b52abddab63a06d0afac23d2adc",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+          "reference_sha256": "sha256:f2567e3b57e040a14bd4a4cd132503803f8b1e29fa636f9b8d1c12624e3cce80",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/report.json",
+          "report_sha256": "sha256:7aaa564d1d26fc58e8575f3ff719f55e59d561fa65442f8bad6393fd2bac12cb",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-002756",
+            "witness_id": "2b2e4442fa"
+          },
+          "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/mutants/2b2e4442fa.patch",
+          "witness_sha256": "sha256:976e08d2cf767a6bbc199651882d91852d73320abaa2711caa14ee6af135680c"
+        }
+      ],
+      "package_digest": "sha256:175abc8664e4f11ce6c8848b1d5ce4826d433b52abddab63a06d0afac23d2adc",
+      "reason": "This mutation deletes pre-existing relative-expiry behavior in the same public Cache.set method: with expires_at=None, expires is no longer offset by time() before it is stored in _cache. A 60-second TTL at epoch time 1,700,000,000 becomes absolute expiration 60 instead of 1,700,000,060, and the visible pruning comparison expires<=now treats that record as already expired. The overflow exception fix must preserve ordinary cache writes rather than destroy their positive TTL. This is established at the storage/pruning boundary shown in the patch, not by assuming a hidden consumer or replaying the call. All three selected hidden tests use non-None expires_at and therefore never enter the altered branch. The current full=1/nop=0/mutant=1 scored headers bind the surviving regression.",
+      "task_id": "format-code-task-002756",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
           "example_witness": {
             "controls": {
               "full": {
@@ -12145,6 +12513,66 @@
       "package_digest": "sha256:c263d49ee18eff44b139f6a3f9ceff3622575208c405630267e53370cd78d1a4",
       "reason": "The prompt explicitly includes https://nos.nl/l/2490404, but the retained plugin matcher only accepts paths starting live, video, or collectie. Omitting the matcher update therefore leaves that named URL outside NOS routing, even though the independent @type schema fix is retained. The actual runner selects only three schema tests that instantiate NOS directly, bypassing the URL-matching test class added elsewhere in the same test patch. The accepted minimal patch keeps the @type list-validation fix but drops the pluginmatcher update. Its retained regex only permits paths beginning live, video or collectie, so the specifically required example https://nos.nl/l/2490404 remains outside NOS routing. The actual runner invokes only three TestNOSSchema methods, whose fixture constructs NOS(session,\"https://nos.nl/live\") directly; it bypasses the TestPluginCanHandleUrlNOS matcher assertions added elsewhere in the very same test patch. The exact subset received the recorded confirm=1 scored rc=0 grade despite this unimplemented named URL requirement. This independently agrees with the frozen atlas claim, but is supported here by current exact subset bytes and current control headers rather than inheritance by task ID.",
       "task_id": "format-code-task-002758",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:157-170",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:5-31",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:57-87",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch:76",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:951: == mutant:2fbda168b4 reward=1.0 rc=0 scored 4.0s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+          "grades_log_sha256": "sha256:345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:89c59bf815ef78e6710f7a540a23fe871d2708df6eba9f1e1d3fcb3b3db22822",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06a.json",
+          "reference_sha256": "sha256:ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/report.json",
+          "report_sha256": "sha256:1c747db8ad6162624b8a67ab04ee13139e26be91da599011fc911737c231f5cc",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-002801",
+            "witness_id": "2fbda168b4"
+          },
+          "sha256": "sha256:7c3e6dc8b4f6f0b3222629a8c19db1090a76d9feda0279c580e33406adced6cc",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch",
+          "witness_sha256": "sha256:3df8fa6f8098d48bbeebd249f70069eb25430ee0d10643ae329c79c1328001b9"
+        }
+      ],
+      "package_digest": "sha256:89c59bf815ef78e6710f7a540a23fe871d2708df6eba9f1e1d3fcb3b3db22822",
+      "reason": "Dropping the English before_word_raw_tags.clear() leaves an already-consumed inline qualifier in the per-list-item buffer. Extend the retained public template-expansion fixture by one unqualified third descendant: word ve\u2019\u017e, comma, qualifier Salaca, word vez, comma, word third. The caller buffers Salaca after the first comma, then attaches it to vez; without clearing, the next word-construction loop attaches Salaca to third as well. The issue requires the inline qualifier to belong to its target term, not a different descendant. This is the same wrong-place bug on a longer line, independent of whether Salaca is represented in tags or raw_tags. The actual grader runs the entire named modules but its added English fixtures end after the first or second word, so this accepted mutant has no tested later word to reveal the leakage.",
+      "task_id": "format-code-task-002801",
       "verify": "fail:weak-tests"
     },
     {
@@ -13113,24 +13541,32 @@
     {
       "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05b.json",
       "sha256": "sha256:7fb4ac0ebec8ffe9ce0b648a8790fa4c53e41a5c90d7d23c431648f41f1cd4be"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06a.json",
+      "sha256": "sha256:7c3e6dc8b4f6f0b3222629a8c19db1090a76d9feda0279c580e33406adced6cc"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+      "sha256": "sha256:122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c"
     }
   ],
   "schema": "evallab.mimo_scientific_exclusions/v1",
   "scope": "Exact task/package pairs excluded from accepted scientific use (training, scored benchmark evaluation, and admission/certification). Diagnostic oracle/nop, mutation, and repair controls remain allowed; this inventory is not dispatch or spend authorization.",
   "totals": {
     "by_claim_status": {
-      "confirmed": 186,
+      "confirmed": 188,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 186,
+      "confirmed_defect": 188,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "exact_package_pairs": 212,
-    "fresh_review_supported_packages": 17,
-    "fresh_review_supported_witnesses": 40,
+    "exact_package_pairs": 214,
+    "fresh_review_supported_packages": 20,
+    "fresh_review_supported_witnesses": 48,
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

@@ -63,38 +63,34 @@
     "limits": "Each report is one attempt on a distinct planned task, bound to its package and reference; retries are not extra tasks. Measured line stages, unavailable attempts and inapplicable stages remain separate. Survivors need hash-bound semantic adjudication and scored return-code-zero controls; unreviewed is not a finding.",
     "line_stage_not_reported_task_ids": [],
     "mutant_stage_status_counts": {
-      "measured": 66,
+      "measured": 69,
       "not_applicable": 10
     },
-    "new_block_candidates": 34,
-    "new_block_unreviewed": 5,
-    "new_reports": 76,
-    "new_scans": 76,
+    "new_block_candidates": 35,
+    "new_block_unreviewed": 0,
+    "new_reports": 79,
+    "new_scans": 79,
     "new_scans_by_status": {
       "budget_exhausted": 1,
-      "measured": 75
+      "measured": 78
     },
     "new_scans_by_verdict": {
-      "fail": 34,
-      "pass": 42
+      "fail": 35,
+      "pass": 44
     },
-    "new_survivors": 180,
+    "new_survivors": 193,
     "new_survivors_review": {
-      "equivalent_or_optional": 57,
+      "equivalent_or_optional": 74,
       "non_positive": 26,
-      "required_gap": 37,
-      "uncertain": 42,
-      "unreviewed": 18
+      "required_gap": 44,
+      "uncertain": 49
     },
-    "new_survivors_unreviewed": 18,
+    "new_survivors_unreviewed": 0,
     "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
     "plan_sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
     "planned_backfill_tasks": 265,
     "planned_sha256": "7405662e6e4b7a317d0687d0707931c4b86acd55556a7f7b6028a7ff1c8e84c9",
     "remaining_task_ids": [
-      "format-code-task-000311",
-      "format-code-task-002002",
-      "format-code-task-000371",
       "format-code-task-002384",
       "format-code-task-000644",
       "format-code-task-002414",
@@ -282,7 +278,7 @@
       "format-code-task-000116",
       "format-code-task-002940"
     ],
-    "remaining_tasks": 189,
+    "remaining_tasks": 186,
     "review_inputs": [
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/backfill-reviews.json",
@@ -319,6 +315,14 @@
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05b.json",
         "sha256": "7fb4ac0ebec8ffe9ce0b648a8790fa4c53e41a5c90d7d23c431648f41f1cd4be"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06a.json",
+        "sha256": "7c3e6dc8b4f6f0b3222629a8c19db1090a76d9feda0279c580e33406adced6cc"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
+        "sha256": "122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c"
       }
     ],
     "scans": [
@@ -1273,6 +1277,49 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 2,
+          "reason": "",
+          "status": "measured",
+          "survivors": 1,
+          "tried": 3,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:97ec875af06faf6326d4911875a55224307694128e2515a1ac5d0f4d625febcb",
+        "reference_sha256": "09e0187a0b47897c84949432eeb4edf48571bcb59c2657b997c48b3ad9829ecc",
+        "report_sha256": "f12ce1f1937af67569a92f7daa7c4c4802e5e80535d717e332c48a7fb8c6dcef",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "bct/utils/other.py",
+            "id": "c1ef6171e8",
+            "line": 278,
+            "review": "equivalent_or_optional"
+          }
+        ],
+        "task_id": "format-code-task-000311",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "1c42447f0307ef54bfd64c378922447d0914c232b5bf98a57f93d7bd9ecdbe15",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -1536,6 +1583,113 @@
           }
         ],
         "task_id": "format-code-task-000363",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
+        "block_review": {
+          "counterexample": {
+            "input": "Ordinal(order=[\"a\", \"a\"]).transform(pd.Series([\"a\"], dtype=\"category\"))",
+            "kind": "static_pinned_public_transform_reasoning_not_executed",
+            "mutant_outcome": "The minimal patch accepts the duplicate order, finds no missing series values, skips dtype conversion because category already matches, and returns the series without an order-validity error.",
+            "required_outcome": "When data is used, reject duplicate order values with ValueError(\"Order values cannot contain duplicates\"), while still allowing ColumnSchema(logical_type=Ordinal) with no data."
+          },
+          "dropped_behavior": "Restoring missing-order, list/tuple and duplicate-order validation in _validate_data after allowing schema-only construction; the public transform caller reaches that omitted validation.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/instruction.md:4: \"as long as the column schema was not tied to data.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch:13: \"-        if len(order) != len(set(order)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch:14: \"-            raise ValueError(\\\"Order values cannot contain duplicates\\\")\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/dropped.patch:29: \"+        if len(self.order) != len(set(self.order)):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/dropped.patch:30: \"+            raise ValueError(\\\"Order values cannot contain duplicates\\\")\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:389: \"        self._validate_data(series)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:381: \"            missing_order_vals = set(series.dropna().values).difference(self.order)\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:48: \"        if new_dtype != str(series.dtype):\"",
+            "/private/tmp/verifier-v7-20261017/alternate371-baseline-source.txt:61: \"        return series\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000371/tests/test.patch:74: \"+python -m pytest -v -rA\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:1: \"== full reward=1.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:25: \"== nop reward=0.0 rc=0 scored 2.5s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log:115: \"== confirm reward=1.0 rc=0 scored 2.4s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 115,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 2.4s",
+            "seconds": 2.4,
+            "sha256": "d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7"
+          },
+          "label": "confirmed_weak",
+          "missing_evidence": null,
+          "reason": "The instruction permits uninstantiated Ordinal only while the schema is not tied to data. The accepted minimal patch removes all original constructor order checks but omits their restoration at data validation, so it can accept invalid supplied order when the public Ordinal.transform path receives data. This is not inferred from the private helper name: the retained full baseline logical_types.py is byte-bound to the exact old Git blob d71f8d88 named by the reference and explicitly calls self._validate_data(series) from Ordinal.transform. With duplicate order [\"a\",\"a\"] and a categorical pandas Series containing \"a\", the minimal patch's membership-only validation passes; the base transform sees the already-correct category dtype and returns the series without another duplicate-order check. The full reference raises the preserved duplicate-order ValueError when data is validated. Thus construction-only success is an incomplete fix that loses required validation on a reachable public path. Current full=1/nop=0/confirm=1 controls bind the exact omission; historical atlas/custody labels and historical trial scores are not the basis for the adjudication.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000371/minimal.patch",
+          "witness_sha256": "926f7c6868c57c50fabad6c6b5bbe6a7465ae9f482c91f0c79dfb658ef9afa32"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "2007ea78739fe4f4ef270b1753bc772cf3389596f98cf8e93995d858e59458b5",
+        "grades_log_sha256": "d7b9b253e17fd5d6676df1c9bc1e9b4cae09df8315a7b467582316fcded0eeb7",
+        "kept_fraction": 0.3889,
+        "minimal_patch_sha256": "926f7c6868c57c50fabad6c6b5bbe6a7465ae9f482c91f0c79dfb658ef9afa32",
+        "mutant_stage": {
+          "killed": 0,
+          "reason": "",
+          "status": "measured",
+          "survivors": 5,
+          "tried": 5,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:6b94310070500d626bf606d4323a65df79974bbfb42648eac91bead37a2c7140",
+        "reference_sha256": "8bc20b43a356e497a7d6552eec01adc0e614a0b120ce4256e8e11a616211371a",
+        "report_sha256": "4f900441c9a9ef694439e04faf21101073425b197167522ed70ce9f8496a5dc6",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "woodwork/logical_types.py",
+            "id": "8276ae2289",
+            "line": 375,
+            "review": "required_gap"
+          },
+          {
+            "file": "woodwork/logical_types.py",
+            "id": "01ac60abd4",
+            "line": 377,
+            "review": "required_gap"
+          },
+          {
+            "file": "woodwork/logical_types.py",
+            "id": "4ff036a4ff",
+            "line": 373,
+            "review": "required_gap"
+          },
+          {
+            "file": "woodwork/logical_types.py",
+            "id": "aba776ad42",
+            "line": 377,
+            "review": "required_gap"
+          },
+          {
+            "file": "woodwork/logical_types.py",
+            "id": "0594451fd9",
+            "line": 375,
+            "review": "required_gap"
+          }
+        ],
+        "task_id": "format-code-task-000371",
         "usable_controls": true,
         "verdict": "fail"
       },
@@ -3073,7 +3227,85 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "dropped_code": [
+            "quark/utils/weight.py#0",
+            "quark/utils/weight.py#3"
+          ],
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+          "dropped_patch_sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd",
+          "equivalence_scope": "Required ordinary finite numeric risk classification only. The retained unused division and exceptional-input behavior are not a global equivalence certificate.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md:3-7",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md:50-51",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch:5-22",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch:5-23",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch:5-29",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.patch:25-64",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:1: == full reward=1.0 rc=0 scored 1.2s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:25: == nop reward=0.0 rc=0 scored 1.2s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:229: == confirm reward=1.0 rc=0 scored 1.1s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 229,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.1s",
+            "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+          },
+          "label": "neutral",
+          "omission_grade_evidence": [
+            {
+              "line": 97,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+              "quote": "== drop-block:quark/utils/weight.py#0 reward=1.0 rc=0 scored 1.2s",
+              "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+            },
+            {
+              "line": 73,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+              "quote": "== drop-block:quark/utils/weight.py#3 reward=1.0 rc=0 scored 1.1s",
+              "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+            }
+          ],
+          "reason": "The accepted minimal patch implements the required negative-score fix by removing the lower bound on the first risk interval, and removes the high interval upper bound as well. The two omitted reference edits only comment an unused level_five_threshold calculation and delete an else/ValueError fallback that ordinary finite numeric scores cannot reach after those kept interval changes. For nonnegative score_sum, the intervals cover the real line; for negative score_sum the first interval ends at score_sum/16 while the high interval starts below it at score_sum/2, so their union also covers the real line. Keeping an unused calculation and an unreachable exception does not leave the named bug unfixed. Nonfinite inputs and unusual numeric types are not part of the stated APK-score contract, and no outcome for them is promoted.",
+          "source_evidence": [
+            {
+              "line_end": 11,
+              "line_start": 10,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+              "quote": "+        if total_weight <= level_one_threshold:\n             return green(LEVEL_INFO.LOW.value)",
+              "sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86"
+            },
+            {
+              "line_end": 20,
+              "line_start": 19,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+              "quote": "+        elif level_four_threshold < total_weight:\n             return red(LEVEL_INFO.High.value)",
+              "sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86"
+            },
+            {
+              "line_end": 20,
+              "line_start": 18,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+              "quote": "-        else:\n-            raise ValueError(\"Weight calculate failed\")\n-",
+              "sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd"
+            }
+          ],
+          "static_reasoning": {
+            "fresh_execution": false,
+            "kind": "interval_coverage_and_unused_value",
+            "predicted_actual": "Both minimal and reference return Low Risk for (20,-10). After the kept endpoint changes no ordinary finite input reaches the retained else.",
+            "required_outcome": "A negative benign score is classified without the reported ValueError.",
+            "scenario": "Any ordinary finite real score_sum and weight_sum; in particular Weight(20, -10).calculate()."
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+          "witness_sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -3108,7 +3340,7 @@
             "file": "quark/utils/weight.py",
             "id": "394473803e",
             "line": 48,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-000905",
@@ -3528,7 +3760,99 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "dropped_code": [
+            "moto/s3/models.py#0",
+            "moto/s3/models.py#1",
+            "moto/s3/models.py#4",
+            "moto/s3/models.py#6",
+            "moto/s3/models.py#7"
+          ],
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+          "dropped_patch_sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch:5-47",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch:5-57",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-50",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:125-161",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:313: == confirm reward=1.0 rc=0 scored 2.0s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 313,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 2.0s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          "label": "neutral",
+          "limits": "Narrow neutral finding for the stated unversioned recopy/AES256 behavior, not full equivalence. Complete FakeKey/put_object persistence, response serialization and bucket-key container implementations are not retained in the immutable package or reference directory. No versioning/odd-key/API counterexample was executed or fabricated.",
+          "omission_grade_evidence": [
+            {
+              "line": 102,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+              "quote": "== drop-block:moto/s3/models.py#0 reward=1.0 rc=0 scored 2.1s",
+              "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+            },
+            {
+              "line": 166,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+              "quote": "== drop-block:moto/s3/models.py#1 reward=1.0 rc=0 scored 2.1s",
+              "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+            },
+            {
+              "line": 229,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+              "quote": "== drop-block:moto/s3/models.py#4 reward=1.0 rc=0 scored 2.0s",
+              "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+            },
+            {
+              "line": 257,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+              "quote": "== drop-block:moto/s3/models.py#6 reward=1.0 rc=0 scored 2.0s",
+              "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+            },
+            {
+              "line": 285,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+              "quote": "== drop-block:moto/s3/models.py#7 reward=1.0 rc=0 scored 2.0s",
+              "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+            }
+          ],
+          "reason": "The exact passing minimal patch retains the substantive fix: copying constructs the destination with put_object, whose retained default-encryption logic now tolerates absent BucketKeyEnabled and KMSMasterKeyID keys. It therefore retains the encryption application required by the stated ordinary unversioned, plain-key recopy scenario. The omitted reference changes delete old FakeKey copy/version helpers and remove destination normalization/lookup, a repeated storage assignment, and a repeated destination-key assignment around that put_object call. None removes the retained encryption path. The current confirm run exercises all six selected cases, including AES256 in-place and REPLACE. This narrowly reaffirms neutral cleanup for the requested behavior; it does not assert identical version-history, unusual-key or bucket-key-container side effects without the missing implementations.",
+          "source_evidence": [
+            {
+              "line_end": 19,
+              "line_start": 17,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+              "quote": "+            bucket_key_enabled = bucket_key_enabled or bucket.encryption[\"Rule\"].get(\n+                \"BucketKeyEnabled\", False\n             )",
+              "sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d"
+            },
+            {
+              "line_end": 44,
+              "line_start": 31,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+              "quote": "+        new_key = self.put_object(\n+            bucket_name=dest_bucket_name,\n+            key_name=dest_key_name,\n+            value=key.value,\n+            storage=storage or key.storage_class,\n+            etag=key.etag,\n+            multipart=key.multipart,\n+            encryption=key.encryption,\n+            kms_key_id=key.kms_key_id,\n+            bucket_key_enabled=key.bucket_key_enabled,\n+            lock_mode=key.lock_mode,\n+            lock_legal_status=key.lock_legal_status,\n+            lock_until=key.lock_until,\n+        )",
+              "sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d"
+            },
+            {
+              "line_end": 53,
+              "line_start": 53,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+              "quote": "-        dest_bucket.keys[dest_key_name] = new_key",
+              "sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88"
+            }
+          ],
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+          "witness_sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -3563,25 +3887,25 @@
             "file": "moto/s3/models.py",
             "id": "4bdcd21d8f",
             "line": 2015,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "moto/s3/models.py",
             "id": "20dcc36cd9",
             "line": 1578,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "moto/s3/models.py",
             "id": "62c201cbd4",
             "line": 1577,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "moto/s3/models.py",
             "id": "9a54f032fc",
             "line": 1577,
-            "review": "unreviewed"
+            "review": "uncertain"
           }
         ],
         "task_id": "format-code-task-001259",
@@ -4505,6 +4829,85 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "4a46ecb095a2e6f6177e2a0aee834004db6245c7009eb628d03290af41e2f1f2",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 13,
+          "reason": "",
+          "status": "measured",
+          "survivors": 7,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:27ba7d46355d2ca3305577aa02d36eac29fd6edd385c5329813c7d7a2154e084",
+        "reference_sha256": "a9088f31a565ee96a42cd333598359cc5ee7960bf22472191fe8afaf0e14107a",
+        "report_sha256": "176bb795b47acf4591583c832a94f88cb68d6337fc174e61d4db55e0dc1fe016",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "core.py",
+            "id": "4951da1584",
+            "line": 793,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "a2ec9b1a7d",
+            "line": 792,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "e292a2c4e9",
+            "line": 942,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "4813322fa2",
+            "line": 788,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "ef08b4fd7e",
+            "line": 943,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "75b1bc2025",
+            "line": 777,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "core.py",
+            "id": "8d28c32f2a",
+            "line": 785,
+            "review": "uncertain"
+          }
+        ],
+        "task_id": "format-code-task-002002",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "26db90ce296e39d18226611f86f0a6e1863201b730e87e36e9164031e66ef551",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -5390,7 +5793,42 @@
         "verdict": "fail"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": null,
+          "dropped_behavior": "Cache-miss OR-to-AND predicate, the post-normalization consistency assertion, comments and release note; required token retention/normalization/cache writes remain.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002389/instruction.md:20: \"pip install https://myaccesstoken@github.com/\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch:10: \"+        return username, password\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch:15: \"         if username is None or password is None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch:20: \"+        if username is not None or password is not None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch:25: \"+            username = username or \\\"\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch:26: \"+            password = password or \\\"\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/dropped.patch:19: \"+        if username is None and password is None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/dropped.patch:29: \"+        assert (\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002389/tests/test.patch:153: \"+    assert decoded == \\\"sometoken:\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002389/tests/test.patch:123: \"+    assert call_count[\\\"n\\\"] == 0\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/grades.log:1: \"== full reward=1.0 rc=0 scored 1.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/grades.log:28: \"== nop reward=0.0 rc=0 scored 1.9s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/grades.log:224: \"== confirm reward=1.0 rc=0 scored 1.7s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 224,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.7s",
+            "seconds": 1.7,
+            "sha256": "b45704309c14ebb094c4eeaec1c7b043e3a64fe7c4a58dbf35ad9b81de7f2b9f"
+          },
+          "label": "neutral",
+          "missing_evidence": null,
+          "reason": "The accepted minimal patch preserves partial URL credentials via return username,password, converts any acquired username/password to two non-None strings whenever either exists, then caches the pair. Thus cache states produced by the required token-only acquisition flow are either absent (None,None) or a complete pair (including token,empty-string). On those represented states the omitted OR-to-AND miss-predicate change cannot affect acquisition, and the omitted assertion is already guaranteed by normalization. The release note/comment changes are non-runtime. The exact minimal patch is a complete fix for the documented URL-token behavior, not a weak-test witness merely because these reference edits can be omitted. This is not a certificate for manually injected partial cache entries or other uninspected authentication flows.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002389/minimal.patch",
+          "witness_sha256": "ab59d78431ca929d0df82c23b09b5a9b5acaaecbbb39df1953c06b7a3dfb2539"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -5425,19 +5863,19 @@
             "file": "src/pip/_internal/download.py",
             "id": "4d12f25f22",
             "line": 345,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/pip/_internal/download.py",
             "id": "4d5b7e2f25",
             "line": 327,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/pip/_internal/download.py",
             "id": "bace0b3112",
             "line": 347,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-002389",
@@ -6060,7 +6498,39 @@
         "verdict": "fail"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": null,
+          "dropped_behavior": "Using captured now instead of a fresh time() as the pruning fallback for cache entries that have no expires key.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/instruction.md:82: \"self.cache.set(\\\"auth\\\", self.auth, expires_at=data[\\\"expires\\\"])\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/instruction.md:85: \"OverflowError: mktime argument out of range\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/minimal.patch:18: \"+            except OverflowError:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/minimal.patch:19: \"+                expires = 0\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/dropped.patch:9: \"-            expires = value.get(\\\"expires\\\", time())\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/dropped.patch:10: \"+            expires = value.get(\\\"expires\\\", now)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002756/tests/test.patch:19: \"+    @patch('streamlink.cache.mktime', side_effect=OverflowError)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:1: \"== full reward=1.0 rc=0 scored 1.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:21: \"== nop reward=0.0 rc=0 scored 1.8s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log:127: \"== confirm reward=1.0 rc=0 scored 1.8s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 127,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.8s",
+            "seconds": 1.8,
+            "sha256": "e10f9674aa0912ab10332e4faee57c063757726c37ec2a0ff2713ef2a4930d47"
+          },
+          "label": "out_of_scope",
+          "missing_evidence": null,
+          "reason": "The passing minimal patch retains the exact reported authenticate -> Cache.set(expires_at=...) boundary and catches mktime OverflowError by storing expires=0. The sole dropped runtime change replaces the second time() call used only as the fallback for records with no expires metadata with the already captured now. Expiration records produced by this fix have an explicit expires key, so that default does not implement the reported overflow fix. This is an unrelated missing-metadata pruning/clock-consistency change, not an incomplete fix for the cited login failure; no equivalence under arbitrary moving-clock/malformed-record inputs is asserted.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002756/minimal.patch",
+          "witness_sha256": "8f32ba5d59dfd65d78b6f4ed54cafbbc1faf292224e9ace5c301956311f2be09"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -6095,13 +6565,13 @@
             "file": "src/streamlink/cache.py",
             "id": "2b2e4442fa",
             "line": 73,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/streamlink/cache.py",
             "id": "9e44a2d1e3",
             "line": 78,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-002756",
@@ -6233,7 +6703,93 @@
         "verdict": "fail"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "dropped_code": [
+            "src/wiktextract/extractor/zh/descendant.py#1",
+            "src/wiktextract/extractor/zh/descendant.py#6",
+            "src/wiktextract/extractor/zh/descendant.py#7",
+            "src/wiktextract/extractor/zh/descendant.py#8"
+          ],
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+          "dropped_patch_sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch:1-91",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch:1-35",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:513: == confirm reward=1.0 rc=0 scored 4.0s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 513,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 4.0s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "label": "out_of_scope",
+          "limits": "Not a Chinese-extractor correctness or equivalence certificate. Complete alternate helper consumers are not retained; no isolated helper invocation, template expansion or parser replay was performed.",
+          "omission_grade_evidence": [
+            {
+              "line": 417,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+              "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#1 reward=1.0 rc=0 scored 3.8s",
+              "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+            },
+            {
+              "line": 489,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+              "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#6 reward=1.0 rc=0 scored 3.9s",
+              "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+            },
+            {
+              "line": 501,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+              "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#7 reward=1.0 rc=0 scored 4.0s",
+              "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+            },
+            {
+              "line": 449,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+              "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#8 reward=1.0 rc=0 scored 3.8s",
+              "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+            }
+          ],
+          "reason": "All English state propagation and qualifier-placement changes are retained in the accepted minimal patch, including assigning the helper return to after_word, buffering before-word qualifiers, and clearing the English buffer once consumed. Every omitted block is exclusively in extractor/zh/descendant.py: comma reset, buffer clear, after-word assignment and return. The instruction explicitly identifies [en] and the named English placement error; retaining fewer Chinese additions does not establish loss of that requirement. There is an additional local reachability limitation: the shown Chinese process_desc_list_item caller invokes extract_desc_span_tag without assigning its returned state, so a removed return or local state update must not be credited as a working cross-call fix. Omitting the Chinese clear could matter to longer Chinese lines; this is not claimed globally equivalent or harmless, merely outside the established English omission claim.",
+          "source_evidence": [
+            {
+              "line_end": 29,
+              "line_start": 20,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+              "quote": "+            after_word = extract_desc_span_tag(\n+                wxr,\n+                child,\n+                data_list,\n+                lang_code,\n+                lang_name,\n+                raw_tags,\n+                before_word_raw_tags,\n+                after_word,\n             )",
+              "sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b"
+            },
+            {
+              "line_end": 35,
+              "line_start": 5,
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+              "quote": "@@ -72,6 +72,8 @@ def process_desc_list_item(\n         if isinstance(child, str) and child.strip().endswith(\":\"):\n             lang_name = child.strip(\": \") or \"unknown\"\n             lang_code = name_to_code(lang_name, \"zh\") or \"unknown\"\n+        elif isinstance(child, str) and child.strip() == \",\":\n+            after_word = False\n         elif isinstance(child, HTMLNode) and child.tag == \"span\":\n             extract_desc_span_tag(\n                 wxr,\n@@ -183,6 +185,7 @@ def extract_desc_span_tag(\n             ruby=ruby_data,\n             raw_tags=before_word_raw_tags + raw_tags,\n         )\n+        before_word_raw_tags.clear()\n         if desc_data.lang_code == \"unknown\":\n             desc_data.lang_code = span_lang\n         if \"Hant\" in class_names:\n@@ -192,6 +195,7 @@ def extract_desc_span_tag(\n         if desc_data.word not in [\"\", \"\uff0f\"]:\n             translate_raw_tags(desc_data)\n             desc_lists.append(desc_data)\n+        after_word = True\n     elif span_title != \"\" and clean_node(wxr, None, span_tag) in [\n         \"\u2192\",\n         \"\u21d2\",\n@@ -201,3 +205,5 @@ def extract_desc_span_tag(\n         raw_tags.append(span_title)\n     elif \"mention-gloss\" in class_names and len(desc_lists) > 0:\n         desc_lists[-1].sense = clean_node(wxr, None, span_tag)\n+\n+    return after_word",
+              "sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b"
+            },
+            {
+              "line_end": 124,
+              "line_start": 101,
+              "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+              "quote": "     data_list = []\n+    before_word_raw_tags = []\n+    after_word = False\n     for child in list_item.children:\n         if isinstance(child, str) and child.strip().endswith(\":\"):\n             lang_name = child.strip(\": \") or \"unknown\"\n             lang_code = name_to_code(lang_name, \"zh\") or \"unknown\"\n+        elif isinstance(child, str) and child.strip() == \",\":\n+            after_word = False\n         elif isinstance(child, HTMLNode) and child.tag == \"span\":\n             extract_desc_span_tag(\n-                wxr, child, data_list, lang_code, lang_name, raw_tags\n+                wxr,\n+                child,\n+                data_list,\n+                lang_code,\n+                lang_name,\n+                raw_tags,\n+                before_word_raw_tags,\n+                after_word,\n             )\n         elif (\n             isinstance(child, HTMLNode)\n@@ -135,7 +146,9 @@ def extract_desc_span_tag(",
+              "sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e"
+            }
+          ],
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+          "witness_sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -6268,49 +6824,49 @@
             "file": "src/wiktextract/extractor/en/descendant.py",
             "id": "d6b57848d1",
             "line": 210,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "src/wiktextract/extractor/zh/descendant.py",
             "id": "ba5092ba00",
             "line": 175,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/wiktextract/extractor/zh/descendant.py",
             "id": "aa7f37bd5e",
             "line": 198,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/wiktextract/extractor/zh/descendant.py",
             "id": "402ba836d3",
             "line": 173,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/wiktextract/extractor/zh/descendant.py",
             "id": "fadeb61a8f",
             "line": 176,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/wiktextract/extractor/en/descendant.py",
             "id": "21006858df",
             "line": 226,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "src/wiktextract/extractor/en/descendant.py",
             "id": "2fbda168b4",
             "line": 229,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/wiktextract/extractor/zh/descendant.py",
             "id": "c0c0be8b02",
             "line": 188,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-002801",
@@ -6488,28 +7044,28 @@
         "verdict": "pass"
       }
     ],
-    "usable_control_pairs": 76
+    "usable_control_pairs": 79
   },
   "schema": "har209.weak_test_coverage/v1",
   "scientific_exclusions": {
     "by_claim_status": {
-      "confirmed": 186,
+      "confirmed": 188,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 186,
+      "confirmed_defect": 188,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "confirmed_wrong_patch_package_pairs_checked": 128,
+    "confirmed_wrong_patch_package_pairs_checked": 130,
     "confirmed_wrong_patch_package_pairs_missing": [],
-    "exact_package_pairs": 212,
-    "fresh_review_supported_packages": 17,
-    "fresh_review_supported_witnesses": 40,
+    "exact_package_pairs": 214,
+    "fresh_review_supported_packages": 20,
+    "fresh_review_supported_witnesses": 48,
     "limits": "Exact package exclusions and conservative holds are separate from execution grades. Unlisted repaired children receive no inherited certification; historical manifests and completed experiment plans are unchanged.",
     "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
-    "sha256": "3f0fcc1f3bac2c150470e960124ab7e681f49cf402a3e344ff31f3e7e4ddf570",
+    "sha256": "fbf54f16f4a7943bb0d4ffce6f6e07f1902162cc2791befbd0afed344384c1d8",
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

@@ -28,7 +28,7 @@ def test_confined_tools_boundaries(tmp_path: Path) -> None:
     assert "wrote" in tools.write_file("submission/solve.sh", "#!/bin/bash\n")
     for bad_call in (
         lambda: tools.read_file("../outside.txt"),
-        lambda: tools.read_file("submission/solve.sh"),
+        lambda: tools.read_file("/etc/passwd"),
         lambda: tools.write_file("task/evil.py", "x"),
     ):
         try:
@@ -157,3 +157,34 @@ def test_confined_tools_can_read_hackbook_page(tmp_path: Path) -> None:
     (tmp_path / "hackbook.md").write_text("# toolkit")
     tools = ConfinedTools(tmp_path)
     assert "toolkit" in tools.read_file("hackbook.md")
+
+
+
+def test_feedback_text_lists_failed_tests() -> None:
+    from evallab.seeker.feedback import feedback_text
+
+    text = feedback_text(
+        {
+            "reward": 0.0,
+            "status": "measured",
+            "error": None,
+            "per_test": {
+                "tests": [
+                    {"id": "test_a", "status": "passed"},
+                    {"id": "test_b", "status": "failed"},
+                ]
+            },
+        }
+    )
+    assert "reward: 0.0" in text
+    assert "test_b" in text and "test_a" not in text.split("Failed tests")[1]
+
+
+def test_confined_tools_can_read_feedback(tmp_path: Path) -> None:
+    (tmp_path / "task").mkdir()
+    (tmp_path / "submission").mkdir()
+    (tmp_path / "feedback.md").write_text("reward: 0.0")
+    tools = ConfinedTools(tmp_path)
+    assert "reward" in tools.read_file("feedback.md")
+    assert tools.write_file("submission/solve.sh", "x") 
+    assert "x" in tools.read_file("submission/solve.sh")

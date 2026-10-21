@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from evallab.seeker import lanes
+from evallab.seeker import feedback, lanes
 from evallab.seeker.packets import (
     DEFAULT_UPSTREAM_ROOT,
     DEFAULT_VIEW_ROOT,
@@ -100,6 +100,19 @@ def _submissions(root: Path) -> list[dict[str, Any]]:
                 }
             )
     return rows
+
+
+def cmd_run_feedback(args: argparse.Namespace) -> int:
+    tasks = _tasks(args.tasks, args.view_root)
+    for driver in args.drivers.split(","):
+        for task in tasks:
+            record = feedback.run_feedback(
+                driver, task, out=args.out, work_root=args.work_root, view_root=args.view_root,
+                timeout=args.timeout,
+            )
+            rounds = [(r["upstream_reward"], r["upstream_status"]) for r in record["rounds"]]
+            print(driver, task, rounds, flush=True)
+    return 0
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -301,6 +314,11 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--hackbook", action="store_true", help="Add the matched Hackbook toolkit page")
     run.add_argument("--prompt-variant", choices=("base", "solvetime", "solvetime-deps", "shortcut-only"), default="base")
     run.set_defaults(fn=cmd_run)
+    fb = sub.add_parser("run-feedback", help="Two seeker rounds with one upstream replay between them")
+    fb.add_argument("--drivers", default="sonnet,gptoss")
+    fb.add_argument("--tasks", default="all-dev")
+    fb.add_argument("--timeout", type=float, default=900.0)
+    fb.set_defaults(fn=cmd_run_feedback)
     validate = sub.add_parser("validate")
     validate.set_defaults(fn=cmd_validate)
     replay = sub.add_parser("replay-upstream")

@@ -97,7 +97,7 @@ def _omp_result(stdout: str) -> tuple[str, dict[str, int], float, list[str]]:
 
 
 def run_omp_lane(
-    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False, prompt_variant: str = "base"
+    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False, prompt_variant: str = "base", extra_instruction: str = ""
 ) -> dict[str, Any]:
     model = DRIVERS[driver]["model"]
     profile = workspace.parent / f"{workspace.name}.sb"
@@ -109,7 +109,7 @@ def run_omp_lane(
         "--mode", "json", "--cwd", str(workspace),
         "--tools", "read,grep,glob,write",
         "--system-prompt", system_prompt(prompt_variant),
-        user_prompt(task, hackbook=hackbook),
+        user_prompt(task, hackbook=hackbook) + extra_instruction,
     ]
     started = time.monotonic()
     record: dict[str, Any] = {
@@ -153,6 +153,7 @@ def run_openrouter_lane(
     timeout: float = 900.0,
     hackbook: bool = False,
     prompt_variant: str = "base",
+    extra_instruction: str = "",
     post: Callable[[dict[str, Any], str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -162,7 +163,7 @@ def run_openrouter_lane(
     tools = ConfinedTools(workspace)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt(prompt_variant)},
-        {"role": "user", "content": user_prompt(task, hackbook=hackbook)},
+        {"role": "user", "content": user_prompt(task, hackbook=hackbook) + extra_instruction},
     ]
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     calls: list[str] = []

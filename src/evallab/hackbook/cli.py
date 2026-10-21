@@ -11,6 +11,7 @@ from typing import Any
 from evallab.hackbook.matcher import match_target
 from evallab.hackbook.models import (
     HackbookEntry,
+    coverage_summary,
     get_entry,
     list_entries,
     load_hackbook,
@@ -162,6 +163,36 @@ def _match_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
+def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    cov = coverage_summary(load_hackbook(root), root=root)
+    if args.json:
+        print(json.dumps(cov, indent=2))
+        return 0
+    print(
+        f"Hackbook coverage: {cov['total_entries']} entries "
+        f"({cov['task_side_entries']} task-side, {cov['run_side_entries']} run-side), "
+        f"{cov['entries_with_executed_evidence']}/{cov['total_entries']} "
+        f"({cov['executed_entry_share'] * 100:.1f}%) with executed evidence, "
+        f"{cov['total_examples']} examples ({cov['executed_examples']} executed, "
+        f"{cov['claimed_examples']} claimed)"
+    )
+    print("\nBy taxonomy class:")
+    for row in cov["by_class"]:
+        print(
+            f"  {row['taxonomy_class_id']} {row['taxonomy_class']:<32} "
+            f"entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})"
+        )
+    print("\nBy source:")
+    for row in cov["by_source"]:
+        print(
+            f"  {row['source']:<26} entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})  "
+            f"classes={','.join(row['classes'])}"
+        )
+    return 0
+
+
 def _filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--class", dest="taxonomy_class", help="TS01..RS07 or class name")
     parser.add_argument("--side", choices=("task", "run"))
@@ -203,3 +234,9 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     match.add_argument("--emit-findings", type=Path, metavar="DIR")
     match.add_argument("--json", action="store_true")
     match.set_defaults(func=_match_command)
+
+    coverage = sub.add_parser(
+        "coverage", help="Print coverage tables by taxonomy class, source, and executed evidence"
+    )
+    coverage.add_argument("--json", action="store_true")
+    coverage.set_defaults(func=_coverage_command)

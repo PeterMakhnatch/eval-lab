@@ -82,3 +82,29 @@
 
 - **Current `ST-1` spend**: **`$0.00`** (all dataset assembly, GRAFT split pinning, and leak audits ran offline on local artifacts).
 - **Readiness gate before spending from the `$8` pilot pool**: Wait for `CM-1` / `RS-1` baseline results on `tb4-audit-v1` DEV (`GPT-OSS-120b` / `Qwen3.6-35B-A3B` / `GLM-5.3-Flash`) to confirm the prompted cheap-model exploit-discovery gap on DEV before launching Option A (`$5.40`).
+
+## 5. Executed Pilot (pE-SELF-5, 2026-10-21): `Qwen3-8B` LoRA SFT + Differential Replay
+
+The `RS-1` baseline confirmed the prompted cheap-model gap (the `GPT-OSS-120b`
+seeker produced `1/0`-confirmed exploits only on the tasks whose witnesses are in
+this corpus), so the pilot ran as a reduced Option A: `Qwen/Qwen3-8B` LoRA SFT on
+the committed `seeker_tool_sft.jsonl`, `6` TB4 DEV tasks (`4` memorization + `2`
+strictly unseen), `2` arms, differential replay. Tinker stayed blocked (`HTTP 402`
+billing), so the pilot ran on Modal.
+
+| Item | Actual |
+| --- | --- |
+| Training | `90` examples, `2` epochs, `180` steps, LoRA `r=32`/`alpha=64`, `lr=1e-4`, `A100-40GB`; loss `2.6096` → `0.2868` |
+| Generation | `12` runs (`2` arms × `6` tasks), `ConfinedTools` contract, ≤`8` turns, greedy |
+| Replay | `12` upstream replays on Modal; `8` measured `0.0`, `4` unmeasured (three candidate `solve.sh` failures, one empty submission) |
+| Confirmed `1/0` | **`0`** in both arms |
+| Spend | Modal `$0.92` finalized (replay) + `~$0.9` GPU (train/generate), inside the `$8` pilot cap |
+
+**Result.** SFT on `90` executed trajectories taught the submission contract and
+tool discipline (strict-valid `6/6` trained vs `2/6` base; finished `6/6` vs `4/6`)
+but not exploit discovery: the trained arm claimed fewer exploits (`2/6` vs `4/6`)
+and none replayed. This is the same shape as the MiMo lane's independent
+`qa-sft-mimo-v0` negative result (PR #1146): format learned, discrimination not.
+The next lever is data and reward — `seeker-gym-v0`'s differential-reward
+environment and rejection-sampled `seeker-sft-v0` — not more epochs on this
+corpus. Evidence: `research/experiments/seeker-sft-pilot-20261021/`.

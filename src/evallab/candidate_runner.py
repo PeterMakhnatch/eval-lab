@@ -400,9 +400,11 @@ def _prepare(
         if platform not in {None, "linux/amd64", "linux/arm64"}:
             raise native.GraderRefusal("platform must be linux/amd64 or linux/arm64")
     else:
-        # Never invoke native Modal admission in a plan: it reads the ledger.
+        # Planning only: explicit Modal is the Compose route, and a Modal
+        # plan without approval/ledger refuses inside admission before any
+        # ledger access; real admission re-runs at execution.
         prepared_native = native.plan_upstream_grader(
-            package, blank=True, backend="auto", platform=platform, timeout_seconds=timeout_seconds
+            package, blank=True, backend="modal" if backend == "modal" else "auto", platform=platform, timeout_seconds=timeout_seconds
         )
     if _source_digest(package) != original_digest:
         raise native.GraderRefusal("task changed during preflight; no execution")
@@ -703,7 +705,7 @@ def run_candidate(
             if prepared.adapter is not None and adapter["grader_digest"] != prepared.adapter["grader_digest"]:
                 raise native.GraderRefusal("fixed grader changed between description and preparation")
         static = native.plan_upstream_grader(
-            native_task, blank=True, backend="auto", platform=platform, timeout_seconds=timeout_seconds
+            native_task, blank=True, backend="modal" if backend == "modal" else "auto", platform=platform, timeout_seconds=timeout_seconds
         )
         images = _source_images(static)
         drift = _drift(prepared)

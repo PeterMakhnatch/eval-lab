@@ -364,3 +364,39 @@ def test_seeker_corpus_audit_reconciles_with_the_committed_corpus() -> None:
     assert effective["positive_distinct_task_body_pairs"] < effective["positive_conversations"]
     assert effective["extra_copies"] > 0
     assert audit["execution_share"]["execution_share_of_assistant_content"] > 0.5
+
+
+def test_seeker_gym_budget_probe_reconciles_with_its_rows() -> None:
+    """pE-SELF-8: the gym budget probe's parse rates must match its own rows."""
+    experiment = REPO_ROOT / "research/experiments/seeker-corpus-audit-20261021"
+    rows = [
+        json.loads(line)
+        for line in (experiment / "gym-budget-probe.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    by_budget: dict[str, dict[str, int]] = {}
+    for row in rows:
+        bucket = by_budget.setdefault(
+            str(row["budget"]), {"candidates": 0, "parsed": 0, "length": 0}
+        )
+        bucket["candidates"] += 1
+        bucket["parsed"] += 1 if row["parsed"] else 0
+        bucket["length"] += 1 if row["finish_reason"] == "length" else 0
+
+    assert by_budget["1200"]["candidates"] == 24
+    assert by_budget["3072"]["candidates"] == 24
+    # The finding: the gym's own budget truncates most of its generations.
+    assert by_budget["1200"]["length"] > by_budget["1200"]["parsed"]
+    assert by_budget["3072"]["parsed"] > by_budget["1200"]["parsed"]
+
+    graded = [
+        json.loads(line)
+        for line in (experiment / "gym-graded-probe.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(graded) == 24
+    assert all(row["budget"] == 3072 for row in graded)
+    # The budget was necessary but not sufficient: no graded candidate passes.
+    assert sum(1 for row in graded if row["parsed"]) >= 20
+    assert all((row.get("upstream") or {}).get("reward") != 1.0 for row in graded)
+    assert all(row.get("reward") != 1 for row in graded)

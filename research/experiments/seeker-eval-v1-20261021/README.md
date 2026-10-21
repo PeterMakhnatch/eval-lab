@@ -25,8 +25,13 @@ measurement below).
    `exploit_found` boolean, a valid class, and no no-op `solve.sh` behind a claimed
    exploit).
 2. `evallab.candidate_runner <upstream task> --solution-bundle <sub> --grader upstream`
-   — the upstream grader, on the Modal backend (this host's Docker daemon is an
-   8 GiB VM with unbounded host services, so the native runner refuses it).
+   — the upstream grader. **Local Docker first** (`--backend docker`): it is free
+   and, since EX-1's bounded-reserve admission (`upstream_grader._docker_capacity`,
+   which charges pre-existing unbounded host services a reserve derived from their
+   observed usage instead of refusing), it works on this host. Measured
+   `2026-10-21`: a `cargo-flight-dispatch` upstream replay returned
+   `status: measured, reward: 1.0` in `94 s` at `$0`. Modal is the fallback for
+   tasks whose declared limits exceed the admitted capacity.
 3. `--grader port --port-task <karotte-port task>` — only when upstream measured
    `1.0`.
 

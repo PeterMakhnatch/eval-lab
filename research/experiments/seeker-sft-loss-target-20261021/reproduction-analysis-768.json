@@ -1,0 +1,129 @@
+{
+  "by_arm": {
+    "assistant": {
+      "memorization_best_similarity_max": 0.2781,
+      "memorization_best_similarity_mean": 0.236,
+      "memorization_runs": 4,
+      "memorization_runs_above_0_5": 0,
+      "runs": 6
+    },
+    "full": {
+      "memorization_best_similarity_max": 0.2633,
+      "memorization_best_similarity_mean": 0.0658,
+      "memorization_runs": 4,
+      "memorization_runs_above_0_5": 0,
+      "runs": 6
+    }
+  },
+  "results": "research/experiments/seeker-sft-loss-target-20261021/loss-target-results-768.json",
+  "rows": [
+    {
+      "arm": "assistant",
+      "best_similarity": 0.2078,
+      "claimed_exploit": false,
+      "generated_chars": 100,
+      "memorization": true,
+      "task": "cargo-flight-dispatch",
+      "training_bodies": 8
+    },
+    {
+      "arm": "assistant",
+      "best_similarity": 0.2522,
+      "claimed_exploit": false,
+      "generated_chars": 127,
+      "memorization": true,
+      "task": "fin-saccr-rwa",
+      "training_bodies": 2
+    },
+    {
+      "arm": "assistant",
+      "best_similarity": 0.2781,
+      "claimed_exploit": false,
+      "generated_chars": 99,
+      "memorization": true,
+      "task": "html-js-filter",
+      "training_bodies": 6
+    },
+    {
+      "arm": "assistant",
+      "best_similarity": null,
+      "claimed_exploit": false,
+      "generated_chars": 99,
+      "memorization": false,
+      "task": "uefi-bootkit",
+      "training_bodies": 0
+    },
+    {
+      "arm": "assistant",
+      "best_similarity": 0.2059,
+      "claimed_exploit": false,
+      "generated_chars": 99,
+      "memorization": true,
+      "task": "vf2-speedup-networkx",
+      "training_bodies": 6
+    },
+    {
+      "arm": "assistant",
+      "best_similarity": null,
+      "claimed_exploit": false,
+      "generated_chars": 99,
+      "memorization": false,
+      "task": "vpp-loss-divergence",
+      "training_bodies": 0
+    },
+    {
+      "arm": "full",
+      "best_similarity": 0.0,
+      "claimed_exploit": null,
+      "generated_chars": 0,
+      "memorization": true,
+      "task": "cargo-flight-dispatch",
+      "training_bodies": 8
+    },
+    {
+      "arm": "full",
+      "best_similarity": 0.0,
+      "claimed_exploit": null,
+      "generated_chars": 0,
+      "memorization": true,
+      "task": "fin-saccr-rwa",
+      "training_bodies": 2
+    },
+    {
+      "arm": "full",
+      "best_similarity": 0.2633,
+      "claimed_exploit": false,
+      "generated_chars": 116,
+      "memorization": true,
+      "task": "html-js-filter",
+      "training_bodies": 6
+    },
+    {
+      "arm": "full",
+      "best_similarity": null,
+      "claimed_exploit": null,
+      "generated_chars": 0,
+      "memorization": false,
+      "task": "uefi-bootkit",
+      "training_bodies": 0
+    },
+    {
+      "arm": "full",
+      "best_similarity": 0.0,
+      "claimed_exploit": null,
+      "generated_chars": 0,
+      "memorization": true,
+      "task": "vf2-speedup-networkx",
+      "training_bodies": 6
+    },
+    {
+      "arm": "full",
+      "best_similarity": null,
+      "claimed_exploit": null,
+      "generated_chars": 0,
+      "memorization": false,
+      "task": "vpp-loss-divergence",
+      "training_bodies": 0
+    }
+  ]
+}

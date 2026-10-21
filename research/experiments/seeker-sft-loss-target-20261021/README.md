@@ -170,6 +170,8 @@ its `$0.295857` is a sunk cost.
 | `loss-target-results-768.json` | the `768`-budget run: training losses, traces, submissions |
 | `replay-summary.json` | per-run and per-arm replay results for the `768` run |
 | `reproduction_analysis.py` | similarity of generated submissions to the training exploits |
+| `reproduction-analysis-768.json` | reproduction report for this experiment's arms |
+| `reproduction-analysis-pilot.json` | reproduction report for the pE-SELF-5 arms |
 | `leak_check.py` | TB4 TEST leak check against `research/answer-keys/tb4-audit-v1/` |
 | `leak-check.json` | the leak check's report |
 

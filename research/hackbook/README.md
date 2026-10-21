@@ -215,3 +215,63 @@ distributed-dedup, sglang-qwen-burst, nextjs-performance and uefi-bootkit, so th
 now carry a generalised version of that task's own PM finding. A seeker run on those four tasks
 with this catalog is not blind to PM's finding: claim "rediscovered" only from a page built with a
 catalog before this change (`ad128c4be`), or report the four tasks separately.
+
+## Candidate generation (v0.5): text to entry, trace to entry
+
+A cheap judge proposes a mechanism in words, or the matcher proposes entries from a trace; either
+way the catalog is the lookup. Two measurements, both `$0`.
+
+**`hackbook search` (text to entry).** Query = the summary of each of the 211 catalog examples,
+answer = the entry that example belongs to, scored with that one example removed from the index
+(leave-one-example-out). The old ranking summed raw token counts (no stopwords, no IDF); it is now
+BM25F over the entry's prose (title, mechanism, recipe, exploit and fix text, regex descriptions,
+other examples), stopword-filtered and lightly stemmed, with IDF over the whole catalog.
+
+| Queries | `origin/main` top-1 / top-3 / top-5 | v0.5 top-1 / top-3 / top-5 |
+| --- | --- | --- |
+| all 211 examples | 108 / 162 / 173 | 134 / 176 / 194 |
+| `preference_model_tb4` (95) | 50 / 75 / 79 | 64 / 81 / 87 |
+| the other 16 sources (116) | 58 / 87 / 94 | 70 / 95 / 107 |
+
+Both halves improve on every cut, so the gain is not one source. The weights are untuned defaults:
+a 648-point grid fitted on one half moved the other half by `+1` and `-1` top-1 hits. The top-1 hit
+rate rises with the score margin over the runner-up: the top quarter of queries by margin has top-1
+precision `0.885`, the top half `0.81`, the top three quarters `0.72` (all `0.635`), so a mapping with
+a small margin is a shortlist, not an answer. Limit: queries are catalog examples, written by the
+same hand as the entries, so a judge's own wording will land lower.
+
+**`match` on traces: structured tool calls.** Tripwires read shell text, but 23% of the calls in a
+120-trajectory TB4 sample (2,497 of 10,793) are structured (`Read`/`read_file` with a path,
+`Write`/`Edit`, a URL argument).
+`_tool_op` now adds the shell-shaped line each one stands for (`cat <path>`, `curl <url>`), and a
+write or edit only when the path is on the grader's own mount (`/tests/`, `/logs/verifier`), not the
+agent's `/app/tests/` scratch files. Same 149 DEV cheating traces (mechanism label known), strong
+tier means `score >= 0.5`:
+
+| DEV corpus | cheating traces with any / strong hit, before | after | clean traces with a strong hit |
+| --- | --- | --- | --- |
+| `cheatbench-actions-v1` (75 + 75) | 40 / 19 | 46 / 25 | 9 before, 9 after |
+| `hacktrace-act-v1` (75 + 75) | 34 / 30 | 34 / 30 | 1 before, 1 after |
+
+Mechanism recall: the catalog entry linked to the trace's mechanism is in the top 3 for `37/149` DEV
+traces before and `48/149` after (no hit at all: `76` to `70`), almost all from
+`secret_discovery_via_web_search` (`2/16` to `13/16`, URL arguments). On the 1,539 census
+trajectories the clean-pass strong-hit counts do not move (`67/768` with `--outcome auto`, `136`
+with the task gate, `243` plain) and neither do the observed wrong passes (`4/19`, `6/19`, `7/19`).
+The CheatBench and HackTrace `test` rows were scored once at the end and did not change (strong
+`61`/`35` of 75 before and after). The mapping is the catalog's own (`cheatbench:<mechanism>` and
+`hacktrace:<mechanism>` examples), so it undercounts where the matcher names a sibling entry:
+8 of the 21 `verifier_exploitation` traces rank task-side `HB-TS01-010` first, which is that same
+vim task's entry, and all 15 `harness_leaks_verifier` traces rank `HB-RS03-001` first (13 before),
+while the catalog links that mechanism to `HB-RS02-001` and `HB-TS04-002`.
+
+What no trace rule can fix, by mechanism, on the same DEV traces:
+
+| Mechanism (DEV traces) | Why `match` finds nothing | Tried |
+| --- | --- | --- |
+| `harness_leaks_answer` (16) | the action trace is a single launch command; the leak is in the prompt | nothing to match |
+| `test_tamper` (36, `33` no hit) | `write_file test.py` in a toy task; 14/36 cheats and 15/75 clean traces write it, and 118/1,068 `neither` TB4 trajectories write a checker-like file | a rule at any tier would add more false alarms than hits |
+| `secret_discovery_in_environment` (6) | plain `ls`/`find` of `/app` | 5 no hit |
+
+Also tried and dropped: mapping every structured `Edit` to `sed -i`, which fired the existing
+`tests/` edit rule on agents' own scratch tests (`+6` of 768 clean passes flagged).

@@ -8,7 +8,9 @@ validates them and answers list/show/search queries over them.
 from __future__ import annotations
 
 import json
+import math
 import re
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
@@ -319,23 +321,74 @@ def list_entries(
 
 
 _TOKEN = re.compile(r"[a-z0-9]+")
+_STOPWORD_TEXT = (
+    "a an the of to in on for and or is are was were be been it its this that these those with "
+    "without as at by from into than then so such not no can could may might will would should "
+    "shall do does did done has have had having which who whom whose what when where why how if "
+    "else also only any all each every both either neither more most less least very just over "
+    "under again further once here there their they them we you your i he she his her our ours "
+    "via per"
+)
+_STOPWORDS = frozenset(_STOPWORD_TEXT.split())
+_SUFFIXES = ("ations", "ation", "ings", "ing", "edly", "ed", "ies", "es", "s")
+# BM25F field weights: plain defaults, not fitted. A 648-point grid (k1, b, field weights) tuned on
+# the preference_model_tb4 examples moved the other sources by +1 top-1 hit, and tuned on the other
+# sources moved preference_model_tb4 by -1 top-1 and -3 top-5, so tuning was not worth keeping.
 _FIELD_WEIGHTS = {
-    "id": 5.0,
-    "slug": 4.0,
+    "id": 3.0,
     "title": 3.0,
-    "taxonomy_class": 3.0,
-    "taxonomy_class_id": 3.0,
-    "mechanism": 1.5,
-    "signatures": 1.0,
-    "detection_recipe": 1.0,
-    "exploit_template": 1.0,
-    "fix_pattern": 1.0,
+    "class": 1.0,
+    "mechanism": 2.0,
+    "recipe": 1.0,
+    "exploit": 1.0,
+    "fix": 1.0,
+    "sigdesc": 1.0,
     "examples": 1.0,
 }
+_BM25_K1 = 1.2
+_BM25_B = 0.5
+
+
+def _stem(token: str) -> str:
+    for suffix in _SUFFIXES:
+        if len(token) > len(suffix) + 3 and token.endswith(suffix):
+            return token[: -len(suffix)] + ("y" if suffix == "ies" else "")
+    return token
 
 
 def _tokens(text: str) -> list[str]:
-    return _TOKEN.findall(text.lower())
+    """Lower-cased, stopword-free, lightly stemmed terms of ``text``."""
+    return [_stem(t) for t in _TOKEN.findall(text.lower()) if t not in _STOPWORDS]
+
+
+def _search_fields(entry: HackbookEntry) -> dict[str, str]:
+    """Prose a person would describe the entry with; regex patterns and snippets are left out."""
+    data = entry.dump()
+    recipe, template, fix = data["detection_recipe"], data["exploit_template"], data["fix_pattern"]
+    rules = (
+        rule
+        for key in ("file_regexes", "trace_command_regexes", "trace_diff_regexes")
+        for rule in data["signatures"].get(key, [])
+    )
+    return {
+        "id": f"{data['id']} {data['slug'].replace('-', ' ')}",
+        "title": data["title"],
+        "class": f"{data['taxonomy_class'].replace('_', ' ')} {data['taxonomy_class_id']}",
+        "mechanism": data["mechanism"],
+        "recipe": " ".join(
+            [recipe.get("summary", ""), *recipe.get("steps", []), recipe.get("rule_or_probe", "")]
+        ),
+        "exploit": " ".join(
+            [
+                template.get("goal", ""),
+                *template.get("preconditions", []),
+                *template.get("template_steps", []),
+            ]
+        ),
+        "fix": " ".join([fix.get("summary", ""), *fix.get("checklist", [])]),
+        "sigdesc": " ".join(rule.get("description", "") for rule in rules),
+        "examples": " ".join(ex["summary"] for ex in data["examples"]),
+    }
 
 
 def search_entries(
@@ -348,34 +401,49 @@ def search_entries(
     limit: int = 20,
     root: Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Token relevance search; returns ``{entry, score, fields}`` rows, best first."""
+    """BM25F relevance search; returns ``{entry, score, fields}`` rows, best first.
+
+    Query terms are stopword-filtered and stemmed, weighted by inverse document frequency over
+    the whole catalog (not the filtered pool), so a sentence such as a judge's free-text mechanism
+    proposal ranks by its rare words. ``fields`` lists where a query term matched.
+    """
     terms = list(dict.fromkeys(_tokens(query)))
     if not terms:
         return []
-    phrase = query.strip().lower()
-    pool = list_entries(entries, taxonomy_class=taxonomy_class, side=side, source=source, root=root)
+    catalog = list(_entries(entries, root))
+    docs = {e.id: {k: _tokens(v) for k, v in _search_fields(e).items()} for e in catalog}
+    doc_freq: Counter[str] = Counter()
+    for fields in docs.values():
+        doc_freq.update({t for tokens in fields.values() for t in tokens})
+    avg_len = {k: sum(len(f[k]) for f in docs.values()) / max(len(docs), 1) for k in _FIELD_WEIGHTS}
+    wanted = {
+        e.id
+        for e in list_entries(
+            catalog, taxonomy_class=taxonomy_class, side=side, source=source, root=root
+        )
+    }
     rows: list[dict[str, Any]] = []
-    for entry in pool:
-        data = entry.dump()
+    for entry in catalog:
+        if entry.id not in wanted:
+            continue
+        fields = docs[entry.id]
         score = 0.0
-        fields: list[str] = []
-        for name, weight in _FIELD_WEIGHTS.items():
-            text = json.dumps(data[name]) if not isinstance(data[name], str) else data[name]
-            tokens = _tokens(text)
-            if not tokens:
-                continue
-            counts = {t: tokens.count(t) for t in terms}
-            hit = sum(min(c, 3) for c in counts.values())
-            if not hit:
-                continue
-            coverage = sum(1 for c in counts.values() if c) / len(terms)
-            field_score = weight * (hit + 2.0 * coverage)
-            if len(phrase) > 3 and phrase in text.lower():
-                field_score += 2.0 * weight
-            score += field_score
-            fields.append(name)
+        matched: set[str] = set()
+        for term in terms:
+            weighted_tf = 0.0
+            for name, weight in _FIELD_WEIGHTS.items():
+                tokens = fields[name]
+                count = tokens.count(term) if tokens else 0
+                if count:
+                    matched.add(name)
+                    norm = 1 - _BM25_B + _BM25_B * len(tokens) / avg_len[name]
+                    weighted_tf += weight * count / norm
+            if weighted_tf:
+                idf = math.log(1 + (len(docs) - doc_freq[term] + 0.5) / (doc_freq[term] + 0.5))
+                score += idf * weighted_tf * (_BM25_K1 + 1) / (weighted_tf + _BM25_K1)
         if score:
-            rows.append({"entry": entry, "score": round(score, 3), "fields": fields})
+            ordered = [name for name in _FIELD_WEIGHTS if name in matched]
+            rows.append({"entry": entry, "score": round(score, 3), "fields": ordered})
     rows.sort(key=lambda r: (-r["score"], r["entry"].id))
     return rows[: max(limit, 0)]
 

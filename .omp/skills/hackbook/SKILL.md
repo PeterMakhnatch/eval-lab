@@ -19,7 +19,7 @@ Everything here is static and costs $0: `match` reads files, never runs task cod
 ```bash
 evallab hackbook list [--class TS04|grader_tamperable] [--side task|run] [--source benchjack] [--evidence executed|observed|claimed] [--json]
 evallab hackbook show HB-TS04-002 [--json]            # id or slug; unique prefix works
-evallab hackbook search "conftest pth" [--class ...] [--side ...] [--limit 10] [--json]
+evallab hackbook search "free text, a judge's proposed mechanism or a finding title" [--class ...] [--side ...] [--limit 10] [--json]
 evallab hackbook match <target> [--kind auto|task|trace|view] [--class TS03] [--direction false_pass|false_fail] [--top 10] [--emit-findings DIR] [--json]
 evallab hackbook match <trial-dir> --kind trace [--task <task-dir>] [--outcome auto|pass|fail|none] [--fleet-rates FILE]
 evallab hackbook calibrate <pool-dir> [--kind task|trace] [--threshold 0.4] [--write-rates FILE] [--json]
@@ -69,6 +69,20 @@ when the task package shows the weakness (`task_confirmed`; otherwise they count
 full TB4 DEV trajectories this cut strong hits on clean passes from 60% to 18% (9% without the
 task gate), but the trace regexes still do not find the observed wrong passes (the mapped entry
 fires on 5/18); treat a trace hit as where to read, and run the entry's recipe.
+
+**Mapping a mechanism written in words to an entry.** `search` is BM25F over each entry's prose
+(stopwords dropped, IDF over the catalog), so a sentence works as well as keywords. With one
+example held out per query it puts the right entry first for `134/211` catalog examples (`108` for
+the token-count ranking it replaced), in the top 3 for `176` and in the top 5 for `194`. Read the
+score margin over the runner-up: the top quarter of queries by margin is right `88%` of the time,
+all of them `64%`, so a small margin is a shortlist for the judge, not an answer. Out-of-catalog
+proposals still return the nearest entries; abstain when no entry's `mechanism` fits.
+
+**Structured tool calls.** A `Read`/`read_file` of a path, a URL argument and a write or edit under
+`/tests/` or `/logs/verifier` count as the `cat`, `curl`, `tee` and `sed -i` they stand for, so
+`tests_or_solution_read`, `network_fetch` and `test_file_tamper` fire on them. Writes to the agent's
+own `/app/tests/` do not. A cheating trace whose only signal is a leak in the prompt (CheatBench
+`harness_leaks_answer`) or a rewritten checker file (HackTrace `test_tamper`) still returns no hit.
 
 Python:
 

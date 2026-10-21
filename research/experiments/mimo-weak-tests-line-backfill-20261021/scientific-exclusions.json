@@ -789,10 +789,62 @@
           "supported_witness_ids": [
             "block"
           ]
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102/instruction.md:6: \"we should try validating and formatting the IAM database usernames within the connectors\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102/instruction.md:8: \"**Postgres**: Removes `.gserviceaccount.com` domain suffix if it exists.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102/instruction.md:9: \"**MySQL**: Removes everything after and including the `@` sign.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/minimal.patch:17: \"instance_data, ip_address = await instance.connect_info(ip_type)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/minimal.patch:22: \"instance_data.database_version, kwargs[\\\"user\\\"]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/dropped.patch:9: \"+    database_version: str\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/dropped.patch:23: \"+        self.database_version = database_version\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/dropped.patch:31: \"+            metadata[\\\"database_version\\\"],\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102/tests/test.patch:52: \"+        self.database_version = database_version\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102/tests/test.patch:100: \"+        connector._instances[connect_string] = _FakeInstance(\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/grades.log:1: \"== full reward=1.0 rc=0 scored 4.4s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/grades.log:31: \"== nop reward=0.0 rc=0 scored 4.9s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/grades.log:271: \"== confirm reward=1.0 rc=0 scored 6.0s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/grades.log",
+          "grades_log_sha256": "sha256:ed16eea588a52a0acccc1682c3ac6227835184eee7c992a76cb33574182160ca",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:34550b6a93985f0ae9e1f5b9307a31beb4bd29ec23577dae1a80f1c6adff9e6c",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000102",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04b.json",
+          "reference_sha256": "sha256:d01c33615cd2cf2c31ae7964efaa30ce9b30246f2b9d7f3db2f7b4a18c668458",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/report.json",
+          "report_sha256": "sha256:6f42baf5d9e1f567b0dacd16a619d6b99b4df9de125c194fcb646b31d0b1210d",
+          "review_label": "confirmed_weak",
+          "selector": {
+            "task_id": "format-code-task-000102",
+            "witness_id": "block"
+          },
+          "sha256": "sha256:4122b35bbe9a294c5f2655f7f94c53ffbfe967ebba1632a2164b3b6ceac8321a",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000102/minimal.patch",
+          "witness_sha256": "sha256:a483c5605cf24adf2e63e20db1811eb59525029a944e691f1a49074296a3b1b6"
         }
       ],
       "package_digest": "sha256:34550b6a93985f0ae9e1f5b9307a31beb4bd29ec23577dae1a80f1c6adff9e6c",
-      "reason": "\"we should try validating and formatting the IAM database usernames within the connectors\" using the database type (derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000102/instruction.md:6-11). Dropped behavior: InstanceMetadata's database_version constructor parameter, assignment, and producer-side forwarding are all removed (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000102/dropped.patch:9-31). The retained connector immediately consumes instance_data.database_version when automatic IAM authentication is enabled, causing AttributeError on the real metadata path before username formatting can complete (minimal.patch:17-22). The tests supply _FakeMetadata.database_version and inject a fake instance, bypassing the omitted producer changes (assigned package tests/test.patch:48-66,99-101).",
+      "reason": "\"we should try validating and formatting the IAM database usernames within the connectors\" using the database type (derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000102/instruction.md:6-11). Dropped behavior: InstanceMetadata's database_version constructor parameter, assignment, and producer-side forwarding are all removed (derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000102/dropped.patch:9-31). The retained connector immediately consumes instance_data.database_version when automatic IAM authentication is enabled, causing AttributeError on the real metadata path before username formatting can complete (minimal.patch:17-22). The tests supply _FakeMetadata.database_version and inject a fake instance, bypassing the omitted producer changes (assigned package tests/test.patch:48-66,99-101). The accepted omission retains Connector.get_connection reading instance_data.database_version for automatic IAM formatting, but drops InstanceMetadata.database_version, its constructor argument/assignment, and Instance producer forwarding. On the real Instance-to-InstanceMetadata path, IAM connection formatting therefore reads an attribute the producer does not supply. This blocks the requested MySQL/Postgres username formatting before the driver call. Hidden consumers construct _FakeMetadata with that attribute and inject _FakeInstance, bypassing exactly the omitted producer. Current full=1/nop=0/confirm=1 is recorded; the producer/consumer counterexample is static, not a new connection attempt. The exact reference/package/minimal/dropped identities also match the accepted archived claim.",
       "task_id": "format-code-task-000102",
       "verify": "fail:weak-tests"
     },
@@ -2371,6 +2423,65 @@
       "package_digest": "sha256:4ac5e6bc47ef83963dcd28cf64b2022f441ba29252db44b4e07d1280fd94bb96",
       "reason": "[INFERENCE] Consider `*/1 0/1 * * * >out2024`, using the instruction's five-field schedule and a redirection-only shell command rather than an invented executable/helper. In the reference, the inner loop leaves the last byte for tail reconstruction: `seg` is `>out202`, which is not a cron part, and the reconstructed command is `>out2024`. The actual <= edit consumes the final `4`; the existing unanchored four-digit alternative in segRe then classifies the complete token as cron. The inner loop has advanced i to len(line), the outer loop's post-increment advances it once more, and `line[i:]` is out of bounds. This failure occurs before cron validation and does not depend on an image-bound gronx implementation. The accepted five-field prefix is also present in the frozen fixture/assertions; this is not a claim based solely on mutant survival or on the reference's unrelated malformed-line bugs.",
       "task_id": "format-code-task-000300",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000302/instruction.md:3: \"every tested gene records its `NUGN`, `Annotation`, four category counts, sensitivity, specificity\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000302/instruction.md:7: \"When `collapse=True`, genes with identical included-isolate distributions should be merged into one result named with `--`\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/mutants/30598039f0.patch:120-133: \"+            num_pos = stat_table[\\\"tpgp\\\"] + stat_table[\\\"tpgn\\\"]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/mutants/30598039f0.patch:142: \"+            if stats[\\\"hash\\\"] in distributions and collapse:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/mutants/30598039f0.patch:207-208: \"+                \\\"spes\\\": ((float(stat_table[\\\"tngn\\\"]) / num_neg * 100) if\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000302/solution.patch:208: \"+                    num_neg > 0 else 0.0),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000302/tests/test.patch:330-333: \"+        \\\"gA\\\": gene(\\\"nugnA\\\", \\\"annA\\\", {\\\"s1\\\": 1, \\\"s2\\\": 1, \\\"s3\\\": 0, \\\"s4\\\": 0}),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/grades.log:618: \"========================= 9 passed, 1 warning in 2.74s =========================\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/grades.log:595: \"== mutant:30598039f0 reward=1.0 rc=0 scored 3.9s\""
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/grades.log",
+          "grades_log_sha256": "sha256:50f2bc811da6f51e00c6220ef60673a37c24f8dd22c36b0893d23840d0aafd24",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:8f02885733b664a5a489f0e5d2499acc6c46f6dd1070fbd5678d3be3bd716092",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000302",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04b.json",
+          "reference_sha256": "sha256:2cb24ac03c96b65b0084fbafb85bf9525e9cb2cb7aad8b5d04da82edd6a8d610",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/report.json",
+          "report_sha256": "sha256:c4e49fa6f7e42805aceef2abda2cf9b530b4acdcfcac6076fd325ba747c4a682",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000302",
+            "witness_id": "30598039f0"
+          },
+          "sha256": "sha256:4122b35bbe9a294c5f2655f7f94c53ffbfe967ebba1632a2164b3b6ceac8321a",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000302/mutants/30598039f0.patch",
+          "witness_sha256": "sha256:c912b45aba6df7f56801f148c77739b34f64cc1bd1525641f49d07fcbf3642a1"
+        }
+      ],
+      "package_digest": "sha256:8f02885733b664a5a489f0e5d2499acc6c46f6dd1070fbd5678d3be3bd716092",
+      "reason": "The accepted mutant changes the merged-gene specificity denominator guard from num_neg > 0 to >= 0. A normalized input with two isolates, trait values {s1:\"1\",s2:\"1\"}, two identical variable genes {s1:1,s2:0}, and collapse=True is in the stated dictionary/collapse contract: neither gene is invariant, so the second reaches the merge branch. There num_neg=tngp+tngn=0 and tngn=0. The reference emits specificity 0.0 via its guard and returns a merged record; the mutant evaluates float(0)/0 and raises ZeroDivisionError instead of returning the requested dictionary. Existing collapse tests all include trait-negative isolates, so their recorded positive grade does not cover this zero-negative boundary. This is a source-derived counterexample, not an executed new control or a claim that the archived block omission is weak.",
+      "task_id": "format-code-task-000302",
       "verify": "fail:weak-tests"
     },
     {
@@ -4029,6 +4140,154 @@
       "defect_class": "accepted-required-gap",
       "evidence": [
         {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:3: write raw context to a temporary .txt file, parse it, remove it, then filter",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9b3411fbf7.patch:79-95: the write body is pass; parse_file receives the empty .txt path",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:58-77: FakeProcessor.parse_file returns preset parsed_data and never reads the file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:98-113: success test checks path/removal and filter arguments, not file contents",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:157-178: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:157: == mutant:9b3411fbf7 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+          "grades_log_sha256": "sha256:38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:c9404306857452820aa9b512e12ddc2f369824a668a1b9016cc34b141532a05d",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/report.json",
+          "report_sha256": "sha256:1a3d3c5470d4e1f58026721c17f84990555e4e53445550b4582be309a02d971e",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000783",
+            "witness_id": "9b3411fbf7"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9b3411fbf7.patch",
+          "witness_sha256": "sha256:59205402f817fbc94c4e562e80b7124db517ac172f16110a086ee00d12e137c4"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:5: fallback len(text)//4 and successful new_tokens/orig_tokens ratio rounded to four decimals",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch:24-31: fallback token counter returns len(text)//4",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/d3518ecd0d.patch:118-125: orig_tokens==1 now takes ratio=0.0",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:33-40: expected success stats divides for every positive orig_tokens",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:80-138: success fixtures use longer contexts",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:180-201: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:180: == mutant:d3518ecd0d reward=1.0 rc=0 scored 1.6s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+          "grades_log_sha256": "sha256:38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:c9404306857452820aa9b512e12ddc2f369824a668a1b9016cc34b141532a05d",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/report.json",
+          "report_sha256": "sha256:1a3d3c5470d4e1f58026721c17f84990555e4e53445550b4582be309a02d971e",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000783",
+            "witness_id": "d3518ecd0d"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/d3518ecd0d.patch",
+          "witness_sha256": "sha256:48220994404b52ae6a2a487cd8f637b3410d6597b83e710f1c86f923e948abc7"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: running module directly should print the filtered text in addition to token counts and ratio",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/b2306b8a5e.patch:153-169: filtered_text is returned into the demo local but its print is replaced by pass",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch:161-169: the original demo prints the label and then the actual returned text",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:265-273: test asserts the filtered-text label only, not the returned text contents",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:654-675: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:654: == mutant:b2306b8a5e reward=1.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:542-560: a separate killed demo-output deletion records the SDK-unavailable fallback and the demo text; this is supporting environment evidence, not a replay of b2306b8a5e"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+          "grades_log_sha256": "sha256:38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:c9404306857452820aa9b512e12ddc2f369824a668a1b9016cc34b141532a05d",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/report.json",
+          "report_sha256": "sha256:1a3d3c5470d4e1f58026721c17f84990555e4e53445550b4582be309a02d971e",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-000783",
+            "witness_id": "b2306b8a5e"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/b2306b8a5e.patch",
+          "witness_sha256": "sha256:153712d98636ca259fb92fe71ea100156d382270adcbfb98ba5863a4e7102ec0"
+        }
+      ],
+      "package_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+      "reason": "The accepted mutant opens/truncates the .txt file but replaces its only context write with pass, then passes that empty file to parse_file. The instruction explicitly requires writing the raw context before parsing. A legitimate processor that reads the supplied file therefore receives an empty string rather than the non-empty caller context; if it returns no data, the helper falls back instead of compressing that context. The retained tests use FakeProcessor.parse_file that records the path and returns preset data without reading file contents, so they can accept this missing required work. All 12 tests pass in the recorded mutant grade; the file-content counterexample is static, not an executed new processor. Changing orig_tokens > 0 to orig_tokens > 1 incorrectly reports ratio=0.0 on a successful compression whose original token count is exactly one. For the explicitly required no-tiktoken fallback, context=\"abcd\" and filtered_text=\"efgh\" each count as len(text)//4 == 1; the required rounded new/orig ratio is 1.0, whereas this accepted patch returns 0.0. The non-empty/parse/filter success paths remain reachable and unchanged. The recorded 12-test pass does not cover this one-token denominator boundary; this arithmetic/input counterexample was not newly executed. The sole direct-run demonstration statement printing its returned filtered_text is replaced with pass. The label \"Filtered text:\" remains, but no following statement emits that returned text; the required three statistics alone are not the required fourth value. The instruction explicitly requires the demonstration to print the filtered text, and the helper can return a non-empty filtered result or non-empty original fallback. The packaged direct-run test only checks for the label and numeric-statistic patterns, not the actual text, so all 12 tests accept this omission. This is a source-derived missing output, not a newly observed demo run.",
+      "task_id": "format-code-task-000783",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
           "example_witness": {
             "controls": {
               "full": {
@@ -4330,10 +4589,56 @@
           "supported_witness_ids": [
             "block"
           ]
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/instruction.md:6-14: request-taking callback and documented backwards compatibility are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch:9-32: get_claim_list is removed while get_additional_claims(request) is called",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/dropped.patch:59-80: omitted discovery migration retains validator.get_claim_list() and claims_supported",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/tests/test.patch:25-122: acceptance consumers exercise signature/userinfo, not discovery",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:1-22: full=1; nop=0; both scored rc=0",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:165-182: separate deletion variant records AttributeError: 'OAuth2Validator' object has no attribute 'get_claim_list'",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:256-275: confirm=1; four userinfo/signature tests pass"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log",
+          "grades_log_sha256": "sha256:fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:905f1bd4367de02371052d3a3889cfd95cf9652ff4c292d2287378862bdd6d47",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:4fd173b54b2ece33a194a7f9b6a3e717563770ffa490626268a0c88d1b071f56",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/report.json",
+          "report_sha256": "sha256:afdeaea1e9836bf3fe26502b9bbc12a584da121dedaf129f7653f20216f28545",
+          "review_label": "confirmed_weak",
+          "selector": {
+            "task_id": "format-code-task-000812",
+            "witness_id": "block"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch",
+          "witness_sha256": "sha256:a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3"
         }
       ],
       "package_digest": "sha256:905f1bd4367de02371052d3a3889cfd95cf9652ff4c292d2287378862bdd6d47",
-      "reason": "Requirement: \u201cWe expect the (documented) API not to break backwords-incompatibly in minor versions\u201d (/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000812/instruction.md:14). The minimal patch restores the request-taking callback but removes OAuth2Validator.get_claim_list (minimal.patch:9-32), while omitting the discovery-view migration: the retained ConnectDiscoveryInfoView still constructs the configured validator and invokes validator.get_claim_list (dropped.patch:64-68). For the supplied OAuth2Validator, this leaves a broken consuming path. Importantly, a stored deletion control explicitly records AttributeError for the missing get_claim_list on OAuth2Validator, so an inherited fallback is not merely assumed absent (grades.log:165-182). The passing witness covers only four signature/userinfo tests, not discovery (/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000812/tests/test.patch:8; grades.log:256-276). Stored full/nop/confirm=1/0/1 at grades.log:1,22,256; dropping the entire discovery-view change also passes at 117. Witness: minimal.patch. Missing_evidence: none needed for the retained-call/removed-method defect; no end-to-end discovery request was replayed. Limits: no fresh replay; the AttributeError control is a separate recorded deletion variant, used to establish the class has no inherited fallback.",
+      "reason": "Requirement: \u201cWe expect the (documented) API not to break backwords-incompatibly in minor versions\u201d (/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000812/instruction.md:14). The minimal patch restores the request-taking callback but removes OAuth2Validator.get_claim_list (minimal.patch:9-32), while omitting the discovery-view migration: the retained ConnectDiscoveryInfoView still constructs the configured validator and invokes validator.get_claim_list (dropped.patch:64-68). For the supplied OAuth2Validator, this leaves a broken consuming path. Importantly, a stored deletion control explicitly records AttributeError for the missing get_claim_list on OAuth2Validator, so an inherited fallback is not merely assumed absent (grades.log:165-182). The passing witness covers only four signature/userinfo tests, not discovery (/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000812/tests/test.patch:8; grades.log:256-276). Stored full/nop/confirm=1/0/1 at grades.log:1,22,256; dropping the entire discovery-view change also passes at 117. Witness: minimal.patch. Missing_evidence: none needed for the retained-call/removed-method defect; no end-to-end discovery request was replayed. Limits: no fresh replay; the AttributeError control is a separate recorded deletion variant, used to establish the class has no inherited fallback. The accepted subset restores get_additional_claims(request) but removes OAuth2Validator.get_claim_list while leaving ConnectDiscoveryInfoView constructing the configured validator and calling validator.get_claim_list. Under the supplied default OAuth2Validator this retained discovery path raises AttributeError instead of serving discovery, contrary to the requested non-breaking documented API. This is a concrete producer/consumer incompatibility, not merely an unimplemented reference hunk. The current separate drop-block #2 control explicitly observes AttributeError for get_claim_list on OAuth2Validator, establishing that there is no inherited fallback. That control is not a discovery replay: the discovery failure is source-derived. The actual subset confirm is a distinct scored reward-1 rc-0 witness and runs only the four signature/userinfo tests.",
       "task_id": "format-code-task-000812",
       "verify": "fail:weak-tests"
     },
@@ -9065,6 +9370,111 @@
       "defect_class": "accepted-required-gap",
       "evidence": [
         {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: the pywin32 formatting failure contains comments, multiple directory lines and an import statement",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:49-50: pywin32 installation should not break griffe",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch:29-36: ModuleFinder appends every returned directory",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch:68-76: mutated guard precedes an existence check and directories.append",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-48: bogus content, comment markers and import statements should never appear in search_paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:67-99: comment/import test strings are not created as existing paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:284-309: recorded six-test pass under the mutated guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:284: == mutant:660f79d423 reward=1.0 rc=0 scored 1.1s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+          "grades_log_sha256": "sha256:0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:cc524a7ddf132ba9a90abf689a8073310c47e38c1f5cdb68a5185aa9e3b5eab0",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:593b5fe2b5e4ae622992c62c4294b900ed5e4a4184df510cd6d0603dae467596",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/report.json",
+          "report_sha256": "sha256:9a2ab89c1a0b679c68fc430b2a3cb539f65972fc26c867718745aaea278f9aca",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-001940",
+            "witness_id": "660f79d423"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch",
+          "witness_sha256": "sha256:6902a33f8ee5968cdd5ae81bfdf98a7b080f51d8d0a2b093daf3fd4908984083"
+        },
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: the pywin32 formatting failure contains comments, multiple directory lines and an import statement",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:49-50: pywin32 installation should not break griffe",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch:29-36: ModuleFinder appends every returned directory",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch:68-76: mutated guard precedes an existence check and directories.append",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-48: bogus content, comment markers and import statements should never appear in search_paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:67-99: comment/import test strings are not created as existing paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:448-473: recorded six-test pass under the mutated guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:448: == mutant:3d876297be reward=1.0 rc=0 scored 1.1s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+          "grades_log_sha256": "sha256:0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:cc524a7ddf132ba9a90abf689a8073310c47e38c1f5cdb68a5185aa9e3b5eab0",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+          "reference_sha256": "sha256:593b5fe2b5e4ae622992c62c4294b900ed5e4a4184df510cd6d0603dae467596",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/report.json",
+          "report_sha256": "sha256:9a2ab89c1a0b679c68fc430b2a3cb539f65972fc26c867718745aaea278f9aca",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-001940",
+            "witness_id": "3d876297be"
+          },
+          "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch",
+          "witness_sha256": "sha256:c678ec15cd24a2758f8398e27f24aa4ffe8b50b73643a0749075a740d0d2292b"
+        }
+      ],
+      "package_digest": "sha256:cc524a7ddf132ba9a90abf689a8073310c47e38c1f5cdb68a5185aa9e3b5eab0",
+      "reason": "The accepted boolean edit bypasses the comment/import rejection for non-empty lines. For an import line the left conjunction is true; for a comment line the right no-import clause is true. With a legitimate .pth line \"import ignored\" and an existing same-named directory in the current working directory, os.path.exists(line) succeeds, so this patch returns that instruction as a search-path directory and the retained ModuleFinder loop appends it. A same-named \"# ignored\" directory likewise makes a comment leak into search_paths. Such lines are .pth instructions/comments, not directory entries regardless of filesystem coincidences. The required formatting behavior and the packaged consumers explicitly require skipping them. The tests use non-existing comment/import strings, leaving os.path.exists to mask the weakened guard; the recorded mutant still passes all six cases. The existing-directory counterexample is static, not replayed. The accepted boolean edit bypasses the comment/import rejection for non-empty lines. Every non-empty line makes the first operand true, including comments and import instructions. With a legitimate .pth line \"import ignored\" and an existing same-named directory in the current working directory, os.path.exists(line) succeeds, so this patch returns that instruction as a search-path directory and the retained ModuleFinder loop appends it. A same-named \"# ignored\" directory likewise makes a comment leak into search_paths. Such lines are .pth instructions/comments, not directory entries regardless of filesystem coincidences. The required formatting behavior and the packaged consumers explicitly require skipping them. The tests use non-existing comment/import strings, leaving os.path.exists to mask the weakened guard; the recorded mutant still passes all six cases. The existing-directory counterexample is static, not replayed.",
+      "task_id": "format-code-task-001940",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
           "example_witness": {
             "controls": {
               "full": {
@@ -12268,24 +12678,32 @@
     {
       "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/03b.json",
       "sha256": "sha256:21c35dcd111f687673d0a6abf47ae344ae1b8b4ba31a3f14b6c323850874ea23"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+      "sha256": "sha256:f6dbcdd18b74c5682833ca5ca590acab07129f5df163ec6efeee303b31f35b71"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04b.json",
+      "sha256": "sha256:4122b35bbe9a294c5f2655f7f94c53ffbfe967ebba1632a2164b3b6ceac8321a"
     }
   ],
   "schema": "evallab.mimo_scientific_exclusions/v1",
   "scope": "Exact task/package pairs excluded from accepted scientific use (training, scored benchmark evaluation, and admission/certification). Diagnostic oracle/nop, mutation, and repair controls remain allowed; this inventory is not dispatch or spend authorization.",
   "totals": {
     "by_claim_status": {
-      "confirmed": 180,
+      "confirmed": 183,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 180,
+      "confirmed_defect": 183,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "exact_package_pairs": 206,
-    "fresh_review_supported_packages": 8,
-    "fresh_review_supported_witnesses": 24,
+    "exact_package_pairs": 209,
+    "fresh_review_supported_packages": 13,
+    "fresh_review_supported_witnesses": 32,
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

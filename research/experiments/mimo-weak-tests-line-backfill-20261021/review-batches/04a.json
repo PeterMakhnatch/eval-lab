@@ -1,0 +1,1704 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview04A (native requirement-level source and recorded-consumer review only)",
+  "reviewed_at_utc": "2026-10-21T19:19:26.280961+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-000812",
+      "format-code-task-000156",
+      "format-code-task-001615",
+      "format-code-task-002412",
+      "format-code-task-000783",
+      "format-code-task-001940",
+      "format-code-task-000651"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04a.json",
+    "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read completed immutable reports, all survivor patch bytes, reference and all block minimal/dropped patches, task instructions, available full added function and consumer context, packaged tests and exact recorded output. Authoritative grade headers override the pre-mutant report.grades snapshot. Record concrete behavioral reasons, source counterexamples and missing-evidence scope without fresh executions; leave admission to parent."
+  },
+  "frozen_source_bindings": {
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "atlas": {
+      "path": "research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+    }
+  },
+  "summary": {
+    "reports": 7,
+    "block_fail_candidates": 5,
+    "block_labels": {
+      "confirmed_weak": 1,
+      "neutral": 1,
+      "out_of_scope": 3,
+      "uncertain": 0
+    },
+    "reported_survivors": 16,
+    "reviewed_survivors": 16,
+    "survivor_labels": {
+      "required_gap": 5,
+      "equivalent_or_optional": 5,
+      "non_positive": 0,
+      "uncertain": 6
+    },
+    "generated_mutants": 65,
+    "attempted_mutants": 47,
+    "recorded_killed_mutants": 31,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 18,
+    "authoritative_grade_records": 107,
+    "confirmed_positive_claims": 6,
+    "task_ids_with_confirmed_positive_claims": [
+      "format-code-task-000812",
+      "format-code-task-000783",
+      "format-code-task-001940"
+    ],
+    "uncertain_claims": 6,
+    "task_ids_with_uncertain_claims": [
+      "format-code-task-000651"
+    ],
+    "limitations": [
+      "All seven assigned completed reports, all five block-fail witnesses and all 16 reported survivors are adjudicated. The parent producer was not run by this worker.",
+      "Positive findings: the OAuth discovery retained-call/removed-method block gap; LongBench missing file contents, one-token ratio boundary and missing demo returned-text output; two Griffe comment/import guard weakenings. Counterexamples are static unless explicitly identified as recorded output.",
+      "Six Chainer survivors have positive scored grades and concrete initialized-array behavior differences, but remain uncertain about broader required acceptance scope. The None-data behavior specified by the task is still fixed. They are not promoted as gaps and not claimed globally equivalent/harmless.",
+      "The LongBench scan generated 38 mutants but attempted only 20; the 18 unattempted candidates are not covered by survivor adjudication or a clean certificate.",
+      "Five archived block dispositions are reused only with exact package/reference/minimal/dropped identity matches and new authoritative scored full=1/nop=0/confirm=1 controls, plus independent instruction/producer/consumer review.",
+      "No local task execution, Docker, model/remote API, build, test, lint, formatting, producer/check run, commit or immutable-input edit was performed. The task-dossier callable was used only to read stored metadata; its historical verdicts were not treated as binding this review."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-000812",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812",
+      "package_digest": "sha256:905f1bd4367de02371052d3a3889cfd95cf9652ff4c292d2287378862bdd6d47",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000812/solution.patch",
+      "reference_sha256": "4fd173b54b2ece33a194a7f9b6a3e717563770ffa490626268a0c88d1b071f56",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/report.json",
+      "report_sha256": "afdeaea1e9836bf3fe26502b9bbc12a584da121dedaf129f7653f20216f28545",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log",
+      "grades_log_sha256": "fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch",
+      "minimal_patch_sha256": "a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/dropped.patch",
+      "dropped_patch_sha256": "9325dc0c3b00d9d60dc97f4ccac542262e257c55fa9de63e5d4c32b3052c1141",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/instruction.md",
+      "instruction_sha256": "fe07934d5d7cb7b659fcf624a301fae991197711e60f4780a5a71f7645827ddc",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/task.toml",
+      "task_toml_sha256": "3bc6d692ff2f8e5fc5b083f484dfb5a466b9132c1d59f2fe6e6d87bf7e3840d2",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/tests/test.patch",
+      "test_patch_sha256": "40d3e4418a50308cb7b9dc3ce9f4d0260bceca2b85df854996ee1e6830ea416b",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:d7cb330f159cb4895b43c693691287550c79fc5be1620969f20e2711ea12836e",
+      "started_at": "2026-10-21T18:11:47+00:00",
+      "finished_at": "2026-10-21T18:12:54+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.7576,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.6s",
+          "sha256": "fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log",
+          "line": 22,
+          "quote": "== nop reward=0.0 rc=0 scored 2.9s",
+          "sha256": "fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563"
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log",
+          "line": 256,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.7s",
+          "sha256": "fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/report.json",
+        "report_sha256": "cba9da2e47f7218fdcda9d03c67aea26d0c1c4ffd61417eccac68b72198a224a",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": {
+        "label": "confirmed_weak",
+        "reason": "The accepted subset restores get_additional_claims(request) but removes OAuth2Validator.get_claim_list while leaving ConnectDiscoveryInfoView constructing the configured validator and calling validator.get_claim_list. Under the supplied default OAuth2Validator this retained discovery path raises AttributeError instead of serving discovery, contrary to the requested non-breaking documented API. This is a concrete producer/consumer incompatibility, not merely an unimplemented reference hunk. The current separate drop-block #2 control explicitly observes AttributeError for get_claim_list on OAuth2Validator, establishing that there is no inherited fallback. That control is not a discovery replay: the discovery failure is source-derived. The actual subset confirm is a distinct scored reward-1 rc-0 witness and runs only the four signature/userinfo tests.",
+        "dropped_code": [
+          "oauth2_provider/views/oidc.py#0",
+          "oauth2_provider/views/oidc.py#1"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch",
+        "witness_sha256": "a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/instruction.md:6-14: request-taking callback and documented backwards compatibility are required",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch:9-32: get_claim_list is removed while get_additional_claims(request) is called",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/dropped.patch:59-80: omitted discovery migration retains validator.get_claim_list() and claims_supported",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/tests/test.patch:25-122: acceptance consumers exercise signature/userinfo, not discovery",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:1-22: full=1; nop=0; both scored rc=0",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:165-182: separate deletion variant records AttributeError: 'OAuth2Validator' object has no attribute 'get_claim_list'",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log:256-275: confirm=1; four userinfo/signature tests pass"
+        ],
+        "counterexample": {
+          "kind": "static_required_consumer_counterexample",
+          "scenario": "Request the OIDC discovery view with OAUTH2_VALIDATOR_CLASS set to the supplied OAuth2Validator after applying minimal.patch.",
+          "expected": "Discovery can return its JSON response without calling a removed method.",
+          "predicted_actual": "The retained validator.get_claim_list() call raises AttributeError.",
+          "fresh_execution": false
+        },
+        "limits": "No new discovery request was executed. Documentation/AUTHORS/CHANGELOG omissions are not themselves the promoted gap."
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 1,
+        "tried": 1,
+        "killed": 1,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "pass",
+        "reason": "",
+        "reported_survivors": 0,
+        "generated_but_unattempted": 0,
+        "grade_records": 1
+      },
+      "archived_block_binding": {
+        "label": "confirmed_weak",
+        "review_source": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockB.json",
+          "sha256": "d7c5cec7795dacd226ca8b000ad68cb9e3bc7611e8c5df2fe94008a5a5e6817d"
+        },
+        "inheritance_basis": "The same package/reference and exact minimal/dropped bytes support retaining the archived block-level disposition, independently checked against current instructions and retained/omitted consumer code. The new grade log supplies its own full=1/nop=0/confirm=1 scored rc=0 controls; no verdict is inherited by task ID alone.",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/minimal.patch",
+        "minimal_patch_sha256": "a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3",
+        "minimal_bytes_identical": true,
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/dropped.patch",
+        "dropped_patch_sha256": "9325dc0c3b00d9d60dc97f4ccac542262e257c55fa9de63e5d4c32b3052c1141",
+        "dropped_bytes_identical": true,
+        "review_source_hash_matches_atlas": true
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-000156",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156",
+      "package_digest": "sha256:c962ba77e0ff668f0b4f81d77381e1aea886940d665c96b1ab05244eded8cd5e",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000156/solution.patch",
+      "reference_sha256": "c487b74f5d06554e0dc63310e0e70fa43e2700ac8e846cabe887ad96da582b1f",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/report.json",
+      "report_sha256": "57ead11ba5a1fcabfa67b29d439f178508185e1ef081e6b05187cbe67ea5801c",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log",
+      "grades_log_sha256": "7be3ad2b77a5cfc55ed46a2d6b19668c8519eab33c00867596c1a8696cf988ff",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/minimal.patch",
+      "minimal_patch_sha256": "a3650c507ac96835b5ca9170c5b8124238827134245e505f1895c2cb7ae9ad83",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/dropped.patch",
+      "dropped_patch_sha256": "709c1e2207e96ce8656cf2e7478262718feaf341d5cca390f4f9e665178bb123",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/instruction.md",
+      "instruction_sha256": "316f44c143c1f947603b1cdb411efc3f5f466850cd0d9b2a9280bd9ed305913a",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/task.toml",
+      "task_toml_sha256": "d094c181b1b3ac614bba59cb77c2f6e4561e2dcecd11060e0c6fd71f6dad4f3c",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/tests/test.patch",
+      "test_patch_sha256": "b2fa836464ec19134149e9c463cb18d137b9a855ffdd4b7dc0b1120b321ae606",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0d3abf1cdb3cf0f0ba2304b4d07b0e7e3854b3c5cc4563843fde832a8e2c14bc",
+      "started_at": "2026-10-21T18:14:30+00:00",
+      "finished_at": "2026-10-21T18:15:48+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.6154,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.5s",
+          "sha256": "7be3ad2b77a5cfc55ed46a2d6b19668c8519eab33c00867596c1a8696cf988ff"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log",
+          "line": 37,
+          "quote": "== nop reward=0.0 rc=0 scored 2.6s",
+          "sha256": "7be3ad2b77a5cfc55ed46a2d6b19668c8519eab33c00867596c1a8696cf988ff"
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log",
+          "line": 287,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.8s",
+          "sha256": "7be3ad2b77a5cfc55ed46a2d6b19668c8519eab33c00867596c1a8696cf988ff"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/report.json",
+        "report_sha256": "f857515b87f71065bb0132e95eaa9dab55eeefb41908a38178b18a701de42a77",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "The sole omitted code-classified block is text inside Rule.docs: it replaces a variables.robot example with variables.yml/module examples. The subset retains the YAML-only diagnostic message and both operational visitors. In the reported Variables variables ${ENVIRON} case, the module name does not end in .yaml/.yml, so no erroneous 0404 is emitted; YAML-with-arguments diagnostics remain. The instruction asks for correct lint behavior, not rewriting documentation examples. Stale examples can be user-visible but do not establish a missing required behavior in this scoped task.",
+        "dropped_code": [
+          "robocop/checkers/errors.py#1"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/minimal.patch",
+        "witness_sha256": "a3650c507ac96835b5ca9170c5b8124238827134245e505f1895c2cb7ae9ad83",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/instruction.md:3-24: module-name variable import with arguments is wrongly rejected",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/instruction.md:38-46: RF >=5 module imports should be allowed; check YAML extension",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/minimal.patch:5-35: both executable extension checks and the YAML-only diagnostic are retained",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/dropped.patch:5-16: only Rule.docs examples differ",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/tests/test.patch:58-95: module and extension acceptance cases",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log:1-70: full=1/nop=0, operational tests pass/fail as expected",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log:287-321: exact subset confirm=1 and both selected tests pass"
+        ],
+        "scope_refutation": "Applying the subset still excludes a module-name import from 0404 while emitting the expected YAML diagnostics. No runtime callback or consumer is removed by the omitted docs string.",
+        "limits": "This rejects the documentation-only weak-test claim; it is not a whole-task correctness certificate."
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 5,
+        "tried": 5,
+        "killed": 5,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "pass",
+        "reason": "",
+        "reported_survivors": 0,
+        "generated_but_unattempted": 0,
+        "grade_records": 5
+      },
+      "archived_block_binding": {
+        "label": "out_of_scope",
+        "review_source": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/batch9.jsonl",
+          "line": 3,
+          "sha256": "724a35b5ea59220428ab0c03a35afb7ffaae38e3673946d752c7805c99aadef6"
+        },
+        "inheritance_basis": "The same package/reference and exact minimal/dropped bytes support retaining the archived block-level disposition, independently checked against current instructions and retained/omitted consumer code. The new grade log supplies its own full=1/nop=0/confirm=1 scored rc=0 controls; no verdict is inherited by task ID alone.",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/minimal.patch",
+        "minimal_patch_sha256": "a3650c507ac96835b5ca9170c5b8124238827134245e505f1895c2cb7ae9ad83",
+        "minimal_bytes_identical": true,
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/dropped.patch",
+        "dropped_patch_sha256": "709c1e2207e96ce8656cf2e7478262718feaf341d5cca390f4f9e665178bb123",
+        "dropped_bytes_identical": true,
+        "review_source_hash_matches_atlas": true
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-001615",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615",
+      "package_digest": "sha256:66e6088d4579ed65383f3d8bdefb0bb16473438cf1b844dd0323a732ef3b2dd3",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001615/solution.patch",
+      "reference_sha256": "877fb5f0616d936e245607c70c29349b1e7a47c3e6ace216b6f3c03a8ad8789b",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/report.json",
+      "report_sha256": "0802a49c2464d57c3b0fff7071111aa6e9ae378d9bc03f89087b7f266e912eae",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log",
+      "grades_log_sha256": "5240bd958928cfd6f0c5b7beb7a8e5bbf2d8b2c0098d8ba03d8e84ba7c313621",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/minimal.patch",
+      "minimal_patch_sha256": "2cad6f4a2d8bbc7e0ddf5845a27eeb99550b8b8dc17ff0d97e170fea80bd57c8",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/dropped.patch",
+      "dropped_patch_sha256": "4662eb194b70070e38aec2c1907d49adc27d5127e831a00d616ff9b9a297f080",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/instruction.md",
+      "instruction_sha256": "0748439911098e2d079167bf150da9f2656a7e0697bb523b3e07995885941e0c",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/task.toml",
+      "task_toml_sha256": "200c224f8730cb7a6a785bba528ec5b19fa5ec11615cb6272f8a2a40cc25e978",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/tests/test.patch",
+      "test_patch_sha256": "82bfa8113171e7e7574f103458c1fa624cdd0c32d3e940e586680587a837f62a",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:755fa369e8258d1a853bfc15f89b263b8d9075688f127cd2a5604a0b2722cf27",
+      "started_at": "2026-10-21T18:15:53+00:00",
+      "finished_at": "2026-10-21T18:17:37+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.8235,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 4.1s",
+          "sha256": "5240bd958928cfd6f0c5b7beb7a8e5bbf2d8b2c0098d8ba03d8e84ba7c313621"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 4.4s",
+          "sha256": "5240bd958928cfd6f0c5b7beb7a8e5bbf2d8b2c0098d8ba03d8e84ba7c313621"
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log",
+          "line": 300,
+          "quote": "== confirm reward=1.0 rc=0 scored 4.8s",
+          "sha256": "5240bd958928cfd6f0c5b7beb7a8e5bbf2d8b2c0098d8ba03d8e84ba7c313621"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/report.json",
+        "report_sha256": "df770c01eb39f72e81e368be2171538bf31658293a7cc0a5085a79c53aff68a6",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "The specified expired-session case includes a valid id_token_hint. The subset assigns token_user from that validated token, returns/unpacks it, passes it on the confirmed POST, and filters token deletion by token_user or request.user. The omitted initializer token_user=None can cause an unbound local for requests without a hint, but those requests are outside the stated valid-hint scenario. The other omitted block forwards token_user on the no-prompt GET path; the visible validation branch permits no prompt only when id_token.user == request.user, making the existing do_logout fallback equivalent on that path. The five selected tests, including anonymous POST revocation and logged-in GET preservation, pass in the exact subset confirm. No-hint correctness is not inferred.",
+        "dropped_code": [
+          "oauth2_provider/views/oidc.py#2",
+          "oauth2_provider/views/oidc.py#6"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/minimal.patch",
+        "witness_sha256": "2cad6f4a2d8bbc7e0ddf5845a27eeb99550b8b8dc17ff0d97e170fea80bd57c8",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/instruction.md:5-23: expired/no Django session with valid id_token_hint; revoke hinted user tokens",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/minimal.patch:5-19: hinted token user is retained and returned",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/minimal.patch:32-64: confirmed POST forwards token_user and token deletion consumes it",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/dropped.patch:46-62: omitted no-hint initialization and direct GET forwarding",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001615/solution.patch:48-62: no-prompt flow requires token user == request.user",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/tests/test.patch:23-111: all five acceptance cases supply valid hints",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log:1-45: full=1/nop=0; nop misses the anonymous revocations",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log:300-321: subset confirm=1; all five acceptance cases pass"
+        ],
+        "scope_refutation": "For a valid hinted anonymous user, token_user is always assigned before return and is passed to deletion on the prompted POST. On the retained no-prompt GET, the fallback current user is the same token user.",
+        "limits": "The missing initializer may break no-hint requests; this scoped out-of-scope ruling does not certify that separate scenario."
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 2,
+        "tried": 2,
+        "killed": 2,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "pass",
+        "reason": "",
+        "reported_survivors": 0,
+        "generated_but_unattempted": 0,
+        "grade_records": 2
+      },
+      "archived_block_binding": {
+        "label": "out_of_scope",
+        "review_source": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockC.json",
+          "sha256": "2bd3f9ab8ac1ffbac69d6ef0354c08e6ffa07c71959397d49cf9266d63b12cc8"
+        },
+        "inheritance_basis": "The same package/reference and exact minimal/dropped bytes support retaining the archived block-level disposition, independently checked against current instructions and retained/omitted consumer code. The new grade log supplies its own full=1/nop=0/confirm=1 scored rc=0 controls; no verdict is inherited by task ID alone.",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/minimal.patch",
+        "minimal_patch_sha256": "2cad6f4a2d8bbc7e0ddf5845a27eeb99550b8b8dc17ff0d97e170fea80bd57c8",
+        "minimal_bytes_identical": true,
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/dropped.patch",
+        "dropped_patch_sha256": "4662eb194b70070e38aec2c1907d49adc27d5127e831a00d616ff9b9a297f080",
+        "dropped_bytes_identical": true,
+        "review_source_hash_matches_atlas": true
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-002412",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412",
+      "package_digest": "sha256:61d0061a5db43ba7142e750c24e154bd64749ad77ada1bb4aa5678f6c44525ee",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002412/solution.patch",
+      "reference_sha256": "8338f8e2c11429b7592d5e83e02e7671ba0c065124ddeba5d047ce05017270e6",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/report.json",
+      "report_sha256": "73ea2ae4ecb6630a9401bfec254e6c0d398fd9121527dfe39c05f2dfa1ff2d24",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log",
+      "grades_log_sha256": "c7b4dc7493d019474633ede0734b06aaf011df4401b86bdf57d9a771513946e4",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/minimal.patch",
+      "minimal_patch_sha256": "1d024848f894751d96e0c99ebc3525d7c275a136fb4a04e1d021499696de6eb7",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/dropped.patch",
+      "dropped_patch_sha256": "8271cf1444eec4cecfb2cb1677e2f22e5f83bd69a94c9808afb00fe52c71dcbc",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/instruction.md",
+      "instruction_sha256": "dc246b05f58f8a323f841cd003abbc15428f9b8016930b5b3923d130e1e3b0b7",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/task.toml",
+      "task_toml_sha256": "eed41099212d023e3cbd44b0db92813d34e2eb8c99867663725449f289e26d70",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/tests/test.patch",
+      "test_patch_sha256": "e4e4dd4e4b3f68a0e0a2308d17218d74dc65a476ceb3b2075000f6d561c8d5bb",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a4ddca999b7d3021907eace79b960bd569472ef8ae23745f0f51d466a5aa6621",
+      "started_at": "2026-10-21T18:17:45+00:00",
+      "finished_at": "2026-10-21T18:18:34+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.75,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.7s",
+          "sha256": "c7b4dc7493d019474633ede0734b06aaf011df4401b86bdf57d9a771513946e4"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log",
+          "line": 28,
+          "quote": "== nop reward=0.0 rc=0 scored 1.9s",
+          "sha256": "c7b4dc7493d019474633ede0734b06aaf011df4401b86bdf57d9a771513946e4"
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log",
+          "line": 168,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.7s",
+          "sha256": "c7b4dc7493d019474633ede0734b06aaf011df4401b86bdf57d9a771513946e4"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/report.json",
+        "report_sha256": "7216c63356c9cff44b20818a5bcdc25bc5573a44cfaa554e7e22802e5340ef72",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "The instruction is about --dependency django being ignored when the main-dependency interactive question is declined. The subset resolves option(dependency) before that question and updates, rather than replaces, main requirements with any later interactive additions. The sole omitted block instead changes development-dependency interactive reassignment into a merge. That separate affirmative development-merge case is not requested by the prompt; declining the development question still retains the preselected dev requirements. The exact subset confirm passes main-dependency decline, version constraints and affirmative main merging, plus predefined dev/both decline cases. The acceptance set does not establish what affirmative development merging does, and this review does not promote that unrelated reference analogy.",
+        "dropped_code": [
+          "poetry/console/commands/init.py#3"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/minimal.patch",
+        "witness_sha256": "1d024848f894751d96e0c99ebc3525d7c275a136fb4a04e1d021499696de6eb7",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/instruction.md:29-40: --dependency should not be ignored when declining main interactive dependency selection",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/minimal.patch:8-31: main option preprocessing/interactive update retained; dev preprocessing also retained",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/dropped.patch:5-14: only analogous affirmative development-dependency merge is omitted",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/tests/test.patch:9-49: predefined main dependency survives declined questions",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/tests/test.patch:142-189: main preselection merges with affirmative interactive additions",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log:1-57: full=1/nop=0; five cases",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log:168-193: exact subset confirm=1 and all five cases pass"
+        ],
+        "scope_refutation": "Declining the main question no longer bypasses --dependency processing, because the subset populates requirements before the question. The dropped code touches dev_requirements only.",
+        "limits": "The full pre-existing _determine_requirements implementation is not present in the inspected patches; no global equivalence claim is made for affirmative --dev-dependency merging."
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 2,
+        "tried": 2,
+        "killed": 2,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "pass",
+        "reason": "",
+        "reported_survivors": 0,
+        "generated_but_unattempted": 0,
+        "grade_records": 2
+      },
+      "archived_block_binding": {
+        "label": "out_of_scope",
+        "review_source": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockD.json",
+          "sha256": "0440ce9adf002e23df440872391ecbe46eb5388fdcef704bd0d1e6d799efd831"
+        },
+        "inheritance_basis": "The same package/reference and exact minimal/dropped bytes support retaining the archived block-level disposition, independently checked against current instructions and retained/omitted consumer code. The new grade log supplies its own full=1/nop=0/confirm=1 scored rc=0 controls; no verdict is inherited by task ID alone.",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/minimal.patch",
+        "minimal_patch_sha256": "1d024848f894751d96e0c99ebc3525d7c275a136fb4a04e1d021499696de6eb7",
+        "minimal_bytes_identical": true,
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/dropped.patch",
+        "dropped_patch_sha256": "8271cf1444eec4cecfb2cb1677e2f22e5f83bd69a94c9808afb00fe52c71dcbc",
+        "dropped_bytes_identical": true,
+        "review_source_hash_matches_atlas": true
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-000783",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783",
+      "package_digest": "sha256:a04ef60e8e701896ceba0b7844d0ff704cd00f84797b44c658993be59154f0b2",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch",
+      "reference_sha256": "c9404306857452820aa9b512e12ddc2f369824a668a1b9016cc34b141532a05d",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/report.json",
+      "report_sha256": "1a3d3c5470d4e1f58026721c17f84990555e4e53445550b4582be309a02d971e",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+      "grades_log_sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md",
+      "instruction_sha256": "f1e5c0a6127f55b2e2b9a746d7e1036fa70f9bb1e5e8114a66b6c8503b2348df",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/task.toml",
+      "task_toml_sha256": "aadfb409bece07582f6d86e283efb4b14022ab84435058fe82597ba538e588ec",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch",
+      "test_patch_sha256": "e72e8ea4ccbffa72f5921e79f22d0b3fef67c0a68fb341f973cae34a750fe6bb",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:fb84e67cd34235f76b6132b5be531cc836cfc08a491f7eb6a0d857966c1c872e",
+      "started_at": "2026-10-21T18:20:29+00:00",
+      "finished_at": "2026-10-21T18:21:27+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.7s",
+          "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 1.2s",
+          "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000783/report.json",
+        "report_sha256": "2ef291b0adbb774142253b96f3f5fa3264465a3517641d5dd0d31c32645924be",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": null,
+      "survivors": [
+        {
+          "id": "9b3411fbf7",
+          "label": "required_gap",
+          "reason": "The accepted mutant opens/truncates the .txt file but replaces its only context write with pass, then passes that empty file to parse_file. The instruction explicitly requires writing the raw context before parsing. A legitimate processor that reads the supplied file therefore receives an empty string rather than the non-empty caller context; if it returns no data, the helper falls back instead of compressing that context. The retained tests use FakeProcessor.parse_file that records the path and returns preset data without reading file contents, so they can accept this missing required work. All 12 tests pass in the recorded mutant grade; the file-content counterexample is static, not an executed new processor.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:3: write raw context to a temporary .txt file, parse it, remove it, then filter",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9b3411fbf7.patch:79-95: the write body is pass; parse_file receives the empty .txt path",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:58-77: FakeProcessor.parse_file returns preset parsed_data and never reads the file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:98-113: success test checks path/removal and filter arguments, not file contents",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:157-178: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:157: == mutant:9b3411fbf7 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 157,
+            "quote": "== mutant:9b3411fbf7 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9b3411fbf7.patch",
+          "patch_sha256": "59205402f817fbc94c4e562e80b7124db517ac172f16110a086ee00d12e137c4",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 322,
+          "end_line": 322,
+          "operator": "drop-statement",
+          "original": "f.write(context)",
+          "replacement": "pass",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "input": "Non-empty context and a processor whose parse_file reads Path(file_path).read_text().",
+            "expected": "The parser sees exactly the supplied context.",
+            "predicted_actual": "The parser sees an empty file.",
+            "fresh_execution": false
+          }
+        },
+        {
+          "id": "d3518ecd0d",
+          "label": "required_gap",
+          "reason": "Changing orig_tokens > 0 to orig_tokens > 1 incorrectly reports ratio=0.0 on a successful compression whose original token count is exactly one. For the explicitly required no-tiktoken fallback, context=\"abcd\" and filtered_text=\"efgh\" each count as len(text)//4 == 1; the required rounded new/orig ratio is 1.0, whereas this accepted patch returns 0.0. The non-empty/parse/filter success paths remain reachable and unchanged. The recorded 12-test pass does not cover this one-token denominator boundary; this arithmetic/input counterexample was not newly executed.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:5: fallback len(text)//4 and successful new_tokens/orig_tokens ratio rounded to four decimals",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch:24-31: fallback token counter returns len(text)//4",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/d3518ecd0d.patch:118-125: orig_tokens==1 now takes ratio=0.0",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:33-40: expected success stats divides for every positive orig_tokens",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:80-138: success fixtures use longer contexts",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:180-201: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:180: == mutant:d3518ecd0d reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 180,
+            "quote": "== mutant:d3518ecd0d reward=1.0 rc=0 scored 1.6s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/d3518ecd0d.patch",
+          "patch_sha256": "48220994404b52ae6a2a487cd8f637b3410d6597b83e710f1c86f923e948abc7",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 361,
+          "end_line": 361,
+          "operator": "integer-shift",
+          "original": "0",
+          "replacement": "1",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "input": {
+              "tiktoken_available": false,
+              "context": "abcd",
+              "processor_parsed_data": {
+                "ok": true
+              },
+              "processor_filtered_text": "efgh"
+            },
+            "expected": {
+              "orig_tokens": 1,
+              "new_tokens": 1,
+              "ratio": 1.0
+            },
+            "predicted_actual": {
+              "orig_tokens": 1,
+              "new_tokens": 1,
+              "ratio": 0.0
+            },
+            "fresh_execution": false
+          }
+        },
+        {
+          "id": "9078484b50",
+          "label": "equivalent_or_optional",
+          "reason": "Only the opening 50-character equals-sign separator in the direct-run demonstration is removed. The demo still prints original/filtered token counts, the compression ratio and the actual filtered text, and the public helper is unchanged. The instruction requires those values, not an exact separator layout; deleting this decoration is not a missing required behavior.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: direct run should print original token count, filtered token count, compression ratio, and filtered text",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9078484b50.patch:161-169: only the opening separator is pass; all required values are printed",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:265-273: demo consumer checks semantic output labels and counts, not separators",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:358: == mutant:9078484b50 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 358,
+            "quote": "== mutant:9078484b50 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9078484b50.patch",
+          "patch_sha256": "042857f62ff6c2a252375741455c121b32f1b3028352b73cedfcc225305e52e8",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 403,
+          "end_line": 403,
+          "operator": "drop-statement",
+          "original": "print(\"=\" * 50)",
+          "replacement": "pass",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "equivalence_scope": "Required helper behavior and all required demo values; stdout is not byte-for-byte equivalent."
+        },
+        {
+          "id": "6675d0beb2",
+          "label": "equivalent_or_optional",
+          "reason": "Only the explicit top_k_per_level supplied by the sample direct-run demonstration changes from 3 to 4. The public helper still has the required default 3 and forwards a caller-supplied top_k_per_level unchanged. The instruction permits a sample context/query and does not require the demo to use a particular k, so this alternate example parameter is optional, not a default/signature defect.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:3: public helper default top_k_per_level=3 and caller parameter forwarding",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: direct run is a small demonstration using a sample context and query",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/6675d0beb2.patch:44-50: public helper default remains 3",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/6675d0beb2.patch:104-109: caller-selected k is still forwarded",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/6675d0beb2.patch:153-169: only the explicit demo sample k is 4; required output remains",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:116-138: public default-k consumer remains covered",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:381: == mutant:6675d0beb2 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 381,
+            "quote": "== mutant:6675d0beb2 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/6675d0beb2.patch",
+          "patch_sha256": "58a6e97a5199b2f08c7c0b26bd2b18204da10b85645d5b74ff2cc2e2ce851fa6",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 399,
+          "end_line": 399,
+          "operator": "integer-shift",
+          "original": "3",
+          "replacement": "4",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "equivalence_scope": "Public helper contract; an unprescribed demonstration parameter differs."
+        },
+        {
+          "id": "acd3d251f0",
+          "label": "equivalent_or_optional",
+          "reason": "The final equals-sign separator is replaced by pass after the filtered text has already been printed. No required statistic, text value, helper return, processor call or cleanup is removed. Exact decorative demo framing is not part of the instruction.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: demo must print four semantic values, not a trailing separator",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/acd3d251f0.patch:161-170: all required values remain; only trailing decoration is absent",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:265-273: demo assertions are about required output, not exact framing",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:475: == mutant:acd3d251f0 reward=1.0 rc=0 scored 1.7s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 475,
+            "quote": "== mutant:acd3d251f0 reward=1.0 rc=0 scored 1.7s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/acd3d251f0.patch",
+          "patch_sha256": "860fa5952b92a065ab1bbbb2af356b588a09a9e3eae858f8afd80a6a7d69777d",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 410,
+          "end_line": 410,
+          "operator": "drop-statement",
+          "original": "print(\"=\" * 50)",
+          "replacement": "pass",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "equivalence_scope": "Required helper/demo values; the optional trailing separator differs."
+        },
+        {
+          "id": "ffd83e6fb4",
+          "label": "equivalent_or_optional",
+          "reason": "The middle demo separator has 51 equals signs instead of 50. The full helper and all four requested demo values are unchanged, including printing filtered_text. No exact separator width is requested, so this stdout formatting difference is optional.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: print the counts, ratio and filtered text",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/ffd83e6fb4.patch:161-169: 51-character separator sits between intact statistics and filtered text",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:265-273: demo consumer does not require a separator width",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:631: == mutant:ffd83e6fb4 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 631,
+            "quote": "== mutant:ffd83e6fb4 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/ffd83e6fb4.patch",
+          "patch_sha256": "7de6880b31a23cee0f783c74fbd0feddc48bad54f844750996af471fa3838b97",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 407,
+          "end_line": 407,
+          "operator": "integer-shift",
+          "original": "50",
+          "replacement": "51",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "equivalence_scope": "Required helper/demo semantics, not exact decorative stdout bytes."
+        },
+        {
+          "id": "b2306b8a5e",
+          "label": "required_gap",
+          "reason": "The sole direct-run demonstration statement printing its returned filtered_text is replaced with pass. The label \"Filtered text:\" remains, but no following statement emits that returned text; the required three statistics alone are not the required fourth value. The instruction explicitly requires the demonstration to print the filtered text, and the helper can return a non-empty filtered result or non-empty original fallback. The packaged direct-run test only checks for the label and numeric-statistic patterns, not the actual text, so all 12 tests accept this omission. This is a source-derived missing output, not a newly observed demo run.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md:7: running module directly should print the filtered text in addition to token counts and ratio",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/b2306b8a5e.patch:153-169: filtered_text is returned into the demo local but its print is replaced by pass",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch:161-169: the original demo prints the label and then the actual returned text",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch:265-273: test asserts the filtered-text label only, not the returned text contents",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:654-675: reward=1 and all 12 tests pass",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:654: == mutant:b2306b8a5e reward=1.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log:542-560: a separate killed demo-output deletion records the SDK-unavailable fallback and the demo text; this is supporting environment evidence, not a replay of b2306b8a5e"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log",
+            "line": 654,
+            "quote": "== mutant:b2306b8a5e reward=1.0 rc=0 scored 1.7s",
+            "sha256": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/b2306b8a5e.patch",
+          "patch_sha256": "153712d98636ca259fb92fe71ea100156d382270adcbfb98ba5863a4e7102ec0",
+          "file": "experiments/LongBench/edu_rerank_example.py",
+          "line": 409,
+          "end_line": 409,
+          "operator": "drop-statement",
+          "original": "print(filtered_text)",
+          "replacement": "pass",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_required_output_counterexample",
+            "scenario": "The direct-run helper returns a non-empty filtered_text.",
+            "expected": "The demonstration prints that returned text as well as the label and statistics.",
+            "predicted_actual": "The demonstration prints the label but suppresses its returned text value.",
+            "fresh_execution": false
+          },
+          "limits": "Accepted mutant stdout is not retained in its passing pytest segment. The predicted missing returned-text output is grounded in the complete added helper/demo body; the separate captured sibling output corroborates the current SDK-unavailable fallback but is not substituted for this witness grade."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 38,
+        "tried": 20,
+        "killed": 13,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 7,
+        "generated_but_unattempted": 18,
+        "grade_records": 20
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-001940",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940",
+      "package_digest": "sha256:cc524a7ddf132ba9a90abf689a8073310c47e38c1f5cdb68a5185aa9e3b5eab0",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001940/solution.patch",
+      "reference_sha256": "593b5fe2b5e4ae622992c62c4294b900ed5e4a4184df510cd6d0603dae467596",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/report.json",
+      "report_sha256": "9a2ab89c1a0b679c68fc430b2a3cb539f65972fc26c867718745aaea278f9aca",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+      "grades_log_sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/minimal.patch",
+      "minimal_patch_sha256": "4212a5beb85c9027bbefa9c6aa86bfad9d47ae2518940b8cd092d334448c8b4c",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/dropped.patch",
+      "dropped_patch_sha256": "12eab9142284a3103eb28f48c6d75c111fde66e5cc87ed843e711e1af0ef7a64",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md",
+      "instruction_sha256": "c946b9b2edd961f0fde0c16d47e08c1abcdc154ff856871161b63cbe28fb86f1",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/task.toml",
+      "task_toml_sha256": "18d0581c6dd091da21cfb5f695237968653822ef4e4b1cebff19292dd3c31b73",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch",
+      "test_patch_sha256": "45ecd9c4331f4eb970fe7470e37518b329840ec45581ebdb663f09cb7aa317ef",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:76e0715e036052d409caf0082b544bbe281cae4ba5e428cdd436404080a04970",
+      "started_at": "2026-10-21T18:25:36+00:00",
+      "finished_at": "2026-10-21T18:26:33+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.8333,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.3s",
+          "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+          "line": 28,
+          "quote": "== nop reward=0.0 rc=0 scored 1.1s",
+          "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+          "line": 257,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.1s",
+          "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/report.json",
+        "report_sha256": "4ffb3c89693b59cc9da3c01640a66980bc15fa37a58bb77cfc4817ee14529553",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The subset retains the complete multiline .pth parser, its comment/import/blank filtering and existing-path checks, and the ModuleFinder consumer that iterates all returned directories. It omits only removal of the now-unused UnhandledPthFileError class and its matching import. Keeping both a defined exception and a valid import has no effect on the new list-returning parser/consumer path; the old raise/suppress usage is already removed by the retained change. This is dead-code cleanup, not an incomplete formatting fix.",
+        "dropped_code": [
+          "src/griffe/exceptions.py#0",
+          "src/griffe/finder.py#0"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/minimal.patch",
+        "witness_sha256": "4212a5beb85c9027bbefa9c6aa86bfad9d47ae2518940b8cd092d334448c8b4c",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: multiline pywin32 .pth text was treated as a single filename",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:49-50: griffe should run successfully with pywin32 installed",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/minimal.patch:5-52: list-producing parser and iterating ModuleFinder consumer both retained",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/dropped.patch:5-25: only obsolete exception definition and import removal omitted",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-123: six .pth acceptance consumers",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:1-62: full=1/nop=0; six cases",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:257-282: exact subset confirm=1; all six cases pass"
+        ],
+        "scope_refutation": "The retained parser returns directories instead of raising UnhandledPthFileError; the retained ModuleFinder loop consumes each directory without consulting that exception. Keeping the class/import cannot change that routing.",
+        "limits": "A neutral cleanup omission is not evidence that all .pth or Windows cases are covered."
+      },
+      "survivors": [
+        {
+          "id": "660f79d423",
+          "label": "required_gap",
+          "reason": "The accepted boolean edit bypasses the comment/import rejection for non-empty lines. For an import line the left conjunction is true; for a comment line the right no-import clause is true. With a legitimate .pth line \"import ignored\" and an existing same-named directory in the current working directory, os.path.exists(line) succeeds, so this patch returns that instruction as a search-path directory and the retained ModuleFinder loop appends it. A same-named \"# ignored\" directory likewise makes a comment leak into search_paths. Such lines are .pth instructions/comments, not directory entries regardless of filesystem coincidences. The required formatting behavior and the packaged consumers explicitly require skipping them. The tests use non-existing comment/import strings, leaving os.path.exists to mask the weakened guard; the recorded mutant still passes all six cases. The existing-directory counterexample is static, not replayed.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: the pywin32 formatting failure contains comments, multiple directory lines and an import statement",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:49-50: pywin32 installation should not break griffe",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch:29-36: ModuleFinder appends every returned directory",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch:68-76: mutated guard precedes an existence check and directories.append",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-48: bogus content, comment markers and import statements should never appear in search_paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:67-99: comment/import test strings are not created as existing paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:284-309: recorded six-test pass under the mutated guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:284: == mutant:660f79d423 reward=1.0 rc=0 scored 1.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+            "line": 284,
+            "quote": "== mutant:660f79d423 reward=1.0 rc=0 scored 1.1s",
+            "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch",
+          "patch_sha256": "6902a33f8ee5968cdd5ae81bfdf98a7b080f51d8d0a2b093daf3fd4908984083",
+          "file": "src/griffe/finder.py",
+          "line": 302,
+          "end_line": 302,
+          "operator": "boolean-operator",
+          "original": "and",
+          "replacement": "or",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "input": {
+              "pth_line": "import ignored",
+              "cwd_contains_directory": "import ignored"
+            },
+            "expected": "Import instruction is excluded from returned directories/search_paths.",
+            "predicted_actual": "The mutated condition is true and the existing directory is appended as a search path.",
+            "fresh_execution": false
+          },
+          "predicate_interpretation": "(line and not startswith(\"#\")) or not import_match"
+        },
+        {
+          "id": "3d876297be",
+          "label": "required_gap",
+          "reason": "The accepted boolean edit bypasses the comment/import rejection for non-empty lines. Every non-empty line makes the first operand true, including comments and import instructions. With a legitimate .pth line \"import ignored\" and an existing same-named directory in the current working directory, os.path.exists(line) succeeds, so this patch returns that instruction as a search-path directory and the retained ModuleFinder loop appends it. A same-named \"# ignored\" directory likewise makes a comment leak into search_paths. Such lines are .pth instructions/comments, not directory entries regardless of filesystem coincidences. The required formatting behavior and the packaged consumers explicitly require skipping them. The tests use non-existing comment/import strings, leaving os.path.exists to mask the weakened guard; the recorded mutant still passes all six cases. The existing-directory counterexample is static, not replayed.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: the pywin32 formatting failure contains comments, multiple directory lines and an import statement",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:49-50: pywin32 installation should not break griffe",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch:29-36: ModuleFinder appends every returned directory",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch:68-76: mutated guard precedes an existence check and directories.append",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-48: bogus content, comment markers and import statements should never appear in search_paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:67-99: comment/import test strings are not created as existing paths",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:448-473: recorded six-test pass under the mutated guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:448: == mutant:3d876297be reward=1.0 rc=0 scored 1.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+            "line": 448,
+            "quote": "== mutant:3d876297be reward=1.0 rc=0 scored 1.1s",
+            "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch",
+          "patch_sha256": "c678ec15cd24a2758f8398e27f24aa4ffe8b50b73643a0749075a740d0d2292b",
+          "file": "src/griffe/finder.py",
+          "line": 302,
+          "end_line": 302,
+          "operator": "boolean-operator",
+          "original": "and",
+          "replacement": "or",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "input": {
+              "pth_line": "import ignored",
+              "cwd_contains_directory": "import ignored"
+            },
+            "expected": "Import instruction is excluded from returned directories/search_paths.",
+            "predicted_actual": "The mutated condition is true and the existing directory is appended as a search path.",
+            "fresh_execution": false
+          },
+          "predicate_interpretation": "line or (not startswith(\"#\") and not import_match)"
+        },
+        {
+          "id": "79adaaf268",
+          "label": "equivalent_or_optional",
+          "reason": "Preserving line terminators during splitlines is exactly neutralized by line=line.strip() before every predicate, filesystem lookup and Path construction. For every read text, each resulting line has the same normalized value as with keepends=False, including blank lines and CR/LF variants. The returned directory list and consuming ModuleFinder behavior are therefore unchanged; no required formatting case is lost.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md:5-22: multiline .pth formatting is the requirement",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/79adaaf268.patch:68-76: keepends=True is immediately followed by strip() before all uses",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001940/solution.patch:68-76: reference uses the identical normalization/guard/consumer after splitting",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch:20-123: all required .pth cases operate on normalized lines",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log:384: == mutant:79adaaf268 reward=1.0 rc=0 scored 1.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log",
+            "line": 384,
+            "quote": "== mutant:79adaaf268 reward=1.0 rc=0 scored 1.1s",
+            "sha256": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/79adaaf268.patch",
+          "patch_sha256": "32e30bc5bbb2570700eaaecbd38aeb2d642eb00e7bc3f4cc8909357dd81f40da",
+          "file": "src/griffe/finder.py",
+          "line": 300,
+          "end_line": 300,
+          "operator": "boolean-constant",
+          "original": "False",
+          "replacement": "True",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "equivalence_scope": "All string inputs to the shown splitlines/strip parser; only discarded line terminator intermediates differ."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 9,
+        "tried": 9,
+        "killed": 6,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 3,
+        "generated_but_unattempted": 0,
+        "grade_records": 9
+      },
+      "archived_block_binding": {
+        "label": "neutral",
+        "review_source": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockC.json",
+          "sha256": "2bd3f9ab8ac1ffbac69d6ef0354c08e6ffa07c71959397d49cf9266d63b12cc8"
+        },
+        "inheritance_basis": "The same package/reference and exact minimal/dropped bytes support retaining the archived block-level disposition, independently checked against current instructions and retained/omitted consumer code. The new grade log supplies its own full=1/nop=0/confirm=1 scored rc=0 controls; no verdict is inherited by task ID alone.",
+        "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/minimal.patch",
+        "minimal_patch_sha256": "4212a5beb85c9027bbefa9c6aa86bfad9d47ae2518940b8cd092d334448c8b4c",
+        "minimal_bytes_identical": true,
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/dropped.patch",
+        "dropped_patch_sha256": "12eab9142284a3103eb28f48c6d75c111fde66e5cc87ed843e711e1af0ef7a64",
+        "dropped_bytes_identical": true,
+        "review_source_hash_matches_atlas": true
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    },
+    {
+      "task_id": "format-code-task-000651",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651",
+      "package_digest": "sha256:0763948829e0abb21323857d1930ecb4c1e5781bb803dd333cb3cfbb1a0b0eed",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch",
+      "reference_sha256": "f0559e1af95859c6fc229d5a11b7786cc3c9cc381418c8a352e732f6f0006678",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/report.json",
+      "report_sha256": "c36f367282e8ef91e9e6b619d5458d92cc68db1d398b296ae4b5137b186007d0",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+      "grades_log_sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md",
+      "instruction_sha256": "1abeaedf5232697ad9a04cf94fe4d176e1026f61269afa84380af156e2985edb",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/task.toml",
+      "task_toml_sha256": "b73af982ef99bbbf9d1c568451c055b5ff6052d976e7497f9b02033835a6e6a7",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch",
+      "test_patch_sha256": "5e525a5dd24de982346018126510a50a87496eabac3a9a05e234b12622b484cc",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:65a455484d275ff35b7fd4f5fdaf9e9341c33935f83abcdb43a214c8cbbacda3",
+      "started_at": "2026-10-21T18:26:39+00:00",
+      "finished_at": "2026-10-21T18:27:35+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.6s",
+          "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+          "line": 13,
+          "quote": "== nop reward=0.0 rc=0 scored 1.4s",
+          "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Package path and reported package digest are the immutable measured identity and match the frozen plan and atlas. Individual cited files were hashed; no package recomposition or image extraction was performed."
+      },
+      "archived_primary_binding": {
+        "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000651/report.json",
+        "report_sha256": "b8b63d74aeb844f475b35f6e6c29716c7b0726c9ee5e0be13c50daab9c288df8",
+        "report_hash_matches_atlas": true,
+        "package_digest_matches_current_report": true,
+        "reference_hash_matches_current_report": true
+      },
+      "block": null,
+      "survivors": [
+        {
+          "id": "d1ee8c44ea",
+          "label": "uncertain",
+          "reason": "Negating the initialized-data condition routes a non-empty array such as shape (1,), value [7], to the placeholder \"[], shape=(1,)\" branch instead of numpy.array2string; it can also omit zero-length multidimensional shape reporting. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d1ee8c44ea.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:162-172: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:162: == mutant:d1ee8c44ea reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 162,
+            "quote": "== mutant:d1ee8c44ea reward=1.0 rc=0 scored 1.5s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d1ee8c44ea.patch",
+          "patch_sha256": "922f726b66dd5e176647a259b7772ae7dd20173aa53bb0bb5f34d0267e9e6757",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "negate-condition",
+          "original": "arr.size > 0 or arr.shape == (0,)",
+          "replacement": "not (arr.size > 0 or arr.shape == (0,))",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized non-empty array with one element",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        },
+        {
+          "id": "57ebf75b78",
+          "label": "uncertain",
+          "reason": "Changing size > 0 to size > 1 routes a one-element initialized array to the \"[], shape=...\" placeholder instead of formatting its value. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/57ebf75b78.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:248-258: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:248: == mutant:57ebf75b78 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 248,
+            "quote": "== mutant:57ebf75b78 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/57ebf75b78.patch",
+          "patch_sha256": "2b1e20dfe9361b647ff27870af2aea856b60cf8c3dc6cd04e6606f3bb49f37c6",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "integer-shift",
+          "original": "0",
+          "replacement": "1",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized one-element array",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        },
+        {
+          "id": "d23dcca918",
+          "label": "uncertain",
+          "reason": "Replacing or with and makes the array2string condition impossible for a NumPy array: shape (0,) has size zero, while positive size cannot have shape (0,). All initialized arrays therefore take the shape placeholder, including non-empty arrays. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d23dcca918.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:260-270: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:260: == mutant:d23dcca918 reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 260,
+            "quote": "== mutant:d23dcca918 reward=1.0 rc=0 scored 1.5s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d23dcca918.patch",
+          "patch_sha256": "3b8dd781da36b45a9c1566678f53cbdd205ff10607fefa76f48c09428524785a",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "boolean-operator",
+          "original": "or",
+          "replacement": "and",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized non-empty array",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        },
+        {
+          "id": "2e4b35d132",
+          "label": "uncertain",
+          "reason": "Changing size > 0 to size >= 0 makes the condition true for all initialized NumPy arrays. A zero-length multidimensional array such as shape (0, 2) now uses array2string instead of the shape-bearing placeholder. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/2e4b35d132.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:272-282: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:272: == mutant:2e4b35d132 reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 272,
+            "quote": "== mutant:2e4b35d132 reward=1.0 rc=0 scored 1.5s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/2e4b35d132.patch",
+          "patch_sha256": "c6453c16d7be7a55233624e7334f148fea465bc52b17c6434534d2d2366ee535",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "boundary",
+          "original": ">",
+          "replacement": ">=",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized zero-length multidimensional array with shape (0, 2)",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        },
+        {
+          "id": "ea61c6d1e8",
+          "label": "uncertain",
+          "reason": "Replacing shape == (0,) with shape != (0,) changes empty-array formatting: a shape-(0,) array now takes the shape-bearing placeholder, while shape-(0, 2) uses array2string rather than the shape-bearing placeholder. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/ea61c6d1e8.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:284-294: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:284: == mutant:ea61c6d1e8 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 284,
+            "quote": "== mutant:ea61c6d1e8 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/ea61c6d1e8.patch",
+          "patch_sha256": "da591d7a04e004e14f84fda699ffc59e28ff486b35caef1e8ed4dc3baeb50827",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "negate-compare",
+          "original": "==",
+          "replacement": "!=",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized empty array with shape (0,) or (0, 2)",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        },
+        {
+          "id": "16c25d8047",
+          "label": "uncertain",
+          "reason": "Changing the special-case shape from (0,) to (1,) sends an empty one-dimensional array to \"[], shape=(0,)\" instead of its former array2string representation. Positive-sized arrays still satisfy size > 0. However, this mutation is in an elif after the intact arr is None guard, so the exact uninitialized-data bug described in the instruction remains fixed for both named and unnamed variables. All four recorded acceptance tests exercise only None data and pass. The shown reference/patch context establishes a real initialized-data behavior difference, not global equivalence, but the supplied instruction does not expressly specify initialized-array repr preservation and the complete pre-existing public repr tests/source are not present in the inspected task evidence. Without that broader consumer/contract binding, this review neither promotes the initialized-data regression to a required task gap nor declares it optional/harmless. The uncertainty is requirement scope, not whether the accepted grade is positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md:3-34: the specified failure is repr on Variable whose data is None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/16c25d8047.patch:5-17: the None branch remains first; only the initialized-data elif changes",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch:5-17: reference retains the original initialized-data predicate and adds a None guard",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:14-40: only added named/unnamed None-data repr/str cases are supplied; pre-existing initialized class is context only",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch:48-56: verifier runs only TestUninitializedVariableToString",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:296-306: all four uninitialized-data tests pass in this positive mutant grade",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log:296: == mutant:16c25d8047 reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log",
+            "line": 296,
+            "quote": "== mutant:16c25d8047 reward=1.0 rc=0 scored 1.5s",
+            "sha256": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/16c25d8047.patch",
+          "patch_sha256": "613d1afa38aba60a81ea702bfa8bab9f1df80046a7431f2e19fd1e223c528921",
+          "file": "chainer/variable.py",
+          "line": 80,
+          "end_line": 80,
+          "operator": "integer-shift",
+          "original": "0",
+          "replacement": "1",
+          "patch_read_scope": "Read the entire accepted patch and compared its complete retained implementation with the reference. Apart from git index metadata, its sole content difference is the reported edit.",
+          "fresh_execution": false,
+          "counterexample": {
+            "kind": "static_initialized_data_difference_not_promoted",
+            "scenario": "initialized empty one-dimensional array with shape (0,)",
+            "contract_binding": "Not bound to an explicit required initialized-data preservation assertion in the supplied instruction or inspected full consumer sources.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The exact-base initialized-array public repr expectations or another explicit task-contract preservation requirement; no new execution or image extraction is authorized.",
+          "scope_of_unknown": "Whether the changed pre-existing initialized-array behavior is a required acceptance obligation for this narrow None-data fix, not the already-established positive control/grade."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 8,
+        "tried": 8,
+        "killed": 2,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 6,
+        "generated_but_unattempted": 0,
+        "grade_records": 8
+      },
+      "limits": [
+        "Review concerns only the reported block candidate (if any) and reported line survivors. Non-survivor grades and unattempted mutants are not new semantic findings.",
+        "Reported package identity is hash-bound to immutable plan/atlas metadata; cited file bytes are individually hashed, but the package directory digest was not recomputed.",
+        "No controls, Docker, remote/model APIs, builds, tests, linters, formatters, producer runs or commits were executed for this review. Parent owns admission/integration."
+      ]
+    }
+  ],
+  "evidence_file_sha256": {
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000156/solution.patch": "c487b74f5d06554e0dc63310e0e70fa43e2700ac8e846cabe887ad96da582b1f",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000812/solution.patch": "4fd173b54b2ece33a194a7f9b6a3e717563770ffa490626268a0c88d1b071f56",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001615/solution.patch": "877fb5f0616d936e245607c70c29349b1e7a47c3e6ace216b6f3c03a8ad8789b",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001940/solution.patch": "593b5fe2b5e4ae622992c62c4294b900ed5e4a4184df510cd6d0603dae467596",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002412/solution.patch": "8338f8e2c11429b7592d5e83e02e7671ba0c065124ddeba5d047ce05017270e6",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000651/solution.patch": "f0559e1af95859c6fc229d5a11b7786cc3c9cc381418c8a352e732f6f0006678",
+    "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000783/solution.patch": "c9404306857452820aa9b512e12ddc2f369824a668a1b9016cc34b141532a05d",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/dropped.patch": "709c1e2207e96ce8656cf2e7478262718feaf341d5cca390f4f9e665178bb123",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/grades.log": "7be3ad2b77a5cfc55ed46a2d6b19668c8519eab33c00867596c1a8696cf988ff",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/minimal.patch": "a3650c507ac96835b5ca9170c5b8124238827134245e505f1895c2cb7ae9ad83",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000156/report.json": "57ead11ba5a1fcabfa67b29d439f178508185e1ef081e6b05187cbe67ea5801c",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/grades.log": "51f73d22daf337692621b5a7f92c490514954d868e2076a02e668393eb0a59c1",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/16c25d8047.patch": "613d1afa38aba60a81ea702bfa8bab9f1df80046a7431f2e19fd1e223c528921",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/2e4b35d132.patch": "c6453c16d7be7a55233624e7334f148fea465bc52b17c6434534d2d2366ee535",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/57ebf75b78.patch": "2b1e20dfe9361b647ff27870af2aea856b60cf8c3dc6cd04e6606f3bb49f37c6",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d1ee8c44ea.patch": "922f726b66dd5e176647a259b7772ae7dd20173aa53bb0bb5f34d0267e9e6757",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/d23dcca918.patch": "3b8dd781da36b45a9c1566678f53cbdd205ff10607fefa76f48c09428524785a",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/mutants/ea61c6d1e8.patch": "da591d7a04e004e14f84fda699ffc59e28ff486b35caef1e8ed4dc3baeb50827",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000651/report.json": "c36f367282e8ef91e9e6b619d5458d92cc68db1d398b296ae4b5137b186007d0",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/grades.log": "38bcc6227e05e59c0745b14ea9b0d197ad290e09e6c22a01f1ff11888c4a9f13",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/6675d0beb2.patch": "58a6e97a5199b2f08c7c0b26bd2b18204da10b85645d5b74ff2cc2e2ce851fa6",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9078484b50.patch": "042857f62ff6c2a252375741455c121b32f1b3028352b73cedfcc225305e52e8",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/9b3411fbf7.patch": "59205402f817fbc94c4e562e80b7124db517ac172f16110a086ee00d12e137c4",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/acd3d251f0.patch": "860fa5952b92a065ab1bbbb2af356b588a09a9e3eae858f8afd80a6a7d69777d",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/b2306b8a5e.patch": "153712d98636ca259fb92fe71ea100156d382270adcbfb98ba5863a4e7102ec0",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/d3518ecd0d.patch": "48220994404b52ae6a2a487cd8f637b3410d6597b83e710f1c86f923e948abc7",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/mutants/ffd83e6fb4.patch": "7de6880b31a23cee0f783c74fbd0feddc48bad54f844750996af471fa3838b97",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000783/report.json": "1a3d3c5470d4e1f58026721c17f84990555e4e53445550b4582be309a02d971e",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/dropped.patch": "9325dc0c3b00d9d60dc97f4ccac542262e257c55fa9de63e5d4c32b3052c1141",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/grades.log": "fcfcfe24f590cd18e05577e17d8a391e1cd53ee868d80e666c122fc71bc39563",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/minimal.patch": "a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000812/report.json": "afdeaea1e9836bf3fe26502b9bbc12a584da121dedaf129f7653f20216f28545",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/dropped.patch": "4662eb194b70070e38aec2c1907d49adc27d5127e831a00d616ff9b9a297f080",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/grades.log": "5240bd958928cfd6f0c5b7beb7a8e5bbf2d8b2c0098d8ba03d8e84ba7c313621",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/minimal.patch": "2cad6f4a2d8bbc7e0ddf5845a27eeb99550b8b8dc17ff0d97e170fea80bd57c8",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001615/report.json": "0802a49c2464d57c3b0fff7071111aa6e9ae378d9bc03f89087b7f266e912eae",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/dropped.patch": "12eab9142284a3103eb28f48c6d75c111fde66e5cc87ed843e711e1af0ef7a64",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/grades.log": "0672adf042d5750355c038eae562db0fb53f81a9be46eab098e507739ca0a280",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/minimal.patch": "4212a5beb85c9027bbefa9c6aa86bfad9d47ae2518940b8cd092d334448c8b4c",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/3d876297be.patch": "c678ec15cd24a2758f8398e27f24aa4ffe8b50b73643a0749075a740d0d2292b",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/660f79d423.patch": "6902a33f8ee5968cdd5ae81bfdf98a7b080f51d8d0a2b093daf3fd4908984083",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/mutants/79adaaf268.patch": "32e30bc5bbb2570700eaaecbd38aeb2d642eb00e7bc3f4cc8909357dd81f40da",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001940/report.json": "9a2ab89c1a0b679c68fc430b2a3cb539f65972fc26c867718745aaea278f9aca",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/dropped.patch": "8271cf1444eec4cecfb2cb1677e2f22e5f83bd69a94c9808afb00fe52c71dcbc",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/grades.log": "c7b4dc7493d019474633ede0734b06aaf011df4401b86bdf57d9a771513946e4",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/minimal.patch": "1d024848f894751d96e0c99ebc3525d7c275a136fb4a04e1d021499696de6eb7",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002412/report.json": "73ea2ae4ecb6630a9401bfec254e6c0d398fd9121527dfe39c05f2dfa1ff2d24",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/batch9.jsonl": "724a35b5ea59220428ab0c03a35afb7ffaae38e3673946d752c7805c99aadef6",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockB.json": "d7c5cec7795dacd226ca8b000ad68cb9e3bc7611e8c5df2fe94008a5a5e6817d",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockC.json": "2bd3f9ab8ac1ffbac69d6ef0354c08e6ffa07c71959397d49cf9266d63b12cc8",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/_triage/overnight-2026-10-17/block-review-AtlasBlockD.json": "0440ce9adf002e23df440872391ecbe46eb5388fdcef704bd0d1e6d799efd831",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/dropped.patch": "709c1e2207e96ce8656cf2e7478262718feaf341d5cca390f4f9e665178bb123",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/minimal.patch": "a3650c507ac96835b5ca9170c5b8124238827134245e505f1895c2cb7ae9ad83",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000156/report.json": "f857515b87f71065bb0132e95eaa9dab55eeefb41908a38178b18a701de42a77",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000651/report.json": "b8b63d74aeb844f475b35f6e6c29716c7b0726c9ee5e0be13c50daab9c288df8",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000783/report.json": "2ef291b0adbb774142253b96f3f5fa3264465a3517641d5dd0d31c32645924be",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/dropped.patch": "9325dc0c3b00d9d60dc97f4ccac542262e257c55fa9de63e5d4c32b3052c1141",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/minimal.patch": "a13484aa3da5ebebdcd3fa3407b2977424e3ba228ad350f709b32ac663161aa3",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-000812/report.json": "cba9da2e47f7218fdcda9d03c67aea26d0c1c4ffd61417eccac68b72198a224a",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/dropped.patch": "4662eb194b70070e38aec2c1907d49adc27d5127e831a00d616ff9b9a297f080",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/minimal.patch": "2cad6f4a2d8bbc7e0ddf5845a27eeb99550b8b8dc17ff0d97e170fea80bd57c8",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001615/report.json": "df770c01eb39f72e81e368be2171538bf31658293a7cc0a5085a79c53aff68a6",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/dropped.patch": "12eab9142284a3103eb28f48c6d75c111fde66e5cc87ed843e711e1af0ef7a64",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/minimal.patch": "4212a5beb85c9027bbefa9c6aa86bfad9d47ae2518940b8cd092d334448c8b4c",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-001940/report.json": "4ffb3c89693b59cc9da3c01640a66980bc15fa37a58bb77cfc4817ee14529553",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/dropped.patch": "8271cf1444eec4cecfb2cb1677e2f22e5f83bd69a94c9808afb00fe52c71dcbc",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/minimal.patch": "1d024848f894751d96e0c99ebc3525d7c275a136fb4a04e1d021499696de6eb7",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/mimo-v2.6-rl-code/format-code-task-002412/report.json": "7216c63356c9cff44b20818a5bcdc25bc5573a44cfaa554e7e22802e5340ef72",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/instruction.md": "316f44c143c1f947603b1cdb411efc3f5f466850cd0d9b2a9280bd9ed305913a",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/task.toml": "d094c181b1b3ac614bba59cb77c2f6e4561e2dcecd11060e0c6fd71f6dad4f3c",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000156/tests/test.patch": "b2fa836464ec19134149e9c463cb18d137b9a855ffdd4b7dc0b1120b321ae606",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/instruction.md": "1abeaedf5232697ad9a04cf94fe4d176e1026f61269afa84380af156e2985edb",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/task.toml": "b73af982ef99bbbf9d1c568451c055b5ff6052d976e7497f9b02033835a6e6a7",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000651/tests/test.patch": "5e525a5dd24de982346018126510a50a87496eabac3a9a05e234b12622b484cc",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/instruction.md": "f1e5c0a6127f55b2e2b9a746d7e1036fa70f9bb1e5e8114a66b6c8503b2348df",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/task.toml": "aadfb409bece07582f6d86e283efb4b14022ab84435058fe82597ba538e588ec",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000783/tests/test.patch": "e72e8ea4ccbffa72f5921e79f22d0b3fef67c0a68fb341f973cae34a750fe6bb",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/instruction.md": "fe07934d5d7cb7b659fcf624a301fae991197711e60f4780a5a71f7645827ddc",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/task.toml": "3bc6d692ff2f8e5fc5b083f484dfb5a466b9132c1d59f2fe6e6d87bf7e3840d2",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000812/tests/test.patch": "40d3e4418a50308cb7b9dc3ce9f4d0260bceca2b85df854996ee1e6830ea416b",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/instruction.md": "0748439911098e2d079167bf150da9f2656a7e0697bb523b3e07995885941e0c",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/task.toml": "200c224f8730cb7a6a785bba528ec5b19fa5ec11615cb6272f8a2a40cc25e978",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001615/tests/test.patch": "82bfa8113171e7e7574f103458c1fa624cdd0c32d3e940e586680587a837f62a",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/instruction.md": "c946b9b2edd961f0fde0c16d47e08c1abcdc154ff856871161b63cbe28fb86f1",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/task.toml": "18d0581c6dd091da21cfb5f695237968653822ef4e4b1cebff19292dd3c31b73",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001940/tests/test.patch": "45ecd9c4331f4eb970fe7470e37518b329840ec45581ebdb663f09cb7aa317ef",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/instruction.md": "dc246b05f58f8a323f841cd003abbc15428f9b8016930b5b3923d130e1e3b0b7",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/task.toml": "eed41099212d023e3cbd44b0db92813d34e2eb8c99867663725449f289e26d70",
+    "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002412/tests/test.patch": "e4e4dd4e4b3f68a0e0a2308d17218d74dc65a476ceb3b2075000f6d561c8d5bb",
+    "research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+  }
+}

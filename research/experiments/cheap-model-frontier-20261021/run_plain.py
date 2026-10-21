@@ -41,11 +41,21 @@ DEV_TASKS = ('cargo-flight-dispatch', 'html-js-filter', 'protein-autointerp-disu
 MAX_TOOLS = 60
 MAX_SECONDS = 900
 MAX_OUTPUT = 8000
-SCHEMA = {'type': 'object', 'properties': {
-    'requests': {'type': 'array', 'maxItems': 8, 'items': {'type': 'object', 'properties': {
-        'tool': {'enum': ['read', 'grep']}, 'args': {'type': 'object'}},
-        'required': ['tool', 'args'], 'additionalProperties': False}},
-    'final': {'type': 'object'}}, 'additionalProperties': False}
+VERSION = 'json-v2'
+
+
+def action_schema(tools: tuple[str, ...]) -> dict:
+    return {'type': 'object', 'properties': {
+        'requests': {'type': 'array', 'minItems': 1, 'maxItems': 8,
+                     'items': {'type': 'object', 'properties': {
+                         'tool': {'enum': list(tools)}, 'args': {'type': 'object'}},
+                         'required': ['tool', 'args'], 'additionalProperties': False}},
+        'final': {'type': 'object'}},
+        'oneOf': [{'required': ['requests']}, {'required': ['final']}],
+        'additionalProperties': False}
+
+
+SCHEMA = action_schema(('read', 'grep'))
 ADAPTER = """
 Hosted transport adaptation (the review objective and output fields above are unchanged):
 There is no shell, execution, Python, network or filesystem access outside the assigned
@@ -76,6 +86,27 @@ def load_module(name: str, path: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def configuration_root(out: Path, protocol: str, model: dict) -> Path:
+    return out / protocol / model['slug'] / VERSION
+
+
+def parse_action(value: Any) -> tuple[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError('expected one JSON action object')
+    # Metadata such as requests_count is inert; only one actionable field is allowed.
+    actions = set(value) & {'requests', 'final'}
+    if len(actions) != 1:
+        raise ValueError('expected exactly one requests or final action')
+    if 'final' in actions:
+        if not isinstance(value['final'], dict):
+            raise ValueError('final must be an object')
+        return 'final', value['final']
+    requests = value['requests']
+    if not isinstance(requests, list) or not 1 <= len(requests) <= 8:
+        raise ValueError('expected one to eight tool requests')
+    return 'requests', requests
 
 
 def prepare(out: Path) -> dict[str, Any]:
@@ -149,15 +180,15 @@ def reserve(out: Path, model: dict, payload: dict, identity: str) -> tuple[str, 
             raise BudgetExhausted('CM-1 lifetime $4 ceiling; no request dispatched')
         call_id = f"cm1-{sum(e['event'] == 'started' for e in events) + 1:06d}"
         _append_event(journal, {'event': 'started', 'at': now(), 'call_id': call_id,
-                               'identity': identity, 'model': model['id'],
+                               'identity': identity, 'model': model['id'], 'adapter_version': VERSION,
                                'request_sha256': digest(_json(payload).encode()),
                                'reserved_nano': amount, 'input_token_bound': bound,
                                'output_token_bound': payload['max_tokens']})
     return call_id, amount
 
 
-def reported_generation(transport: OpenAIInvestigator, request_id: str) -> dict:
-    """One free metadata GET; no retry and no invented zero for absent billing."""
+def reported_generation(transport: OpenAIInvestigator, request_id: str, model: dict) -> dict:
+    """One free metadata GET, bound to public canonical identity and pinned provider."""
     query = urllib.parse.urlencode({'id': request_id})
     req = urllib.request.Request(
         f'https://openrouter.ai/api/v1/generation?{query}',
@@ -169,13 +200,58 @@ def reported_generation(transport: OpenAIInvestigator, request_id: str) -> dict:
             raise ValueError('generation metadata unavailable')
     value = json.loads(raw)['data']
     cost = value.get('total_cost')
-    if value.get('id') != request_id or value.get('model') != transport.model:
+    if (value.get('id') != request_id or value.get('model') != model['canonical_id']
+            or value.get('provider_name') != model['billing_provider']):
         raise ValueError('generation identity mismatch')
     if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost < 0:
         raise ValueError('generation billed total_cost unavailable')
     return {key: value.get(key) for key in ('id', 'model', 'provider_name', 'total_cost',
                                            'native_tokens_prompt', 'native_tokens_completion',
                                            'tokens_prompt', 'tokens_completion', 'latency')}
+
+
+def settle_call(out: Path, model: dict, transport: OpenAIInvestigator,
+                call_id: str, request_id: str, amount: int) -> bool:
+    try:
+        receipt = reported_generation(transport, request_id, model)
+    except Exception as exc:
+        _append_event(out / 'cost.jsonl', {'event': 'billing_unavailable', 'call_id': call_id,
+                                         'at': now(), 'error_type': type(exc).__name__,
+                                         'http_status': getattr(exc, 'code', None)})
+        return False
+    cost = nano(Decimal(str(receipt['total_cost'])))
+    with _state_lock(out / 'cost.lock'):
+        events = [json.loads(line) for line in (out / 'cost.jsonl').read_text().splitlines()]
+        if any(e['event'] == 'settled' and e['call_id'] == call_id for e in events):
+            return True
+        if cost > amount:
+            _append_event(out / 'cost.jsonl', {'event': 'hold', 'call_id': call_id, 'at': now(),
+                                             'reason': 'reported cost exceeded reservation'})
+        _append_event(out / 'cost.jsonl', {'event': 'settled', 'call_id': call_id, 'at': now(),
+                                         'cost_nano': cost, 'cost_basis': 'openrouter_generation.total_cost',
+                                         'receipt': receipt})
+    if cost > amount:
+        raise BudgetExhausted('reported reservation breach; campaign held')
+    return True
+
+
+def reconcile_model(out: Path, model: dict, transport: OpenAIInvestigator) -> int:
+    with _state_lock(out / 'cost.lock'):
+        events = [json.loads(line) for line in (out / 'cost.jsonl').read_text().splitlines()]
+    settled = {e['call_id'] for e in events if e['event'] == 'settled'}
+    reconciled = 0
+    for event in events:
+        if event['event'] != 'started' or event['model'] != model['id'] or event['call_id'] in settled:
+            continue
+        response_path = out / 'calls' / f"{event['call_id']}-response.json"
+        if not response_path.exists():
+            continue
+        response = json.loads(response_path.read_text())
+        if response.get('returned_model') != model['id'] or not response.get('request_id'):
+            continue
+        reconciled += settle_call(out, model, transport, event['call_id'], response['request_id'],
+                                 event['reserved_nano'])
+    return reconciled
 
 
 def complete(out: Path, model: dict, transport: OpenAIInvestigator, messages: list, identity: str,
@@ -197,28 +273,14 @@ def complete(out: Path, model: dict, transport: OpenAIInvestigator, messages: li
     _write_json(out / 'calls' / f'{call_id}-response.json', result.__dict__)
     if result.returned_model != model['id']:
         raise ValueError('returned model mismatch; no fallback admitted')
-    try:
-        receipt = reported_generation(transport, result.request_id) if result.request_id else None
-    except Exception as exc:
-        receipt = None
-        _append_event(out / 'cost.jsonl', {'event': 'billing_unavailable', 'call_id': call_id,
-                                         'at': now(), 'error_type': type(exc).__name__})
-    if receipt is not None:
-        cost = nano(Decimal(str(receipt['total_cost'])))
-        with _state_lock(out / 'cost.lock'):
-            if cost > amount:
-                _append_event(out / 'cost.jsonl', {'event': 'hold', 'call_id': call_id, 'at': now(),
-                                                 'reason': 'reported cost exceeded reservation'})
-            _append_event(out / 'cost.jsonl', {'event': 'settled', 'call_id': call_id, 'at': now(),
-                                             'cost_nano': cost, 'cost_basis': 'openrouter_generation.total_cost',
-                                             'receipt': receipt})
-        if cost > amount:
-            raise BudgetExhausted('reported reservation breach; campaign held')
+    if result.request_id:
+        settle_call(out, model, transport, call_id, result.request_id, amount)
     return result
 
 
 def frozen_config(out: Path, model: dict) -> dict:
     return {'schema': 'cm1.plain.freeze/v1', 'model': model, 'protocol': '1119-read-grep-json-adapter',
+            'adapter_version': VERSION,
             'prompt_sha256': digest(system_prompt(out).encode()),
             'runner_sha256': digest(Path(__file__).read_bytes()),
             'input_custody': json.loads((out / 'input-custody.json').read_text()),
@@ -243,7 +305,7 @@ def validate_final(value: Any, aid: str) -> dict:
 
 def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInvestigator) -> dict:
     aid = 'r-' + hashlib.sha256(f'tb4-reader:20261020:{task}'.encode()).hexdigest()[:8]
-    dest = out / 'plain' / model['slug'] / split / aid
+    dest = configuration_root(out, 'plain', model) / split / aid
     dest.mkdir(parents=True, exist_ok=True)
     with (dest / 'dispatch-claim.json').open('x') as claim:
         claim.write(_json({'at': now(), 'task': task, 'split': split, 'model': model, 'aid': aid}) + '\n')
@@ -262,15 +324,13 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
                 raise TimeoutError('900-second task limit')
             result = complete(out, model, transport, messages, f"plain/{model['slug']}/{split}/{aid}/{turn}")
             messages.append({'role': 'assistant', 'content': result.content})
-            action = json.loads(result.content)
-            if set(action) == {'final'}:
-                final = validate_final(action['final'], aid)
+            kind, action = parse_action(json.loads(result.content))
+            if kind == 'final':
+                final = validate_final(action, aid)
                 _write_json(dest / 'final.json', final)
                 status = 'complete' if final['task_verdict'] != 'cannot_tell' else 'abstained'
                 break
-            requests = action.get('requests')
-            if set(action) != {'requests'} or not isinstance(requests, list) or not 1 <= len(requests) <= 8:
-                raise ValueError('expected bounded read/grep batch or final')
+            requests = action
             observations = []
             for request in requests:
                 if calls >= MAX_TOOLS:
@@ -287,8 +347,8 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
     except Exception as exc:
         error = {'type': type(exc).__name__, 'message': str(exc) if not isinstance(exc, OSError) else 'provider or filesystem I/O failed'}
     record = {'schema': 'cm1.plain.task/v1', 'task': task, 'aid': aid, 'split': split,
-              'model': model['id'], 'status': status, 'error': error, 'tool_calls': calls,
-              'seconds': round(time.monotonic() - started, 3)}
+              'model': model['id'], 'adapter_version': VERSION, 'status': status,
+              'error': error, 'tool_calls': calls, 'seconds': round(time.monotonic() - started, 3)}
     _write_json(dest / 'status.json', record)
     print(_json(record), flush=True)
     return record
@@ -310,7 +370,7 @@ def main() -> None:
     if model is None:
         parser.error('select an explicit models.json slug')
     config = frozen_config(args.out, model)
-    campaign = args.out / 'plain' / model['slug']
+    campaign = configuration_root(args.out, 'plain', model)
     freeze_path = campaign / 'freeze.json'
     if freeze_path.exists():
         if json.loads(freeze_path.read_text()) != config:
@@ -330,6 +390,7 @@ def main() -> None:
                                    provider=model['provider'], reasoning=model['reasoning'])
     for task in tasks:
         status = run_task(args.out, model, args.split, task, transport)
+        reconcile_model(args.out, model, transport)
         if status['error'] is not None:
             break  # no automatic retry or TEST relaunch after a possibly paid failure
 

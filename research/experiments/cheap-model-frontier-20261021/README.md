@@ -33,8 +33,9 @@ Every request is durably reserved **before** networking in one campaign-wide
 tokens and maximum completion tokens are priced at pinned uncached rates. The
 lifetime ceiling is **$4 across all configurations/protocols**, not $4 per model.
 Failures and missing billing retain their full reservation. A successful free
-OpenRouter generation-metadata GET may settle a call using the matching request
-ID/model's reported `total_cost`; estimates are never labelled billed dollars.
+OpenRouter generation-metadata GET may settle a call using its matching request
+ID, publicly bound canonical model ID, pinned provider and reported `total_cost`;
+estimates are never labelled billed dollars.
 An observed cost above its reservation durably holds the entire campaign.
 No inference request is retried automatically.
 
@@ -63,6 +64,27 @@ second dispatch; interrupted TEST runs are not relaunched. Missing/failed or
 abstained tasks remain explicit coverage limitations, never clean negatives.
 Log actual TEST exposure in the answer-key split registry before publishing a
 score. Do not tune prompts, providers or limits using TEST output.
+
+The selected transport is `json-v2`, stored below each model's directory. Initial
+DEV-only calibration exposed two adapter defects: inert JSON metadata discarded
+otherwise valid batches, and v1 was advertised the plain reader's tool enum.
+The corrected transport accepts only one bounded actionable field, ignores inert
+metadata, and gives each protocol its own tool schema. It does not change the
+original review prompts, tool admission, or scorer. Earlier DEV artifacts remain
+in their original directories and their charges stay in the same lifetime ledger.
+Every selected configuration must complete its own three-task DEV smoke before
+its once-only TEST claim. No TEST output informed this transport correction.
+
+OpenRouter's generation records can appear after completion and use dated canonical
+IDs for three model aliases. `models.json` binds those IDs using the public model
+catalog before selected DEV/TEST runs. Task boundaries and `settle_costs.py` make
+one free metadata GET per unresolved call with a saved response; neither repeats
+inference. Run the CLI between phases and before scoring. Absent or mismatched
+receipts stay unknown:
+
+```sh
+keys run -- .venv/bin/python research/experiments/cheap-model-frontier-20261021/settle_costs.py
+```
 
 `run_v1.py` supplies a JSON transport to the **unchanged #1121 Session host**.
 It reuses the original prompt, playbooks, source-only tools, evidence admission

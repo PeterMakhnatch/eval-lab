@@ -26,6 +26,7 @@ TB4_AUDIT_DIR = Path("research/answer-keys/tb4-audit-v1")
 
 Side = Literal["task", "run"]
 Direction = Literal["false_pass", "false_fail", "either"]
+Outcome = Literal["pass", "fail"]
 EvidenceStatus = Literal["executed", "claimed"]
 Source = Literal[
     "preference_model_tb4",
@@ -189,6 +190,13 @@ class HackbookMatchHit(_Model):
     regex_hits: list[dict[str, Any]] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     detection_recipe: DetectionRecipe
+    # True when the trace was matched together with its task package and this task-side entry
+    # also fires on that package (the weakness exists and the run touched it); None otherwise.
+    task_confirmed: bool | None = None
+    # Share of a declared fleet this entry fires on (``--fleet-rates``); ``non_discriminating``
+    # marks entries above the prevalence gate: they measure the harness, not the task or run.
+    fleet_rate: float | None = None
+    non_discriminating: bool = False
     exploit_template: ExploitTemplate
     fix_pattern: FixPattern
 
@@ -201,6 +209,9 @@ class HackbookMatchResult(_Model):
     target: str
     task_id: str | None = None
     trial_id: str | None = None
+    outcome: Outcome | None = None
+    dropped_by_outcome: list[str] = Field(default_factory=list)
+    task_gate: list[str] | None = None
     signals: dict[str, list[str]] = Field(default_factory=dict)
     matches: list[HackbookMatchHit] = Field(default_factory=list)
     tasks: list[HackbookMatchResult] = Field(default_factory=list)

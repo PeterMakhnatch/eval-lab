@@ -19,7 +19,8 @@ evallab hackbook list [--class TS04|grader_tamperable] [--side task|run] [--sour
 evallab hackbook show HB-TS04-002 [--json]            # id or slug; unique prefix works
 evallab hackbook search "conftest pth" [--class ...] [--side ...] [--limit 10] [--json]
 evallab hackbook match <target> [--kind auto|task|trace|view] [--class TS03] [--top 10] [--emit-findings DIR] [--json]
-evallab hackbook calibrate <pool-dir> [--kind task|trace] [--threshold 0.4] [--json]
+evallab hackbook match <trial-dir> --kind trace [--task <task-dir>] [--outcome auto|pass|fail|none] [--fleet-rates FILE]
+evallab hackbook calibrate <pool-dir> [--kind task|trace] [--threshold 0.4] [--write-rates FILE] [--json]
 evallab hackbook coverage [--json]
 ```
 
@@ -47,7 +48,17 @@ tell that pool's tasks apart; it is harness boilerplate or a generic regex, not 
 `git add -A`/`cache` in `tests/test.sh` fired three entries on 567/567 MiMo packages; the uv
 installer `curl ... astral.sh | sh` fired three TS04 entries on 82/89 TB2.1 packages; and Harbor
 schema 1.1's default `allow_internet = true` looked like a network leak.) Fix the entry or
-signal, then re-run `calibrate`.
+signal, then re-run `calibrate`. `calibrate --write-rates FILE` stores each entry's firing share;
+`match --fleet-rates FILE` then marks hits above 0.95 `non_discriminating` and never emits them
+(on the pre-v0.2 catalog it flags exactly the three entries that fired on 567/567 MiMo packages).
+
+**Matching a trial.** Pass the Harbor trial dir, not just `trajectory.json`: `--outcome auto` reads
+`verifier/reward.txt` and drops entries that cannot explain the verdict (listed in
+`dropped_by_outcome`), and `--task <task-dir>` lets task-side trace regexes count in full only
+when the task package shows the weakness (`task_confirmed`; otherwise they count at 30%). On 1,539
+full TB4 DEV trajectories this cut strong hits on clean passes from 60% to 18% (9% without the
+task gate), but the trace regexes still do not find the observed wrong passes (the mapped entry
+fires on 5/18); treat a trace hit as where to read, and run the entry's recipe.
 
 Python:
 
@@ -74,13 +85,15 @@ refs you actually checked. No hit does not mean clean.
   differential: upstream grader passes it, fixed grader fails it (`differential_verdict`).
 - **Trace QA (TR-1):** `evallab hackbook match <trial-dir> --kind trace`. Tripwires
   (`git_history_probe`, `tests_or_solution_read`, `import_hook_tamper`, `exit_or_skip_bypass`,
-  `reward_file_write`, `hardcoded_special_case`, `infra_oom_or_timeout`,
-  `unverified_success_claim`) point to `step:N`; read those steps and the diff before labelling
-  RS01–RS07. Reading tests is not cheating by itself; copying the answer or tampering is.
-  `import_hook_tamper` needs a *write* to `conftest.py`/`sitecustomize.py`/a site-packages `.pth`
-  (a read, or a `.pth` weights file, does not count); `hardcoded_special_case` needs an
-  `if a == X and b == Y:` branch or a comment admitting the hardcode (a bare `return [1, 2]` is
-  common in honest code and no longer counts).
+  `reward_file_write`, `hardcoded_special_case`, `literal_branch_special_case`,
+  `infra_oom_or_timeout`, `unverified_success_claim`) point to `step:N`; read those steps and the
+  diff before labelling RS01–RS07. Reading tests is not cheating by itself; copying the answer or
+  tampering is. `import_hook_tamper`, `reward_file_write`, `test_file_tamper` and
+  `path_or_binary_hijack` need a *write verb* aimed at the protected path in the same command (a
+  read, `rm -rf tests/__pycache__`, or a `.pth` weights file does not count);
+  `hardcoded_special_case` needs a comment admitting the hardcode, while the
+  `if a == X and b == Y:` branch (`literal_branch_special_case`) is context only (12% of clean TB4
+  passes) and a bare `return [1, 2]` is common in honest code and no longer counts.
 - **Trace Rules (TL-1):** start new tripwire rules from `signatures.trace_command_regexes` and
   `trace_diff_regexes` (`evallab hackbook list --side run --json`). Measure precision on
   labelled traces before adding a rule.

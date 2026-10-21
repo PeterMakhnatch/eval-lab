@@ -345,3 +345,34 @@ answer key each source belongs to, `211` examples:
 
 Hits are name matches, so an example that merely mentions a task is counted; `cheatbench` and
 `hacktrace` examples cite mechanisms, not items.
+
+Added after the v0.6 TEST scoring, as a descriptive control (no rule changed): the same number of
+top TEST tasks ranked by how many blocks their reference has gets `0.84` for "some block is
+droppable" against the signal's `0.70` (base `0.63`), and `0.32` vs `0.16` for `medium`/`high`
+severity (base `0.20`).
+
+## How far to trust `match` on a task nobody has read (v0.7)
+
+Every `match` number above is in-sample: DEV tasks, the MiMo atlas and the TB2-to-TB2.1 cohort are
+what the entries were written from. The first held-out number is one frozen version
+(`hackbook-match@0baedbc33ffe`, 57 entries, as merged at `477b8d56b`) run **once** on the `41`
+`tb4-audit-v1` TEST tasks and scored by the key's own scorer
+(`research/experiments/hackbook-tb4-heldout-20261021/`, `$0`):
+
+| Category 1-to-1 | DEV (in-sample) | TEST (held out) |
+| --- | --- | --- |
+| recall | `56/86` = 65.1% | **`62/152` = 40.8%** (Wilson 33.3-48.7) |
+| precision, lower bound | 49.6% | 40.3% |
+
+About a third of the DEV recall was in-sample. For scale, on the same TEST split: a no-matcher prior
+(the modal DEV category on every task) credits `18`, Epoch's and Tokenless's own flags `15` and `16`,
+plain Opus read `78` (other lane, frozen), and telling a predictor which categories each task has
+gives `78`. Per class: `weak_check` `29/61` (DEV `24/41`), `unstated_requirement` `16/40` (`12/19`),
+`grader_tamperable` `10/20` (`7/12`); the rarer classes have `3` to `7` TEST findings and `0` to `3`
+hits. `match` names no finding id or locus, so only category-level credit counts.
+
+Rules that follow: quote `40%` (not `65%`) as what the catalog finds on TB4 tasks it was not written
+from; treat the other numbers in this file as DEV or in-sample; after this run the TEST split is
+spent for hackbook versions, a later version's TEST score is not untouched, and
+`run.py --splits dev,test` refuses a second TEST run of the same version and needs
+`--spend-the-test-split`.

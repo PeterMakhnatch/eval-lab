@@ -317,6 +317,10 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | cheatbench-actions-v1 | 0 | 3 |
 | action-features-transfer-design-inspection-20261019 | inspected | Deterministic action features (action-lr@*) | hacktrace-act-v1 | 150 | 150 |
 | px1-tb21-weak-tests-producer-inspection | inspected | Traces (evallab hack ref-subset*) | tb21-weak-tests-v1 | 23 | 66 |
+| tripwires-v3-reused-key-inspection-20261021 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21 | cheatbench-actions-v1 | 0 | 150 |
+| tripwires-v3-reused-key-inspection-20261021 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21 | hacktrace-act-v1 | 0 | 150 |
+| tripwires-v3-reused-key-inspection-20261021 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21 | mimo-fresh-window3 | 0 | 52 |
+| tripwires-v3-reused-key-inspection-20261021 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21 | mimo-v7-canonical-pass70 | 0 | 70 |
 | tr1-dev-census-calibration-20261021 | tuned | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | envcheck-tb4-39 | 0 | 1 |
 | tr1-dev-census-calibration-20261021 | tuned | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | tb4-audit-v1 | 14 | 0 |
 | tr1-historical-eight-inspection-20261021 | inspected | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | envcheck-tb4-39 | 3 | 3 |

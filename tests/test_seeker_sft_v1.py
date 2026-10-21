@@ -49,18 +49,17 @@ def test_admitted_sft_excludes_tb4_test_tasks_digests_aliases_canaries_and_graft
     assert leak_audit["raw_payload_canary_hits_in_admitted"] == 0
     assert leak_audit["raw_payload_tb4_test_hits_in_admitted"] == 0
     assert leak_audit["unresolved_pin_placeholders"] == 0
-    assert leak_audit["admitted_rows_with_embedded_payload_and_sha256"] == 432
+    assert leak_audit["admitted_rows_with_embedded_payload_and_sha256"] == 429
 
     _, tb4_test, _, _ = mod.load_tb4_sets()
     manifests = json.loads(mod.SOURCE_MANIFESTS_PATH.read_text(encoding="utf-8"))
     graft_eval = set(manifests["terminal_wrench_auditor_sft_v1"]["graft_eval_tasks"])
 
-    assert len(admitted) == 432
-    assert len(quarantined) == 1191
-    assert summary["counts"]["admitted_curated_seeker_sft_rows"] == 325
-    assert summary["counts"]["admitted_tier1_replay_verified"] == 86
-    assert summary["counts"]["admitted_tier1_differential_verified"] == 27
-
+    assert len(admitted) == 429
+    assert len(quarantined) == 1200
+    assert summary["counts"]["admitted_curated_seeker_sft_rows"] == 322
+    assert summary["counts"]["admitted_tier1_replay_verified"] == 87
+    assert summary["counts"]["admitted_tier1_differential_verified"] == 28
     for row in admitted + quarantined:
         src_pin = row["source_pin"]
         pin_sha = str(src_pin.get("artifact_sha256") or src_pin.get("csv_sha256") or "")
@@ -93,31 +92,48 @@ def test_compile_sft_and_data_quality_audit() -> None:
     quarantined = build_mod._jsonl(build_mod.QUARANTINED_PATH)
     tier1_examples = compile_mod.compile_tier1_witness_conversations()
     seeker_tool_examples = compile_mod.compile_seeker_tool_conversations()
+    transfer_splits = compile_mod.build_transfer_splits(admitted, seeker_tool_examples)
     audit = compile_mod.build_data_quality_audit(
-        admitted, quarantined, tier1_examples, seeker_tool_examples
+        admitted, quarantined, tier1_examples, seeker_tool_examples, transfer_splits
     )
 
-    assert len(tier1_examples) == 20
+    assert len(tier1_examples) == 21
     assert all(e["parser_verified"] is True for e in tier1_examples)
-    assert len(seeker_tool_examples) == 50
+    assert len(seeker_tool_examples) == 90
     assert all(e["confined_tools_verified"] is True for e in seeker_tool_examples)
     assert all(e["strict_packaging_verified"] is True for e in seeker_tool_examples)
-    assert audit["pool_filtering_summary"]["curated_seeker_sft_rows"] == 325
+    assert audit["pool_filtering_summary"]["curated_seeker_sft_rows"] == 322
     assert audit["pool_filtering_summary"]["non_curated_filtered_rows"] == 107
-    assert audit["terminus_parser_verification"]["combined_parser_verified_histories"] == 161
-    assert audit["terminus_parser_verification"]["combined_parser_verified_supervised_turns"] == 464
+    assert audit["terminus_parser_verification"]["combined_parser_verified_histories"] == 162
+    assert audit["terminus_parser_verification"]["combined_parser_verified_supervised_turns"] == 465
     assert audit["terminus_parser_verification"]["combined_parse_pass_rate"] == 1.0
     assert audit["ve1_st1_clearance_resolution"]["st1_unresolved_pins_remaining"] == 0
     assert audit["ve1_st1_clearance_resolution"]["quarantined_unmaterialized_tw_subset_rows"] == 65
     assert audit["ve1_st1_clearance_resolution"]["st1_controls_not_differential_reclassified"] == 15
-    assert audit["ve1_st1_clearance_resolution"]["true_differential_verified_1_0_admitted"] == 27
+    assert audit["ve1_st1_clearance_resolution"]["true_differential_verified_1_0_admitted"] == 28
     assert audit["ve1_st1_clearance_resolution"]["quarantined_raw_payload_canary_rows"] == 414
-    assert audit["seeker_tool_sft_verification"]["total_conversations"] == 50
-    assert audit["seeker_tool_sft_verification"]["unconditioned_positive_exploits"] == 20
-    assert audit["seeker_tool_sft_verification"]["hackbook_conditioned_positive_exploits"] == 20
-    assert audit["seeker_tool_sft_verification"]["executed_clean_negative_controls"] == 10
+    assert audit["seeker_tool_sft_verification"]["total_conversations"] == 90
+    assert audit["seeker_tool_sft_verification"]["unconditioned_positive_exploits"] == 30
+    assert audit["seeker_tool_sft_verification"]["hackbook_conditioned_positive_exploits"] == 30
+    assert (
+        audit["seeker_tool_sft_verification"]["confirmed_1_0_differential_positive_conversations"]
+        == 56
+    )
+    assert (
+        audit["seeker_tool_sft_verification"]["single_version_1_1_replay_positive_conversations"]
+        == 4
+    )
+    assert audit["seeker_tool_sft_verification"]["executed_clean_negative_controls"] == 30
     assert audit["seeker_tool_sft_verification"]["confined_tools_verified_rate"] == 1.0
     assert audit["seeker_tool_sft_verification"]["strict_packaging_verified_rate"] == 1.0
+    assert audit["seeker_tool_sft_verification"]["task_disjoint_tb4_dev_train_conversations"] == 68
+    assert audit["seeker_tool_sft_verification"]["loco_splits_verified"] is True
+
+    assert transfer_splits["task_disjoint_tb4_dev"]["train_eval_task_overlap_count"] == 0
+    assert transfer_splits["task_disjoint_tb4_dev"]["tb4_test_overlap_count"] == 0
+    for split_info in transfer_splits["leave_one_hack_class_out"].values():
+        assert split_info["zero_heldout_class_in_train_verified"] is True
+        assert split_info["train_seeker_tool_negative_controls"] == 30
 
 
 def test_tb4_dev_eval_cohort_and_differential_replay_scorer() -> None:
@@ -204,7 +220,7 @@ def test_seeker_findings_hook_admits_tb4_dev_and_drops_tb4_test(tmp_path: Path) 
     admitted, quarantined, summary = mod.build_records(findings_file)
     leak_audit = mod.run_leak_audit(admitted, quarantined, summary)
     assert leak_audit["status"] == "pass"
-    assert len(admitted) == 433
+    assert len(admitted) == 430
     seeker_rows = [r for r in admitted if r["trajectory_id"].startswith("tb4-dev-seeker:")]
     assert len(seeker_rows) == 1
     assert seeker_rows[0]["task_id"] == dev_task

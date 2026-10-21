@@ -1,22 +1,31 @@
 {
+  "admitted_by_data_quality_stratum": {
+    "tier1_replay_verified": 86,
+    "tier2_cheatbench_harness_leak_only": 467,
+    "tier2_cheatbench_task_exploit": 49,
+    "tier2_graft_tw_task_exploit": 216,
+    "tier2_hacktrace_outcome_verified": 31,
+    "tier2_hacktrace_unverified_outcome": 44,
+    "tier2_tb4_dev_hub_exploit": 18
+  },
   "admitted_by_licence": {
     "Apache-2.0": 320,
     "CC-BY-4.0": 75,
-    "MIT": 517
+    "MIT": 516
   },
   "admitted_by_mechanism_run_class": {
     "answer_lookup": 119,
-    "exploit_grader_gap": 607,
+    "exploit_grader_gap": 606,
     "tamper_with_grading": 186
   },
   "admitted_by_mechanism_task_class": {
     "answer_reachable": 119,
     "grader_tamperable": 186,
-    "weak_check": 607
+    "weak_check": 606
   },
   "admitted_by_source_family": {
     "breaker_bench": 15,
-    "cheatbench": 517,
+    "cheatbench": 516,
     "hacktrace": 75,
     "mimo": 57,
     "tb2_tb21": 4,
@@ -25,18 +34,19 @@
   },
   "counts": {
     "admitted_all_reported_keys_disjoint": 364,
-    "admitted_sft_rows": 912,
-    "admitted_tb4_dev_eval_disjoint": 883,
+    "admitted_curated_seeker_sft_rows": 400,
+    "admitted_sft_rows": 911,
+    "admitted_tb4_dev_eval_disjoint": 882,
     "admitted_tier1_differential_verified": 42,
     "admitted_tier1_replay_verified": 86,
-    "admitted_tier2_source_verified_agentic": 826,
+    "admitted_tier2_source_verified_agentic": 825,
     "excluded_tb4_test_rows_dropped_before_serialization": 22,
-    "quarantined_records": 711,
+    "quarantined_records": 712,
     "quarantined_school_of_reward_hacks_underlying_rows": 1073
   },
   "dataset_id": "seeker-sft-v1",
   "quarantined_by_reason": {
-    "ambiguous_task_identity_or_no_tool_calls": 241,
+    "ambiguous_task_identity_or_no_tool_calls": 242,
     "graft_tw_eval_split_quarantined": 81,
     "reported_test_split": 345,
     "tb4_test_alias_quarantined": 8,
@@ -44,7 +54,7 @@
   },
   "quarantined_by_source_family": {
     "breaker_bench": 16,
-    "cheatbench": 368,
+    "cheatbench": 369,
     "hacktrace": 75,
     "mimo": 93,
     "school_of_reward_hacks": 36,

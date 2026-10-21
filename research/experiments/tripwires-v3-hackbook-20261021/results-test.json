@@ -12134,13 +12134,13 @@
  "fingerprint": {
   "catalog": {
    "data_files": {
-    "research/hackbook/entries.jsonl": "b3f5ae8ad572df6eb178f8d463468bdf0d741f9223a1f5d4e895e1a8746d0585"
+    "research/hackbook/entries.jsonl": "58196a9cfef2936da7cb83d69951b5db8992c2fd5493c77c2ae3340340947ead"
    },
    "n_rules": 43,
    "rules_sha256": "9ee680956c69c9d524a627aea28e5dfc26f5981c633f4b705df5ad5d1d0caca6",
-   "sha256": "da41bbd3da8de73d273e2fd42e22bcb61b8ae483321ec39e44dfb7aa8b0f015f"
+   "sha256": "582a45aa1ffa3791d022ade246bebf3cf6c58615b6da3fa8c3a3f71e6f3c281a"
   },
-  "combined": "69721f8e876f4dc515428cdc5417f6563afea903cd218ae0e08202c130d0eeb6",
+  "combined": "d338116d65835dab4afedf944e794148304a590c589cbe0255634efbcfcadb90",
   "helpers": {
    "files": {
     "research/answer-keys/external_traces.py": "cf7297a9349eb0993aaf1b3f1acdb53ea055ed3e6c87dae868e4afb2ab378ccb"
@@ -12169,6 +12169,8 @@
     "src/evallab/campaign_native_controls.py": "34ca3c1f70bb2ca54b3cbfd7cc8ad8cc0a716baaf4b18ac7e09751ab44a251b6",
     "src/evallab/campaigns.py": "21c4d393bde75afb62aa55a0badfa60fd5be40cb6be4fe29aa13babac4eda8aa",
     "src/evallab/canary.py": "1d4ff6e708904d237eed6f0ff02e1927c6a1e8ad626c11c04279864aca111abb",
+    "src/evallab/candidate_port.py": "2a2f3011c964e9d5b80046c6fbdbb43520eddb9c0ea499273379214e4a49bc5d",
+    "src/evallab/candidate_runner.py": "b910feada7745a1fed23e69d7a9ae7e22e856ad46d54d3671ad7840d406489da",
     "src/evallab/capability_contract.py": "f2c7c40692fde35847074742b89c078326d896d1d58a1ea979959036e35c0066",
     "src/evallab/cards.py": "181777ccfa8c1c0eae157867e592d6a0faee41482010b1c7f1fd19ad92df2e77",
     "src/evallab/cheat.py": "9b92437bc9036487e5f66931811f9ef6c0123f8a5674335574b4a783fc60bd36",
@@ -12233,8 +12235,8 @@
     "src/evallab/grid.py": "0e3ba409b9d538f1a1bd13942735d15f28df7f744cad713272a6300f4f316b59",
     "src/evallab/hack_queue.py": "06863f5b461706738857d51a0790f23a081fca5de287f7910dd6f2941c56ebb4",
     "src/evallab/hackbook/__init__.py": "5140f272462160033d3140d7e5bf27f22442a1c864277ac3b8a638cd0f7eba3f",
-    "src/evallab/hackbook/cli.py": "7166f83ca430a5209134069aa8a0179374faec4715feb7fa3f8c93e05c480979",
-    "src/evallab/hackbook/matcher.py": "fa13b96877741ea6c5d6fcb3244e81202bfd616f166ed929edd14b948a04ce4a",
+    "src/evallab/hackbook/cli.py": "ef6d3243634e2c4299f826c960611df0d6ac05aecb7720cf7e224871f4479d0e",
+    "src/evallab/hackbook/matcher.py": "4cf7e7909db18e61b56250a380b40c2b52e942ef9a9293ad5bb7765c745ad8d0",
     "src/evallab/hackbook/models.py": "a6b024deafede76686f1477105ede029cab84879eb0045863db3edab59aa8e36",
     "src/evallab/harbor_common.py": "6ae16404cc6dddcc8c0582ea7ddd703b6147f5f44ba9c726350e4714174f30e0",
     "src/evallab/harbor_daytona.py": "b5410457424c890fdbb34dddcb21fc5f6f56f5296bd61eb26afbde26ae67d4a3",
@@ -12274,7 +12276,7 @@
     "src/evallab/interpretation/evidence_pack.py": "c43db9dbc4cd2f664087316d1927625ce97709b64dd4406e006a3fd23511511d",
     "src/evallab/interpretation/feature_registry.py": "449d93c17936d9f74ba89de2671de01de23bc85dcc0343bfeef2ae543089aaf7",
     "src/evallab/interpretation/features.py": "4579758fd8c6d778d77bc0a6e7fe10c022b478e17b69cf2025b27b267d2897c3",
-    "src/evallab/interpretation/monitor_agent.py": "8d27172cb4eb8322a22696241089c63ed98779caad9d6b61cf9392abf2c8e3a4",
+    "src/evallab/interpretation/monitor_agent.py": "eedb43f6ead78c898d0709561be95cca2fc223b70ba71336f567549f85a6ce09",
     "src/evallab/interpretation/monitor_calibration.py": "2f0a99e9b4eb392ab86dcde7b7c03cd91ec00657c9f1c07240a3e200eb45c38a",
     "src/evallab/interpretation/monitor_contracts.py": "ec083a38b6474ea00baea8856648a041d9b2cc1af64e99c443dc0937257a9c81",
     "src/evallab/interpretation/monitor_evidence.py": "3e6734900e40a0921a22fee89d4c1b87169c30a3e1a97501680438b8d7bcdebd",
@@ -12335,13 +12337,16 @@
     "src/evallab/purge_build_caches.py": "7c305ce8470f6bc78f17f553958d5ac10c9dd4eb36137af34827ae283bd49996",
     "src/evallab/purge_installed_copies.py": "de218ff63f442b5e3f0eb13a85449773b3e9d39e9ee6f7196b911d8e5cbbf737",
     "src/evallab/qa/__init__.py": "a0dddfb2c3b592bbbb33fa93d80292d1878e17b9d7ceafa878133ac46de8a434",
+    "src/evallab/qa/agent_lanes.py": "3d968fd7b8b843683d3b30ccceb03a64102029ae2d97f6af0418148070391410",
     "src/evallab/qa/answer_key.py": "5956c51bc9a9c258750681a11a93a00b89e416110a86af246460158a596255db",
     "src/evallab/qa/ask.py": "24d77e7c8fe85c617f5d0cae7b9713b32c26e5d2abde88aa387834cfe835a8a2",
     "src/evallab/qa/ask_lane.py": "dab39d23da7ee8ec2dd30fc6097c68b30e8fc7adc2ff26d46886342c68217358",
     "src/evallab/qa/cli.py": "82a1e975c9dee1688116e5f70581d33e5d04c0cf99171c7949119a3bd0b9e6c8",
     "src/evallab/qa/counterfactual.py": "4cf49ac1f3f12e5354c123ff209be8af6a4e044024d23c08437961aff330e2c3",
-    "src/evallab/qa/env.py": "3bf0769e37f6d7d7497fe5f29ceb06c2cc4be1fb3887a20f0d14b15046e434d3",
-    "src/evallab/qa/env_agent.py": "5a33fbcbd23444b14d04db93a77f0dd9c106afff8568db909712cb62da9bab72",
+    "src/evallab/qa/env.py": "a5e08d75f4749996d6088e0a598e012c75568c56acdeb1290ee0708b64aa04bb",
+    "src/evallab/qa/env_agent.py": "e517ddcdc4f744cc27654b8282662baadd6b36c0f47f6c5a6b2ec71090f68ced",
+    "src/evallab/qa/env_catalog.py": "4f675302cbf1ba7420a4b98bf7c6403c05ca4ea91eec7511e1e7556e6015b1c4",
+    "src/evallab/qa/env_execution.py": "0fbf147df76d75caafee10a59756019679101b64f1af4c9ec1a7f08ea77fe91e",
     "src/evallab/qa/env_playbooks.py": "0534f746c194f27358e143a7bc762e0bf2d85a61deace0eed4139eb37235afb4",
     "src/evallab/qa/models.py": "489ccfbb8c33b69178822187249a4121ab7f8cad307bc11908346c28e6c97a00",
     "src/evallab/qa/score.py": "84af4dfdc6183f963762a39d6da30c1da31833e26563b548ffd012e3df0f696f",
@@ -12429,7 +12434,7 @@
     "src/evallab/trial_treatment.py": "3f89ead297278f66be31e93e9fdd2b294f7c6390cd99fbed64bac4922bd3c52e",
     "src/evallab/tripwires.py": "af3f2c333ff37270e79da8a867d7ad7136d575296b7e41bdec4b9f1abc32f93d",
     "src/evallab/upstream_fetch.py": "09d7455d71ab44fbb792a107d679ce12a7a3495d45aee2b9ca9d0c917109f513",
-    "src/evallab/upstream_grader.py": "f59a5f3aaffc6f4421233a1b86fcba4b0a92b548d4ec6c304095ddcce819727d",
+    "src/evallab/upstream_grader.py": "0da03cbb59c172bbeabbfa8f76ce022f007fcbfe955c3821a2e9e1f0f306c80b",
     "src/evallab/vcheck.py": "793533c1a2d5d7732c7633ddb8285b9320dd38dcd877b942fb74c06da14aaa6b",
     "src/evallab/vcheck_blue.py": "842576f37de8af0d3cc8756130ea47857fa6cea3a773be8c27983bfbf7659e25",
     "src/evallab/vcheck_cli.py": "4c6eb6fc9246c9ad566fa63699b2b955a9beb74d29b12f9d663b8c9930065f03",
@@ -12446,7 +12451,7 @@
     "src/evallab/webdev_structural_gate.py": "48f6e77bbdf1900fc8f68e20976a2bc9ac6e7ae8e6f6f8c33205cb00425389d3",
     "src/evallab/webdev_temp0_pin.py": "5809a49910f58494e55f2ed946281b5d408554760bc8018b7d0113f8f46a33c7"
    },
-   "sha256": "ab98bfb46ef41b68be6740af373d1425cd35a30a31c9ae8ad4135e0385036d76"
+   "sha256": "c757c4a8832de5aaf27e458c4b5f0e5b25b56c78f83ef98e0a1bb99c003871c1"
   },
   "measurement": {
    "files": {
@@ -12454,7 +12459,7 @@
    },
    "sha256": "7cd7ff31f3b2629df0a4f30a058c7ca1a5fd9969e89df8efa911d709e30170f8"
   },
-  "system_id": "tripwires-v3@69721f8e876f"
+  "system_id": "tripwires-v3@d338116d6583"
  },
  "llm_calls": 0,
  "not_evaluated": [

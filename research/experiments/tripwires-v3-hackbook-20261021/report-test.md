@@ -1,6 +1,6 @@
-# Tripwire rules v3 (tripwires-v3@69721f8e876f), test split
+# Tripwire rules v3 (tripwires-v3@d338116d6583), test split
 
-rules_version 3; combined fingerprint `69721f8e876f4dc515428cdc5417f6563afea903cd218ae0e08202c130d0eeb6`; 0 model calls, $0.
+rules_version 3; combined fingerprint `d338116d65835dab4afedf944e794148304a590c589cbe0255634efbcfcadb90`; 0 model calls, $0.
 
 ## Catalog coverage
 

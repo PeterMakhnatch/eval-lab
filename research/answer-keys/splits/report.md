@@ -323,3 +323,7 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | tr1-historical-eight-inspection-20261021 | inspected | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | tb4-audit-v1 | 14 | 31 |
 | tr1-legacy8-frozen-once-20261021 | inspected | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | envcheck-tb4-39 | 3 | 2 |
 | tr1-legacy8-frozen-once-20261021 | inspected | QA Trace (tb4-dev-run-census/*) from 2026-10-21 | tb4-audit-v1 | 0 | 31 |
+| cm1-qwen-plain-json-v3-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | envcheck-tb4-39 | 10 | 17 |
+| cm1-qwen-plain-json-v3-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | executed-outcomes-v1 | 0 | 1 |
+| cm1-qwen-plain-json-v3-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | tb4-audit-v1 | 0 | 152 |
+| cm1-qwen-plain-json-v3-test-20261021 | | | tasks in no key | 2 | |

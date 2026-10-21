@@ -178,13 +178,15 @@ def reported_generation(transport: OpenAIInvestigator, request_id: str) -> dict:
                                            'tokens_prompt', 'tokens_completion', 'latency')}
 
 
-def complete(out: Path, model: dict, transport: OpenAIInvestigator, messages: list, identity: str):
-    payload = _payload(model['id'], messages, MAX_OUTPUT, SCHEMA,
+def complete(out: Path, model: dict, transport: OpenAIInvestigator, messages: list, identity: str,
+             *, max_output_tokens: int = MAX_OUTPUT, schema: dict | None = None):
+    response_schema = SCHEMA if schema is None else schema
+    payload = _payload(model['id'], messages, max_output_tokens, response_schema,
                        response_format='json_object', provider=model['provider'], reasoning=model['reasoning'])
     call_id, amount = reserve(out, model, payload, identity)
     _write_json(out / 'calls' / f'{call_id}-request.json', payload)
     try:
-        result = transport.complete(messages, max_output_tokens=MAX_OUTPUT, schema=SCHEMA)
+        result = transport.complete(messages, max_output_tokens=max_output_tokens, schema=response_schema)
     except Exception as exc:
         _append_event(out / 'cost.jsonl', {'event': 'failed', 'at': now(), 'call_id': call_id,
                                          'error_type': type(exc).__name__,
@@ -318,7 +320,7 @@ def main() -> None:
     tasks = list(DEV_TASKS) if args.split == 'dev' else public_tasks(args.out, 'test')
     if args.split == 'test':
         dev_status = list((campaign / 'dev').glob('*/status.json'))
-        if len(dev_status) != len(DEV_TASKS) or any(json.loads(p.read_text())['status'] != 'complete' for p in dev_status):
+        if len(dev_status) != len(DEV_TASKS) or any(json.loads(p.read_text())['status'] not in {'complete', 'abstained'} for p in dev_status):
             raise ValueError('all three measured DEV smoke tasks must finish before TEST')
         with (campaign / 'test-exposure-claim.json').open('x') as claim:
             claim.write(_json({'at': now(), 'config_sha256': digest(_json(config).encode()), 'tasks': tasks}) + '\n')

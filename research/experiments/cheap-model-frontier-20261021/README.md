@@ -77,3 +77,19 @@ an API-equivalent economic price. Tokenless Eval3's Elo and total 65-environment
 spend are external context, not convertible to this finding-recall metric:
 https://usetokenless.com/eval3/ . Its local source copy is
 `research-context/sources/links/usetokenless.com/2026-10-20-eval-leaderboard-tokenless.md`.
+
+`score_frontier.py` converts only completed task output through the original
+class/category mapping and invokes that unchanged scorer. It preserves failed,
+missing and abstained coverage, separates DEV from TEST cost, and omits runs
+with incomplete coverage or unknown billed cost from the dollar frontier.
+Run it only after configurations are frozen and their TEST exposures recorded:
+
+```sh
+.venv/bin/python research/experiments/cheap-model-frontier-20261021/score_frontier.py
+```
+
+The output is `scoring/frontier.json` plus an SVG. The historical Opus counts
+are horizontal references, not invented API-dollar coordinates. Seven-figure
+token prices are fixed before DEV; actual plotted spend comes from per-request
+generation billing, not those price estimates. A valid `cannot_tell` completes
+a DEV smoke but remains an explicitly labelled abstention in TEST reporting.

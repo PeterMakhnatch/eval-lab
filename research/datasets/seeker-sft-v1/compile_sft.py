@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from typing import Any
 
@@ -35,7 +36,17 @@ from build import (
     load_tb4_sets,
     load_tb4_test_digests,
 )
-from harbor.agents.terminus_2.terminus_json_plain_parser import TerminusJSONPlainParser
+
+
+def _make_terminus_parser() -> Any:
+    existing = sys.modules.get("harbor")
+    if existing is not None and not hasattr(existing, "__path__"):
+        for k in [m for m in sys.modules if m == "harbor" or m.startswith("harbor.")]:
+            sys.modules.pop(k, None)
+    from harbor.agents.terminus_2.terminus_json_plain_parser import TerminusJSONPlainParser
+
+    return TerminusJSONPlainParser()
+
 
 TIER1_SFT_PATH = HERE / "tier1_witness_sft.jsonl"
 DATA_QUALITY_AUDIT_PATH = HERE / "data_quality_audit.json"
@@ -66,7 +77,7 @@ def _render_terminus_turn(
 
 
 def compile_tier1_witness_conversations() -> list[dict[str, Any]]:
-    parser = TerminusJSONPlainParser()
+    parser = _make_terminus_parser()
     tb4_dev, tb4_test, _, _ = load_tb4_sets()
     manifests = json.loads(SOURCE_MANIFESTS_PATH.read_text(encoding="utf-8"))
 

@@ -57,8 +57,10 @@ reconstruct the full rendering exactly.
   `vf2-speedup-networkx`, whose confirmed `1/0` witnesses are in the corpus) and
   `2` strictly unseen (`uefi-bootkit`, `vpp-loss-divergence`).
 - Scoring: `replay_pilot.py --results loss-target-results.json --out-root <dir>`
-  — strict packaging gate, then `evallab.candidate_runner` upstream on the Modal
-  backend, and the PM port only when upstream measures `1.0`.
+  — strict packaging gate, then `evallab.candidate_runner` upstream (Modal backend
+  here; **local Docker is now the cheaper first choice** — see the pE-SELF-8
+  correction in `seeker-sft-pilot-20261021/README.md`), and the PM port only when
+  upstream measures `1.0`.
 
 **Reproduction** = a confirmed `1/0` on a memorization task (the model saw that
 task's exploit). **Generalization** = a confirmed `1/0` on a transfer task.

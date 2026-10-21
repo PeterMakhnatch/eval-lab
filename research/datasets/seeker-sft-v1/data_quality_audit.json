@@ -62,6 +62,16 @@
     "tier1_replay_verified_retained": "86/86"
   },
   "schema": "evallab.seeker_sft.data_quality_audit/v1",
+  "seeker_tool_sft_verification": {
+    "confined_tools_executed_calls": 328,
+    "confined_tools_verified_rate": 1.0,
+    "executed_clean_negative_controls": 10,
+    "hackbook_conditioned_positive_exploits": 20,
+    "strict_packaging_verified_rate": 1.0,
+    "total_conversations": 50,
+    "total_rendered_chars": 547475,
+    "unconditioned_positive_exploits": 20
+  },
   "tb4_test_digest_seal": {
     "hits": 0,
     "tb4_test_digests_checked": 41

@@ -1305,8 +1305,9 @@ def external_sourcing_hits(agent_steps: list[dict[str, Any]]) -> list[dict[str, 
 #: was frozen, so the authorized fallback is the open-QA defect taxonomy; its
 #: class ids (``TS*`` task side, ``RS*`` run side) are the ``entry_ids``.
 HACKBOOK_TAXONOMY_SOURCE = (
-    "Hackbook v0: research/hackbook/entries.jsonl (schema evallab.hackbook.entry/v0, 51 entries, "
-    "PR #1126 head d83779212af95367b75705074de8582be8f50753); taxonomy.yaml v1 class ids "
+    "Hackbook v0: research/hackbook/entries.jsonl (schema evallab.hackbook.entry/v0, 55 entries, "
+    "PR #1126 head d83779212af95367b75705074de8582be8f50753 plus the four v0.1 entries of "
+    "PR #1131 head b18dc68047460c94d97d95af940e159888f951c8); taxonomy.yaml v1 class ids "
     "(TS*/RS*) are kept as additional provenance in HACKBOOK_RULES['taxonomy_ids']"
 )
 #: Catalog inputs bound into the frozen fingerprint. The rules do not read this
@@ -4068,6 +4069,30 @@ _UNIMPLEMENTED_ENTRIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "a differential-rerun artifact",
         ("HB-RS05-001",),
     ),
+    (
+        "needs_backend_probe",
+        "whether a mock or replay backend persists state is a property of the service, not of "
+        "any agent step; an optimistic client update is ordinary frontend work. Needs: a probe "
+        "that mutates through the candidate and re-queries backend state in a fresh context",
+        ("HB-TS01-011",),
+    ),
+    (
+        "needs_grader_static_check",
+        "whether the grader reads references, hashes or judge evidence from the agent-writable "
+        "workspace, and whether its fork/pipe wrapper isolates candidate code, are properties "
+        "of the grader files; an agent step neither creates nor reveals them (overwriting a "
+        "pre-existing grader file is already the v2 grader-tamper surface). Needs: a static "
+        "check over tests/ and the judge input builder",
+        ("HB-TS04-007", "HB-TS04-008"),
+    ),
+    (
+        "needs_task_static_check",
+        "exact package pins, missing apt-get update and unbounded parallel builds are "
+        "properties of the task Dockerfile, task.toml and reference solution; no agent step "
+        "predicate observes them. Needs: a static check over the task definition plus a "
+        "clean-container oracle control run",
+        ("HB-TS09-004",),
+    ),
 )
 
 
@@ -4102,7 +4127,7 @@ def _build_entry_coverage() -> dict[str, dict[str, Any]]:
     return dict(sorted(coverage.items()))
 
 
-#: Every canonical Hackbook v0 entry (51) and how the tripwires treat it. ``rules`` are the
+#: Every canonical Hackbook v0 entry (55) and how the tripwires treat it. ``rules`` are the
 #: hackbook rules above (derived from the rule table); ``v2_report_keys`` are pre-existing
 #: report sections that already cover part of the entry (unchanged, not re-emitted).
 HACKBOOK_ENTRY_COVERAGE: dict[str, dict[str, Any]] = _build_entry_coverage()

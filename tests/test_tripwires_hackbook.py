@@ -8,11 +8,18 @@ at a known step and negative traces (legitimate look-alikes) it must leave alone
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.tripwires import scan_prefix, scan_trace, to_findings
+from evallab.tripwires import (
+    HACKBOOK_ENTRY_COVERAGE,
+    HACKBOOK_RULES,
+    scan_prefix,
+    scan_trace,
+    to_findings,
+)
 
 
 def _bash(step_id: int, command: str, output: str | None = None) -> dict[str, Any]:
@@ -880,3 +887,13 @@ def test_patch_that_drops_a_branch_is_a_cue() -> None:
 )
 def test_runtime_probe_matches_commands_not_arguments(command: str, fires: bool) -> None:
     assert bool(_hits([_bash(1, command)], "hb_runtime_probe")) is fires
+
+
+def test_entry_coverage_matches_the_catalog_file() -> None:
+    catalog = Path(__file__).resolve().parents[1] / "research/hackbook/entries.jsonl"
+    entry_ids = {
+        json.loads(line)["id"] for line in catalog.read_text().splitlines() if line.strip()
+    }
+    assert set(HACKBOOK_ENTRY_COVERAGE) == entry_ids
+    ruled = {entry_id for rule in HACKBOOK_RULES for entry_id in rule["entry_ids"]}
+    assert ruled <= entry_ids

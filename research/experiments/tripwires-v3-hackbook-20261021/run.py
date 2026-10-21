@@ -26,10 +26,12 @@ import datetime
 import hashlib
 import io
 import json
+import multiprocessing
 import sys
 import warnings
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -495,6 +497,30 @@ def measure_view(
     }
 
 
+def _measure_view_task(task: tuple[ViewInput, str, Sequence[dict[str, Any]]]) -> dict[str, Any]:
+    view_input, view, registry = task
+    return measure_view(view_input, view, scan=default_scan, registry=registry)
+
+
+def _measure_views(
+    jobs: list[tuple[ViewInput, str]],
+    *,
+    scan: Scan,
+    registry: Sequence[dict[str, Any]],
+    workers: int,
+) -> list[dict[str, Any]]:
+    """Measure ``jobs`` in order. Scans are independent, so workers change the time, not the result."""
+    if workers <= 1:
+        return [measure_view(v, view, scan=scan, registry=registry) for v, view in jobs]
+    if scan is not default_scan:
+        raise ValueError("parallel measurement runs the shared default scan only")
+    context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        return list(
+            pool.map(_measure_view_task, [(v, view, registry) for v, view in jobs], chunksize=4)
+        )
+
+
 def measure_subjects(
     cohort: Cohort,
     split: str,
@@ -502,8 +528,16 @@ def measure_subjects(
     *,
     scan: Scan,
     registry: Sequence[dict[str, Any]],
+    workers: int = 1,
 ) -> list[dict[str, Any]]:
     """Per-item, per-view records. An item-level problem is checked before any file is opened."""
+    pending = [
+        (subject.views[view], view)
+        for subject in subjects
+        if not subject.unknown_reason
+        for view in VIEWS
+    ]
+    done = iter(_measure_views(pending, scan=scan, registry=registry, workers=workers))
     records: list[dict[str, Any]] = []
     for subject in subjects:
         for view in VIEWS:
@@ -514,7 +548,7 @@ def measure_subjects(
                     "unknown_reason": subject.unknown_reason,
                 }
             else:
-                measured = measure_view(subject.views[view], view, scan=scan, registry=registry)
+                measured = next(done)
             records.append(
                 {
                     "cohort": cohort.id,
@@ -582,6 +616,7 @@ def measure_key_cohort(
     scan: Scan,
     registry: Sequence[dict[str, Any]],
     keys_dir: Path,
+    workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     directory = keys_dir / cohort.id
     if not directory.is_dir():
@@ -591,7 +626,12 @@ def measure_key_cohort(
     if not items:
         return _unavailable(cohort, f"no {split} items in {directory.name}"), []
     records = measure_subjects(
-        cohort, split, key_subjects(cohort, items, root), scan=scan, registry=registry
+        cohort,
+        split,
+        key_subjects(cohort, items, root),
+        scan=scan,
+        registry=registry,
+        workers=workers,
     )
     excluded: dict[str, int] = {}
     coverage_sha = None
@@ -779,6 +819,7 @@ def measure_tb4_cohort(
     scan: Scan,
     registry: Sequence[dict[str, Any]],
     dev_tasks: frozenset[str] | None = None,
+    workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """One census population. Official never falls back to bootstrap; absent inputs are unavailable."""
     labels_path = root / CENSUS_DIR / str(cohort.census) / "labels-all.jsonl"
@@ -797,7 +838,9 @@ def measure_tb4_cohort(
     subjects = [
         tb4_subject(cohort, r, hub, index) for r in sorted(labels, key=lambda r: r["membership_id"])
     ]
-    records = measure_subjects(cohort, split, subjects, scan=scan, registry=registry)
+    records = measure_subjects(
+        cohort, split, subjects, scan=scan, registry=registry, workers=workers
+    )
     if sha256_bytes(labels_path.read_bytes()) != labels_sha or (
         index_path.is_file() and official and sha256_bytes(index_path.read_bytes()) != index_sha
     ):
@@ -840,6 +883,7 @@ def measure_cohort(
     registry: Sequence[dict[str, Any]],
     keys_dir: Path = KEYS_DIR,
     dev_tasks: frozenset[str] | None = None,
+    workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """``(cohort result, per-item records)``; unavailable cohorts carry a reason, never counts."""
     if split not in cohort.splits:
@@ -848,10 +892,22 @@ def measure_cohort(
         ), []
     if cohort.census:
         return measure_tb4_cohort(
-            cohort, split, root=root, scan=scan, registry=registry, dev_tasks=dev_tasks
+            cohort,
+            split,
+            root=root,
+            scan=scan,
+            registry=registry,
+            dev_tasks=dev_tasks,
+            workers=workers,
         )
     return measure_key_cohort(
-        cohort, split, root=root, scan=scan, registry=registry, keys_dir=keys_dir
+        cohort,
+        split,
+        root=root,
+        scan=scan,
+        registry=registry,
+        keys_dir=keys_dir,
+        workers=workers,
     )
 
 
@@ -1159,7 +1215,9 @@ def write_outputs(
     return paths
 
 
-def run_measure(split: str, expect: str | None, out: Path, root: Path) -> dict[str, Any]:
+def run_measure(
+    split: str, expect: str | None, out: Path, root: Path, workers: int = 1
+) -> dict[str, Any]:
     registry = catalog_registry()
     fp = fingerprints(registry)
     if split == "test" and not expect:
@@ -1170,7 +1228,9 @@ def run_measure(split: str, expect: str | None, out: Path, root: Path) -> dict[s
         raise ValueError(
             f"fingerprint {fp['combined']} != expected {expect}: implementation changed"
         )
-    cohorts, records = measure(split, root=root, scan=default_scan, registry=registry)
+    cohorts, records = measure(
+        split, root=root, scan=default_scan, registry=registry, workers=workers
+    )
     records.sort(key=lambda r: (r["cohort"], r["item_id"], r["view"]))
     result = {
         "schema": SCHEMA,
@@ -1200,6 +1260,9 @@ def main() -> None:
     run.add_argument("--split", choices=("dev", "test"), required=True)
     run.add_argument("--expect-fingerprint", help="combined sha256 recorded at freeze time")
     run.add_argument("--out", type=Path, default=HERE)
+    run.add_argument(
+        "--workers", type=int, default=1, help="process-parallel scans; results are identical"
+    )
     pub = sub.add_parser("publish", help="append v3 rows from a retained results file")
     pub.add_argument("--results", type=Path, required=True)
     pub.add_argument("--scoreboard", type=Path, default=SCOREBOARD)
@@ -1207,7 +1270,7 @@ def main() -> None:
     if args.command == "fingerprint":
         print(json.dumps(fingerprints(catalog_registry()), indent=1, sort_keys=True))
     elif args.command == "measure":
-        run_measure(args.split, args.expect_fingerprint, args.out, results_root())
+        run_measure(args.split, args.expect_fingerprint, args.out, results_root(), args.workers)
         print((args.out / f"report-{args.split}.md").read_text())
     else:
         result = json.loads(args.results.read_text())

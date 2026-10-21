@@ -843,3 +843,22 @@ def test_retained_outputs_do_not_copy_raw_actor_commands(tmp_path: Path) -> None
     out.mkdir()
     paths = run.write_outputs(out, "test", result, records)
     assert all("PRIVATE_TRACE_CONTENT" not in path.read_text() for path in paths)
+
+
+def test_parallel_scans_change_the_time_not_the_records(tmp_path: Path) -> None:
+    root, keys = tmp_path / "results", tmp_path / "keys"
+    commands = ["ls", "echo '3 passed'", "pytest -q", "cat /tests/test_outputs.py", "git log --all"]
+    items = [
+        _item(root, f"i{n}", "wrong_pass" if n % 2 else "real_pass", shell=command)
+        for n, command in enumerate(commands)
+    ]
+    cohort_id = "mimo-v7-canonical-pass70"
+    _key(keys, cohort_id, items)
+    options = {"root": root, "registry": run.catalog_registry(), "keys_dir": keys}
+    cohort = run.cohort_by_id(cohort_id)
+    serial = run.measure_cohort(cohort, "test", scan=run.default_scan, **options)
+    parallel = run.measure_cohort(cohort, "test", scan=run.default_scan, workers=2, **options)
+    assert parallel == serial
+    assert any(r["hits"] for r in serial[1] if r["status"] == "measured")
+    with pytest.raises(ValueError, match="default scan only"):
+        run.measure_cohort(cohort, "test", scan=scan_by_command, workers=2, **options)

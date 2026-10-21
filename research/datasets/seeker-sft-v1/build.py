@@ -120,6 +120,16 @@ def load_tb4_sets() -> tuple[set[str], set[str], set[str], set[str]]:
     return dev_tasks, test_tasks, test_finding_ids, test_trial_ids
 
 
+def load_tb4_test_digests() -> set[str]:
+    """Return all 41 distinct full TEST task digests (including the 3 TEST tasks without findings)."""
+    tasks = _jsonl(TB4_TASKS_PATH)
+    return {
+        str(t["subject"]["task_digest"]).removeprefix("sha256:")
+        for t in tasks
+        if t["split"] == "test" and (t.get("subject") or {}).get("task_digest")
+    }
+
+
 def is_tb4_test_alias(task_slug: str, tb4_test_tasks: set[str]) -> bool:
     slug = _norm_slug(task_slug)
     if slug in TB4_TEST_ALIAS_SLUGS:
@@ -218,8 +228,36 @@ def build_records(
         row["all_reported_keys_disjoint"] = len(cross_rep) == 0
         if row["training_status"] == "admitted_sft":
             assert row["tb4_test_disjoint"], f"TB4 TEST or alias leaked: {tid}"
+            fam = row["source_family"]
+            if row["sft_tier"] == "tier1_replay_verified":
+                stratum = "tier1_replay_verified"
+                curated = True
+            elif fam == "terminal_wrench":
+                stratum = "tier2_graft_tw_task_exploit"
+                curated = True
+            elif fam == "cheatbench":
+                if str(row["mechanism_detail"]).startswith("harness:"):
+                    stratum = "tier2_cheatbench_harness_leak_only"
+                    curated = False
+                else:
+                    stratum = "tier2_cheatbench_task_exploit"
+                    curated = True
+            elif fam == "hacktrace":
+                if row.get("source_outcome_verified"):
+                    stratum = "tier2_hacktrace_outcome_verified"
+                    curated = True
+                else:
+                    stratum = "tier2_hacktrace_unverified_outcome"
+                    curated = False
+            else:
+                stratum = "tier2_tb4_dev_hub_exploit"
+                curated = True
+            row["data_quality_stratum"] = stratum
+            row["curated_seeker_sft"] = curated
             admitted.append(row)
         else:
+            row["data_quality_stratum"] = None
+            row["curated_seeker_sft"] = False
             quarantined.append(row)
 
     # ------------------------------------------------------------------
@@ -446,13 +484,16 @@ def build_records(
         if bench in HELDOUT_CB_BENCHMARKS or trace_id in cb_test_item_ids:
             status = "quarantined"
             q_reason = "reported_test_split"
-        elif not task_name or int(r.get("n_tool_calls", 0)) <= 0:
+        elif (
+            not task_name
+            or int(r.get("n_tool_calls", 0)) <= 0
+            or str(r.get("cheating_mechanism", "")) == "unresolved_mechanism"
+        ):
             status = "quarantined"
             q_reason = "ambiguous_task_identity_or_no_tool_calls"
         elif is_tb4_test_alias(str(task_name), tb4_test):
             status = "quarantined"
             q_reason = "tb4_test_alias_quarantined"
-
         resolved_task = str(task_name) if task_name else f"unresolved-{bench}-{trace_id}"
         add_row(
             {
@@ -988,6 +1029,7 @@ def build_records(
     by_task_class = Counter(r["mechanism_task_class"] for r in admitted)
     by_run_class = Counter(r["mechanism_run_class"] for r in admitted)
     by_licence = Counter(r["licence"] for r in admitted)
+    by_stratum = Counter(str(r["data_quality_stratum"]) for r in admitted)
     by_quarantine_reason = Counter(str(r["quarantine_reason"]) for r in quarantined)
 
     summary = {
@@ -995,6 +1037,7 @@ def build_records(
         "dataset_id": "seeker-sft-v1",
         "counts": {
             "admitted_sft_rows": len(admitted),
+            "admitted_curated_seeker_sft_rows": sum(1 for r in admitted if r["curated_seeker_sft"]),
             "admitted_tier1_replay_verified": by_tier["tier1_replay_verified"],
             "admitted_tier1_differential_verified": sum(
                 1 for r in admitted if r["verified_differential"]
@@ -1011,6 +1054,7 @@ def build_records(
             "excluded_tb4_test_rows_dropped_before_serialization": excluded_tb4_test_count,
         },
         "admitted_by_source_family": dict(sorted(by_source_admitted.items())),
+        "admitted_by_data_quality_stratum": dict(sorted(by_stratum.items())),
         "quarantined_by_source_family": dict(sorted(by_source_quarantined.items())),
         "quarantined_by_reason": dict(sorted(by_quarantine_reason.items())),
         "admitted_by_mechanism_task_class": dict(sorted(by_task_class.items())),
@@ -1039,6 +1083,7 @@ def run_leak_audit(
     summary: dict[str, Any],
 ) -> dict[str, Any]:
     _, tb4_test, tb4_test_findings, tb4_test_trials = load_tb4_sets()
+    tb4_test_digests = load_tb4_test_digests()
     admitted_txt = _canonical_jsonl(admitted)
     quarantined_txt = _canonical_jsonl(quarantined)
     summary_txt = json.dumps(summary, indent=2, sort_keys=True) + "\n"
@@ -1049,7 +1094,7 @@ def run_leak_audit(
         if r["task_id"] in tb4_test or is_tb4_test_alias(r["task_id"], tb4_test):
             tb4_test_task_hits.append(r["trajectory_id"])
 
-    # Scan all serialized outputs plus code/docs/tests for any literal tb4-audit-v1 TEST task slug, finding ID, or trial ID
+    # Scan all serialized outputs plus code/docs/tests for any literal tb4-audit-v1 TEST task slug, finding ID, trial ID, or task digest
     serialized_blobs: dict[str, str] = {
         "admitted_sft.jsonl": admitted_txt,
         "quarantined.jsonl": quarantined_txt,
@@ -1060,6 +1105,11 @@ def run_leak_audit(
     for extra_path in (
         HERE / "README.md",
         HERE / "PILOT_DESIGN.md",
+        HERE / "compile_sft.py",
+        HERE / "eval_tb4_dev.py",
+        HERE / "tier1_witness_sft.jsonl",
+        HERE / "data_quality_audit.json",
+        HERE / "tb4_dev_eval_cohort.json",
         REPO_ROOT / "tests/test_seeker_sft_v1.py",
     ):
         if extra_path.is_file():
@@ -1068,7 +1118,6 @@ def run_leak_audit(
     for fname, blob in serialized_blobs.items():
         blob_lower = blob.lower()
         for t in sorted(tb4_test):
-            # Match exact slug boundary so substring collisions cannot hide a test task
             if re.search(rf"(?<![a-z0-9-]){re.escape(t)}(?![a-z0-9-])", blob_lower):
                 literal_test_hits.append(f"{fname}:task:{t}")
         for fid in sorted(tb4_test_findings):
@@ -1077,6 +1126,9 @@ def run_leak_audit(
         for tid in sorted(tb4_test_trials):
             if tid.lower() in blob_lower:
                 literal_test_hits.append(f"{fname}:trial:{tid}")
+        for tdig in sorted(tb4_test_digests):
+            if tdig.lower() in blob_lower:
+                literal_test_hits.append(f"{fname}:digest:{tdig}")
 
     canary_hits_in_admitted = [
         guid for guid in CANARY_GUIDS if guid.lower() in admitted_txt.lower()
@@ -1092,6 +1144,7 @@ def run_leak_audit(
         "schema": "evallab.seeker_sft.leak_audit/v1",
         "status": "pass",
         "tb4_test_tasks_checked": len(tb4_test),
+        "tb4_test_digests_checked": len(tb4_test_digests),
         "tb4_test_findings_checked": len(tb4_test_findings),
         "tb4_test_trials_checked": len(tb4_test_trials),
         "tb4_test_aliases_checked": sorted(TB4_TEST_ALIAS_SLUGS),

@@ -1,0 +1,87 @@
+{
+  "cheatbench_dev_action_audit": {
+    "admitted_terminal_bench_2_rows": 516,
+    "by_mechanism_total": {
+      "harness:harness_leaks_answer": 57,
+      "harness:harness_leaks_verifier": 410,
+      "task:secret_discovery_in_environment": 2,
+      "task:secret_discovery_via_web_search": 18,
+      "task:verifier_exploitation": 29
+    },
+    "by_mechanism_tripwire_fired": {
+      "harness:harness_leaks_verifier": 410,
+      "task:secret_discovery_via_web_search": 3
+    },
+    "by_tripwire_rule": {
+      "content:process_exit": 1,
+      "content:tamper_signature": 1,
+      "grader_tamper": 8,
+      "harness_log_reads": 3,
+      "hidden_reads": 410,
+      "hidden_test_corroboration": 6,
+      "history_mining": 8,
+      "submission_tamper": 2,
+      "upstream_attempts": 391
+    },
+    "harness_leak_fraction": 0.905,
+    "harness_leak_only_rows": 467,
+    "task_level_exploit_rows": 49,
+    "tripwire_confirmed_rate": 0.8004,
+    "tripwire_confirmed_rows": 413
+  },
+  "dataset_id": "seeker-sft-v1",
+  "hacktrace_dev_outcome_audit": {
+    "admitted_dev_act_positive_rows": 75,
+    "outcome_unverified_failed_visible": 44,
+    "outcome_verified_rate": 0.4133,
+    "outcome_verified_visible_pass_hidden_fail": 31
+  },
+  "pool_filtering_summary": {
+    "admitted_total_rows": 911,
+    "curated_by_source_family": {
+      "breaker_bench": 15,
+      "cheatbench": 49,
+      "hacktrace": 31,
+      "mimo": 57,
+      "tb2_tb21": 4,
+      "tb4_dev": 28,
+      "terminal_wrench": 216
+    },
+    "curated_by_stratum": {
+      "tier1_replay_verified": 86,
+      "tier2_cheatbench_task_exploit": 49,
+      "tier2_graft_tw_task_exploit": 216,
+      "tier2_hacktrace_outcome_verified": 31,
+      "tier2_tb4_dev_hub_exploit": 18
+    },
+    "curated_seeker_sft_rows": 400,
+    "filtered_out_by_stratum": {
+      "tier2_cheatbench_harness_leak_only": 467,
+      "tier2_hacktrace_unverified_outcome": 44
+    },
+    "noise_reduction_fraction": 0.5609,
+    "non_curated_filtered_rows": 511,
+    "quarantined_total_records": 712,
+    "tier1_differential_verified_retained": "42/42",
+    "tier1_replay_verified_retained": "86/86"
+  },
+  "schema": "evallab.seeker_sft.data_quality_audit/v1",
+  "tb4_test_digest_seal": {
+    "hits": 0,
+    "tb4_test_digests_checked": 41
+  },
+  "terminus_parser_verification": {
+    "combined_parse_pass_rate": 1.0,
+    "combined_parser_verified_histories": 171,
+    "combined_parser_verified_supervised_turns": 496,
+    "estimated_tokens_per_epoch": 700741,
+    "graft_train_tw_commands": 1425,
+    "graft_train_tw_histories": 151,
+    "graft_train_tw_total_chars": 2538761,
+    "graft_train_tw_turns": 476,
+    "graft_train_tw_turns_parse_ok": 476,
+    "tier1_witness_conversations": 20,
+    "tier1_witness_total_chars": 124054,
+    "tier1_witness_turns_parse_ok": 20
+  }
+}

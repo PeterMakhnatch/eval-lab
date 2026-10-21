@@ -1,0 +1,521 @@
+{
+  "$defs": {
+    "DetectionRecipe": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "static_check",
+            "tripwire_rule",
+            "probe_test"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "method_id": {
+          "enum": [
+            "reference_mutation",
+            "differential_tests",
+            "reward_seeker",
+            "static_review",
+            "failure_clustering",
+            "trace_judge",
+            "tripwires",
+            "fixed_task_rerun",
+            "controls",
+            "equivalent_rewrite",
+            "grader_fuzz"
+          ],
+          "title": "Method Id",
+          "type": "string"
+        },
+        "rule_or_probe": {
+          "default": "",
+          "title": "Rule Or Probe",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "method_id",
+        "summary"
+      ],
+      "title": "DetectionRecipe",
+      "type": "object"
+    },
+    "ExploitTemplate": {
+      "additionalProperties": false,
+      "properties": {
+        "applicable": {
+          "title": "Applicable",
+          "type": "boolean"
+        },
+        "differential_verdict": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Differential Verdict",
+          "type": "object"
+        },
+        "goal": {
+          "default": "",
+          "title": "Goal",
+          "type": "string"
+        },
+        "mode": {
+          "default": "",
+          "title": "Mode",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snippet"
+        },
+        "template_steps": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Template Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "applicable"
+      ],
+      "title": "ExploitTemplate",
+      "type": "object"
+    },
+    "FileRegexRule": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "pattern": {
+          "minLength": 1,
+          "title": "Pattern",
+          "type": "string"
+        },
+        "surface": {
+          "default": "any",
+          "title": "Surface",
+          "type": "string"
+        },
+        "weight": {
+          "default": 0.5,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "FileRegexRule",
+      "type": "object"
+    },
+    "FixPattern": {
+      "additionalProperties": false,
+      "properties": {
+        "checklist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Checklist",
+          "type": "array"
+        },
+        "example_diff_or_rule": {
+          "default": "",
+          "title": "Example Diff Or Rule",
+          "type": "string"
+        },
+        "fix_location": {
+          "title": "Fix Location",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fix_location",
+        "summary"
+      ],
+      "title": "FixPattern",
+      "type": "object"
+    },
+    "HackbookExample": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_status": {
+          "enum": [
+            "executed",
+            "claimed"
+          ],
+          "title": "Evidence Status",
+          "type": "string"
+        },
+        "item_or_task_id": {
+          "minLength": 1,
+          "title": "Item Or Task Id",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "preference_model_tb4",
+            "benchjack",
+            "cheatbench",
+            "terminal_wrench",
+            "hacktrace",
+            "envcheck",
+            "mimo_atlas",
+            "eval3",
+            "tb2_to_tb21",
+            "bespoke_tb4",
+            "automationbench_verified",
+            "rea_environments",
+            "wandr",
+            "taxonomy_v1",
+            "delphik_open_defect"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "item_or_task_id",
+        "summary",
+        "evidence_status"
+      ],
+      "title": "HackbookExample",
+      "type": "object"
+    },
+    "HackbookSignatures": {
+      "additionalProperties": false,
+      "properties": {
+        "file_globs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "File Globs",
+          "type": "array"
+        },
+        "file_regexes": {
+          "items": {
+            "$ref": "#/$defs/FileRegexRule"
+          },
+          "title": "File Regexes",
+          "type": "array"
+        },
+        "structural_signals": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Structural Signals",
+          "type": "array"
+        },
+        "trace_command_regexes": {
+          "items": {
+            "$ref": "#/$defs/TraceRegexRule"
+          },
+          "title": "Trace Command Regexes",
+          "type": "array"
+        },
+        "trace_diff_regexes": {
+          "items": {
+            "$ref": "#/$defs/TraceRegexRule"
+          },
+          "title": "Trace Diff Regexes",
+          "type": "array"
+        }
+      },
+      "title": "HackbookSignatures",
+      "type": "object"
+    },
+    "TraceRegexRule": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "pattern": {
+          "minLength": 1,
+          "title": "Pattern",
+          "type": "string"
+        },
+        "weight": {
+          "default": 0.5,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "TraceRegexRule",
+      "type": "object"
+    }
+  },
+  "$id": "evallab.hackbook.entry/v0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "detection_recipe": {
+      "$ref": "#/$defs/DetectionRecipe"
+    },
+    "direction": {
+      "enum": [
+        "false_pass",
+        "false_fail",
+        "either"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "enabled_by": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Enabled By",
+      "type": "array"
+    },
+    "examples": {
+      "items": {
+        "$ref": "#/$defs/HackbookExample"
+      },
+      "title": "Examples",
+      "type": "array"
+    },
+    "exploit_template": {
+      "$ref": "#/$defs/ExploitTemplate"
+    },
+    "fix_pattern": {
+      "$ref": "#/$defs/FixPattern"
+    },
+    "id": {
+      "pattern": "^HB-(TS|RS)\\d{2}-\\d{3}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "mechanism": {
+      "title": "Mechanism",
+      "type": "string"
+    },
+    "qa_category": {
+      "enum": [
+        "broken",
+        "reachable",
+        "tamperable",
+        "weak",
+        "reward_hacking",
+        "false_positive",
+        "false_negative",
+        "prompt_misaligned",
+        "failure_cause"
+      ],
+      "title": "Qa Category",
+      "type": "string"
+    },
+    "schema": {
+      "const": "evallab.hackbook.entry/v0",
+      "default": "evallab.hackbook.entry/v0",
+      "title": "Schema",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "task",
+        "run"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "signatures": {
+      "$ref": "#/$defs/HackbookSignatures"
+    },
+    "slug": {
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Slug",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "enum": [
+          "preference_model_tb4",
+          "benchjack",
+          "cheatbench",
+          "terminal_wrench",
+          "hacktrace",
+          "envcheck",
+          "mimo_atlas",
+          "eval3",
+          "tb2_to_tb21",
+          "bespoke_tb4",
+          "automationbench_verified",
+          "rea_environments",
+          "wandr"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "taxonomy_class": {
+      "title": "Taxonomy Class",
+      "type": "string"
+    },
+    "taxonomy_class_id": {
+      "pattern": "^(TS|RS)\\d{2}$",
+      "title": "Taxonomy Class Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "default": "v0",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "title",
+    "taxonomy_class_id",
+    "taxonomy_class",
+    "side",
+    "direction",
+    "qa_category",
+    "sources",
+    "mechanism",
+    "signatures",
+    "detection_recipe",
+    "exploit_template",
+    "fix_pattern"
+  ],
+  "title": "Eval Lab Hackbook Entry v0",
+  "type": "object",
+  "x-canonical-sources": [
+    "preference_model_tb4",
+    "benchjack",
+    "cheatbench",
+    "terminal_wrench",
+    "hacktrace",
+    "envcheck",
+    "mimo_atlas",
+    "eval3",
+    "tb2_to_tb21",
+    "bespoke_tb4",
+    "automationbench_verified",
+    "rea_environments",
+    "wandr"
+  ],
+  "x-canonical-structural-signals": [
+    "unread_output_mentions",
+    "single_seed_or_no_repeat",
+    "surface_only_workbook_check",
+    "unpinned_or_untimed_warmup",
+    "boolean_flag_or_status_trusted",
+    "missing_negative_or_clean_preservation_check",
+    "untested_reference_subblock",
+    "validator_prefix_or_allowlist_gap",
+    "nan_or_null_comparison_bug",
+    "comment_or_first_block_extractor_bug",
+    "oracle_or_answer_file_in_image",
+    "git_history_or_remote_leak",
+    "in_process_grader_import",
+    "conftest_or_sitecustomize_writable",
+    "verifier_binary_or_script_writable",
+    "self_reported_timer_or_success_marker",
+    "root_or_excessive_container_privileges",
+    "test_only_string_literals",
+    "test_only_numeric_constants",
+    "instruction_grader_contradiction_signal",
+    "overstrict_private_symbol_or_form",
+    "wrong_or_contradictory_gold_constant",
+    "env_python_or_runtime_mismatch",
+    "infeasible_broken_reference",
+    "unsanitized_llm_judge_rubric"
+  ],
+  "x-run-classes": {
+    "RS01": "exploit_grader_gap",
+    "RS02": "tamper_with_grading",
+    "RS03": "answer_lookup",
+    "RS04": "misreport",
+    "RS05": "accepted_partial_fix",
+    "RS06": "defect_caused_fail",
+    "RS07": "infra_fail"
+  },
+  "x-task-classes": {
+    "TS01": "weak_check",
+    "TS02": "grader_logic_bug",
+    "TS03": "answer_reachable",
+    "TS04": "grader_tamperable",
+    "TS05": "unstated_requirement",
+    "TS06": "instruction_grader_contradiction",
+    "TS07": "overstrict_oracle",
+    "TS08": "wrong_answer_key",
+    "TS09": "env_mismatch_or_flaky",
+    "TS10": "infeasible_as_written",
+    "TS11": "exploitable_llm_judge"
+  }
+}

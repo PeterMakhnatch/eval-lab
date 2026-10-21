@@ -14,6 +14,7 @@ from evallab.cli import parser
 from evallab.hackbook import (
     STRUCTURAL_SIGNALS,
     HackbookEntry,
+    coverage_summary,
     get_entry,
     list_entries,
     load_hackbook,
@@ -33,7 +34,7 @@ from evallab.hackbook.matcher import (
     score_trace,
     task_gate_ids,
 )
-from evallab.hackbook.models import find_tb4_test_leaks, tb4_test_split_terms
+from evallab.hackbook.models import HackbookExample, find_tb4_test_leaks, tb4_test_split_terms
 from evallab.qa.models import load_findings_dir
 
 REPO = Path(__file__).resolve().parents[1]
@@ -48,6 +49,8 @@ SOURCES = {
     "mimo_atlas",
     "eval3",
     "tb2_to_tb21",
+    "reward_seeker",
+    "tb4_run_census",
 }
 TASK_CLASS_NAMES = {
     "TS01": ("weak_check", "false_pass", "weak"),
@@ -763,7 +766,7 @@ def test_cli_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
 def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
     code, out = _cli(capsys, "coverage", "--json")
     cov = json.loads(out)
-    assert code == 0 and cov["total_entries"] >= 55
+    assert code == 0 and cov["total_entries"] >= 57
     assert cov["entries_with_executed_evidence"] >= 39
     assert {row["taxonomy_class_id"] for row in cov["by_class"]} == CLASSES
     assert {
@@ -780,6 +783,79 @@ def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
         "automationbench_verified",
         "rea_environments",
         "wandr",
+        "reward_seeker",
+        "tb4_run_census",
     } <= {row["source"] for row in cov["by_source"]}
     code, out = _cli(capsys, "coverage")
     assert code == 0 and "By taxonomy class:" in out and "By source:" in out
+
+
+def test_coverage_counts_each_evidence_status_per_source() -> None:
+    def example(status: str, source: str) -> HackbookExample:
+        return HackbookExample.model_validate(
+            {
+                "source": source,
+                "evidence_status": status,
+                "item_or_task_id": f"{source}:{status}",
+                "summary": "s",
+            }
+        )
+
+    replayed = SYNTHETIC[0].model_copy(
+        update={
+            "examples": [example("executed", "reward_seeker"), example("claimed", "benchjack")],
+            "sources": ["reward_seeker", "benchjack"],
+        }
+    )
+    seen = SYNTHETIC[1].model_copy(
+        update={"examples": [example("observed", "tb4_run_census")], "sources": ["tb4_run_census"]}
+    )
+    cov = coverage_summary([replayed, seen], root=REPO)
+    assert cov["total_examples"] == 3
+    assert (cov["executed_examples"], cov["observed_examples"], cov["claimed_examples"]) == (
+        1,
+        1,
+        1,
+    )
+    # Observed is neither executed nor claimed: only the replayed entry counts as executed.
+    assert cov["entries_with_executed_evidence"] == 1
+    by_source = {row["source"]: row for row in cov["by_source"]}
+    assert by_source["reward_seeker"]["executed_examples"] == 1
+    assert by_source["tb4_run_census"]["observed_examples"] == 1
+    assert by_source["tb4_run_census"]["executed_examples"] == 0
+    assert by_source["benchjack"]["claimed_examples"] == 1
+    by_class = {row["taxonomy_class_id"]: row for row in cov["by_class"]}
+    assert by_class["TS01"]["executed_examples"] == 1 and by_class["TS02"]["observed_examples"] == 1
+
+
+def test_cli_list_filters_on_observed_evidence(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out = _cli(capsys, "list", "--evidence", "observed", "--json")
+    rows = json.loads(out)
+    assert code == 0 and rows
+    assert all(any(ex["evidence_status"] == "observed" for ex in e["examples"]) for e in rows)
+
+
+def test_direction_keeps_the_side_the_caller_hunts_plus_either(tmp_path: Path) -> None:
+    task = _planted_task(tmp_path / "pkg")
+    everything = match_task(task, top=100)["matches"]
+    assert {"false_pass", "false_fail", "either"} <= {m["direction"] for m in everything}
+    seeker = match_task(task, direction="false_pass", top=100)["matches"]
+    assert {m["direction"] for m in seeker} == {"false_pass", "either"}
+    assert {m["entry_id"] for m in seeker} == {
+        m["entry_id"] for m in everything if m["direction"] != "false_fail"
+    }
+    repairer = match_task(task, direction="false_fail", top=100)["matches"]
+    assert {m["direction"] for m in repairer} == {"false_fail", "either"}
+    # The cut to `top` happens after the filter: a false-fail entry never takes a slot.
+    top = match_task(task, direction="false_pass", top=3)["matches"]
+    assert len(top) == 3 and all(m["direction"] != "false_fail" for m in top)
+    with pytest.raises(ValueError, match="direction must be one of"):
+        match_task(task, direction="pass")
+
+
+def test_cli_match_direction(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    task = _planted_task(tmp_path / "pkg")
+    code, out = _cli(capsys, "match", str(task), "--json", "--direction", "false_pass")
+    payload = json.loads(out)
+    assert code == 0 and payload["matches"]
+    assert {m["direction"] for m in payload["matches"]} <= {"false_pass", "either"}

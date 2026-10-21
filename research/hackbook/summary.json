@@ -7,7 +7,7 @@
     "RS05": 1,
     "RS06": 1,
     "RS07": 1,
-    "TS01": 11,
+    "TS01": 13,
     "TS02": 4,
     "TS03": 4,
     "TS04": 8,
@@ -36,16 +36,16 @@
     "overstrict_oracle": 3,
     "tamper_with_grading": 2,
     "unstated_requirement": 4,
-    "weak_check": 11,
+    "weak_check": 13,
     "wrong_answer_key": 2
   },
   "entries_by_detection_kind": {
-    "probe_test": 26,
+    "probe_test": 28,
     "static_check": 18,
     "tripwire_rule": 11
   },
   "entries_by_detection_method": {
-    "controls": 10,
+    "controls": 12,
     "differential_tests": 2,
     "equivalent_rewrite": 3,
     "failure_clustering": 1,
@@ -60,7 +60,7 @@
   "entries_by_direction": {
     "either": 10,
     "false_fail": 13,
-    "false_pass": 32
+    "false_pass": 34
   },
   "entries_by_qa_category": {
     "broken": 15,
@@ -71,7 +71,7 @@
     "reachable": 4,
     "reward_hacking": 6,
     "tamperable": 8,
-    "weak": 13
+    "weak": 15
   },
   "entries_by_source": {
     "automationbench_verified": 3,
@@ -82,20 +82,23 @@
     "eval3": 9,
     "hacktrace": 3,
     "mimo_atlas": 9,
-    "preference_model_tb4": 33,
+    "preference_model_tb4": 35,
     "rea_environments": 1,
+    "reward_seeker": 2,
     "tb2_to_tb21": 12,
+    "tb4_run_census": 2,
     "terminal_wrench": 13,
     "wandr": 1
   },
-  "entries_count": 55,
+  "entries_count": 57,
   "entries_with_executed_evidence_count": 39,
   "entry_schema": "evallab.hackbook.entry/v0",
   "examples_by_evidence_status": {
-    "claimed": 107,
-    "executed": 71
+    "claimed": 135,
+    "executed": 74,
+    "observed": 2
   },
-  "examples_count": 178,
+  "examples_count": 211,
   "run_classes_count": 7,
   "run_side_entries_count": 9,
   "schema": "evallab.hackbook.summary/v0",
@@ -264,8 +267,8 @@
         "wrong_answer_key": 4
       },
       "aggregate_census_total_findings": 241,
-      "entries_count": 33,
-      "examples_count": 67,
+      "entries_count": 35,
+      "examples_count": 95,
       "executed_dev_witness_ids": [
         "pm-tb4:cargo-flight-dispatch:914347f275",
         "pm-tb4:cargo-flight-dispatch:ce906f5201",
@@ -288,6 +291,13 @@
       "executed_examples_count": 0,
       "source_url": "https://github.com/earakely-scale/rea-environments"
     },
+    "reward_seeker": {
+      "entries_count": 2,
+      "evidence": "differential replay: upstream grader reward 1.0, PM port reward 0.0",
+      "examples_count": 3,
+      "executed_examples_count": 3,
+      "source_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1151"
+    },
     "tb2_to_tb21": {
       "answer_keys": [
         "research/answer-keys/tb2-to-tb21-v1",
@@ -301,6 +311,13 @@
       "examples_count": 13,
       "executed_examples_count": 13,
       "source_url": "https://github.com/PeterMakhnatch/eval-lab/tree/main/research/answer-keys/tb2-to-tb21-v1"
+    },
+    "tb4_run_census": {
+      "entries_count": 2,
+      "evidence": "deterministic submission-code signature on archived DEV passes, not replayed",
+      "examples_count": 2,
+      "observed_examples_count": 2,
+      "source_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1137"
     },
     "terminal_wrench": {
       "answer_key": "research/answer-keys/breaker-bench-v1",
@@ -332,7 +349,7 @@
       "source_url": "https://parsewave.ai/benchmark-research/wandr"
     }
   },
-  "sources_count": 13,
+  "sources_count": 15,
   "structural_signal_entry_counts": {
     "boolean_flag_or_status_trusted": 3,
     "comment_or_first_block_extractor_bug": 1,
@@ -362,8 +379,12 @@
   },
   "structural_signals_count": 25,
   "task_classes_count": 11,
-  "task_side_entries_count": 46,
+  "task_side_entries_count": 48,
   "taxonomy_classes_count": 18,
+  "tb4_dev_finding_coverage": {
+    "cited_by_an_example": 86,
+    "dev_findings": 86
+  },
   "tb4_test_split_leak_check": {
     "forbidden_test_items_checked": 152,
     "forbidden_test_tasks_checked": 41,

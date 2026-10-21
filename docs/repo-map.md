@@ -235,9 +235,9 @@ inputs:
   - path: src/evallab/hackbook/cli.py
     digest: sha256:911e5bf88d66bc543119f78dae1bbba1bbb45b364babade043b03b7e26aabc95
   - path: src/evallab/hackbook/matcher.py
-    digest: sha256:22e4b5c2951c9aa03878346607504a8c8e25d71bf0a9e13b9ed195248f400ee0
+    digest: sha256:cd7c19de1d1d7710b6057dd66f460d04b2450ef30b1450c7b33bc3df8da97fd6
   - path: src/evallab/hackbook/models.py
-    digest: sha256:c5bca96c0f91d1fd1fb105b050228b948925c751926f91d2c4d7147ba7813a67
+    digest: sha256:3e5db66ff56149982fd9338a1aba46f286d8ba6b81961bae9a66c812f35a5648
   - path: src/evallab/harbor_antigravity.py
     digest: sha256:10e45b5e9d636280a900e4ac5ab3813dc75b80b4e737d2184810994a1e4143e0
   - path: src/evallab/harbor_cheat.py
@@ -805,7 +805,7 @@ inputs:
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/tripwires.py
-    digest: sha256:2e527dbcc57f304233c3ea8754dca76dd4e5ddcda7d74efd3d576a98bdb986aa
+    digest: sha256:38064e2bfeed66d69ccac647afe43788ea31b03a3a110a217512202f7742fc2c
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py

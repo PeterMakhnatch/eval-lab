@@ -111,8 +111,10 @@ and writes findings that are only counted once independently confirmed.
   OpenAI-compatible endpoint (OpenRouter). The cheap-model frontier ran
   through the same harness protocol (plain-read and source-only variants).
 - Measured: v2 (#1133) merges the execution tools + hackbook lookup + three
-  model lanes. Baselines it is compared against: plain read (Opus) 78/152
-  and v1 80/152 on `tb4-audit-v1` TEST — those comparisons are
+  model lanes. Baselines it is compared against: plain read (Codex
+  `gpt-6.1-sol`; the #1119 receipt said Opus, but 574/574 retained reader
+  messages record Codex) 78/152 and v1 (Opus 5.5) 80/152 on
+  `tb4-audit-v1` TEST — those comparisons are
   model-confounded (different drivers). The cheap frontier's one frozen
   TEST run: Qwen (plain, json-v3) scored 6/152 category 1-to-1 (precision
   6/14, strict locus 0/152) after stopping at 9 of 41 tasks — 32

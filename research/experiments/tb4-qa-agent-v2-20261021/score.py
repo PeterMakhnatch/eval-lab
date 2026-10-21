@@ -64,7 +64,7 @@ BASELINES: dict[str, dict[str, Any]] = {
         "condition": "deterministic signal scanner; no model, no execution",
     },
     "plain_read_opus": {
-        "label": "plain read, Opus (#1119 static arm)", "model": "anthropic/claude-opus-5-5",
+        "label": "plain read, Codex gpt-6.1-sol (#1119 static arm; receipt said Opus)", "model": "openai-codex/gpt-6.1-sol",
         "condition": "no tools beyond read-only shell, no execution; reader_prompt.md; up to 8 "
                      "findings per task; 6 tasks per subagent",
     },

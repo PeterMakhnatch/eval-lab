@@ -103,7 +103,7 @@ campaign billing journal for all cost claims.
 ## Interpreting the eventual comparison
 
 Use the unchanged `tb4-audit-v1/score_audit.py` one-to-one matcher. The historical
-Opus references are 78/152 (plain) and 80/152 (v1) TEST category matches, not
+plain-read (Codex `gpt-6.1-sol`) and Opus v1 references are 78/152 (plain) and 80/152 (v1) TEST category matches, not
 runtime-confirmed exploit counts. Subscription marginal metered spend is not
 an API-equivalent economic price. Tokenless Eval3's Elo and total 65-environment
 spend are external context, not convertible to this finding-recall metric:
@@ -120,7 +120,7 @@ Run it only after configurations are frozen and their TEST exposures recorded:
 .venv/bin/python research/experiments/cheap-model-frontier-20261021/score_frontier.py
 ```
 
-The output is `scoring/frontier.json` plus an SVG. The historical Opus counts
+The output is `scoring/frontier.json` plus an SVG. The historical plain-read (Codex) and v1 (Opus) counts
 are horizontal references, not invented API-dollar coordinates. Seven-figure
 token prices are fixed before DEV; actual plotted spend comes from per-request
 generation billing, not those price estimates. A valid `cannot_tell` completes

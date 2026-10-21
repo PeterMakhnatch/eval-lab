@@ -517,7 +517,7 @@ inputs:
   - path: src/evallab/qa/answer_key.py
     digest: sha256:4ae81e7fa6876d6f82290c494aa769d438b8084e19c0f373ae899a608b20555f
   - path: src/evallab/qa/ask.py
-    digest: sha256:b5766896b3029126b98dab187d53c3b46679456c3c6876a144196a7d2465c1d9
+    digest: sha256:1b58ece9234d45689f2035f33317a85cd6f062835bda39c34a93ef712c5a5b7b
   - path: src/evallab/qa/ask_lane.py
     digest: sha256:15ed46ec781c6ae1f398a5f2e814cbc64f03359738b8ac46e0b73e2665a01f38
   - path: src/evallab/qa/cli.py

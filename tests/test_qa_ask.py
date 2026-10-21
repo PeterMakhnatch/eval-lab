@@ -131,12 +131,42 @@ def test_workspace_tools_reject_symlink_targets(tmp_path: Path) -> None:
 def test_tools_quote_lines_and_search_literals_without_regex_or_execution(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
     tools = ask.WorkspaceTools(bundle.root, set(bundle.manifest["files"]))
-    assert tools.run("read", {"path": "/workspace/prompt.md"}) == "prompt.md:1: Return value 2."
     assert "file_changes.diff" in tools.run("read", {"path": "."})
     assert "bundle.json" not in tools.run("read", {"path": "."})
     assert tools.run("grep", {"path": ".", "pattern": "RETURN 2"}) == "file_changes.diff:5: +return 2"
     assert tools.run("grep", {"path": ".", "pattern": ".*"}).startswith("[no matches")
-    assert "file_changes.diff:5: +return 2" in tools.run("diff", {"path": "file_changes.diff"})
+
+
+def _numbered(output: str) -> tuple[str, dict[int, str]]:
+    path, *rows = output.split("\n")
+    return path, {int(number): text for number, _, text in (row.partition(": ") for row in rows)}
+
+
+def test_read_keeps_exact_source_lines_and_physical_numbers(tmp_path: Path) -> None:
+    root = tmp_path / "w"
+    root.mkdir()
+    source = ["a", "", "7: looks like a row", "src/x.py:3: looks like a citation", "  é ✓  ", "[no lines]"]
+    (root / "src.txt").write_text("\n".join(source) + "\n", encoding="utf-8")
+    tools = ask.WorkspaceTools(root, {"src.txt"})
+    path, rows = _numbered(tools.run("read", {"path": "src.txt", "start_line": 2, "end_line": 6}))
+    assert path == "src.txt"
+    assert rows == {number: source[number - 1] for number in range(2, 7)}
+
+
+def test_clamped_read_continues_at_a_citable_line_and_stays_within_budget(tmp_path: Path) -> None:
+    root = tmp_path / "w"
+    root.mkdir()
+    (root / "big.txt").write_text("".join(f"line {n}\n" for n in range(1, 31)))
+    tools = ask.WorkspaceTools(root, {"big.txt"}, max_read_lines=10, clamp_reads=True)
+    out = tools.run("read", {"path": "big.txt", "start_line": 5, "end_line": 30})
+    body, note = out.rsplit("\n", 1)
+    assert sorted(_numbered(body)[1]) == list(range(5, 15))
+    assert "continue at big.txt:15" in note and "total lines: 30" in note
+
+    tight = ask.WorkspaceTools(root, {"big.txt"}, max_chars=60)
+    out = tight.run("read", {"path": "big.txt", "start_line": 1, "end_line": 30})
+    assert out.endswith("[line or range clipped; narrow the read]")
+    assert len(out.removesuffix("\n[line or range clipped; narrow the read]")) <= 60
 
 
 def test_existing_refuter_receives_cited_answer_and_executed_tool_provenance(

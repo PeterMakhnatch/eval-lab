@@ -83,7 +83,7 @@ if TYPE_CHECKING:
 ADMISSION_SCHEMA = "evallab.task_admission/v1"
 
 #: Gate implementation version pinned in every record (step-list revisions bump this).
-GATE_VERSION = "tasks.admit/v3"
+GATE_VERSION = "tasks.admit/v5"
 
 #: Default ``--max-mutants`` for the mutation step: one Docker trial per
 #: mutant, so this bounds the step near the 14-trial cheat ladder.
@@ -1577,6 +1577,7 @@ def admit_task(
     only when the record itself cannot be written; step-level infrastructure
     failures become ``not_admitted`` records instead.
     """
+    from evallab.mimo_clean import SCIENTIFIC_EXCLUSIONS_REL, scientific_exclusion
     from evallab.registry import harbor_task_digest, task_directory_digest
 
     task = Path(task_dir).resolve()
@@ -1626,7 +1627,42 @@ def admit_task(
 
     executed: list[AdmissionStepRecord] = []
     skipped = [step.name for step in ordered]
-    for step in ordered:
+    task_id = ""
+    with contextlib.suppress(ReferenceUnproven):
+        task_id = _task_id_of(task)
+    try:
+        exclusion = scientific_exclusion(task_id, package_digest or "")
+    except (OSError, ValueError) as exc:
+        executed.append(
+            AdmissionStepRecord(
+                name="scientific-exclusion",
+                kind="scientific-exclusion",
+                duration_s=time.monotonic() - gate_started,
+                status="infra",
+                detail=f"scientific-use exclusion inventory unreadable: {exc}",
+                reference=str(SCIENTIFIC_EXCLUSIONS_REL),
+            )
+        )
+    else:
+        if exclusion is not None:
+            executed.append(
+                AdmissionStepRecord(
+                    name="scientific-exclusion",
+                    kind="scientific-exclusion",
+                    duration_s=time.monotonic() - gate_started,
+                    status=(
+                        "fail" if exclusion["classification"] == "confirmed_defect" else "review"
+                    ),
+                    detail=(
+                        f"{task_id}@{package_digest}: {exclusion['classification']}:"
+                        f"{exclusion['claim_status']}: {exclusion['reason']}. "
+                        "Diagnostic controls remain allowed; this veto is scientific admission only."
+                    ),
+                    reference=str(SCIENTIFIC_EXCLUSIONS_REL),
+                )
+            )
+    remaining_steps = ordered if not executed else []
+    for step in remaining_steps:
         runner = runners.get(step.kind)
         if runner is None:
             executed.append(

@@ -184,6 +184,24 @@ invalidated 2,664 old labels (including 14 passes): see the census
 `digest-refresh.csv`. Historical failures remain admission holds, not fresh
 measurements. Never re-pin an override to new package bytes without evidence.
 
+HAR-209 adds a separate exact-package scientific-use veto inventory:
+`research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json`.
+The manifest reader overlays it in memory; the writer enforces it on fresh
+build/report output, even without census cells or after a manual pass override.
+Historical manifests and frozen atlas bytes are not rewritten by a read.
+`status=built` still means only that the package was derived, not that it can
+enter training or accepted scientific evaluation.
+
+Entries distinguish confirmed defects from conservative unknown/unmeasured
+holds. Original weak packages are excluded even when a different repaired child
+has historical controls; neither old failures nor a child's qualification
+transfer by task ID. Full package digests, reasons, and evidence are retained.
+Standalone diagnostic/repair controls remain allowed, including on excluded
+originals. See [verification](verification.md#har-209-scientific-use-exclusions)
+for consumers, regeneration, and the distinction between an admission veto and
+a fresh executed control result.
+
+
 ## How to rebuild
 
 ```bash

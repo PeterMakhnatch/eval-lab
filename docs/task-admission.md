@@ -7,12 +7,12 @@ audience:
 
 # Task admission gate (`evallab tasks admit`)
 
-One fail-closed gate over a task package directory: offline static scan,
-$0 oracle/nop controls, then the full 14-attack cheat ladder, then the
-hollow-program battery, then a coverage-guided verifier-mutation probe —
-in that order, stopping at the first non-passing step, always writing a
-digest-bound admission record (`evallab.task_admission/v1`, gate
-`tasks.admit/v3`).
+One fail-closed gate over a task package directory: an exact-package
+scientific-use veto, offline static scan, $0 oracle/nop controls, the full
+14-attack cheat ladder, the hollow-program battery, and a coverage-guided
+verifier-mutation probe — in that order, stopping at the first non-passing
+step, always writing a digest-bound admission record
+(`evallab.task_admission/v1`, gate `tasks.admit/v5`).
 
 ## Usage
 
@@ -36,6 +36,30 @@ record path (default
 record. A `rejected` update finalizes the lineage record (validated and
 rejected are both final) — pass `--no-variant-status` for trial runs
 against records you do not want to flip.
+
+## Exact-package scientific-use veto
+
+Before any selectable step, admission consumes HAR-209's
+`research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json`.
+The key is `[task].name`'s bare full task ID plus the **full package**
+`registry.task_directory_digest`, not a directory basename, short hash,
+verifier-component digest, or Harbor digest. An exact confirmed defect records
+a `scientific-exclusion` failing step and `rejected`; an unknown/unmeasured
+conservative hold records a review step and `needs_review`, never a proven
+defect. Missing/malformed inventory yields `not_admitted` infrastructure evidence.
+The preflight cannot be omitted by `--skip-mutation` or a custom step list.
+Gate v5 adds this mandatory preflight; historical v4 records do not establish
+that their packages passed it.
+
+This is a veto on accepted scientific/training use, not a ban on investigation:
+standalone oracle/nop, mutation, ref-subset, and repair controls remain allowed.
+An unlisted child is not excluded solely because of its ID, but receives no
+certification from its parent's identity either; its ordinary gate still runs.
+Historical observations remain historical. See
+[MiMo verification](mimo/verification.md#har-209-scientific-use-exclusions) for
+source/witness bindings, separate conservative-hold counts, and deterministic
+inventory regeneration.
+
 
 ## Steps (cheapest first)
 

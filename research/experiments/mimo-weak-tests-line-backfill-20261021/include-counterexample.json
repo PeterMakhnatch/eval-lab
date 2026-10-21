@@ -1,0 +1,30 @@
+{
+  "schema": "har209.helper_counterexample/v1",
+  "task_id": "format-code-task-000169",
+  "requirement": "instruction.md:17: Preserve existing recipe execution behavior and output generation for recipes that do not use includes.",
+  "scope": "Exact archived include function bodies on an explicit relative-main-recipe fixture, matching recipe() prepend_path=False call. Not a full hpccm import, Docker replay, or strengthened-grader certificate.",
+  "fixture": {"main_path": "recipes/main.py", "main_contents": "output.append('main')\n", "include_prepend_path": "recipes", "call_prepend_path": false},
+  "observed_error": "[Errno 2] No such file or directory: 'recipes/recipes/main.py'",
+  "cases": {
+    "reference": {
+      "loaded": ["main"],
+      "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000169/solution.patch",
+      "patch_sha256": "6dfcf3ec7b171cd3a37121f29216f4c8eba96886ff7c53b8f899d268478b9ac1"
+    },
+    "82a07ab269": {
+      "error": "SystemExit",
+      "exit_code": 1,
+      "patch": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000169/mutants/82a07ab269.patch",
+      "patch_sha256": "2d79f4579b4bb75b2fe59c4be4dd5e420cc29b8dc13a216cbb2d828a96c8eafd"
+    },
+    "10f2d42cd4": {
+      "error": "SystemExit",
+      "exit_code": 1,
+      "patch": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000169/mutants/10f2d42cd4.patch",
+      "patch_sha256": "1099f9c48cc71aa780c227fdf78161e467ff4c82783bf3bbdd1fbdc2773b0e15"
+    }
+  },
+  "command": ".venv/bin/python /tmp/har209-include-counterexample.py",
+  "result": "pass: reference loaded the relative main recipe; both surviving mutants exited 1 after doubling the parent path",
+  "paid_spend_usd": 0
+}

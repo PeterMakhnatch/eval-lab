@@ -1,0 +1,2819 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview06A (native requirement-level source and recorded-control review only)",
+  "reviewed_at_utc": "2026-10-21T19:49:42.211601+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-000905",
+      "format-code-task-001259",
+      "format-code-task-002801",
+      "format-code-task-000311"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06a.json",
+    "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read the parent contract and exact canonical plan rows first, then each instruction and full reference; inspect all three full minimal/dropped witnesses, all fourteen full survivor patches, every effective hidden-grader command chain and all authoritative grades.log headers. Reaffirm block claims only against the current exact bytes/controls. Use scoped static counterexamples, guard/interval proofs and explicit missing-consumer uncertainty rather than reference-diff size or old labels. Hash cited input bytes; run no producer, validator or new control.",
+    "auxiliary_dossier_lookup": {
+      "attempted_read_only_callable": true,
+      "usable": false,
+      "reason": "The review Python kernel could not import evallab.task_dossier because pydantic is not installed. No environment modification or execution substitute was attempted; exact approved plan/package/report/reference inputs remain source authority."
+    }
+  },
+  "frozen_source_bindings": {
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "atlas": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+    }
+  },
+  "summary": {
+    "reports": 4,
+    "block_fail_candidates": 3,
+    "block_labels": {
+      "confirmed_weak": 0,
+      "neutral": 2,
+      "out_of_scope": 1,
+      "uncertain": 0
+    },
+    "reported_survivors": 14,
+    "reviewed_survivors": 14,
+    "survivor_labels": {
+      "required_gap": 1,
+      "equivalent_or_optional": 7,
+      "non_positive": 0,
+      "uncertain": 6
+    },
+    "generated_mutants": 56,
+    "attempted_mutants": 33,
+    "recorded_killed_mutants": 19,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 23,
+    "authoritative_grade_records": 77,
+    "confirmed_positive_claims": 1,
+    "confirmed_positive_identities": [
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "2fbda168b4"
+      }
+    ],
+    "task_ids_with_confirmed_positive_claims": [
+      "format-code-task-002801"
+    ],
+    "uncertain_claims": 6,
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-001259",
+        "kind": "line",
+        "id": "4bdcd21d8f"
+      },
+      {
+        "task_id": "format-code-task-001259",
+        "kind": "line",
+        "id": "20dcc36cd9"
+      },
+      {
+        "task_id": "format-code-task-001259",
+        "kind": "line",
+        "id": "62c201cbd4"
+      },
+      {
+        "task_id": "format-code-task-001259",
+        "kind": "line",
+        "id": "9a54f032fc"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "d6b57848d1"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "21006858df"
+      }
+    ],
+    "task_ids_with_uncertain_claims": [
+      "format-code-task-001259",
+      "format-code-task-002801"
+    ],
+    "not_promoted_identities": [
+      {
+        "task_id": "format-code-task-000905",
+        "kind": "block",
+        "id": "block",
+        "label": "neutral"
+      },
+      {
+        "task_id": "format-code-task-001259",
+        "kind": "block",
+        "id": "block",
+        "label": "neutral"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "block",
+        "id": "block",
+        "label": "out_of_scope"
+      },
+      {
+        "task_id": "format-code-task-000905",
+        "kind": "line",
+        "id": "394473803e",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "ba5092ba00",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "aa7f37bd5e",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "402ba836d3",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "fadeb61a8f",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-002801",
+        "kind": "line",
+        "id": "c0c0be8b02",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-000311",
+        "kind": "line",
+        "id": "c1ef6171e8",
+        "label": "equivalent_or_optional"
+      }
+    ],
+    "limitations": [
+      "All four assigned completed reports, all three block-fail omissions and all fourteen reported line survivors are adjudicated and source/control bound; no task or survivor is silently omitted.",
+      "The sole confirmed semantic positive is format-code-task-002801 line mutant 2fbda168b4: a consumed English inline-qualifier buffer is never cleared and leaks the qualifier to an unqualified third descendant. Its source-reasoned public-fixture extension is not a fresh replay. Its exact recorded mutant grade and all four tasks' full/nop controls are scored rc=0 with rewards 1/0 as appropriate.",
+      "The Quark and Moto block omissions are neutral only for their stated finite-score and ordinary unversioned AES256 recopy requirements. The Wiktextract block omission changes only the optional Chinese parallel implementation, not the explicitly English issue. These are narrow refutations of omission claims, not clean-task certificates.",
+      "Six line survivors remain uncertain: Moto 4bdcd21d8f, 20dcc36cd9, 62c201cbd4, 9a54f032fc lack exact storage/flag consumers and/or a required flag policy; Wiktextract d6b57848d1 and 21006858df lack bound tag-registry and public normalization consumers. Their concrete local differences are recorded without inventing public output or external AWS behavior.",
+      "Seven line survivors are not promoted: Quark's shadowed equality boundary, BCT's guarded 5-to-6-decimal precision choice, and five Chinese-only Wiktextract mutants. Four of the Chinese changes concern state or branches not consumed/reached through the shown caller. No global Chinese equivalence is asserted, especially for the uncleared Chinese buffer.",
+      "Wiktextract generated 43 mutants but attempted only 20; its remaining 23 generated candidates are explicitly outside review. The other three tasks attempted all generated mutants. Reported max_grades=24, mutant limit=20, 1800-second grade timeout, 3g memory and network=none are retained without inventing a global cap interpretation from the 42-header Wiktextract log.",
+      "Every parsed authoritative grade header is scored rc=0, including reward-zero controls/killed candidates; no timeout, unscored or error record is relabeled as a negative. Package/image digests were not recomputed; measured package identity agrees across plan/report/atlas and every cited local artifact is independently hashed.",
+      "No controls, Docker, model/inference/cloud or remote APIs, builds, tests, linters, formatters, producer/validation commands, git commands or immutable-input modifications were performed. Only the assigned new 06a.json is written; parent owns integrated verification and commits."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-000905",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905",
+      "package_digest": "sha256:bf0e19c83a7e9bae92170fb481626a2276c88dd7ffe10158426a8b29795f6a26",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch",
+      "reference_sha256": "30196223edeab3fcda31f401b84f9144f20803a7a4545ccee1f037ae11c4abe8",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/report.json",
+      "report_sha256": "b4704dc3e9ccbe38f45ba62f0a74d2fe88ba96618a30d9527388a1f8a987ccc5",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+      "grades_log_sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+      "minimal_patch_sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+      "dropped_patch_sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md",
+      "instruction_sha256": "9a7dbf8f727dd124a4a38ad22a160b5f8343e6e40c215b0b18a72283fb134e31",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/task.toml",
+      "task_toml_sha256": "ad76a9e129d71df568cdf7633dd8c6f7bf66aa655fdcba6a0a3dd01e1141125b",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.patch",
+      "test_patch_sha256": "42a98c9e69bcf28e6fdf101231343e04f81e16e730cddb1d409814f860062cba",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.sh",
+      "test_runner_sha256": "26c3009156040183516d7185a3b12178b2caeb0001abe6715268c8d34397b359",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "823a5e34ff6101ff941123f1d57406f2beb0ed7d995ceeb5441c7ba54d93a435",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905",
+        "package_digest": "sha256:bf0e19c83a7e9bae92170fb481626a2276c88dd7ffe10158426a8b29795f6a26",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "30196223edeab3fcda31f401b84f9144f20803a7a4545ccee1f037ae11c4abe8",
+        "task_id": "format-code-task-000905"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a23d8194c7b64880f10b8a25479ce88ea06e0c27ca6038ce5cad620ccf58d14b",
+      "started_at": "2026-10-21T19:22:52+00:00",
+      "finished_at": "2026-10-21T19:23:18+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.4444,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.2s",
+          "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+          "line": 25,
+          "quote": "== nop reward=0.0 rc=0 scored 1.2s",
+          "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Measured immutable package identity comes from agreeing canonical plan/report/atlas, not a fresh directory/image extraction. Every cited local source artifact is separately hashed."
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The accepted minimal patch implements the required negative-score fix by removing the lower bound on the first risk interval, and removes the high interval upper bound as well. The two omitted reference edits only comment an unused level_five_threshold calculation and delete an else/ValueError fallback that ordinary finite numeric scores cannot reach after those kept interval changes. For nonnegative score_sum, the intervals cover the real line; for negative score_sum the first interval ends at score_sum/16 while the high interval starts below it at score_sum/2, so their union also covers the real line. Keeping an unused calculation and an unreachable exception does not leave the named bug unfixed. Nonfinite inputs and unusual numeric types are not part of the stated APK-score contract, and no outcome for them is promoted.",
+        "dropped_code": [
+          "quark/utils/weight.py#0",
+          "quark/utils/weight.py#3"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+          "line": 229,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.1s",
+          "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+        "witness_sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+        "dropped_patch_sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md:3-7",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md:50-51",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch:5-22",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch:5-23",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch:5-29",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.patch:25-64",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:1: == full reward=1.0 rc=0 scored 1.2s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:25: == nop reward=0.0 rc=0 scored 1.2s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:229: == confirm reward=1.0 rc=0 scored 1.1s"
+        ],
+        "source_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+            "sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86",
+            "line_start": 10,
+            "line_end": 11,
+            "quote": "+        if total_weight <= level_one_threshold:\n             return green(LEVEL_INFO.LOW.value)"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+            "sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86",
+            "line_start": 19,
+            "line_end": 20,
+            "quote": "+        elif level_four_threshold < total_weight:\n             return red(LEVEL_INFO.High.value)"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+            "sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd",
+            "line_start": 18,
+            "line_end": 20,
+            "quote": "-        else:\n-            raise ValueError(\"Weight calculate failed\")\n-"
+          }
+        ],
+        "equivalence_scope": "Required ordinary finite numeric risk classification only. The retained unused division and exceptional-input behavior are not a global equivalence certificate.",
+        "omission_grade_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+            "line": 97,
+            "quote": "== drop-block:quark/utils/weight.py#0 reward=1.0 rc=0 scored 1.2s",
+            "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+            "line": 73,
+            "quote": "== drop-block:quark/utils/weight.py#3 reward=1.0 rc=0 scored 1.1s",
+            "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+          }
+        ],
+        "static_reasoning": {
+          "kind": "interval_coverage_and_unused_value",
+          "scenario": "Any ordinary finite real score_sum and weight_sum; in particular Weight(20, -10).calculate().",
+          "required_outcome": "A negative benign score is classified without the reported ValueError.",
+          "predicted_actual": "Both minimal and reference return Low Risk for (20,-10). After the kept endpoint changes no ordinary finite input reaches the retained else.",
+          "fresh_execution": false
+        }
+      },
+      "survivors": [
+        {
+          "id": "394473803e",
+          "label": "equivalent_or_optional",
+          "reason": "The mutation changes only the final high-risk lower comparison from < to <=. A difference could occur only at total_weight == level_four_threshold. For nonnegative score_sum, the preceding Moderate branch already returns at that equality; for negative score_sum, level_four_threshold <= level_one_threshold and the first Low branch already returns. Equality therefore never reaches the changed branch for ordinary finite real scores, and all non-equality inputs have the same comparison result. This is a shadowed-boundary survivor, not a missing required negative-score behavior.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md:50-51",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch:5-29",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/mutants/394473803e.patch:19-29",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:32-60",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:1: == full reward=1.0 rc=0 scored 1.2s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:25: == nop reward=0.0 rc=0 scored 1.2s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:326: == mutant:394473803e reward=1.0 rc=0 scored 1.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+            "line": 326,
+            "quote": "== mutant:394473803e reward=1.0 rc=0 scored 1.1s",
+            "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/mutants/394473803e.patch",
+          "patch_sha256": "49bfda44d943b32eb1ee4b0b7a84cf12386cd49ee28dd7f72fb5b7c06aab9f2d",
+          "mutation": {
+            "file": "quark/utils/weight.py",
+            "line": 48,
+            "end_line": 48,
+            "operator": "boundary",
+            "original": "<",
+            "replacement": "<="
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/mutants/394473803e.patch",
+              "sha256": "49bfda44d943b32eb1ee4b0b7a84cf12386cd49ee28dd7f72fb5b7c06aab9f2d",
+              "line_start": 20,
+              "line_end": 25,
+              "quote": "         elif level_three_threshold < total_weight <= level_four_threshold:\n             return yellow(LEVEL_INFO.Moderate.value)\n \n-        elif level_four_threshold < total_weight <= level_five_threshold:\n+        elif level_four_threshold <= total_weight:\n             return red(LEVEL_INFO.High.value)"
+            }
+          ],
+          "static_reasoning": {
+            "kind": "shadowed_boundary_proof",
+            "scenario": "total_weight == score_sum/2, the only changed truth condition.",
+            "predicted_actual": "For score_sum>=0 the preceding interval returns Moderate (or Low when zero); for score_sum<0 the first interval returns Low. High-branch equality is unreachable in either version.",
+            "fresh_execution": false
+          },
+          "limits": "The proof is for the ordinary finite real numeric score domain implicated by the issue; it does not claim behavior for exotic numeric objects or globally certify the task."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 4,
+        "tried": 4,
+        "killed": 3,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 1,
+        "generated_but_unattempted": 0,
+        "grade_records": 4
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 11,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        },
+        {
+          "label": "nop",
+          "line": 25,
+          "quote": "== nop reward=0.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        },
+        {
+          "label": "drop-block:quark/utils/weight.py#3",
+          "line": 73,
+          "quote": "== drop-block:quark/utils/weight.py#3 reward=1.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "drop-block:quark/utils/weight.py#0",
+          "line": 97,
+          "quote": "== drop-block:quark/utils/weight.py#0 reward=1.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        },
+        {
+          "label": "drop-block:quark/utils/weight.py#1",
+          "line": 121,
+          "quote": "== drop-block:quark/utils/weight.py#1 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "drop-block:quark/utils/weight.py#2",
+          "line": 174,
+          "quote": "== drop-block:quark/utils/weight.py#2 reward=0.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        },
+        {
+          "label": "confirm",
+          "line": 229,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "mutant:8112f42d05",
+          "line": 253,
+          "quote": "== mutant:8112f42d05 reward=0.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "mutant:bc849e9df0",
+          "line": 289,
+          "quote": "== mutant:bc849e9df0 reward=0.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "mutant:394473803e",
+          "line": 326,
+          "quote": "== mutant:394473803e reward=1.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "mutant:bb92547ed4",
+          "line": 350,
+          "quote": "== mutant:bb92547ed4 reward=0.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        }
+      ],
+      "source_bindings": [
+        {
+          "role": "reference",
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000905/solution.patch",
+          "sha256": "30196223edeab3fcda31f401b84f9144f20803a7a4545ccee1f037ae11c4abe8"
+        },
+        {
+          "role": "report",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/report.json",
+          "sha256": "b4704dc3e9ccbe38f45ba62f0a74d2fe88ba96618a30d9527388a1f8a987ccc5"
+        },
+        {
+          "role": "grades_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log",
+          "sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf"
+        },
+        {
+          "role": "instruction",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/instruction.md",
+          "sha256": "9a7dbf8f727dd124a4a38ad22a160b5f8343e6e40c215b0b18a72283fb134e31"
+        },
+        {
+          "role": "task_toml",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/task.toml",
+          "sha256": "ad76a9e129d71df568cdf7633dd8c6f7bf66aa655fdcba6a0a3dd01e1141125b"
+        },
+        {
+          "role": "test_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.patch",
+          "sha256": "42a98c9e69bcf28e6fdf101231343e04f81e16e730cddb1d409814f860062cba"
+        },
+        {
+          "role": "test_runner",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.sh",
+          "sha256": "26c3009156040183516d7185a3b12178b2caeb0001abe6715268c8d34397b359"
+        },
+        {
+          "role": "test_command",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        {
+          "role": "command_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+          "sha256": "823a5e34ff6101ff941123f1d57406f2beb0ed7d995ceeb5441c7ba54d93a435"
+        },
+        {
+          "role": "minimal_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/minimal.patch",
+          "sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86"
+        },
+        {
+          "role": "dropped_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/dropped.patch",
+          "sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd"
+        },
+        {
+          "role": "survivor:394473803e",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/mutants/394473803e.patch",
+          "sha256": "49bfda44d943b32eb1ee4b0b7a84cf12386cd49ee28dd7f72fb5b7c06aab9f2d"
+        }
+      ],
+      "limits": [
+        "Adjudication is scoped to these exact recorded passing witnesses and the stated task behavior; neither a neutral finding nor an equivalent_or_optional label certifies the whole task or reference.",
+        "No fresh controls, Docker, model/inference/cloud or remote API, build, test, lint, formatter, producer/validation command or git command was run. Only the assigned new review JSON is written; parent owns integrated verification and delivery.",
+        "Static examples below are source reasoning, not newly executed API outcomes. Package directory/image digests were not recomputed or extracted; file bytes are independently SHA256-bound."
+      ],
+      "requirement": "Fix Weight.calculate() raising ValueError for negative scores introduced by the new rule weights, while retaining normal risk classification.",
+      "selected_grader": {
+        "chain": "tests/test.sh resets/applies tests/test.patch and executes tests/test_command.sh; that file invokes bash /testbed/mimo_test_command.sh.",
+        "effective_command": "python -m pytest tests/utils/test_weight.py -v",
+        "observed_full_result": "15 passed, 4 xpassed; reward=1, rc=0, scored. The four legacy XPASS cases are not a fresh correctness or weakness claim.",
+        "coverage_limit": "Negative and high scores are tested, but omitted dead cleanup and the shadowed high-boundary mutation need semantic adjudication rather than survivor-count promotion.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.sh:29-39",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test_command.sh:1",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000905/tests/test.patch:65-78",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000905/grades.log:1-24"
+        ]
+      }
+    },
+    {
+      "task_id": "format-code-task-001259",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259",
+      "package_digest": "sha256:4abb712c4ea5b7460ec3a4621ed9a3720b8ebb6cb99299791eedeac85199550d",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch",
+      "reference_sha256": "4678ed34712fc5765dd0fe0a4c2c71256c8d099213d73d336809ac3e863f50a3",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/report.json",
+      "report_sha256": "dd4239a36f23fb533b981d47327d81517e698f3675f898e319a268ac8a1a94e6",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+      "grades_log_sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+      "minimal_patch_sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+      "dropped_patch_sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md",
+      "instruction_sha256": "f7d282d34acab7bdd954c69a7b8eba00635f9986b80d45bd273d976be5e660fe",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/task.toml",
+      "task_toml_sha256": "4a322fb274abd20900523e15ec9164661dfc3c784d966881722094b532ac71b8",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch",
+      "test_patch_sha256": "7ba3d712810a1982d82c2dd6a9460a0737f8583f7dbb5e7beba86d01af0dddcd",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.sh",
+      "test_runner_sha256": "74db30f8ca43767eef6a8b740931ec7788610837295d5f26fe31b1dc34982347",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "c42f8c6dbdfbfec3fe6fc583031a2b2075b0dad2cede7709aee8d0a4be91b201",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259",
+        "package_digest": "sha256:4abb712c4ea5b7460ec3a4621ed9a3720b8ebb6cb99299791eedeac85199550d",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "4678ed34712fc5765dd0fe0a4c2c71256c8d099213d73d336809ac3e863f50a3",
+        "task_id": "format-code-task-001259"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:ecec8924daa67f438502975ff09ef47e45da6388ced95d3fb8586ace88ededbf",
+      "started_at": "2026-10-21T19:24:45+00:00",
+      "finished_at": "2026-10-21T19:26:19+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.5957,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.3s",
+          "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+          "line": 29,
+          "quote": "== nop reward=0.0 rc=0 scored 2.9s",
+          "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Measured immutable package identity comes from agreeing canonical plan/report/atlas, not a fresh directory/image extraction. Every cited local source artifact is separately hashed."
+      },
+      "block": {
+        "label": "neutral",
+        "reason": "The exact passing minimal patch retains the substantive fix: copying constructs the destination with put_object, whose retained default-encryption logic now tolerates absent BucketKeyEnabled and KMSMasterKeyID keys. It therefore retains the encryption application required by the stated ordinary unversioned, plain-key recopy scenario. The omitted reference changes delete old FakeKey copy/version helpers and remove destination normalization/lookup, a repeated storage assignment, and a repeated destination-key assignment around that put_object call. None removes the retained encryption path. The current confirm run exercises all six selected cases, including AES256 in-place and REPLACE. This narrowly reaffirms neutral cleanup for the requested behavior; it does not assert identical version-history, unusual-key or bucket-key-container side effects without the missing implementations.",
+        "dropped_code": [
+          "moto/s3/models.py#0",
+          "moto/s3/models.py#1",
+          "moto/s3/models.py#4",
+          "moto/s3/models.py#6",
+          "moto/s3/models.py#7"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+          "line": 313,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.0s",
+          "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+        "witness_sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+        "dropped_patch_sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch:5-47",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch:5-57",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-50",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:125-161",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:313: == confirm reward=1.0 rc=0 scored 2.0s"
+        ],
+        "source_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+            "sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d",
+            "line_start": 17,
+            "line_end": 19,
+            "quote": "+            bucket_key_enabled = bucket_key_enabled or bucket.encryption[\"Rule\"].get(\n+                \"BucketKeyEnabled\", False\n             )"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+            "sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d",
+            "line_start": 31,
+            "line_end": 44,
+            "quote": "+        new_key = self.put_object(\n+            bucket_name=dest_bucket_name,\n+            key_name=dest_key_name,\n+            value=key.value,\n+            storage=storage or key.storage_class,\n+            etag=key.etag,\n+            multipart=key.multipart,\n+            encryption=key.encryption,\n+            kms_key_id=key.kms_key_id,\n+            bucket_key_enabled=key.bucket_key_enabled,\n+            lock_mode=key.lock_mode,\n+            lock_legal_status=key.lock_legal_status,\n+            lock_until=key.lock_until,\n+        )"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+            "sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88",
+            "line_start": 53,
+            "line_end": 53,
+            "quote": "-        dest_bucket.keys[dest_key_name] = new_key"
+          }
+        ],
+        "omission_grade_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 102,
+            "quote": "== drop-block:moto/s3/models.py#0 reward=1.0 rc=0 scored 2.1s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 166,
+            "quote": "== drop-block:moto/s3/models.py#1 reward=1.0 rc=0 scored 2.1s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 229,
+            "quote": "== drop-block:moto/s3/models.py#4 reward=1.0 rc=0 scored 2.0s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 257,
+            "quote": "== drop-block:moto/s3/models.py#6 reward=1.0 rc=0 scored 2.0s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 285,
+            "quote": "== drop-block:moto/s3/models.py#7 reward=1.0 rc=0 scored 2.0s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          }
+        ],
+        "limits": "Narrow neutral finding for the stated unversioned recopy/AES256 behavior, not full equivalence. Complete FakeKey/put_object persistence, response serialization and bucket-key container implementations are not retained in the immutable package or reference directory. No versioning/odd-key/API counterexample was executed or fabricated."
+      },
+      "survivors": [
+        {
+          "id": "4bdcd21d8f",
+          "label": "uncertain",
+          "reason": "This is not proven equivalent: replacing storage or key.storage_class with storage and key.storage_class changes the argument passed into put_object. For omitted storage and a source STANDARD_IA object it passes None instead of STANDARD_IA; for an explicit STANDARD request and a GLACIER source it passes GLACIER rather than STANDARD. However, the issue requires encryption application, not a storage-class policy, the selected tests do not inspect StorageClass, and the retained bytes do not include put_object/FakeKey defaults or public response handling. The encryption path itself remains intact. Preserve an unadjudicated possible storage regression rather than inventing an API outcome or promoting a reference-expression difference as required behavior.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-187",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:187-201",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/4bdcd21d8f.patch:66",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:341: == mutant:4bdcd21d8f reward=1.0 rc=0 scored 2.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 341,
+            "quote": "== mutant:4bdcd21d8f reward=1.0 rc=0 scored 2.1s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/4bdcd21d8f.patch",
+          "patch_sha256": "d1e93e19f936276bcdd07299cc54582211cb87f9a8365b93887e63eae857d69f",
+          "mutation": {
+            "file": "moto/s3/models.py",
+            "line": 2015,
+            "end_line": 2015,
+            "operator": "boolean-operator",
+            "original": "or",
+            "replacement": "and"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/4bdcd21d8f.patch",
+              "sha256": "d1e93e19f936276bcdd07299cc54582211cb87f9a8365b93887e63eae857d69f",
+              "line_start": 66,
+              "line_end": 71,
+              "quote": "+            storage=storage and key.storage_class,\n+            etag=key.etag,\n+            multipart=key.multipart,\n+            encryption=key.encryption,\n+            kms_key_id=key.kms_key_id,\n+            bucket_key_enabled=key.bucket_key_enabled,"
+            }
+          ],
+          "static_observation": {
+            "kind": "internal_argument_difference_only",
+            "scenario": {
+              "request_storage": null,
+              "source_storage_class": "STANDARD_IA"
+            },
+            "reference_expression_result": "STANDARD_IA",
+            "mutant_expression_result": null,
+            "external_outcome": "Unknown: complete argument consumer/persistence/serialization is unretained; no required encryption violation is established.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The immutable package retains task/hidden-test files, not the complete put_object/FakeKey construction and S3 request/response serialization consumers. No exact public output for the changed field is established by these patches or by the selected assertions; no Docker extraction or external API was used.",
+          "limits": "Not a harmless-mutant finding and not a confirmed required gap; storage-class preservation/override semantics are not established here."
+        },
+        {
+          "id": "20dcc36cd9",
+          "label": "uncertain",
+          "reason": "Changing the missing BucketKeyEnabled fallback from False to True can change bucket_key_enabled for exactly the AES256 configuration shown in the issue, while leaving the separate encryption-algorithm fallback unchanged. With an incoming false flag and a Rule lacking BucketKeyEnabled, the reference expression yields False and this mutant yields True. The selected tests assert ServerSideEncryption/KMS key, not the bucket-key flag. The issue does not state the required flag policy, and exact object/response consumers are absent. Keep the possible default-flag regression explicit without asserting that AWS or the public Moto response changes in an unobserved way.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-187",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:187-201",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/20dcc36cd9.patch:45",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:403: == mutant:20dcc36cd9 reward=1.0 rc=0 scored 2.2s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 403,
+            "quote": "== mutant:20dcc36cd9 reward=1.0 rc=0 scored 2.2s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/20dcc36cd9.patch",
+          "patch_sha256": "db9d3c28e37ae074d964fcfaec95054f1ab7fbad5600deb6f33d50fe90775da0",
+          "mutation": {
+            "file": "moto/s3/models.py",
+            "line": 1578,
+            "end_line": 1578,
+            "operator": "boolean-constant",
+            "original": "False",
+            "replacement": "True"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/20dcc36cd9.patch",
+              "sha256": "db9d3c28e37ae074d964fcfaec95054f1ab7fbad5600deb6f33d50fe90775da0",
+              "line_start": 44,
+              "line_end": 46,
+              "quote": "+            bucket_key_enabled = bucket_key_enabled or bucket.encryption[\"Rule\"].get(\n+                \"BucketKeyEnabled\", True\n             )"
+            }
+          ],
+          "static_observation": {
+            "kind": "internal_default_difference_only",
+            "scenario": {
+              "incoming_bucket_key_enabled": false,
+              "bucket_rule_has_BucketKeyEnabled": false
+            },
+            "reference_expression_result": false,
+            "mutant_expression_result": true,
+            "external_outcome": "Unknown: the flag storage/response consumer and normative flag requirement are missing; encryption-algorithm assignment is unchanged.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The immutable package retains task/hidden-test files, not the complete put_object/FakeKey construction and S3 request/response serialization consumers. No exact public output for the changed field is established by these patches or by the selected assertions; no Docker extraction or external API was used.",
+          "limits": "No automatic required_gap from a Boolean/default difference; no equivalence assertion for bucket-key metadata."
+        },
+        {
+          "id": "62c201cbd4",
+          "label": "uncertain",
+          "reason": "The conjunction changes bucket-key inheritance: incoming False with configured BucketKeyEnabled=True yields False, rather than the reference True. The named bug concerns recopying to adopt the bucket AES256 algorithm, whose assignment remains unchanged. The selected tests neither configure a True bucket-key flag nor inspect the copied flag, and the exact consumer and broader flag contract are unavailable. This may be an untested encryption-metadata regression, but current source/control evidence does not establish a concrete required public violation. Retain uncertainty, not a required gap or harmless label.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-187",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:187-201",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/62c201cbd4.patch:44",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:431: == mutant:62c201cbd4 reward=1.0 rc=0 scored 2.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 431,
+            "quote": "== mutant:62c201cbd4 reward=1.0 rc=0 scored 2.1s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/62c201cbd4.patch",
+          "patch_sha256": "13ffae553013a39eafb51fce11847023c1a35155df547c6d3880ea3f5e4dc02b",
+          "mutation": {
+            "file": "moto/s3/models.py",
+            "line": 1577,
+            "end_line": 1577,
+            "operator": "boolean-operator",
+            "original": "or",
+            "replacement": "and"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/62c201cbd4.patch",
+              "sha256": "13ffae553013a39eafb51fce11847023c1a35155df547c6d3880ea3f5e4dc02b",
+              "line_start": 44,
+              "line_end": 46,
+              "quote": "+            bucket_key_enabled = bucket_key_enabled and bucket.encryption[\"Rule\"].get(\n+                \"BucketKeyEnabled\", False\n             )"
+            }
+          ],
+          "static_observation": {
+            "kind": "internal_boolean_difference_only",
+            "scenario": {
+              "incoming_bucket_key_enabled": false,
+              "configured_BucketKeyEnabled": true
+            },
+            "reference_expression_result": true,
+            "mutant_expression_result": false,
+            "external_outcome": "Unknown: public flag propagation and the required scope beyond the shown AES256 scenario are not established.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The immutable package retains task/hidden-test files, not the complete put_object/FakeKey construction and S3 request/response serialization consumers. No exact public output for the changed field is established by these patches or by the selected assertions; no Docker extraction or external API was used.",
+          "limits": "Do not infer BucketKeyEnabled behavior from ServerSideEncryption assertions, or import unexecuted external AWS outcomes."
+        },
+        {
+          "id": "9a54f032fc",
+          "label": "uncertain",
+          "reason": "Negating the incoming bucket_key_enabled value changes flag resolution even when the bucket lacks a BucketKeyEnabled field: False becomes True rather than False. It can also discard an incoming True when the configured/default flag is False. The encryption-algorithm and KMS-key expressions remain fixed. Nothing in the selected assertions distinguishes the flag, and the public flag consumer and its required policy are unretained. The concrete internal difference is recorded, but a required external output or exception violation is not manufactured.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md:29-54",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch:32-85",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:19-187",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:187-201",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/9a54f032fc.patch:44",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1: == full reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:29: == nop reward=0.0 rc=0 scored 2.9s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:496: == mutant:9a54f032fc reward=1.0 rc=0 scored 2.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+            "line": 496,
+            "quote": "== mutant:9a54f032fc reward=1.0 rc=0 scored 2.1s",
+            "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/9a54f032fc.patch",
+          "patch_sha256": "4950f873b2611903a52f55bed1b676e9194c4faaa1249b80430bbabd9b2dd2f2",
+          "mutation": {
+            "file": "moto/s3/models.py",
+            "line": 1577,
+            "end_line": 1577,
+            "operator": "negate-boolean",
+            "original": "bucket_key_enabled",
+            "replacement": "not bucket_key_enabled"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/9a54f032fc.patch",
+              "sha256": "4950f873b2611903a52f55bed1b676e9194c4faaa1249b80430bbabd9b2dd2f2",
+              "line_start": 44,
+              "line_end": 46,
+              "quote": "+            bucket_key_enabled = not bucket_key_enabled or bucket.encryption[\"Rule\"].get(\n+                \"BucketKeyEnabled\", False\n             )"
+            }
+          ],
+          "static_observation": {
+            "kind": "internal_boolean_difference_only",
+            "scenario": {
+              "incoming_bucket_key_enabled": false,
+              "bucket_rule_has_BucketKeyEnabled": false
+            },
+            "reference_expression_result": false,
+            "mutant_expression_result": true,
+            "external_outcome": "Unknown: complete persistence/serialization and normative flag semantics are unavailable; no observed AES256 algorithm failure.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "The immutable package retains task/hidden-test files, not the complete put_object/FakeKey construction and S3 request/response serialization consumers. No exact public output for the changed field is established by these patches or by the selected assertions; no Docker extraction or external API was used.",
+          "limits": "This surviving flag mutation is neither certified harmless nor promoted to a required-gap positive."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 6,
+        "tried": 6,
+        "killed": 2,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 4,
+        "generated_but_unattempted": 0,
+        "grade_records": 6
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 17,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 2.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.3
+        },
+        {
+          "label": "nop",
+          "line": 29,
+          "quote": "== nop reward=0.0 rc=0 scored 2.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.9
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#5",
+          "line": 64,
+          "quote": "== drop-block:moto/s3/models.py#5 reward=0.0 rc=0 scored 3.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.6
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#0",
+          "line": 102,
+          "quote": "== drop-block:moto/s3/models.py#0 reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#3",
+          "line": 130,
+          "quote": "== drop-block:moto/s3/models.py#3 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#1",
+          "line": 166,
+          "quote": "== drop-block:moto/s3/models.py#1 reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#2",
+          "line": 194,
+          "quote": "== drop-block:moto/s3/models.py#2 reward=0.0 rc=0 scored 3.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.2
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#4",
+          "line": 229,
+          "quote": "== drop-block:moto/s3/models.py#4 reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#6",
+          "line": 257,
+          "quote": "== drop-block:moto/s3/models.py#6 reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "drop-block:moto/s3/models.py#7",
+          "line": 285,
+          "quote": "== drop-block:moto/s3/models.py#7 reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "confirm",
+          "line": 313,
+          "quote": "== confirm reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "mutant:4bdcd21d8f",
+          "line": 341,
+          "quote": "== mutant:4bdcd21d8f reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "mutant:43b5ef412e",
+          "line": 369,
+          "quote": "== mutant:43b5ef412e reward=0.0 rc=0 scored 2.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.2
+        },
+        {
+          "label": "mutant:20dcc36cd9",
+          "line": 403,
+          "quote": "== mutant:20dcc36cd9 reward=1.0 rc=0 scored 2.2s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.2
+        },
+        {
+          "label": "mutant:62c201cbd4",
+          "line": 431,
+          "quote": "== mutant:62c201cbd4 reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "mutant:cadb94994f",
+          "line": 459,
+          "quote": "== mutant:cadb94994f reward=0.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "mutant:9a54f032fc",
+          "line": 496,
+          "quote": "== mutant:9a54f032fc reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        }
+      ],
+      "source_bindings": [
+        {
+          "role": "reference",
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001259/solution.patch",
+          "sha256": "4678ed34712fc5765dd0fe0a4c2c71256c8d099213d73d336809ac3e863f50a3"
+        },
+        {
+          "role": "report",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/report.json",
+          "sha256": "dd4239a36f23fb533b981d47327d81517e698f3675f898e319a268ac8a1a94e6"
+        },
+        {
+          "role": "grades_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log",
+          "sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76"
+        },
+        {
+          "role": "instruction",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/instruction.md",
+          "sha256": "f7d282d34acab7bdd954c69a7b8eba00635f9986b80d45bd273d976be5e660fe"
+        },
+        {
+          "role": "task_toml",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/task.toml",
+          "sha256": "4a322fb274abd20900523e15ec9164661dfc3c784d966881722094b532ac71b8"
+        },
+        {
+          "role": "test_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch",
+          "sha256": "7ba3d712810a1982d82c2dd6a9460a0737f8583f7dbb5e7beba86d01af0dddcd"
+        },
+        {
+          "role": "test_runner",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.sh",
+          "sha256": "74db30f8ca43767eef6a8b740931ec7788610837295d5f26fe31b1dc34982347"
+        },
+        {
+          "role": "test_command",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        {
+          "role": "command_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+          "sha256": "c42f8c6dbdfbfec3fe6fc583031a2b2075b0dad2cede7709aee8d0a4be91b201"
+        },
+        {
+          "role": "minimal_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/minimal.patch",
+          "sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d"
+        },
+        {
+          "role": "dropped_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/dropped.patch",
+          "sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88"
+        },
+        {
+          "role": "survivor:4bdcd21d8f",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/4bdcd21d8f.patch",
+          "sha256": "d1e93e19f936276bcdd07299cc54582211cb87f9a8365b93887e63eae857d69f"
+        },
+        {
+          "role": "survivor:20dcc36cd9",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/20dcc36cd9.patch",
+          "sha256": "db9d3c28e37ae074d964fcfaec95054f1ab7fbad5600deb6f33d50fe90775da0"
+        },
+        {
+          "role": "survivor:62c201cbd4",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/62c201cbd4.patch",
+          "sha256": "13ffae553013a39eafb51fce11847023c1a35155df547c6d3880ea3f5e4dc02b"
+        },
+        {
+          "role": "survivor:9a54f032fc",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/mutants/9a54f032fc.patch",
+          "sha256": "4950f873b2611903a52f55bed1b676e9194c4faaa1249b80430bbabd9b2dd2f2"
+        }
+      ],
+      "limits": [
+        "Adjudication is scoped to these exact recorded passing witnesses and the stated task behavior; neither a neutral finding nor an equivalent_or_optional label certifies the whole task or reference.",
+        "No fresh controls, Docker, model/inference/cloud or remote API, build, test, lint, formatter, producer/validation command or git command was run. Only the assigned new review JSON is written; parent owns integrated verification and delivery.",
+        "Static examples below are source reasoning, not newly executed API outcomes. Package directory/image digests were not recomputed or extracted; file bytes are independently SHA256-bound.",
+        "The immutable package retains task/hidden-test files, not the complete put_object/FakeKey construction and S3 request/response serialization consumers. No exact public output for the changed field is established by these patches or by the selected assertions; no Docker extraction or external API was used."
+      ],
+      "requirement": "After enabling the bucket default AES256 encryption, recopying an existing unencrypted object (including MetadataDirective=REPLACE) must update its server_side_encryption to AES256.",
+      "selected_grader": {
+        "chain": "tests/test.sh resets/applies tests/test.patch, then tests/test_command.sh invokes the inserted mimo_test_command.sh.",
+        "effective_command": "python -m pytest -v -rA with six explicit tests/test_s3/test_s3.py node IDs, not the full S3 suite.",
+        "selected_cases": [
+          "test_copy_object_in_place_applies_bucket_default_encryption_aes256",
+          "test_copy_object_in_place_applies_bucket_default_encryption_kms",
+          "test_copy_object_to_different_key_applies_bucket_default_encryption",
+          "test_copy_object_no_bucket_encryption_no_change",
+          "test_copy_object_with_replace_metadata_directive_applies_default_encryption",
+          "test_put_object_after_enabling_aes256_default_encryption"
+        ],
+        "observed_full_result": "6 passed, 2 warnings; reward=1, rc=0, scored.",
+        "coverage_limit": "Tests assert encryption algorithm/KMS key and replaced metadata. They omit StorageClass and BucketKeyEnabled observations and do not restore the missing public consumers for those fields.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.sh:29-39",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test_command.sh:1",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001259/tests/test.patch:187-201",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001259/grades.log:1-28"
+        ]
+      }
+    },
+    {
+      "task_id": "format-code-task-002801",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801",
+      "package_digest": "sha256:89c59bf815ef78e6710f7a540a23fe871d2708df6eba9f1e1d3fcb3b3db22822",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+      "reference_sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/report.json",
+      "report_sha256": "1c747db8ad6162624b8a67ab04ee13139e26be91da599011fc911737c231f5cc",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+      "grades_log_sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+      "minimal_patch_sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+      "dropped_patch_sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md",
+      "instruction_sha256": "085bfd4faa6d39a174eb2b0051970c61bda54865fcfcf5e598a262a2a9521dad",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/task.toml",
+      "task_toml_sha256": "2cca8470d1b09d9bb35c31f4a5836cbbf80e65da9d758d97b4473f748b086795",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch",
+      "test_patch_sha256": "e0c5d213ac8ae8bc92f748912de3d53bc95e58ebfdd35326c37b9640a9fb7f74",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.sh",
+      "test_runner_sha256": "1286fb3e5edc787d9fc9a1c8f5bbadde0f839e9306a9a537b8f3e9ebdbdb6cd7",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "0c5840df8aa78beacc3ddcd2d7e0181c82de205e79676bb1e538246472837933",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801",
+        "package_digest": "sha256:89c59bf815ef78e6710f7a540a23fe871d2708df6eba9f1e1d3fcb3b3db22822",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+        "task_id": "format-code-task-002801"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:efca4eddc8d958f3b58c50db0ce9d706259cb96ffe78d82cf9bac66b91d9495a",
+      "started_at": "2026-10-21T19:28:39+00:00",
+      "finished_at": "2026-10-21T19:32:28+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.9277,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 4.6s",
+          "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+          "line": 13,
+          "quote": "== nop reward=0.0 rc=0 scored 4.7s",
+          "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Measured immutable package identity comes from agreeing canonical plan/report/atlas, not a fresh directory/image extraction. Every cited local source artifact is separately hashed."
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "All English state propagation and qualifier-placement changes are retained in the accepted minimal patch, including assigning the helper return to after_word, buffering before-word qualifiers, and clearing the English buffer once consumed. Every omitted block is exclusively in extractor/zh/descendant.py: comma reset, buffer clear, after-word assignment and return. The instruction explicitly identifies [en] and the named English placement error; retaining fewer Chinese additions does not establish loss of that requirement. There is an additional local reachability limitation: the shown Chinese process_desc_list_item caller invokes extract_desc_span_tag without assigning its returned state, so a removed return or local state update must not be credited as a working cross-call fix. Omitting the Chinese clear could matter to longer Chinese lines; this is not claimed globally equivalent or harmless, merely outside the established English omission claim.",
+        "dropped_code": [
+          "src/wiktextract/extractor/zh/descendant.py#1",
+          "src/wiktextract/extractor/zh/descendant.py#6",
+          "src/wiktextract/extractor/zh/descendant.py#7",
+          "src/wiktextract/extractor/zh/descendant.py#8"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+          "line": 513,
+          "quote": "== confirm reward=1.0 rc=0 scored 4.0s",
+          "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+        "witness_sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+        "dropped_patch_sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch:1-91",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch:1-35",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:513: == confirm reward=1.0 rc=0 scored 4.0s"
+        ],
+        "source_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+            "sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b",
+            "line_start": 20,
+            "line_end": 29,
+            "quote": "+            after_word = extract_desc_span_tag(\n+                wxr,\n+                child,\n+                data_list,\n+                lang_code,\n+                lang_name,\n+                raw_tags,\n+                before_word_raw_tags,\n+                after_word,\n             )"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+            "sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b",
+            "line_start": 5,
+            "line_end": 35,
+            "quote": "@@ -72,6 +72,8 @@ def process_desc_list_item(\n         if isinstance(child, str) and child.strip().endswith(\":\"):\n             lang_name = child.strip(\": \") or \"unknown\"\n             lang_code = name_to_code(lang_name, \"zh\") or \"unknown\"\n+        elif isinstance(child, str) and child.strip() == \",\":\n+            after_word = False\n         elif isinstance(child, HTMLNode) and child.tag == \"span\":\n             extract_desc_span_tag(\n                 wxr,\n@@ -183,6 +185,7 @@ def extract_desc_span_tag(\n             ruby=ruby_data,\n             raw_tags=before_word_raw_tags + raw_tags,\n         )\n+        before_word_raw_tags.clear()\n         if desc_data.lang_code == \"unknown\":\n             desc_data.lang_code = span_lang\n         if \"Hant\" in class_names:\n@@ -192,6 +195,7 @@ def extract_desc_span_tag(\n         if desc_data.word not in [\"\", \"／\"]:\n             translate_raw_tags(desc_data)\n             desc_lists.append(desc_data)\n+        after_word = True\n     elif span_title != \"\" and clean_node(wxr, None, span_tag) in [\n         \"→\",\n         \"⇒\",\n@@ -201,3 +205,5 @@ def extract_desc_span_tag(\n         raw_tags.append(span_title)\n     elif \"mention-gloss\" in class_names and len(desc_lists) > 0:\n         desc_lists[-1].sense = clean_node(wxr, None, span_tag)\n+\n+    return after_word"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+            "sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+            "line_start": 101,
+            "line_end": 124,
+            "quote": "     data_list = []\n+    before_word_raw_tags = []\n+    after_word = False\n     for child in list_item.children:\n         if isinstance(child, str) and child.strip().endswith(\":\"):\n             lang_name = child.strip(\": \") or \"unknown\"\n             lang_code = name_to_code(lang_name, \"zh\") or \"unknown\"\n+        elif isinstance(child, str) and child.strip() == \",\":\n+            after_word = False\n         elif isinstance(child, HTMLNode) and child.tag == \"span\":\n             extract_desc_span_tag(\n-                wxr, child, data_list, lang_code, lang_name, raw_tags\n+                wxr,\n+                child,\n+                data_list,\n+                lang_code,\n+                lang_name,\n+                raw_tags,\n+                before_word_raw_tags,\n+                after_word,\n             )\n         elif (\n             isinstance(child, HTMLNode)\n@@ -135,7 +146,9 @@ def extract_desc_span_tag("
+          }
+        ],
+        "omission_grade_evidence": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 417,
+            "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#1 reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 489,
+            "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#6 reward=1.0 rc=0 scored 3.9s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 501,
+            "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#7 reward=1.0 rc=0 scored 4.0s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 449,
+            "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#8 reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          }
+        ],
+        "limits": "Not a Chinese-extractor correctness or equivalence certificate. Complete alternate helper consumers are not retained; no isolated helper invocation, template expansion or parser replay was performed."
+      },
+      "survivors": [
+        {
+          "id": "d6b57848d1",
+          "label": "uncertain",
+          "reason": "The English after-word branch now stores every qualifier under raw_tags, rather than choosing tags for a member of valid_tags. It still selects the same descendant and retains the before-word path needed by the named Salaca example. A recognized post-word qualifier may therefore be misclassified, but the exact valid_tags registry and data_append/parse_page normalization consumer are unretained, and the instruction specifies qualifier attachment rather than a complete normalized-tag schema. The actual tests concatenate tags+raw_tags, so their passing grade proves neither correct classification nor a concrete required output violation. Preserve this possible schema regression as uncertain rather than treating a changed reference branch as proof.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:157-170",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:38-76",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/d6b57848d1.patch:55",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:525: == mutant:d6b57848d1 reward=1.0 rc=0 scored 3.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 525,
+            "quote": "== mutant:d6b57848d1 reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/d6b57848d1.patch",
+          "patch_sha256": "d8a4304dd1027581ba63a3c46327f60a2884e1cff052659877c7563b8c85aa2f",
+          "mutation": {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "line": 210,
+            "end_line": 210,
+            "operator": "conditional-branch",
+            "original": "\"tags\" if raw_tag in valid_tags else \"raw_tags\"",
+            "replacement": "(\"raw_tags\")"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/d6b57848d1.patch",
+              "sha256": "d8a4304dd1027581ba63a3c46327f60a2884e1cff052659877c7563b8c85aa2f",
+              "line_start": 52,
+              "line_end": 60,
+              "quote": "+                if after_word:\n+                    data_append(\n+                        desc_lists[-1],\n+                        (\"raw_tags\"),\n+                        raw_tag,\n+                    )\n+                else:\n+                    before_word_raw_tags.append(raw_tag)\n     elif span_lang != \"\":"
+            }
+          ],
+          "static_observation": {
+            "kind": "conditional_field_difference_only",
+            "scenario": "An English word span followed by a qualifier q such that q is a member of the unretained valid_tags registry.",
+            "reference_local_outcome": "q is appended to that same descendant's tags.",
+            "mutant_local_outcome": "q is appended to that same descendant's raw_tags.",
+            "public_outcome": "Unknown without the bound registry, data_append behavior and downstream parse_page normalization/serialization; the attachment target itself is unchanged.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "Exact valid_tags membership and the public data_append/parse_page cleanup path are not retained with these immutable task/reference inputs; no external source or Docker extraction was used.",
+          "limits": "No invented claim that Salaca is or is not a valid_tags member; no public schema counterexample is promoted from the reference difference alone."
+        },
+        {
+          "id": "ba5092ba00",
+          "label": "equivalent_or_optional",
+          "reason": "The only mutation removes a Chinese after-word raw-tag append. All English code remains exactly the reference. In the shown Chinese normal list-item path, after_word starts False, can only be reset False at a comma, and the helper return is discarded; the mutated after_word=True arm cannot be reached through that caller. A direct helper caller supplying True could lose a tag, but no such required consumer is retained, and it would not establish the explicitly English placement gap. Do not promote dead-in-the-shown-path, out-of-scope reference code as a required omission.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/ba5092ba00.patch:150",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:537: == mutant:ba5092ba00 reward=1.0 rc=0 scored 3.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 537,
+            "quote": "== mutant:ba5092ba00 reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/ba5092ba00.patch",
+          "patch_sha256": "bad2f16e2f5690c4ef2fb7c9daa13969fb2b35c17dafef2fc3770af246138089",
+          "mutation": {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "line": 175,
+            "end_line": 175,
+            "operator": "drop-statement",
+            "original": "desc_lists[-1].raw_tags.append(raw_tag)",
+            "replacement": "pass"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/ba5092ba00.patch",
+              "sha256": "bad2f16e2f5690c4ef2fb7c9daa13969fb2b35c17dafef2fc3770af246138089",
+              "line_start": 146,
+              "line_end": 155,
+              "quote": "+            if after_word:\n+                if raw_tag in TEMPLATE_TAG_ARGS:\n+                    desc_lists[-1].tags.append(TEMPLATE_TAG_ARGS[raw_tag])\n+                else:\n+                    pass\n+                    translate_raw_tags(desc_lists[-1])\n+            else:\n+                before_word_raw_tags.append(raw_tag)\n     elif span_lang != \"\":\n         ruby_data, nodes_without_ruby = extract_ruby(wxr, span_tag)"
+            }
+          ],
+          "equivalence_scope": "No effect on the required English extractor; locally unreachable Chinese branch through the displayed process_desc_list_item caller.",
+          "limits": "This label is relative to the established English task requirement and the shown Chinese list-item caller, not global helper or Chinese-parser equivalence. Alternate direct-helper consumers are not retained; no helper-call outcome was executed."
+        },
+        {
+          "id": "aa7f37bd5e",
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the Chinese helper's local after_word assignment after a word from True to False. The reference Chinese caller already discards the returned flag and continues passing its own False; changing that discarded returned state does not alter the shown list-item consumer. All English attachment and state handling remain intact. This is not a required English gap, nor proof that arbitrary direct helper consumers would be unaffected.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/aa7f37bd5e.patch:172",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:644: == mutant:aa7f37bd5e reward=1.0 rc=0 scored 3.9s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 644,
+            "quote": "== mutant:aa7f37bd5e reward=1.0 rc=0 scored 3.9s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/aa7f37bd5e.patch",
+          "patch_sha256": "f9901aede6ce0408c3c12b4ab43aff0fcff534fe2e18f3e7c5020061d5c2ea78",
+          "mutation": {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "line": 198,
+            "end_line": 198,
+            "operator": "boolean-constant",
+            "original": "True",
+            "replacement": "False"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/aa7f37bd5e.patch",
+              "sha256": "f9901aede6ce0408c3c12b4ab43aff0fcff534fe2e18f3e7c5020061d5c2ea78",
+              "line_start": 172,
+              "line_end": 174,
+              "quote": "+        after_word = False\n     elif span_title != \"\" and clean_node(wxr, None, span_tag) in [\n         \"→\","
+            }
+          ],
+          "equivalence_scope": "Discarded return-state mutation through the shown Chinese caller; no English code difference.",
+          "limits": "This label is relative to the established English task requirement and the shown Chinese list-item caller, not global helper or Chinese-parser equivalence. Alternate direct-helper consumers are not retained; no helper-call outcome was executed."
+        },
+        {
+          "id": "402ba836d3",
+          "label": "equivalent_or_optional",
+          "reason": "The Chinese mapped-tag after-word arm writes to desc_lists[1] instead of desc_lists[-1]. That expression would be dangerous if reached with one descendant, but through the shown Chinese process_desc_list_item caller after_word never becomes True because returned state is ignored. English code is unchanged, and the issue is explicitly [en]. An imagined direct True helper call is not a demonstrated required public consumer, so neither an IndexError nor a misattached required tag is promoted.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/402ba836d3.patch:148",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:698: == mutant:402ba836d3 reward=1.0 rc=0 scored 4.1s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 698,
+            "quote": "== mutant:402ba836d3 reward=1.0 rc=0 scored 4.1s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/402ba836d3.patch",
+          "patch_sha256": "ef0907d966131e3c73e04efeff5cb124857d1a9f17d28cf5b60e3b26a0b0be56",
+          "mutation": {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "line": 173,
+            "end_line": 173,
+            "operator": "drop-negation",
+            "original": "-",
+            "replacement": ""
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/402ba836d3.patch",
+              "sha256": "ef0907d966131e3c73e04efeff5cb124857d1a9f17d28cf5b60e3b26a0b0be56",
+              "line_start": 146,
+              "line_end": 153,
+              "quote": "+            if after_word:\n+                if raw_tag in TEMPLATE_TAG_ARGS:\n+                    desc_lists[1].tags.append(TEMPLATE_TAG_ARGS[raw_tag])\n+                else:\n+                    desc_lists[-1].raw_tags.append(raw_tag)\n+                    translate_raw_tags(desc_lists[-1])\n+            else:\n+                before_word_raw_tags.append(raw_tag)"
+            }
+          ],
+          "equivalence_scope": "Out of English scope; mutated index is unreachable via the retained Chinese caller state flow.",
+          "limits": "This label is relative to the established English task requirement and the shown Chinese list-item caller, not global helper or Chinese-parser equivalence. Alternate direct-helper consumers are not retained; no helper-call outcome was executed."
+        },
+        {
+          "id": "fadeb61a8f",
+          "label": "equivalent_or_optional",
+          "reason": "Only a Chinese after-word raw-tag translation target changes from the last descendant to the second-last descendant. The new English placement logic is untouched. The relevant after_word=True Chinese branch cannot be entered via the shown caller, which does not consume the helper's returned flag. A direct helper caller could produce a different translation or an index error, but such a consumer and a Chinese requirement are not established here; do not count that conditional hazard as the requested English weakness.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/fadeb61a8f.patch:151",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:754: == mutant:fadeb61a8f reward=1.0 rc=0 scored 3.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 754,
+            "quote": "== mutant:fadeb61a8f reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/fadeb61a8f.patch",
+          "patch_sha256": "5e1385740db6053f48b891af529b04cd0b960e10ced5277fc55bb76609ebee17",
+          "mutation": {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "line": 176,
+            "end_line": 176,
+            "operator": "integer-shift",
+            "original": "1",
+            "replacement": "2"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/fadeb61a8f.patch",
+              "sha256": "5e1385740db6053f48b891af529b04cd0b960e10ced5277fc55bb76609ebee17",
+              "line_start": 146,
+              "line_end": 154,
+              "quote": "+            if after_word:\n+                if raw_tag in TEMPLATE_TAG_ARGS:\n+                    desc_lists[-1].tags.append(TEMPLATE_TAG_ARGS[raw_tag])\n+                else:\n+                    desc_lists[-1].raw_tags.append(raw_tag)\n+                    translate_raw_tags(desc_lists[-2])\n+            else:\n+                before_word_raw_tags.append(raw_tag)\n     elif span_lang != \"\":"
+            }
+          ],
+          "equivalence_scope": "Unreached Chinese after-word translation via the shown caller, outside the named English placement requirement.",
+          "limits": "This label is relative to the established English task requirement and the shown Chinese list-item caller, not global helper or Chinese-parser equivalence. Alternate direct-helper consumers are not retained; no helper-call outcome was executed."
+        },
+        {
+          "id": "21006858df",
+          "label": "uncertain",
+          "reason": "The English word-construction loop now always appends buffered/inherited qualifiers to tags, even when the reference would retain an unrecognized qualifier in raw_tags. The word that receives the qualifier is unchanged, so the specific wrong-descendant symptom is still addressed. A concrete normalized-output violation requires the exact valid_tags registry plus data_append and parse_page cleanup/serialization behavior, none of which is retained in these inputs. The selected assertions deliberately combine the two fields and cannot answer that question. Preserve a possible tag-schema regression as uncertain instead of assuming every reference classification choice is required or harmless.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:157-170",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:57-76",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/21006858df.patch:73",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:854: == mutant:21006858df reward=1.0 rc=0 scored 3.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 854,
+            "quote": "== mutant:21006858df reward=1.0 rc=0 scored 3.8s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/21006858df.patch",
+          "patch_sha256": "03146a5b4a51d7200fa76a0819f63f20d8b5c7fec82170234159b2b727856df6",
+          "mutation": {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "line": 226,
+            "end_line": 226,
+            "operator": "conditional-branch",
+            "original": "\"tags\" if raw_tag in valid_tags else \"raw_tags\"",
+            "replacement": "(\"tags\")"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/21006858df.patch",
+              "sha256": "03146a5b4a51d7200fa76a0819f63f20d8b5c7fec82170234159b2b727856df6",
+              "line_start": 69,
+              "line_end": 77,
+              "quote": "+        for raw_tag_list in [before_word_raw_tags, raw_tags]:\n+            for raw_tag in raw_tag_list:\n+                data_append(\n+                    desc_data,\n+                    (\"tags\"),\n+                    raw_tag,\n+                )\n+        before_word_raw_tags.clear()\n         if len(ruby_data) > 0:"
+            }
+          ],
+          "static_observation": {
+            "kind": "conditional_field_difference_only",
+            "scenario": "A before-word or inherited qualifier q that is not a member of the unretained valid_tags registry.",
+            "reference_local_outcome": "q is appended to the new target descendant's raw_tags.",
+            "mutant_local_outcome": "q is appended to the same target descendant's tags.",
+            "public_outcome": "Unknown: classification contract, registry and downstream normalization/serialization are missing; no required attachment change is shown.",
+            "fresh_execution": false
+          },
+          "missing_evidence": "Exact valid_tags registry and data_append/parse_page output consumers are unretained; the issue does not explicitly define the tags-versus-raw_tags contract.",
+          "limits": "This is not an equivalence finding and not an established required_gap. No unsupported assumption about Salaca registry membership or public output is made."
+        },
+        {
+          "id": "2fbda168b4",
+          "label": "required_gap",
+          "reason": "Dropping the English before_word_raw_tags.clear() leaves an already-consumed inline qualifier in the per-list-item buffer. Extend the retained public template-expansion fixture by one unqualified third descendant: word ve’ž, comma, qualifier Salaca, word vez, comma, word third. The caller buffers Salaca after the first comma, then attaches it to vez; without clearing, the next word-construction loop attaches Salaca to third as well. The issue requires the inline qualifier to belong to its target term, not a different descendant. This is the same wrong-place bug on a longer line, independent of whether Salaca is represented in tags or raw_tags. The actual grader runs the entire named modules but its added English fixtures end after the first or second word, so this accepted mutant has no tested later word to reveal the leakage.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:157-170",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:5-31",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:57-87",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch:76",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:951: == mutant:2fbda168b4 reward=1.0 rc=0 scored 4.0s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 951,
+            "quote": "== mutant:2fbda168b4 reward=1.0 rc=0 scored 4.0s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch",
+          "patch_sha256": "3df8fa6f8098d48bbeebd249f70069eb25430ee0d10643ae329c79c1328001b9",
+          "mutation": {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "line": 229,
+            "end_line": 229,
+            "operator": "drop-statement",
+            "original": "before_word_raw_tags.clear()",
+            "replacement": "pass"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch",
+              "sha256": "3df8fa6f8098d48bbeebd249f70069eb25430ee0d10643ae329c79c1328001b9",
+              "line_start": 69,
+              "line_end": 79,
+              "quote": "+        for raw_tag_list in [before_word_raw_tags, raw_tags]:\n+            for raw_tag in raw_tag_list:\n+                data_append(\n+                    desc_data,\n+                    \"tags\" if raw_tag in valid_tags else \"raw_tags\",\n+                    raw_tag,\n+                )\n+        pass\n         if len(ruby_data) > 0:\n             desc_data[\"ruby\"] = ruby_data\n         if desc_data[\"lang_code\"] == \"unknown\":"
+            },
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+              "sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+              "line_start": 76,
+              "line_end": 77,
+              "quote": "+        before_word_raw_tags.clear()\n         if len(ruby_data) > 0:"
+            }
+          ],
+          "counterexample": {
+            "kind": "static_public_english_fixture_extension",
+            "input": "Extend the test Template:desc expansion for {{desc|liv|ve’ž|vez<q:Salaca>}} with a comma and an unqualified third <span lang=\"liv\">third</span>; equivalently {{desc|liv|ve’ž|vez<q:Salaca>|third}} with that retained HTML layout.",
+            "ordered_relevant_children": [
+              "span(lang=liv,word=ve’ž)",
+              ",",
+              "span(class=ib-content qualifier-content,text=Salaca)",
+              "span(lang=liv,word=vez)",
+              ",",
+              "span(lang=liv,word=third)"
+            ],
+            "expected": "Salaca occurs on vez only; neither ve’ž nor the unqualified third descendant receives it.",
+            "predicted_actual": "The mutant appends Salaca to both vez and third because the buffered list is never cleared. The reference clears it after vez and leaves third unqualified.",
+            "source_path_proof": "The English caller creates one buffer per list item and only resets after_word at commas. Each subsequent lang span loops over the same buffer; the dropped clear was its only consumption reset in the shown path. Word data are copied before append, so this is an extra explicit attachment, not aliasing speculation.",
+            "fresh_execution": false
+          },
+          "limits": "No fresh parser replay or unretained live-template outcome is claimed. The source counterexample uses the exact retained public fixture layout, adding only an unqualified third word; it does not depend on missing tag-taxonomy consumers."
+        },
+        {
+          "id": "c0c0be8b02",
+          "label": "equivalent_or_optional",
+          "reason": "This removes only the Chinese before-word buffer clear. It can leave a consumed Chinese qualifier buffered for a later word; therefore the mutant is not claimed globally equivalent. However, all English code, including the essential English buffer clear, is untouched. The established issue explicitly concerns [en] output and no independent required Chinese behavior is stated. A Chinese-only omission in an optional parallel reference change is not a demonstrated required English gap, even though the actual test command also runs Chinese fixtures.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:94-127",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/c0c0be8b02.patch:164",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch:57-87",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1: == full reward=1.0 rc=0 scored 4.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:13: == nop reward=0.0 rc=0 scored 4.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:963: == mutant:c0c0be8b02 reward=1.0 rc=0 scored 3.9s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+            "line": 963,
+            "quote": "== mutant:c0c0be8b02 reward=1.0 rc=0 scored 3.9s",
+            "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/c0c0be8b02.patch",
+          "patch_sha256": "d6bac6d1aa312b532ab4f2167a9648bc7d5e55fc4d79d174905e7e72ce2b612f",
+          "mutation": {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "line": 188,
+            "end_line": 188,
+            "operator": "drop-statement",
+            "original": "before_word_raw_tags.clear()",
+            "replacement": "pass"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/c0c0be8b02.patch",
+              "sha256": "d6bac6d1aa312b532ab4f2167a9648bc7d5e55fc4d79d174905e7e72ce2b612f",
+              "line_start": 162,
+              "line_end": 167,
+              "quote": "+            raw_tags=before_word_raw_tags + raw_tags,\n         )\n+        pass\n         if desc_data.lang_code == \"unknown\":\n             desc_data.lang_code = span_lang\n         if \"Hant\" in class_names:"
+            }
+          ],
+          "equivalence_scope": "Outside the specified English requirement, not global semantic equivalence. Possible Chinese third-word leakage is explicitly not dismissed.",
+          "limits": "The corresponding English clear is retained; no Chinese-only requirement, live expansion or API outcome is fabricated from the reference diff."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 43,
+        "tried": 20,
+        "killed": 12,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 8,
+        "generated_but_unattempted": 23,
+        "grade_records": 20
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 42,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 4.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.6
+        },
+        {
+          "label": "nop",
+          "line": 13,
+          "quote": "== nop reward=0.0 rc=0 scored 4.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.7
+        },
+        {
+          "label": "drop-file:src/wiktextract/extractor/en/descendant.py",
+          "line": 41,
+          "quote": "== drop-file:src/wiktextract/extractor/en/descendant.py reward=0.0 rc=0 scored 5.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 5.2
+        },
+        {
+          "label": "drop-file:src/wiktextract/extractor/zh/descendant.py",
+          "line": 61,
+          "quote": "== drop-file:src/wiktextract/extractor/zh/descendant.py reward=0.0 rc=0 scored 4.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.9
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#4",
+          "line": 81,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#4 reward=0.0 rc=0 scored 4.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.7
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#4",
+          "line": 101,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#4 reward=0.0 rc=0 scored 4.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.8
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#2",
+          "line": 121,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#2 reward=0.0 rc=0 scored 5.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 5.0
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#5",
+          "line": 158,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#5 reward=0.0 rc=0 scored 4.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.7
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#2",
+          "line": 178,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#2 reward=0.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#3",
+          "line": 214,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#3 reward=0.0 rc=0 scored 4.3s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.3
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#3",
+          "line": 253,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#3 reward=0.0 rc=0 scored 4.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.4
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#0",
+          "line": 290,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#0 reward=0.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#1",
+          "line": 330,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#1 reward=0.0 rc=0 scored 4.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.2
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#7",
+          "line": 350,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#7 reward=0.0 rc=0 scored 4.3s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.3
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#0",
+          "line": 378,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#0 reward=0.0 rc=0 scored 3.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.7
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#1",
+          "line": 417,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#1 reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#5",
+          "line": 429,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#5 reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#8",
+          "line": 449,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#8 reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/en/descendant.py#6",
+          "line": 461,
+          "quote": "== drop-block:src/wiktextract/extractor/en/descendant.py#6 reward=0.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#6",
+          "line": 489,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#6 reward=1.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "drop-block:src/wiktextract/extractor/zh/descendant.py#7",
+          "line": 501,
+          "quote": "== drop-block:src/wiktextract/extractor/zh/descendant.py#7 reward=1.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "confirm",
+          "line": 513,
+          "quote": "== confirm reward=1.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "mutant:d6b57848d1",
+          "line": 525,
+          "quote": "== mutant:d6b57848d1 reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:ba5092ba00",
+          "line": 537,
+          "quote": "== mutant:ba5092ba00 reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:7f99509ac7",
+          "line": 549,
+          "quote": "== mutant:7f99509ac7 reward=0.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "mutant:e7538f976a",
+          "line": 569,
+          "quote": "== mutant:e7538f976a reward=0.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "mutant:10f1f2edf3",
+          "line": 624,
+          "quote": "== mutant:10f1f2edf3 reward=0.0 rc=0 scored 4.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.1
+        },
+        {
+          "label": "mutant:aa7f37bd5e",
+          "line": 644,
+          "quote": "== mutant:aa7f37bd5e reward=1.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "mutant:1d25348d3b",
+          "line": 656,
+          "quote": "== mutant:1d25348d3b reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:402ba836d3",
+          "line": 698,
+          "quote": "== mutant:402ba836d3 reward=1.0 rc=0 scored 4.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.1
+        },
+        {
+          "label": "mutant:a505fa87d3",
+          "line": 710,
+          "quote": "== mutant:a505fa87d3 reward=0.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "mutant:fadeb61a8f",
+          "line": 754,
+          "quote": "== mutant:fadeb61a8f reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:9262ee81be",
+          "line": 766,
+          "quote": "== mutant:9262ee81be reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:3b690a890e",
+          "line": 805,
+          "quote": "== mutant:3b690a890e reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:21006858df",
+          "line": 854,
+          "quote": "== mutant:21006858df reward=1.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:a50b362bd8",
+          "line": 866,
+          "quote": "== mutant:a50b362bd8 reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:cb2bb5bd75",
+          "line": 903,
+          "quote": "== mutant:cb2bb5bd75 reward=0.0 rc=0 scored 4.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.1
+        },
+        {
+          "label": "mutant:3a6f0287d6",
+          "line": 931,
+          "quote": "== mutant:3a6f0287d6 reward=0.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "mutant:2fbda168b4",
+          "line": 951,
+          "quote": "== mutant:2fbda168b4 reward=1.0 rc=0 scored 4.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 4.0
+        },
+        {
+          "label": "mutant:c0c0be8b02",
+          "line": 963,
+          "quote": "== mutant:c0c0be8b02 reward=1.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        },
+        {
+          "label": "mutant:f5dbc94586",
+          "line": 975,
+          "quote": "== mutant:f5dbc94586 reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:144af5df19",
+          "line": 1018,
+          "quote": "== mutant:144af5df19 reward=0.0 rc=0 scored 3.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.9
+        }
+      ],
+      "source_bindings": [
+        {
+          "role": "reference",
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002801/solution.patch",
+          "sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e"
+        },
+        {
+          "role": "report",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/report.json",
+          "sha256": "1c747db8ad6162624b8a67ab04ee13139e26be91da599011fc911737c231f5cc"
+        },
+        {
+          "role": "grades_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log",
+          "sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da"
+        },
+        {
+          "role": "instruction",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md",
+          "sha256": "085bfd4faa6d39a174eb2b0051970c61bda54865fcfcf5e598a262a2a9521dad"
+        },
+        {
+          "role": "task_toml",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/task.toml",
+          "sha256": "2cca8470d1b09d9bb35c31f4a5836cbbf80e65da9d758d97b4473f748b086795"
+        },
+        {
+          "role": "test_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch",
+          "sha256": "e0c5d213ac8ae8bc92f748912de3d53bc95e58ebfdd35326c37b9640a9fb7f74"
+        },
+        {
+          "role": "test_runner",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.sh",
+          "sha256": "1286fb3e5edc787d9fc9a1c8f5bbadde0f839e9306a9a537b8f3e9ebdbdb6cd7"
+        },
+        {
+          "role": "test_command",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        {
+          "role": "command_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+          "sha256": "0c5840df8aa78beacc3ddcd2d7e0181c82de205e79676bb1e538246472837933"
+        },
+        {
+          "role": "minimal_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/minimal.patch",
+          "sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b"
+        },
+        {
+          "role": "dropped_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/dropped.patch",
+          "sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b"
+        },
+        {
+          "role": "survivor:d6b57848d1",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/d6b57848d1.patch",
+          "sha256": "d8a4304dd1027581ba63a3c46327f60a2884e1cff052659877c7563b8c85aa2f"
+        },
+        {
+          "role": "survivor:ba5092ba00",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/ba5092ba00.patch",
+          "sha256": "bad2f16e2f5690c4ef2fb7c9daa13969fb2b35c17dafef2fc3770af246138089"
+        },
+        {
+          "role": "survivor:aa7f37bd5e",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/aa7f37bd5e.patch",
+          "sha256": "f9901aede6ce0408c3c12b4ab43aff0fcff534fe2e18f3e7c5020061d5c2ea78"
+        },
+        {
+          "role": "survivor:402ba836d3",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/402ba836d3.patch",
+          "sha256": "ef0907d966131e3c73e04efeff5cb124857d1a9f17d28cf5b60e3b26a0b0be56"
+        },
+        {
+          "role": "survivor:fadeb61a8f",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/fadeb61a8f.patch",
+          "sha256": "5e1385740db6053f48b891af529b04cd0b960e10ced5277fc55bb76609ebee17"
+        },
+        {
+          "role": "survivor:21006858df",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/21006858df.patch",
+          "sha256": "03146a5b4a51d7200fa76a0819f63f20d8b5c7fec82170234159b2b727856df6"
+        },
+        {
+          "role": "survivor:2fbda168b4",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/2fbda168b4.patch",
+          "sha256": "3df8fa6f8098d48bbeebd249f70069eb25430ee0d10643ae329c79c1328001b9"
+        },
+        {
+          "role": "survivor:c0c0be8b02",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/mutants/c0c0be8b02.patch",
+          "sha256": "d6bac6d1aa312b532ab4f2167a9648bc7d5e55fc4d79d174905e7e72ce2b612f"
+        }
+      ],
+      "limits": [
+        "Adjudication is scoped to these exact recorded passing witnesses and the stated task behavior; neither a neutral finding nor an equivalent_or_optional label certifies the whole task or reference.",
+        "No fresh controls, Docker, model/inference/cloud or remote API, build, test, lint, formatter, producer/validation command or git command was run. Only the assigned new review JSON is written; parent owns integrated verification and delivery.",
+        "Static examples below are source reasoning, not newly executed API outcomes. Package directory/image digests were not recomputed or extracted; file bytes are independently SHA256-bound.",
+        "Only 20 of the 43 generated mutants were attempted; the remaining 23 have no recorded grade and are outside this adjudication.",
+        "Complete public extractor source, tag registries and output-normalization consumers are not retained; the two English field-classification mutants remain uncertain. The English buffer-leak counterexample is source reasoning with the retained fixture shape, not a fresh test.",
+        "Chinese-only candidates are rejected as required English gaps; optional-scope labels do not claim Chinese global correctness. The shown Chinese caller discards after_word returns."
+      ],
+      "requirement": "In the English descendant extractor, an inline qualifier belongs to its target descendant term (the issue names vez with Salaca), not another word on the same descendant line.",
+      "selected_grader": {
+        "chain": "tests/test.sh applies the complete tests/test.patch; tests/test_command.sh invokes the inserted mimo_test_command.sh.",
+        "effective_command": "PYTHONPATH=src python -m unittest tests.test_en_descendant tests.test_zh_descendant",
+        "observed_full_result": "14 tests, OK; reward=1, rc=0, scored.",
+        "coverage_limit": "Three newly added English cases contain one/two words, and the new Chinese case contains two words. Qualifier checks concatenate tags and raw_tags; they do not assert the distinction or test propagation to a third unqualified word. Running both language suites does not change the explicitly [en] issue into a requirement to match every Chinese reference edit.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.sh:30-40",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test_command.sh:1",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:116-156",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:157-170",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002801/grades.log:1-12"
+        ]
+      }
+    },
+    {
+      "task_id": "format-code-task-000311",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311",
+      "package_digest": "sha256:97ec875af06faf6326d4911875a55224307694128e2515a1ac5d0f4d625febcb",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000311/solution.patch",
+      "reference_sha256": "09e0187a0b47897c84949432eeb4edf48571bcb59c2657b997c48b3ad9829ecc",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/report.json",
+      "report_sha256": "f12ce1f1937af67569a92f7daa7c4c4802e5e80535d717e332c48a7fb8c6dcef",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log",
+      "grades_log_sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/instruction.md",
+      "instruction_sha256": "a714622be2e1b5034e872d6e6306ee3dafb76872ec0a0d7441f04d4671bd3912",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/task.toml",
+      "task_toml_sha256": "a51fa5ff7fd831b84b70c8e08e6d50768d7b700119015c0d7090316eb69041ea",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.patch",
+      "test_patch_sha256": "b70dfdf9916ff4aff9ec4f291b7de234f4f800631dd25e02ba6e16011b18b44d",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.sh",
+      "test_runner_sha256": "e41f335606c4e3a068e625c6c9c58b5ea3193e592da17680d5625d35abc7e216",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "486f8d1a41aae9da63b67a52b5a1455c9f0bf2132e4919d2bcc3a0b1eb0fbdda",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311",
+        "package_digest": "sha256:97ec875af06faf6326d4911875a55224307694128e2515a1ac5d0f4d625febcb",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000311/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "09e0187a0b47897c84949432eeb4edf48571bcb59c2657b997c48b3ad9829ecc",
+        "task_id": "format-code-task-000311"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:ff7d0408231ca8c1b6b3ff28f1a36f62f138eed09ad420452c3317cf690c5df1",
+      "started_at": "2026-10-21T19:33:39+00:00",
+      "finished_at": "2026-10-21T19:34:25+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.6s",
+          "sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log",
+          "line": 34,
+          "quote": "== nop reward=0.0 rc=0 scored 1.6s",
+          "sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Measured immutable package identity comes from agreeing canonical plan/report/atlas, not a fresh directory/image extraction. Every cited local source artifact is separately hashed."
+      },
+      "block": null,
+      "survivors": [
+        {
+          "id": "c1ef6171e8",
+          "label": "equivalent_or_optional",
+          "reason": "The candidate retains both required Inf/NaN indexing repairs and fixes the original misspelled np.around keyword. Its only difference from the reference is decimals=6 rather than 5. This rounding is guarded by every unique entry being strictly within 1e-8 of 0 or 1; for the ordinary finite real connectivity matrices implicated here, both 5- and 6-decimal rounding snap such values to the same exact binary values (the finer half-step is 5e-7, still much larger than 1e-8). Inputs not satisfying the guard never use either precision. Thus the extra decimal is not a required-output or exception gap, and neither the stated indexing fix nor the exact-binarity purpose is lost.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/instruction.md:3-12",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/instruction.md:18-23",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000311/solution.patch:5-20",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/mutants/c1ef6171e8.patch:5-20",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.patch:68-89",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log:1: == full reward=1.0 rc=0 scored 1.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log:34: == nop reward=0.0 rc=0 scored 1.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log:229: == mutant:c1ef6171e8 reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log",
+            "line": 229,
+            "quote": "== mutant:c1ef6171e8 reward=1.0 rc=0 scored 1.5s",
+            "sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/mutants/c1ef6171e8.patch",
+          "patch_sha256": "f824fd9c2915d6f94bc9d913ec4318f4bd2936dfb433c915dcb4b72b847a4e6d",
+          "mutation": {
+            "file": "bct/utils/other.py",
+            "line": 278,
+            "end_line": 278,
+            "operator": "integer-shift",
+            "original": "5",
+            "replacement": "6"
+          },
+          "source_evidence": [
+            {
+              "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/mutants/c1ef6171e8.patch",
+              "sha256": "f824fd9c2915d6f94bc9d913ec4318f4bd2936dfb433c915dcb4b72b847a4e6d",
+              "line_start": 15,
+              "line_end": 17,
+              "quote": "     if np.all(np.logical_or(np.abs(u) < 1e-8, np.abs(u - 1) < 1e-8)):\n-        W = np.around(W, decimal=5)\n+        W = np.around(W, decimals=6)"
+            }
+          ],
+          "static_reasoning": {
+            "kind": "guard_dominates_rounding_precision",
+            "scenario": "Each ordinary finite real matrix entry entering np.around satisfies abs(x)<1e-8 or abs(x-1)<1e-8.",
+            "predicted_actual": "Both decimals=5 and decimals=6 yield the same 0/1 value under this guard; all nonguarded matrices and the Inf/NaN index fixes are unchanged.",
+            "fresh_execution": false
+          },
+          "limits": "Scoped to the numeric connectivity-matrix domain of the issue, not arbitrary object/low-range dtype behavior or a whole-task correctness certificate."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 3,
+        "tried": 3,
+        "killed": 2,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 1,
+        "generated_but_unattempted": 0,
+        "grade_records": 3
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 7,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "nop",
+          "line": 34,
+          "quote": "== nop reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "drop-block:bct/utils/other.py#0",
+          "line": 81,
+          "quote": "== drop-block:bct/utils/other.py#0 reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "drop-block:bct/utils/other.py#1",
+          "line": 128,
+          "quote": "== drop-block:bct/utils/other.py#1 reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:f598bea0e8",
+          "line": 179,
+          "quote": "== mutant:f598bea0e8 reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        },
+        {
+          "label": "mutant:c1ef6171e8",
+          "line": 229,
+          "quote": "== mutant:c1ef6171e8 reward=1.0 rc=0 scored 1.5s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.5
+        },
+        {
+          "label": "mutant:6fcbfa572b",
+          "line": 262,
+          "quote": "== mutant:6fcbfa572b reward=0.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        }
+      ],
+      "source_bindings": [
+        {
+          "role": "reference",
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000311/solution.patch",
+          "sha256": "09e0187a0b47897c84949432eeb4edf48571bcb59c2657b997c48b3ad9829ecc"
+        },
+        {
+          "role": "report",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/report.json",
+          "sha256": "f12ce1f1937af67569a92f7daa7c4c4802e5e80535d717e332c48a7fb8c6dcef"
+        },
+        {
+          "role": "grades_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log",
+          "sha256": "ebaf1c94f10b79a6d4bc24b79edc98e030e01708a1ea192d339d139283949876"
+        },
+        {
+          "role": "instruction",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/instruction.md",
+          "sha256": "a714622be2e1b5034e872d6e6306ee3dafb76872ec0a0d7441f04d4671bd3912"
+        },
+        {
+          "role": "task_toml",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/task.toml",
+          "sha256": "a51fa5ff7fd831b84b70c8e08e6d50768d7b700119015c0d7090316eb69041ea"
+        },
+        {
+          "role": "test_patch",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.patch",
+          "sha256": "b70dfdf9916ff4aff9ec4f291b7de234f4f800631dd25e02ba6e16011b18b44d"
+        },
+        {
+          "role": "test_runner",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.sh",
+          "sha256": "e41f335606c4e3a068e625c6c9c58b5ea3193e592da17680d5625d35abc7e216"
+        },
+        {
+          "role": "test_command",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        {
+          "role": "command_log",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+          "sha256": "486f8d1a41aae9da63b67a52b5a1455c9f0bf2132e4919d2bcc3a0b1eb0fbdda"
+        },
+        {
+          "role": "survivor:c1ef6171e8",
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/mutants/c1ef6171e8.patch",
+          "sha256": "f824fd9c2915d6f94bc9d913ec4318f4bd2936dfb433c915dcb4b72b847a4e6d"
+        }
+      ],
+      "limits": [
+        "Adjudication is scoped to these exact recorded passing witnesses and the stated task behavior; neither a neutral finding nor an equivalent_or_optional label certifies the whole task or reference.",
+        "No fresh controls, Docker, model/inference/cloud or remote API, build, test, lint, formatter, producer/validation command or git command was run. Only the assigned new review JSON is written; parent owns integrated verification and delivery.",
+        "Static examples below are source reasoning, not newly executed API outcomes. Package directory/image digests were not recomputed or extracted; file bytes are independently SHA256-bound.",
+        "The block stage recorded pass with no passing omission; block is null. That does not certify the task. All three generated line mutants were tried, and the sole survivor is adjudicated as an equivalent precision choice under the guard."
+      ],
+      "requirement": "autofix must remove Inf/NaN using valid array indexing and run the supplied binarized thresholded-matrix reproduction without the reported IndexError.",
+      "selected_grader": {
+        "chain": "tests/test.sh resets/applies tests/test.patch, then tests/test_command.sh invokes the inserted mimo_test_command.sh.",
+        "effective_command": "python -m pytest -v -rA with seven explicit test/basic_test.py autofix node IDs; the other basic_test functions and broader package suite are not selected.",
+        "observed_full_result": "7 passed, 1 warning; reward=1, rc=0, scored.",
+        "coverage_limit": "The exact-binary test has exact zero/one entries, but the survived precision change also has a guard-based semantic equivalence argument; survival alone is not the justification.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.sh:29-39",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test_command.sh:1",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000311/tests/test.patch:98-112",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000311/grades.log:1-33"
+        ]
+      }
+    }
+  ]
+}

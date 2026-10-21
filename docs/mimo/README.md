@@ -107,6 +107,11 @@ Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
 - Full-fleet coverage: 1,729 built tasks have no ladder run on v5; 294 lack a
   do-nothing run; 172 reference tasks await a v5 probe. The receipt lists the
   exact commands and the measured cost per check.
+- Weak-test coverage (2026-10-21): all 567 primary reports and all 278 block
+  candidates are adjudicated, and 302 line scans cover 674 survivors. The
+  line-level pass is still missing for the remaining block-only tasks; exact
+  identities, executed counts and limits are in
+  `research/experiments/mimo-weak-tests-line-backfill-20261021/`.
 - 001431 (pytest collection-error shape) is graded 0 with a working fix.
 - Next rebuild should move the whole fleet to `purge-build-caches@5`
   (kept selective in v5 to avoid re-grading 405 banked rows).

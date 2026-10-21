@@ -93,9 +93,49 @@ only `24` executions to learn from.
 3. **Do not grow the corpus by repeating bodies.** `65` of the `90` conversations
    are extra copies; more copies of the same `25` programs cannot teach more.
 
+## The data supply: `seeker-gym-v0`'s generator is budget-bound (`gym-budget-probe.jsonl`)
+
+The gym is the intended source of the distinct executed exploits this corpus
+lacks. Its v0 run recorded `14/32` candidates as `unparsed_generation`, so this
+probes the same prompt and the same three tasks (`atrx-vep-crispr`, `cad-model`,
+`cargo-flight-dispatch`) at two budgets, `k=8` each, reusing the gym's own
+`PROMPT`, `task_view` and `MODELS` and changing only `max_tokens`.
+
+| Budget | Candidates | Parsed | With `solve.sh` | `finish_reason=length` | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `1200` (the gym's value) | 24 | **6 (25%)** | 6 | 17 | $0.00535 |
+| `3072` | 24 | **21 (87.5%)** | 21 | 1 | $0.00708 |
+
+**The gym's `max_tokens: 1200` is the binding constraint on its own data supply.**
+It truncates `17/24` generations mid-JSON, and raising it to `3072` lifts the parse
+rate from `25%` to `87.5%` for `$0.007`. This is the same failure mode as
+pE-SELF-5's `768`-token generation budget, at the same place in the pipeline: the
+submission is cut off before its closing brace.
+
+Grading the parsed candidates is free on local Docker (see the protocol's
+correction), so the probe was re-run at `3072` with grading
+(`gym-graded-probe.jsonl`):
+
+| Budget | Candidates | Parsed | Graded | Upstream `1.0` | Verified |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `3072` | 24 | 22 (92%) | 22 | **0** | **0** |
+
+**The budget was necessary but not sufficient.** With the JSON intact, `22/22`
+candidates still fail the upstream grader. Their ideas are the tamper family —
+overwrite `test_outputs.py` with a passing dummy, `rm` it, replace `test.sh` with
+`exit 0`, write an empty `{}` at the expected output path — and none of them
+lands. That is the same shape the corpus audit found: the model names the right
+class (`grader_tamperable`) and cannot execute it. So the gym's data supply needs
+the budget fix *and* candidates that can actually reach a grader gap — a stronger
+generator or a tool loop that can read the grader before writing, which is what
+`evallab.seeker`'s `ConfinedTools` loop does and a single-shot JSON call cannot.
+
 ## Files
 
 | File | Role |
 | --- | --- |
 | `corpus_audit.py` | the measurements |
 | `corpus-audit.json` | the report |
+| `gym_budget_probe.py` | the gym generation-budget probe (and optional local-Docker grading) |
+| `gym-budget-probe.jsonl` | the probe's per-candidate rows |
+| `gym-graded-probe.jsonl` | the probe re-run at `3072` with grading |

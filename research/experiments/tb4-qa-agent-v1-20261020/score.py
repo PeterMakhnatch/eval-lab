@@ -1,7 +1,7 @@
 """Score QA agent v1 and the three comparison rows with the unchanged tb4-audit-v1 scorer.
 
 Rows: QA agent v0 (frozen QA-2 predictions), static triage scanner (#1118, rerun here; it
-is deterministic), plain Opus read (#1119 static arm predictions) and QA agent v1 (this
+is deterministic), plain read (Codex gpt-6.1-sol; #1119 static arm predictions) and QA agent v1 (this
 experiment's recorded findings). Every row goes through
 ``research/answer-keys/tb4-audit-v1/score_audit.py``; the table reports TEST recall and
 TEST precision for ``category_1to1``, ``locus_and_class`` (strict) and ``task_any_1to1``

@@ -48,7 +48,7 @@ Same scorer, same TEST split, other systems (category 1-to-1 recall out of `152`
 | DEV-prior baseline (`weak`, the modal DEV category, on every task) | 18 | what a reader with no matcher guesses |
 | Epoch auditor flags / Tokenless auditor flags | 15 / 16 | each flag as one prediction |
 | one prediction per (task, category), told which categories exist | 78 | oracle ceiling for that prediction shape |
-| plain Opus read / Qwen3.6-35B plain json-v3 (other lanes, frozen) | 78 / 6 | `cheap-models.md`, exposure `cm1-qwen-plain-json-v3-test-20261021` |
+| plain read (Codex `gpt-6.1-sol`, not Opus) / Qwen3.6-35B plain json-v3 (other lanes, frozen) | 78 / 6 | `cheap-models.md`, exposure `cm1-qwen-plain-json-v3-test-20261021` |
 
 Per taxonomy class (category 1-to-1, matched/findings; classes with fewer than 10 TEST findings
 are noise):
@@ -69,7 +69,7 @@ are noise):
 
 - On tasks the catalog was not written from, `match` credits about `4` in `10` findings by category,
   `3.4` times the no-matcher prior and `4` times either external auditor's own flags, and about
-  `80%` of what plain Opus read credited on the same split. It does not name the finding.
+  `80%` of what the plain read (Codex `gpt-6.1-sol`) credited on the same split. It does not name the finding.
 - The three large classes lose `8` to `23` points from DEV to TEST (`weak_check` `58%` to `48%`,
   `grader_tamperable` `58%` to `50%`, `unstated_requirement` `63%` to `40%`); the classes with
   `3` to `7` TEST findings dropped to `0` to `3` hits, and each rests on a handful of tasks.

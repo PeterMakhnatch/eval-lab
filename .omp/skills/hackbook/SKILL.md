@@ -100,7 +100,7 @@ block it names, then run `evallab ref-subset` for the verdict.
 DEV tasks, so DEV numbers are in-sample (category recall `56/86`, `65%`). Run once on the `41`
 held-out `tb4-audit-v1` TEST tasks, one frozen version credited `62/152` findings by category
 (`40.8%`, Wilson `33`-`49`), precision `40%` as a lower bound, against `18` for a no-matcher prior
-and `78` for plain Opus read; `weak_check` `29/61`, `unstated_requirement` `16/40`,
+and `78` for the plain read (Codex `gpt-6.1-sol`, not Opus); `weak_check` `29/61`, `unstated_requirement` `16/40`,
 `grader_tamperable` `10/20`, the rarer classes `0`-`3` hits of `3`-`7`. Expect about four in ten
 findings, and no finding id or locus. The TEST split is spent for hackbook versions: do not tune
 on it, and report any later TEST score as not untouched

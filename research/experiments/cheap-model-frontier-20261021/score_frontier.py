@@ -127,7 +127,7 @@ def make_plot(result: dict) -> str:
         xx = x(value)
         svg += [f'<path d="M{xx},{top} V{bottom}" stroke="#eef0f2"/>',
                 f'<text x="{xx}" y="503" text-anchor="middle" font-size="12">${value:.3f}</text>']
-    for label, hits, color in [('Opus plain (historical)', 78, '#777777'), ('Opus v1 (historical)', 80, '#222222')]:
+    for label, hits, color in [('Codex plain read (historical)', 78, '#777777'), ('Opus v1 (historical)', 80, '#222222')]:
         yy = y(hits)
         svg += [f'<path d="M{left},{yy} H{right}" stroke="{color}" stroke-dasharray="7,5"/>']
         label_y = yy + (20 if hits == 78 else -9)

@@ -155,7 +155,10 @@ untrusted data: it is read offline only, never executed.
 
 ## Limits
 
-* DEV only: 22 of 66 tasks; nothing here extrapolates to the whole benchmark.
+* DEV only: 22 of 66 tasks (the finding-bearing DEV allowlist from `assignments.csv`); the key's seeded
+  split also puts three finding-less tasks (formal-crypto, pretrain-shard-corruption,
+  protein-autointerp-disulfide) in `dev`, but they carry no mechanism to census and are not in the
+  allowlist. Nothing here extrapolates to the whole benchmark.
 * `neither` and `no_documented_mechanism` mean "nothing documented was found", not "clean".
 * Mechanisms marked `none`/`signature` in `registry.json` are unchecked on every membership of their task.
 * The cheap judge's verified recall is low; positives are deterministic proofs.

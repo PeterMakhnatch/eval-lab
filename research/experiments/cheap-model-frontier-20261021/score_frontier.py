@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from run_plain import VERSION, configuration_root
+from run_plain import VERSION
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
@@ -135,7 +135,7 @@ def make_plot(result: dict) -> str:
         svg += [f'<text x="725" y="{label_y}" font-size="12">{label}: {hits}/152</text>']
     colors = ['#1565c0', '#9c27b0', '#008577', '#b45309']
     models = list(dict.fromkeys(r['model'] for r in result['rows']))
-    for index, row in enumerate(points):
+    for row in points:
         xx = x(row['test_cost']['billed_usd'])
         yy = y(row['score']['category_1to1']['recall']['k'])
         color = colors[models.index(row['model']) % len(colors)]

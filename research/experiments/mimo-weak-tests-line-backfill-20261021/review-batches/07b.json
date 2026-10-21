@@ -1,0 +1,1248 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview07B (native requirement-level source/consumer adjudication; immutable recorded evidence only)",
+  "reviewed_at_utc": "2026-10-21T20:15:41.146574+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-002414",
+      "format-code-task-002736"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/07b.json",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read the exact frozen plan/package/reference identities, instruction and effective hidden-grader launch chain, complete references and minimal/dropped patches, every complete survivor patch and its differences from the full reference, and relevant retained source/log consumer excerpts. Compute actual SHA-256 file bindings and parse exact current grades.log headers. All counterexamples are static source/mathematical reasoning, not fresh controls. Missing consumer/schema context remains uncertain; incidental inference/plot mutations are not inflated into required expanding-estimation gaps."
+  },
+  "summary": {
+    "reports": 2,
+    "block_fail_candidates": 2,
+    "reviewed_block_fail_candidates": 2,
+    "block_labels": {
+      "confirmed_weak": 1,
+      "neutral": 0,
+      "out_of_scope": 0,
+      "uncertain": 1
+    },
+    "reported_survivors": 14,
+    "reviewed_survivors": 14,
+    "unreviewed_reported_survivors": 0,
+    "survivor_labels": {
+      "required_gap": 5,
+      "non_positive": 5,
+      "equivalent_or_optional": 1,
+      "uncertain": 3
+    },
+    "confirmed_positive_candidates": 6,
+    "unresolved_candidates": 4,
+    "generated_mutants": 132,
+    "attempted_mutants": 25,
+    "recorded_killed_mutants": 11,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 107,
+    "authoritative_grade_records": 57,
+    "task_ids_with_confirmed_weak_blocks": [
+      "format-code-task-002736"
+    ],
+    "task_ids_with_confirmed_required_gap_survivors": [
+      "format-code-task-002736"
+    ],
+    "task_ids_with_unresolved_survivors_or_blocks": [
+      "format-code-task-002414",
+      "format-code-task-002736"
+    ],
+    "positive_identities": [
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "block_omission",
+        "id": null,
+        "required_gap": "Omitted expanding-aware missingness flags fit a pre-window missing=\"skip\" prefix instead of skipping it."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "6d417628a4",
+        "required_gap": "Required usable expanding estimator with the supported optional min_nobs default; helper behavior is sourced from the exact current recorded traceback, not assumed from its name."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "484bfaaef9",
+        "required_gap": "Required default/minimum prefix configuration, with a full-rank design; no claim that min_nobs below the number of regressors must work."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "c2d1d4606d",
+        "required_gap": "Required first expanding estimate with the supported missing=\"skip\" option on complete full-rank data."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "2672042fa3",
+        "required_gap": "Required documented missing=\"skip\" coefficient behavior in the supported default non-expanding mode; expanding=True is unaffected by this particular mutation."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "b4145440ce",
+        "required_gap": "Required expanding-to-fixed-window transition through the existing inherited RollingOLS.from_formula path; demonstrated at the window-forwarding and row-selection boundaries."
+      }
+    ],
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-002414",
+        "kind": "block_omission",
+        "id": null,
+        "missing_evidence": "Pinned Transaction.__init__, installed/current repository normalization and uniqueness contract, the complete return sorted(...) expression, and consumers/executor of returned uninstall operations. The inspected exact package and current/archived task/reference directories retain patches/logs but no standalone Python source files for these implementations."
+      },
+      {
+        "task_id": "format-code-task-002414",
+        "kind": "line_survivor",
+        "id": "25b38edcdd",
+        "missing_evidence": "Pinned installed-package uniqueness/normalization contract in Transaction and repository producers, plus the complete return expression and operation consumer/executor. A literal repeated name in a hypothetical input list is not proof that the executing Transaction exposes that repeated name."
+      },
+      {
+        "task_id": "format-code-task-002414",
+        "kind": "line_survivor",
+        "id": "fa7b285c33",
+        "missing_evidence": "Complete pinned Transaction return path, operation consumer/executor, and requirements for tracked-to-untracked overlap. No downstream failure or duplicate deduplication is assumed."
+      },
+      {
+        "task_id": "format-code-task-002736",
+        "kind": "line_survivor",
+        "id": "00a60d07e5",
+        "missing_evidence": "Pinned Model.__init__, Model._handle_data/data-class missing handling, constant detection and array validation on a concrete NaN input, including exception type and whether any subsequent stage still raises. None of these implementations is supplied by the inspected exact task package/reference/minimal/survivor/log source context."
+      }
+    ],
+    "limitations": [
+      "Exactly the two assigned tasks, both fail-block omissions and all fourteen reported positive line survivors are reviewed. There is no whole-task clean certificate and no inherited label by ID.",
+      "Every full/nop is reward 1/0 respectively, rc=0,status=scored. Both block confirms and all fourteen reported survivors are reward=1,rc=0,status=scored in the current parsed grades.log. controls contains only full/nop, while block.grade is the exact current confirm.",
+      "002736 has one confirmed weak omission and five required-gap survivors: optional-minimum rejection, minimum-boundary rejection, suppressed first clean skip-mode estimate, a first-full-window skip regression in default non-expanding mode, and lost factory window forwarding. All counterexamples are static source/math reasoning, not newly executed outcomes.",
+      "The 002414 block and both line survivors remain uncertain: duplicate enqueueing or bookkeeping differences alone do not prove final operation-list or install behavior without pinned collection/return/executor context. The 002736 forced-drop survivor remains uncertain without pinned Model/data missing-input exception consumers.",
+      "Five 002736 inference/plot survivors are non_positive specifically for the requested expanding-estimation enhancement, not declared harmless. The lstsq/pinv switch has no established required difference on the visible inverse-gated full-rank estimation domain; no blanket numerical or singular-design equivalence is claimed.",
+      "Of 132 generated line mutants, only 25 were tried: 11 killed and 14 survivors, all scored. The 002736 stage reaches its configured limit of 20 attempts with 107 generated mutants unattempted. No timeout or unscored mutant is recorded for these attempts; the unattempted population is not adjudicated.",
+      "Source availability is limited to retained exact packages, patches, reports and log excerpts. Scoped searches in the exact current/archived task and reference directories found no standalone Python implementations for missing consumers. An initial broader derived-tree filename search timed out and was narrowed; it is not evidence of global filesystem absence.",
+      "Package digests are recorded immutable identities cross-bound to the frozen plan and atlas, not recomputed directory digests. Current report/log/reference/instruction/task.toml/grader/minimal/dropped/all fourteen survivor bytes and frozen binding files are SHA-256-bound.",
+      "No controls, Docker, model/cloud APIs, builds, tests, lint, formatters, producer/validation commands, git commands, commits, evidence modifications or other file writes were performed. Parent owns integrated verification and delivery."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-002414",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414",
+      "package_digest": "sha256:6f56a0cbcedeae9c1bd44ccb85eb2071426f713bec5fb415457191c15d804f71",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch",
+      "reference_sha256": "13cd94692e3e9411cdc5c88ce888538f0d69d4f94c58db51381c3ea59d96132e",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/report.json",
+      "report_sha256": "60c8bf9d2b06052ce3d2df27f8ab329d28fa005195ebd0306e6842f88720bff3",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+      "grades_log_sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch",
+      "minimal_patch_sha256": "4600bf8fff5988c527ea083eea29d33f4f69bdc371fa3fb6ac084558d3d1031a",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/dropped.patch",
+      "dropped_patch_sha256": "7fc206ed0e33e523f15cb73ae98d2c50d9dcd51c9446992f941ffb4c00c6e2cc",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md",
+      "instruction_sha256": "c4da0b70291fff9535282c598727babd850f6bff5d0ef528cd26e0d4d4b25548",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/task.toml",
+      "task_toml_sha256": "7a8d8886c13b03782e6b4512b798e99782678c0bc284923623139cc55060b417",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch",
+      "test_patch_sha256": "b8194c38a956b0fc16c44d352bdc9e86175aee0624dc735cbfdbf7d1b339c57f",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0d6ecb7a479d21c7fedc01dc0d654d617b453e4e9c5944c3a0b650f89cfce64e",
+      "started_at": "2026-10-21T19:53:59+00:00",
+      "finished_at": "2026-10-21T19:56:42+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_reason": "",
+      "recorded_block_summary": {
+        "code_blocks": 6,
+        "code_lines": 14,
+        "kept_code_lines": 10,
+        "kept_fraction": 0.7143,
+        "kept": [
+          "src/poetry/puzzle/transaction.py#0",
+          "src/poetry/puzzle/transaction.py#2",
+          "src/poetry/puzzle/transaction.py#3",
+          "src/poetry/puzzle/transaction.py#5"
+        ],
+        "dropped_code": [
+          "src/poetry/puzzle/transaction.py#1",
+          "src/poetry/puzzle/transaction.py#4"
+        ],
+        "limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "mutant_stage": {
+        "generated": 5,
+        "killed": 3,
+        "limit": 20,
+        "reason": "",
+        "severity": "medium",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 5,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+          "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 8.9s",
+          "seconds": 8.9
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+          "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+          "line": 21,
+          "quote": "== nop reward=0.0 rc=0 scored 8.8s",
+          "seconds": 8.8
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+          "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+          "line": 252,
+          "quote": "== confirm reward=1.0 rc=0 scored 10.7s",
+          "seconds": 10.7
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_hash_matches_frozen_plan": true,
+        "reference_bytes_match_report_hash": true,
+        "package_path_matches_archived_atlas": true,
+        "package_digest_matches_archived_atlas": true,
+        "reference_hash_matches_archived_atlas": true,
+        "instruction_hash_matches_archived_atlas": true,
+        "task_toml_hash_matches_archived_atlas": true,
+        "current_package_digest_recomputed": false,
+        "scope": "Recorded immutable package identity is cross-bound to the exact frozen plan and atlas. Actual file bytes are SHA-256-bound; no directory-digest recomposition, execution, producer or validation command was run."
+      },
+      "frozen_source_bindings": {
+        "resume_plan": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+          "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+          "selector": {
+            "task_id": "format-code-task-002414"
+          }
+        },
+        "atlas": {
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "line": 91,
+          "selector": {
+            "task_id": "format-code-task-002414",
+            "package_digest": "sha256:6f56a0cbcedeae9c1bd44ccb85eb2071426f713bec5fb415457191c15d804f71"
+          },
+          "use": "Source identity and prior-review navigation only. Current block and survivor claims are independently reconsidered from current bound patches and current grades.log, not inherited from the atlas."
+        }
+      },
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/report.json": "60c8bf9d2b06052ce3d2df27f8ab329d28fa005195ebd0306e6842f88720bff3",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch": "13cd94692e3e9411cdc5c88ce888538f0d69d4f94c58db51381c3ea59d96132e",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md": "c4da0b70291fff9535282c598727babd850f6bff5d0ef528cd26e0d4d4b25548",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/task.toml": "7a8d8886c13b03782e6b4512b798e99782678c0bc284923623139cc55060b417",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.sh": "6e277d3b614de46bd7830eb53f3b6e446607c07fd5fb380705e7771b4adefea4",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test_command.sh": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch": "b8194c38a956b0fc16c44d352bdc9e86175aee0624dc735cbfdbf7d1b339c57f",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch": "4600bf8fff5988c527ea083eea29d33f4f69bdc371fa3fb6ac084558d3d1031a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/dropped.patch": "7fc206ed0e33e523f15cb73ae98d2c50d9dcd51c9446992f941ffb4c00c6e2cc",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/25b38edcdd.patch": "01cb4f86a74b61724413d3b577c9b358cf898488610f4df66753252a303e5a15",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/fa7b285c33.patch": "41658e985a34cd0a8ba09cc7ad10c398629809129c6b5ff6e789cebd4033cd76"
+      },
+      "grader": {
+        "wrapper": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.sh",
+          "sha256": "6e277d3b614de46bd7830eb53f3b6e446607c07fd5fb380705e7771b4adefea4"
+        },
+        "command_file": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        "hidden_patch": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch",
+          "sha256": "b8194c38a956b0fc16c44d352bdc9e86175aee0624dc735cbfdbf7d1b339c57f"
+        },
+        "selection_chain": "tests/test.sh resets and applies only the hidden-test patch targets, reads tests/test_command.sh, and awards reward 1 for an exit-0 command. test_command.sh invokes bash /testbed/mimo_test_command.sh, whose effective pytest selection is supplied by tests/test.patch.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.sh:34: \"timeout 1800 sh -c \\\"$(cat /tests/test_command.sh)\\\" > \\\"$V/test_output.log\\\" 2>&1\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.sh:37: \"if [ $RC -eq 0 ]; then echo 1 > \\\"$V/reward.txt\\\"; else echo 0 > \\\"$V/reward.txt\\\"; fi\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test_command.sh:1: \"bash /testbed/mimo_test_command.sh\""
+        ],
+        "effective_pytest_command": "PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA followed by five explicitly selected tests/puzzle/test_transaction.py node IDs.",
+        "selected_tests": [
+          "test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync",
+          "test_it_should_remove_untracked_installed_when_lock_was_deleted_sync",
+          "test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync",
+          "test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync",
+          "test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync"
+        ],
+        "selected_test_count_observed": 5,
+        "coverage_boundary": "Every selected test passes an empty current-package list, corresponding to deletion of the lock file. No selected test supplies overlapping tracked and synchronized removals or duplicate installed package names. The pre-existing transaction tests are not selected by this command.",
+        "effective_selection_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:143: \"+PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_remove_untracked_installed_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync tests/puzzle/test_transaction.py::test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync\""
+      },
+      "source_review_method": "Read the full reference, minimal and dropped patches; read and SHA-256 each complete reported survivor file, compare its entire byte-decoded patch to the already-read reference, and inspect every changed source hunk. For 002736 the complete-file differences include common index/mode metadata plus the one listed semantic mutation. No survivor is reviewed from report.edit alone.",
+      "unscored_mutants": [],
+      "limits": {
+        "whole_task_clean_certificate": false,
+        "generated_but_unattempted_mutants": 0,
+        "new_execution": false,
+        "source_counterexamples_are_static": true,
+        "package_digest_scope": "Measured identity matched to frozen plan and atlas; directory digest not recomputed.",
+        "grade_records_source": "Exact parsed grades.log headers, not the truncated report.grades array."
+      },
+      "scope_disposition": "Every assigned block-fail omission and every reported scored line survivor is individually adjudicated. Non-positive and equivalence labels are claim-specific, not a whole-task clean certificate.",
+      "requirement_evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md",
+          "sha256": "c4da0b70291fff9535282c598727babd850f6bff5d0ef528cd26e0d4d4b25548",
+          "line": 3,
+          "quote": "Deleting lock file, in combination with `--remove-untracked`, causes packages to be removed during install"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md",
+          "sha256": "c4da0b70291fff9535282c598727babd850f6bff5d0ef528cd26e0d4d4b25548",
+          "line": 317,
+          "quote": "It appears that it first removes the packages, and then tries to install the same packages but decides to skip as it thinks they are already installed, while in fact it just removed them. It shouldn't remove these packages in the first place."
+        }
+      ],
+      "block": {
+        "label": "uncertain",
+        "reason": "The minimal patch retains the required result-package-name comparison, including preservation of packages that are re-resolved after the lock was deleted. The omitted first-loop uninstalls.add and second-loop skip guard instead prevent duplicate uninstall enqueueing when a previously tracked installed package is absent from the new result. A concrete current=[a], result=[], installed=[a], synchronize=True state reaches both append(Uninstall(...)) sites in the minimal source. However, the retained patch ends at return sorted( and does not show the returned expression, the Transaction constructor/collection normalization, or the executor. Thus duplicate enqueueing is established as conditional source reasoning, not a proven duplicate operation output or harmful installation behavior. The reported deleted-lock case and all five selected tests have current=[] and do not exercise this overlap. Preserve the duplicate-removal question as uncertain rather than recertifying the omission as a required gap or declaring it harmless.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md:315: \"```\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch:16-20: \"             if synchronize:\\n-                current_package_names = {\\n-                    current_package.name for current_package in self._current_packages\\n+                result_package_names = {\\n+                    result_package.name for result_package, _ in self._result_packages\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch:40-44: \"                         operations.append(Uninstall(installed_package))\\n \\n         return sorted(\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/dropped.patch:5-22: \"@@ -84,6 +84,7 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            uninstalls.add(installed_package.name)\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\\n@@ -100,6 +101,9 @@ class Transaction:\\n                 } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\"",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:12-24: \"                     current_package.name == result_package.name\\n@@ -83,11 +84,12 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            uninstalls.add(installed_package.name)\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\\n-                current_package_names = {\\n-                    current_package.name for current_package in self._current_packages\\n+                result_package_names = {\\n+                    result_package.name for result_package, _ in self._result_packages\"",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:28-50: \"@@ -96,9 +98,12 @@ class Transaction:\\n                     \\\"pip\\\",\\n                     \\\"setuptools\\\",\\n                     \\\"wheel\\\",\\n-                } - current_package_names\\n+                } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\\n@@ -108,7 +113,8 @@ class Transaction:\\n                     if installed_package.name in preserved_package_names:\\n                         continue\\n \\n-                    if installed_package.name not in current_package_names:\\n+                    if installed_package.name not in result_package_names:\\n+                        uninstalls.add(installed_package.name)\\n                         operations.append(Uninstall(installed_package))\\n \"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:11: \"+def test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync():\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:143: \"+PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_remove_untracked_installed_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync tests/puzzle/test_transaction.py::test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:1: \"== full reward=1.0 rc=0 scored 8.9s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:21: \"== nop reward=0.0 rc=0 scored 8.8s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:252: \"== confirm reward=1.0 rc=0 scored 10.7s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+          "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+          "line": 252,
+          "quote": "== confirm reward=1.0 rc=0 scored 10.7s",
+          "seconds": 10.7
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch",
+        "witness_sha256": "4600bf8fff5988c527ea083eea29d33f4f69bdc371fa3fb6ac084558d3d1031a",
+        "dropped_behavior": "Omission of recording first-loop uninstall names and of skipping those names in the synchronization loop. The main result-name membership fix remains intact.",
+        "counterexample": null,
+        "missing_evidence": "Pinned Transaction.__init__, installed/current repository normalization and uniqueness contract, the complete return sorted(...) expression, and consumers/executor of returned uninstall operations. The inspected exact package and current/archived task/reference directories retain patches/logs but no standalone Python source files for these implementations.",
+        "conditional_source_case": {
+          "kind": "conditional_enqueue_analysis_not_executed_not_a_complete_required_failure",
+          "input": "One previously tracked and installed package a absent from result: current=[a], result=[], installed=[a], synchronize=True.",
+          "observed_source_difference": "Minimal source reaches both uninstall append sites; reference records a during the first append and skips it during the synchronization loop.",
+          "unresolved_output": "Whether the complete return path or downstream executor deduplicates or tolerates the repeated request, and whether this state is part of the named deleted-lock issue."
+        }
+      },
+      "survivors": [
+        {
+          "id": "25b38edcdd",
+          "label": "uncertain",
+          "reason": "Drops only uninstalls.add(installed_package.name) after the synchronization-loop membership test; the uninstall append and the result-name fix remain. This write can affect only a later iteration of that same installed-package loop, since the first removal loop is already finished and no later reader is visible. With unique installed names it is dead bookkeeping; if the constructor preserves two eligible same-name installed entries, the reference skips the later entry while this mutant can enqueue it. The retained artifacts do not establish installed-name uniqueness, constructor normalization, or how the returned operations are consumed. No concrete required install/removal outcome can therefore be asserted from the set write alone. All selected empty-lock examples use unique names and pass.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md:315: \"```\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/25b38edcdd.patch:28-50: \"@@ -96,9 +98,12 @@ class Transaction:\\n                     \\\"pip\\\",\\n                     \\\"setuptools\\\",\\n                     \\\"wheel\\\",\\n-                } - current_package_names\\n+                } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\\n@@ -108,7 +113,8 @@ class Transaction:\\n                     if installed_package.name in preserved_package_names:\\n                         continue\\n \\n-                    if installed_package.name not in current_package_names:\\n+                    if installed_package.name not in result_package_names:\\n+                        pass\\n                         operations.append(Uninstall(installed_package))\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:28-50: \"@@ -96,9 +98,12 @@ class Transaction:\\n                     \\\"pip\\\",\\n                     \\\"setuptools\\\",\\n                     \\\"wheel\\\",\\n-                } - current_package_names\\n+                } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\\n@@ -108,7 +113,8 @@ class Transaction:\\n                     if installed_package.name in preserved_package_names:\\n                         continue\\n \\n-                    if installed_package.name not in current_package_names:\\n+                    if installed_package.name not in result_package_names:\\n+                        uninstalls.add(installed_package.name)\\n                         operations.append(Uninstall(installed_package))\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:17-31: \"+        [\\n+            (Package(\\\"a\\\", \\\"1.0.0\\\"), 1),\\n+            (Package(\\\"b\\\", \\\"2.0.0\\\"), 2),\\n+            (Package(\\\"c\\\", \\\"3.0.0\\\"), 0),\\n+        ],\\n+        installed_packages=[\\n+            Package(\\\"a\\\", \\\"1.0.0\\\"),\\n+            Package(\\\"b\\\", \\\"2.0.0\\\"),\\n+            Package(\\\"c\\\", \\\"3.0.0\\\"),\\n+        ],\\n+    )\\n+\\n+    check_operations(\\n+        transaction.calculate_operations(synchronize=True),\\n+        [\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:143: \"+PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_remove_untracked_installed_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync tests/puzzle/test_transaction.py::test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:1: \"== full reward=1.0 rc=0 scored 8.9s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:21: \"== nop reward=0.0 rc=0 scored 8.8s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:272: \"== mutant:25b38edcdd reward=1.0 rc=0 scored 9.5s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+            "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+            "line": 272,
+            "quote": "== mutant:25b38edcdd reward=1.0 rc=0 scored 9.5s",
+            "seconds": 9.5
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/25b38edcdd.patch",
+          "patch_sha256": "01cb4f86a74b61724413d3b577c9b358cf898488610f4df66753252a303e5a15",
+          "file": "src/poetry/puzzle/transaction.py",
+          "line": 117,
+          "end_line": 117,
+          "operator": "drop-statement",
+          "original": "uninstalls.add(installed_package.name)",
+          "replacement": "pass",
+          "semantic_scope": "Unresolved installed-package schema and later-iteration duplicate handling; no claim that passing tests certify the write unnecessary for every admitted consumer.",
+          "counterexample": null,
+          "missing_evidence": "Pinned installed-package uniqueness/normalization contract in Transaction and repository producers, plus the complete return expression and operation consumer/executor. A literal repeated name in a hypothetical input list is not proof that the executing Transaction exposes that repeated name.",
+          "conditional_source_case": {
+            "input": "If two distinct eligible installed entries with name a reach the synchronization loop and a is absent from result, with no earlier first-loop removal of a.",
+            "reference_path": "First append records a; later same-name entry hits the skip guard.",
+            "mutant_path": "The write is pass; later same-name entry can reach a second append.",
+            "status": "Conditional source path only; admissibility and observable consumer outcome are unknown."
+          }
+        },
+        {
+          "id": "fa7b285c33",
+          "label": "uncertain",
+          "reason": "Drops first-loop name recording but preserves both result-name membership checks and the synchronization-loop skip guard. For current=[a], result=[], installed=[a], synchronize=True, the first append no longer puts a in uninstalls, so the later installed-package iteration reaches another uninstall append. This is the same conditional overlap visible in the current block omission, independently reread in this exact mutant. The named deleted-lock case has no current entries, and every selected test constructs that empty current list. The source stops before the returned expression and no executor is retained, so neither a harmful duplicate removal nor harmless deduplication can be proved. It remains uncertain rather than inheriting a positive block label.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md:315: \"```\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/fa7b285c33.patch:12-24: \"                     current_package.name == result_package.name\\n@@ -83,11 +84,12 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            pass\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\\n-                current_package_names = {\\n-                    current_package.name for current_package in self._current_packages\\n+                result_package_names = {\\n+                    result_package.name for result_package, _ in self._result_packages\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/fa7b285c33.patch:28-50: \"@@ -96,9 +98,12 @@ class Transaction:\\n                     \\\"pip\\\",\\n                     \\\"setuptools\\\",\\n                     \\\"wheel\\\",\\n-                } - current_package_names\\n+                } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\\n@@ -108,7 +113,8 @@ class Transaction:\\n                     if installed_package.name in preserved_package_names:\\n                         continue\\n \\n-                    if installed_package.name not in current_package_names:\\n+                    if installed_package.name not in result_package_names:\\n+                        uninstalls.add(installed_package.name)\\n                         operations.append(Uninstall(installed_package))\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:12-20: \"                     current_package.name == result_package.name\\n@@ -83,11 +84,12 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            uninstalls.add(installed_package.name)\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:17-31: \"+        [\\n+            (Package(\\\"a\\\", \\\"1.0.0\\\"), 1),\\n+            (Package(\\\"b\\\", \\\"2.0.0\\\"), 2),\\n+            (Package(\\\"c\\\", \\\"3.0.0\\\"), 0),\\n+        ],\\n+        installed_packages=[\\n+            Package(\\\"a\\\", \\\"1.0.0\\\"),\\n+            Package(\\\"b\\\", \\\"2.0.0\\\"),\\n+            Package(\\\"c\\\", \\\"3.0.0\\\"),\\n+        ],\\n+    )\\n+\\n+    check_operations(\\n+        transaction.calculate_operations(synchronize=True),\\n+        [\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:143: \"+PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_remove_untracked_installed_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync tests/puzzle/test_transaction.py::test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:1: \"== full reward=1.0 rc=0 scored 8.9s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:21: \"== nop reward=0.0 rc=0 scored 8.8s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:368: \"== mutant:fa7b285c33 reward=1.0 rc=0 scored 11.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+            "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+            "line": 368,
+            "quote": "== mutant:fa7b285c33 reward=1.0 rc=0 scored 11.1s",
+            "seconds": 11.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/mutants/fa7b285c33.patch",
+          "patch_sha256": "41658e985a34cd0a8ba09cc7ad10c398629809129c6b5ff6e789cebd4033cd76",
+          "file": "src/poetry/puzzle/transaction.py",
+          "line": 87,
+          "end_line": 87,
+          "operator": "drop-statement",
+          "original": "uninstalls.add(installed_package.name)",
+          "replacement": "pass",
+          "semantic_scope": "Unresolved cross-loop duplicate-uninstall effect outside the directly demonstrated empty-current lock-deletion case.",
+          "counterexample": null,
+          "missing_evidence": "Complete pinned Transaction return path, operation consumer/executor, and requirements for tracked-to-untracked overlap. No downstream failure or duplicate deduplication is assumed.",
+          "conditional_source_case": {
+            "input": "current=[a], result=[], installed=[a], synchronize=True.",
+            "reference_path": "First-loop record makes the synchronization loop skip a.",
+            "mutant_path": "First loop appends without recording; synchronization loop can append again.",
+            "status": "Duplicate enqueueing inferred from visible source; final operation list and installation effects are not established."
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-002736",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736",
+      "package_digest": "sha256:b38fc67afbdebdc0b533dd9632883ce94a5ee1b78535f3bf5cf82088ad5eb7cb",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch",
+      "reference_sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/report.json",
+      "report_sha256": "901083b7ec8a43e5142abb291a9d2ca78f1024d855c3ed8141f6d64ab5b150f1",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+      "grades_log_sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch",
+      "minimal_patch_sha256": "fc1a2ffb41e96b07469518c0c2d43ef410a65ebfe9a34ce2d874c4e68b2f8622",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/dropped.patch",
+      "dropped_patch_sha256": "06ffac4865da61e1accc1648f2105f15337cf36005796e8f6647d502ba2ff862",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md",
+      "instruction_sha256": "16fb23e422a02fc3b1651293d340b136362ca58a8e59c054c24a2c92586e9ce8",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/task.toml",
+      "task_toml_sha256": "ac448a1cae4068aeb7e1e6b367959761ff627e0a1a6cf969445fc62d1f7958ba",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch",
+      "test_patch_sha256": "fe46746c04aa54776d716ef18df3ea74159f06e455a8ed32a3bc1fbdb22e226a",
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:80b7930a978605a2080e679cb09d51312fb6fd50d0c7e5396432a542a26e55fe",
+      "started_at": "2026-10-21T20:02:52+00:00",
+      "finished_at": "2026-10-21T20:06:09+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_reason": "",
+      "recorded_block_summary": {
+        "code_blocks": 18,
+        "code_lines": 142,
+        "kept_code_lines": 95,
+        "kept_fraction": 0.669,
+        "kept": [
+          "statsmodels/regression/rolling.py#10",
+          "statsmodels/regression/rolling.py#15",
+          "statsmodels/regression/rolling.py#19",
+          "statsmodels/regression/rolling.py#26",
+          "statsmodels/regression/rolling.py#27",
+          "statsmodels/regression/rolling.py#28",
+          "statsmodels/regression/rolling.py#29",
+          "statsmodels/regression/rolling.py#43"
+        ],
+        "dropped_code": [
+          "lint.sh#0",
+          "statsmodels/regression/rolling.py#0",
+          "statsmodels/regression/rolling.py#1",
+          "statsmodels/regression/rolling.py#2",
+          "statsmodels/regression/rolling.py#6",
+          "statsmodels/regression/rolling.py#7",
+          "statsmodels/regression/rolling.py#8",
+          "statsmodels/regression/rolling.py#16",
+          "statsmodels/regression/rolling.py#18",
+          "statsmodels/regression/rolling.py#25"
+        ],
+        "limits": {
+          "grade_timeout_s": 1800,
+          "max_grades": 24,
+          "memory": "3g",
+          "network": "none"
+        }
+      },
+      "mutant_stage": {
+        "generated": 127,
+        "killed": 8,
+        "limit": 20,
+        "reason": "",
+        "severity": "high",
+        "stage": "S2.ref_mutants",
+        "status": "measured",
+        "tried": 20,
+        "unscored": 0,
+        "verdict": "fail"
+      },
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+          "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 3.0s",
+          "seconds": 3.0
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+          "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+          "line": 6,
+          "quote": "== nop reward=0.0 rc=0 scored 3.1s",
+          "seconds": 3.1
+        },
+        "confirm": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+          "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+          "line": 487,
+          "quote": "== confirm reward=1.0 rc=0 scored 4.2s",
+          "seconds": 4.2
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan": true,
+        "package_digest_matches_frozen_plan": true,
+        "reference_path_matches_frozen_plan": true,
+        "reference_hash_matches_frozen_plan": true,
+        "reference_bytes_match_report_hash": true,
+        "package_path_matches_archived_atlas": true,
+        "package_digest_matches_archived_atlas": true,
+        "reference_hash_matches_archived_atlas": true,
+        "instruction_hash_matches_archived_atlas": true,
+        "task_toml_hash_matches_archived_atlas": true,
+        "current_package_digest_recomputed": false,
+        "scope": "Recorded immutable package identity is cross-bound to the exact frozen plan and atlas. Actual file bytes are SHA-256-bound; no directory-digest recomposition, execution, producer or validation command was run."
+      },
+      "frozen_source_bindings": {
+        "resume_plan": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+          "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+          "selector": {
+            "task_id": "format-code-task-002736"
+          }
+        },
+        "atlas": {
+          "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+          "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+          "line": 99,
+          "selector": {
+            "task_id": "format-code-task-002736",
+            "package_digest": "sha256:b38fc67afbdebdc0b533dd9632883ce94a5ee1b78535f3bf5cf82088ad5eb7cb"
+          },
+          "use": "Source identity and prior-review navigation only. Current block and survivor claims are independently reconsidered from current bound patches and current grades.log, not inherited from the atlas."
+        }
+      },
+      "source_bindings": {
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/report.json": "901083b7ec8a43e5142abb291a9d2ca78f1024d855c3ed8141f6d64ab5b150f1",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+        "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md": "16fb23e422a02fc3b1651293d340b136362ca58a8e59c054c24a2c92586e9ce8",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/task.toml": "ac448a1cae4068aeb7e1e6b367959761ff627e0a1a6cf969445fc62d1f7958ba",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.sh": "ab2fc977fe75f406eaaa4aa9a3433b0de6acd92f6d143d7667dcbb420aad7e9b",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test_command.sh": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch": "fe46746c04aa54776d716ef18df3ea74159f06e455a8ed32a3bc1fbdb22e226a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch": "fc1a2ffb41e96b07469518c0c2d43ef410a65ebfe9a34ce2d874c4e68b2f8622",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/dropped.patch": "06ffac4865da61e1accc1648f2105f15337cf36005796e8f6647d502ba2ff862",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/6d417628a4.patch": "177d607ba8c1033a910ee0d36ebaf4d1f376c3e0a1679f0bac8b26b4c32abdd1",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/f3a7e7db13.patch": "8aef0b71548326236e4c469eb5754245b5106a0625f4bb6aa3a5c6a77aaca70e",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/12444bd35c.patch": "8f6013e2b3506aaa89d06743c1e34f5676af2a4cd01662cbb504c190921ef253",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/484bfaaef9.patch": "ffe80e20888c3434dce649c177fee30e8905dc50663bed5f88f0ed2fef806418",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/c2d1d4606d.patch": "ac0b781d4daf9101dcee54d8eb43cd73e900e339f5262adb96a7aa045822369a",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/03b9180bae.patch": "c184b0aadc08b3c1b5c385ddc5701420ca95acc57bf38891c2f2ab29b30b43dd",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/2672042fa3.patch": "5253085fb09e0f86901a668e0fc0ce7f8cf0af3d9263b75f6856c6e1d6314f73",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/9a405a6218.patch": "4dc9ee64253fbe8abdc099b626bbe61ec051f745fb15bc9554b212e73c808051",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/906b92cb22.patch": "d7980258cdd2c3e90729e39bdaf0cc824597ce0a23a6d8a7ad9b9e1dfd504943",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/ea26e601b9.patch": "0f1b702c9a71ece360e86304f83761f497c41a5f528854affd48569e3f6bf62b",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/00a60d07e5.patch": "b7b46f250cca6f8516a6a942344d23bf2792fb2556f7687b4342ec6cd97238fd",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/b4145440ce.patch": "e756980cf3ed040ad87a8586ab0ce49900b5e3a06c9b91d167efe1cca7f8eb4c"
+      },
+      "grader": {
+        "wrapper": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.sh",
+          "sha256": "ab2fc977fe75f406eaaa4aa9a3433b0de6acd92f6d143d7667dcbb420aad7e9b"
+        },
+        "command_file": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test_command.sh",
+          "sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa"
+        },
+        "hidden_patch": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch",
+          "sha256": "fe46746c04aa54776d716ef18df3ea74159f06e455a8ed32a3bc1fbdb22e226a"
+        },
+        "selection_chain": "tests/test.sh resets and applies only the hidden-test patch targets, reads tests/test_command.sh, and awards reward 1 for an exit-0 command. test_command.sh invokes bash /testbed/mimo_test_command.sh, whose effective pytest selection is supplied by tests/test.patch.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.sh:35: \"timeout 1800 sh -c \\\"$(cat /tests/test_command.sh)\\\" > \\\"$V/test_output.log\\\" 2>&1\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.sh:38: \"if [ $RC -eq 0 ]; then echo 1 > \\\"$V/reward.txt\\\"; else echo 0 > \\\"$V/reward.txt\\\"; fi\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test_command.sh:1: \"bash /testbed/mimo_test_command.sh\""
+        ],
+        "effective_pytest_command": "python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding",
+        "selected_tests": [
+          "test_expanding_default_is_false",
+          "test_expanding_true_fills_pre_window_indices",
+          "test_expanding_matches_ols_at_min_nobs",
+          "test_expanding_matches_ols_within_expanding_phase",
+          "test_expanding_post_window_matches_rolling",
+          "test_expanding_at_window_boundary_matches_rolling_first",
+          "test_expanding_nobs_grows"
+        ],
+        "selected_test_count_observed": 7,
+        "deselected_test_count_observed": 159,
+        "coverage_boundary": "The seven selected tests use clean randomly generated arrays, explicit min_nobs strictly above the four regressors, direct RollingOLS construction and default missing/drop, fit method, and inference settings. They assert params/NaN positions and nobs, not covariance/F statistics/inference switches/plotting. The 159 existing tests are explicitly deselected; their mere presence is not coverage.",
+        "effective_selection_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\""
+      },
+      "source_review_method": "Read the full reference, minimal and dropped patches; read and SHA-256 each complete reported survivor file, compare its entire byte-decoded patch to the already-read reference, and inspect every changed source hunk. For 002736 the complete-file differences include common index/mode metadata plus the one listed semantic mutation. No survivor is reviewed from report.edit alone.",
+      "unscored_mutants": [],
+      "limits": {
+        "whole_task_clean_certificate": false,
+        "generated_but_unattempted_mutants": 107,
+        "new_execution": false,
+        "source_counterexamples_are_static": true,
+        "package_digest_scope": "Measured identity matched to frozen plan and atlas; directory digest not recomputed.",
+        "grade_records_source": "Exact parsed grades.log headers, not the truncated report.grades array.",
+        "unattempted_scope": "127 line mutants were generated but only the configured 20 were tried; 107 generated-but-unattempted mutants are not reviewed, killed or presumed equivalent.",
+        "missing_context_scope": "Complete pinned Model/data missing-input consumers are not retained. Inference/plot survivors are excluded only as witnesses for the requested estimator enhancement, not certified correct for other public APIs."
+      },
+      "scope_disposition": "Every assigned block-fail omission and every reported scored line survivor is individually adjudicated. Non-positive and equivalence labels are claim-specific, not a whole-task clean certificate.",
+      "requirement_evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md",
+          "sha256": "16fb23e422a02fc3b1651293d340b136362ca58a8e59c054c24a2c92586e9ce8",
+          "line": 9,
+          "quote": "Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md",
+          "sha256": "16fb23e422a02fc3b1651293d340b136362ca58a8e59c054c24a2c92586e9ce8",
+          "line": 19,
+          "quote": "This is expanding window until the full window length is reached."
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch",
+          "sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+          "line": 86,
+          "quote": "     missing values are skipped and the corresponding results contains NaN."
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch",
+          "sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+          "line": 123,
+          "quote": "-    def __init__(self, endog, exog, window=None, weights=None, min_nobs=None,"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch",
+          "sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+          "line": 78,
+          "quote": "     data are missing.  If None, the minimum depends on the number of"
+        }
+      ],
+      "block": {
+        "label": "confirmed_weak",
+        "reason": "The minimal patch starts fitting at min_nobs and grows the prefix, but drops the expanding-aware _find_nans branch. Its unchanged pre-window mask clears every missingness flag before window-1, so missing=\"skip\" no longer skips a pre-window prefix containing a missing observation. This directly violates the retained public missing-data contract while exercising the newly requested expanding phase, not an unrelated cleanup. For t=0..11, x=[1,t], y=t^2 with y[4]=NaN, window=8, min_nobs=3, expanding=True, missing=\"skip\", the full reference leaves _has_nan[4] true and skips fitting output index 4. The minimal source clears that flag, does not add the missing row to the sufficient statistics, and still calls _fit_single for the full-rank four-row prefix at index 4; that fit corresponds to coefficients [-1,3] rather than a skipped NaN row. This is source/mathematical reasoning, not a new control. The exact current confirm is scored reward 1 and all seven selected tests use complete data. Other omitted imports, quote/formatting changes, docs, lint configuration, repeated initialization removal and unused local removal do not supply this witness.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:71-76: \"+\\n+common_params = \\\"\\\\n\\\".join(map(strip4, model._model_params_doc.split(\\\"\\\\n\\\")))\\n window_parameters = \\\"\\\"\\\"\\\\\\n window : int\\n     Length of the rolling window. Must be strictly larger than the number\\n@@ -53,12 +65,17 @@ min_nobs : {int, None}\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/dropped.patch:172-188: \"     def _find_nans(self):\\n         nans = np.isnan(self._y)\\n@@ -168,8 +192,11 @@ class RollingWLS(object):\\n         self._is_nan[:] = nans\\n         has_nan = np.cumsum(nans)\\n         w = self._window\\n-        has_nan[w - 1:] = has_nan[w - 1:] - has_nan[:-(w - 1)]\\n-        has_nan[:w - 1] = False\\n+        has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w - 1)]\\n+        if self._expanding:\\n+            has_nan[: self._min_nobs] = False\\n+        else:\\n+            has_nan[: w - 1] = False\\n \\n         return has_nan.astype(bool)\\n \\n@@ -197,11 +224,11 @@ class RollingWLS(object):\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch:45-72: \" \\n     def _get_data(self, idx):\\n         window = self._window\\n-        # TODO: Make a helper function\\n-        y = self._y[idx - window:idx]\\n-        wy = self._wy[idx - window:idx]\\n-        wx = self._wx[idx - window:idx]\\n-        weights = self._weights[idx - window:idx]\\n-        missing = self._is_nan[idx - window:idx]\\n+        if idx >= window:\\n+            loc = slice(idx - window, idx)\\n+        else:\\n+            loc = slice(idx)\\n+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\\n@@ -280,28 +302,31 @@ class RollingWLS(object):\\n \\n         window = self._window\\n         nobs, k = self._x.shape\\n-        store = RollingStore(params=np.full((nobs, k), np.nan),\\n-                             ssr=np.full(nobs, np.nan),\\n-                             llf=np.full(nobs, np.nan),\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch:96-129: \"+        if not (self._has_nan[first - 1] and self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\\n             else:\\n-                if not self._is_nan[i - w - 1]:\\n-                    remove_x = wx[i - w - 1:i - w]\\n+                if not self._is_nan[i - w - 1] and i > w:\\n+                    remove_x = wx[i - w - 1 : i - w]\\n                     xpx -= remove_x.T @ remove_x\\n                     xpy -= remove_x.T @ wy[i - w - 1:i - w]\\n                     nobs -= 1\\n@@ -362,9 +387,25 @@ extra_parameters = window_parameters + extra_base\\n               extra_parameters=extra_parameters)\\n @Appender(_doc)\\n class RollingOLS(RollingWLS):\\n-    def __init__(self, endog, exog, window=None, min_nobs=None,\\n-                 missing='drop'):\\n-        super().__init__(endog, exog, window, None, min_nobs, missing)\\n+    def __init__(\\n+        self,\\n+        endog,\\n+        exog,\\n+        window=None,\\n+        *,\\n+        min_nobs=None,\\n+        missing=\\\"drop\\\",\\n+        expanding=False\\n+    ):\"",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:197-231: \"         nans = np.isnan(self._y)\\n@@ -149,19 +192,25 @@ class RollingWLS(object):\\n         self._is_nan[:] = nans\\n         has_nan = np.cumsum(nans)\\n         w = self._window\\n-        has_nan[w - 1:] = has_nan[w - 1:] - has_nan[:-(w - 1)]\\n-        has_nan[:w - 1] = False\\n+        has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w - 1)]\\n+        if self._expanding:\\n+            has_nan[: self._min_nobs] = False\\n+        else:\\n+            has_nan[: w - 1] = False\\n \\n         return has_nan.astype(bool)\\n \\n     def _get_data(self, idx):\\n         window = self._window\\n-        # TODO: Make a helper function\\n-        y = self._y[idx - window:idx]\\n-        wy = self._wy[idx - window:idx]\\n-        wx = self._wx[idx - window:idx]\\n-        weights = self._weights[idx - window:idx]\\n-        missing = self._is_nan[idx - window:idx]\\n+        if idx >= window:\\n+            loc = slice(idx - window, idx)\\n+        else:\\n+            loc = slice(idx)\\n+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:13: \"+    x = rs.standard_normal((nobs, nvar))\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:487: \"== confirm reward=1.0 rc=0 scored 4.2s\""
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+          "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+          "line": 487,
+          "quote": "== confirm reward=1.0 rc=0 scored 4.2s",
+          "seconds": 4.2
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch",
+        "witness_sha256": "fc1a2ffb41e96b07469518c0c2d43ef410a65ebfe9a34ce2d874c4e68b2f8622",
+        "dropped_behavior": "Expanding-aware missingness masking is omitted, along with unrelated lint, imports, formatting/documentation and duplicate-initialization/unused-local cleanup. The pre-window missing=\"skip\" path is the required omitted behavior.",
+        "counterexample": {
+          "kind": "static_missingness_and_fit_path_reasoning_not_executed",
+          "input": "t=0..11; x has columns ones and t; y=t^2 except y[4]=NaN; RollingOLS(y,x,window=8,min_nobs=3,expanding=True,missing=\"skip\").fit(params_only=True); inspect output index 4 (prefix length 5).",
+          "required_outcome": "The prefix includes a missing observation, so missing=\"skip\" leaves params[4] NaN and does not call _fit_single for that prefix.",
+          "minimal_patch_outcome": "The pre-window flag at index 4 is forcibly false; the missing row is excluded from updates but the prefix is fitted using clean rows t=0..3. Its full-rank least-squares solution is [-1,3], a fitted rather than skipped row.",
+          "boundary_limit": "Uses a prefix strictly after min_nobs and strictly before window. It does not assert that the full reference handles its own earliest-prefix mask boundary correctly."
+        },
+        "missing_evidence": null
+      },
+      "survivors": [
+        {
+          "id": "6d417628a4",
+          "label": "required_gap",
+          "reason": "Changes min_nobs validation from optional=True to optional=False while both public constructors still default min_nobs to None. The exact current grades.log retains the installed int_like implementation in the killed reset-validation mutant: None returns only under optional=True, and otherwise reaches TypeError. Therefore a normal new-feature call RollingOLS(y,x,window=6,expanding=True) without min_nobs fails during construction instead of using the documented regressor-count-dependent minimum and producing expanding estimates. The selected tests all explicitly supply min_nobs, so they never reach this default. This is a concrete default-constructor failure derived from retained code, not an invented execution of this survivor.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/6d417628a4.patch:126-135: \"+        self,\\n+        endog,\\n+        exog,\\n+        window=None,\\n+        *,\\n+        weights=None,\\n+        min_nobs=None,\\n+        missing=\\\"drop\\\",\\n+        expanding=False\\n+    ):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/6d417628a4.patch:167-175: \"+\\n+        min_nobs = int_like(min_nobs, \\\"min_nobs\\\", optional=False)\\n+        self._min_nobs = min_nobs if min_nobs is not None else self._x.shape[1]\\n+        if self._min_nobs < self._x.shape[1] or self._min_nobs > self._window:\\n+            raise ValueError(\\n+                \\\"min_nobs must be larger than the number of \\\"\\n+                \\\"regressors in the model and less than window\\\"\\n+            )\\n+\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:65-67: \"+        \\\"xpxi\\\",\\n+        \\\"xeex\\\",\\n+        \\\"centered_tss\\\",\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:798-818: \"        if optional and value is None:\\n            return None\\n        is_bool_timedelta = isinstance(value, (bool, np.timedelta64))\\n    \\n        if hasattr(value, \\\"squeeze\\\") and callable(value.squeeze):\\n            value = value.squeeze()\\n    \\n        if isinstance(value, (int, np.integer)) and not is_bool_timedelta:\\n            return int(value)\\n        elif not strict and not is_bool_timedelta:\\n            try:\\n                if value == (value // 1):\\n                    return int(value)\\n            except Exception:\\n                pass\\n        extra_text = \\\" or None\\\" if optional else \\\"\\\"\\n>       raise TypeError(\\n            \\\"{0} must be integer_like (int or np.integer, but not bool\\\"\\n            \\\" or timedelta64){1}\\\".format(name, extra_text)\\n        )\\nE       TypeError: reset must be integer_like (int or np.integer, but not bool or timedelta64)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:24: \"+    min_nobs = 12\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:610: \"== mutant:6d417628a4 reward=1.0 rc=0 scored 3.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 610,
+            "quote": "== mutant:6d417628a4 reward=1.0 rc=0 scored 3.1s",
+            "seconds": 3.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/6d417628a4.patch",
+          "patch_sha256": "177d607ba8c1033a910ee0d36ebaf4d1f376c3e0a1679f0bac8b26b4c32abdd1",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 168,
+          "end_line": 168,
+          "operator": "boolean-constant",
+          "original": "True",
+          "replacement": "False",
+          "semantic_scope": "Required usable expanding estimator with the supported optional min_nobs default; helper behavior is sourced from the exact current recorded traceback, not assumed from its name.",
+          "counterexample": {
+            "kind": "static_default_validation_reasoning_not_executed",
+            "input": "Clean length-12 arrays, x=[1,t] for t=0..11 and y=t^2; RollingOLS(y,x,window=6,expanding=True).fit(params_only=True), omitting min_nobs.",
+            "required_outcome": "min_nobs=None is accepted and defaults to x.shape[1]=2, enabling estimates before window=6.",
+            "mutant_outcome": "int_like(None,\"min_nobs\",optional=False) reaches TypeError before estimator construction completes."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "f3a7e7db13",
+          "label": "non_positive",
+          "reason": "This reverses the pre-existing covariance-estimator branch in RollingRegressionResults._cov_params. The reference changed this line only from single to double quotes; covariance estimator design is not an addition requested by the issue. The mutation does not alter min_nobs, expanding start, window updates, coefficient estimates or nobs. It can be a real covariance/bse regression (the two retained formulas differ), but the request and selected grader concern expanding-to-rolling coefficient estimation, not a new or changed covariance/inference result. Thus it is not a positive witness for a missing required estimation behavior in this task. It is deliberately not labelled equivalent or declared harmless for the rest of statsmodels.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/f3a7e7db13.patch:470-480: \"@@ -515,7 +604,7 @@ class RollingRegressionResults(object):\\n \\n     @cache_readonly\\n     def _cov_params(self):\\n-        if self._cov_type == 'nonrobust':\\n+        if not (self._cov_type == \\\"nonrobust\\\"):\\n             return self._s2[:, None, None] * self._xpxi\\n         else:\\n             return self._xpxi @ self._xepxe @ self._xpxi\\n@@ -539,13 +628,13 @@ class RollingRegressionResults(object):\\n     @cache_readonly\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:470-480: \"@@ -515,7 +604,7 @@ class RollingRegressionResults(object):\\n \\n     @cache_readonly\\n     def _cov_params(self):\\n-        if self._cov_type == 'nonrobust':\\n+        if self._cov_type == \\\"nonrobust\\\":\\n             return self._s2[:, None, None] * self._xpxi\\n         else:\\n             return self._xpxi @ self._xepxe @ self._xpxi\\n@@ -539,13 +628,13 @@ class RollingRegressionResults(object):\\n     @cache_readonly\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:506-511: \"     @Appender(RegressionResults.bse.func.__doc__)\\n     def bse(self):\\n-        with np.errstate(invalid='ignore'):\\n+        with np.errstate(invalid=\\\"ignore\\\"):\\n             return self._wrap(np.sqrt(np.diagonal(self._cov_params, 0, 2)))\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:615: \"== mutant:f3a7e7db13 reward=1.0 rc=0 scored 3.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 615,
+            "quote": "== mutant:f3a7e7db13 reward=1.0 rc=0 scored 3.1s",
+            "seconds": 3.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/f3a7e7db13.patch",
+          "patch_sha256": "8aef0b71548326236e4c469eb5754245b5106a0625f4bb6aa3a5c6a77aaca70e",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 607,
+          "end_line": 607,
+          "operator": "negate-condition",
+          "original": "self._cov_type == \"nonrobust\"",
+          "replacement": "not (self._cov_type == \"nonrobust\")",
+          "semantic_scope": "Out-of-scope inference-output mutation on a reference-formatting-only line; the label does not certify covariance correctness.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "For cov_type=\"nonrobust\", source now chooses _xpxi @ _xepxe @ _xpxi instead of _s2[:,None,None] * _xpxi. No concrete numeric bse outcome is fabricated without the complete stored-statistic producer."
+        },
+        {
+          "id": "12444bd35c",
+          "label": "non_positive",
+          "reason": "Reverses only the pre-existing fvalue covariance-type dispatch, on a line that the reference merely reformatted. The visible F-statistic path changes from the nonrobust mse ratio to a Wald-style branch (and conversely), but neither coefficients, growing-prefix selection nor capped rolling sample sizes are affected. No F-statistic enhancement was requested and the effective seven tests assert coefficient arrays and nobs, not F inference. This is not evidence of a required expanding-estimation gap; it is not a claim that the altered inference statistic is correct or equivalent.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/12444bd35c.patch:485-494: \"             return self._wrap(RegressionResults.f_pvalue.func(self))\\n \\n     @cache_readonly\\n     @Appender(RegressionResults.fvalue.func.__doc__)\\n     def fvalue(self):\\n-        if self._cov_type == 'nonrobust':\\n+        if self._cov_type != \\\"nonrobust\\\":\\n             return self.mse_model / self.mse_resid\\n         else:\\n             nobs = self._params.shape[0]\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:485-504: \"             return self._wrap(RegressionResults.f_pvalue.func(self))\\n \\n     @cache_readonly\\n     @Appender(RegressionResults.fvalue.func.__doc__)\\n     def fvalue(self):\\n-        if self._cov_type == 'nonrobust':\\n+        if self._cov_type == \\\"nonrobust\\\":\\n             return self.mse_model / self.mse_resid\\n         else:\\n             nobs = self._params.shape[0]\\n@@ -562,7 +651,7 @@ class RollingRegressionResults(object):\\n             rvcvr = r @ vcv @ r.T\\n             p = self._params\\n             for i in range(nobs):\\n-                rp = p[i:i + 1] @ r.T\\n+                rp = p[i : i + 1] @ r.T\\n                 denom = rp.shape[1]\\n                 inv_cov = np.linalg.inv(rvcvr[i])\\n                 stat[i] = (rp @ inv_cov @ rp.T) / denom\\n@@ -571,25 +660,25 @@ class RollingRegressionResults(object):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:620: \"== mutant:12444bd35c reward=1.0 rc=0 scored 3.4s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 620,
+            "quote": "== mutant:12444bd35c reward=1.0 rc=0 scored 3.4s",
+            "seconds": 3.4
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/12444bd35c.patch",
+          "patch_sha256": "8f6013e2b3506aaa89d06743c1e34f5676af2a4cd01662cbb504c190921ef253",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 637,
+          "end_line": 637,
+          "operator": "negate-compare",
+          "original": "==",
+          "replacement": "!=",
+          "semantic_scope": "Out-of-scope pre-existing inference-statistic branch, not new expanding-window estimation.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "For cov_type=\"nonrobust\", the retained source no longer returns mse_model/mse_resid and instead enters the other branch. The omitted middle of that existing branch is not used to invent a numeric F result."
+        },
+        {
+          "id": "484bfaaef9",
+          "label": "required_gap",
+          "reason": "The <= boundary rejects the supported default minimum. Public constructors leave min_nobs=None, the retained int_like helper returns None for optional=True, and the next assignment sets _min_nobs to the number of regressors. The new guard immediately raises ValueError because that value equals x.shape[1]. Consequently enabling expanding=True without overriding min_nobs always fails for a nonempty design, instead of producing the requested pre-window estimates; explicitly setting min_nobs to the regressor count also fails. The retained public doc permits None, the original guard uses <, and the selected tests avoid the boundary by choosing min_nobs greater than the four generated regressors. The finding is the default-path construction failure, not an unsupported claim that all underdetermined regressions must fit.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/484bfaaef9.patch:167-175: \"+\\n+        min_nobs = int_like(min_nobs, \\\"min_nobs\\\", optional=True)\\n+        self._min_nobs = min_nobs if min_nobs is not None else self._x.shape[1]\\n+        if self._min_nobs <= self._x.shape[1] or self._min_nobs > self._window:\\n+            raise ValueError(\\n+                \\\"min_nobs must be larger than the number of \\\"\\n+                \\\"regressors in the model and less than window\\\"\\n+            )\\n+\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:65-67: \"+        \\\"xpxi\\\",\\n+        \\\"xeex\\\",\\n+        \\\"centered_tss\\\",\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:167-175: \"+\\n+        min_nobs = int_like(min_nobs, \\\"min_nobs\\\", optional=True)\\n+        self._min_nobs = min_nobs if min_nobs is not None else self._x.shape[1]\\n+        if self._min_nobs < self._x.shape[1] or self._min_nobs > self._window:\\n+            raise ValueError(\\n+                \\\"min_nobs must be larger than the number of \\\"\\n+                \\\"regressors in the model and less than window\\\"\\n+            )\\n+\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:798-818: \"        if optional and value is None:\\n            return None\\n        is_bool_timedelta = isinstance(value, (bool, np.timedelta64))\\n    \\n        if hasattr(value, \\\"squeeze\\\") and callable(value.squeeze):\\n            value = value.squeeze()\\n    \\n        if isinstance(value, (int, np.integer)) and not is_bool_timedelta:\\n            return int(value)\\n        elif not strict and not is_bool_timedelta:\\n            try:\\n                if value == (value // 1):\\n                    return int(value)\\n            except Exception:\\n                pass\\n        extra_text = \\\" or None\\\" if optional else \\\"\\\"\\n>       raise TypeError(\\n            \\\"{0} must be integer_like (int or np.integer, but not bool\\\"\\n            \\\" or timedelta64){1}\\\".format(name, extra_text)\\n        )\\nE       TypeError: reset must be integer_like (int or np.integer, but not bool or timedelta64)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:106: \"+    min_nobs = 5\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:689: \"== mutant:484bfaaef9 reward=1.0 rc=0 scored 3.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 689,
+            "quote": "== mutant:484bfaaef9 reward=1.0 rc=0 scored 3.1s",
+            "seconds": 3.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/484bfaaef9.patch",
+          "patch_sha256": "ffe80e20888c3434dce649c177fee30e8905dc50663bed5f88f0ed2fef806418",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 170,
+          "end_line": 170,
+          "operator": "boundary",
+          "original": "<",
+          "replacement": "<=",
+          "semantic_scope": "Required default/minimum prefix configuration, with a full-rank design; no claim that min_nobs below the number of regressors must work.",
+          "counterexample": {
+            "kind": "static_default_boundary_reasoning_not_executed",
+            "input": "t=0..11, x=[1,t], y=t^2; RollingOLS(y,x,window=6,expanding=True), omitting min_nobs (or explicitly passing 2).",
+            "required_outcome": "min_nobs defaults to 2 and the constructor accepts this supported setting, so fitting can begin at the two-observation prefix.",
+            "mutant_outcome": "_min_nobs==x.shape[1]==2 makes the new <= guard raise ValueError before any estimates are produced."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "c2d1d4606d",
+          "label": "required_gap",
+          "reason": "The and-to-or mutation suppresses the very first requested expanding estimate whenever missing=\"skip\", even when all observations are present. On clean data _has_nan[first-1] is False and _skip_missing is True: the reference condition permits _fit_single, but the mutant condition rejects it. The store remains NaN at min_nobs-1 and the subsequent loop starts at first+1, so that prefix is never filled. This violates the new estimate-at-min_nobs behavior and the retained skip contract (skip missing blocks, not clean blocks). All selected tests use default missing=\"drop\", hiding the case.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:71-76: \"+\\n+common_params = \\\"\\\\n\\\".join(map(strip4, model._model_params_doc.split(\\\"\\\\n\\\")))\\n window_parameters = \\\"\\\"\\\"\\\\\\n window : int\\n     Length of the rolling window. Must be strictly larger than the number\\n@@ -53,12 +65,17 @@ min_nobs : {int, None}\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/c2d1d4606d.patch:292-316: \"+        store = RollingStore(\\n+            params=np.full((nobs, k), np.nan),\\n+            ssr=np.full(nobs, np.nan),\\n+            llf=np.full(nobs, np.nan),\\n+            nobs=np.zeros(nobs, dtype=int),\\n+            s2=np.full(nobs, np.nan),\\n+            xpxi=np.full((nobs, k, k), np.nan),\\n+            xeex=np.full((nobs, k, k), np.nan),\\n+            centered_tss=np.full(nobs, np.nan),\\n+            uncentered_tss=np.full(nobs, np.nan),\\n+        )\\n         w = self._window\\n-        if not (self._has_nan[window - 1] and self._skip_missing):\\n-            self._fit_single(w, xpx, xpy, nobs, store, params_only, method)\\n+        first = self._min_nobs if self._expanding else w\\n+        xpx, xpy, nobs = self._reset(first)\\n+        if not (self._has_nan[first - 1] or self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:304-316: \"-        if not (self._has_nan[window - 1] and self._skip_missing):\\n-            self._fit_single(w, xpx, xpy, nobs, store, params_only, method)\\n+        first = self._min_nobs if self._expanding else w\\n+        xpx, xpy, nobs = self._reset(first)\\n+        if not (self._has_nan[first - 1] and self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:53: \"+def test_expanding_matches_ols_at_min_nobs():\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:694: \"== mutant:c2d1d4606d reward=1.0 rc=0 scored 3.1s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 694,
+            "quote": "== mutant:c2d1d4606d reward=1.0 rc=0 scored 3.1s",
+            "seconds": 3.1
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/c2d1d4606d.patch",
+          "patch_sha256": "ac0b781d4daf9101dcee54d8eb43cd73e900e339f5262adb96a7aa045822369a",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 353,
+          "end_line": 353,
+          "operator": "boolean-operator",
+          "original": "and",
+          "replacement": "or",
+          "semantic_scope": "Required first expanding estimate with the supported missing=\"skip\" option on complete full-rank data.",
+          "counterexample": {
+            "kind": "static_clean_prefix_guard_reasoning_not_executed",
+            "input": "t=0..11, x=[1,t], y=t^2; RollingOLS(y,x,window=6,min_nobs=3,expanding=True,missing=\"skip\").fit(params_only=True); inspect params[2].",
+            "required_outcome": "The clean prefix t=0..2 is fitted at min_nobs=3, giving finite least-squares coefficients [-1/3,2].",
+            "mutant_outcome": "not(False or True) is False, so _fit_single is not called at prefix length 3; params[2] stays NaN and is never revisited."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "03b9180bae",
+          "label": "non_positive",
+          "reason": "Negates the use_t argument passed into the pre-existing results constructor. That is a real source-level forwarding change: fit(use_t=True) now supplies False, and the default False now supplies True. The fit loop and stored coefficient/nobs arrays are already complete before this call, so it does not prevent the requested expanding estimates or change their window. The issue does not request an inference-distribution change; the selected grader never inspects t/normal inference. This is therefore out of scope as a weak-test witness for this enhancement, not an assertion that explicit use_t semantics may safely be reversed in the library.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/03b9180bae.patch:332-341: \"                     nobs += 1\\n \\n             self._fit_single(i, xpx, xpy, nobs, store, params_only, method)\\n \\n-        return RollingRegressionResults(self, store, self.k_constant, use_t,\\n-                                        cov_type)\\n+        return RollingRegressionResults(\\n+            self, store, self.k_constant, not use_t, cov_type\\n+        )\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:249-261: \" \\n-    def fit(self, method='inv', cov_type='nonrobust', cov_kwds=None,\\n-            reset=None, use_t=False, params_only=False):\\n+    def fit(\\n+        self,\\n+        method=\\\"inv\\\",\\n+        cov_type=\\\"nonrobust\\\",\\n+        cov_kwds=None,\\n+        reset=None,\\n+        use_t=False,\\n+        params_only=False,\\n+    ):\\n         \\\"\\\"\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:450-460: \"         self._params = store.params\\n         self._ssr = store.ssr\\n@@ -401,7 +490,7 @@ class RollingRegressionResults(object):\\n         self._k_constant = k_constant\\n         self._nvar = self._xpxi.shape[-1]\\n         if use_t is None:\\n-            use_t = cov_type == 'nonrobust'\\n+            use_t = cov_type == \\\"nonrobust\\\"\\n         self._use_t = use_t\\n         self._cov_type = cov_type\\n         self._use_pandas = self.model.data.row_labels is not None\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:527-542: \"+            with np.errstate(invalid=\\\"ignore\\\"):\\n                 return stats.t.sf(np.abs(self.tvalues), df_resid) * 2\\n         else:\\n-            with np.errstate(invalid='ignore'):\\n+            with np.errstate(invalid=\\\"ignore\\\"):\\n                 return stats.norm.sf(np.abs(self.tvalues)) * 2\\n \\n     def _conf_int(self, alpha, cols):\\n@@ -597,7 +686,7 @@ class RollingRegressionResults(object):\\n \\n         if self.use_t:\\n             dist = stats.t\\n-            df_resid = getattr(self, 'df_resid_inference', self.df_resid)\\n+            df_resid = getattr(self, \\\"df_resid_inference\\\", self.df_resid)\\n             df_resid = np.asarray(df_resid)[:, None]\\n             q = dist.ppf(1 - alpha / 2, df_resid)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:729: \"== mutant:03b9180bae reward=1.0 rc=0 scored 3.0s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 729,
+            "quote": "== mutant:03b9180bae reward=1.0 rc=0 scored 3.0s",
+            "seconds": 3.0
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/03b9180bae.patch",
+          "patch_sha256": "c184b0aadc08b3c1b5c385ddc5701420ca95acc57bf38891c2f2ab29b30b43dd",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 376,
+          "end_line": 376,
+          "operator": "negate-boolean",
+          "original": "use_t",
+          "replacement": "not use_t",
+          "semantic_scope": "Out-of-scope inference switch forwarding, not coefficient estimation.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "At the retained constructor boundary, fit(use_t=True) passes not True=False. No numeric p-value or confidence-interval result is asserted."
+        },
+        {
+          "id": "2672042fa3",
+          "label": "required_gap",
+          "reason": "Changes the non-expanding mask from [:w-1] to [:w], thereby clearing the missingness flag for the first full rolling window as well. For missing=\"skip\" and a NaN inside that first window (not in its first row), the public contract requires no coefficient estimate, but the new false flag allows _fit_single to run after _get_data drops the missing observation. This is a direct coefficient-production/missing-data regression in the supported default non-expanding mode, whose unchanged behavior the selected default-is-false test is intended to retain. It is not an inference-only or plotting side path. The clean-data tests never set the flag, so the mutant survives. The expanding=True branch itself is unchanged, and this finding does not claim otherwise.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:71-76: \"+\\n+common_params = \\\"\\\\n\\\".join(map(strip4, model._model_params_doc.split(\\\"\\\\n\\\")))\\n window_parameters = \\\"\\\"\\\"\\\\\\n window : int\\n     Length of the rolling window. Must be strictly larger than the number\\n@@ -53,12 +65,17 @@ min_nobs : {int, None}\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/2672042fa3.patch:197-210: \"         nans = np.isnan(self._y)\\n@@ -149,19 +192,25 @@ class RollingWLS(object):\\n         self._is_nan[:] = nans\\n         has_nan = np.cumsum(nans)\\n         w = self._window\\n-        has_nan[w - 1:] = has_nan[w - 1:] - has_nan[:-(w - 1)]\\n-        has_nan[:w - 1] = False\\n+        has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w - 1)]\\n+        if self._expanding:\\n+            has_nan[: self._min_nobs] = False\\n+        else:\\n+            has_nan[: (w)] = False\\n \\n         return has_nan.astype(bool)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/2672042fa3.patch:304-316: \"-        if not (self._has_nan[window - 1] and self._skip_missing):\\n-            self._fit_single(w, xpx, xpy, nobs, store, params_only, method)\\n+        first = self._min_nobs if self._expanding else w\\n+        xpx, xpy, nobs = self._reset(first)\\n+        if not (self._has_nan[first - 1] and self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:214-231: \"-        # TODO: Make a helper function\\n-        y = self._y[idx - window:idx]\\n-        wy = self._wy[idx - window:idx]\\n-        wx = self._wx[idx - window:idx]\\n-        weights = self._weights[idx - window:idx]\\n-        missing = self._is_nan[idx - window:idx]\\n+        if idx >= window:\\n+            loc = slice(idx - window, idx)\\n+        else:\\n+            loc = slice(idx)\\n+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:20: \"+def test_expanding_default_is_false():\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:761-775: \"    def _find_nans(self):\\n        nans = np.isnan(self._y)\\n        nans |= np.any(np.isnan(self._x), axis=1)\\n        nans |= np.isnan(self._weights)\\n        self._is_nan[:] = nans\\n        has_nan = np.cumsum(nans)\\n        w = self._window\\n>       has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w + 1)]\\nE       ValueError: operands could not be broadcast together with shapes (71,) (69,)\\n\\nstatsmodels/regression/rolling.py:195: ValueError\\n=========================== short test summary info ============================\\nFAILED statsmodels/regression/tests/test_rolling.py::test_expanding_default_is_false\\nFAILED statsmodels/regression/tests/test_rolling.py::test_expanding_true_fills_pre_window_indices\\nFAILED statsmodels/regression/tests/test_rolling.py::test_expanding_matches_ols_at_min_nobs\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:734: \"== mutant:2672042fa3 reward=1.0 rc=0 scored 2.9s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 734,
+            "quote": "== mutant:2672042fa3 reward=1.0 rc=0 scored 2.9s",
+            "seconds": 2.9
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/2672042fa3.patch",
+          "patch_sha256": "5253085fb09e0f86901a668e0fc0ce7f8cf0af3d9263b75f6856c6e1d6314f73",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 199,
+          "end_line": 199,
+          "operator": "drop-operand",
+          "original": "w - 1",
+          "replacement": "(w)",
+          "semantic_scope": "Required documented missing=\"skip\" coefficient behavior in the supported default non-expanding mode; expanding=True is unaffected by this particular mutation.",
+          "counterexample": {
+            "kind": "static_first_rolling_window_missingness_reasoning_not_executed",
+            "input": "t=0..11, x=[1,t], y=t^2 except y[2]=NaN; RollingOLS(y,x,window=6,min_nobs=3,missing=\"skip\").fit(params_only=True), leaving expanding=False; inspect params[5].",
+            "required_outcome": "The first six-observation window contains a missing row, so missing=\"skip\" leaves params[5] NaN. The reference retains _has_nan[5]=True for the NaN at index 2.",
+            "mutant_outcome": "has_nan[:w]=False clears index 5; the first-window guard calls _fit_single on the five valid full-rank rows instead of skipping. This produces a fitted row rather than the required skipped row.",
+            "boundary_limit": "NaN index 2 avoids the separate first-row cumulative-count boundary in the reference."
+          },
+          "missing_evidence": null
+        },
+        {
+          "id": "9a405a6218",
+          "label": "non_positive",
+          "reason": "The upper confidence-bound plot now indexes column 2 of this_ci immediately after the retained code reshapes it to (-1,2). Thus if the finite-CI plotting branch is reached, this is an out-of-bounds access, not a harmless column renaming. However, the reference only reformatted this existing plotting line, and the issue requests smaller-sample estimates followed by fixed-size rolling windows, not plotting or confidence bands. Coefficient and nobs computation is unaffected and the actual grader never invokes plotting. The concrete plotting defect is therefore not a positive required-estimation witness for this task; no package-wide correctness conclusion follows.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/9a405a6218.patch:603-619: \"             if alpha is not None:\\n                 this_ci = np.reshape(ci[:, :, i], (-1, 2))\\n                 if not np.all(np.isnan(this_ci)):\\n-                    ax.plot(row_lbl, this_ci[:, 0][valid], 'k:',\\n-                            label='Lower CI')\\n-                    ax.plot(row_lbl, this_ci[:, 1][valid], 'k:',\\n-                            label='Upper CI')\\n+                    ax.plot(\\n+                        row_lbl, this_ci[:, 0][valid], \\\"k:\\\", label=\\\"Lower CI\\\"\\n+                    )\\n+                    ax.plot(\\n+                        row_lbl, this_ci[:, 2][valid], \\\"k:\\\", label=\\\"Upper CI\\\"\\n+                    )\\n                     if loc == 0:\\n                         ax.legend(loc=legend_loc)\\n             ax.set_xlim(row_lbl[0], row_lbl[-1])\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:554-569: \"+        ci_names = (\\\"lower\\\", \\\"upper\\\")\\n         row_names = self.model.data.row_labels\\n         col_names = self.model.data.param_names\\n         if cols is not None:\\n@@ -643,9 +732,14 @@ class RollingRegressionResults(object):\\n     def save(self, fname, remove_data=False):\\n         return LikelihoodModelResults.save(self, fname, remove_data)\\n \\n-    def plot_recursive_coefficient(self, variables=None, alpha=0.05,\\n-                                   legend_loc='upper left', fig=None,\\n-                                   figsize=None):\\n+    def plot_recursive_coefficient(\\n+        self,\\n+        variables=None,\\n+        alpha=0.05,\\n+        legend_loc=\\\"upper left\\\",\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:783: \"== mutant:9a405a6218 reward=1.0 rc=0 scored 2.9s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 783,
+            "quote": "== mutant:9a405a6218 reward=1.0 rc=0 scored 2.9s",
+            "seconds": 2.9
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/9a405a6218.patch",
+          "patch_sha256": "4dc9ee64253fbe8abdc099b626bbe61ec051f745fb15bc9554b212e73c808051",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 824,
+          "end_line": 824,
+          "operator": "integer-shift",
+          "original": "1",
+          "replacement": "2",
+          "semantic_scope": "Out-of-scope existing plotting/CI consumer; its local two-column schema is visible and not guessed.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "Conditional on entering the non-all-NaN confidence-interval plotting branch, np.reshape(...,(-1,2)) has exactly columns 0 and 1, so this_ci[:,2] is out of bounds. No plotting call was executed and reachability is not used as a required task acceptance criterion."
+        },
+        {
+          "id": "906b92cb22",
+          "label": "equivalent_or_optional",
+          "reason": "Swaps dispatch between lstsq and pinv in the non-inv coefficient branch. The retained _fit_single first attempts an inverse of wx.T@wx, so neither branch supplies a new guaranteed singular-design fitting path. On the ordinary full-column-rank estimation domain, least-squares and the Moore-Penrose inverse give the same mathematical coefficient solution for the same retained expanding/rolling rows. The instruction requires those estimates, not a particular internal numerical solver dispatch, and the selected default method=\"inv\" is wholly unchanged. No concrete required coefficient difference, tolerance breach or exception is established. This limited equivalence does not certify behavior under ill conditioning, numerically accepted rank-deficient designs, singular-design support or method identity outside the requested observable contract.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/906b92cb22.patch:224-245: \"+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\\n@@ -175,11 +224,11 @@ class RollingWLS(object):\\n             return\\n         try:\\n             wxpwxi = np.linalg.inv(wxpwx)\\n-            if method == 'inv':\\n+            if method == \\\"inv\\\":\\n                 params = wxpwxi @ wxpwy\\n             else:\\n                 _, wy, wx, _, _ = self._get_data(idx)\\n-                if method == 'lstsq':\\n+                if not (method == \\\"lstsq\\\"):\\n                     params = lstsq(wx, wy)[0]\\n                 else:  # 'pinv'\\n                     wxpwxiwxp = np.linalg.pinv(wx)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:224-245: \"+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\\n@@ -175,11 +224,11 @@ class RollingWLS(object):\\n             return\\n         try:\\n             wxpwxi = np.linalg.inv(wxpwx)\\n-            if method == 'inv':\\n+            if method == \\\"inv\\\":\\n                 params = wxpwxi @ wxpwy\\n             else:\\n                 _, wy, wx, _, _ = self._get_data(idx)\\n-                if method == 'lstsq':\\n+                if method == \\\"lstsq\\\":\\n                     params = lstsq(wx, wy)[0]\\n                 else:  # 'pinv'\\n                     wxpwxiwxp = np.linalg.pinv(wx)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:249-261: \" \\n-    def fit(self, method='inv', cov_type='nonrobust', cov_kwds=None,\\n-            reset=None, use_t=False, params_only=False):\\n+    def fit(\\n+        self,\\n+        method=\\\"inv\\\",\\n+        cov_type=\\\"nonrobust\\\",\\n+        cov_kwds=None,\\n+        reset=None,\\n+        use_t=False,\\n+        params_only=False,\\n+    ):\\n         \\\"\\\"\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:832: \"== mutant:906b92cb22 reward=1.0 rc=0 scored 2.9s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 832,
+            "quote": "== mutant:906b92cb22 reward=1.0 rc=0 scored 2.9s",
+            "seconds": 2.9
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/906b92cb22.patch",
+          "patch_sha256": "d7980258cdd2c3e90729e39bdaf0cc824597ce0a23a6d8a7ad9b9e1dfd504943",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 231,
+          "end_line": 231,
+          "operator": "negate-condition",
+          "original": "method == \"lstsq\"",
+          "replacement": "not (method == \"lstsq\")",
+          "semantic_scope": "Mathematical full-column-rank coefficient equivalence; no blanket floating-point or whole-API equivalence claim.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "Both branches receive the same _get_data(idx) rows. inv(wx.T@wx) is attempted before solver dispatch. The feature does not require preserving the internal solver call by name."
+        },
+        {
+          "id": "ea26e601b9",
+          "label": "non_positive",
+          "reason": "Reverses the pre-existing inference default selected only when a caller explicitly supplies use_t=None (fit itself defaults to False). In the visible results constructor, cov_type=\"nonrobust\" now stores _use_t=False rather than True. This changes inference configuration, not the coefficient estimates or sample/window transitions requested by the issue; the reference touched the line only for quote formatting. The selected seven tests do not request or inspect None-based t inference. It is therefore not a positive required-estimation gap, and the label does not bless the reversed inference default.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/ea26e601b9.patch:451-460: \"         self._ssr = store.ssr\\n@@ -401,7 +490,7 @@ class RollingRegressionResults(object):\\n         self._k_constant = k_constant\\n         self._nvar = self._xpxi.shape[-1]\\n         if use_t is None:\\n-            use_t = cov_type == 'nonrobust'\\n+            use_t = cov_type != \\\"nonrobust\\\"\\n         self._use_t = use_t\\n         self._cov_type = cov_type\\n         self._use_pandas = self.model.data.row_labels is not None\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:249-261: \" \\n-    def fit(self, method='inv', cov_type='nonrobust', cov_kwds=None,\\n-            reset=None, use_t=False, params_only=False):\\n+    def fit(\\n+        self,\\n+        method=\\\"inv\\\",\\n+        cov_type=\\\"nonrobust\\\",\\n+        cov_kwds=None,\\n+        reset=None,\\n+        use_t=False,\\n+        params_only=False,\\n+    ):\\n         \\\"\\\"\\\"\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:527-552: \"+            with np.errstate(invalid=\\\"ignore\\\"):\\n                 return stats.t.sf(np.abs(self.tvalues), df_resid) * 2\\n         else:\\n-            with np.errstate(invalid='ignore'):\\n+            with np.errstate(invalid=\\\"ignore\\\"):\\n                 return stats.norm.sf(np.abs(self.tvalues)) * 2\\n \\n     def _conf_int(self, alpha, cols):\\n@@ -597,7 +686,7 @@ class RollingRegressionResults(object):\\n \\n         if self.use_t:\\n             dist = stats.t\\n-            df_resid = getattr(self, 'df_resid_inference', self.df_resid)\\n+            df_resid = getattr(self, \\\"df_resid_inference\\\", self.df_resid)\\n             df_resid = np.asarray(df_resid)[:, None]\\n             q = dist.ppf(1 - alpha / 2, df_resid)\\n         else:\\n@@ -614,11 +703,11 @@ class RollingRegressionResults(object):\\n         return np.asarray(list(zip(lower, upper)))\\n \\n     @Appender(LikelihoodModelResults.conf_int.__doc__)\\n-    def conf_int(self, alpha=.05, cols=None):\\n+    def conf_int(self, alpha=0.05, cols=None):\\n         ci = self._conf_int(alpha, cols)\\n         if not self._use_pandas:\\n             return ci\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:837: \"== mutant:ea26e601b9 reward=1.0 rc=0 scored 3.0s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 837,
+            "quote": "== mutant:ea26e601b9 reward=1.0 rc=0 scored 3.0s",
+            "seconds": 3.0
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/ea26e601b9.patch",
+          "patch_sha256": "0f1b702c9a71ece360e86304f83761f497c41a5f528854affd48569e3f6bf62b",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 493,
+          "end_line": 493,
+          "operator": "negate-compare",
+          "original": "==",
+          "replacement": "!=",
+          "semantic_scope": "Out-of-scope pre-existing inference default; required parameter/sample results are unchanged.",
+          "counterexample": null,
+          "missing_evidence": null,
+          "source_observation": "For the explicit boundary use_t=None,cov_type=\"nonrobust\", the retained constructor stores False instead of True. No consumer-level numeric inference result is fabricated."
+        },
+        {
+          "id": "00a60d07e5",
+          "label": "uncertain",
+          "reason": "Forces the first Model.__init__ pass to missing=\"drop\", even when the public RollingOLS call requests missing=\"raise\". The retained public doc promises an error for missing data, so this is potentially a relevant missing-data contract regression, unlike inference-only mutations. But the exact Model.__init__ and Model._handle_data implementations, constant detection and later array validation are not retained. The second Model pass still uses missing=\"none\", original inputs still feed _y/_x, and other validation may itself raise. The changed first-pass argument proves a dispatch difference, not that the required exception disappears or changes. The selected clean-data tests cannot settle it. Preserve the missing consumer/exception context as uncertain, rather than asserting a silent NaN fit from the word drop alone.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:71-76: \"+\\n+common_params = \\\"\\\\n\\\".join(map(strip4, model._model_params_doc.split(\\\"\\\\n\\\")))\\n window_parameters = \\\"\\\"\\\"\\\\\\n window : int\\n     Length of the rolling window. Must be strictly larger than the number\\n@@ -53,12 +65,17 @@ min_nobs : {int, None}\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/00a60d07e5.patch:136-164: \"         # Call Model.__init__ twice to use const detection in first pass\\n         # But to not drop in the second pass\\n-        missing = string_like(missing, 'missing',\\n-                              options=('drop', 'raise', 'skip'))\\n-        temp_msng = 'drop' if missing != 'raise' else 'raise'\\n+        missing = string_like(\\n+            missing, \\\"missing\\\", options=(\\\"drop\\\", \\\"raise\\\", \\\"skip\\\")\\n+        )\\n+        temp_msng = (\\\"drop\\\")\\n         Model.__init__(self, endog, exog, missing=temp_msng, hasconst=None)\\n         k_const = self.k_constant\\n         const_idx = self.data.const_idx\\n-        Model.__init__(self, endog, exog, missing='none', hasconst=False)\\n+        Model.__init__(self, endog, exog, missing=\\\"none\\\", hasconst=False)\\n         self.k_constant = k_const\\n         self.data.const_idx = const_idx\\n-        self._y = array_like(endog, 'endog')\\n+        self._y = array_like(endog, \\\"endog\\\")\\n         nobs = self._y.shape[0]\\n-        self._x = array_like(exog, 'endog', ndim=2, shape=(nobs, None))\\n-        window = int_like(window, 'window', optional=True)\\n-        weights = array_like(weights, 'weights', optional=True, shape=(nobs,))\\n+        self._x = array_like(exog, \\\"endog\\\", ndim=2, shape=(nobs, None))\\n+        window = int_like(window, \\\"window\\\", optional=True)\\n+        weights = array_like(weights, \\\"weights\\\", optional=True, shape=(nobs,))\\n         self._window = window if window is not None else self._y.shape[0]\\n         self._weighted = weights is not None\\n         self._weights = np.ones(nobs) if weights is None else weights\\n         w12 = np.sqrt(self._weights)\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:189-195: \"     def _handle_data(self, endog, exog, missing, hasconst, **kwargs):\\n-        return Model._handle_data(self, endog, exog, missing, hasconst,\\n-                                  **kwargs)\\n+        return Model._handle_data(\\n+            self, endog, exog, missing, hasconst, **kwargs\\n+        )\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:13: \"+    x = rs.standard_normal((nobs, nvar))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:842: \"== mutant:00a60d07e5 reward=1.0 rc=0 scored 2.9s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 842,
+            "quote": "== mutant:00a60d07e5 reward=1.0 rc=0 scored 2.9s",
+            "seconds": 2.9
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/00a60d07e5.patch",
+          "patch_sha256": "b7b46f250cca6f8516a6a942344d23bf2792fb2556f7687b4342ec6cd97238fd",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 149,
+          "end_line": 149,
+          "operator": "conditional-branch",
+          "original": "\"drop\" if missing != \"raise\" else \"raise\"",
+          "replacement": "(\"drop\")",
+          "semantic_scope": "Unresolved exception behavior of the supported missing=\"raise\" option, including its use with expanding=True.",
+          "counterexample": null,
+          "missing_evidence": "Pinned Model.__init__, Model._handle_data/data-class missing handling, constant detection and array validation on a concrete NaN input, including exception type and whether any subsequent stage still raises. None of these implementations is supplied by the inspected exact task package/reference/minimal/survivor/log source context.",
+          "proposed_input_not_executed": "Clean full-rank x with one NaN in y, RollingOLS(...,window=6,min_nobs=3,expanding=True,missing=\"raise\"). Required outcome is an error; mutant exception outcome is unknown."
+        },
+        {
+          "id": "b4145440ce",
+          "label": "required_gap",
+          "reason": "Drops kwargs.update({\"missing\": missing,\"window\": window}) in the retained public inherited from_formula factory. The formal window parameter is consumed by the factory and is not otherwise put into kwargs; mod=cls(endog,exog,*args,**kwargs) therefore constructs RollingOLS with window=None, which the visible constructor converts to the total number of rows. With expanding=True, a requested window of 6 on 12 rows consequently keeps expanding past six observations instead of making the required transition to six-row rolling estimates. This is a concrete failure of the issue's [1,window] then [2,window+1] behavior through a retained public constructor path, not merely a request to preserve unrelated formula metadata. The selected tests all call RollingOLS directly, bypassing this factory. The lost default missing=\"skip\" forwarding is an additional source difference but is not needed for this positive.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/b4145440ce.patch:344-347: \"-    def from_formula(cls, formula, data, window, weights=None, subset=None,\\n-                     *args, **kwargs):\\n+    def from_formula(\\n+        cls, formula, data, window, weights=None, subset=None, *args, **kwargs\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/b4145440ce.patch:383-401: \"-\\n-        kwargs.update({'missing': missing,\\n-                       'window': window})\\n+            raise ValueError(\\n+                \\\"endog has evaluated to an array with multiple \\\"\\n+                \\\"columns that has shape {0}. This occurs when \\\"\\n+                \\\"the variable converted to endog is non-numeric\\\"\\n+                \\\" (e.g., bool or str).\\\".format(endog.shape)\\n+            )\\n+\\n+        pass\\n         if weights is not None:\\n-            kwargs['weights'] = weights\\n+            kwargs[\\\"weights\\\"] = weights\\n         mod = cls(endog, exog, *args, **kwargs)\\n         mod.formula = formula\\n         # since we got a dataframe, attach the original\\n@@ -357,14 +426,33 @@ class RollingWLS(object):\\n extra_parameters = window_parameters + extra_base\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/b4145440ce.patch:155-163: \"-        self._x = array_like(exog, 'endog', ndim=2, shape=(nobs, None))\\n-        window = int_like(window, 'window', optional=True)\\n-        weights = array_like(weights, 'weights', optional=True, shape=(nobs,))\\n+        self._x = array_like(exog, \\\"endog\\\", ndim=2, shape=(nobs, None))\\n+        window = int_like(window, \\\"window\\\", optional=True)\\n+        weights = array_like(weights, \\\"weights\\\", optional=True, shape=(nobs,))\\n         self._window = window if window is not None else self._y.shape[0]\\n         self._weighted = weights is not None\\n         self._weights = np.ones(nobs) if weights is None else weights\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:304-330: \"-        if not (self._has_nan[window - 1] and self._skip_missing):\\n-            self._fit_single(w, xpx, xpy, nobs, store, params_only, method)\\n+        first = self._min_nobs if self._expanding else w\\n+        xpx, xpy, nobs = self._reset(first)\\n+        if not (self._has_nan[first - 1] and self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\\n             else:\\n-                if not self._is_nan[i - w - 1]:\\n-                    remove_x = wx[i - w - 1:i - w]\\n+                if not self._is_nan[i - w - 1] and i > w:\\n+                    remove_x = wx[i - w - 1 : i - w]\\n                     xpx -= remove_x.T @ remove_x\\n-                    xpy -= remove_x.T @ wy[i - w - 1:i - w]\\n+                    xpy -= remove_x.T @ wy[i - w - 1 : i - w]\\n                     nobs -= 1\\n                 if not self._is_nan[i - 1]:\\n-                    add_x = wx[i - 1:i]\\n+                    add_x = wx[i - 1 : i]\\n                     xpx += add_x.T @ add_x\\n-                    xpy += add_x.T @ wy[i - 1:i]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:40: \"+    mod = RollingOLS(y, x, window=window, min_nobs=min_nobs,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:847: \"== mutant:b4145440ce reward=1.0 rc=0 scored 3.0s\""
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+            "line": 847,
+            "quote": "== mutant:b4145440ce reward=1.0 rc=0 scored 3.0s",
+            "seconds": 3.0
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/mutants/b4145440ce.patch",
+          "patch_sha256": "e756980cf3ed040ad87a8586ab0ce49900b5e3a06c9b91d167efe1cca7f8eb4c",
+          "file": "statsmodels/regression/rolling.py",
+          "line": 416,
+          "end_line": 416,
+          "operator": "drop-statement",
+          "original": "kwargs.update({\"missing\": missing, \"window\": window})",
+          "replacement": "pass",
+          "semantic_scope": "Required expanding-to-fixed-window transition through the existing inherited RollingOLS.from_formula path; demonstrated at the window-forwarding and row-selection boundaries.",
+          "counterexample": {
+            "kind": "static_factory_forwarding_and_window_math_not_executed",
+            "input": "DataFrame with t=0..11 and y=t^2; RollingOLS.from_formula(\"y ~ 1 + t\",data,window=6,min_nobs=3,expanding=True,missing=\"drop\").fit(params_only=True); inspect the t coefficient at output index 8.",
+            "required_outcome": "Factory forwards window=6. At output index 8 the six-row window uses t=3..8; the exact least-squares slope of t^2 on [1,t] is 11.",
+            "mutant_outcome": "Factory omits window, so _window becomes 12. At output index 8 the still-expanding prefix uses t=0..8; its least-squares slope is 8.",
+            "boundary_limit": "The forwarding defect and row-count divergence are visible in retained source. No actual patsy/DataFrame construction, numerical library solve or fresh control was run."
+          },
+          "missing_evidence": null
+        }
+      ]
+    }
+  ]
+}

@@ -63,49 +63,35 @@
     "limits": "Each report is one attempt on a distinct planned task, bound to its package and reference; retries are not extra tasks. Measured line stages, unavailable attempts and inapplicable stages remain separate. Survivors need hash-bound semantic adjudication and scored return-code-zero controls; unreviewed is not a finding.",
     "line_stage_not_reported_task_ids": [],
     "mutant_stage_status_counts": {
-      "measured": 69,
-      "not_applicable": 10
+      "measured": 83,
+      "not_applicable": 11
     },
-    "new_block_candidates": 35,
-    "new_block_unreviewed": 0,
-    "new_reports": 79,
-    "new_scans": 79,
+    "new_block_candidates": 41,
+    "new_block_unreviewed": 1,
+    "new_reports": 94,
+    "new_scans": 94,
     "new_scans_by_status": {
       "budget_exhausted": 1,
-      "measured": 78
+      "measured": 93
     },
     "new_scans_by_verdict": {
-      "fail": 35,
-      "pass": 44
+      "fail": 41,
+      "pass": 53
     },
-    "new_survivors": 193,
+    "new_survivors": 244,
     "new_survivors_review": {
-      "equivalent_or_optional": 74,
-      "non_positive": 26,
-      "required_gap": 44,
-      "uncertain": 49
+      "equivalent_or_optional": 80,
+      "non_positive": 31,
+      "required_gap": 52,
+      "uncertain": 55,
+      "unreviewed": 26
     },
-    "new_survivors_unreviewed": 0,
+    "new_survivors_unreviewed": 26,
     "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
     "plan_sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
     "planned_backfill_tasks": 265,
     "planned_sha256": "7405662e6e4b7a317d0687d0707931c4b86acd55556a7f7b6028a7ff1c8e84c9",
     "remaining_task_ids": [
-      "format-code-task-002384",
-      "format-code-task-000644",
-      "format-code-task-002414",
-      "format-code-task-001692",
-      "format-code-task-000498",
-      "format-code-task-001189",
-      "format-code-task-002483",
-      "format-code-task-002994",
-      "format-code-task-002380",
-      "format-code-task-002736",
-      "format-code-task-000110",
-      "format-code-task-001886",
-      "format-code-task-002336",
-      "format-code-task-002790",
-      "format-code-task-003023",
       "format-code-task-000242",
       "format-code-task-002915",
       "format-code-task-001246",
@@ -278,7 +264,7 @@
       "format-code-task-000116",
       "format-code-task-002940"
     ],
-    "remaining_tasks": 186,
+    "remaining_tasks": 171,
     "review_inputs": [
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/backfill-reviews.json",
@@ -323,6 +309,14 @@
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/06b.json",
         "sha256": "122160e1b5b6e378d94c928d35675669920058af21c5e774799998b945aed22c"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/07a.json",
+        "sha256": "0e2517fdeb974e80bdd1d3b2519ee9e3efe171d43b9a17436441fc5b1b13cfe9"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/07b.json",
+        "sha256": "db577539344f276acbb041cd95aa127dc430bc9bbb97f24d034648376514902b"
       }
     ],
     "scans": [
@@ -399,6 +393,42 @@
         "task_id": "format-code-task-000102",
         "usable_controls": true,
         "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "a81bb9eed8529584f75596d416053b99253bb62103dce77a079ed06899928868",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 5,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 5,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:cdcae021c1ec21004dc49edafaa4958e4fc50d5c4022e5062baaa4f7bf98e92b",
+        "reference_sha256": "5b450a7dced7a8fb9803f001e6887c5485db03cfdc70440cd1bf7a40f39dca1e",
+        "report_sha256": "19b60bf14bebfed93f790558a0e5cbf7fa5a918db4e08aa83be253969ddadf41",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-000110",
+        "usable_controls": true,
+        "verdict": "pass"
       },
       {
         "block_review": {
@@ -1780,6 +1810,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "79167409a266df706a17e66acec4c9a25ef990fbe54ff9d49d44f29c64c2de66",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 4,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 4,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:774180d53ea92f4e67330483273f18ea5229dfd06dfb734f7ee708cb6b7e905d",
+        "reference_sha256": "bbe5520b8648e13b786cb00b4851781ad8b1f68af3c18d55c2e36a8efe544ff8",
+        "report_sha256": "be0f084e1947c3c6c2e7f599e1abaf0e8d41ed3c25bf6697a6cdca7bec32d40f",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-000498",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -2380,6 +2446,130 @@
         "task_id": "format-code-task-000636",
         "usable_controls": true,
         "verdict": "pass"
+      },
+      {
+        "block_review": {
+          "counterexample": {
+            "expected_and_predicted_actual": "The named task import remains bound despite the unchanged __all__. inputs.artifact and outputs.artifact are retained with their proper model/extends targets; compilation still reconstructs artifacts and injects args[underscore(artifact.name)]. The omitted standalone exports are not needed on these paths.",
+            "fresh_execution": false,
+            "kind": "static_required_path_refutation",
+            "scenario": "Use from argo.workflows.dsl.tasks import artifact and from argo.workflows.dsl.templates import inputs, outputs; compile the instruction ArtifactPassing workflow."
+          },
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/dropped.patch",
+          "dropped_patch_sha256": "347ef0ddb370429f8039798255394d73cd30744c8bdc7feb480d8c4944f46bbf",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000644/instruction.md:3-9: precise named decorator, injection, serialization and stacking requirements",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/minimal.patch:7-41: V1alpha1Artifact-backed task decorator and list accumulation remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/minimal.patch:49-99: namespaced input/output artifact decorators and model bindings remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/minimal.patch:101-136: Workflow compile injection and tasks named artifact import remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/dropped.patch:1-82: omitted material consists of wildcard/convenience exports and imports",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000644/tests/test.patch:6-9,131-255: selected required imports, serialization, snake_case and stacking assertions",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/grades.log:1: == full reward=1.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/grades.log:20: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/grades.log:644: == confirm reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 644,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.3s",
+            "sha256": "2f40d41711e6016ab42c96361cfd0a0160bc1818eed65a8dd378ae456d054c89"
+          },
+          "label": "neutral",
+          "limits": "This does not certify every possible artifact keyword/consumer. Wildcard imports, standalone templates.artifact and V1alpha1Artifact imports from convenience modules may differ but are not requested. No new workflow compile was executed.",
+          "omitted_blocks_review": [
+            {
+              "disposition": "optional_model_wildcard_export",
+              "id": "argo/workflows/dsl/_inputs.py#2",
+              "reason": "Adds V1alpha1Artifact to private-module __all__; the requested inputs namespace and nested artifact class remain."
+            },
+            {
+              "disposition": "optional_model_wildcard_export",
+              "id": "argo/workflows/dsl/_outputs.py#2",
+              "reason": "Adds V1alpha1Artifact to private-module __all__; the requested outputs namespace and nested artifact class remain."
+            },
+            {
+              "disposition": "optional_convenience_model_import",
+              "id": "argo/workflows/dsl/tasks.py#0",
+              "reason": "The task decorator uses V1alpha1Artifact from _arguments and compilation imports it in _workflow; a second task-module model import is not needed for the named decorator."
+            },
+            {
+              "disposition": "optional_wildcard_export",
+              "id": "argo/workflows/dsl/tasks.py#2",
+              "reason": "Missing __all__ artifact entry affects import-star, not the explicitly required from ...tasks import artifact; minimal.patch retains the binding."
+            },
+            {
+              "disposition": "optional_convenience_model_import",
+              "id": "argo/workflows/dsl/templates.py#0",
+              "reason": "The namespaced decorators bind their own model in _inputs/_outputs; exposing the client model directly from templates is not specified."
+            },
+            {
+              "disposition": "out_of_scope_standalone_template_artifact",
+              "id": "argo/workflows/dsl/templates.py#1",
+              "reason": "A direct templates.artifact export is additional to the specified inputs.artifact/outputs.artifact namespaces."
+            },
+            {
+              "disposition": "optional_wildcard_export",
+              "id": "argo/workflows/dsl/templates.py#2",
+              "reason": "Standalone artifact in templates.__all__ is not the required namespaced API."
+            },
+            {
+              "disposition": "optional_model_wildcard_export",
+              "id": "argo/workflows/dsl/templates.py#3",
+              "reason": "Re-exporting V1alpha1Artifact from templates.__all__ is not requested; model construction remains in the retained producer and compile consumer."
+            }
+          ],
+          "reason": "The minimal patch retains the actual tasks.artifact named import, decorator model binding/stacking, inputs.artifact and outputs.artifact classes, and Workflow.compile artifact reconstruction plus underscore(name) injection. The omitted additions are wildcard-export entries, convenience V1alpha1Artifact imports/re-exports and a standalone templates.artifact import. Explicit named import does not consult __all__, and the instruction asks for the two namespaced template decorators, not standalone templates.artifact or model imports from these convenience modules. Thus the omitted blocks do not remove the specified public imports or artifact wiring.",
+          "recorded_dropped_code": [
+            "argo/workflows/dsl/_inputs.py#2",
+            "argo/workflows/dsl/_outputs.py#2",
+            "argo/workflows/dsl/tasks.py#0",
+            "argo/workflows/dsl/tasks.py#2",
+            "argo/workflows/dsl/templates.py#0",
+            "argo/workflows/dsl/templates.py#1",
+            "argo/workflows/dsl/templates.py#2",
+            "argo/workflows/dsl/templates.py#3"
+          ],
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000644/minimal.patch",
+          "witness_sha256": "a4086b48f5b88f8701864dcbba28679c0b76c591256f706ef9f4515f6dbd2000"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "347ef0ddb370429f8039798255394d73cd30744c8bdc7feb480d8c4944f46bbf",
+        "grades_log_sha256": "2f40d41711e6016ab42c96361cfd0a0160bc1818eed65a8dd378ae456d054c89",
+        "kept_fraction": 0.8333,
+        "minimal_patch_sha256": "a4086b48f5b88f8701864dcbba28679c0b76c591256f706ef9f4515f6dbd2000",
+        "mutant_stage": {
+          "killed": 7,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 7,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:8275046467c83884bb8af2722b0f6f071a2ddac0173b10a75cadd0eafbd6d6e2",
+        "reference_sha256": "62dd73e9b856b5961b1970b0137d453d12fc2dcc174f55e682048129592794b2",
+        "report_sha256": "cc7d320f530271f25b2a19074d21af04573b2162f7d080295e61a134eb50610c",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-000644",
+        "usable_controls": true,
+        "verdict": "fail"
       },
       {
         "block_review": null,
@@ -3702,6 +3892,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "9be54c6932252b6184771a89b51e7cfc24ffe9204b6f8c936c8388eefc511750",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 2,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 2,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:31780410535418031b2f0aa3412b55c0a0e532293f61968463cf1532a8aa33e7",
+        "reference_sha256": "61f3824158e60470a742f678365e99db419c74b6af759cf48fd422cb4ec8be67",
+        "report_sha256": "7a3eb7b8a2516254219a6d1441bf5ace2914e78adf1fa173dcb70a30a99f88cc",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-001189",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "5e05abb59cc2fd3a318d00030f30c8a09dbd45293fd3930273dc434794533afb",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -4388,6 +4614,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "6765210f4cd45062d5222fa1568ede98356a2270e4bd552026fc032acb41fc9d",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 0,
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_applicable",
+          "survivors": 0,
+          "tried": 0,
+          "unscored": 0,
+          "verdict": "unknown"
+        },
+        "package_digest": "sha256:3a10d8fa01a996d42ab7cc8fb4ef5250e5e87d3d43531727ceee587d8dba9ec4",
+        "reference_sha256": "aa9cbfcc754d42f63e5d856e647a2fa5d312854387420d5e3eb0da8fb571b06d",
+        "report_sha256": "758f2732a43ccaf5e6c527dda5009ceada143c422c40d2e53352d646100cb43a",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-001692",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "865612b77e233cf8c0a2cd0cae013e4d574fd7e9ee532138a1b43a6ce47da7fa",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -4513,6 +4775,61 @@
         "task_id": "format-code-task-001870",
         "usable_controls": true,
         "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "69eb88f5a07f2e5dc144db09e689193750a53eccc706d33f8800734de5a5e9b2",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 17,
+          "reason": "",
+          "status": "measured",
+          "survivors": 3,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:a1fad9f820450cb2de386b844d29236fb729c9a19dd448a5a7075f41eee8bf88",
+        "reference_sha256": "84d93b4cb1ee97c966c731343f9248c3217b7cddddc4fc2be49d4b1e33db3342",
+        "report_sha256": "25a9a432461dc51a29ffbe802501316d780fad947becbd2a78d708fd548dbc4c",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "libfmp/c3/c3s2_dtw.py",
+            "id": "fa099eae83",
+            "line": 144,
+            "review": "unreviewed"
+          },
+          {
+            "file": "libfmp/c3/c3s2_dtw.py",
+            "id": "ef6c250b29",
+            "line": 121,
+            "review": "unreviewed"
+          },
+          {
+            "file": "libfmp/c3/c3s2_dtw.py",
+            "id": "b603fd8bdf",
+            "line": 93,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-001886",
+        "usable_controls": true,
+        "verdict": "pass"
       },
       {
         "block_review": null,
@@ -5398,6 +5715,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "27c3d807bde5e1130608a577f49dbe17fedd3f5eac00297d2c980aaf1af2ce0b",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 2,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 2,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:53f9c87d96c89d2c55eef09028314f81d8cad78894ec2f488213ef1289a4151c",
+        "reference_sha256": "9a30658bfe3196450524eb9f905787009f4ff1905fd15582cfd7d2ac517b38fc",
+        "report_sha256": "8719c50c18d5cd5585720d6bdfaf8ffb8507a7523c87767212a859cf35bde433",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-002336",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "14c57f7b64e4068a52079b507f55957e21dce38795eab4e047020a9185acab2a",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -5793,6 +6146,209 @@
         "verdict": "fail"
       },
       {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "fb88ff80db02e27a733d46d5efdd487e807e830f7882a94343ce6972770ed8d5",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 6,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 6,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:08a785f85279a2ec3c79a0b623b53f98c7091dd19823a57e89ecf28904aae5f5",
+        "reference_sha256": "602705d5803f30c128021547aed42b56b1f6b281f5f1f275f4f73b3b76008615",
+        "report_sha256": "f405f6f087b7d08508ebcdbf1ba6f02d55c20de0432c09bcb3cc646e00f461c5",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-002380",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": {
+          "counterexample": {
+            "expected_and_predicted_actual": "Both modes still use the retained new computations; explicit=True fills all nulls and explicit=False appends only newly missing key combinations while preserving the original null. The omitted helper refactor does not change how these string labels dispatch. This source proof is limited to these required paths, rather than a universal equivalence claim.",
+            "fresh_execution": false,
+            "kind": "static_required_path_refutation",
+            "scenario": "Apply minimal.patch and use the instruction dataframe with complete(\"group\", (\"item_id\", \"item_name\"), fill_value=0, sort=True, explicit=True/False)."
+          },
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/dropped.patch",
+          "dropped_patch_sha256": "e57fb65dd7c430749fbf61b4679529d4771c2f3b310c5d92e5920adb0d378fa8",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002384/instruction.md:14-53: required source dataframe and both explicit modes use string column labels",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/minimal.patch:17-22,31-62,64-131,149-166: public arguments, computation forwarding, both fill paths and validation remain",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/dropped.patch:141-179: internal helper signature and default-vs-str-dispatch refactor",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/dropped.patch:180-250: same exception branches, tuple-to-list syntax and message formatting; no requested fill computation is omitted",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002384/tests/test.patch:57-149,152-224: selected new tests cover scalar/dict explicit fills and preserve existing nulls",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/grades.log:1: == full reward=1.0 rc=0 scored 22.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/grades.log:31: == nop reward=0.0 rc=0 scored 22.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/grades.log:617: == confirm reward=1.0 rc=0 scored 22.3s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 617,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 22.3s",
+            "sha256": "04770a2d778f9a015f7a4654585d948e0a8862652e7eb83b5add49bb929c8c4f"
+          },
+          "label": "neutral",
+          "limits": "No fresh control was run. Non-string scalar-label support, wildcard defaults on private helpers and exact invalid-input error formatting are not inferred requirements; unsupported-label behavior may differ outside the requested paths.",
+          "omitted_blocks_review": [
+            {
+              "disposition": "optional_internal_signature",
+              "id": "janitor/functions/complete.py#15",
+              "reason": "Removing the default all_strings=True and folding the private helper signature onto one line is not needed: the retained public caller supplies all_strings."
+            },
+            {
+              "disposition": "optional_annotation",
+              "id": "janitor/functions/complete.py#16",
+              "reason": "Annotating the singledispatch default argument as str does not alter the required string dispatch retained by the witness."
+            },
+            {
+              "disposition": "equivalent_on_required_string_path",
+              "id": "janitor/functions/complete.py#17",
+              "reason": "The witness keeps the explicit str registration and its extraction body; the reference moves that body to the default. String columns required by the issue use the same body."
+            },
+            {
+              "disposition": "optional_error_message_format",
+              "id": "janitor/functions/complete.py#18",
+              "reason": "The non-list-like dict-value branch still raises ValueError; only whitespace/formatting differs."
+            },
+            {
+              "disposition": "optional_error_message_format",
+              "id": "janitor/functions/complete.py#19",
+              "reason": "The empty-array branch still raises ValueError; only message whitespace/line composition differs."
+            },
+            {
+              "disposition": "optional_error_message_format",
+              "id": "janitor/functions/complete.py#20",
+              "reason": "The non-1D array branch still raises ValueError; only message whitespace differs."
+            },
+            {
+              "disposition": "optional_error_message_format",
+              "id": "janitor/functions/complete.py#23",
+              "reason": "The MultiIndex-columns rejection is retained, with the old multi-line string instead of the reformatted message."
+            },
+            {
+              "disposition": "equivalent_tuple_to_list",
+              "id": "janitor/functions/complete.py#24",
+              "reason": "list(grouping) and [*grouping] produce the same list from a tuple; other column specifications are unchanged."
+            }
+          ],
+          "other_omitted_material": "CHANGELOG/docstring/examples/comments and a duplicate-column error-message restyle are also absent, as shown in dropped.patch; they are not missing task behavior.",
+          "reason": "The exact minimal patch retains both public parameters, their forwarding/validation, scalar and dictionary fill construction, explicit=True fillna, and the implicit-only anti-join/append path with row sorting. The omitted eight code blocks are helper-signature/default/annotation changes, moving the existing string singledispatch handler into the default implementation, equivalent tuple-to-list syntax and exception-message formatting. For the string and grouped-string columns explicitly requested, the retained str registration reaches the same column-extraction body. No required fill/null/sort behavior is removed by this omission; a possible expansion to non-string scalar labels is not a demonstrated requirement.",
+          "recorded_dropped_code": [
+            "janitor/functions/complete.py#15",
+            "janitor/functions/complete.py#16",
+            "janitor/functions/complete.py#17",
+            "janitor/functions/complete.py#18",
+            "janitor/functions/complete.py#19",
+            "janitor/functions/complete.py#20",
+            "janitor/functions/complete.py#23",
+            "janitor/functions/complete.py#24"
+          ],
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002384/minimal.patch",
+          "witness_sha256": "78a831d2240cf26a4088b46d486f719d8cbe5f8cb0a920f2e96fe087e80361f7"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "e57fb65dd7c430749fbf61b4679529d4771c2f3b310c5d92e5920adb0d378fa8",
+        "grades_log_sha256": "04770a2d778f9a015f7a4654585d948e0a8862652e7eb83b5add49bb929c8c4f",
+        "kept_fraction": 0.6943,
+        "minimal_patch_sha256": "78a831d2240cf26a4088b46d486f719d8cbe5f8cb0a920f2e96fe087e80361f7",
+        "mutant_stage": {
+          "killed": 13,
+          "reason": "",
+          "status": "measured",
+          "survivors": 7,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:161598047ca8d97b6b96d14c471f977ab228092424f4ddec76053b5c9d1f59d3",
+        "reference_sha256": "c6aa6f103fec9a6cfde18c77641bba899735f4eec6efe57776de1305afc685c5",
+        "report_sha256": "c00a48dc5acc23ab4f3911cc6b1115d70255ac249b418bfc77a1d1e87c188a36",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "1fa03e2742",
+            "line": 267,
+            "review": "uncertain"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "0f4b196363",
+            "line": 268,
+            "review": "required_gap"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "72f85cb84f",
+            "line": 447,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "796e6bfd89",
+            "line": 448,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "c798706500",
+            "line": 256,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "96679ae6d8",
+            "line": 223,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "janitor/functions/complete.py",
+            "id": "fd52cc83c1",
+            "line": 244,
+            "review": "equivalent_or_optional"
+          }
+        ],
+        "task_id": "format-code-task-002384",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
         "block_review": {
           "counterexample": null,
           "dropped_behavior": "Cache-miss OR-to-AND predicate, the post-normalization consistency assertion, comments and release note; required token retention/normalization/cache writes remain.",
@@ -6076,6 +6632,94 @@
         "verdict": "fail"
       },
       {
+        "block_review": {
+          "conditional_source_case": {
+            "input": "One previously tracked and installed package a absent from result: current=[a], result=[], installed=[a], synchronize=True.",
+            "kind": "conditional_enqueue_analysis_not_executed_not_a_complete_required_failure",
+            "observed_source_difference": "Minimal source reaches both uninstall append sites; reference records a during the first append and skips it during the synchronization loop.",
+            "unresolved_output": "Whether the complete return path or downstream executor deduplicates or tolerates the repeated request, and whether this state is part of the named deleted-lock issue."
+          },
+          "counterexample": null,
+          "dropped_behavior": "Omission of recording first-loop uninstall names and of skipping those names in the synchronization loop. The main result-name membership fix remains intact.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/instruction.md:315: \"```\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch:16-20: \"             if synchronize:\\n-                current_package_names = {\\n-                    current_package.name for current_package in self._current_packages\\n+                result_package_names = {\\n+                    result_package.name for result_package, _ in self._result_packages\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch:40-44: \"                         operations.append(Uninstall(installed_package))\\n \\n         return sorted(\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/dropped.patch:5-22: \"@@ -84,6 +84,7 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            uninstalls.add(installed_package.name)\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\\n@@ -100,6 +101,9 @@ class Transaction:\\n                 } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:12-24: \"                     current_package.name == result_package.name\\n@@ -83,11 +84,12 @@ class Transaction:\\n                 if not found:\\n                     for installed_package in self._installed_packages:\\n                         if installed_package.name == current_package.name:\\n+                            uninstalls.add(installed_package.name)\\n                             operations.append(Uninstall(current_package))\\n \\n             if synchronize:\\n-                current_package_names = {\\n-                    current_package.name for current_package in self._current_packages\\n+                result_package_names = {\\n+                    result_package.name for result_package, _ in self._result_packages\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002414/solution.patch:28-50: \"@@ -96,9 +98,12 @@ class Transaction:\\n                     \\\"pip\\\",\\n                     \\\"setuptools\\\",\\n                     \\\"wheel\\\",\\n-                } - current_package_names\\n+                } - result_package_names\\n \\n                 for installed_package in self._installed_packages:\\n+                    if installed_package.name in uninstalls:\\n+                        continue\\n+\\n                     if (\\n                         self._root_package\\n                         and installed_package.name == self._root_package.name\\n@@ -108,7 +113,8 @@ class Transaction:\\n                     if installed_package.name in preserved_package_names:\\n                         continue\\n \\n-                    if installed_package.name not in current_package_names:\\n+                    if installed_package.name not in result_package_names:\\n+                        uninstalls.add(installed_package.name)\\n                         operations.append(Uninstall(installed_package))\\n \"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:11: \"+def test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync():\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002414/tests/test.patch:143: \"+PYTHONPATH=src /root/.cache/pypoetry/virtualenvs/poetry-QnKYwBMZ-py3.7/bin/pytest -p no:cacheprovider -rA tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_remove_untracked_installed_when_lock_was_deleted_sync tests/puzzle/test_transaction.py::test_it_should_install_all_when_lock_was_deleted_and_nothing_installed_sync tests/puzzle/test_transaction.py::test_it_should_not_remove_installed_packages_when_lock_was_deleted_no_sync tests/puzzle/test_transaction.py::test_it_should_preserve_pip_when_not_in_result_and_lock_deleted_sync\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:1: \"== full reward=1.0 rc=0 scored 8.9s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:21: \"== nop reward=0.0 rc=0 scored 8.8s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log:252: \"== confirm reward=1.0 rc=0 scored 10.7s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 252,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 10.7s",
+            "seconds": 10.7,
+            "sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25"
+          },
+          "label": "uncertain",
+          "missing_evidence": "Pinned Transaction.__init__, installed/current repository normalization and uniqueness contract, the complete return sorted(...) expression, and consumers/executor of returned uninstall operations. The inspected exact package and current/archived task/reference directories retain patches/logs but no standalone Python source files for these implementations.",
+          "reason": "The minimal patch retains the required result-package-name comparison, including preservation of packages that are re-resolved after the lock was deleted. The omitted first-loop uninstalls.add and second-loop skip guard instead prevent duplicate uninstall enqueueing when a previously tracked installed package is absent from the new result. A concrete current=[a], result=[], installed=[a], synchronize=True state reaches both append(Uninstall(...)) sites in the minimal source. However, the retained patch ends at return sorted( and does not show the returned expression, the Transaction constructor/collection normalization, or the executor. Thus duplicate enqueueing is established as conditional source reasoning, not a proven duplicate operation output or harmful installation behavior. The reported deleted-lock case and all five selected tests have current=[] and do not exercise this overlap. Preserve the duplicate-removal question as uncertain rather than recertifying the omission as a required gap or declaring it harmless.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002414/minimal.patch",
+          "witness_sha256": "4600bf8fff5988c527ea083eea29d33f4f69bdc371fa3fb6ac084558d3d1031a"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "7fc206ed0e33e523f15cb73ae98d2c50d9dcd51c9446992f941ffb4c00c6e2cc",
+        "grades_log_sha256": "f60dd5175f74635d02802967b499f06526160c8212d0ca9706b44910edfe4c25",
+        "kept_fraction": 0.7143,
+        "minimal_patch_sha256": "4600bf8fff5988c527ea083eea29d33f4f69bdc371fa3fb6ac084558d3d1031a",
+        "mutant_stage": {
+          "killed": 3,
+          "reason": "",
+          "status": "measured",
+          "survivors": 2,
+          "tried": 5,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:6f56a0cbcedeae9c1bd44ccb85eb2071426f713bec5fb415457191c15d804f71",
+        "reference_sha256": "13cd94692e3e9411cdc5c88ce888538f0d69d4f94c58db51381c3ea59d96132e",
+        "report_sha256": "60c8bf9d2b06052ce3d2df27f8ab329d28fa005195ebd0306e6842f88720bff3",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "src/poetry/puzzle/transaction.py",
+            "id": "25b38edcdd",
+            "line": 117,
+            "review": "uncertain"
+          },
+          {
+            "file": "src/poetry/puzzle/transaction.py",
+            "id": "fa7b285c33",
+            "line": 87,
+            "review": "uncertain"
+          }
+        ],
+        "task_id": "format-code-task-002414",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
         "block_review": null,
         "controls": {
           "full": {
@@ -6129,6 +6773,128 @@
         "task_id": "format-code-task-002416",
         "usable_controls": true,
         "verdict": "pass"
+      },
+      {
+        "block_review": {
+          "counterexample": {
+            "expected": "The reopened public nodata value stays -inf (+inf respectively), not None.",
+            "fresh_execution": false,
+            "kind": "static_named_required_source_counterexample",
+            "predicted_actual_from_submitted_source": "The retained reader checks -inf < finite_min (or +inf > finite_max), sets val=None and loses the nodata value. The separately omitted writer allowance can also reject infinity before creation in a rebuilt source path.",
+            "recorded_runtime_observation": "The current minimal confirm instead passes all 11 selected tests. This is not represented as a fresh rebuilt failure; the source/runtime binding is unresolved.",
+            "scenario": "Compile the exact minimal-patch source and perform the instruction transition: persist float32 nodata=-inf, reopen it and obtain a successful GDAL nodata read with val=-inf. The same reasoning holds for +inf."
+          },
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/dropped.patch",
+          "dropped_patch_sha256": "81ec9f66bdae479cbe0ab970d6166b4dda2c6ac841e7e6a8d765328bc55d3bcf",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002483/instruction.md:6,15-17,49-64: required float infinities and persistent -inf readback",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/minimal.patch:1-42: only dtypes.py and rio/edit_info.py change; neither .pyx consumer is patched",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/dropped.patch:5-13: omitted reader replacement leaves the finite-only rejection in force",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/dropped.patch:18-26: omitted writer infinity acceptance; inclusive finite check alone cannot accept +inf/-inf",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002483/tests/test.patch:98-132,157-169: the selected tests contain the required round trips but launcher does not rebuild extensions",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002483/environment/setup/setup.sh:25: extension files are preserved by setup",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:71-108: recorded caller trace shows dtypes.in_dtype_range being called by runtime _base independently of the nominal source omission",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:109: == drop-file:rasterio/_base.pyx reward=1.0 rc=0 scored 2.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:133: == drop-file:rasterio/_io.pyx reward=1.0 rc=0 scored 2.1s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:1: == full reward=1.0 rc=0 scored 2.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:25: == nop reward=0.0 rc=0 scored 2.8s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log:328: == confirm reward=1.0 rc=0 scored 2.1s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 328,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 2.1s",
+            "sha256": "e90716f37de6525a3ad67282897928b33bd1087bc31a30c2f5ccfb574a88a150"
+          },
+          "label": "confirmed_weak",
+          "limits": "The consuming-side source violation is established independently of the old atlas label and the current reward. No extension rebuild, GDAL call or new control was performed. Loaded extension identity/rebuild sensitivity are unknown; the claim is not that the current measured binary returns None.",
+          "missing_runtime_evidence": [
+            "Current loaded _base/_io extension path, hashes and source correspondence.",
+            "A source-rebuilt nodata control; not run by this worker."
+          ],
+          "omitted_blocks_review": [
+            {
+              "disposition": "required_source_gap",
+              "id": "rasterio/_base.pyx#0",
+              "reason": "This is the consuming-side fix for the exact reported reopen failure: finite bounds reject both infinity signs and replace valid nodata with None."
+            },
+            {
+              "disposition": "required_source_gap",
+              "id": "rasterio/_io.pyx#0",
+              "reason": "The submitted writer helper still compares infinities against finite numpy dtype limits without the float-infinity branch; the instruction stack explicitly identifies this creation path."
+            }
+          ],
+          "reason": "This is a required source-level readback omission, not a claim that the current passing binary failed. minimal.patch only adds the Python dtype helper and the CLI infinity guard. It leaves DatasetBase.get_nodatavals using val < finite_min or val > finite_max, so on a successful GDAL read of the explicitly required +inf/-inf float nodata, the submitted reader source still replaces it with None. It also leaves the Cython writer helper without an infinity allowance. The exact expected reopen behavior is therefore absent from the submitted source. The recorded confirm still passes all 11 selected tests; the pytest-only launcher, preserved extensions and current failure trace establish a source/runtime coverage disconnect rather than just a missing test case.",
+          "recorded_dropped_code": [
+            "rasterio/_base.pyx#0",
+            "rasterio/_io.pyx#0"
+          ],
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002483/minimal.patch",
+          "witness_sha256": "8fe3723d860582efdb90d6893c4e9d34679b254e99a97d5ff44544df009c1c0a"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "81ec9f66bdae479cbe0ab970d6166b4dda2c6ac841e7e6a8d765328bc55d3bcf",
+        "grades_log_sha256": "e90716f37de6525a3ad67282897928b33bd1087bc31a30c2f5ccfb574a88a150",
+        "kept_fraction": 0.7647,
+        "minimal_patch_sha256": "8fe3723d860582efdb90d6893c4e9d34679b254e99a97d5ff44544df009c1c0a",
+        "mutant_stage": {
+          "killed": 7,
+          "reason": "",
+          "status": "measured",
+          "survivors": 4,
+          "tried": 11,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:e74de2cac39e964dfc79a251de89b236475d2afa161ae8a0f98ebf742ec4c524",
+        "reference_sha256": "c7fc74f2bd074f622379ab83b45d7bb68bec048ff023d0fd08c25c93dbe92dc8",
+        "report_sha256": "dcf0d4e4abaed688b9401ecb98eaf02594b29015a659b80bf47f9c5867fb00b9",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "rasterio/dtypes.py",
+            "id": "90f9133df8",
+            "line": 78,
+            "review": "uncertain"
+          },
+          {
+            "file": "rasterio/rio/edit_info.py",
+            "id": "09f6ae56ba",
+            "line": 171,
+            "review": "uncertain"
+          },
+          {
+            "file": "rasterio/dtypes.py",
+            "id": "6d025c58c7",
+            "line": 81,
+            "review": "required_gap"
+          },
+          {
+            "file": "rasterio/dtypes.py",
+            "id": "7fd52e8e85",
+            "line": 81,
+            "review": "required_gap"
+          }
+        ],
+        "task_id": "format-code-task-002483",
+        "usable_controls": true,
+        "verdict": "fail"
       },
       {
         "block_review": null,
@@ -6499,6 +7265,154 @@
       },
       {
         "block_review": {
+          "counterexample": {
+            "boundary_limit": "Uses a prefix strictly after min_nobs and strictly before window. It does not assert that the full reference handles its own earliest-prefix mask boundary correctly.",
+            "input": "t=0..11; x has columns ones and t; y=t^2 except y[4]=NaN; RollingOLS(y,x,window=8,min_nobs=3,expanding=True,missing=\"skip\").fit(params_only=True); inspect output index 4 (prefix length 5).",
+            "kind": "static_missingness_and_fit_path_reasoning_not_executed",
+            "minimal_patch_outcome": "The pre-window flag at index 4 is forcibly false; the missing row is excluded from updates but the prefix is fitted using clean rows t=0..3. Its full-rank least-squares solution is [-1,3], a fitted rather than skipped row.",
+            "required_outcome": "The prefix includes a missing observation, so missing=\"skip\" leaves params[4] NaN and does not call _fit_single for that prefix."
+          },
+          "dropped_behavior": "Expanding-aware missingness masking is omitted, along with unrelated lint, imports, formatting/documentation and duplicate-initialization/unused-local cleanup. The pre-window missing=\"skip\" path is the required omitted behavior.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/instruction.md:9-19: \"Allow recursive estimation before the full sample is reached in RollingOLS so that the window would be\\n```\\n[1,n1]\\n[1,n1+2]\\n...\\n[1,window]\\n[2,window+1]\\n....\\n```\\n\\nThis is expanding window until the full window length is reached.\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:71-76: \"+\\n+common_params = \\\"\\\\n\\\".join(map(strip4, model._model_params_doc.split(\\\"\\\\n\\\")))\\n window_parameters = \\\"\\\"\\\"\\\\\\n window : int\\n     Length of the rolling window. Must be strictly larger than the number\\n@@ -53,12 +65,17 @@ min_nobs : {int, None}\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/dropped.patch:172-188: \"     def _find_nans(self):\\n         nans = np.isnan(self._y)\\n@@ -168,8 +192,11 @@ class RollingWLS(object):\\n         self._is_nan[:] = nans\\n         has_nan = np.cumsum(nans)\\n         w = self._window\\n-        has_nan[w - 1:] = has_nan[w - 1:] - has_nan[:-(w - 1)]\\n-        has_nan[:w - 1] = False\\n+        has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w - 1)]\\n+        if self._expanding:\\n+            has_nan[: self._min_nobs] = False\\n+        else:\\n+            has_nan[: w - 1] = False\\n \\n         return has_nan.astype(bool)\\n \\n@@ -197,11 +224,11 @@ class RollingWLS(object):\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch:45-72: \" \\n     def _get_data(self, idx):\\n         window = self._window\\n-        # TODO: Make a helper function\\n-        y = self._y[idx - window:idx]\\n-        wy = self._wy[idx - window:idx]\\n-        wx = self._wx[idx - window:idx]\\n-        weights = self._weights[idx - window:idx]\\n-        missing = self._is_nan[idx - window:idx]\\n+        if idx >= window:\\n+            loc = slice(idx - window, idx)\\n+        else:\\n+            loc = slice(idx)\\n+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\\n@@ -280,28 +302,31 @@ class RollingWLS(object):\\n \\n         window = self._window\\n         nobs, k = self._x.shape\\n-        store = RollingStore(params=np.full((nobs, k), np.nan),\\n-                             ssr=np.full(nobs, np.nan),\\n-                             llf=np.full(nobs, np.nan),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch:96-129: \"+        if not (self._has_nan[first - 1] and self._skip_missing):\\n+            self._fit_single(first, xpx, xpy, nobs, store, params_only, method)\\n         wx, wy = self._wx, self._wy\\n-        for i in range(w + 1, self._x.shape[0] + 1):\\n+        for i in range(first + 1, self._x.shape[0] + 1):\\n             if self._has_nan[i - 1] and self._skip_missing:\\n                 continue\\n             if i % reset == 0:\\n                 xpx, xpy, nobs = self._reset(i)\\n             else:\\n-                if not self._is_nan[i - w - 1]:\\n-                    remove_x = wx[i - w - 1:i - w]\\n+                if not self._is_nan[i - w - 1] and i > w:\\n+                    remove_x = wx[i - w - 1 : i - w]\\n                     xpx -= remove_x.T @ remove_x\\n                     xpy -= remove_x.T @ wy[i - w - 1:i - w]\\n                     nobs -= 1\\n@@ -362,9 +387,25 @@ extra_parameters = window_parameters + extra_base\\n               extra_parameters=extra_parameters)\\n @Appender(_doc)\\n class RollingOLS(RollingWLS):\\n-    def __init__(self, endog, exog, window=None, min_nobs=None,\\n-                 missing='drop'):\\n-        super().__init__(endog, exog, window, None, min_nobs, missing)\\n+    def __init__(\\n+        self,\\n+        endog,\\n+        exog,\\n+        window=None,\\n+        *,\\n+        min_nobs=None,\\n+        missing=\\\"drop\\\",\\n+        expanding=False\\n+    ):\"",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002736/solution.patch:197-231: \"         nans = np.isnan(self._y)\\n@@ -149,19 +192,25 @@ class RollingWLS(object):\\n         self._is_nan[:] = nans\\n         has_nan = np.cumsum(nans)\\n         w = self._window\\n-        has_nan[w - 1:] = has_nan[w - 1:] - has_nan[:-(w - 1)]\\n-        has_nan[:w - 1] = False\\n+        has_nan[w - 1 :] = has_nan[w - 1 :] - has_nan[: -(w - 1)]\\n+        if self._expanding:\\n+            has_nan[: self._min_nobs] = False\\n+        else:\\n+            has_nan[: w - 1] = False\\n \\n         return has_nan.astype(bool)\\n \\n     def _get_data(self, idx):\\n         window = self._window\\n-        # TODO: Make a helper function\\n-        y = self._y[idx - window:idx]\\n-        wy = self._wy[idx - window:idx]\\n-        wx = self._wx[idx - window:idx]\\n-        weights = self._weights[idx - window:idx]\\n-        missing = self._is_nan[idx - window:idx]\\n+        if idx >= window:\\n+            loc = slice(idx - window, idx)\\n+        else:\\n+            loc = slice(idx)\\n+        y = self._y[loc]\\n+        wy = self._wy[loc]\\n+        wx = self._wx[loc]\\n+        weights = self._weights[loc]\\n+        missing = self._is_nan[loc]\\n         not_missing = ~missing\\n         if np.any(missing):\\n             y = y[not_missing]\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:13: \"+    x = rs.standard_normal((nobs, nvar))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002736/tests/test.patch:150: \"+python -m pytest statsmodels/regression/tests/test_rolling.py -q -k expanding\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:1: \"== full reward=1.0 rc=0 scored 3.0s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:6: \"== nop reward=0.0 rc=0 scored 3.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log:487: \"== confirm reward=1.0 rc=0 scored 4.2s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 487,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 4.2s",
+            "seconds": 4.2,
+            "sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63"
+          },
+          "label": "confirmed_weak",
+          "missing_evidence": null,
+          "reason": "The minimal patch starts fitting at min_nobs and grows the prefix, but drops the expanding-aware _find_nans branch. Its unchanged pre-window mask clears every missingness flag before window-1, so missing=\"skip\" no longer skips a pre-window prefix containing a missing observation. This directly violates the retained public missing-data contract while exercising the newly requested expanding phase, not an unrelated cleanup. For t=0..11, x=[1,t], y=t^2 with y[4]=NaN, window=8, min_nobs=3, expanding=True, missing=\"skip\", the full reference leaves _has_nan[4] true and skips fitting output index 4. The minimal source clears that flag, does not add the missing row to the sufficient statistics, and still calls _fit_single for the full-rank four-row prefix at index 4; that fit corresponds to coefficients [-1,3] rather than a skipped NaN row. This is source/mathematical reasoning, not a new control. The exact current confirm is scored reward 1 and all seven selected tests use complete data. Other omitted imports, quote/formatting changes, docs, lint configuration, repeated initialization removal and unused local removal do not supply this witness.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002736/minimal.patch",
+          "witness_sha256": "fc1a2ffb41e96b07469518c0c2d43ef410a65ebfe9a34ce2d874c4e68b2f8622"
+        },
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "06ffac4865da61e1accc1648f2105f15337cf36005796e8f6647d502ba2ff862",
+        "grades_log_sha256": "b83c5ded41c640ed99d175e1cc85ff29ed934de256882f0f50c3167e41c00c63",
+        "kept_fraction": 0.669,
+        "minimal_patch_sha256": "fc1a2ffb41e96b07469518c0c2d43ef410a65ebfe9a34ce2d874c4e68b2f8622",
+        "mutant_stage": {
+          "killed": 8,
+          "reason": "",
+          "status": "measured",
+          "survivors": 12,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:b38fc67afbdebdc0b533dd9632883ce94a5ee1b78535f3bf5cf82088ad5eb7cb",
+        "reference_sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+        "report_sha256": "901083b7ec8a43e5142abb291a9d2ca78f1024d855c3ed8141f6d64ab5b150f1",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "6d417628a4",
+            "line": 168,
+            "review": "required_gap"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "f3a7e7db13",
+            "line": 607,
+            "review": "non_positive"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "12444bd35c",
+            "line": 637,
+            "review": "non_positive"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "484bfaaef9",
+            "line": 170,
+            "review": "required_gap"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "c2d1d4606d",
+            "line": 353,
+            "review": "required_gap"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "03b9180bae",
+            "line": 376,
+            "review": "non_positive"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "2672042fa3",
+            "line": 199,
+            "review": "required_gap"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "9a405a6218",
+            "line": 824,
+            "review": "non_positive"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "906b92cb22",
+            "line": 231,
+            "review": "equivalent_or_optional"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "ea26e601b9",
+            "line": 493,
+            "review": "non_positive"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "00a60d07e5",
+            "line": 149,
+            "review": "uncertain"
+          },
+          {
+            "file": "statsmodels/regression/rolling.py",
+            "id": "b4145440ce",
+            "line": 416,
+            "review": "required_gap"
+          }
+        ],
+        "task_id": "format-code-task-002736",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
+        "block_review": {
           "counterexample": null,
           "dropped_behavior": "Using captured now instead of a fresh time() as the pruning fallback for cache entries that have no expires key.",
           "evidence_refs": [
@@ -6701,6 +7615,109 @@
         "task_id": "format-code-task-002758",
         "usable_controls": true,
         "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 9,
+          "reason": "",
+          "status": "measured",
+          "survivors": 11,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:5fb6a006a9378dae37f70b66b76aa22ae2d535b3603a9cbffe7f78de0b35f50f",
+        "reference_sha256": "ba6d5a14ba71c19ad9bf7bd4d239f0cac555a96744c5686f3767b3c245972c60",
+        "report_sha256": "5727d9cd40777b4b8604adc65bd76fc990f224487427b93459f1b71bd1fb6018",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "pylingual/decompiler.py",
+            "id": "c1dee1dff7",
+            "line": 443,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "c16b2eb485",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "8a67ff570a",
+            "line": 98,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "6971856e9a",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/decompiler.py",
+            "id": "a9537af276",
+            "line": 103,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "7b01b1d3a3",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "227aacf821",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "95fa015fa1",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "6de2fe0ecb",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "d9bf37b48f",
+            "line": 101,
+            "review": "unreviewed"
+          },
+          {
+            "file": "pylingual/main.py",
+            "id": "55e2ea84fb",
+            "line": 101,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-002790",
+        "usable_controls": true,
+        "verdict": "pass"
       },
       {
         "block_review": {
@@ -7042,30 +8059,175 @@
         "task_id": "format-code-task-002939",
         "usable_controls": true,
         "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "2795f81d53711c6077e727de162b7ab57867159d0b1a64978472d0d6fa19a9d3",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 3,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 3,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:0106712c7be87474daa0704c018669ac0c24402e6d6dd5b2cc64fd112973c0ef",
+        "reference_sha256": "00faffea0149d77038f5e5ebcc5e77413caf24f61821510197a5d338f3d04376",
+        "report_sha256": "3dceb8eac12a7c25af74a131bfdce29068ae36d1e19b0d639d04531372b4b5bc",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-002994",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "8d1d1005e9e0ba5a2dadb673f9a7647a2706ef90399eb70de22ec06de5be8417",
+        "grades_log_sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c",
+        "kept_fraction": 0.338,
+        "minimal_patch_sha256": "25d5fdde2124f5e7b3240cbc8ae28fb25cb0be7dbe553fef546bbc236a3a8d5d",
+        "mutant_stage": {
+          "killed": 8,
+          "reason": "",
+          "status": "measured",
+          "survivors": 12,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:4239e5f983fe80d8bb9eb1cc74394764e4e28718bbf0ec6e5e20b04fb2664f6e",
+        "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+        "report_sha256": "7f1a008e48162620dc122c652626e8bb5bcf0881a0b8dad791f2c81139a53b62",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "ccbe0effe1",
+            "line": 36,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/agent_tools.py",
+            "id": "90acae6f84",
+            "line": 62,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "07c4f97ea9",
+            "line": 50,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "25d6b0a6f6",
+            "line": 140,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "ba0c0d08c4",
+            "line": 38,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "1f3c10a125",
+            "line": 88,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "2c55753808",
+            "line": 27,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "72923f06f2",
+            "line": 51,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "3b33a5ce81",
+            "line": 127,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "b13d35c6ea",
+            "line": 28,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/_verify_modern.py",
+            "id": "28d0f5d1c1",
+            "line": 96,
+            "review": "unreviewed"
+          },
+          {
+            "file": "api/module_rag/agent_tools.py",
+            "id": "370b8768b6",
+            "line": 34,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-003023",
+        "usable_controls": true,
+        "verdict": "fail"
       }
     ],
-    "usable_control_pairs": 79
+    "usable_control_pairs": 94
   },
   "schema": "har209.weak_test_coverage/v1",
   "scientific_exclusions": {
     "by_claim_status": {
-      "confirmed": 188,
+      "confirmed": 189,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 188,
+      "confirmed_defect": 189,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "confirmed_wrong_patch_package_pairs_checked": 130,
+    "confirmed_wrong_patch_package_pairs_checked": 131,
     "confirmed_wrong_patch_package_pairs_missing": [],
-    "exact_package_pairs": 214,
-    "fresh_review_supported_packages": 20,
-    "fresh_review_supported_witnesses": 48,
+    "exact_package_pairs": 215,
+    "fresh_review_supported_packages": 23,
+    "fresh_review_supported_witnesses": 58,
     "limits": "Exact package exclusions and conservative holds are separate from execution grades. Unlisted repaired children receive no inherited certification; historical manifests and completed experiment plans are unchanged.",
     "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
-    "sha256": "fbf54f16f4a7943bb0d4ffce6f6e07f1902162cc2791befbd0afed344384c1d8",
+    "sha256": "b5bb7e6b64b698b277299d0761f63bc6a042e5c71a6c86c2146e5cab49078c67",
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

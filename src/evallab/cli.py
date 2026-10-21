@@ -7484,6 +7484,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.qa.cli import build_qa_parser
 
     build_qa_parser(commands)
+    from evallab.hackbook.cli import build_hackbook_parser
+
+    build_hackbook_parser(commands)
     from evallab.docker_lock import build_docker_lock_parser
 
     build_docker_lock_parser(commands)

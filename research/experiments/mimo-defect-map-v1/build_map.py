@@ -1716,7 +1716,10 @@ def runtime_correction_details(
         if task_id(row["task_id"]) == task and row["case"] == "nop"
     ]
     require(len(parent_nop) == 1, "the 002486 parent nop observation is not unique")
-    observed, scope = parent_nop[0]["observation"], parent_nop[0]["semantic_scope"]["classification"]
+    observed, scope = (
+        parent_nop[0]["observation"],
+        parent_nop[0]["semantic_scope"]["classification"],
+    )
     require(
         task_id(lineage_record["task_name"]) == task
         and lineage_record["transform"] == transform
@@ -1753,7 +1756,9 @@ def runtime_correction_details(
                 "execution_id": observed["execution_id"],
                 "rewards": observed["rewards"],
                 "source_classification": scope["observed_disposition"],
-                "missing_requested_api_is_task_work": scope["missing_build_install_plan_is_task_work"],
+                "missing_requested_api_is_task_work": scope[
+                    "missing_build_install_plan_is_task_work"
+                ],
                 "assertion_suite_executed": scope["assertions_executed_now"],
             },
         }
@@ -1912,7 +1917,9 @@ def reconcile_v7_repairs(
                     "status": "strict_reference_nop_pair_source_scoped",
                     "scope": row["repair_scope"],
                     "strict_assertion_scope_admission": detail["strict_assertion_scope_admission"],
-                    "reference_nop_repeat3_pair_proved": detail["reference_nop_repeat3_pair_proved"],
+                    "reference_nop_repeat3_pair_proved": detail[
+                        "reference_nop_repeat3_pair_proved"
+                    ],
                     "semantic_certification": False,
                     "training_admission": False,
                     "dispatch_authorized": False,
@@ -1998,7 +2005,9 @@ def reconcile_v7_repairs(
             if "known_weak_ancestry" in row
         ),
     }
-    require(summary["selected_packages_without_repair_row"] == 0, "v7 repair coverage is incomplete")
+    require(
+        summary["selected_packages_without_repair_row"] == 0, "v7 repair coverage is incomplete"
+    )
     return merged, summary
 
 
@@ -2021,7 +2030,9 @@ def classify_repairs(
     result = []
     for row in repairs:
         controls_only = row.get("evidence_kind") == CONTROLS_ONLY
-        candidates = [] if controls_only else linked.get((row["task_id"], row["child_package_digest"]), [])
+        candidates = (
+            [] if controls_only else linked.get((row["task_id"], row["child_package_digest"]), [])
+        )
         matched = [finding for finding in candidates if finding["evidence_status"] in supported]
         unsupported = sorted(
             finding["finding_id"] for finding in candidates if finding not in matched
@@ -2092,10 +2103,18 @@ def batch2_coverage(
         "inherited_recorded_wrong_case_count_total": sum(count or 0 for count in counts),
         "inherited_count_interpretation": "Counts from the inherited retained-controls scope; program identities are not exported by the pinned handoff, so they are neither findings nor recall inputs.",
         "heldout_task_ids": sorted(
-            row["task_id"] for row in rows if row["source_catalog"]["heldout_excluded_from_training"]
+            row["task_id"]
+            for row in rows
+            if row["source_catalog"]["heldout_excluded_from_training"]
         ),
         "same_task_other_package_repair_rows": sum(
-            len({other["child_package_digest"] for other in repairs if other["task_id"] == row["task_id"]})
+            len(
+                {
+                    other["child_package_digest"]
+                    for other in repairs
+                    if other["task_id"] == row["task_id"]
+                }
+            )
             > 1
             for row in rows
         ),
@@ -2529,6 +2548,63 @@ def pools(
     }
 
 
+def scan_predictions(
+    index: dict[str, Any], tasks: list[dict[str, Any]], classes: dict[str, dict[str, str]]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Bind a completed private hackbook-match scan index to roster predictions.
+
+    Only task-side entry classes become predictions; raw stdout (which contains
+    private source excerpts) is never copied into published outputs.
+    """
+    require(index.get("complete") is True, "scan index is not complete")
+    require(not index.get("errors"), "scan index reports errors")
+    id_to_key = {row["id"]: row["key"] for row in classes.values()}
+    by_record: dict[str, dict[str, Any]] = {}
+    for result in index["results"]:
+        require(result.get("exit_code") == 0, "scan result did not exit cleanly")
+        keys = sorted(
+            {
+                id_to_key[match["taxonomy_class_id"]]
+                for match in result["matches"]
+                if match.get("side") == "task"
+            }
+        )
+        by_record[result["record_id"]] = {
+            "task_id": result["task_id"],
+            "package_digest": result["package_digest"],
+            "harbor_digest": result["harbor_digest"],
+            "verifier_digest": result["verifier_digest"],
+            "status": "measured",
+            "class_keys": keys,
+            "raw_output": None,
+            "invocation": "evallab hackbook match <task-locator> --kind task --top 51 --json",
+        }
+    require(
+        set(by_record) == {row["record_id"] for row in tasks},
+        "scan index does not cover exactly the frozen roster",
+    )
+    predictions = []
+    for row in tasks:
+        prediction = by_record[row["record_id"]]
+        require(
+            prediction["task_id"] == row["task_id"]
+            and prediction["package_digest"] == row["package_digest"],
+            "scan identity disagrees with roster package",
+        )
+        predictions.append({"record_id": row["record_id"], **prediction})
+    matcher = {
+        "status": "measured_hackbook_v0",
+        "reason": "Real evallab hackbook match v0 run over all 567 frozen packages (private raw custody; only entry_id/class/side/score retained in the scan index). TS04/TS05 fire on every task, so they do not discriminate on this cohort; retrospective recall is source-overlapping (catalog seeded from atlas114), not heldout generalization.",
+        "revision": (index.get("git") or {}).get("head"),
+        "catalog": index.get("catalog"),
+        "options": {"kind": "task", "top": 51},
+        "raw_output": None,
+        "known_labels_supplied_to_matcher": False,
+        "scan_index_schema": index.get("schema"),
+    }
+    return predictions, matcher
+
+
 def render_report(manifest: dict[str, Any]) -> str:
     counts, matcher = manifest["counts"], manifest["matcher"]
     metric = manifest["recall"]["source_supported"]
@@ -2539,7 +2615,7 @@ def render_report(manifest: dict[str, Any]) -> str:
         "",
         f"**Matcher readiness: {matcher['status']}.** {matcher['reason']}",
         "",
-        "This is a metadata-only retrospective source map. It is not a completed matcher evaluation when the official consumer is unavailable.",
+        "This is a metadata-only retrospective source map. Matcher predictions are static surface screening, not semantic confirmation.",
         "",
         "## Inventory and custody",
         "",
@@ -2676,6 +2752,7 @@ def main() -> None:
     parser.add_argument("--results-root", type=Path)
     parser.add_argument("--package-root", type=Path)
     parser.add_argument("--output-dir", type=Path, default=HERE)
+    parser.add_argument("--scan-index", type=Path)
     args = parser.parse_args()
     if args.command == "report":
         manifest = json.loads((args.output_dir / "manifest.json").read_bytes())
@@ -2743,25 +2820,30 @@ def main() -> None:
         )
     )
     coverage["batch2_v7"] = batch2_coverage(repairs, reconciliation, documents["batch2"])
-    matcher = config["matcher"]
-    require(
-        matcher["status"] == "unavailable",
-        "official matcher integration must bind its actual published interface; no substitute matcher is allowed",
-    )
-    predictions = [
-        {
-            "record_id": row["record_id"],
-            "task_id": row["task_id"],
-            "package_digest": row["package_digest"],
-            "harbor_digest": row["harbor_digest"],
-            "verifier_digest": row["verifier_digest"],
-            "status": "matcher_unavailable",
-            "class_keys": None,
-            "raw_output": None,
-            "invocation": None,
-        }
-        for row in inv["tasks"]
-    ]
+    if args.scan_index is not None:
+        predictions, matcher = scan_predictions(
+            json.loads(args.scan_index.read_bytes()), inv["tasks"], classes
+        )
+    else:
+        matcher = config["matcher"]
+        require(
+            matcher["status"] == "unavailable",
+            "official matcher integration must bind its actual published interface; no substitute matcher is allowed",
+        )
+        predictions = [
+            {
+                "record_id": row["record_id"],
+                "task_id": row["task_id"],
+                "package_digest": row["package_digest"],
+                "harbor_digest": row["harbor_digest"],
+                "verifier_digest": row["verifier_digest"],
+                "status": "matcher_unavailable",
+                "class_keys": None,
+                "raw_output": None,
+                "invocation": None,
+            }
+            for row in inv["tasks"]
+        ]
     dispositions, metrics, candidates = comparison(
         findings,
         inv["tasks"],
@@ -2802,8 +2884,12 @@ def main() -> None:
     manifest = {
         "schema": "mimo.defect-map/v1",
         "dataset_id": "mimo-defect-map-v1",
-        "completion_state": "source_map_complete_matcher_blocked",
-        "release_complete": False,
+        "completion_state": (
+            "matcher_measured_complete"
+            if matcher["status"] == "measured_hackbook_v0"
+            else "source_map_complete_matcher_blocked"
+        ),
+        "release_complete": matcher["status"] == "measured_hackbook_v0",
         "producer": {
             "path": "research/experiments/mimo-defect-map-v1/build_map.py",
             "sha256": digest(Path(__file__).read_bytes()),

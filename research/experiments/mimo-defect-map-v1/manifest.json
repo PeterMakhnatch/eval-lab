@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "dispositions.json": {
-      "bytes": 128484,
-      "sha256": "sha256:f271b12ebcd055e0543d0606029a5ed0ba0f43efbd7af5520807f99fe92b78d2"
+      "bytes": 126318,
+      "sha256": "sha256:50a5b222049e47c4b59aa74387bce0d79e8398f214b941c07415d4245754a6ee"
     },
     "findings.json": {
       "bytes": 1172705,
@@ -13,27 +13,27 @@
       "sha256": "sha256:33d0a46b7069572d013e27932059c304c3174dac0669a436f6d8ddc7fd685065"
     },
     "new-predictions.json": {
-      "bytes": 23,
-      "sha256": "sha256:ad211a82dcba4781fae8ee4c73c0954b2b66a29db98c2f709c1bf01fc2ef98a0"
+      "bytes": 572918,
+      "sha256": "sha256:032e814b241474d9b594cb142c85c8fd9544c923a3e495cce76d509447ae49a6"
     },
     "predictions.json": {
-      "bytes": 333796,
-      "sha256": "sha256:b71de3ea907def09d50bf2fca78ef0d21be0f050eabb3bd153217b18b9ee899d"
+      "bytes": 424758,
+      "sha256": "sha256:a7f75988209844e3649eeb10b9b1e9854b74667bceb5708fe2df35aa5a24e889"
     },
     "repairs.json": {
       "bytes": 683022,
       "sha256": "sha256:2917f286cbe672f49a047bc917e8dd94cc42baf9c74a2375f3d496b626435606"
     }
   },
-  "completion_state": "source_map_complete_matcher_blocked",
+  "completion_state": "matcher_measured_complete",
   "counts": {
     "distinct_finding_task_ids": 138,
     "findings": 315,
     "inventory": {
       "verified_exact_package": 567
     },
-    "matcher_measured": 0,
-    "new_prediction_candidates": 0,
+    "matcher_measured": 567,
+    "new_prediction_candidates": 1881,
     "repair_rows": 57,
     "roster_tasks": 567
   },
@@ -57,28 +57,39 @@
     "source_unsupported_programs": 10
   },
   "matcher": {
-    "catalog": null,
+    "catalog": {
+      "by_side": {
+        "run": 9,
+        "task": 42
+      },
+      "entry_count": 51,
+      "top_used": 51
+    },
     "known_labels_supplied_to_matcher": false,
-    "options": null,
+    "options": {
+      "kind": "task",
+      "top": 51
+    },
     "raw_output": null,
-    "reason": "Official hackbook match v0 code/catalog is absent from the frozen base 4b6f766674c18ab91486d95a270f419df5a4ac10. No substitute matcher or invented CLI/output schema is used.",
-    "revision": null,
-    "status": "unavailable"
+    "reason": "Real evallab hackbook match v0 run over all 567 frozen packages (private raw custody; only entry_id/class/side/score retained in the scan index). TS04/TS05 fire on every task, so they do not discriminate on this cohort; retrospective recall is source-overlapping (catalog seeded from atlas114), not heldout generalization.",
+    "revision": "afc8adb79fe3b9c684e03f1a5667f73d55c44173",
+    "scan_index_schema": "mimo.hackbook-native-cli-index/v1",
+    "status": "measured_hackbook_v0"
   },
   "pools": {
     "bounded_screen_pool": {
-      "count": null,
+      "count": 0,
       "members": []
     },
     "certified_semantic_clean_count": 0,
     "control_qualified_subset": {
-      "count": null,
+      "count": 0,
       "definition": "Screen pool plus source-bound, scored reference-all1/nop-all0 controls on the exact package; case/assertion scope remains source-local.",
       "members": []
     },
     "definition": "Frozen-atlas567 exact-package screen pool: verified materialized bytes, successful complete real-matcher scan, no predicted class, no unresolved source-supported finding on those exact bytes.",
     "excluded_by_first_failed_condition": {
-      "not_fully_measured_by_real_matcher": 567
+      "one_or_more_predicted_classes": 567
     },
     "heldout_task_ids_excluded_from_training_all_versions": [
       "format-code-task-001248",
@@ -115,14 +126,14 @@
       "format-code-task-000371",
       "format-code-task-001686"
     ],
-    "measured_selections": 0,
+    "measured_selections": 567,
     "not_current_descendant_or_semantic_clean_certificate": true,
     "roster_selections": 567,
-    "scan_state": "unmeasured",
+    "scan_state": "complete",
     "training_authorized_by_this_release": false,
     "training_authorized_count": 0,
     "training_exclusion_filtered_subset": {
-      "count": null,
+      "count": 0,
       "definition": "Control-qualified screen members with none of the frozen33 heldout IDs; a necessary filter, not training approval or answer-exposure clearance.",
       "members": []
     },
@@ -130,30 +141,28 @@
   },
   "producer": {
     "path": "research/experiments/mimo-defect-map-v1/build_map.py",
-    "sha256": "sha256:f69060a3c65c04a7ca2385c93bcb9a251743aea837326f1db13460dc702d0db7"
+    "sha256": "sha256:929dd4e23ccdfa5ccbc82f2e65410317fa5724206b0fa410613fe396ddef2b18"
   },
   "raw_private_evidence_exported": false,
   "recall": {
     "by_category": {
       "atlas114": {
-        "class_label_recall": null,
+        "class_label_recall": 0.5175438596491229,
         "coverage_status": "mapped_source_supported_historical_witnesses",
-        "denominator_state": "none_evaluable",
-        "evaluable_exact_package_class_labels": 0,
-        "evaluable_findings": 0,
-        "evaluable_task_packages": 0,
-        "excluded_findings_by_reason": {
-          "matcher_unavailable": 242
-        },
-        "finding_recall": null,
+        "denominator_state": "evaluable",
+        "evaluable_exact_package_class_labels": 114,
+        "evaluable_findings": 242,
+        "evaluable_task_packages": 114,
+        "excluded_findings_by_reason": {},
+        "finding_recall": 0.49173553719008267,
         "known_exact_package_class_labels": 114,
         "known_findings": 242,
         "known_task_packages": 114,
-        "matched_exact_package_class_labels": 0,
-        "matched_findings": 0,
-        "matched_task_packages_any_known_class": 0,
-        "task_recall_any_known_class": null,
-        "unevaluable_findings": 242
+        "matched_exact_package_class_labels": 59,
+        "matched_findings": 119,
+        "matched_task_packages_any_known_class": 59,
+        "task_recall_any_known_class": 0.5175438596491229,
+        "unevaluable_findings": 0
       },
       "batch2_v7": {
         "class_label_recall": null,
@@ -395,47 +404,44 @@
       },
       "weak_check": {
         "all_mapped_findings": 297,
-        "class_label_recall": null,
-        "denominator_state": "none_evaluable",
-        "evaluable_exact_package_class_labels": 0,
-        "evaluable_findings": 0,
-        "evaluable_task_packages": 0,
+        "class_label_recall": 0.5267857142857143,
+        "denominator_state": "evaluable",
+        "evaluable_exact_package_class_labels": 112,
+        "evaluable_findings": 240,
+        "evaluable_task_packages": 112,
         "excluded_findings_by_reason": {
           "historical_or_other_package_not_scanned": 49,
-          "matcher_unavailable": 240,
           "unjoinable_missing_package_identity": 7
         },
         "excluded_source_findings": 1,
-        "finding_recall": null,
+        "finding_recall": 0.49583333333333335,
         "known_exact_package_class_labels": 147,
         "known_findings": 296,
         "known_task_packages": 147,
-        "matched_exact_package_class_labels": 0,
-        "matched_findings": 0,
-        "matched_task_packages_any_known_class": 0,
-        "task_recall_any_known_class": null,
-        "unevaluable_findings": 296
+        "matched_exact_package_class_labels": 59,
+        "matched_findings": 119,
+        "matched_task_packages_any_known_class": 59,
+        "task_recall_any_known_class": 0.5267857142857143,
+        "unevaluable_findings": 56
       },
       "wrong_answer_key": {
         "all_mapped_findings": 2,
-        "class_label_recall": null,
-        "denominator_state": "none_evaluable",
-        "evaluable_exact_package_class_labels": 0,
-        "evaluable_findings": 0,
-        "evaluable_task_packages": 0,
-        "excluded_findings_by_reason": {
-          "matcher_unavailable": 2
-        },
+        "class_label_recall": 0.0,
+        "denominator_state": "evaluable",
+        "evaluable_exact_package_class_labels": 2,
+        "evaluable_findings": 2,
+        "evaluable_task_packages": 2,
+        "excluded_findings_by_reason": {},
         "excluded_source_findings": 0,
-        "finding_recall": null,
+        "finding_recall": 0.0,
         "known_exact_package_class_labels": 2,
         "known_findings": 2,
         "known_task_packages": 2,
         "matched_exact_package_class_labels": 0,
         "matched_findings": 0,
         "matched_task_packages_any_known_class": 0,
-        "task_recall_any_known_class": null,
-        "unevaluable_findings": 2
+        "task_recall_any_known_class": 0.0,
+        "unevaluable_findings": 0
       }
     },
     "claims_excluded_from_recall": 3,
@@ -492,29 +498,28 @@
     "negative_denominator": 0,
     "precision": null,
     "source_supported": {
-      "class_label_recall": null,
-      "denominator_state": "none_evaluable",
-      "evaluable_exact_package_class_labels": 0,
-      "evaluable_findings": 0,
-      "evaluable_task_packages": 0,
+      "class_label_recall": 0.5175438596491229,
+      "denominator_state": "evaluable",
+      "evaluable_exact_package_class_labels": 114,
+      "evaluable_findings": 242,
+      "evaluable_task_packages": 114,
       "excluded_findings_by_reason": {
         "historical_or_other_package_not_scanned": 51,
-        "matcher_unavailable": 242,
         "unjoinable_missing_package_identity": 8
       },
-      "finding_recall": null,
+      "finding_recall": 0.49173553719008267,
       "known_exact_package_class_labels": 151,
       "known_findings": 301,
       "known_task_packages": 150,
-      "matched_exact_package_class_labels": 0,
-      "matched_findings": 0,
-      "matched_task_packages_any_known_class": 0,
-      "task_recall_any_known_class": null,
-      "unevaluable_findings": 301
+      "matched_exact_package_class_labels": 59,
+      "matched_findings": 119,
+      "matched_task_packages_any_known_class": 59,
+      "task_recall_any_known_class": 0.5175438596491229,
+      "unevaluable_findings": 59
     },
     "specificity": null
   },
-  "release_complete": false,
+  "release_complete": true,
   "schema": "mimo.defect-map/v1",
   "source_artifacts": [
     {

@@ -1,15 +1,15 @@
 # mimo-defect-map-v1 — historical source map
 
-**Matcher readiness: unavailable.** Official hackbook match v0 code/catalog is absent from the frozen base 4b6f766674c18ab91486d95a270f419df5a4ac10. No substitute matcher or invented CLI/output schema is used.
+**Matcher readiness: measured_hackbook_v0.** Real evallab hackbook match v0 run over all 567 frozen packages (private raw custody; only entry_id/class/side/score retained in the scan index). TS04/TS05 fire on every task, so they do not discriminate on this cohort; retrospective recall is source-overlapping (catalog seeded from atlas114), not heldout generalization.
 
-This is a metadata-only retrospective source map. It is not a completed matcher evaluation when the official consumer is unavailable.
+This is a metadata-only retrospective source map. Matcher predictions are static surface screening, not semantic confirmation.
 
 ## Inventory and custody
 
 - Frozen roster: **567 task IDs**, exact historical atlas packages; all33 heldout IDs remain training-excluded across every version.
 - Package inventory: `{"verified_exact_package": 567}`.
 - Mapped source findings: **315**, **138 named task IDs**; findings/programs/executions are not collapsed to tasks.
-- Real-matcher measured task packages: **0 / 567**. Every other package has an explicit disposition in `predictions.json`.
+- Real-matcher measured task packages: **567 / 567**. Every other package has an explicit disposition in `predictions.json`.
 - `sources.json` freezes repository/revision/path/byte digest/access; `manifest.json` binds generated artifacts. No raw hidden tests, solutions or trajectories are exported.
 
 ## Required source cohorts
@@ -61,16 +61,16 @@ Independent review verdicts come from the pinned morning review's cited ranges o
 
 ## Retrospective recall
 
-Source-supported known findings: **301**; evaluable **0**; unevaluable **301**; matched **0**.
-Exact package/class labels: known **151**, evaluable **0**, matched **0**.
-Task-package denominator: known **150**, evaluable **0**; any-known-class matches **0**.
-Finding/class/task recall: `None` / `None` / `None`. Null means no evaluable denominator, **not zero measured recall**.
-Excluded findings: `{"historical_or_other_package_not_scanned": 51, "matcher_unavailable": 242, "unjoinable_missing_package_identity": 8}`.
+Source-supported known findings: **301**; evaluable **242**; unevaluable **59**; matched **119**.
+Exact package/class labels: known **151**, evaluable **114**, matched **59**.
+Task-package denominator: known **150**, evaluable **114**; any-known-class matches **59**.
+Finding/class/task recall: `0.49173553719008267` / `0.5175438596491229` / `0.5175438596491229`. Null means no evaluable denominator, **not zero measured recall**.
+Excluded findings: `{"historical_or_other_package_not_scanned": 51, "unjoinable_missing_package_identity": 8}`.
 Per-category denominators (including real zero-denominator rounds) and every unmatched/error/other-package/unjoinable finding are retained in `manifest.json` / `dispositions.json`.
 
 | Category | Known supported findings | Evaluable | State |
 | --- | ---: | ---: | --- |
-| `atlas114` | 242 | 0 | none_evaluable; coverage `mapped_source_supported_historical_witnesses` |
+| `atlas114` | 242 | 242 | evaluable; coverage `mapped_source_supported_historical_witnesses` |
 | `batch2_v7` | 0 | 0 | no_known_findings; coverage `controls_only_reconciled_no_wrong_program_findings` |
 | `initial_v7` | 34 | 0 | none_evaluable; coverage `pinned_initial_source_cases_and_control_scopes` |
 | `round2` | 7 | 0 | none_evaluable; coverage `retained_complete_round` |
@@ -86,21 +86,21 @@ Per-category denominators (including real zero-denominator rounds) and every unm
 | `answer_reachable` | 1 | 0 | 0 | 0 | null |
 | `env_mismatch_or_flaky` | 3 | 2 | 0 | 0 | null |
 | `unstated_requirement` | 1 | 1 | 0 | 0 | null |
-| `weak_check` | 297 | 296 | 0 | 0 | null |
-| `wrong_answer_key` | 2 | 2 | 0 | 0 | null |
+| `weak_check` | 297 | 296 | 240 | 119 | 0.49583333333333335 |
+| `wrong_answer_key` | 2 | 2 | 2 | 0 | 0.0 |
 
 Visible source exclusions (neither numerator nor denominator): `{"source_claim": 3, "source_optional_diagnostic": 1, "source_refuted_or_unverified": 10}`.
 Claims, mapped-inference labels and differential confirmation are separate fields. No precision or specificity is estimated: the certified-negative denominator is zero.
 
 ## New predictions and bounded pool
 
-Unconfirmed new task/class predictions: **0**, listed separately in `new-predictions.json`; absent known labels do not make predictions false positives or confirmed defects.
+Unconfirmed new task/class predictions: **1881**, listed separately in `new-predictions.json`; absent known labels do not make predictions false positives or confirmed defects.
 Frozen-atlas567 exact-package screen pool: verified materialized bytes, successful complete real-matcher scan, no predicted class, no unresolved source-supported finding on those exact bytes.
 
-- Scan state: **unmeasured** (0 of 567 selections measured); a null count means the screen was never run, not an empty clean pool.
-- Bounded screen pool: **not measured**.
-- Control-qualified subset: **not measured**.
-- Training-exclusion-filtered subset: **not measured**; newly training-authorized **0**.
+- Scan state: **complete** (567 of 567 selections measured); a null count means the screen was never run, not an empty clean pool.
+- Bounded screen pool: **0**.
+- Control-qualified subset: **0**.
+- Training-exclusion-filtered subset: **0**; newly training-authorized **0**.
 - Certified semantic-clean items: **0**. Static silence never proves semantic cleanliness.
 
 The pool concerns the frozen historical atlas selections, not the current repaired package fleet or a training admission. Selected-package controls and repaired lineage describe other exact packages; they would need their own exactly bound cohorts, and any supplemental scan of modern packages must be reported separately without changing this frozen roster. Historical labels do not transfer to repaired descendants; descendants and author/independent qualification remain separate in the repair history.

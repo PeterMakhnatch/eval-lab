@@ -72,9 +72,18 @@ def source_for(destination: Path, artifacts: list[str]) -> Path:
         elif original == PurePosixPath("/app"):
             matches.append(Path(source) / relative)
     matches = list(dict.fromkeys(matches))
-    if len(matches) != 1:
-        raise RuntimeError(f"no unambiguous native artifact binding for {destination}")
-    return matches[0]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        # Port submission dirs need not mirror the upstream artifact dir
+        # (e.g. upstream collects /results/gsea_stats.tsv while the port
+        # expects /workdir/output/gsea_stats.tsv). A unique basename match
+        # is an unambiguous binding; anything else stays an infrastructure
+        # error at runtime, never a synthetic grade.
+        by_name = [Path(source) for source in artifacts if PurePosixPath(source).name == destination.name]
+        if len(by_name) == 1:
+            return by_name[0]
+    raise RuntimeError(f"no unambiguous native artifact binding for {destination}")
 
 
 def records(metadata: dict, prefix: str = "") -> list[dict]:
@@ -165,6 +174,92 @@ if __name__ == "__main__":
 '''
 _TEST_SH = "#!/bin/bash\nset -euo pipefail\nexec /root/.venv/bin/python /tests/candidate-port-driver.py\n"
 _IMAGE_SUFFIX = "\n# Native fixed-port replay; no candidate bytes are baked into this image.\nCOPY candidate-port-driver.py candidate-port-config.json test.sh /tests/\nUSER root\nWORKDIR /root\n"
+
+
+_NOCAPS_STEP = "RUN printf 'tsflags=nocaps\\n' >> /etc/dnf/dnf.conf  # Modal builder cannot set file capabilities; see _image_dockerfile"
+
+
+def _image_dockerfile(text: str) -> str:
+    """Make a dnf-based port Containerfile buildable on Modal.
+
+    Modal's image builder cannot apply rpm file capabilities
+    (``cpio: cap_set_file failed - Operation not supported`` when
+    shadow-utils installs newgidmap/newuidmap), so the image never builds.
+    ``tsflags=nocaps`` tells dnf/rpm to skip setting file capabilities at
+    install time. That drops only the cap_setgid/cap_setuid metadata on
+    those two helpers (used solely by rootless user namespaces); every
+    package, file, scoring script and assertion is installed unchanged,
+    and the verifier runs as root and demotes with setuid syscalls
+    directly. Local Docker builds get the same image definition.
+    """
+    if "dnf " not in text:
+        return text
+    lines = []
+    for line in text.splitlines():
+        lines.append(line)
+        if line.lstrip().upper().startswith("FROM "):
+            lines.append(_NOCAPS_STEP)
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+
+
+def _gitkeep_only(source: Path, assets: list[dict[str, str]], relative: str) -> bool:
+    """True when a build-context dir would vanish from Modal's context sync.
+
+    Modal uploads drop dotfiles, so a directory containing only ``.gitkeep``
+    (the port's four data dirs and ``.karotte`` in source form) arrives as
+    "source path does not exist" and its COPY fails. Prepared assets can
+    fill such a dir for real; only still-empty ones need the rewrite.
+    """
+    if not source.is_dir():
+        return False
+    if any(not entry.name.startswith(".") for entry in source.rglob("*") if entry.is_file()):
+        return False
+    return not any(asset["destination"].startswith(relative.rstrip("/") + "/") for asset in assets)
+
+
+def _gitkeep_rewrites(text: str, port: Path, assets: list[dict[str, str]]) -> list[str]:
+    """COPY sources (relative dirs) rewritten to their ``.gitkeep`` file."""
+    rewritten = []
+    for line in text.splitlines():
+        parts = line.split()
+        if not parts or parts[0].upper() != "COPY" or "--from" in line:
+            continue
+        args = [part for part in parts[1:] if not part.startswith("--")]
+        if len(args) < 2:
+            continue
+        for source in args[:-1]:
+            relative = source.rstrip("/")
+            if _gitkeep_only(port / relative, assets, relative):
+                rewritten.append(relative)
+    return rewritten
+
+
+def _copy_gitkeep_form(text: str, port: Path, assets: list[dict[str, str]]) -> str:
+    """Replace COPYs of dotfile-only dirs with an mkdir of the destination.
+
+    Modal's context sync drops dotfiles entirely (even an explicit
+    ``COPY dir/.gitkeep`` arrives as "source path does not exist"), while
+    Docker would copy exactly one zero-byte placeholder. Creating the
+    destination directory instead reproduces the only grading-visible
+    effect (the directory exists, owned as the COPY declared); the
+    ``.gitkeep`` placeholder itself is a repo bookkeeping file, not task
+    data, and is absent in the Modal image.
+    """
+    rewritten = set(_gitkeep_rewrites(text, port, assets))
+    if not rewritten:
+        return text
+    out = []
+    for line in text.splitlines():
+        parts = line.split()
+        if parts and parts[0].upper() == "COPY" and "--from" not in line:
+            args = [part for part in parts[1:] if not part.startswith("--")]
+            flags = [part for part in parts[1:] if part.startswith("--")]
+            if len(args) == 2 and args[0].rstrip("/") in rewritten:
+                destination = args[1].rstrip("/")
+                chown = next((flag.split("=", 1)[1] for flag in flags if flag.startswith("--chown=")), None)
+                line = f"RUN mkdir -p {destination}" + (f" && chown {chown} {destination}" if chown else "")
+        out.append(line)
+    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
 def _sha(data: bytes) -> str:
@@ -421,7 +516,12 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
         raise GraderRefusal("original task, port directory and declared task identity must match")
     if config.get("steps"):
         raise GraderRefusal("multi-step original tasks need an explicit artifact/lifecycle adapter")
-    for directory in (upstream / "environment", upstream / "tests", port):
+    # A Compose file in the original *agent* environment is admitted: the
+    # native grader runs it only on Modal (DinD inside the declared-resource
+    # sandbox) and refuses it for local Docker. Compose files in the original
+    # tests or in the port context itself stay refused: they would change
+    # how the separate verifier environment itself is detected/launched.
+    for directory in (upstream / "tests", port):
         if any((directory / name).exists() for name in _COMPOSE_NAMES):
             raise GraderRefusal("Compose/service task shapes are not supported by the strict native candidate runner")
     for required in ("Containerfile", "setup_data.py", "pyproject.toml", "uv.lock", ".manifest.json"):
@@ -442,8 +542,12 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
     artifacts = config.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts or not all(isinstance(value, str) and PurePosixPath(value).is_absolute() and ".." not in PurePosixPath(value).parts for value in artifacts):
         raise GraderRefusal("original task must declare absolute file/directory artifact sources")
-    if not all(value == "/app" or value.startswith("/app/") or value.startswith("/workdir/") for value in artifacts):
-        raise GraderRefusal("native artifact paths outside /app and /workdir need an explicit port binding")
+    # Artifacts under /app or /workdir bind by path; any other absolute
+    # artifact dir (e.g. /results) binds at runtime only by unique basename
+    # against the port's submission paths, and ambiguous basenames refuse.
+    _basenames = [PurePosixPath(value).name for value in artifacts]
+    if len(set(_basenames)) != len(_basenames):
+        raise GraderRefusal("native artifact basenames are ambiguous; an explicit port binding is required")
     recipe = _SetupRecipe(ast.parse((port / "setup_data.py").read_text()), task_id)
     seen: dict[str, str] = {}
     for asset in recipe.assets:
@@ -459,7 +563,8 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
     source_pin = _source_pin(upstream)
     grader_digest = _sha(_json({"port_tree": port_digest, "assets": sorted(recipe.assets, key=lambda asset: (asset["destination"], asset["source"]))}).encode())
     runtime = {"task_id": task_id, "required_hardware": interface["required_hardware"], "artifacts": artifacts, "grader_digest": grader_digest}
-    generated_dockerfile = (port / "Containerfile").read_text() + _IMAGE_SUFFIX
+    containerfile_text = (port / "Containerfile").read_text()
+    generated_dockerfile = _copy_gitkeep_form(_image_dockerfile(containerfile_text), port, recipe.assets) + _IMAGE_SUFFIX
     logical_image = _sha(_json({"grader_digest": grader_digest, "driver": _sha(_DRIVER.encode()), "config": runtime, "test_sh": _TEST_SH, "dockerfile": generated_dockerfile}).encode())
     result = {
         "schema": "evallab.candidate_port/v1", "task_dir": str(upstream), "upstream_task": str(upstream), "port_task": str(port), "task_id": task_id,
@@ -529,7 +634,8 @@ def prepare_port_task(upstream_task: Path | str, port_task: Path | str, output_d
             target = tests / asset["destination"]
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(upstream / asset["source"], target)
-        (tests / "Dockerfile").write_text((port / "Containerfile").read_text() + _IMAGE_SUFFIX)
+        containerfile_text = (port / "Containerfile").read_text()
+        (tests / "Dockerfile").write_text(_copy_gitkeep_form(_image_dockerfile(containerfile_text), port, assets) + _IMAGE_SUFFIX)
         (tests / "candidate-port-driver.py").write_text(_DRIVER)
         (tests / "candidate-port-config.json").write_text(_json(runtime) + "\n")
         (tests / "test.sh").write_text(_TEST_SH)

@@ -42,7 +42,7 @@ DEV_TASKS = ('cargo-flight-dispatch', 'html-js-filter', 'protein-autointerp-disu
 MAX_TOOLS = 60
 MAX_SECONDS = 900
 MAX_OUTPUT = 8000
-VERSION = 'json-v3'
+VERSION = 'json-v4'
 
 
 def action_schema(tools: tuple[str, ...]) -> dict:
@@ -142,6 +142,14 @@ REPAIR_PROMPT = (
     'Reply with exactly ONE JSON object and nothing else: either '
     '{{"requests":[{{"tool":"<tool>","args":{{...}}}}]}} (1-8 requests) or '
     '{{"final":<the required final object>}}. Do not wrap it in code fences or prose.'
+)
+
+
+FORCED_FINAL = (
+    'Your tool budget is now exhausted; no further tool results will be provided. '
+    'Reply with exactly ONE JSON object and nothing else: {"final": <the required '
+    'per-task JSON object>} using only what you have already seen. If the evidence '
+    'is insufficient, use task_verdict "cannot_tell" with an empty findings list.'
 )
 
 
@@ -389,9 +397,11 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
                 break
             requests = action
             observations = []
+            exhausted = False
             for request in requests:
                 if calls >= MAX_TOOLS:
-                    raise ValueError('60-tool budget exhausted without final')
+                    exhausted = True
+                    break
                 calls += 1
                 try:
                     if request['tool'] not in {'read', 'grep'}:
@@ -401,6 +411,18 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
                     observation = {'ok': False, 'error': str(exc)}
                 observations.append(observation)
             messages.append({'role': 'user', 'content': _json({'observations': observations, 'remaining_tools': MAX_TOOLS - calls})})
+            if exhausted:
+                messages.append({'role': 'user', 'content': FORCED_FINAL})
+                result = complete(out, model, transport, messages,
+                                  f"plain/{model['slug']}/{split}/{aid}/forced-final")
+                messages.append({'role': 'assistant', 'content': result.content})
+                kind, action = parse_action(extract_json(result.content))
+                if kind != 'final':
+                    raise ValueError('forced final did not produce a final object')
+                final = validate_final(action, aid)
+                _write_json(dest / 'final.json', final)
+                status = 'complete' if final['task_verdict'] != 'cannot_tell' else 'abstained'
+                break
     except Exception as exc:
         error = {'type': type(exc).__name__, 'message': str(exc) if not isinstance(exc, OSError) else 'provider or filesystem I/O failed'}
     record = {'schema': 'cm1.plain.task/v1', 'task': task, 'aid': aid, 'split': split,

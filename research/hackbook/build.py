@@ -153,6 +153,24 @@ def _load_tb4_dev_finding_ids() -> list[str]:
     return sorted(ids)
 
 
+MIMO_WEAK_TEST_KEYS = ("mimo-weak-tests-v1", "mimo-weak-tests-v2", "mimo-weak-tests-v2.1")
+
+
+def _mimo_weak_test_split_tasks() -> set[str]:
+    """Task names in the ``test`` split of any MiMo weak-test key (never written to the catalog)."""
+    tasks: set[str] = set()
+    for key in MIMO_WEAK_TEST_KEYS:
+        items_path = REPO_ROOT / "research/answer-keys" / key / "items.jsonl"
+        if not items_path.is_file():
+            continue
+        for line in items_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                if row.get("split") == "test":
+                    tasks.add(str(row["subject"]["task_id"]).rsplit("/", 1)[-1])
+    return tasks
+
+
 def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if len(entries) < 49:
@@ -262,6 +280,13 @@ def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> 
             )
             if leaks:
                 errors.append(f"{path.relative_to(REPO_ROOT)}: tb4 test-split leak: {leaks}")
+
+    mimo_test_tasks = _mimo_weak_test_split_tasks()
+    for entry in entries:
+        for ex in entry.examples:
+            key, _, task = ex.item_or_task_id.partition(":")
+            if key in MIMO_WEAK_TEST_KEYS and task in mimo_test_tasks:
+                errors.append(f"{entry.id}: cites a test-split item of {key}: {ex.item_or_task_id}")
 
     return errors
 

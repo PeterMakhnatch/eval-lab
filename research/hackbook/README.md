@@ -275,3 +275,73 @@ What no trace rule can fix, by mechanism, on the same DEV traces:
 
 Also tried and dropped: mapping every structured `Edit` to `sed -i`, which fired the existing
 `tests/` edit rule on agents' own scratch tests (`+6` of 768 clean passes flagged).
+
+## Reference coverage (v0.6): which block of the reference fix does no test name?
+
+Library's pointer for TS01 (weak checks) was "regexes have hit their lift ceiling (~1.1); try
+reference-vs-test coverage". `untested_reference_subblock` (HB-TS01-009) was the only such signal and
+only compared function names under a `solution/` directory, so it fired on `0/475` MiMo packages
+(they ship none). It now splits a reference **diff** into change blocks (contiguous edited runs per
+file, the unit `evallab ref-subset` drops one at a time) and flags a block when **no test text names
+its file or any identifier it touches**. Imports-only, comment-only, doc and test-file blocks never
+count, and runner scripts (`tests/test.sh`: installers, `git reset`, the pytest line) are not test
+text. Feed it `evallab hackbook match <task> --reference PATCH`, or ship the diff as
+`solution/*.patch`; without a diff it keeps the old function-name check.
+
+Ground truth is the executed probe, not a label: `evallab ref-subset` on `475` MiMo tasks that have
+a reference diff (`453` measured, `403` with block ids that line up with the diff, `2,137` code
+blocks). A block is *droppable* when the greedy minimisation deleted it and the hidden tests still
+passed. TEST = tasks in a `test` split of `mimo-weak-tests-v2`/`v2.1` plus every third other task by
+SHA-256 of the task id (`160` tasks, `898` blocks); DEV = the rest (`243`, `1,239`). The rule was
+frozen on DEV and TEST scored once. `$0`; about 12 seconds for the 475 tasks.
+
+| | DEV | TEST |
+| --- | --- | --- |
+| flagged blocks / all blocks | 185 / 1,239 | 74 / 898 |
+| droppable among flagged (all blocks: 0.33 / 0.41) | 0.82, or **0.63** without one 99-block task | **0.55** |
+| droppable among the unflagged | 0.25 | 0.40 |
+| mean over the tasks that have a flag | 0.54 | 0.53 |
+| a flagged block vs the same task's unflagged blocks | 0.55 vs 0.24; higher in 26 tasks, lower in 3 | 0.57 vs 0.27; higher in 18, lower in 3 |
+| share of droppable blocks found | 0.37 (0.18 without that task) | 0.11 |
+
+One DEV task (`format-code-task-000163`) contributes `94` of the `185` DEV flags, all droppable, so
+the pooled DEV precision is inflated; read the task-level rows. **The result that replicates:**
+flagged blocks are about twice as droppable as the other blocks of their own task (sign test `18:3`
+on TEST). **What does not:** as a task screen it is no better than the regexes it was meant to beat.
+The signal fires on `121/475` tasks; precision for "some reference block is droppable" is `0.77`
+(base `0.53`, lift `1.45`) on DEV and `0.70` (base `0.63`, lift `1.12`) on TEST, and for the
+`medium`/`high` severity tasks (at most about half the reference needed) `1.76` on DEV and `0.79` on
+TEST. The regex `TS01` strong hits it replaces scored lift `0.89`/`1.15` on DEV and `1.03`/`0.94` on
+TEST for the same two questions. Picking the same number of DEV tasks by how many blocks their
+reference has gets `0.83` (the signal: `0.77`), and within a task "smaller block first" ranks
+droppable blocks better (AUC `0.64` DEV, `0.65` TEST) than the flag does (`0.55`, `0.54`). Inside
+size strata the flag still adds on DEV (`0.62` vs `0.31` for 1-2 line blocks, `0.62` vs `0.23` for
+3-6) but on TEST only for 1-2 line blocks (`0.62` vs `0.42`; `0.41` vs `0.51` for 3-6, 17 blocks).
+
+Use it as a lead that names *which block* to read, then run `evallab ref-subset` for the verdict;
+do not use it as a screen for weak-check tasks. Limits: needs the reference diff; an older test in
+an unchanged file can reach code without naming it; a droppable block can be a refactor the
+instruction never asks for; MiMo is mostly Python (`172` of `185` flags). Evidence:
+`eval-lab-results/2026-10-21/hackbook-pbself5/`.
+
+**What I did not do cleanly.** My first look at the executed labels used a hash split that did not
+yet exclude the `test` tasks of the two MiMo keys; the rule (file stem and block identifiers named
+by no test) was picked among six variants there and re-derived on the clean DEV split before the
+single TEST scoring. After that scoring I looked at TEST by sub-cohort and by size to explain the
+DEV/TEST gap; those are descriptive and no rule changed afterwards.
+
+### Which catalog examples cite items another lane scores as TEST?
+
+A name match (task id inside an example's id, summary or URL) against the `items.jsonl` of the
+answer key each source belongs to, `211` examples:
+
+| Source | Examples naming a `test`/`heldout` item | Status |
+| --- | --- | --- |
+| `preference_model_tb4` | `0` of `95` (all `dev`) | guarded since v0 |
+| `mimo_atlas` weak-test keys | `4` (all `executed`) | **fixed**: replaced by `dev`, `confirmed` items with executed witnesses (`002545`, `000611`, `000081` for HB-TS01-009, `000208` for HB-RS05-001); `build.py --check` now refuses any `mimo-weak-tests-v1/v2/v2.1` citation of a `test` item |
+| `mimo_atlas` v6-to-v7 repair of `format-code-task-000841` | `1` (`executed`) | kept: its task is in a weak-tests `test` split but the repair key has no `dev` split to swap in |
+| `tb2_to_tb21` | `3` of `13` (`executed`) | kept: `tb2-to-tb21-v1` and `tb21-weak-tests-v1` have only `test` items, so the HB-2 TB2-to-TB2.1 recall (`53.8%` to `96.2%`) is in-sample |
+| `envcheck` | `5` of `8` (`claimed`) | kept: they name tasks in the `heldout` split of `envcheck-tb4-39`, which the source list above calls `dev` |
+
+Hits are name matches, so an example that merely mentions a task is counted; `cheatbench` and
+`hacktrace` examples cite mechanisms, not items.

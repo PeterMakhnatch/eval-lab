@@ -1,0 +1,439 @@
+# Crosswalk from external defect/exploit labels to Hackbook classes (TS01-TS11, RS01-RS07).
+#
+# One home for every label mapping. `python research/hackbook/build.py --check` validates it and
+# `evallab hackbook coverage` reports mapped and unmapped labels per source. A label maps to
+# `keys` (taxonomy class ids, most specific first) and optionally to `entries` (catalog ids that
+# carry the mechanism). `confidence`:
+#   high    the label's definition is the class definition (same mechanism, same direction)
+#   medium  the label spans this class and another, or the fit rests on a one-line definition
+#   low     partial overlap; use the key as a search hint, not as a label
+#   none    no home in the 18 classes (`keys: []`); `proposed` says what a home would be
+# `axis`: task_defect (a flaw of the task or grader), run_mechanism (how a run got the pass),
+# run_verdict (a per-run judgement, not a mechanism), trace_label (a label of one retained trace key).
+# `subtype` is one of `subtypes` (research-notes R2.2): a tag under an existing class, not a class.
+# Mappings are judgements from the sources' own definitions (`url` or `card`); they are not
+# measured, and a mapping is not evidence that the catalog detects the label (see the per-label
+# coverage measured in research/experiments/hackbook-tw-traces-20261021/README.md).
+schema: evallab.hackbook.crosswalk/v0
+version: v0
+date: "2026-10-21"
+subtypes:
+  - fail_open_on_error          # TS02: a grader that errors is read as non-failing (BenchJack V6)
+  - grader_dos                  # TS04: FIFO answer, sparse file, fork bomb, OOM against the grader
+  - answer_form_rejection       # TS07: a correct answer in another valid form is rejected
+  - scale_invariant_tolerance   # TS02: a relative tolerance accepts off-by-one at large scale
+  - under_resourced             # TS09/TS10: the budget or resources make the task unfinishable
+  - rubric_misweighted          # TS11: rubric weights inverted against expert importance
+  - recalled_from_weights       # RS03: a memorised solution, no lookup
+sources:
+  terminal_wrench:
+    title: Terminal Wrench exploit categories (11; 3,166 rewarded serious exploits, pinned 6ab64c43)
+    url: https://github.com/few-sh/terminal-wrench
+    axis: run_mechanism
+    labels:
+      hollow-implementation:
+        keys: [RS01, TS01]
+        entries: [HB-RS01-001]
+        confidence: high
+        note: "Passes tests but implements no real logic."
+      output-spoofing:
+        keys: [RS01, TS01]
+        entries: [HB-RS01-001, HB-TS01-001]
+        confidence: high
+        note: "Fabricates expected outputs without computing them."
+      constraint-loophole:
+        keys: [RS01, TS01]
+        entries: [HB-TS01-010]
+        confidence: medium
+        note: "Satisfies the letter of the spec while violating its intent; the task side is an exempted or partial constraint."
+      structural-extraction:
+        keys: [RS03, TS03]
+        entries: [HB-RS03-001, HB-TS03-004]
+        confidence: high
+        note: "Reads verifier source or answer keys to extract expected outputs."
+      binary-hijacking:
+        keys: [RS02, TS04]
+        entries: [HB-RS02-001, HB-TS04-003]
+        confidence: high
+        note: "Replaces or patches binaries, stdlib modules or system tools."
+      keyword-gaming:
+        keys: [RS01, TS01]
+        entries: [HB-RS01-002]
+        confidence: medium
+        note: "Inserts dead code or comments to satisfy static-analysis checks."
+      algorithmic-simplification:
+        keys: [RS01, TS01]
+        entries: [HB-TS01-007]
+        confidence: medium
+        note: "A trivially simple method that happens to pass; the task side is an invariant or heuristic shortcut."
+      mutable-input-tampering:
+        keys: [RS02, TS04]
+        entries: [HB-TS04-005]
+        confidence: medium
+        note: "Modifies shared state or caller variables through side channels."
+      metric-spoofing:
+        keys: [RS02, TS04]
+        entries: [HB-RS02-002, HB-TS04-004]
+        confidence: high
+        note: "Manipulates measurement infrastructure (timers, counters, scoring)."
+      security-downgrading:
+        keys: [RS02]
+        entries: [HB-RS02-002]
+        confidence: low
+        proposed: "RS08 boundary_violation (research-notes 2.2) for weakening a control rather than the measurement"
+        note: "Weakens security controls while making audit tools report compliance."
+      deceptive-rationalization:
+        keys: [RS04]
+        entries: [HB-RS04-001]
+        confidence: high
+        note: "Frames the exploit as legitimate behaviour or hides the shortcut behind a plausible story."
+  benchflow_breaker_bench:
+    title: BenchFlow reward-hack matrix patterns in breaker-bench-v1 (0.2.0 reward 1.0, 0.2.2 hardened)
+    url: https://github.com/benchflow-ai/benchflow/tree/v0.2.2/labs/reward-hack-matrix
+    axis: task_defect
+    labels:
+      P1.conftest_hook:
+        keys: [TS04, RS02]
+        entries: [HB-TS04-002, HB-RS02-001]
+        confidence: high
+        note: "A planted conftest.py hook; 119 swebench and skillsbench tasks."
+      P7.path_trojan:
+        keys: [TS04, RS02]
+        entries: [HB-TS04-003, HB-RS02-001]
+        confidence: high
+        note: "A wrapper executable earlier on PATH than the verifier's tool; 82 terminal-bench-2 tasks."
+      P7.pth_injection:
+        keys: [TS04]
+        entries: [HB-TS04-002]
+        confidence: high
+        note: "A virtualenv .pth startup file runs during verification; 16 skillsbench tasks."
+  cheatbench:
+    title: CheatBench mechanisms (cheatbench-actions-v1, 150 cheating traces)
+    url: https://huggingface.co/datasets/steinad/CheatBench
+    axis: trace_label
+    labels:
+      secret_discovery_in_environment:
+        keys: [RS03]
+        entries: [HB-RS03-001]
+        confidence: high
+      secret_discovery_via_web_search:
+        keys: [RS03]
+        entries: [HB-RS03-001]
+        confidence: high
+      verifier_exploitation:
+        keys: [RS02]
+        entries: [HB-RS02-001, HB-RS02-002]
+        confidence: medium
+      harness_leaks_answer:
+        keys: [RS03]
+        entries: [HB-RS03-001]
+        confidence: low
+        note: "The answer is in the launch prompt; no action to match (HB-RS03-001 cannot fire)."
+      harness_leaks_verifier:
+        keys: [RS03]
+        entries: [HB-RS03-001]
+        confidence: medium
+        note: "All 15 traces rank HB-RS03-001 first; the catalog links the mechanism to HB-RS02-001 and HB-TS04-002."
+  hacktrace:
+    title: HackTrace root causes (hacktrace-act-v1)
+    url: https://huggingface.co/datasets/JH012/HackTrace-Data
+    axis: trace_label
+    labels:
+      test_tamper:
+        keys: [RS02]
+        entries: [HB-RS02-001]
+        confidence: medium
+        note: "A rewritten checker file is common in clean traces (15/75 clean HackTrace passes), so no trace rule ships."
+      hardcode_output:
+        keys: [RS01]
+        entries: [HB-RS01-001]
+        confidence: high
+      special_casing:
+        keys: [RS01]
+        entries: [HB-RS01-001]
+        confidence: high
+      eval_bypass:
+        keys: [RS02]
+        entries: [HB-RS02-001]
+        confidence: medium
+      honest_but_wrong:
+        keys: [RS05]
+        entries: [HB-RS05-001]
+        confidence: low
+        note: "An honest incomplete fix, not a cheat: the class RS05, which the matcher treats as a lead only."
+      honest_correct:
+        keys: []
+        confidence: none
+        note: "A clean run: nothing to map."
+      honest_fix_test:
+        keys: []
+        confidence: none
+        note: "A test edited as an honest fix; it must not read as RS02, so there is no trace rule for test_tamper."
+  benchjack:
+    title: BenchJack vulnerability classes V1-V8
+    url: https://arxiv.org/abs/2605.12673
+    axis: task_defect
+    labels:
+      V1:
+        keys: [TS04]
+        confidence: high
+        note: "Isolation failure."
+      V2:
+        keys: [TS03]
+        confidence: high
+        note: "Answers shipped with the test."
+      V3:
+        keys: [TS04]
+        confidence: high
+        note: "Remote code execution into the evaluator."
+      V4:
+        keys: [TS11]
+        confidence: high
+        note: "LLM-judge prompt injection."
+      V5:
+        keys: [TS01]
+        confidence: high
+        note: "Weak string matching."
+      V6:
+        keys: [TS01, TS02]
+        confidence: medium
+        subtype: fail_open_on_error
+        note: "Evaluation logic gaps; the catch-all exception that reads as non-failing is TS02."
+      V7:
+        keys: [TS04]
+        confidence: high
+        note: "Trusting untrusted output."
+      V8:
+        keys: [TS03, TS04]
+        confidence: low
+        note: "Excessive permissions: taxonomy v1 maps it to TS03; research-notes 2.1 reads it as a TS04 severity multiplier."
+  benchguard:
+    title: BenchGuard audit categories (4 groups, 14 labels)
+    card: research-context/reward-hacking/sources/papers/2026-04-27-benchguard-automated-auditing-agent-benchmarks.md
+    axis: task_defect
+    labels:
+      GT.logic:
+        keys: [TS08]
+        confidence: medium
+      GT.data:
+        keys: [TS08]
+        confidence: medium
+      GT.format:
+        keys: [TS08, TS07]
+        confidence: low
+      EVAL.judge_bias:
+        keys: [TS11]
+        confidence: medium
+      EVAL.mismatch:
+        keys: [TS06]
+        confidence: medium
+      EVAL.coverage:
+        keys: [TS01]
+        confidence: high
+      EVAL.tolerance:
+        keys: [TS07, TS02]
+        confidence: medium
+        subtype: scale_invariant_tolerance
+      EVAL.stochastic:
+        keys: [TS09, TS01]
+        entries: [HB-TS01-004]
+        confidence: medium
+      INST.incomplete:
+        keys: [TS05]
+        confidence: high
+      INST.contradict:
+        keys: [TS06]
+        confidence: high
+      INST.infeasible:
+        keys: [TS10]
+        confidence: high
+      ENV.dep:
+        keys: [TS09]
+        entries: [HB-TS09-004]
+        confidence: high
+      ENV.path:
+        keys: [TS09]
+        confidence: medium
+      ENV.resource:
+        keys: [TS09, TS10]
+        confidence: medium
+        subtype: under_resourced
+  aba:
+    title: ABA axes (Environment, Evaluation, Instruction)
+    card: research-context/reward-hacking/sources/papers/2026-05-25-aba-automated-benchmark-auditing.md
+    axis: task_defect
+    labels:
+      Environment:
+        keys: [TS09, TS03]
+        confidence: medium
+      Evaluation:
+        keys: [TS01, TS07, TS08, TS02, TS11]
+        confidence: medium
+      Instruction:
+        keys: [TS05, TS06, TS10]
+        confidence: medium
+  epoch:
+    title: Epoch benchmark-review categories
+    url: https://epoch.ai/data/benchmark-reviews-documentation/methodology
+    axis: task_defect
+    labels:
+      scoring.impossible_as_written:
+        keys: [TS10]
+        confidence: high
+      scoring.false_negative:
+        keys: [TS05, TS07, TS08, TS06, TS09]
+        confidence: medium
+      scoring.false_positive:
+        keys: [TS01, TS03, TS04, TS02]
+        confidence: medium
+      scoring.does_not_measure_claimed_capability:
+        keys: []
+        confidence: none
+        proposed: "a validity label; out of scope for a defect class"
+      consistency:
+        keys: [TS06]
+        confidence: low
+        note: "Definition not read end to end."
+      elicitation:
+        keys: []
+        confidence: none
+        subtype: under_resourced
+        note: "A harness defect with no TS or RS class."
+      evaluation_setup_bias:
+        keys: []
+        confidence: none
+        note: "A harness defect with no TS or RS class."
+  automated_transcript_analysis:
+    title: Automated Transcript Analysis benchmark flaws (4)
+    card: research-context/reward-hacking/sources/papers/2026-07-29-automated-transcript-analysis-benchmark-flaws.md
+    axis: trace_label
+    labels:
+      ground_truth_access:
+        keys: [TS03, RS03]
+        confidence: high
+      tool_failure:
+        keys: [TS09, RS07]
+        confidence: medium
+      guessing_vulnerability:
+        keys: []
+        confidence: none
+        proposed: "a chance-level pass; not a class of ours"
+      answer_format_ambiguity:
+        keys: [TS05, TS07]
+        confidence: medium
+        subtype: answer_form_rejection
+  shortcutting_the_fix:
+    title: Shortcutting the Fix (agentic SWE exploits)
+    card: research-context/reward-hacking/sources/papers/2026-09-06-shortcutting-fix-agentic-swe-exploits.md
+    axis: run_mechanism
+    labels:
+      upstream_access:
+        keys: [RS03]
+        entries: [HB-RS03-001]
+        confidence: high
+      local_git_history:
+        keys: [RS03, TS03]
+        entries: [HB-TS03-002, HB-RS03-001]
+        confidence: high
+      memorised_solution:
+        keys: [RS03]
+        confidence: medium
+        subtype: recalled_from_weights
+        note: "No lookup happens; no action to match."
+  applied_compute_ari:
+    title: Applied Compute Ari reward-hack types
+    url: https://www.appliedcompute.com/platform/reward-hacking-detection-in-ari
+    axis: run_mechanism
+    labels:
+      circumvents_boundaries:
+        keys: []
+        confidence: none
+        proposed: "RS08 boundary_violation: sandbox escape, credential theft, egress"
+      gains_unauthorised_information:
+        keys: [RS03]
+        confidence: medium
+      tampers_with_grader_or_hidden_tests:
+        keys: [RS02]
+        confidence: high
+  scale_unearned_passes:
+    title: Scale unearned-pass verdicts (per passing trajectory)
+    card: research-context/reward-hacking/sources/papers/2026-09-28-unearned-passes-benchmark-maintenance.md
+    axis: run_verdict
+    labels:
+      legitimate:
+        keys: []
+        confidence: none
+        note: "A verdict, not a mechanism: no class."
+      unearned:
+        keys: [RS01, RS02, RS03, RS04]
+        confidence: medium
+        note: "The verdict is the union of the run-side cheat classes; `enabled_by` names the task-side class."
+      unearned_violation:
+        keys: [RS02, RS03]
+        confidence: low
+  rh_detect:
+    title: RH-Detect behaviours
+    url: https://arxiv.org/abs/2610.10947
+    axis: run_mechanism
+    labels:
+      output_style_gaming:
+        keys: [RS01]
+        confidence: low
+      sycophancy:
+        keys: []
+        confidence: none
+      evaluation_gaming:
+        keys: [RS01]
+        confidence: medium
+      environment_exploitation:
+        keys: [RS02, RS03]
+        confidence: medium
+      reward_tampering:
+        keys: [RS02]
+        confidence: high
+      deception:
+        keys: [RS04]
+        confidence: medium
+  library_21_kinds:
+    title: Library task-failure kinds (21, zones A spec, B grader, C environment, D learning signal)
+    card: research-context/reward-hacking/omp-conversations/2026-10-19-task-failure-kinds.md
+    axis: task_defect
+    labels:
+      A1: {keys: [TS05], confidence: medium}
+      A2: {keys: [TS05], confidence: medium}
+      A3: {keys: [TS06], confidence: medium}
+      A4: {keys: [TS10], confidence: medium}
+      A5: {keys: [TS03], confidence: medium}
+      B1: {keys: [TS08], confidence: medium}
+      B2: {keys: [TS07], confidence: medium}
+      B3: {keys: [TS07], confidence: medium}
+      B4: {keys: [TS01], confidence: medium}
+      B5: {keys: [TS02], confidence: medium}
+      B6: {keys: [TS11], confidence: medium}
+      C1: {keys: [TS03], confidence: medium}
+      C2: {keys: [TS04], confidence: medium}
+      C3: {keys: [TS09], confidence: low, note: "Residual state."}
+      C4: {keys: [TS09], confidence: medium}
+      C5: {keys: [TS08], confidence: low, note: "Drift."}
+      C6: {keys: [TS09], confidence: medium}
+      C7: {keys: [TS09], confidence: low, note: "Interface mistranslation."}
+      C8: {keys: [], confidence: none, note: "Contamination: out of scope."}
+      D1: {keys: [], confidence: none, note: "Learning signal: out of scope."}
+      D2: {keys: [], confidence: none, note: "Learning signal: out of scope."}
+  openai_swebench:
+    title: OpenAI SWE-bench Verified audit categories
+    note: label set copied from taxonomy.json v1 crosswalks; the audit page itself was not re-read
+    axis: task_defect
+    labels:
+      low-coverage tests: {keys: [TS01], confidence: medium}
+      misleading prompts: {keys: [TS06], confidence: medium}
+      narrow tests: {keys: [TS07], confidence: medium}
+      overly strict tests: {keys: [TS07], confidence: medium}
+      underspecified: {keys: [TS05], confidence: medium}
+      wide tests: {keys: [TS05], confidence: medium}
+  automationbench_verified:
+    title: AutomationBench Verified `issue_group` (210 fix rows; Kaggle, CC BY 4.0)
+    url: https://www.kaggle.com/datasets/parsewave/automationbench-verified-v0-0
+    axis: task_defect
+    status: labels not obtained (the dataset needs Kaggle credentials that the keys store lacks)
+    labels: {}

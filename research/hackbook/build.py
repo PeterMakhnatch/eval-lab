@@ -25,10 +25,13 @@ from evallab.hackbook.models import (  # noqa: E402
     ENTRY_SCHEMA,
     STRUCTURAL_SIGNALS,
     HackbookEntry,
+    crosswalk_summary,
     find_tb4_test_leaks,
+    load_crosswalk,
     load_hackbook,
     load_taxonomy,
     tb4_test_split_terms,
+    validate_crosswalk,
     validate_no_tb4_test_leak,
 )
 
@@ -306,6 +309,11 @@ def build_schema() -> dict[str, Any]:
 def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dict[str, Any]:
     test_tasks, test_items = tb4_test_split_terms(REPO_ROOT)
     pm_crosswalk = taxonomy.get("crosswalks", {}).get("preference_model_tb4", {})
+    crosswalk = load_crosswalk(REPO_ROOT)
+    class_keys = {
+        row["id"]: row["key"] for side in ("task_side", "run_side") for row in taxonomy[side]
+    }
+    benchjack_labels = crosswalk["sources"]["benchjack"]["labels"]
     all_examples = [ex for entry in entries for ex in entry.examples]
     examples_by_source = _sorted_counts(ex.source for ex in all_examples)
     entries_by_source = {
@@ -338,7 +346,9 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
             "examples_count": examples_by_source.get("benchjack", 0),
             "executed_examples_count": executed_examples_by_source.get("benchjack", 0),
             "vulnerability_classes_covered": [f"V{i}" for i in range(1, 9)],
-            "class_crosswalk": taxonomy.get("crosswalks", {}).get("benchjack", {}),
+            "class_crosswalk": {
+                label: class_keys[row["keys"][0]] for label, row in benchjack_labels.items()
+            },
             "source_url": "https://arxiv.org/abs/2605.12673",
         },
         "cheatbench": {
@@ -531,6 +541,16 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
                 & {ex.item_or_task_id for e in entries for ex in e.examples}
             ),
         },
+        "crosswalk": {
+            "labels": crosswalk_summary(crosswalk)["labels"],
+            "mapped": crosswalk_summary(crosswalk)["mapped"],
+            "sources": len(crosswalk["sources"]),
+            "unmapped_by_source": {
+                row["source"]: row["unmapped"]
+                for row in crosswalk_summary(crosswalk)["sources"]
+                if row["unmapped"]
+            },
+        },
         "source_summaries": source_summaries,
     }
 
@@ -561,6 +581,7 @@ def main(argv: list[str] | None = None) -> int:
             path.write_text(content, encoding="utf-8")
 
     errors = validate_catalog(entries, taxonomy)
+    errors += validate_crosswalk(load_crosswalk(REPO_ROOT), taxonomy, entries)
     if args.check:
         for path, expected in expected_files.items():
             if not path.is_file():

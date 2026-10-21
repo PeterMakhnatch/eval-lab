@@ -1,4 +1,37 @@
 {
+  "crosswalk": {
+    "labels": 104,
+    "mapped": 92,
+    "sources": 16,
+    "unmapped_by_source": {
+      "applied_compute_ari": [
+        "circumvents_boundaries"
+      ],
+      "automated_transcript_analysis": [
+        "guessing_vulnerability"
+      ],
+      "epoch": [
+        "scoring.does_not_measure_claimed_capability",
+        "elicitation",
+        "evaluation_setup_bias"
+      ],
+      "hacktrace": [
+        "honest_correct",
+        "honest_fix_test"
+      ],
+      "library_21_kinds": [
+        "C8",
+        "D1",
+        "D2"
+      ],
+      "rh_detect": [
+        "sycophancy"
+      ],
+      "scale_unearned_passes": [
+        "legitimate"
+      ]
+    }
+  },
   "entries_by_class_id": {
     "RS01": 2,
     "RS02": 2,

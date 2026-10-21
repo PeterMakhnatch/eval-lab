@@ -210,6 +210,19 @@ def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             f"obs={row['observed_examples']:>2} claimed={row['claimed_examples']:>2})  "
             f"classes={','.join(row['classes'])}"
         )
+    crosswalk = cov["crosswalk"]
+    print(
+        f"\nExternal labels (research/hackbook/crosswalk.yaml): "
+        f"{crosswalk['mapped']}/{crosswalk['labels']} map to a class"
+    )
+    for row in crosswalk["sources"]:
+        unmapped = ", ".join(row["unmapped"]) or "-"
+        print(
+            f"  {row['source']:<30} {row['axis']:<14} labels={row['labels']:>2} "
+            f"mapped={row['mapped']:>2} (high={row['high']} medium={row['medium']} "
+            f"low={row['low']})  unmapped: {unmapped}"
+            + (f"  [{row['status']}]" if row["status"] else "")
+        )
     return 0
 
 

@@ -259,6 +259,96 @@ def load_taxonomy(root: Path | None = None) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+CROSSWALK_SCHEMA = "evallab.hackbook.crosswalk/v0"
+CROSSWALK_CONFIDENCE = ("high", "medium", "low", "none")
+CROSSWALK_AXES = ("task_defect", "run_mechanism", "run_verdict", "trace_label")
+
+
+def load_crosswalk(root: Path | None = None) -> dict[str, Any]:
+    """External label -> class mappings (``research/hackbook/crosswalk.yaml``)."""
+    import yaml
+
+    data = yaml.safe_load((hackbook_dir(root) / "crosswalk.yaml").read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema") != CROSSWALK_SCHEMA:
+        raise ValueError(f"crosswalk.yaml: expected a mapping with schema {CROSSWALK_SCHEMA}")
+    return data
+
+
+def validate_crosswalk(
+    crosswalk: dict[str, Any], taxonomy: dict[str, Any], entries: Sequence[HackbookEntry]
+) -> list[str]:
+    """Problems in a crosswalk: unknown classes, entries, subtypes or confidence levels."""
+    classes = {row["id"] for side in ("task_side", "run_side") for row in taxonomy.get(side, [])}
+    by_id = {entry.id: entry for entry in entries}
+    subtypes = set(crosswalk.get("subtypes") or [])
+    errors: list[str] = []
+    sources = crosswalk.get("sources")
+    if not isinstance(sources, dict) or not sources:
+        return ["crosswalk.yaml: no sources"]
+    for name, source in sources.items():
+        if not isinstance(source, dict) or not source.get("title"):
+            errors.append(f"{name}: needs a title")
+            continue
+        if not (source.get("url") or source.get("card") or source.get("note")):
+            errors.append(f"{name}: needs a url, a card or a note")
+        if source.get("axis") not in CROSSWALK_AXES:
+            errors.append(f"{name}: axis must be one of {CROSSWALK_AXES}")
+        labels = source.get("labels")
+        if not isinstance(labels, dict):
+            errors.append(f"{name}: labels must be a mapping")
+            continue
+        if not labels and not source.get("status"):
+            errors.append(f"{name}: no labels and no status saying why")
+        for label, row in labels.items():
+            where = f"{name}/{label}"
+            keys = row.get("keys") if isinstance(row, dict) else None
+            if not isinstance(keys, list):
+                errors.append(f"{where}: keys must be a list")
+                continue
+            if row.get("confidence") not in CROSSWALK_CONFIDENCE:
+                errors.append(f"{where}: confidence must be one of {CROSSWALK_CONFIDENCE}")
+            if (row.get("confidence") == "none") != (not keys):
+                errors.append(f"{where}: confidence is none exactly when keys is empty")
+            errors += [f"{where}: unknown class {key}" for key in keys if key not in classes]
+            if row.get("subtype") and row["subtype"] not in subtypes:
+                errors.append(f"{where}: unknown subtype {row['subtype']}")
+            for entry_id in row.get("entries") or []:
+                entry = by_id.get(entry_id)
+                if entry is None:
+                    errors.append(f"{where}: unknown entry {entry_id}")
+                elif entry.taxonomy_class_id not in keys:
+                    errors.append(f"{where}: {entry_id} is {entry.taxonomy_class_id}, not in keys")
+    return errors
+
+
+def crosswalk_summary(crosswalk: dict[str, Any]) -> dict[str, Any]:
+    """Per source: labels, how many map at each confidence, and the unmapped ones."""
+    by_source: list[dict[str, Any]] = []
+    per_class: Counter[str] = Counter()
+    for name, source in sorted(crosswalk["sources"].items()):
+        labels: dict[str, dict[str, Any]] = source.get("labels") or {}
+        levels = Counter(str(row["confidence"]) for row in labels.values())
+        for row in labels.values():
+            per_class.update(row["keys"])
+        by_source.append(
+            {
+                "source": name,
+                "axis": source["axis"],
+                "labels": len(labels),
+                "mapped": len(labels) - levels["none"],
+                **{level: levels[level] for level in CROSSWALK_CONFIDENCE},
+                "unmapped": [label for label, row in labels.items() if row["confidence"] == "none"],
+                "status": source.get("status", ""),
+            }
+        )
+    return {
+        "sources": by_source,
+        "labels": sum(row["labels"] for row in by_source),
+        "mapped": sum(row["mapped"] for row in by_source),
+        "labels_per_class": dict(sorted(per_class.items())),
+    }
+
+
 def _entries(entries: Sequence[HackbookEntry] | None, root: Path | None) -> list[HackbookEntry]:
     return list(entries) if entries is not None else load_hackbook(root)
 
@@ -591,4 +681,5 @@ def coverage_summary(
         "claimed_only_entry_ids": claimed_only_ids,
         "by_class": by_class,
         "by_source": by_source,
+        "crosswalk": crosswalk_summary(load_crosswalk(root)),
     }

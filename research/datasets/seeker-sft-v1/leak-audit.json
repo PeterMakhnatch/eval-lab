@@ -2,9 +2,9 @@
   "admitted_rows_with_embedded_payload_and_sha256": 432,
   "canary_hits_in_admitted": 0,
   "digests": {
-    "admitted_sft_jsonl_sha256": "sha256:9a2a96c3d34f7964a932e6350336a491f7fc1eacb892f71e272ce05e313b69a4",
-    "quarantined_jsonl_sha256": "sha256:781cb756205288d60fd93ce7d5a4a3a63de5055894f91225c40031c744b9884c",
-    "source_manifests_json_sha256": "sha256:ffdd37c197425e0ea03f84cd8f237a0a5fe4d5c22def7eb2c8b4293e87a573c1",
+    "admitted_sft_jsonl_sha256": "sha256:bf305ed0c4caabc3ecdb6f39ab7e4ce77916cd026ecfb9994f18767e6e857472",
+    "quarantined_jsonl_sha256": "sha256:48c82b892c63413d1a52730442902609fe733bff8bf877267d531375d1740f47",
+    "source_manifests_json_sha256": "sha256:25250ee546ea37a9f8a1efc7d03b93e518cdd6bc32a6d8f22a9e8bb56e904ae1",
     "summary_json_sha256": "sha256:fa1e859c5ef06753c7c2c3b1866c46a343ffa3261f4204ce74e5f96689b9a38e"
   },
   "literal_tb4_test_hits_across_all_files": 0,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import contextlib
 import hashlib
 import json
@@ -338,6 +339,41 @@ def test_agent_environment_compose_is_admitted_for_modal(packages: tuple[Path, P
     put(original / "environment/docker-compose.yaml", "services: {main: {}}\n")
     described = port.describe_port_task(original, fixed)
     assert described["task_id"] == "native-task"
+
+
+def test_pure_helper_expressions_and_flat_destination_maps() -> None:
+    recipe = port._SetupRecipe(ast.parse("""
+HUB_TASK = "native-task"
+HUB_REV = "4.0.0"
+SHA = "c" * 64
+SERVICES = {"api"}
+def destination(ctx, hub_path):
+    parts = hub_path.split("/")
+    if parts[:2] == ["environment", "packet"]:
+        return ctx.intermediate_data / "packet" / "/".join(parts[2:])
+    if parts[0] == "environment" and parts[1] in SERVICES:
+        return ctx.root_data / "services" / "/".join(parts[1:])
+    raise ValueError("none")
+def setup(ctx):
+    files = {path: (destination(ctx, path), sha) for path, sha in {"environment/packet/a.txt": SHA, "environment/api/b.txt": SHA}.items()}
+    ctx.fetch_hub(HUB_TASK, HUB_REV, files)
+"""), "native-task")
+    assert {(a["source"], a["destination"]) for a in recipe.assets} == {
+        ("environment/packet/a.txt", "intermediate_data/packet/a.txt"),
+        ("environment/api/b.txt", "root_data/services/api/b.txt"),
+    }
+    flat = port._SetupRecipe(ast.parse("""
+ROOT = Path(__file__).resolve().parent
+def destination(path):
+    if path.startswith("tests/"):
+        return ROOT / "root_data" / "tests" / path.removeprefix("tests/")
+    return ROOT / "root_data" / "upstream" / path
+FILES = {"tests/x.txt": "d" * 64, "environment/y.txt": "e" * 64}
+"""), "native-task")
+    assert {(a["source"], a["destination"]) for a in flat.assets} == {
+        ("tests/x.txt", "root_data/tests/x.txt"),
+        ("environment/y.txt", "root_data/upstream/environment/y.txt"),
+    }
 
 
 @pytest.mark.parametrize("mutation,reason", [

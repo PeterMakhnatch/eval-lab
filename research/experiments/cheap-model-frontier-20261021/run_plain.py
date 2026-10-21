@@ -359,7 +359,15 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
         for turn in range(MAX_TOOLS + 1):
             if time.monotonic() - started >= MAX_SECONDS:
                 raise TimeoutError(f'{MAX_SECONDS}-second task limit')
-            result = complete(out, model, transport, messages, f"plain/{model['slug']}/{split}/{aid}/{turn}")
+            try:
+                result = complete(out, model, transport, messages, f"plain/{model['slug']}/{split}/{aid}/{turn}")
+            except Exception as exc:
+                if repairs >= 1 or isinstance(exc, BudgetExhausted):
+                    raise
+                repairs += 1
+                messages.append({'role': 'user', 'content': REPAIR_PROMPT.format(error=f'{type(exc).__name__}: {exc}')})
+                result = complete(out, model, transport, messages,
+                                    f"plain/{model['slug']}/{split}/{aid}/{turn}/repair")
             messages.append({'role': 'assistant', 'content': result.content})
             try:
                 kind, action = parse_action(extract_json(result.content))

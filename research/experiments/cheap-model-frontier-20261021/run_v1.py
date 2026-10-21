@@ -70,8 +70,16 @@ def run_task(out, campaign, model, split, task, transport, module, Session):
         for turn in range(module.MAX_TOOL_CALLS + 1):
             if time.monotonic() >= session.deadline:
                 raise TimeoutError('900-second v1 session limit')
-            result = cm.complete(out, model, transport, messages, f"v1/{model['slug']}/{split}/{sid}/{turn}",
-                                 schema=SCHEMA)
+            try:
+                result = cm.complete(out, model, transport, messages, f"v1/{model['slug']}/{split}/{sid}/{turn}",
+                                     schema=SCHEMA)
+            except Exception as exc:
+                if repairs >= 1 or isinstance(exc, cm.BudgetExhausted):
+                    raise
+                repairs += 1
+                messages.append({'role': 'user', 'content': cm.REPAIR_PROMPT.format(error=f'{type(exc).__name__}: {exc}')})
+                result = cm.complete(out, model, transport, messages,
+                                     f"v1/{model['slug']}/{split}/{sid}/{turn}/repair", schema=SCHEMA)
             messages.append({'role': 'assistant', 'content': result.content})
             try:
                 kind, action = cm.parse_action(cm.extract_json(result.content))

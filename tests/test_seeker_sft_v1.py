@@ -255,3 +255,51 @@ def test_seeker_sft_pilot_uses_the_committed_corpus_and_reports_every_replay() -
         assert run["confirmed_1_0"] is (run["upstream_reward"] == 1.0 and run["port_reward"] == 0.0)
         if run["confirmed_1_0"]:
             assert run["claimed_exploit"] is True
+
+
+def test_seeker_training_data_excludes_tb4_audit_v1_test_tasks() -> None:
+    """pE-SELF-6: the authoritative split marks 41 TEST tasks; none may reach training data."""
+    keys = [
+        json.loads(line)
+        for line in (REPO_ROOT / "research/answer-keys/tb4-audit-v1/tasks.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    test_tasks = {row["task"].rsplit("/", 1)[-1] for row in keys if row.get("split") == "test"}
+    dev_tasks = {row["task"].rsplit("/", 1)[-1] for row in keys if row.get("split") == "dev"}
+    assert len(test_tasks) == 41
+    assert len(dev_tasks) == 25
+
+    for path in sorted(DATASET_DIR.glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            task = row.get("task_id") or row.get("task")
+            if isinstance(task, str) and task:
+                assert task.rsplit("/", 1)[-1] not in test_tasks, f"{path.name}: {task}"
+
+
+def test_seeker_sft_loss_target_ablation_reports_every_run() -> None:
+    """pE-SELF-6: both loss-target arms must carry a replay outcome, and confirmation stays measured."""
+    experiment = REPO_ROOT / "research/experiments/seeker-sft-loss-target-20261021"
+    results = json.loads((experiment / "loss-target-results-768.json").read_text(encoding="utf-8"))
+    assert results["max_new_tokens"] == 768
+    assert set(results["arms"]) == {"full", "assistant"}
+    for arm, payload in results["arms"].items():
+        assert len(payload["runs"]) == 6, arm
+
+    summary = json.loads((experiment / "replay-summary.json").read_text(encoding="utf-8"))
+    runs = summary["runs"]
+    assert len(runs) == 12
+    assert {run["arm"] for run in runs} == {"full", "assistant"}
+    assert all(run["upstream_status"] for run in runs)
+    for run in runs:
+        assert run["confirmed_1_0"] is (run["upstream_reward"] == 1.0 and run["port_reward"] == 0.0)
+
+    leak = json.loads((experiment / "leak-check.json").read_text(encoding="utf-8"))
+    assert leak["status"] == "pass"
+    assert leak["training_test_task_hits"] == []
+    assert leak["artifact_hits"] == []
+    assert set(leak["pilot_task_splits"].values()) == {"dev"}

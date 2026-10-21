@@ -1,0 +1,21 @@
+{
+  "canary_hits_in_admitted": 0,
+  "digests": {
+    "admitted_sft_jsonl_sha256": "sha256:7357777c60a18630be50b7544e014d62007af022bb67fae4f47271d54112ad10",
+    "quarantined_jsonl_sha256": "sha256:d8e9df79c8014677d7928a01f577f65fbd1e14e7a61ffe6ae77da2f49762864a",
+    "source_manifests_json_sha256": "sha256:ede093ee8fc000106b022c8a6e7f8482763a5378f6469f64ee864e9fc5a16704",
+    "summary_json_sha256": "sha256:5d1e0283ed6957eebd78b2da17e02dfa1cde7ca76c47787af2ed05efe364a244"
+  },
+  "literal_tb4_test_hits_across_all_files": 0,
+  "schema": "evallab.seeker_sft.leak_audit/v1",
+  "status": "pass",
+  "tb4_test_aliases_checked": [
+    "db-wal-recovery",
+    "layout-config-recreation2",
+    "recover-and-sanitize-postgres-wal-secret"
+  ],
+  "tb4_test_findings_checked": 152,
+  "tb4_test_task_hits_in_admitted": 0,
+  "tb4_test_tasks_checked": 41,
+  "tb4_test_trials_checked": 416
+}

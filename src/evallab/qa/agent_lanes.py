@@ -1021,6 +1021,171 @@ class OpenAIDriver:
         }
 
 
+# -- model attestation -----------------------------------------------------------------
+#
+# A run label is a claim. 574/574 + 610/610 reader messages labelled "Opus" were Codex
+# gpt-6.1-sol, and native per-spawn model overrides were silently ignored. Every record that
+# feeds a score or training row therefore carries the requested model next to the model the
+# transcript says actually answered, and a difference is a loud ``ModelMismatch``.
+
+ATTESTATION_SCHEMA = "qa.model_attestation/v1"
+#: ``matched``: every observed answer came from the requested model. ``mismatch``: at least
+#: one observed answer, a fallback or a requested-model change disagrees. ``unreported``:
+#: nothing observed (Codex exec does not report its served model) or no requested model.
+ATTESTATION_STATUSES = ("matched", "mismatch", "unreported")
+_THINKING_LEVELS = frozenset({"off", "minimal", "low", "medium", "high", "xhigh"})
+#: Event types whose assistant message is one real answer; other events only repeat it.
+_ANSWER_EVENTS = frozenset({"message_end", "message"})
+
+
+class ModelMismatch(DriverError):
+    """The model that answered is not the model that was requested, or is unknown."""
+
+
+def normalize_model(model: Any) -> str | None:
+    """Comparable model id: lower case, no ``:thinking`` selector, ``codex/`` = ``openai-codex/``."""
+    if not isinstance(model, str) or not model.strip():
+        return None
+    text = model.strip().lower()
+    head, sep, tail = text.rpartition(":")
+    if sep and tail in _THINKING_LEVELS:
+        text = head
+    if text.startswith("codex/"):
+        text = "openai-codex/" + text.removeprefix("codex/")
+    return text
+
+
+def model_observations(events: Any) -> list[dict[str, Any]]:
+    """Served models in OMP stream or saved-session events: ``{model, kind, fallback}``.
+
+    ``kind`` is ``answer`` for one assistant message, ``repeat`` for an event that restates
+    one, ``model_change`` for a session model switch.
+    """
+    found: list[dict[str, Any]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        kind = "answer" if event.get("type") in _ANSWER_EVENTS else "repeat"
+        if event.get("type") == "model_change":
+            found.append({
+                "model": event.get("model"), "kind": "model_change",
+                "fallback": event.get("resolvedModelIsFallback") is True,
+            })
+        candidates = [event.get("message"), *(event.get("messages") or [])]
+        for message in candidates:
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            provider, served = message.get("provider"), message.get("model")
+            if isinstance(provider, str) and isinstance(served, str):
+                found.append({"model": f"{provider}/{served}", "kind": kind, "fallback": False})
+    return found
+
+
+def attest_model(requested: Any, observed: Any) -> dict[str, Any]:
+    """Compare a requested model with observed ones; never raises, always a record."""
+    want = normalize_model(requested)
+    seen: dict[str, int] = {}
+    fallback = False
+    kinds: set[str] = set()
+    for item in observed:
+        entry = item if isinstance(item, dict) else {"model": item, "kind": "journal"}
+        got = normalize_model(entry.get("model"))
+        if got is None:
+            continue
+        kinds.add(str(entry.get("kind", "journal")))
+        fallback = fallback or entry.get("fallback") is True
+        if entry.get("kind") in ("answer", "journal", "model_change"):
+            seen[got] = seen.get(got, 0) + 1
+        else:
+            seen.setdefault(got, 0)
+    wrong = sorted(model for model in seen if model != want)
+    if want is None:
+        status, reason = "unreported", "no requested model recorded"
+    elif fallback:
+        status, reason = "mismatch", "OMP applied a fallback model"
+    elif wrong:
+        status, reason = "mismatch", f"observed {wrong}, requested {want!r}"
+    elif not seen:
+        status, reason = "unreported", "no served model observed"
+    else:
+        status, reason = "matched", "every observed answer came from the requested model"
+    return {
+        "schema": ATTESTATION_SCHEMA,
+        "status": status,
+        "requested": requested if isinstance(requested, str) else None,
+        "observed": sorted(seen),
+        "answers": dict(sorted(seen.items())),
+        "kinds": sorted(kinds),
+        "fallback": fallback,
+        "reason": reason,
+    }
+
+
+def require_attested(attestation: dict[str, Any], *, allow_unreported: bool = False) -> dict[str, Any]:
+    """Raise ``ModelMismatch`` unless the attestation matched (or is unreported and allowed)."""
+    status = attestation.get("status")
+    if status == "matched" or (allow_unreported and status == "unreported"):
+        return attestation
+    raise ModelMismatch(f"model attestation {status}: {attestation.get('reason')}")
+
+
+def read_jsonl(path: Path) -> list[Any]:
+    rows: list[Any] = []
+    with Path(path).open(encoding="utf-8") as stream:
+        for line in stream:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    return rows
+
+
+def attest_transcript(requested: Any, path: Path) -> dict[str, Any]:
+    """Attest one OMP stream or saved-session JSONL transcript against ``requested``."""
+    return attest_model(requested, model_observations(read_jsonl(path)))
+
+
+def attest_audit_session(agent_dir: Path) -> dict[str, Any]:
+    """Attest one retained ``qa env audit`` session directory (``session.json`` + journal).
+
+    Observed models come from the journal's per-turn ``actual_model``, ``session.json`` and any
+    retained OMP transcripts. A journal turn whose ``requested_model`` differs from the session
+    model counts as a mismatch: the requested model must not drift mid-session.
+    """
+    agent_dir = Path(agent_dir)
+    record = json.loads((agent_dir / "session.json").read_text(encoding="utf-8"))
+    requested = record.get("model")
+    observed: list[dict[str, Any]] = []
+    drift: list[str] = []
+    turns = 0
+    journal = agent_dir / "journal.jsonl"
+    for event in read_jsonl(journal) if journal.is_file() else []:
+        if not isinstance(event, dict) or event.get("event") != "model_turn":
+            continue
+        turns += 1
+        asked = event.get("requested_model")
+        if asked is not None and normalize_model(asked) != normalize_model(requested):
+            drift.append(str(asked))
+        if event.get("actual_model") is not None:
+            observed.append({"model": event["actual_model"], "kind": "journal", "fallback": False})
+    if record.get("actual_model") is not None:
+        observed.append({"model": record["actual_model"], "kind": "journal", "fallback": False})
+    transcripts = sorted((agent_dir / "model" / "sessions").glob("*.jsonl"))
+    for path in transcripts:
+        observed.extend(model_observations(read_jsonl(path)))
+    attestation = attest_model(requested, observed)
+    if drift:
+        attestation.update(
+            status="mismatch",
+            reason=f"journal turns requested {sorted(set(drift))}, session model {requested!r}",
+        )
+    attestation.update(lane=record.get("lane"), model_turns=turns, transcripts=len(transcripts))
+    return attestation
+
+
 # -- factory ---------------------------------------------------------------------------
 
 

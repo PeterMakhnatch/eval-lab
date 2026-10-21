@@ -51,8 +51,8 @@ class ConfinedTools:
 
     def _read_path(self, raw: str) -> Path:
         path = (self.root / raw).resolve()
-        if not path.is_relative_to(self.task.resolve()):
-            raise ValueError(f"reads are confined to task/: {raw}")
+        if not (path.is_relative_to(self.task.resolve()) or path == self.root / "hackbook.md"):
+            raise ValueError(f"reads are confined to task/ and hackbook.md: {raw}")
         return path
 
     def _write_path(self, raw: str) -> Path:

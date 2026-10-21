@@ -112,3 +112,27 @@ def test_openrouter_lane_writes_only_submission(tmp_path: Path) -> None:
     assert record["finished"] is True
     assert (tmp_path / "submission/solve.sh").is_file()
     assert record["paid_usd"] > 0
+
+
+def test_hackbook_page_has_mechanism_without_examples(tmp_path: Path) -> None:
+    from evallab.seeker.packets import hackbook_markdown
+
+    task = tmp_path / "task-x"
+    (task / "tests").mkdir(parents=True)
+    (task / "instruction.md").write_text("compute the answer")
+    (task / "tests/test_outputs.py").write_text(
+        "SEED = 42\ndef test_a():\n    assert output() == [1, 2, 3]\n"
+    )
+    page, ids = hackbook_markdown(task)
+    assert ids
+    assert "Mechanism:" in page
+    assert "preferencemodel.com" not in page
+    assert "Examples" not in page
+
+
+def test_confined_tools_can_read_hackbook_page(tmp_path: Path) -> None:
+    (tmp_path / "task").mkdir()
+    (tmp_path / "submission").mkdir()
+    (tmp_path / "hackbook.md").write_text("# toolkit")
+    tools = ConfinedTools(tmp_path)
+    assert "toolkit" in tools.read_file("hackbook.md")

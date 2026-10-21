@@ -53,6 +53,10 @@ evallab hackbook search "conftest sitecustomize" --limit 5
 evallab hackbook match path/to/task_dir --kind task --top 10
 evallab hackbook match path/to/trajectory.json --kind trace
 evallab hackbook match path/to/view_dir --kind view --emit-findings /tmp/findings
+
+# Share of a pool each entry fires on (flags entries that cannot tell its tasks/traces apart)
+evallab hackbook calibrate path/to/pool_of_task_dirs --threshold 0.4
+evallab hackbook calibrate path/to/trace_dirs --kind trace
 ```
 
 ```python
@@ -70,3 +74,24 @@ trace_hits = match_trace(Path("path/to/trajectory.json"), entries)
 .venv/bin/python research/hackbook/build.py
 .venv/bin/python research/hackbook/build.py --check
 ```
+
+## Matching Precision (v0.2)
+
+`match` output is a list of leads, so precision is measured per pool with `calibrate` and on
+labelled corpora (dev tuned, test held out). v0.2 removed matches on the harness's own scaffolding
+and on generic trace regexes:
+
+| Corpus | Metric | v0.1 | v0.2 |
+| --- | --- | --- | --- |
+| MiMo packages (567) | entries firing on every package | 3 (TS04-004, TS04-006, TS05-004) | 0 |
+| MiMo packages (567) | tasks with no hit | 0 | 174 |
+| MiMo packages (567) | tasks with a TS04 hit | 567 | 17 |
+| TB2 to TB2.1 format-only controls (26) | controls whose hit set changes between versions | 25 | 2 |
+| `hacktrace-act-v1` test (75+75) | strong-tier recall / false alarms | 56 / 65 | 35 / 5 |
+| `cheatbench-actions-v1` test (75+75) | strong-tier recall / false alarms | 70 / 47 | 63 / 15 |
+| `tb4-audit-v1` dev (86 findings) | category 1-to-1 recall, predictions | 59 (125) | 56 (113) |
+
+Strong tier means trace `score >= 0.5`. Static task-side matching still does not separate
+weak-test tasks from the rest of MiMo: strong TS01 (`weak_check`) hits occur on 22 percent of the
+129 audited weak-check tasks and 19 percent of the 431 tasks with no audited finding (lift 1.1).
+Run `calibrate` before treating a hit rate as evidence.

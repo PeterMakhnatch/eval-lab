@@ -144,7 +144,10 @@ def parse_action(text: str) -> Action:
     try:
         value = json.loads(stripped)
     except json.JSONDecodeError:
-        value = _extract_json_object(stripped)
+        try:
+            value = json.loads(stripped, strict=False)
+        except json.JSONDecodeError:
+            value = _extract_json_object(stripped)
     if not isinstance(value, dict):
         raise ValueError("reply must be a JSON object")
     if set(value) == {"final"}:
@@ -208,10 +211,11 @@ def _extract_json_object(text: str) -> Any:
             if depth == 0:
                 candidate = text[start:index + 1]
                 for attempt in (candidate, re.sub(r',\s*([}\]])', r'\1', candidate)):
-                    try:
-                        return json.loads(attempt)
-                    except json.JSONDecodeError:
-                        continue
+                    for strict in (True, False):
+                        try:
+                            return json.loads(attempt, strict=strict)
+                        except json.JSONDecodeError:
+                            continue
                 raise ValueError("reply is not exactly one JSON object (unrecoverable object)")
     raise ValueError("reply is not exactly one JSON object (unbalanced object)")
 

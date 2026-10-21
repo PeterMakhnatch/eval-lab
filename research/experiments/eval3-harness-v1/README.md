@@ -72,7 +72,9 @@ Use the **same budget directory across invocations**. The existing lifetime ledg
 reserves full-request UTF-8 bytes plus framing and maximum output before each
 request, never refunds reservations, and durably stops after usage-bound breaches.
 Known token usage is a separate cost estimate, not a reconciled invoice. Missing
-usage is never reported as free. No provider fallback or automatic retry occurs.
+usage is never reported as free. No provider fallback or transport-outage retry occurs.
+Invalid completed virtual actions receive structured error feedback within the
+original phase call allowance; they are not silently repaired or accepted.
 Existing output directories are refused rather than overwritten.
 The judge fingerprint includes the adapter's source digest. A deliberately changed
 implementation or judge configuration therefore cannot reuse an old approval.
@@ -116,8 +118,8 @@ cannot support a general model-leaderboard claim.
 
 The public default judge is GPT-6 Luna with high reasoning and a 64,000-token
 output allowance. This adapter defaults to the existing pinned OpenRouter
-GLM-5.3-Flash route, medium reasoning and 6,000 output tokens, with a read-only JSON
-action transport. Those are disclosed configuration differences. The published
+GLM-5.3-Flash route, medium reasoning and 6,000 output tokens (2,000 for importance),
+with a read-only JSON action transport. Those are disclosed configuration differences. The published
 policy explicitly permits another judge, but only auditor outputs graded with
 the same frozen judge configuration and compatible task universe are comparable.
 The public `tb4-audit-v1` key is not used to manufacture judgments or issue credit.
@@ -127,3 +129,8 @@ GPT-OSS-120b failed the retained-cohort transport qualification, including
 non-text provider responses and invalid citations; it did not produce usable
 auditor rankings. GLM is an explicitly selected new judge configuration, not an
 automatic fallback or a mixture of partially successful GPT-OSS judgments.
+Initial GLM qualification also exposed invalid submissions: virtual-tool error
+feedback now permits correction within the same published turn and dollar caps.
+All earlier failures remain retained. Fourteen completed importance responses
+used 81–212 output tokens; the 2,000-token importance ceiling bounds reservations
+without increasing the number of votes or accepting incomplete judgments.

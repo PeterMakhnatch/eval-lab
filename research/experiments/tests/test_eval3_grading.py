@@ -154,3 +154,92 @@ def test_schema_rejects_rewritten_allegation_fields_and_empty_required_text() ->
         grade.validate_schema(schema, {"reason": "valid", "new_allegation": "not frozen"})
     with pytest.raises(ValueError, match="empty"):
         grade.validate_schema(schema, {"reason": ""})
+
+
+@pytest.mark.parametrize("call_limit", [2, 3])
+def test_rejected_support_needs_a_real_read_and_a_new_submission_within_the_call_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, call_limit: int
+) -> None:
+    from datetime import UTC, datetime
+
+    from evallab.interpretation import monitor_agent
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 21, tzinfo=UTC)
+
+    monkeypatch.setattr(monitor_agent, "datetime", FrozenDatetime)
+    prepared = tmp_path / "prepared"
+    study = grade.prepare(inputs(tmp_path), prepared)
+    evidence = grade.Evidence(prepared, study["tasks"][0], study["trials"][0])
+    citation = {"scope": "source", "path": "source/instruction.md", "start_line": 2, "end_line": 2}
+    actions = iter(
+        [
+            {"submit_result": {"citation": citation}},
+            {
+                "calls": [
+                    {
+                        "tool": "read",
+                        "args": {"path": "source/instruction.md", "start_line": 2, "end_line": 2},
+                    }
+                ]
+            },
+            {"submit_result": {"citation": citation}},
+        ]
+    )
+    judge = grade.Judge.__new__(grade.Judge)
+    judge.route = grade.openrouter_route(grade.DEFAULT_MODEL)
+    judge.config = {"reasoning": {"effort": "medium", "exclude": True}}
+    judge.out = tmp_path / "judgments"
+    judge.sequence = 0
+    judge.budget = grade.InvestigationBudget(
+        tmp_path / "budget/ledger.jsonl",
+        budget_usd=1,
+        max_calls=call_limit,
+        input_usd_per_million=0.15,
+        output_usd_per_million=0.5,
+    )
+    judge.policy = {
+        "base": "Read evidence before judging.",
+        "prompts": {"validate": "Validate."},
+        "submit_description": "Submit the result.",
+        "calls": {"validate": call_limit},
+        "schemas": {
+            "validate": {
+                "type": "object",
+                "properties": {"citation": {"type": "object"}},
+                "required": ["citation"],
+                "additionalProperties": False,
+            }
+        },
+    }
+
+    class ScriptedTransport:
+        def complete(self, messages, *, max_output_tokens, schema):
+            return monitor_agent.ModelCompletion(
+                content=json.dumps(next(actions)),
+                input_tokens=100,
+                output_tokens=100,
+                returned_model=judge.route.native_model,
+                request_id="fixture-request",
+            )
+
+    judge.transport = ScriptedTransport()
+
+    def execute():
+        return judge.phase(
+            "validate",
+            "case/trial",
+            {},
+            evidence,
+            validator=lambda value: evidence.citation(value["citation"], authored=False),
+        )
+
+    if call_limit == 2:
+        with pytest.raises(ValueError, match="call ceiling"):
+            execute()
+    else:
+        result = execute()
+        assert result["citation"]["start_line"] == 2
+    assert evidence.observed_lines["source/instruction.md"] == {2}

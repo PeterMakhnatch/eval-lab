@@ -10,6 +10,8 @@ import os
 import re
 import statistics
 from collections import defaultdict
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -31,6 +33,7 @@ TERMINAL = {"completed", "limit_reached"}
 LEVELS = ("low", "medium", "high")
 DEFAULT_MODEL = "openrouter-metered/z-ai/glm-5.3-flash"
 MAX_OUTPUT = 6000
+OUTPUT_LIMITS = {"authored": MAX_OUTPUT, "validate": MAX_OUTPUT, "link": MAX_OUTPUT, "impact": 2000}
 
 
 def dump(path: Path, value: Any) -> None:
@@ -293,9 +296,11 @@ class Evidence:
         lines = regular_file(self.path(path)).decode("utf-8").splitlines()
         start, end = cite["start_line"], cite["end_line"]
         if type(start) is not int or type(end) is not int or not 1 <= start <= end <= len(lines):
-            raise ValueError("citation line range is outside the retained file")
+            raise ValueError(f"citation {path}:{start}-{end} is outside lines 1..{len(lines)}")
         if not authored and not set(range(start, end + 1)) <= self.observed_lines[path]:
-            raise ValueError("support citation was not independently read in this judgment")
+            raise ValueError(
+                f"citation {path}:{start}-{end} was not independently read in this judgment"
+            )
 
     def index(self, *, authored_only: bool = False) -> dict[str, Any]:
         names = sorted(
@@ -331,6 +336,31 @@ def validate_schema(schema: dict[str, Any], value: Any) -> None:
         raise ValueError("numeric result below its minimum")
 
 
+def check_authored(result: dict[str, Any], evidence: Evidence) -> None:
+    for item in [*result["findings"], *result["nonfindings"]]:
+        evidence.citation(item["assertion"]["citation"], authored=True)
+
+
+def check_verdicts(
+    result: dict[str, Any], claims: list[dict[str, Any]], evidence: Evidence, source_only: bool
+) -> None:
+    if len(result["verdicts"]) != len(claims) or {v["id"] for v in result["verdicts"]} != {
+        c["id"] for c in claims
+    }:
+        raise ValueError("validation must return exactly one verdict per frozen allegation")
+    for verdict in result["verdicts"]:
+        for cite in verdict["citations"]:
+            evidence.citation(cite, authored=False)
+        if verdict["status"] == "supported" and not any(
+            c["scope"] == "source" for c in verdict["citations"]
+        ):
+            raise ValueError("supported claims require independent pinned source citations")
+        if verdict["observed_execution"] and (
+            source_only or not any(c["scope"] == "trace" for c in verdict["citations"])
+        ):
+            raise ValueError("a static source proof cannot be labelled an observed replay")
+
+
 class Judge:
     def __init__(self, *, model: str, approval: str, budget_dir: Path, max_usd: float, out: Path):
         if not approval.strip() or not 0 < max_usd <= 1:
@@ -349,6 +379,7 @@ class Judge:
             "upstream_commit": UPSTREAM_COMMIT,
             "adapter": ADAPTER_VERSION,
             "adapter_sha256": digest(Path(__file__).read_bytes()),
+            "phase_output_limits": OUTPUT_LIMITS,
             "policy": self.policy,
             "provider": dict(self.route.provider_pin),
             "reasoning": {**self.route.reasoning_pin, "exclude": True},
@@ -389,9 +420,16 @@ class Judge:
         dump(out / "judge.json", self.config)
 
     def phase(
-        self, phase: str, identifier: str, payload: Any, evidence: Evidence | None = None
+        self,
+        phase: str,
+        identifier: str,
+        payload: Any,
+        evidence: Evidence | None = None,
+        *,
+        validator: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         schema = self.policy["schemas"][phase]
+        output_limit = OUTPUT_LIMITS[phase]
         envelope = {
             "type": "object",
             "properties": {
@@ -426,6 +464,7 @@ class Judge:
         )
         system += '\nTransport: return exactly {"submit_result": RESULT} to invoke submit_result, or {"calls": [{"tool": NAME, "args": ARGS}]}. Never both. At most four read-only tools per turn.'
         system += "\nThere is no native function-calling API. Tool names in the policy are virtual JSON actions only. Respond in message content, never native tool_calls. Omit the unused action key entirely, including empty calls arrays."
+        system += "\nInvalid virtual-tool arguments are rejected with feedback within this phase's fixed call allowance. Correct the arguments or obtain the missing evidence; do not invent citations or change frozen allegations. Transport outages are not retried."
         if evidence:
             system += (
                 "\n"
@@ -444,14 +483,14 @@ class Judge:
             request = _payload(
                 self.route.native_model,
                 messages,
-                MAX_OUTPUT,
+                output_limit,
                 envelope,
                 response_format="json_object",
                 provider=dict(self.route.provider_pin),
                 reasoning=self.config["reasoning"],
             )
             if (
-                len(canonical(request).encode()) + 1024 + MAX_OUTPUT
+                len(canonical(request).encode()) + 1024 + output_limit
                 > self.route.context_input_tokens
             ):
                 raise ValueError(
@@ -460,7 +499,7 @@ class Judge:
             reservation = self.budget.reserve(
                 pass_id=f"{identifier}/{phase}/{turn}",
                 payload=request,
-                max_output_tokens=MAX_OUTPUT,
+                max_output_tokens=output_limit,
             )
             self.sequence += 1
             call_path = self.out / "calls" / f"{self.sequence:04d}.json"
@@ -476,7 +515,7 @@ class Judge:
             )
             try:
                 completion = self.transport.complete(
-                    messages, max_output_tokens=MAX_OUTPUT, schema=envelope
+                    messages, max_output_tokens=output_limit, schema=envelope
                 )
             except Exception as exc:
                 observed = exc.observed_usage if isinstance(exc, InvestigatorError) else None
@@ -485,6 +524,22 @@ class Judge:
                     call_path.with_suffix(".failure.json"),
                     {"error": str(exc), "observed_usage": observed},
                 )
+                if (
+                    isinstance(exc, InvestigatorError)
+                    and observed is not None
+                    and str(exc) == "provider content must be JSON text"
+                ):
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": canonical(
+                                {
+                                    "action_error": "No JSON message content was returned. Native function calls are unavailable; use the virtual JSON action schema in message content."
+                                }
+                            ),
+                        }
+                    )
+                    continue
                 raise
             self.budget.finish(reservation, completion, failed=False)
             dump(call_path.with_suffix(".response.json"), vars(completion))
@@ -492,14 +547,28 @@ class Judge:
                 raise ValueError(
                     "provider returned a different or unidentified model; no fallback is accepted"
                 )
-            answer = json.loads(completion.content)
-            validate_schema(envelope, answer)
-            if set(answer) == {"submit_result"}:
-                return answer["submit_result"]
-            if set(answer) != {"calls"} or evidence is None or not 1 <= len(answer["calls"]) <= 4:
-                raise ValueError(
-                    "invalid judge action; a complete result or 1..4 permitted reads is required"
+            try:
+                answer = json.loads(completion.content)
+                validate_schema(envelope, answer)
+                if set(answer) == {"submit_result"}:
+                    if validator is not None:
+                        validator(answer["submit_result"])
+                    return answer["submit_result"]
+                if (
+                    set(answer) != {"calls"}
+                    or evidence is None
+                    or not 1 <= len(answer["calls"]) <= 4
+                ):
+                    raise ValueError("a complete result or 1..4 permitted reads is required")
+            except ValueError as exc:
+                dump(call_path.with_suffix(".rejected.json"), {"action_error": str(exc)})
+                messages.extend(
+                    [
+                        {"role": "assistant", "content": completion.content},
+                        {"role": "user", "content": canonical({"action_error": str(exc)})},
+                    ]
                 )
+                continue
             results = []
             for call in answer["calls"]:
                 try:
@@ -613,12 +682,11 @@ def grade(
                     identifier,
                     {"index": evidence.index(authored_only=True), "authored": authored},
                     evidence,
+                    validator=partial(check_authored, evidence=evidence),
                 )
                 dump(out / "phases" / f"{digest(identifier.encode())}-authored.json", extracted)
                 if not extracted["review_complete"]:
                     raise ValueError("authored extraction is incomplete")
-                for item in [*extracted["findings"], *extracted["nonfindings"]]:
-                    evidence.citation(item["assertion"]["citation"], authored=True)
                 trial["extraction_status"] = "complete"
                 claims = []
                 for index, allegation in enumerate(extracted["findings"]):
@@ -647,31 +715,14 @@ def grade(
                             else "Use retained trace evidence only.",
                         },
                         evidence,
+                        validator=partial(
+                            check_verdicts,
+                            claims=claims,
+                            evidence=evidence,
+                            source_only=original["source_only"],
+                        ),
                     )
-                    if len(assessed["verdicts"]) != len(claims) or {
-                        v["id"] for v in assessed["verdicts"]
-                    } != {c["id"] for c in claims}:
-                        raise ValueError(
-                            "validation must return exactly one verdict per frozen allegation"
-                        )
                     verdicts = {v["id"]: v for v in assessed["verdicts"]}
-                    for claim in claims:
-                        verdict = verdicts[claim["id"]]
-                        for cite in verdict["citations"]:
-                            evidence.citation(cite, authored=False)
-                        if verdict["status"] == "supported" and not any(
-                            c["scope"] == "source" for c in verdict["citations"]
-                        ):
-                            raise ValueError(
-                                "supported claims require independent pinned source citations"
-                            )
-                        if verdict["observed_execution"] and (
-                            original["source_only"]
-                            or not any(c["scope"] == "trace" for c in verdict["citations"])
-                        ):
-                            raise ValueError(
-                                "a static source proof cannot be labelled an observed replay"
-                            )
                     for claim in claims:
                         claim.update(verdicts[claim["id"]])
                     dump(out / "phases" / f"{digest(identifier.encode())}-validate.json", assessed)

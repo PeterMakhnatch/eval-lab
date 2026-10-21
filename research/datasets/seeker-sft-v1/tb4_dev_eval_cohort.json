@@ -111,7 +111,7 @@
     {
       "committed_differential_witnesses": 0,
       "eval_stratum": "strict_unseen_dev",
-      "exposure_stratum": "unexposed",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "answer_reachable": 1,
         "grader_tamperable": 2,
@@ -585,7 +585,7 @@
     {
       "committed_differential_witnesses": 2,
       "eval_stratum": "witness_seeded_dev",
-      "exposure_stratum": "inspected_only",
+      "exposure_stratum": "tuned",
       "findings_by_taxonomy_class": {
         "grader_tamperable": 3,
         "weak_check": 3

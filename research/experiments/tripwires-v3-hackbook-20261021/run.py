@@ -362,8 +362,6 @@ def _step_ref(hit: Any) -> Any:
     return None
 
 
-
-
 def _fired(rule: str, family: str, eligibility: str, hits: list[Any]) -> dict[str, Any]:
     refs = [r for r in map(_step_ref, hits) if r is not None]
     return {
@@ -376,7 +374,9 @@ def _fired(rule: str, family: str, eligibility: str, hits: list[Any]) -> dict[st
     }
 
 
-def hits_from_report(report: dict[str, Any], registry: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+def hits_from_report(
+    report: dict[str, Any], registry: Sequence[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Fired rules in one shared ``scan_trace`` report. A missing section is an error, not zero."""
     if "hackbook" not in report:
         raise ValueError("scan report has no `hackbook` section: not a v3 scan")
@@ -638,9 +638,7 @@ def dev_lines(data: bytes, dev: frozenset[str], prefix: str = "") -> tuple[list[
 
     The decision is made on the raw text, so a non-DEV line is never JSON-parsed.
     """
-    needles = tuple(
-        f'"task"{sep}"{prefix}{task}"' for task in sorted(dev) for sep in (":", ": ")
-    )
+    needles = tuple(f'"task"{sep}"{prefix}{task}"' for task in sorted(dev) for sep in (":", ": "))
     keep, other = [], 0
     for line in data.decode().splitlines():
         if not line.strip():
@@ -696,7 +694,12 @@ def read_hub_index(path: Path, dev: frozenset[str]) -> tuple[dict[str, str | Non
 
 
 def _safe_part(value: Any) -> bool:
-    return isinstance(value, str) and value not in ("", ".", "..") and "/" not in value and "\\" not in value
+    return (
+        isinstance(value, str)
+        and value not in ("", ".", "..")
+        and "/" not in value
+        and "\\" not in value
+    )
 
 
 def tb4_archive_dir(
@@ -791,19 +794,25 @@ def measure_tb4_cohort(
     if not labels:
         return _unavailable(cohort, "no DEV label records in the census file"), []
     index, index_sha = read_hub_index(index_path, dev) if official else (None, None)
-    subjects = [tb4_subject(cohort, r, hub, index) for r in sorted(labels, key=lambda r: r["membership_id"])]
+    subjects = [
+        tb4_subject(cohort, r, hub, index) for r in sorted(labels, key=lambda r: r["membership_id"])
+    ]
     records = measure_subjects(cohort, split, subjects, scan=scan, registry=registry)
     if sha256_bytes(labels_path.read_bytes()) != labels_sha or (
         index_path.is_file() and official and sha256_bytes(index_path.read_bytes()) != index_sha
     ):
-        raise ValueError(f"{cohort.id}: label or index bytes changed during the run; not frozen evidence")
+        raise ValueError(
+            f"{cohort.id}: label or index bytes changed during the run; not frozen evidence"
+        )
     strata = Counter(str(s.source["stratum"]) for s in subjects)
     result = summarize(cohort, records, registry)
     full = [r for r in records if r["view"] == "full" and r["status"] == "measured"]
     result["population"] = "official" if official else "supplementary-bootstrap"
     result["registered_items"] = len(labels)
     result["registered_in_split"] = len(labels)
-    result["excluded_registered_cells"] = {k: v for k, v in sorted(strata.items()) if k != "canonical"}
+    result["excluded_registered_cells"] = {
+        k: v for k, v in sorted(strata.items()) if k != "canonical"
+    }
     result["strata"] = dict(sorted(strata.items()))
     result["census_labels"] = dict(sorted(Counter(s.label for s in subjects).items()))
     result["membership_unit"] = "board row x task x Hub trial (producer unit; no dedup, no weights)"
@@ -880,7 +889,11 @@ def summarize(
             "n_items": len(rows),
             "n_measured": len(measured),
             "denominators": {role: len(rs) for role, rs in group.items()},
-            "unknown": dict(sorted(Counter(r["unknown_reason"] for r in rows if r["status"] != "measured").items())),
+            "unknown": dict(
+                sorted(
+                    Counter(r["unknown_reason"] for r in rows if r["status"] != "measured").items()
+                )
+            ),
             "hash_unbound_inputs": sum(r.get("hash_bound") is False for r in measured),
             "any_verdict_rule": _aggregate(group, "v3_or"),
             "legacy_v2_or": _aggregate(group, "legacy_or"),
@@ -914,7 +927,9 @@ def summarize(
     }
 
 
-def measure(split: str, *, root: Path, scan: Scan, registry: Sequence[dict[str, Any]], **kwargs: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def measure(
+    split: str, *, root: Path, scan: Scan, registry: Sequence[dict[str, Any]], **kwargs: Any
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Every named cohort, in order; unavailable ones stay in the result with their reason."""
     cohorts: dict[str, Any] = {}
     records: list[dict[str, Any]] = []
@@ -929,7 +944,9 @@ def measure(split: str, *, root: Path, scan: Scan, registry: Sequence[dict[str, 
 # ------------------------------------------------------------------------- publication
 
 
-def scoreboard_rows(result: dict[str, Any], columns: Sequence[str], keys_dir: Path = KEYS_DIR) -> list[dict[str, str]]:
+def scoreboard_rows(
+    result: dict[str, Any], columns: Sequence[str], keys_dir: Path = KEYS_DIR
+) -> list[dict[str, str]]:
     """One row per measured registered cohort x view; unavailable cohorts publish nothing."""
     system_base = result["fingerprint"]["system_id"]
     if not system_base.startswith(f"{VERSION_ID}@"):
@@ -985,7 +1002,9 @@ def scoreboard_rows(result: dict[str, Any], columns: Sequence[str], keys_dir: Pa
     return [{c: row[c] for c in columns} for row in rows]
 
 
-def publish(result: dict[str, Any], path: Path = SCOREBOARD, keys_dir: Path = KEYS_DIR) -> dict[str, int]:
+def publish(
+    result: dict[str, Any], path: Path = SCOREBOARD, keys_dir: Path = KEYS_DIR
+) -> dict[str, int]:
     """Append only new v3 identities; identical re-publication is a no-op; changed metrics refuse.
 
     Existing bytes are never rewritten: rows are appended to the file and the original
@@ -1001,7 +1020,9 @@ def publish(result: dict[str, Any], path: Path = SCOREBOARD, keys_dir: Path = KE
     fresh, same = [], 0
     for row in scoreboard_rows(result, columns, keys_dir):
         prior = [old for old in existing if all(old[k] == row[k] for k in identity)]
-        if any(old[k] != row[k] for old in prior for k in ("recall", "false_alarm_rate", "n_measured")):
+        if any(
+            old[k] != row[k] for old in prior for k in ("recall", "false_alarm_rate", "n_measured")
+        ):
             raise ValueError(f"{row['key_id']} {row['system']}: existing metrics differ")
         if prior:
             same += 1
@@ -1021,6 +1042,50 @@ def publish(result: dict[str, Any], path: Path = SCOREBOARD, keys_dir: Path = KE
 # ------------------------------------------------------------------------------- CLI
 
 
+def coverage_lines(result: dict[str, Any]) -> list[str]:
+    """Entry-level coverage so the report never implies every catalog entry has a verdict rule.
+
+    Required fields: a result without catalog coverage cannot be rendered.
+    """
+    coverage = result["entry_coverage"]
+    hackbook = [r for r in result["catalog"] if r["family"] == "hackbook"]
+    eligibility = {r["id"]: r["eligibility"] for r in hackbook}
+    counts = Counter(eligibility.values())
+    status = Counter(v["status"] for v in coverage.values())
+    verdict_entries = sum(
+        any(eligibility[rule] == "verdict" for rule in v["rules"]) for v in coverage.values()
+    )
+    lines = [
+        "## Catalog coverage",
+        "",
+        f"Source: {result['catalog_source']}",
+        "",
+        f"{len(coverage)} catalog entries by detector status: "
+        + ", ".join(f"{n} {name}" for name, n in sorted(status.items()))
+        + f". {len(hackbook)} hackbook rules: {counts['verdict']} verdict-eligible, "
+        f"{counts['diagnostic']} diagnostic. Entries with at least one verdict-eligible "
+        f"hackbook rule: {verdict_entries}; the rest have only diagnostic cues or none.",
+        "",
+        "Only verdict-eligible rules (with the legacy v2 decision rules) enter the `ANY verdict "
+        "rule` aggregate. A diagnostic rule is a noisy or ordinary-activity cue reported per "
+        "rule; a diagnostic hit is a candidate cue, never a cheating verdict. `cue_only` entries "
+        "need verifier, reference or diff evidence that a trajectory scan cannot see. `no_rule` "
+        "entries have no step predicate a deterministic scan can evaluate: they are **not "
+        "evaluated** (not clean, not zero). Coverage is by the detector's own status; no per-entry "
+        "recall is claimed.",
+        "",
+        "| entry | status | verdict-eligible rules | diagnostic rules | note |",
+        "|---|---|---|---|---|",
+    ]
+    for entry_id, cell in sorted(coverage.items()):
+        verdict = ", ".join(r for r in cell["rules"] if eligibility[r] == "verdict") or "none"
+        diagnostic = ", ".join(r for r in cell["rules"] if eligibility[r] == "diagnostic") or "none"
+        note = str(cell.get("reason") or cell.get("note") or "").replace("|", "/")
+        lines.append(f"| {entry_id} | {cell['status']} | {verdict} | {diagnostic} | {note} |")
+    lines.append("")
+    return lines
+
+
 def render_report(result: dict[str, Any]) -> str:
     def fmt(x: dict[str, Any]) -> str:
         if x["rate"] is None:
@@ -1036,6 +1101,7 @@ def render_report(result: dict[str, Any]) -> str:
         "0 model calls, $0.",
         "",
     ]
+    lines += coverage_lines(result)
     for cohort_id, cell in result["cohorts"].items():
         lines += [f"## {cohort_id}", ""]
         if cell["status"] != "measured":
@@ -1058,7 +1124,10 @@ def render_report(result: dict[str, Any]) -> str:
                 "| rule | family | eligibility | TP | false alarms | other-stratum hits |",
                 "|---|---|---|---|---|---|",
             ]
-            for name, agg in (("ANY verdict rule", m["any_verdict_rule"]), ("legacy-field OR", m["legacy_v2_or"])):
+            for name, agg in (
+                ("ANY verdict rule", m["any_verdict_rule"]),
+                ("legacy-field OR", m["legacy_v2_or"]),
+            ):
                 lines.append(
                     f"| {name} | | | {fmt(agg['true_positive'])} | {fmt(agg['false_alarm'])} | {agg['other_hits']} |"
                 )
@@ -1071,11 +1140,19 @@ def render_report(result: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_outputs(out: Path, split: str, result: dict[str, Any], records: list[dict[str, Any]]) -> list[Path]:
-    paths = [out / f"results-{split}.json", out / f"predictions-{split}.jsonl", out / f"report-{split}.md"]
+def write_outputs(
+    out: Path, split: str, result: dict[str, Any], records: list[dict[str, Any]]
+) -> list[Path]:
+    paths = [
+        out / f"results-{split}.json",
+        out / f"predictions-{split}.jsonl",
+        out / f"report-{split}.md",
+    ]
     existing = [p for p in paths if p.exists()]
     if existing:
-        raise FileExistsError(f"refusing to overwrite retained outputs: {[p.name for p in existing]}")
+        raise FileExistsError(
+            f"refusing to overwrite retained outputs: {[p.name for p in existing]}"
+        )
     paths[0].write_text(json.dumps(result, indent=1, sort_keys=True) + "\n")
     paths[1].write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in records))
     paths[2].write_text(render_report(result))
@@ -1086,9 +1163,13 @@ def run_measure(split: str, expect: str | None, out: Path, root: Path) -> dict[s
     registry = catalog_registry()
     fp = fingerprints(registry)
     if split == "test" and not expect:
-        raise ValueError("--split test needs --expect-fingerprint (freeze before the first test run)")
+        raise ValueError(
+            "--split test needs --expect-fingerprint (freeze before the first test run)"
+        )
     if expect and expect != fp["combined"]:
-        raise ValueError(f"fingerprint {fp['combined']} != expected {expect}: implementation changed")
+        raise ValueError(
+            f"fingerprint {fp['combined']} != expected {expect}: implementation changed"
+        )
     cohorts, records = measure(split, root=root, scan=default_scan, registry=registry)
     records.sort(key=lambda r: (r["cohort"], r["item_id"], r["view"]))
     result = {
@@ -1110,7 +1191,9 @@ def run_measure(split: str, expect: str | None, out: Path, root: Path) -> dict[s
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("fingerprint", help="print the frozen identity; reads no data")
     run = sub.add_parser("measure", help="scan every named cohort for one split")

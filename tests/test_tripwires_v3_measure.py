@@ -62,8 +62,6 @@ def hit(rule: str, step: int | None, evidence: str = "ev") -> dict[str, Any]:
 # ----------------------------------------------------------------- report -> fired rules
 
 
-
-
 def test_missing_hackbook_section_and_unregistered_rule_are_errors() -> None:
     no_section = report()
     del no_section["hackbook"]
@@ -71,8 +69,6 @@ def test_missing_hackbook_section_and_unregistered_rule_are_errors() -> None:
         run.hits_from_report(no_section, REGISTRY)
     with pytest.raises(ValueError, match="unregistered rule"):
         run.hits_from_report(report(hackbook=[hit("made_up", 1)]), REGISTRY)
-
-
 
 
 # --------------------------------------------------------------- synthetic published data
@@ -117,7 +113,9 @@ def _item(
     }
 
 
-def _key(keys_dir: Path, cohort: str, items: list[dict[str, Any]], coverage: list[dict] = ()) -> None:
+def _key(
+    keys_dir: Path, cohort: str, items: list[dict[str, Any]], coverage: list[dict] = ()
+) -> None:
     directory = keys_dir / cohort
     directory.mkdir(parents=True)
     (directory / "README.md").write_text("synthetic\n")
@@ -126,7 +124,9 @@ def _key(keys_dir: Path, cohort: str, items: list[dict[str, Any]], coverage: lis
         (directory / "coverage.jsonl").write_text("".join(json.dumps(c) + "\n" for c in coverage))
 
 
-def scan_by_command(agent_steps: list[dict[str, Any]], steps: list[dict[str, Any]]) -> dict[str, Any]:
+def scan_by_command(
+    agent_steps: list[dict[str, Any]], steps: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Stand-in for the shared scan: `evil` fires the verdict rule, `diag` only the diagnostic."""
     command = agent_steps[0]["tool_calls"][0]["arguments"]["keystrokes"]
     hits = {"evil": [hit("hb_verdict", agent_steps[0]["step_id"])], "diag": [hit("hb_diag", 2)]}
@@ -149,7 +149,9 @@ def test_denominators_exclude_unknown_and_other_and_never_default_to_zero(tmp_pa
         _item(root, "weird", "mystery"),
         _item(root, "dev_only", "wrong_pass", split="dev"),
     ]
-    items.append({**_item(root, "gone", "real_pass"), "trial_ref": {"kind": "published", "path": "nope"}})
+    items.append(
+        {**_item(root, "gone", "real_pass"), "trial_ref": {"kind": "published", "path": "nope"}}
+    )
     mismatch = _item(root, "tampered", "real_pass")
     mismatch["trajectory_sha256"]["actions"] = "0" * 64
     items.append(mismatch)
@@ -206,7 +208,9 @@ def test_empty_denominator_is_not_a_rate(tmp_path: Path) -> None:
 def test_every_named_cohort_is_reported_even_when_unavailable(tmp_path: Path) -> None:
     root, keys = tmp_path / "results", tmp_path / "keys"
     _key(keys, "cheatbench-actions-v1", [_item(root, "c", "real_pass")])
-    cohorts, records = run.measure("test", root=root, scan=scan_by_command, registry=REGISTRY, keys_dir=keys)
+    cohorts, records = run.measure(
+        "test", root=root, scan=scan_by_command, registry=REGISTRY, keys_dir=keys
+    )
     assert list(cohorts) == [
         "cheatbench-actions-v1",
         "hacktrace-act-v1",
@@ -272,8 +276,11 @@ def _label(
         "mechanisms": list(mechanisms),
         "evidence": SECRET,
         "facts": {"quote": SECRET},
-        "provenance": {"stratum": stratum, "admission": "admitted_exact_source",
-                       "acquisition_state": "complete"},
+        "provenance": {
+            "stratum": stratum,
+            "admission": "admitted_exact_source",
+            "acquisition_state": "complete",
+        },
     }
 
 
@@ -290,9 +297,7 @@ def _bootstrap_trial(root: Path, rec: dict[str, Any], shell: str = "ls") -> str:
     return _write_traj(root, rel, shell=shell)
 
 
-def _tb4(
-    cohort: str, root: Path, **kwargs: Any
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _tb4(cohort: str, root: Path, **kwargs: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return run.measure_cohort(
         run.cohort_by_id(cohort),
         "dev",
@@ -353,7 +358,9 @@ def test_tb4_roles_follow_producer_labels_and_unknowns_are_never_negatives(tmp_p
     _census(tmp_path, "bootstrap", recs)
     for rec in recs:
         # u* trajectories are deleted below: an unknown label must never be scanned
-        _bootstrap_trial(tmp_path, rec, shell="evil" if rec["hub_trial_id"] in ("p1", "n2", "d1") else "ls")
+        _bootstrap_trial(
+            tmp_path, rec, shell="evil" if rec["hub_trial_id"] in ("p1", "n2", "d1") else "ls"
+        )
     for trial in ("u1", "u2", "u3", "u4", "u5"):
         (tmp_path / f"tb4-hub/rows/row1/dev22/trials/job1/{trial}/agent/trajectory.json").unlink()
     result, records = _tb4("tb4-hub-dev-bootstrap", tmp_path)
@@ -387,7 +394,9 @@ def test_tb4_actions_view_is_unknown_never_copied_from_the_raw_view(tmp_path: Pa
     assert {r["view"]: r["status"] for r in records} == {"full": "measured", "actions": "unknown"}
 
 
-def test_tb4_quarantine_and_incomplete_are_excluded_not_mixed_into_canonical(tmp_path: Path) -> None:
+def test_tb4_quarantine_and_incomplete_are_excluded_not_mixed_into_canonical(
+    tmp_path: Path,
+) -> None:
     recs = [
         _label("dev-task", "pass", "known_exploit", trial="c1"),
         _label("dev-task", "pass", "known_exploit", trial="q1", stratum="quarantine"),
@@ -460,14 +469,23 @@ def test_tb4_official_resolves_paths_from_the_index_and_drops_test_lines_unparse
     _write_traj(tmp_path, "elsewhere/d", shell="evil")
     lines = [
         json.dumps(
-            {"row_id": "row1", "task": "terminal-bench/dev-task", "hub_trial_id": t, "archive_path": p}
+            {
+                "row_id": "row1",
+                "task": "terminal-bench/dev-task",
+                "hub_trial_id": t,
+                "archive_path": p,
+            }
         )
         for t, p in declared.items()
     ]
     lines.append(
         json.dumps(
-            {"row_id": "row1", "task": "terminal-bench/dev-task", "hub_trial_id": "d",
-             "archive_path": str(outside / "d")}
+            {
+                "row_id": "row1",
+                "task": "terminal-bench/dev-task",
+                "hub_trial_id": "d",
+                "archive_path": str(outside / "d"),
+            }
         )
     )
     lines.append('{"row_id":"row1","task":"terminal-bench/test-task", NOT JSON')
@@ -534,7 +552,10 @@ def test_tb4_records_carry_ids_and_step_refs_but_no_actor_or_label_text(tmp_path
     full = next(r for r in records if r["view"] == "full")
     assert full["hits"][0]["rule"] == "hb_verdict" and full["hits"][0]["steps"] == [2]
     assert full["source"]["mechanisms"] == ["dev-task/shortcut"]
-    assert full["source"]["census_label"] == "known_exploit" and full["source"]["stratum"] == "canonical"
+    assert (
+        full["source"]["census_label"] == "known_exploit"
+        and full["source"]["stratum"] == "canonical"
+    )
 
 
 def test_tb4_dev_tasks_come_from_assignments_and_fail_closed(tmp_path: Path) -> None:
@@ -555,8 +576,6 @@ def test_tb4_dev_tasks_come_from_assignments_and_fail_closed(tmp_path: Path) -> 
     with pytest.raises(ValueError, match="no tb4-audit-v1 DEV tasks"):
         run.tb4_dev_tasks(path)
     assert run.tb4_dev_tasks()  # the registered assignments define a non-empty DEV set
-
-
 
 
 # ------------------------------------------------------------------------ fingerprints
@@ -645,6 +664,38 @@ def test_catalog_registry_requires_v3_and_valid_metadata(monkeypatch: pytest.Mon
         run.catalog_registry()
 
 
+def _catalog_fields() -> dict[str, Any]:
+    """Synthetic catalog metadata in the exact shape ``run_measure`` records."""
+    return {
+        "catalog": run.rule_universe(REGISTRY),
+        "catalog_source": "synthetic catalog",
+        "entry_coverage": {
+            "E1": {"status": "covered", "rules": ["hb_verdict", "hb_diag"], "note": "n1"},
+            "E2": {"status": "cue_only", "rules": ["hb_diag"], "note": "needs a verifier"},
+            "E3": {"status": "no_rule", "rules": [], "reason": "absence", "note": "not a step"},
+        },
+    }
+
+
+def test_report_separates_verdict_from_diagnostic_and_never_implies_full_coverage() -> None:
+    report = run.render_report(
+        {
+            "split": "dev",
+            "rules_version": 3,
+            "fingerprint": {"combined": "c", "system_id": "s"},
+            "cohorts": {},
+            **_catalog_fields(),
+        }
+    )
+    assert "3 catalog entries by detector status: 1 covered, 1 cue_only, 1 no_rule" in report
+    assert "2 hackbook rules: 1 verdict-eligible, 1 diagnostic." in report
+    assert "Entries with at least one verdict-eligible hackbook rule: 1;" in report
+    assert "| E1 | covered | hb_verdict | hb_diag | n1 |" in report
+    assert "| E2 | cue_only | none | hb_diag | needs a verifier |" in report
+    assert "| E3 | no_rule | none | none | absence |" in report
+    assert "not evaluated" in report.replace("**", "")
+
+
 def test_test_split_needs_the_frozen_fingerprint_and_never_overwrites(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -658,6 +709,7 @@ def test_test_split_needs_the_frozen_fingerprint_and_never_overwrites(
         "cohorts": {},
         "fingerprint": {"combined": "c", "system_id": "s"},
         "rules_version": 3,
+        **_catalog_fields(),
     }
     run.write_outputs(tmp_path, "dev", result, [])
     with pytest.raises(FileExistsError):
@@ -678,7 +730,9 @@ def _result(tmp_path: Path, hits_positive: int = 1) -> tuple[dict[str, Any], Pat
             _item(root, "n1", "real_pass"),
         ],
     )
-    cohorts, _ = run.measure("test", root=root, scan=scan_by_command, registry=REGISTRY, keys_dir=keys)
+    cohorts, _ = run.measure(
+        "test", root=root, scan=scan_by_command, registry=REGISTRY, keys_dir=keys
+    )
     result = {
         "split": "test",
         "fingerprint": {"system_id": "tripwires-v3@abcdef123456"},
@@ -689,7 +743,7 @@ def _result(tmp_path: Path, hits_positive: int = 1) -> tuple[dict[str, Any], Pat
 
 V2_LINE = (
     "2026-10-19T00:00:00Z,mimo-v7-canonical-pass70,test,all,Deterministic tripwires,"
-    "tripwires@86446d693ac0/full,0.5,0.0,n/a,n/a,0.0,70,70,0,0,complete,\"v2 note, with comma\"\n"
+    'tripwires@86446d693ac0/full,0.5,0.0,n/a,n/a,0.0,70,70,0,0,complete,"v2 note, with comma"\n'
 )
 
 
@@ -783,6 +837,7 @@ def test_retained_outputs_do_not_copy_raw_actor_commands(tmp_path: Path) -> None
         "rules_version": 3,
         "fingerprint": {"system_id": "tripwires-v3@synthetic", "combined": "synthetic"},
         "cohorts": {cohort_id: cohort},
+        **_catalog_fields(),
     }
     out = tmp_path / "retained"
     out.mkdir()

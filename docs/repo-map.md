@@ -671,7 +671,7 @@ inputs:
   - path: src/evallab/seeker/packets.py
     digest: sha256:90f557dbf5bdbe3e209aceae0d4f96bf08aff8ca2975171d317444eed9f59fd8
   - path: src/evallab/seeker/prompt.py
-    digest: sha256:17da4b3e5742e4b36fa04b0805720df08cbcc497a84fed177fcea02859f9c46f
+    digest: sha256:b6bced450805d0d769ac3eb6f77045855152cb4112bcca73be0bac58ce1d561e
   - path: src/evallab/seeker/replay_port.py
     digest: sha256:d581a84dc72f0337dab3a01c080e87807a1f18bffa96b92e5fe12b087e804fcc
   - path: src/evallab/semantic_facts.py

@@ -375,6 +375,18 @@ def test_resource_errors_are_refused_without_invented_limits(task: Path, change:
         grader.plan_upstream_grader(task, blank=True)
 
 
+def test_compose_is_modal_only_at_plan_time(task: Path) -> None:
+    (task / "environment" / "docker-compose.yaml").write_text("services: {main: {}, sidecar: {}}\n")
+    with pytest.raises(grader.GraderRefusal, match="Compose"):
+        grader.plan_upstream_grader(task, blank=True)
+    with pytest.raises(grader.GraderRefusal, match="Compose"):
+        grader.plan_upstream_grader(task, blank=True, backend="docker")
+    modal_plan = grader.plan_upstream_grader(task, blank=True, backend="modal")
+    # No approval/ledger in a bare plan: admission refuses on that, not Compose.
+    assert modal_plan["refusals"]
+    assert not any("Compose" in refusal for refusal in modal_plan["refusals"])
+
+
 def test_unbounded_docker_gate_is_not_bypassed_and_auto_needs_approval(
     task: Path,
     tmp_path: Path,

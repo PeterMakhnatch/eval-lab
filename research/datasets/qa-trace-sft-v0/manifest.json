@@ -1,0 +1,50 @@
+{
+ "counts": {
+  "by_source": {
+   "cheatbench-actions-v1": 300,
+   "hacktrace-act-v1": 300,
+   "tb4-dev-census-20261021": 756
+  },
+  "by_split": {
+   "dev": 118,
+   "test": 478,
+   "train": 760
+  },
+  "by_split_label": {
+   "dev": {
+    "exploit-pass": 32,
+    "neither": 86
+   },
+   "test": {
+    "defect-fail": 10,
+    "exploit-pass": 163,
+    "neither": 305
+   },
+   "train": {
+    "defect-fail": 136,
+    "exploit-pass": 124,
+    "neither": 500
+   }
+  },
+  "total": 1356
+ },
+ "dataset_id": "qa-trace-sft-v0",
+ "excluded": {
+  "mimo_no_dev_split": 122,
+  "missing_trajectory": 0,
+  "tb4_unmeasured_or_undocumented": 1581
+ },
+ "leak_checks": {
+  "note": "TB4 rows only from labels-dev.jsonl (22 DEV tasks); mimo keys excluded (no dev split); groups do not straddle splits (cheatbench family is the grouping unit and its source test stays test)",
+  "tb4_test_tasks_included": 0
+ },
+ "licences": {
+  "cheatbench-actions-v1": "MIT",
+  "hacktrace-act-v1": "CC BY 4.0",
+  "tb4": "public Hub trajectories, DEV only"
+ },
+ "schema": "qa-trace-sft-v0",
+ "spend_usd": 0,
+ "split_rule": "sha256 group bucket 70/15/15 by task/source group; source test -> dataset test only",
+ "training_authorized_by_this_release": false
+}

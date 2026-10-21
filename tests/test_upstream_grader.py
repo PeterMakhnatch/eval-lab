@@ -815,6 +815,57 @@ def test_docker_architecture_is_explicit_and_insufficient_capacity_refuses(
         grader._admit_docker(planned)
 
 
+def test_unbounded_preexisting_containers_get_bounded_observed_reserve(
+    task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    planned = grader.plan_upstream_grader(task, blank=True)
+
+    def unbounded() -> tuple[float, int]:
+        raise ValueError("an existing Docker container has unbounded CPU or memory")
+
+    monkeypatch.setattr(grader, "docker_available_resources", unbounded)
+    monkeypatch.setattr(
+        grader,
+        "_docker_stats",
+        lambda: [
+            {
+                "Name": "host-db",
+                "ID": "abc123",
+                "CPUPerc": "10.00%",
+                "MemUsage": "1000MiB / 7.747GiB",
+            }
+        ],
+    )
+
+    def query(*args: str) -> Any:
+        if args[0] == "info":
+            return {"OSType": "linux", "NCPU": 16, "MemTotal": 7936 * 1024 * 1024}
+        if args[0] == "version":
+            return {"Os": "linux", "Arch": "aarch64"}
+        if args[0] == "inspect":
+            return [
+                {"Name": "/host-db", "Id": "abc123", "HostConfig": {"NanoCpus": 0, "Memory": 0}}
+            ]
+        raise AssertionError(args)
+
+    monkeypatch.setattr(grader, "_docker_query", query)
+    monkeypatch.setattr(
+        grader.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(stdout="abc123\n"),
+    )
+    cpus, memory, capacity = grader._docker_capacity()
+    # 16 - 2 controller - max(0.25, 2*0.10) CPU; 7936 - 2048 - 1.5*1000 MiB.
+    assert (cpus, memory) == (13.75, 4388)
+    assert capacity["capacity_mode"] == "observed_reserve_for_unbounded_containers"
+    assert capacity["existing_reserves"] == [
+        {"container": "host-db", "mode": "observed_usage_reserve", "cpus": 0.25, "memory_mb": 1500}
+    ]
+    admitted = grader._admit_docker(planned)
+    assert admitted["available_memory_mb"] == 4388
+    assert admitted["capacity_mode"] == "observed_reserve_for_unbounded_containers"
+
+
 def _module(monkeypatch: pytest.MonkeyPatch, name: str, **values: Any) -> None:
     module = ModuleType(name)
     for key, value in values.items():

@@ -1,0 +1,1754 @@
+{
+  "counts": {
+    "by_cohort": {
+      "repaired": 34,
+      "unchanged-clean-controls": 47
+    },
+    "excluded_by_first_failed_condition": {
+      "open_supported_finding_on_exact_package": 10,
+      "repair_not_source_qualified": 2,
+      "status_blocked": 9,
+      "status_known-weak": 114
+    },
+    "heldout_packages_in_pool": 22,
+    "pool_distinct_task_ids": 73,
+    "pool_packages": 81
+  },
+  "dataset_id": "mimo-executed-clean-v1",
+  "definition": "Exact packages with executed evidence: clean-v7 status unchanged-clean-controls or repaired, strict repeat-3 controls (reference [1,1,1], nop [0,0,0]) on that exact package, no source-supported/differential-confirmed finding on that exact package in mimo-defect-map-v1, and (for repaired) a source-qualified repair row on the exact child package.",
+  "members": [
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:7f56ca2b8c4e1948416e276e9067328650501cf6f2264490c3b2a83f7bacc2c1",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:e42f498c3504c997f74851f624d6a7ac3d1e4c4606d5a5f49e35701cc5c0065e",
+      "record_id": "candidate-0036-software-data-engineering@sha256:e42f498c3504c997f74851f624d6a7ac3d1e4c4606d5a5f49e35701cc5c0065e",
+      "task_id": "candidate-0036-software-data-engineering",
+      "verifier_digest": "sha256:ff291b452a621a87e0a116c4b583d3aa8c7a01fc5929c4e6f688172819754fda"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:c8eddbb176bcf0dcc3df1de2487f0a097bc2a3d5fc1a4540e306354a76931ff7",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:464e40ac127197b8e87a3dc6885452dc92334089d8dbe70ceddcb17933610170",
+      "record_id": "candidate-1271-media-games@sha256:464e40ac127197b8e87a3dc6885452dc92334089d8dbe70ceddcb17933610170",
+      "task_id": "candidate-1271-media-games",
+      "verifier_digest": "sha256:592d76ec6cd0a6bc6f32bc4315750795fa6e24f61eca1e0600caa709ac194d8a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:aed7b2349cceeb31d6322cddf7901db6b4b3f5dbbc2ee8b79b293c1e32019bff",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:d56580ed14912923adb76b1e96dbbbad0a4e00c5348974be7dc84c296ccf6cb3",
+      "record_id": "candidate-1559-ml-evaluation@sha256:d56580ed14912923adb76b1e96dbbbad0a4e00c5348974be7dc84c296ccf6cb3",
+      "task_id": "candidate-1559-ml-evaluation",
+      "verifier_digest": "sha256:3d3ae84e67a2479e32eaa14bfaa9596bb327a211ac33cbdc5f62a2e0dbfab14c"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:7bc65a99bf48afaae9c999664b713730ddc177738f30aa24cf45ecbe4bae0f7b",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:d45615040425478a4a79d5408b6fa89430f59f09ba3deae4cb998aaadca79937",
+      "record_id": "format-code-task-000079@sha256:d45615040425478a4a79d5408b6fa89430f59f09ba3deae4cb998aaadca79937",
+      "task_id": "format-code-task-000079",
+      "verifier_digest": "sha256:221bcd167e1cbcc2f9e8b799afa204a55fd2f04d408ba14f16684faf1ce7a9c2"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:71d730f793e3449081356362729382eb0294f4e3859cf3d85ff0d4c24f2d56e8",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:25bf6a714af43c67745bf523f01069cb54017ee29fbab8a76a0bb5ec4774462d",
+      "record_id": "format-code-task-000085@sha256:25bf6a714af43c67745bf523f01069cb54017ee29fbab8a76a0bb5ec4774462d",
+      "task_id": "format-code-task-000085",
+      "verifier_digest": "sha256:83d787f418891611adbcacbd32db4b6672e1fa3c85e1f20ea5b27cc672349e97"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:7468bd17b98cfdfb588ba4a9a078e471df4ceef7a058590c8dea22a4f7f94e8f",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:01327d809210e559f1bd81c63fc51b5a66a45341bc3289b0ee455ba8231c97ff",
+      "record_id": "format-code-task-000089@sha256:01327d809210e559f1bd81c63fc51b5a66a45341bc3289b0ee455ba8231c97ff",
+      "task_id": "format-code-task-000089",
+      "verifier_digest": "sha256:95321062b22fe88a3708eb9dde3dc98ccfaa74b4ee8d6da57c2c88628c464c53"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:df0b0252e9f5c189c8bceb26ab03fe71684798663aebf5ea08065cd278d44a99",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:2b622fa3c668104ab29757080712b9927dacf25e983bc0fc693c74263ae52705",
+      "record_id": "format-code-task-000089@sha256:2b622fa3c668104ab29757080712b9927dacf25e983bc0fc693c74263ae52705",
+      "task_id": "format-code-task-000089",
+      "verifier_digest": "sha256:8e56ac0cf4a1b3921e66ca8fae65beea0d8010c33a812217ecabe09097996226"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:d5ae9317638c8d0c2707cc4c16b8ec8d20761be6ecfae785e85c642d7a02d740",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:a38c9890ad4239f10c7265399a78daf7122b94c245240196c5539f91c0794391",
+      "record_id": "format-code-task-000125@sha256:a38c9890ad4239f10c7265399a78daf7122b94c245240196c5539f91c0794391",
+      "task_id": "format-code-task-000125",
+      "verifier_digest": "sha256:75add76edfe1281cf37970b07e08b5685fefa45022050caa962278462cff818c"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:de118541870d57e77354aca5cb0d9f26e7f9a232b07ed659798d2d2dd3d256dc",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:b716bc769bef228c9e28c390dd62e8fec016235ccbceb7a5210e79977d07a9cf",
+      "record_id": "format-code-task-000125@sha256:b716bc769bef228c9e28c390dd62e8fec016235ccbceb7a5210e79977d07a9cf",
+      "task_id": "format-code-task-000125",
+      "verifier_digest": "sha256:a7098b59db61aac6ce64d9292138cb9b7c07d397eeccd27566b09bd3af53d50b"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:659028c968099769d75fa036f63332984e8969e0ebe237d86f7e69efff0d6610",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:a7b0d467b0ffb8126fd8272ca60c3b8372b76b147be43dd57802531623e1b8e3",
+      "record_id": "format-code-task-000143@sha256:a7b0d467b0ffb8126fd8272ca60c3b8372b76b147be43dd57802531623e1b8e3",
+      "task_id": "format-code-task-000143",
+      "verifier_digest": "sha256:c6ffeb1b342206da69ccdee9a153d09a8269c44a2f06c6697392846f7542796d"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:4d37e2ae1689e9e3c83b73a4a422ef6187f161580a9d6d20af66f968f6bb5b50",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "record_id": "format-code-task-000144@sha256:993039c0a8a7917040e0fd5ca0071e886b9f4291bff36296b8afe55160db8058",
+      "task_id": "format-code-task-000144",
+      "verifier_digest": "sha256:dcef3cde97a844e52badf23d5c23ffd233126d8f319daf86aa33339e64afacad"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:b5ace3fdbac3f92b5b0751913ab38b37e295f792af4db443ab96c1984a9d9d28",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:4687eda8474dc908a5d11dae729eec6f8118713b892ae2facf43e20bacb3bdee",
+      "record_id": "format-code-task-000149@sha256:4687eda8474dc908a5d11dae729eec6f8118713b892ae2facf43e20bacb3bdee",
+      "task_id": "format-code-task-000149",
+      "verifier_digest": "sha256:4e286cd937c22855df6ab3f06441d05a00dd27e6fcbb0989fc328ca0a9866f7b"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:9447e8443a6dce1892299468773ecb67a0e4326ad60fa247c0c486ddad87bc98",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:a1fbbc68dab9573d6a7b356d760355e4cc1901b87818c602265295fef8557118",
+      "record_id": "format-code-task-000169@sha256:a1fbbc68dab9573d6a7b356d760355e4cc1901b87818c602265295fef8557118",
+      "task_id": "format-code-task-000169",
+      "verifier_digest": "sha256:05ec62679f92c33f06dcaff099b1093a3ef6c2e9390a59e96095a35e77886d59"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:66ef09e9e30859083624bb81a1e4d102d5cd36136191c34b71a3e102b4c9ec35",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:feeb4a1785a7cf0306d068a6ada1bf772e8bc0cc3725b0af731fdf10e4da3ca7",
+      "record_id": "format-code-task-000169@sha256:feeb4a1785a7cf0306d068a6ada1bf772e8bc0cc3725b0af731fdf10e4da3ca7",
+      "task_id": "format-code-task-000169",
+      "verifier_digest": "sha256:dd6291491a2305831d633699eccf93149426fbc16deed4b06f3842ae6bb3491a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:f0347dea360698264ff0751ef628b1c0d51a1c944186f62986eab85ab6b627f9",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:c5c0582063f314b7aa341995aec3db61b9c290f2eaef74c7bc71192415d64dc9",
+      "record_id": "format-code-task-000226@sha256:c5c0582063f314b7aa341995aec3db61b9c290f2eaef74c7bc71192415d64dc9",
+      "task_id": "format-code-task-000226",
+      "verifier_digest": "sha256:b357fd212a8a7349c1a6acfe51f13442c927c60446db0e619da04806b630f740"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:28c7d085844d1775e33a553bd46573016cd8935a550cb5816426429f969738db",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:9e3a5bffeb88025ecf57f1adffc2d63aab1f065467cabf35385e9f4699d853e8",
+      "record_id": "format-code-task-000240@sha256:9e3a5bffeb88025ecf57f1adffc2d63aab1f065467cabf35385e9f4699d853e8",
+      "task_id": "format-code-task-000240",
+      "verifier_digest": "sha256:45474ea5bcad0a7dc8c118ffa4410458a992400f749ce2803a0c7f6f5196d55c"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:370c8dd985c5fa9bed1a569f9ca174a09d8cc23f9cac2d56986912db36be7efb",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:2698139a5c8b637cdd4c7fdc61f0b3b7863233842067d7cde743f43da1ef6cfc",
+      "record_id": "format-code-task-000241@sha256:2698139a5c8b637cdd4c7fdc61f0b3b7863233842067d7cde743f43da1ef6cfc",
+      "task_id": "format-code-task-000241",
+      "verifier_digest": "sha256:f009b021f8d684cd9ee4bad07d80a0342a9d584fbacc4d1a06cf9a99bce462b0"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:0fd941626e99fa6e7b714264f1cc6e82e82a4332dd439c38f1471adc6460b20e",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:8bfb1161e408f247e1d01f45c13eccd230db55370960fd4ff20f03adfedc9be9",
+      "record_id": "format-code-task-000332@sha256:8bfb1161e408f247e1d01f45c13eccd230db55370960fd4ff20f03adfedc9be9",
+      "task_id": "format-code-task-000332",
+      "verifier_digest": "sha256:2e5a9f789cf2307287a6ffa90a6dd3f3af6b068ac000bf7ff3df158ca0ab393a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:655d3380f7431b83e058be6887a39681cd6525d24d7d7c659445d573e30fc6d2",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:03ce2f99a49d740dd2bff09102689d1c9231b7791fac6180ad46628a01557dc2",
+      "record_id": "format-code-task-000341@sha256:03ce2f99a49d740dd2bff09102689d1c9231b7791fac6180ad46628a01557dc2",
+      "task_id": "format-code-task-000341",
+      "verifier_digest": "sha256:76fbca2c50492965fc35d43ac1fad160ab73dd3b74b54a2a115eaa93367106e8"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:5e4b6871c30987a09a2b5fe8f700028846c53cdba412fdf6bf8bef7cd3997e76",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:df9584db3d5cf3bc2e8555f55823a2978c48179a3bb244db8bc8ca2382fa2556",
+      "record_id": "format-code-task-000354@sha256:df9584db3d5cf3bc2e8555f55823a2978c48179a3bb244db8bc8ca2382fa2556",
+      "task_id": "format-code-task-000354",
+      "verifier_digest": "sha256:a9a8aae1fe4247688a5de42054981781cd0768ff3d8781ccc40d58e86f19c860"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:0c22d1dd2cfc59ffef7d7b2cf2cb8c27f5c84701e72dd64b02dfb0b45e78f459",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:d2cbd3f557c57dfbd2abf157823f51a047b2c8f71423fbdad6f663eecbec27a0",
+      "record_id": "format-code-task-000552@sha256:d2cbd3f557c57dfbd2abf157823f51a047b2c8f71423fbdad6f663eecbec27a0",
+      "task_id": "format-code-task-000552",
+      "verifier_digest": "sha256:98c754a99114aec1e77143f78b8ffd2cdb511ff40ab9d46312e10c7b83e001e9"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:6dca543f9ee05f3c88cef54159f9102426f2ea1d12981fd57a01651b9bfcc214",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:cea3b5f107efb1cd5f013d5aff18cb509bd703db312337c786036d062533ceea",
+      "record_id": "format-code-task-000561@sha256:cea3b5f107efb1cd5f013d5aff18cb509bd703db312337c786036d062533ceea",
+      "task_id": "format-code-task-000561",
+      "verifier_digest": "sha256:d7d013ee692acb8b7ff962147496822c0fe4b8c2b5b4734b036019d3c4b64668"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:a3b8c8abc56000521d7f30e4956ff3410998935d20e66508487e4db8ae671e36",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "record_id": "format-code-task-000582@sha256:df93013364a28fd08a4e3a57ba1a757ade9860981502ddf2d04d7025f0952a09",
+      "task_id": "format-code-task-000582",
+      "verifier_digest": "sha256:c11d5df38ce90ee32894465b76c60475e361135ffe2988293db6c53c43bacdc8"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:5adc1dd6d998ceba41d1dc4a07621f55a8ab5f200d88082c3e0b32db7dbbbf75",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:68249d152c038958af971fa746b48c5337242791797527c19f3bdebd4fcfae26",
+      "record_id": "format-code-task-000587@sha256:68249d152c038958af971fa746b48c5337242791797527c19f3bdebd4fcfae26",
+      "task_id": "format-code-task-000587",
+      "verifier_digest": "sha256:07f287e9dc52a46c92f6e0d3184b883f5b4e5b88ce515b50cc1f3df89632a8bb"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:1473621f88b7c1f5d02d155a70759d449c10d3df87f72b0aa45ab653afdad574",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:bb1da511153da13ae9d7b16743c59737cd2435a1ee4d4d100a08bcb65392887b",
+      "record_id": "format-code-task-000783@sha256:bb1da511153da13ae9d7b16743c59737cd2435a1ee4d4d100a08bcb65392887b",
+      "task_id": "format-code-task-000783",
+      "verifier_digest": "sha256:63bfa58e9453c36242b22acfe8451f2bcafabb37cf3179fc038cb5e04979bbb5"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:688ce6fa09dd8fb2148f8c2fcd46867b3c5a07414955a8140a73b765291046ff",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:687f2e9a65b1fec85f65a0a48d3e346ed8da079b89532b7809b10c42f254dd65",
+      "record_id": "format-code-task-000792@sha256:687f2e9a65b1fec85f65a0a48d3e346ed8da079b89532b7809b10c42f254dd65",
+      "task_id": "format-code-task-000792",
+      "verifier_digest": "sha256:22f99065e353f0fed2f9eb0770cde6f5dde352330d077ff056d143cdddcc2f85"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:501a77b8f35df6f59bcbad051112cfeb436543640e19329421afc38e133e665a",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:f380a291c5c96b89144c23c4ef98dd42440274c3de73314f1779acba831a7074",
+      "record_id": "format-code-task-000792@sha256:f380a291c5c96b89144c23c4ef98dd42440274c3de73314f1779acba831a7074",
+      "task_id": "format-code-task-000792",
+      "verifier_digest": "sha256:25dfcb61a74ce4db50bd2859ce3a18bd8b15d42bb777f384dfef73319508e133"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:2567b12dccb1add901b3d5ce71a90f1c721e493427375fddccb295afc9ad30fc",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:2ea10a95a7f391215c4db84a0ef13dbde2ca12a8535697ca9814c27e1eee48a9",
+      "record_id": "format-code-task-000803@sha256:2ea10a95a7f391215c4db84a0ef13dbde2ca12a8535697ca9814c27e1eee48a9",
+      "task_id": "format-code-task-000803",
+      "verifier_digest": "sha256:f224044765eaac6ecbf96b5cd956591b2bdd6026ac207e197e880a2b26337f2a"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:ddc022f79cd382f333a93149ed2ca67bf967ff8737a0fb8f406cee5067b5c829",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:7dbf29fce7a0f23296ab3cff5c205e0260648c3a49bff6d7695e66f421175d83",
+      "record_id": "format-code-task-000878@sha256:7dbf29fce7a0f23296ab3cff5c205e0260648c3a49bff6d7695e66f421175d83",
+      "task_id": "format-code-task-000878",
+      "verifier_digest": "sha256:71936ade368c35c55b7d143941a0fa09776cdfab142017fe63f18a061aaad326"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:64b389d1f3a9600cefbbb7a44b00312f3ca17ed88e29c46ef9d0a6b5a87ec1f8",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "record_id": "format-code-task-000905@sha256:3a8a4b6d5dbd38f97f8d8c73ef84765190668fab425f155b11a7cc490469fd8e",
+      "task_id": "format-code-task-000905",
+      "verifier_digest": "sha256:80d79eb2ae76f7bb6aa4d8683ccf6c980b33d7292d3e711e808196e86335055f"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:a551e1f509f8cf85d835852ce73e0d6b47dd055c8b78264cb604d026fe546e34",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:321a640ab2310ea0eab0191b838b518039bc4208592bda427384e2098082bc7a",
+      "record_id": "format-code-task-000927@sha256:321a640ab2310ea0eab0191b838b518039bc4208592bda427384e2098082bc7a",
+      "task_id": "format-code-task-000927",
+      "verifier_digest": "sha256:60ea35fa8b305bfe0f6e3f99675e6803c0629f64fac5842c77e57167b218ec60"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:e04e32b52c3d0692cce1be6bbb0e620b828116e590af4d68cf5f8e2250f39dab",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:a80b1e34643ec24295ae224bb8f87a161a8a20619f2c4f2b6794436e90bd707a",
+      "record_id": "format-code-task-000931@sha256:a80b1e34643ec24295ae224bb8f87a161a8a20619f2c4f2b6794436e90bd707a",
+      "task_id": "format-code-task-000931",
+      "verifier_digest": "sha256:10b5cb7ad4c12c78457f2ccafeea37736a920028764a14a2fbc5bb31ce1c4019"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:f81827569c9dfa21fe16f101c3728fb946f06089a1471ddf258fdbd4ddccce94",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:baa10a49a813cbfe4211790d4e4a06fe5b8ef7d5b67194de1b818d6bb7ae00b1",
+      "record_id": "format-code-task-000941@sha256:baa10a49a813cbfe4211790d4e4a06fe5b8ef7d5b67194de1b818d6bb7ae00b1",
+      "task_id": "format-code-task-000941",
+      "verifier_digest": "sha256:cba200cd5451e95045c9c2722200829b9b42ad081b00fd2089a9613519bd234d"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:58cdbb33909636319551a94f699303bcdd3f7ebcca64d0127ffe36b17a52b6ad",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:1a8374fe3cbd46f7197a09fa2f702b76abadb6b4c8341c607e17ab605d788a3f",
+      "record_id": "format-code-task-000945@sha256:1a8374fe3cbd46f7197a09fa2f702b76abadb6b4c8341c607e17ab605d788a3f",
+      "task_id": "format-code-task-000945",
+      "verifier_digest": "sha256:5a5785797ded565d1d009f7cb448dc1704a456a9b29bc8f1212bda3843b6ebbc"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:051abc7ac418c89a255e0626b3d644b3050fdd959b8a678dc4e620412a081160",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:d3ca6dc28408d9593ff781faa4dc5f3a632355b3bcad2d65dfff6a0ddd949c2a",
+      "record_id": "format-code-task-001205@sha256:d3ca6dc28408d9593ff781faa4dc5f3a632355b3bcad2d65dfff6a0ddd949c2a",
+      "task_id": "format-code-task-001205",
+      "verifier_digest": "sha256:963b7eae71d9d2aabaac493ebfad22e44c79c75739c009635525ac9afec8580d"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:99afc847b9843ffb3f064c75c92fc30a930111327680d148dacf2ea67fc89739",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "record_id": "format-code-task-001220@sha256:0a539cb6f159ab362bfb7c4e5a3662d35c17fcf8a1d854c672b6896da89e7bc9",
+      "task_id": "format-code-task-001220",
+      "verifier_digest": "sha256:1c8cd3ca44f8339ba6b0cd08ef8ba8fb835f886e25339a3de0c347cdba121150"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:32c4d55f749d097e6acea5c327b71406a5f90d6295aa324929a492b7a4fd008f",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:fdbd028e2b51c9c77911561449160cf417897e5918b76e20689c2a96d48fa450",
+      "record_id": "format-code-task-001267@sha256:fdbd028e2b51c9c77911561449160cf417897e5918b76e20689c2a96d48fa450",
+      "task_id": "format-code-task-001267",
+      "verifier_digest": "sha256:501f3aebc646609ebf6772075db81f9a435e7e827e24d5911525fd23d469e3c1"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:9b830e2dca4d5aa9869f3014e71f5becd34944139322364fdb0a9ea64a8eca2b",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:52541018ab9bf070a573586362254220bbac3838d790a617f6a105caae4bec6e",
+      "record_id": "format-code-task-001269@sha256:52541018ab9bf070a573586362254220bbac3838d790a617f6a105caae4bec6e",
+      "task_id": "format-code-task-001269",
+      "verifier_digest": "sha256:ca72e5eea58ffea50ce812a6aa86b8c1b054405bcafd92fecf6da72dadd19c6f"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:28362d3f08d1631a9b3445c8bf3362886bb16e3af94f565ba0272136505db11c",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:9f4c6ffcd9ecd3f83f54c3736edc5311c2218ec279c270ce58b995a9c5cc8328",
+      "record_id": "format-code-task-001269@sha256:9f4c6ffcd9ecd3f83f54c3736edc5311c2218ec279c270ce58b995a9c5cc8328",
+      "task_id": "format-code-task-001269",
+      "verifier_digest": "sha256:61c5351d1657e29552b91acfca9c46969c8951fa56923d945ca01f3520f02a91"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:50c09e222dbe1dc2a5784bff96305d9d4e856dd9b8c98324a5d01f6870996392",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "record_id": "format-code-task-001371@sha256:814e6feb5ecb421c52c0264279cfef2a30d695ab2938096f2180e7dd55c2ea80",
+      "task_id": "format-code-task-001371",
+      "verifier_digest": "sha256:b34a2bedb37dfd32e9941990f687b5f35f59dbfd8931977de37747e0707e1e3c"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:9bb2aed580d76582eaf5e9424ef5e638dc5058529ba127b4129f384df1729aa4",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "record_id": "format-code-task-001399@sha256:f1c5311477bb9d57afe73639893a1606a84a6f65fb887e8a8a43e82b99a2c240",
+      "task_id": "format-code-task-001399",
+      "verifier_digest": "sha256:3346215e01adaa009b41affa821e7f89c3988946abda4bde455b2b31eb210ca8"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:ba14ccc7e0d518b55b2916e65d95d2ee07d7a71d30ac640a616c4ca0d8f709c2",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:3843870ca2a3144672ec6ee115d6fbabab54cbd9377497b72f64606b888c615a",
+      "record_id": "format-code-task-001431@sha256:3843870ca2a3144672ec6ee115d6fbabab54cbd9377497b72f64606b888c615a",
+      "task_id": "format-code-task-001431",
+      "verifier_digest": "sha256:d2f148585e6274b7c70f8bc246df707a23ede8e2035ea2aec97463b3b5866696"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:64eecac1a47b64722f2126958f214f1ee29c95eaccebfdf82dd8fc3c2620a24a",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:8474acd925768abc26611f45c77b0e486802fb61613a8ab684609ace1ba78799",
+      "record_id": "format-code-task-001520@sha256:8474acd925768abc26611f45c77b0e486802fb61613a8ab684609ace1ba78799",
+      "task_id": "format-code-task-001520",
+      "verifier_digest": "sha256:ee34df112a7fa45b5a88a1a1baef468f2cbb345c0c38eed414137ed2d97c9ae0"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:2aa9a8e2a1d2da6da429cb4fde22fb028f606a096189df59c13b1fef78604a85",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "record_id": "format-code-task-001590@sha256:2aa5d14a1614032f8a48ac25c03205f3f238fe005bbbb8bc4ff0c463a20d83ea",
+      "task_id": "format-code-task-001590",
+      "verifier_digest": "sha256:e8c16426bd0f58c1a86133a9a002646dc5ebcc40fe06f595893392c09ed5f597"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:8bfabb1429285e06841b3f610e426f34f224251ff901f32674b68fd08216c404",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:0dccd133371a7960fac7328c6f8a478c5e7285433706a4bfc8958de9e8fbcd3d",
+      "record_id": "format-code-task-001647@sha256:0dccd133371a7960fac7328c6f8a478c5e7285433706a4bfc8958de9e8fbcd3d",
+      "task_id": "format-code-task-001647",
+      "verifier_digest": "sha256:3c7d5238ed4d4a418466cb66faae03f8704c0a9fa8b0aa0b2063b66631129144"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:0cdd86f4c5e7ef848ddc89a93ba7f3109abbb638d48d9e081797d2e39a69c96c",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:7fa5682ef2c567da72c93114bc4e50aaefb6af783e4192db23a9a5c37168e5ec",
+      "record_id": "format-code-task-001661@sha256:7fa5682ef2c567da72c93114bc4e50aaefb6af783e4192db23a9a5c37168e5ec",
+      "task_id": "format-code-task-001661",
+      "verifier_digest": "sha256:bb79e3f6c2f7bfb0bc032f038e6c25a3f16011d85d3fcdac7fb28114cb639ff3"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:4ac36fc34c37a52c62ae324d8ecdf15c8db5aaa513b562fc295684d8d94a53d3",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff",
+      "record_id": "format-code-task-001686@sha256:852e5afe1b8f6616a026913972e43474fbe02415114c07a87c2aafaf3ca578ff",
+      "task_id": "format-code-task-001686",
+      "verifier_digest": "sha256:d6c8948521a9cb871f22daeed948f8038a6847665db691ed85a5f6c9d5605118"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:b5e8b8e1623600106754bd6d8678eed0aef7292730a00b73195db6c79f49eb73",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:7d4dbc2477023320e8ad463948deec1316ceb77f91c20c6e8323e3ce9c1e4cfc",
+      "record_id": "format-code-task-001695@sha256:7d4dbc2477023320e8ad463948deec1316ceb77f91c20c6e8323e3ce9c1e4cfc",
+      "task_id": "format-code-task-001695",
+      "verifier_digest": "sha256:cbd2027aa0844e964fdacc79e226885d52260aa4e94648e55686fbc83ab4acd3"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:f3ca8676c84ee8d3dcd58983c7cdc554e96f06cdc151561c8c82e8973732f4be",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:4137cabe23ecb6020f0cc81019789b51206611b621e138649321d92f2e5eb003",
+      "record_id": "format-code-task-001750@sha256:4137cabe23ecb6020f0cc81019789b51206611b621e138649321d92f2e5eb003",
+      "task_id": "format-code-task-001750",
+      "verifier_digest": "sha256:837eab90d0276b3bc993779f66164a634c6e6a2dffcfb4e80c4871018a7140de"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:a0ffaa5cada388c8e51459799befca26f0e1e63f4db9305efa1a4415255bbe6a",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:a653c3ff649841a52625b74f6ee6804e0c67388d59d4f4de01838d1ebe771e59",
+      "record_id": "format-code-task-001804@sha256:a653c3ff649841a52625b74f6ee6804e0c67388d59d4f4de01838d1ebe771e59",
+      "task_id": "format-code-task-001804",
+      "verifier_digest": "sha256:282d9b022cd4f3997ae208c8aaa22a4ecc84daa6b459c4162bc4ca30b68f9516"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:497d2b1aa51dabac693446f173bef0c7a7b4f3a9952de78946da46a023625bec",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:04b38bf946f07754bbf8788ddc0876061d70e56b581ded21f8e392b0c5f21525",
+      "record_id": "format-code-task-001809@sha256:04b38bf946f07754bbf8788ddc0876061d70e56b581ded21f8e392b0c5f21525",
+      "task_id": "format-code-task-001809",
+      "verifier_digest": "sha256:7ef7c465227ec9d7baa8cc3ae9adfffe78854719dfafdd105c99b7369ff66fba"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:958618bc33a52332d6a53eaf95cb712914b278b0328a982ce7b7ec9adc15e6b9",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:2ba5d3a6589ccef9362da4aed344253628756edb74dae49ebd6b299f6a849da6",
+      "record_id": "format-code-task-001809@sha256:2ba5d3a6589ccef9362da4aed344253628756edb74dae49ebd6b299f6a849da6",
+      "task_id": "format-code-task-001809",
+      "verifier_digest": "sha256:918c2e8d826090c9dce986d30b1b14cea7f244d25871dafefe7dada7951edaec"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:147a1f10c116836b352533c4077fa06fea9dc68cb6782d0a491cc78a1ad8c86b",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:0ab0e7b5db746c799c1666c40bc065a6f0d86999f10f4cef07d7e09b001bc5ba",
+      "record_id": "format-code-task-001870@sha256:0ab0e7b5db746c799c1666c40bc065a6f0d86999f10f4cef07d7e09b001bc5ba",
+      "task_id": "format-code-task-001870",
+      "verifier_digest": "sha256:ca9356c43b555773c18bc7ca066e87fc5bdc6ef32f140e6336ca2082ca40e3b0"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:650afdaa448dd4b86e32aa7d23f2b5319b55d1b3540264b4a5d1b3549ca27314",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "record_id": "format-code-task-001891@sha256:75a6a40a98fd317153d17692a295a8b1ed1cfd624acae54d478ca93ccb9e313b",
+      "task_id": "format-code-task-001891",
+      "verifier_digest": "sha256:257f2d260e14701abc96a60c5c2fc29ae1f362e33da1b532a1084ebbb029f6f7"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:500b59bf1d04eac47618c22ac45e1831356e2eecef67f56ea1017ade47e743c7",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+      "record_id": "format-code-task-001948@sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+      "task_id": "format-code-task-001948",
+      "verifier_digest": "sha256:d19fbbbceb4fd3d0bd4dca499d09f7136308b01df0bd4430dafecde15d0d9f1b"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:c2693e1c68c77d6f8f27bd59202273fe3e553f6f3dfb4dc9377a0f7467f74dd9",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:00085413d0b1e88afd34e6da9511a545b0bcea6429158d8957bb0e0ecbc15958",
+      "record_id": "format-code-task-001985@sha256:00085413d0b1e88afd34e6da9511a545b0bcea6429158d8957bb0e0ecbc15958",
+      "task_id": "format-code-task-001985",
+      "verifier_digest": "sha256:f1529a3e9510880f82704211cb0c8438c9618126dbee6d9f4ae3f750e57407d1"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:b5c72db709a68a06c1d75e857e1d339218c052e625485a1c9549c4eca0fcc415",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:f97bb520f1de09dffe5ac3dacc575593bc9ebb0931ed5a2163938ef283f11336",
+      "record_id": "format-code-task-001985@sha256:f97bb520f1de09dffe5ac3dacc575593bc9ebb0931ed5a2163938ef283f11336",
+      "task_id": "format-code-task-001985",
+      "verifier_digest": "sha256:a8092e08a1bf10c4df4cc9ad05230c0324b566d144ea405f7bdb63fcf5ab4bf5"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:2801b115373de58dce772c59132ee42488688e53b1cc686a9f4d850fd945f3c6",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "record_id": "format-code-task-002092@sha256:8a20cc19b836c9586b36721110c38d57e088e4a035f759b42494f2c36104c941",
+      "task_id": "format-code-task-002092",
+      "verifier_digest": "sha256:dfc5831e3b34192ee4cb1a165e8cb1eac034a63c256ef39e474c6105cf87d28a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:67f73e21a41406fe9cff06a894bb97b6f764a14dbd9025cbf7740104673db641",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:b038cd0facc9100fd485bc7fb007b5c51affb1b3cfb2a92265c4389a205eeb17",
+      "record_id": "format-code-task-002139@sha256:b038cd0facc9100fd485bc7fb007b5c51affb1b3cfb2a92265c4389a205eeb17",
+      "task_id": "format-code-task-002139",
+      "verifier_digest": "sha256:f836b7dc6a3f7ddba0aa35b3cc5cbb533908366056bc2c22ac62d539a2f109d7"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:a031423993f6c20ac1c50b7f1337b9dcdf42a6597cc4c98f6517700431a97c1a",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:3dbcd92aaa1c0d65a2febb9409f1d1e50b3cf29b5d13e7fa13956fbb258b3b0f",
+      "record_id": "format-code-task-002160@sha256:3dbcd92aaa1c0d65a2febb9409f1d1e50b3cf29b5d13e7fa13956fbb258b3b0f",
+      "task_id": "format-code-task-002160",
+      "verifier_digest": "sha256:52798274dedb7f54177e3e59159848def8c228cecbf80cacf6641afc89fada20"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:62413167daf4c5a92a4b4dc444f1ad069858bcd02d2bd37521474691f5be32c7",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:102d71645321b7a6979c7d8a89eb3378eb7db230739c257ef01784f16c5a6baf",
+      "record_id": "format-code-task-002216@sha256:102d71645321b7a6979c7d8a89eb3378eb7db230739c257ef01784f16c5a6baf",
+      "task_id": "format-code-task-002216",
+      "verifier_digest": "sha256:ea3eaf9d234e4954b206cf29c3ec46bef8503a9fcea7311c32b8ff37f7c5eb73"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:85994762dc3d14b706dec66a42b05a0b02a16310fa30677743db11b47e06dab5",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:c5a451d60c9d875ce356b3dcc6f1ffb7e7dc5e01cc28d0c6d212cde88145d4f9",
+      "record_id": "format-code-task-002256@sha256:c5a451d60c9d875ce356b3dcc6f1ffb7e7dc5e01cc28d0c6d212cde88145d4f9",
+      "task_id": "format-code-task-002256",
+      "verifier_digest": "sha256:a6a41d6d09faaed05df3fafa3f5103782d9d78fbe9e1bedae6e2a3270aab11e8"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:29094e7aaac4621d3a3b7a0ddaa9d264cd71ff6d724e4d643c03f7ff7edd1393",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "record_id": "format-code-task-002304@sha256:ddf046a7c9cb4fa5ad197401c064b72197d721623f9aea2b442d1ea6bd6d833d",
+      "task_id": "format-code-task-002304",
+      "verifier_digest": "sha256:0e74b1fe8dffa95353eb243e71f9dcff1bdcb01a94d536598bc5e295da33b47e"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:9f2166557713c871951b32d28c14fbc75578fd91b580bc909aae3083f9a62b5e",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:c8f7d177bfeb3a08725ee2977f4bd253fc91827a27dd6e4e5ac19f7d66362784",
+      "record_id": "format-code-task-002308@sha256:c8f7d177bfeb3a08725ee2977f4bd253fc91827a27dd6e4e5ac19f7d66362784",
+      "task_id": "format-code-task-002308",
+      "verifier_digest": "sha256:c5c416e2387b8e729f40b9ff5fed9a5533252ad2d7785ab0a00b9f42d27de442"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:5de2d3b771d4d81a2b4c95de85b2bb7bd1a675e3ac1be071845fc2df99ff287a",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "record_id": "format-code-task-002335@sha256:bd7bc12ac8df65ba349172530ae19a934143ad7eca928cc97b45a0d35177ec86",
+      "task_id": "format-code-task-002335",
+      "verifier_digest": "sha256:f5a6b282bba74b41cc964d49e74da7da7703fafc6f639ad95071e02b9bff777d"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:047d154dbb08f8e0e156ec4f550122a549e95b8dfe6484728a79e7ae966ee4d4",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:294e55b2d3e6ecd4e6e4da9d6841a20a5585556454e11ca8f4b85c615fd60344",
+      "record_id": "format-code-task-002356@sha256:294e55b2d3e6ecd4e6e4da9d6841a20a5585556454e11ca8f4b85c615fd60344",
+      "task_id": "format-code-task-002356",
+      "verifier_digest": "sha256:87d80c796bf869091226d182abf24206d1d792031f1d7ae44f993275d67a3927"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:08f4621c9a50d0046fd58fac6741fea4d1d4a837f4a12ed4a0ebca0e44220014",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:aaffb9ae35c891cc2fec4ab67f5e0c5295cebb6b5205129ae66b46f6504fbfe7",
+      "record_id": "format-code-task-002371@sha256:aaffb9ae35c891cc2fec4ab67f5e0c5295cebb6b5205129ae66b46f6504fbfe7",
+      "task_id": "format-code-task-002371",
+      "verifier_digest": "sha256:02c425729492f57b4c086a6f25dcfc966366a40199c40b57756f192fa2201976"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:16da2c51910c6f122f490f677c283f7ab321fe64001a636774c30951ab408908",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:0e35704650ca2144c11eee01f2a5222aade6d895479bcdac2e289e4546f7273a",
+      "record_id": "format-code-task-002391@sha256:0e35704650ca2144c11eee01f2a5222aade6d895479bcdac2e289e4546f7273a",
+      "task_id": "format-code-task-002391",
+      "verifier_digest": "sha256:c8a6a6a5dd39300b33a8d2409daf7e5471742e6b9dd725c65328a9307c8ab4fb"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:95b611d65e0fa01a4f8eae0e7d1b141da4bd1501ed8bd71ee07893dd6b6f1508",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:8d6eeced46065b00306773952dbdc49af65e9b0992c65714eb7aa88f9ae5e715",
+      "record_id": "format-code-task-002391@sha256:8d6eeced46065b00306773952dbdc49af65e9b0992c65714eb7aa88f9ae5e715",
+      "task_id": "format-code-task-002391",
+      "verifier_digest": "sha256:554e683b7691b25db0862f6bb8facaa82758c1d95d93bc7547305680b3b5895c"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:3b5ae49bf499984c41d11af0138999511e2b5956212afb3b0ca57a09eb48738f",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:4d1c3dd9809ae5deebd7fc7cca5bb6fed75890c16063eeee278c18cc30bb8e61",
+      "record_id": "format-code-task-002402@sha256:4d1c3dd9809ae5deebd7fc7cca5bb6fed75890c16063eeee278c18cc30bb8e61",
+      "task_id": "format-code-task-002402",
+      "verifier_digest": "sha256:f22cf34d8ffd56a7be4c46d8fff91d0fe83fc8b89b27ad6672b4f798ca54ca8a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:baae6cce92f20b5cd9fa82a4d0e29943abb1c045becd7671c7667808ca493bf3",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:511d34609b20dc93976ace91f8e6e5dbbfde58ce9422c64049fcf787646ddbe6",
+      "record_id": "format-code-task-002416@sha256:511d34609b20dc93976ace91f8e6e5dbbfde58ce9422c64049fcf787646ddbe6",
+      "task_id": "format-code-task-002416",
+      "verifier_digest": "sha256:1d0146368b871bf17e58096f30fcb744bd43ba587f5b22fc749b326474551929"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:cfcb9a95d512e36f9ca1d522577ee25b705ef169e33076e935517b9b7737dadd",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:182be31d763ddd8607c64818e3660b0b6ca5e994079d4518e82ccde7bd4b1ddb",
+      "record_id": "format-code-task-002451@sha256:182be31d763ddd8607c64818e3660b0b6ca5e994079d4518e82ccde7bd4b1ddb",
+      "task_id": "format-code-task-002451",
+      "verifier_digest": "sha256:0bdce54064cc4bc4d0838ce2aa6f3ac7cce939226137547c2e3eb289affafd0c"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:8b1c91d0ff549538a965bb85ec8af3f775460fce4de3d61257e03ace9be247ea",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:2992d36b1aba3abc6b9b25498538e70e19ad8b0ac3e341d8b170d78366b06da8",
+      "record_id": "format-code-task-002486@sha256:2992d36b1aba3abc6b9b25498538e70e19ad8b0ac3e341d8b170d78366b06da8",
+      "task_id": "format-code-task-002486",
+      "verifier_digest": "sha256:c1cf92b4c0343ec95d03f569f70c140c1607337b993123e9ac323494485b470d"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:0e8a9803edb93636071f833f9b064d84f7ecf932de09ebc2e342a19b945e920c",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:fe9c389dabf0b571658bd52d4208fbf383f266a9ce2b1795663d42df093d23ff",
+      "record_id": "format-code-task-002552@sha256:fe9c389dabf0b571658bd52d4208fbf383f266a9ce2b1795663d42df093d23ff",
+      "task_id": "format-code-task-002552",
+      "verifier_digest": "sha256:a54b48c39bef18f43ffda848b5a2d6eba159bf219fdbe545f97f53f07dc6725d"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:d7e46d0172907c0b8a054a509711687b190d3608d95ea7245eeadde0034572a4",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:390adabe969ae27f260c0e58a7c419baf6983bd8f3d84544523b08f2e65e9058",
+      "record_id": "format-code-task-002555@sha256:390adabe969ae27f260c0e58a7c419baf6983bd8f3d84544523b08f2e65e9058",
+      "task_id": "format-code-task-002555",
+      "verifier_digest": "sha256:774b8060baf3ee16f23e18824e53fda9fd92d2ad3f55a5b6a421dd3929852711"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0,
+          0,
+          0
+        ],
+        "reference": [
+          1,
+          1,
+          1
+        ]
+      },
+      "harbor_digest": "sha256:17dbc691fca74bf3d91fce6bca93c015527b75ddf30e8327b0d9b7464238cab2",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:eb04a73b5b5f9a8836cace67c6c06ffa312cadd0d47856ae213aae497d40a7dd",
+      "record_id": "format-code-task-002709@sha256:eb04a73b5b5f9a8836cace67c6c06ffa312cadd0d47856ae213aae497d40a7dd",
+      "task_id": "format-code-task-002709",
+      "verifier_digest": "sha256:7c0945cafdb6eba771a8e29e62cdf5204e9b7cc286c53e954010f6460a2e0b0e"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:98661d38b49b83885bf56817250e9346676ba84024d6ca70aa252c119efb7822",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:0000607e412b705fbced20f885197a34b39d50af2aec2dc10f99fc4da0cb849e",
+      "record_id": "format-code-task-002864@sha256:0000607e412b705fbced20f885197a34b39d50af2aec2dc10f99fc4da0cb849e",
+      "task_id": "format-code-task-002864",
+      "verifier_digest": "sha256:31ebfd4aef280ecb246065baccdb04970f111bc1bea8c63ca3ef4b78c5f747b3"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:8876e44809625d8e54b2480f804659bd492ea378ac66518ad401dbdd80b15e39",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "record_id": "format-code-task-002871@sha256:fb67666416611d293ef093fa9161d3a0d19b06e9a8f896fc3941284987f30aab",
+      "task_id": "format-code-task-002871",
+      "verifier_digest": "sha256:c46fa882d3a8949bcf59ae3d0ca9e996663b1a17483895059e6d22eb8d7c8925"
+    },
+    {
+      "cohort": "repaired",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:480a5188b8714c138c2752f24af23acaa93a0627922c33733db31730efd0896e",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:75e925407cbfc32bb6715348de523694edafc2033bf2e28cb33958693a49198d",
+      "record_id": "format-code-task-002915@sha256:75e925407cbfc32bb6715348de523694edafc2033bf2e28cb33958693a49198d",
+      "task_id": "format-code-task-002915",
+      "verifier_digest": "sha256:6b0d4e447a657056e7ef619ce7d16037ae05c8c134e55c74aadcc8bf60f37ad7"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:bf41f7cb984d8e8a29e7bdf5e9f5b1ef7bfbb2cbcd949593859df4fdcbfbfde6",
+      "heldout_excluded_from_training": false,
+      "package_digest": "sha256:d3babde02e2d8a22c0f502b2d46d54937bd8dbf90c4773c632fd35665771ba18",
+      "record_id": "format-code-task-002938@sha256:d3babde02e2d8a22c0f502b2d46d54937bd8dbf90c4773c632fd35665771ba18",
+      "task_id": "format-code-task-002938",
+      "verifier_digest": "sha256:979a3c7c3e1af9d94569d74b2d68fa6e0364bee1ad4d45f06d2b059200a4916a"
+    },
+    {
+      "cohort": "unchanged-clean-controls",
+      "controls": {
+        "nop": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "reference": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "harbor_digest": "sha256:7eb68bbb7d57c63cba1c3157d899bbabfdc204fa056572c76425daab787d119b",
+      "heldout_excluded_from_training": true,
+      "package_digest": "sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "record_id": "format-code-task-002989@sha256:34922e282a723b39e4fb980f3a13757af4ca4dee103d863a111b2c201654403a",
+      "task_id": "format-code-task-002989",
+      "verifier_digest": "sha256:f1b13cebb684edf502fe36e448e5f4210ac0e10f14b973de9cf2912b6f49c8e0"
+    }
+  ],
+  "not_semantic_certification": true,
+  "schema": "mimo.executed-clean/v1",
+  "sources": [
+    {
+      "path": "research/experiments/mimo-clean-v7/manifest.json",
+      "sha256": "sha256:ba553cd2c002c18582bca3b77c0c97b689df2dc3ac3fca83534a86dbb5ef74a7"
+    },
+    {
+      "path": "research/experiments/mimo-defect-map-v1/findings.json",
+      "sha256": "sha256:a615bfec8f1c7b84e3d8c4c4c5ea3d97f3c939236a63cb8635ce9064e1310fce"
+    },
+    {
+      "path": "research/experiments/mimo-defect-map-v1/repairs.json",
+      "sha256": "sha256:2917f286cbe672f49a047bc917e8dd94cc42baf9c74a2375f3d496b626435606"
+    }
+  ],
+  "spend_usd": 0,
+  "training_authorized_by_this_release": false,
+  "training_pool_wrong_pass_overlap": {
+    "distinct_task_ids_overlapping_pool_by_id_only": [
+      "format-code-task-000169",
+      "format-code-task-000792",
+      "format-code-task-001809",
+      "format-code-task-001985",
+      "format-code-task-002391",
+      "format-code-task-002486"
+    ],
+    "interpretation": "Wrong passes were executed on original packages; the pool holds repaired/qualified or control-clean packages. Task-ID overlap is not exact-package overlap and does not contaminate the pool, but those task IDs need the repaired grader for any regrade.",
+    "known_wrong_pass_rows": 8,
+    "rows_on_pool_exact_package": 0,
+    "source": "mimo-defect-map-v1 findings category training_wrong_pass8"
+  }
+}

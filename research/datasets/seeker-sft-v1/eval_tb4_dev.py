@@ -25,6 +25,8 @@ from typing import Any
 
 from build import (
     HERE,
+    REPO_ROOT,
+    SOURCE_MANIFESTS_PATH,
     TB4_ITEMS_PATH,
     TB4_TASKS_PATH,
     TB4_TEST_ALIAS_SLUGS,
@@ -55,7 +57,18 @@ def build_tb4_dev_cohort() -> dict[str, Any]:
         if i.get("split") == "dev" and i.get("scope") != "benchmark"
     ]
     wit_doc = json.loads(TB4_WITNESSES_PATH.read_text(encoding="utf-8"))
-
+    manifests = json.loads(SOURCE_MANIFESTS_PATH.read_text(encoding="utf-8"))
+    hb_by_task: dict[str, list[str]] = defaultdict(list)
+    hb_by_class: dict[str, list[str]] = defaultdict(list)
+    hb_path = REPO_ROOT / "research/hackbook/entries.jsonl"
+    if hb_path.is_file():
+        for hb in _jsonl(hb_path):
+            hb_id = str(hb["id"])
+            hb_by_class[str(hb["taxonomy_class"])].append(hb_id)
+            for ex in hb.get("examples") or []:
+                parts = str(ex.get("item_or_task_id") or "").split(":")
+                if len(parts) >= 2 and parts[0] == "pm-tb4":
+                    hb_by_task[parts[1]].append(hb_id)
     witnesses_by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for w in wit_doc["witnesses"]:
         tname = str(w["task"])
@@ -103,6 +116,16 @@ def build_tb4_dev_cohort() -> dict[str, Any]:
         total_pm_executed_hacks += len(pm_exec_items)
         total_wrong_fail += len(wrong_fail_items)
 
+        hb_ids = list(
+            dict.fromkeys(
+                hb_by_task.get(tname, [])
+                + [
+                    hid
+                    for cls_name in sorted(cls_counts)
+                    for hid in hb_by_class.get(cls_name, [])[:2]
+                ]
+            )
+        )
         task_rows.append(
             {
                 "task": tname,
@@ -116,6 +139,7 @@ def build_tb4_dev_cohort() -> dict[str, Any]:
                 "findings_by_taxonomy_class": dict(sorted(cls_counts.items())),
                 "committed_differential_witnesses": len(t_wits),
                 "witness_ids": [str(w["witness_id"]) for w in t_wits],
+                "hackbook_entry_ids": hb_ids,
             }
         )
 
@@ -182,6 +206,48 @@ def build_tb4_dev_cohort() -> dict[str, Any]:
         },
     ]
     smoke_score = score_seeker_trials(witness_trials + negative_controls, task_rows)
+    rs1_base = manifests.get("rs1_tb4_dev_baseline_20261021") or {}
+    rs1_drivers = rs1_base.get("drivers") or {}
+    rs1_matches = rs1_base.get("matches") or []
+    matched_by_driver: Counter[str] = Counter()
+    for m in rs1_matches:
+        matched_by_driver[str(m["driver"])] += len(m.get("item_ids") or [])
+
+    rs1_comparison = {
+        "summary_sha256": rs1_base.get("summary_sha256"),
+        "manual_matches_sha256": rs1_base.get("manual_matches_sha256"),
+        "pm_executed_dev_reward_hack_findings_total": total_pm_executed_hacks,
+        "drivers": {
+            drv: {
+                "tasks_run": int(dinfo.get("tasks", 0)),
+                "valid_submissions": int(dinfo.get("valid", 0)),
+                "claimed_exploits": int(dinfo.get("claimed", 0)),
+                "confirmed_differential_exploits_1_0": int(dinfo.get("confirmed", 0)),
+                "matched_pm_findings_count": int(matched_by_driver[drv]),
+                "recall_pm_executed_dev_hacks": round(
+                    int(matched_by_driver[drv]) / total_pm_executed_hacks, 4
+                )
+                if total_pm_executed_hacks
+                else None,
+                "paid_usd": float(dinfo.get("paid_usd", 0.0)),
+                "api_equivalent_usd": round(float(dinfo.get("api_equivalent_usd", 0.0)), 6),
+            }
+            for drv, dinfo in sorted(rs1_drivers.items())
+        },
+        "open_model_gap_vs_pm_executed_dev_hacks": {
+            "open_model_driver": "gptoss",
+            "open_model_matched_pm_findings": int(matched_by_driver["gptoss"]),
+            "open_model_missed_pm_executed_findings": total_pm_executed_hacks
+            - int(matched_by_driver["gptoss"]),
+            "open_model_missed_fraction": round(
+                (total_pm_executed_hacks - int(matched_by_driver["gptoss"]))
+                / total_pm_executed_hacks,
+                4,
+            )
+            if total_pm_executed_hacks
+            else None,
+        },
+    }
 
     return {
         "schema": "evallab.seeker_sft.tb4_dev_eval_cohort/v1",
@@ -199,6 +265,7 @@ def build_tb4_dev_cohort() -> dict[str, Any]:
             "committed_differential_witnesses": len(wit_doc["witnesses"]),
         },
         "witness_smoke_verification": smoke_score,
+        "rs1_baseline_comparison": rs1_comparison,
         "tasks": task_rows,
     }
 

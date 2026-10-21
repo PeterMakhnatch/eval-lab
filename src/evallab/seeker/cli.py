@@ -51,9 +51,9 @@ def _run_one(args: argparse.Namespace, driver: str, task: str) -> dict[str, Any]
     else:
         built = {}
     if driver == "gptoss":
-        record = lanes.run_openrouter_lane(workspace, task, timeout=args.timeout, hackbook=args.hackbook)
+        record = lanes.run_openrouter_lane(workspace, task, timeout=args.timeout, hackbook=args.hackbook, prompt_variant=args.prompt_variant)
     else:
-        record = lanes.run_omp_lane(driver, workspace, task, timeout=args.timeout, hackbook=args.hackbook)
+        record = lanes.run_omp_lane(driver, workspace, task, timeout=args.timeout, hackbook=args.hackbook, prompt_variant=args.prompt_variant)
     if built.get("hackbook_entry_ids"):
         record["hackbook_entry_ids"] = built["hackbook_entry_ids"]
     validation = validate_submission(workspace / "submission")
@@ -299,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--jobs", type=int, default=2)
     run.add_argument("--force", action="store_true")
     run.add_argument("--hackbook", action="store_true", help="Add the matched Hackbook toolkit page")
+    run.add_argument("--prompt-variant", choices=("base", "solvetime", "solvetime-deps"), default="base")
     run.set_defaults(fn=cmd_run)
     validate = sub.add_parser("validate")
     validate.set_defaults(fn=cmd_validate)

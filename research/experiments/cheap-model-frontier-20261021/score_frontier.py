@@ -12,6 +12,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from run_plain import VERSION, configuration_root
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 KEY = REPO / 'research/answer-keys/tb4-audit-v1'
@@ -47,7 +49,7 @@ def plain_rows(root: Path, category: dict[str, str]) -> tuple[list[dict], dict]:
                 raise ValueError(f'unknown reader class: {cls}')
             summary = '\n'.join(str(s) for s in (finding.get('title'), finding['summary'],
                                 finding.get('instruction_quote'), finding.get('grader_quote')) if s)
-            rows.append({'schema': 'qa.finding/v1', 'id': f"cm1:{root.name}:{status['aid']}:{rank}",
+            rows.append({'schema': 'qa.finding/v1', 'id': f"cm1:{root.parent.name}:{root.name}:{status['aid']}:{rank}",
                          'verdict': 'fail', 'subject': {'kind': 'task',
                          'task_id': f"terminal-bench/{status['task']}"},
                          'category': category[cls], 'taxonomy_class': cls,
@@ -70,7 +72,7 @@ def v1_rows(root: Path) -> tuple[list[dict], dict]:
             failures.append({'task': status['task'], 'error': status['error']})
         for finding_path in sorted((path.parent / 'findings').glob('*.json')):
             row = json.loads(finding_path.read_text())
-            row['id'] = f"cm1:v1:{root.name}:{status['sid']}:{finding_path.stem}"
+            row['id'] = f"cm1:v1:{root.parent.name}:{root.name}:{status['sid']}:{finding_path.stem}"
             rows.append(row)
     return rows, {'status_counts': dict(counts), 'tasks_with_status': len(statuses),
                   'complete_tasks': counts['complete'], 'abstained_tasks': 0,
@@ -164,6 +166,8 @@ def main() -> None:
     work.mkdir(parents=True, exist_ok=True)
     result: dict[str, Any] = {'schema': 'cm1.cost-quality-frontier/v1', 'key': 'tb4-audit-v1',
         'metric': 'category_1to1 TEST finding matches; source-only claims, not confirmed exploits',
+        'adapter_version': VERSION,
+        'dev_cost_scope': 'all DEV transport-calibration versions; no failed calls discarded',
         'budget_cap_usd': 4, 'rows': [], 'historical_reference': {
             'source': 'research/experiments/tb4-qa-agent-v1-20261020/results-test.json',
             'source_sha256': hashlib.sha256((HERE.parent / 'tb4-qa-agent-v1-20261020/results-test.json').read_bytes()).hexdigest(),
@@ -176,7 +180,7 @@ def main() -> None:
             'limitation': '65-environment Elo/total-spend comparison, not TB4 finding recall or a transferable dollar price'}}
     for model in models:
         for protocol in ('plain', 'v1'):
-            root = args.out / protocol / model['slug']
+            root = configuration_root(args.out, protocol, model)
             rows, coverage = plain_rows(root, harness.CATEGORY) if protocol == 'plain' else v1_rows(root)
             attempted = (root / 'test-exposure-claim.json').exists()
             cells = score(rows, work / f"{protocol}-{model['slug']}.score.json") if attempted else None

@@ -303,3 +303,42 @@ def test_seeker_sft_loss_target_ablation_reports_every_run() -> None:
     assert leak["training_test_task_hits"] == []
     assert leak["artifact_hits"] == []
     assert set(leak["pilot_task_splits"].values()) == {"dev"}
+
+
+def test_seeker_eval_baselines_reconcile_with_the_replay_summaries() -> None:
+    """pE-SELF-7: the baseline table must reconcile with the committed replay summaries."""
+    experiment = REPO_ROOT / "research/experiments/seeker-eval-v1-20261021"
+    baselines = json.loads((experiment / "baselines.json").read_text(encoding="utf-8"))
+    rows = {row["arm"]: row for row in baselines["rows"] if row["family"] == "sft"}
+    for source, path in (
+        (
+            "pilot-768",
+            REPO_ROOT / "research/experiments/seeker-sft-pilot-20261021/replay-summary.json",
+        ),
+        (
+            "loss-target-768",
+            REPO_ROOT / "research/experiments/seeker-sft-loss-target-20261021/replay-summary.json",
+        ),
+    ):
+        summary = json.loads(path.read_text(encoding="utf-8"))
+        for arm, bucket in summary["by_arm"].items():
+            row = rows[f"{source}:{arm}"]
+            assert row["tasks"] == bucket["runs"]
+            assert row["strict_valid"] == bucket["strict_valid"]
+            assert row["claims"] == bucket["claimed_exploits"]
+            assert row["upstream_measured"] == bucket["upstream_measured"]
+            assert row["upstream_reward1"] == bucket["upstream_reward_1"]
+            assert row["confirmed_1_0"] == bucket["confirmed_1_0"]
+            assert row["plausible_claims"] <= row["claims"]
+
+    truncation = json.loads((experiment / "truncation-analysis.json").read_text(encoding="utf-8"))
+    for bucket in truncation["by_arm"].values():
+        assert bucket["runs_with_unparsed_turns"] <= bucket["runs"]
+        assert bucket["unparsed_tool_call_turns"] <= bucket["turns"]
+    # pE-SELF-5's arms show no truncation; that is what corrects the pE-SELF-6 claim.
+    assert truncation["by_arm"]["pilot-768:base"]["unparsed_tool_call_turns"] == 0
+    assert truncation["by_arm"]["pilot-768:trained"]["unparsed_tool_call_turns"] == 0
+
+    quality = json.loads((experiment / "claim-quality.json").read_text(encoding="utf-8"))
+    for bucket in quality["by_arm"].values():
+        assert bucket["plausible_claims"] <= bucket["claims"] <= bucket["runs"]

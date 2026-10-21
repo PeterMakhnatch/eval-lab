@@ -1,0 +1,106 @@
+{
+  "cohort": {
+    "dev_tasks": 25,
+    "key_id": "tb4-audit-v1",
+    "split": "dev",
+    "strict_unseen_dev_tasks": 20,
+    "witness_seeded_dev_tasks": 4
+  },
+  "rows": [
+    {
+      "arm": "pilot-768:base",
+      "claims": 4,
+      "confirmed_1_0": 0,
+      "family": "sft",
+      "plausible_claims": 3,
+      "strict_valid": 2,
+      "tasks": 6,
+      "unparsed_turn_rate": 0.0,
+      "upstream_measured": 4,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "pilot-768:trained",
+      "claims": 2,
+      "confirmed_1_0": 0,
+      "family": "sft",
+      "plausible_claims": 1,
+      "strict_valid": 6,
+      "tasks": 6,
+      "unparsed_turn_rate": 0.0,
+      "upstream_measured": 4,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "loss-target-768:assistant",
+      "claims": 0,
+      "confirmed_1_0": 0,
+      "family": "sft",
+      "plausible_claims": 0,
+      "strict_valid": 6,
+      "tasks": 6,
+      "unparsed_turn_rate": 0.0,
+      "upstream_measured": 6,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "loss-target-768:full",
+      "claims": 0,
+      "confirmed_1_0": 0,
+      "family": "sft",
+      "plausible_claims": 0,
+      "strict_valid": 1,
+      "tasks": 6,
+      "unparsed_turn_rate": 0.6364,
+      "upstream_measured": 0,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "codex",
+      "claims": null,
+      "confirmed_1_0": 0,
+      "family": "prompted",
+      "plausible_claims": null,
+      "strict_valid": 23,
+      "tasks": 23,
+      "unparsed_turn_rate": null,
+      "upstream_measured": 5,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "gptoss",
+      "claims": null,
+      "confirmed_1_0": 0,
+      "family": "prompted",
+      "plausible_claims": null,
+      "strict_valid": 25,
+      "tasks": 25,
+      "unparsed_turn_rate": null,
+      "upstream_measured": 3,
+      "upstream_reward1": 0
+    },
+    {
+      "arm": "sonnet",
+      "claims": null,
+      "confirmed_1_0": 1,
+      "family": "prompted",
+      "plausible_claims": null,
+      "strict_valid": 23,
+      "tasks": 23,
+      "unparsed_turn_rate": null,
+      "upstream_measured": 4,
+      "upstream_reward1": 3
+    }
+  ],
+  "schema": "evallab.seeker_eval.baselines/v1",
+  "sources": {
+    "claim_quality": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/experiments/seeker-eval-v1-20261021/claim-quality.json",
+    "cohort": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/datasets/seeker-sft-v1/tb4_dev_eval_cohort.json",
+    "prompted_summary": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/experiments/tb4-reward-seeker-v0-20261021/replay-summary.json",
+    "sft_summaries": {
+      "loss-target-768": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/experiments/seeker-sft-loss-target-20261021/replay-summary.json",
+      "pilot-768": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/experiments/seeker-sft-pilot-20261021/replay-summary.json"
+    },
+    "truncation": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/experiments/seeker-eval-v1-20261021/truncation-analysis.json"
+  }
+}

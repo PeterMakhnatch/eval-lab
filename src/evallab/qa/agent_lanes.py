@@ -624,9 +624,15 @@ class OmpDriver:
         message = stream.assistants[0]
         controls = message.get("requestControls")
         tools = controls.get("tools") if isinstance(controls, dict) else None
-        if not isinstance(tools, dict) or any(
-            tools.get(name) != [] for name in ("declared", "active", "deferred")
-        ):
+        if isinstance(tools, dict):
+            if any(tools.get(name) != [] for name in ("declared", "active", "deferred")):
+                raise DriverError("OMP did not prove a zero-tool request; built-in and ambient MCP tools must be absent")
+        elif tools is None and not self.model.startswith("anthropic/"):
+            # The Meta contributor route attaches no requestControls; the zero-tool
+            # proof is then the stream itself: no tool events (checked above) and
+            # no non-text content blocks (checked below).
+            pass
+        else:
             raise DriverError("OMP did not prove a zero-tool request; built-in and ambient MCP tools must be absent")
         if message.get("stopReason") != "stop":
             detail = _clean(str(message.get("errorMessage") or ""), limit=300)

@@ -96,7 +96,9 @@ def _omp_result(stdout: str) -> tuple[str, dict[str, int], float, list[str]]:
     return text, dict(usage), round(cost, 6), commands
 
 
-def run_omp_lane(driver: str, workspace: Path, task: str, *, timeout: float = 900.0) -> dict[str, Any]:
+def run_omp_lane(
+    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False
+) -> dict[str, Any]:
     model = DRIVERS[driver]["model"]
     profile = workspace.parent / f"{workspace.name}.sb"
     profile.write_text(sandbox_profile(workspace))
@@ -107,12 +109,12 @@ def run_omp_lane(driver: str, workspace: Path, task: str, *, timeout: float = 90
         "--mode", "json", "--cwd", str(workspace),
         "--tools", "read,grep,glob,write",
         "--system-prompt", SYSTEM_PROMPT,
-        user_prompt(task),
+        user_prompt(task, hackbook=hackbook),
     ]
     started = time.monotonic()
     record: dict[str, Any] = {
         "driver": driver, "model": model, "task": task, "started_at": _now(),
-        "workspace": str(workspace),
+        "workspace": str(workspace), "hackbook": hackbook,
     }
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
@@ -149,6 +151,7 @@ def run_openrouter_lane(
     task: str,
     *,
     timeout: float = 900.0,
+    hackbook: bool = False,
     post: Callable[[dict[str, Any], str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -158,14 +161,14 @@ def run_openrouter_lane(
     tools = ConfinedTools(workspace)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt(task)},
+        {"role": "user", "content": user_prompt(task, hackbook=hackbook)},
     ]
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     calls: list[str] = []
     started = time.monotonic()
     record: dict[str, Any] = {
         "driver": "gptoss", "model": DRIVERS["gptoss"]["model"], "task": task,
-        "started_at": _now(), "workspace": str(workspace),
+        "started_at": _now(), "workspace": str(workspace), "hackbook": hackbook,
     }
     error: str | None = None
     finished = False

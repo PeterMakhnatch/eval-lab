@@ -58,6 +58,25 @@ def plain_rows(root: Path, category: dict[str, str]) -> tuple[list[dict], dict]:
                   'failures': failures}
 
 
+def v1_rows(root: Path) -> tuple[list[dict], dict]:
+    rows = []
+    counts: Counter = Counter()
+    failures = []
+    statuses = sorted((root / 'test/runs').glob('*/status.json'))
+    for path in statuses:
+        status = json.loads(path.read_text())
+        counts[status['status']] += 1
+        if status['error']:
+            failures.append({'task': status['task'], 'error': status['error']})
+        for finding_path in sorted((path.parent / 'findings').glob('*.json')):
+            row = json.loads(finding_path.read_text())
+            row['id'] = f"cm1:v1:{root.name}:{status['sid']}:{finding_path.stem}"
+            rows.append(row)
+    return rows, {'status_counts': dict(counts), 'tasks_with_status': len(statuses),
+                  'complete_tasks': counts['complete'], 'abstained_tasks': 0,
+                  'failures': failures}
+
+
 def cost_for(events: list[dict], prefix: str) -> dict:
     started = [e for e in events if e['event'] == 'started' and e['identity'].startswith(prefix)]
     settled = {e['call_id']: e for e in events if e['event'] == 'settled'}
@@ -156,20 +175,20 @@ def main() -> None:
             'opus': {'elo': 1120, 'total_cost_usd': 335},
             'limitation': '65-environment Elo/total-spend comparison, not TB4 finding recall or a transferable dollar price'}}
     for model in models:
-        root = args.out / 'plain' / model['slug']
-        rows, coverage = plain_rows(root, harness.CATEGORY)
-        claim = root / 'test-exposure-claim.json'
-        attempted = claim.exists()
-        cells = score(rows, work / f"plain-{model['slug']}.score.json") if attempted else None
-        freeze = root / 'freeze.json'
-        result['rows'].append({'model': model['id'], 'slug': model['slug'], 'protocol': 'plain',
-            'provider': model['provider'], 'test_started': attempted, 'coverage': coverage,
-            'measurement_complete': attempted and coverage['tasks_with_status'] == 41
-                and not coverage['failures']
-                and coverage['complete_tasks'] + coverage['abstained_tasks'] == 41,
-            'score': cells, 'test_cost': cost_for(events, f"plain/{model['slug']}/test/"),
-            'dev_cost': cost_for(events, f"plain/{model['slug']}/dev/"),
-            'freeze_sha256': hashlib.sha256(freeze.read_bytes()).hexdigest() if freeze.exists() else None})
+        for protocol in ('plain', 'v1'):
+            root = args.out / protocol / model['slug']
+            rows, coverage = plain_rows(root, harness.CATEGORY) if protocol == 'plain' else v1_rows(root)
+            attempted = (root / 'test-exposure-claim.json').exists()
+            cells = score(rows, work / f"{protocol}-{model['slug']}.score.json") if attempted else None
+            freeze = root / 'freeze.json'
+            result['rows'].append({'model': model['id'], 'slug': model['slug'], 'protocol': protocol,
+                'provider': model['provider'], 'test_started': attempted, 'coverage': coverage,
+                'measurement_complete': attempted and coverage['tasks_with_status'] == 41
+                    and not coverage['failures']
+                    and coverage['complete_tasks'] + coverage['abstained_tasks'] == 41,
+                'score': cells, 'test_cost': cost_for(events, f"{protocol}/{model['slug']}/test/"),
+                'dev_cost': cost_for(events, f"{protocol}/{model['slug']}/dev/"),
+                'freeze_sha256': hashlib.sha256(freeze.read_bytes()).hexdigest() if freeze.exists() else None})
     result['campaign_cost'] = cost_for(events, '')
     target = args.publish or work
     target.mkdir(parents=True, exist_ok=True)

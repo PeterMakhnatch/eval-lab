@@ -64,9 +64,19 @@ abstained tasks remain explicit coverage limitations, never clean negatives.
 Log actual TEST exposure in the answer-key split registry before publishing a
 score. Do not tune prompts, providers or limits using TEST output.
 
-The separate Task QA lane owns the OpenAI-compatible harness-v1 interface.
-Reuse that interface for the second protocol; do not substitute another QA
-agent or a new tool host. Both protocols must charge the same lifetime ledger.
+`run_v1.py` supplies a JSON transport to the **unchanged #1121 Session host**.
+It reuses the original prompt, playbooks, source-only tools, evidence admission
+and 60-tool/900-second limits; no second host or execution-enabled v2 is substituted.
+An isolated loaded module binds the owned sealed views and actual reviewer model
+without editing historical source or artifacts. It uses the same model pins and
+request-before-network financial adapter as plain read. Run the same DEV/TEST
+commands with `run_v1.py` for that second protocol. Task QA retains ownership of
+`qa/env*`, `qa/agent*` and the separate v2 development.
+
+The legacy v1 finding schema stores a host placeholder `reviewer.cost_usd=0`.
+It does **not** meter API inference. Preserve the unchanged host contract, flag
+that field as unmeasured in task status, and use only the generation-bound
+campaign billing journal for all cost claims.
 
 ## Interpreting the eventual comparison
 
@@ -78,8 +88,8 @@ spend are external context, not convertible to this finding-recall metric:
 https://usetokenless.com/eval3/ . Its local source copy is
 `research-context/sources/links/usetokenless.com/2026-10-20-eval-leaderboard-tokenless.md`.
 
-`score_frontier.py` converts only completed task output through the original
-class/category mapping and invokes that unchanged scorer. It preserves failed,
+`score_frontier.py` converts reader finals with the original class/category
+mapping, loads v1's validated findings, and invokes that unchanged scorer. It preserves failed,
 missing and abstained coverage, separates DEV from TEST cost, and omits runs
 with incomplete coverage or unknown billed cost from the dollar frontier.
 Run it only after configurations are frozen and their TEST exposures recorded:

@@ -194,6 +194,19 @@ the same step, so Modal-routed port grading of these two ports is unqualified;
 the inventory's "Modal-only" port rows mean resource routing only. The native
 upstream grader on Modal is unaffected (measured, closure proven).
 
+Local Docker route for those ports (2026-10-21): the strict capacity helper
+still refuses unbounded containers for the shared queue, but candidate
+grading (`_admit_docker` / environment start in `upstream_grader`) charges a
+pre-existing unbounded container a bounded reserve from its observed usage
+(1.5x memory / 2x CPU, floors 128 MiB / 0.25 CPU, ceilings 2048 MiB / 2 CPU;
+512 MiB / 0.5 CPU if unobserved), on top of the 2 CPU / 2 GiB controller
+margin. The reserve is disclosed as `capacity_mode=
+observed_reserve_for_unbounded_containers` with per-container
+`existing_reserves`. Declared task limits are still exact and never lowered,
+so a task needing more than the remaining capacity is still refused. On this
+host (7.75 GiB Docker VM, three unbounded services using ~0.7 GiB observed)
+that admits the 4096 MiB `fin-saccr-rwa` and `cargo-flight-dispatch` ports.
+
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,
 `outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the

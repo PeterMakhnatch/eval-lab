@@ -47,11 +47,15 @@ def _run_one(args: argparse.Namespace, driver: str, task: str) -> dict[str, Any]
     if record_path.is_file() and submission_out.is_dir() and not args.force:
         return {"driver": driver, "task": task, "skipped": True}
     if not workspace.exists():
-        build_workspace(task, args.view_root, workspace)
-    if driver == "gptoss":
-        record = lanes.run_openrouter_lane(workspace, task, timeout=args.timeout)
+        built = build_workspace(task, args.view_root, workspace, hackbook=args.hackbook)
     else:
-        record = lanes.run_omp_lane(driver, workspace, task, timeout=args.timeout)
+        built = {}
+    if driver == "gptoss":
+        record = lanes.run_openrouter_lane(workspace, task, timeout=args.timeout, hackbook=args.hackbook)
+    else:
+        record = lanes.run_omp_lane(driver, workspace, task, timeout=args.timeout, hackbook=args.hackbook)
+    if built.get("hackbook_entry_ids"):
+        record["hackbook_entry_ids"] = built["hackbook_entry_ids"]
     validation = validate_submission(workspace / "submission")
     record["validation"] = validation
     if submission_out.exists():
@@ -64,8 +68,10 @@ def _run_one(args: argparse.Namespace, driver: str, task: str) -> dict[str, Any]
 
 def cmd_run(args: argparse.Namespace) -> int:
     if args.driver == "codex":
-        used = lanes.check_codex_quota()
-        print(f"codex weekly used before lane: {used:.0%}")
+        # Advisory only: Research correction 2026-10-21 03:35 ET — the Codex ceiling
+        # applies to lanes whose own model is Codex; this lane's parent is not Codex.
+        used = lanes.codex_weekly_used()
+        print(f"codex weekly used before lane (advisory): {used:.0%}" if used is not None else "codex quota unreadable (advisory)")
     tasks = _tasks(args.tasks, args.view_root)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         records = list(pool.map(lambda t: _run_one(args, args.driver, t), tasks))
@@ -292,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--timeout", type=float, default=900.0)
     run.add_argument("--jobs", type=int, default=2)
     run.add_argument("--force", action="store_true")
+    run.add_argument("--hackbook", action="store_true", help="Add the matched Hackbook toolkit page")
     run.set_defaults(fn=cmd_run)
     validate = sub.add_parser("validate")
     validate.set_defaults(fn=cmd_validate)

@@ -334,3 +334,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | hacktrace-act-v1 | 0 | 150 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-fresh-window3 | 0 | 52 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-v7-canonical-pass70 | 0 | 70 |
+| hackbook-match-tb4-test-once-20261021 | inspected | Hackbook (hackbook-match@*) from 2026-10-21 | (no key items) | 0 | 0 |

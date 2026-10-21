@@ -972,7 +972,10 @@ def scoreboard_rows(result: dict[str, Any], columns: Sequence[str], keys_dir: Pa
                         f"({m['denominators']['other']}) and unknown "
                         f"({sum(m['unknown'].values())}) are in neither denominator; per-rule counts "
                         f"in research/experiments/tripwires-v3-hackbook-20261021/results-{result['split']}.json; "
-                        "no tuning or model calls; source negatives are not correctness certificates"
+                        "n_measured counts positive/negative decision coverage, not other-stratum "
+                        "capture coverage; frozen descriptive replay with prior operator inspection "
+                        "disclosed in splits/exposure.jsonl; no parameter fitting in this replay or "
+                        "model calls; source negatives are not correctness certificates"
                     ),
                 }
             )

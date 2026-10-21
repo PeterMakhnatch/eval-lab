@@ -16,11 +16,12 @@ v1/v2 row or artifact. $0, zero model calls, no container, no submitted-code exe
 * `hackbook`: every `HACKBOOK_RULES` entry. `eligibility == "verdict"` rules enter the
   aggregate `any_verdict_rule`; `diagnostic` rules are reported per rule only and never become a
   verdict. Hits are candidate evidence, not confirmed intent or exploit success.
-* `legacy_v2_or` is the v2 OR on the same items, so v3's added value is a paired difference.
+* `legacy_v2_or` projects the existing decision fields of the current shared report. It is a
+  like-for-like comparator, not a re-execution of the old v2 binary; frozen v2 artifacts stay unchanged.
 
 ## What is counted
 
-Per cohort, per view (`full` = published blinded ATIF; `actions` = paired actions-only ATIF),
+Per cohort and view (blinded published views for the four keys; raw Hub ATIF for TB4),
 per rule: true positives over **measured positives**, false alarms over **measured negatives**
 (Wilson 95%, rate `null` when the denominator is 0), plus hits on the `other` stratum.
 `unknown` (missing/unreadable/zero-agent-step input, hash mismatch, unmapped or unknown-class label,
@@ -134,6 +135,11 @@ Boundaries and binding:
 * `mimo-v7-canonical-pass70` trajectories were seen by earlier qa-trace runs; `mimo-fresh-window3`
   is fresh trajectories on overlapping tasks (see its README). Disclose exposures in
   `splits/exposure.jsonl` as required by the scoreboard guard.
+  For v3, the prior-monitoring/transfer-design exposure boundary is conservatively disclosed
+  across the four reused test keys (`tripwires-v3-reused-key-inspection-20261021`); this is a
+  frozen descriptive replay, not a new unseen-holdout claim. The broad selection bounds
+  prior familiarity rather than claiming every raw trajectory was read. No parameters are
+  fitted on this replay's test outputs.
 * Offline published views cannot evaluate trial-directory-only integrity rules, task manifests or
   peer baselines (`not_evaluated` in the results).
 * Full/actions naming is literal: the actions view blanks agent message and reasoning only.

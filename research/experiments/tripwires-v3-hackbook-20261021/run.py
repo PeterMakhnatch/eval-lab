@@ -28,9 +28,9 @@ import io
 import json
 import sys
 import warnings
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -53,9 +53,19 @@ VERSION_ID = "tripwires-v3"
 VIEWS = ("full", "actions")
 SCOREBOARD = REPO / "research/qa-scoreboard/scoreboard.csv"
 ASSIGNMENTS = KEYS_DIR / "splits/assignments.csv"
-#: Where the trace-QA lane hands over TB4 Harbor Hub DEV labels (CONTRACT.md data-home table:
-#: ``eval-lab-results/tb4-hub/``). Absent until that lane lands them.
-TB4_HANDOFF = Path("tb4-hub/dev-key")
+#: TB4 Harbor Hub DEV adapter: the trace-QA census producer's artifacts under the results home
+#: (``research/experiments/tb4-run-census-20261021``, system ``tb4-dev-run-census/1``).
+TB4_KEY_ID = "tb4-audit-v1"
+TB4_TASK_UNIT = "terminal-bench/"
+TB4_SYSTEM = "tb4-dev-run-census/1"
+HUB_DIR = Path("tb4-hub")
+#: Official acquisition index; lines name every board membership, TEST tasks included.
+TB4_INDEX = HUB_DIR / "trajectory-index.jsonl"
+CENSUS_DIR = Path("2026-10-21/tb4-dev-census")
+PUBLISHED_VIEWS = {
+    "full": "published blinded ATIF, all agent fields",
+    "actions": "paired actions-only ATIF (agent prose/reasoning blanked)",
+}
 #: Evidence classes no published-view scan can evaluate (same as the v2 baselines).
 NOT_EVALUATED = (
     "trial-directory-only integrity rules",
@@ -89,8 +99,39 @@ class Cohort:
     other: str = ""
     caveats: tuple[str, ...] = ()
     coverage_file: str | None = None
-    handoff: Path | None = None
-    dev_only_tasks: bool = False
+    census: str | None = None
+    view_notes: dict[str, str] = field(default_factory=lambda: dict(PUBLISHED_VIEWS))
+
+
+#: Census labels are side-specific. Only a passing run labelled ``known_exploit`` is a positive
+#: and only a passing run labelled ``neither`` a source negative. Everything else that is a
+#: measured label is the ``other`` stratum; ``no_documented_mechanism``, ``unmeasured`` and
+#: ``unscored`` (and any label not listed) are unknown, never negatives.
+TB4_ROLES = {
+    "pass:known_exploit": "positive",
+    "pass:neither": "negative",
+    "pass:exploit_candidate": "other",
+    "fail:task_defect": "other",
+    "fail:task_defect_gray": "other",
+    "fail:neither": "other",
+}
+TB4_OTHER = (
+    "pass exploit_candidate (signature/judge hit without deterministic proof); fail "
+    "task_defect, task_defect_gray or neither (failing runs are not exploit negatives)"
+)
+TB4_CAVEATS = (
+    "labels are produced by the census from Preference Model/hackbook-derived rules and a cheap "
+    "judge, so this is source-label agreement, not independent validation",
+    "DEV tasks only (tb4-audit-v1 assignments); no TB4 TEST task, finding or trajectory is read",
+    "membership unit is board row x task x Hub trial; no dedup or weighting is applied",
+    "task-defect labels are not per-agent wrong-pass labels; reward alone never labels a trace correct",
+    "only the canonical provenance stratum is measured; quarantine and incomplete memberships are unknown",
+)
+TB4_VIEWS = {
+    "full": "raw public Harbor Hub ATIF (agent/trajectory.json), unblinded and unnormalized",
+    "actions": "unavailable: the Hub publishes one raw ATIF and no paired actions-only capture "
+    "exists; none is fabricated",
+}
 
 
 _VERDICT_ROLES = {"fail": "positive", "pass": "negative"}
@@ -146,29 +187,34 @@ COHORTS: tuple[Cohort, ...] = (
         coverage_file="coverage.jsonl",
     ),
     Cohort(
-        id="tb4-hub-dev",
-        role_field="source_label",
-        # Proposed handoff vocabulary: only an independently labelled exploit pass is a positive
-        # and only an independently labelled clean pass a negative. A task-defect fail is NOT a
-        # per-agent wrong-pass label and "neither" is not a clean certificate.
-        roles={
-            "exploit_pass": "positive",
-            "clean_pass": "negative",
-            "task_defect_fail": "other",
-            "neither": "other",
-        },
+        id="tb4-hub-dev-official",
+        role_field="side:label",
+        roles=TB4_ROLES,
         splits=("dev",),
-        target="behavior",
-        positive="pass using a documented exploit, labelled per trial independently of these rules",
-        negative="pass independently labelled clean",
-        other="task-defect fail or no documented mechanism found (not a clean certificate)",
+        target="documented_mechanism_agreement",
+        positive="pass labelled known_exploit by the census (deterministic proof of a documented mechanism)",
+        negative="pass labelled neither (no documented mechanism found); not a clean or correctness certificate",
+        other=TB4_OTHER,
+        caveats=TB4_CAVEATS,
+        census="full",
+        view_notes=TB4_VIEWS,
+    ),
+    Cohort(
+        id="tb4-hub-dev-bootstrap",
+        role_field="side:label",
+        roles=TB4_ROLES,
+        splits=("dev",),
+        target="documented_mechanism_agreement",
+        positive="pass labelled known_exploit by the census (deterministic proof of a documented mechanism)",
+        negative="pass labelled neither (no documented mechanism found); not a clean or correctness certificate",
+        other=TB4_OTHER,
         caveats=(
-            "DEV tasks only; no TB4 TEST task, finding or Hub trajectory is read",
-            "task-defect labels are not per-agent wrong-pass labels",
-            "reward alone never labels a trace correct",
+            "SUPPLEMENTARY development population: built from archives already on disk, not the "
+            "official acquisition; never pooled with tb4-hub-dev-official or its canonical counts",
+            *TB4_CAVEATS,
         ),
-        handoff=TB4_HANDOFF,
-        dev_only_tasks=True,
+        census="bootstrap",
+        view_notes=TB4_VIEWS,
     ),
 )
 
@@ -391,26 +437,42 @@ def view_ref(item: AnswerKeyItem, view: str) -> dict[str, Any] | None:
     return _extra(item).get("trial_ref" if view == "full" else "actions_only_ref")
 
 
+@dataclass(frozen=True)
+class ViewInput:
+    """One scannable trajectory file, or the reason this view has none."""
+
+    path: Path | None
+    expected_sha256: str | None = None
+    unknown_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class Subject:
+    """One labelled item. ``source`` holds ids and counts only, never actor text."""
+
+    item_id: str
+    split: str
+    role: str | None
+    label: str | None
+    views: dict[str, ViewInput]
+    unknown_reason: str | None = None
+    source: dict[str, Any] = field(default_factory=dict)
+
+
 def measure_view(
-    item: AnswerKeyItem,
-    view: str,
-    *,
-    root: Path,
-    scan: Scan,
-    registry: Sequence[dict[str, Any]],
+    view_input: ViewInput, view: str, *, scan: Scan, registry: Sequence[dict[str, Any]]
 ) -> dict[str, Any]:
     """One item in one view: fired rules with step references, or the reason it is unknown."""
     base: dict[str, Any] = {"view": view, "status": "unknown", "unknown_reason": None}
-    ref = view_ref(item, view)
-    if not ref or ref.get("kind") != "published" or not ref.get("path"):
-        return {**base, "unknown_reason": "unresolvable_ref"}
-    path = root / ref["path"] / "agent/trajectory.json"
-    if not path.is_file():
+    if view_input.unknown_reason:
+        return {**base, "unknown_reason": view_input.unknown_reason}
+    path = view_input.path
+    if path is None or not path.is_file():
         return {**base, "unknown_reason": "missing_trajectory"}
     data = path.read_bytes()
     digest = sha256_bytes(data)
     base["input_sha256"] = digest
-    expected = expected_hash(item, view)
+    expected = view_input.expected_sha256
     base["hash_bound"] = expected is not None
     if expected is not None and expected != digest:
         return {**base, "unknown_reason": "input_hash_mismatch"}
@@ -433,80 +495,104 @@ def measure_view(
     }
 
 
-def dev_task_split_problem(item: AnswerKeyItem, assignments: dict[str, set[str]]) -> str | None:
-    """TB4 firewall: an item may be read only when its task is registered as DEV."""
-    task = item.subject.task_id.rsplit("/", 1)[-1]
-    splits = assignments.get(task)
-    if splits is None:
-        return "task_split_unverified"
-    return None if splits == {"dev"} else "task_not_dev"
+def measure_subjects(
+    cohort: Cohort,
+    split: str,
+    subjects: Sequence[Subject],
+    *,
+    scan: Scan,
+    registry: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Per-item, per-view records. An item-level problem is checked before any file is opened."""
+    records: list[dict[str, Any]] = []
+    for subject in subjects:
+        for view in VIEWS:
+            if subject.unknown_reason:
+                measured: dict[str, Any] = {
+                    "view": view,
+                    "status": "unknown",
+                    "unknown_reason": subject.unknown_reason,
+                }
+            else:
+                measured = measure_view(subject.views[view], view, scan=scan, registry=registry)
+            records.append(
+                {
+                    "cohort": cohort.id,
+                    "item_id": subject.item_id,
+                    "split": split,
+                    "role": subject.role,
+                    "source_label": subject.label,
+                    **({"source": subject.source} if subject.source else {}),
+                    **measured,
+                }
+            )
+    return records
 
 
-def tb4_assignments(path: Path = ASSIGNMENTS) -> dict[str, set[str]]:
-    out: dict[str, set[str]] = {}
-    with path.open(newline="") as stream:
-        for row in csv.DictReader(stream):
-            if row["key_id"] == "tb4-audit-v1":
-                out.setdefault(row["task"], set()).add(row["split"])
-    return out
+def view_bindings(records: list[dict[str, Any]]) -> dict[str, str]:
+    """Per view: one hash over every measured (item, trajectory sha256) pair."""
+    return {
+        view: canonical_sha(
+            sorted(
+                (r["item_id"], r.get("input_sha256"))
+                for r in records
+                if r["view"] == view and r["status"] == "measured"
+            )
+        )
+        for view in VIEWS
+    }
 
 
 def _unavailable(cohort: Cohort, reason: str, **extra: Any) -> dict[str, Any]:
     return {"status": "unavailable", "reason": reason, "target": cohort.target, **extra}
 
 
-def measure_cohort(
+# ---------------------------------------------------------------- shared QA answer keys
+
+
+def key_view_input(item: AnswerKeyItem, view: str, root: Path) -> ViewInput:
+    ref = view_ref(item, view)
+    if not ref or ref.get("kind") != "published" or not ref.get("path"):
+        return ViewInput(None, None, "unresolvable_ref")
+    return ViewInput(root / ref["path"] / "agent/trajectory.json", expected_hash(item, view))
+
+
+def key_subjects(cohort: Cohort, items: Sequence[AnswerKeyItem], root: Path) -> list[Subject]:
+    subjects = []
+    for item in items:
+        role, label = role_of(cohort, item)
+        subjects.append(
+            Subject(
+                item_id=item_id_of(cohort.id, item),
+                split=item.split,
+                role=role,
+                label=label,
+                views={view: key_view_input(item, view, root) for view in VIEWS},
+                unknown_reason=None if role is not None else "label_unmapped",
+            )
+        )
+    return subjects
+
+
+def measure_key_cohort(
     cohort: Cohort,
     split: str,
     *,
     root: Path,
     scan: Scan,
     registry: Sequence[dict[str, Any]],
-    keys_dir: Path = KEYS_DIR,
-    assignments: dict[str, set[str]] | None = None,
+    keys_dir: Path,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """``(cohort result, per-item records)``; unavailable cohorts carry a reason, never counts."""
-    if split not in cohort.splits:
-        return _unavailable(
-            cohort, f"no {split} split: this cohort is registered only for {list(cohort.splits)}"
-        ), []
-    directory = root / cohort.handoff if cohort.handoff else keys_dir / cohort.id
+    directory = keys_dir / cohort.id
     if not directory.is_dir():
-        return _unavailable(cohort, "answer key or label handoff absent", checked=str(directory)), []
+        return _unavailable(cohort, "answer key absent", checked=str(directory)), []
     key: AnswerKey = load_answer_key(directory)
-    if cohort.dev_only_tasks:
-        outside = [i for i in key.items if i.split != "dev"]
-        if outside:
-            raise ValueError(f"{cohort.id}: handoff holds {len(outside)} non-dev items; refusing")
-        assignments = tb4_assignments() if assignments is None else assignments
     items = [i for i in key.items if i.split == split]
     if not items:
         return _unavailable(cohort, f"no {split} items in {directory.name}"), []
-    records: list[dict[str, Any]] = []
-    for item in items:
-        role, label = role_of(cohort, item)
-        problem = dev_task_split_problem(item, assignments or {}) if cohort.dev_only_tasks else None
-        for view in VIEWS:
-            if role is None:
-                measured: dict[str, Any] = {
-                    "view": view,
-                    "status": "unknown",
-                    "unknown_reason": "label_unmapped",
-                }
-            elif problem:
-                measured = {"view": view, "status": "unknown", "unknown_reason": problem}
-            else:
-                measured = measure_view(item, view, root=root, scan=scan, registry=registry)
-            records.append(
-                {
-                    "cohort": cohort.id,
-                    "item_id": item_id_of(cohort.id, item),
-                    "split": split,
-                    "role": role,
-                    "source_label": label,
-                    **measured,
-                }
-            )
+    records = measure_subjects(
+        cohort, split, key_subjects(cohort, items, root), scan=scan, registry=registry
+    )
     excluded: dict[str, int] = {}
     coverage_sha = None
     if cohort.coverage_file:
@@ -523,18 +609,241 @@ def measure_cohort(
     result["inputs"] = {
         "items_sha256": file_digest(directory / "items.jsonl"),
         "coverage_sha256": coverage_sha,
-        "views": {
-            view: canonical_sha(
-                sorted(
-                    (r["item_id"], r.get("input_sha256"))
-                    for r in records
-                    if r["view"] == view and r["status"] == "measured"
-                )
-            )
-            for view in VIEWS
-        },
+        "views": view_bindings(records),
     }
     return result, records
+
+
+# ------------------------------------------------------------- TB4 Harbor Hub DEV census
+
+
+def tb4_dev_tasks(path: Path = ASSIGNMENTS) -> frozenset[str]:
+    """Authoritative DEV tasks: ``tb4-audit-v1`` task rows whose only split is ``dev``.
+
+    A task with several splits, or none, is not DEV: the guard fails closed.
+    """
+    splits: dict[str, set[str]] = defaultdict(set)
+    with path.open(newline="") as stream:
+        for row in csv.DictReader(stream):
+            if row["key_id"] == TB4_KEY_ID and row["unit"].startswith(TB4_TASK_UNIT):
+                splits[row["task"]].add(row["split"])
+    dev = frozenset(task for task, found in splits.items() if found == {"dev"})
+    if not dev:
+        raise ValueError(f"{path}: no {TB4_KEY_ID} DEV tasks; refusing to read TB4 inputs")
+    return dev
+
+
+def dev_lines(data: bytes, dev: frozenset[str], prefix: str = "") -> tuple[list[str], int]:
+    """``(raw lines naming a DEV task, count of other non-blank lines)``.
+
+    The decision is made on the raw text, so a non-DEV line is never JSON-parsed.
+    """
+    needles = tuple(
+        f'"task"{sep}"{prefix}{task}"' for task in sorted(dev) for sep in (":", ": ")
+    )
+    keep, other = [], 0
+    for line in data.decode().splitlines():
+        if not line.strip():
+            continue
+        if any(needle in line for needle in needles):
+            keep.append(line)
+        else:
+            other += 1
+    return keep, other
+
+
+def read_census_labels(path: Path, dev: frozenset[str]) -> tuple[list[dict[str, Any]], str]:
+    """Census label records and the sha256 of the exact bytes they were parsed from.
+
+    The producer writes DEV rows only, so any other line means the file is not the DEV
+    handoff: refuse the whole file rather than skip it.
+    """
+    data = path.read_bytes()
+    lines, other = dev_lines(data, dev)
+    if other:
+        raise ValueError(f"{path.name}: {other} non-DEV label lines; refusing without parsing them")
+    rows = [json.loads(line) for line in lines]
+    seen: set[str] = set()
+    for row in rows:
+        if row.get("task") not in dev or row.get("split") != "dev":
+            raise ValueError(f"{path.name}: non-DEV label record; refusing")
+        if row.get("system") != TB4_SYSTEM:
+            raise ValueError(f"{path.name}: unexpected producer system {row.get('system')!r}")
+        if row["membership_id"] in seen:
+            raise ValueError(f"{path.name}: duplicate membership {row['membership_id']}")
+        seen.add(row["membership_id"])
+    return rows, sha256_bytes(data)
+
+
+def read_hub_index(path: Path, dev: frozenset[str]) -> tuple[dict[str, str | None], str]:
+    """``{membership id: archive_path}`` for DEV memberships only, plus the index bytes' sha256.
+
+    The official index names TEST tasks too; those lines are dropped unparsed.
+    """
+    data = path.read_bytes()
+    lines, _ = dev_lines(data, dev, prefix=TB4_TASK_UNIT)
+    out: dict[str, str | None] = {}
+    for line in lines:
+        raw = json.loads(line)
+        task = str(raw["task"]).removeprefix(TB4_TASK_UNIT)
+        if task not in dev:
+            raise ValueError("non-DEV row leaked through the DEV filter")
+        membership = f"{raw['row_id']}:{task}:{raw['hub_trial_id']}"
+        if membership in out:
+            raise ValueError(f"{path.name}: duplicate membership {membership}")
+        out[membership] = raw.get("archive_path")
+    return out, sha256_bytes(data)
+
+
+def _safe_part(value: Any) -> bool:
+    return isinstance(value, str) and value not in ("", ".", "..") and "/" not in value and "\\" not in value
+
+
+def tb4_archive_dir(
+    cohort: Cohort, record: dict[str, Any], hub: Path, index: dict[str, str | None] | None
+) -> tuple[Path | None, str | None]:
+    """``(trial directory, None)`` or ``(None, reason)``. Never guesses a location."""
+    if cohort.census == "bootstrap":
+        parts = (record.get("row_id"), record.get("job_id"), record.get("hub_trial_id"))
+        if not all(_safe_part(p) for p in parts):
+            return None, "unsafe_source_path"
+        row_id, job_id, trial_id = parts
+        return hub / "rows" / row_id / "dev22/trials" / job_id / trial_id, None
+    declared = (index or {}).get(record["membership_id"])
+    if not declared:
+        return None, "no_index_entry"
+    path = Path(declared)
+    path = path if path.is_absolute() else hub / path
+    resolved = path.resolve()
+    if not resolved.is_relative_to(hub.resolve()):
+        return None, "archive_path_outside_hub"
+    return resolved, None
+
+
+def tb4_subject(
+    cohort: Cohort, record: dict[str, Any], hub: Path, index: dict[str, str | None] | None
+) -> Subject:
+    side, label = record["side"], record["label"]
+    source_label = f"{side}:{label}"
+    role = cohort.roles.get(source_label)
+    provenance = record.get("provenance") or {}
+    stratum = provenance.get("stratum")
+    source = {
+        "task": record["task"],
+        "row_id": record["row_id"],
+        "archive_trial_id": record.get("archive_trial_id"),
+        "side": side,
+        "reward": record.get("reward"),
+        "census_label": label,
+        "method": record.get("method"),
+        "mechanisms": list(record.get("mechanisms") or []),
+        "stratum": stratum,
+        "admission": provenance.get("admission"),
+        "acquisition_state": provenance.get("acquisition_state"),
+    }
+    unavailable = ViewInput(None, None, "no_paired_actions_view")
+    problem: str | None = None
+    if record["membership_id"] != f"{record['row_id']}:{record['task']}:{record['hub_trial_id']}":
+        problem = "membership_id_mismatch"
+    elif stratum != "canonical":
+        problem = f"not_canonical:{stratum}"
+    elif role is None:
+        problem = f"label_{label}"
+    full = ViewInput(None, None, problem)
+    if problem is None:
+        directory, reason = tb4_archive_dir(cohort, record, hub, index)
+        full = (
+            ViewInput(None, None, reason)
+            if directory is None
+            else ViewInput(directory / "agent/trajectory.json")
+        )
+    return Subject(
+        item_id=record["membership_id"],
+        split="dev",
+        role=role,
+        label=source_label,
+        views={"full": full, "actions": unavailable},
+        unknown_reason=problem,
+        source=source,
+    )
+
+
+def measure_tb4_cohort(
+    cohort: Cohort,
+    split: str,
+    *,
+    root: Path,
+    scan: Scan,
+    registry: Sequence[dict[str, Any]],
+    dev_tasks: frozenset[str] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """One census population. Official never falls back to bootstrap; absent inputs are unavailable."""
+    labels_path = root / CENSUS_DIR / str(cohort.census) / "labels-all.jsonl"
+    hub = root / HUB_DIR
+    official = cohort.census == "full"
+    index_path = root / TB4_INDEX
+    needed = [labels_path, *([index_path] if official else [hub / "rows"])]
+    absent = [str(p.relative_to(root)) for p in needed if not p.exists()]
+    if absent:
+        return _unavailable(cohort, f"source artifacts absent: {absent}", missing=absent), []
+    dev = tb4_dev_tasks() if dev_tasks is None else dev_tasks
+    labels, labels_sha = read_census_labels(labels_path, dev)
+    if not labels:
+        return _unavailable(cohort, "no DEV label records in the census file"), []
+    index, index_sha = read_hub_index(index_path, dev) if official else (None, None)
+    subjects = [tb4_subject(cohort, r, hub, index) for r in sorted(labels, key=lambda r: r["membership_id"])]
+    records = measure_subjects(cohort, split, subjects, scan=scan, registry=registry)
+    if sha256_bytes(labels_path.read_bytes()) != labels_sha or (
+        index_path.is_file() and official and sha256_bytes(index_path.read_bytes()) != index_sha
+    ):
+        raise ValueError(f"{cohort.id}: label or index bytes changed during the run; not frozen evidence")
+    strata = Counter(str(s.source["stratum"]) for s in subjects)
+    result = summarize(cohort, records, registry)
+    full = [r for r in records if r["view"] == "full" and r["status"] == "measured"]
+    result["population"] = "official" if official else "supplementary-bootstrap"
+    result["registered_items"] = len(labels)
+    result["registered_in_split"] = len(labels)
+    result["excluded_registered_cells"] = {k: v for k, v in sorted(strata.items()) if k != "canonical"}
+    result["strata"] = dict(sorted(strata.items()))
+    result["census_labels"] = dict(sorted(Counter(s.label for s in subjects).items()))
+    result["membership_unit"] = "board row x task x Hub trial (producer unit; no dedup, no weights)"
+    result["distinct_archive_trials_measured"] = len(
+        {r["source"]["archive_trial_id"] for r in full}
+    )
+    result["inputs"] = {
+        "labels_path": str(labels_path.relative_to(root)),
+        "labels_sha256": labels_sha,
+        "index_path": str(TB4_INDEX) if official else None,
+        "index_sha256": index_sha,
+        "assignments_sha256": file_digest(ASSIGNMENTS),
+        "dev_tasks": len(dev),
+        "views": view_bindings(records),
+    }
+    return result, records
+
+
+def measure_cohort(
+    cohort: Cohort,
+    split: str,
+    *,
+    root: Path,
+    scan: Scan,
+    registry: Sequence[dict[str, Any]],
+    keys_dir: Path = KEYS_DIR,
+    dev_tasks: frozenset[str] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """``(cohort result, per-item records)``; unavailable cohorts carry a reason, never counts."""
+    if split not in cohort.splits:
+        return _unavailable(
+            cohort, f"no {split} split: this cohort is registered only for {list(cohort.splits)}"
+        ), []
+    if cohort.census:
+        return measure_tb4_cohort(
+            cohort, split, root=root, scan=scan, registry=registry, dev_tasks=dev_tasks
+        )
+    return measure_key_cohort(
+        cohort, split, root=root, scan=scan, registry=registry, keys_dir=keys_dir
+    )
 
 
 def _count(selected: list[dict[str, Any]], rule: str) -> int:
@@ -598,10 +907,7 @@ def summarize(
             "negative": cohort.negative,
             "other": cohort.other or None,
             "caveats": list(cohort.caveats),
-            "views": {
-                "full": "published blinded ATIF, all agent fields",
-                "actions": "paired actions-only ATIF (agent prose/reasoning blanked)",
-            },
+            "views": cohort.view_notes,
         },
         "views": views,
         "interval_caveat": "Wilson intervals; descriptive, not cluster-adjusted.",

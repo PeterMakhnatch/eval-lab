@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -35,6 +36,7 @@ from evallab.hackbook.matcher import (
     task_gate_ids,
 )
 from evallab.hackbook.models import HackbookExample, find_tb4_test_leaks, tb4_test_split_terms
+from evallab.hackbook.refcov import change_blocks, unnamed_blocks
 from evallab.qa.models import load_findings_dir
 
 REPO = Path(__file__).resolve().parents[1]
@@ -239,6 +241,31 @@ def test_leak_guard_detects_and_respects_boundaries() -> None:
     assert validate_no_tb4_test_leak([leaky], root=REPO) == [f"HB-TS01-001: {tasks[0]}"]
 
 
+def test_catalog_cites_no_test_split_item_of_the_mimo_weak_test_keys(
+    catalog: list[HackbookEntry],
+) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "hackbook_build", REPO / "research/hackbook/build.py"
+    )
+    assert spec and spec.loader
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    taxonomy = load_taxonomy(REPO)
+    assert not [e for e in build.validate_catalog(catalog, taxonomy) if "test-split item" in e]
+    held_out = sorted(build._mimo_weak_test_split_tasks())
+    assert held_out
+    cite = HackbookExample(
+        evidence_status="executed",
+        item_or_task_id=f"mimo-weak-tests-v2.1:{held_out[0]}",
+        source="mimo_atlas",
+        source_url="https://example.com/witness",
+        summary="a TEST item must not become catalog evidence",
+    )
+    leaky = catalog[0].model_copy(update={"examples": [*catalog[0].examples, cite]})
+    errors = build.validate_catalog([leaky, *catalog[1:]], taxonomy)
+    assert [e for e in errors if "test-split item of mimo-weak-tests-v2.1" in e]
+
+
 def test_get_list_search(catalog: list[HackbookEntry]) -> None:
     assert get_entry("hb-ts01-001", catalog).slug == "hardcoded-fixture-outputs"
     assert get_entry("hardcoded-fixture-outputs", catalog).id == "HB-TS01-001"
@@ -324,6 +351,157 @@ def test_match_task_real_catalog(tmp_path: Path, catalog: list[HackbookEntry]) -
     result = match_task(_planted_task(tmp_path / "pkg"), catalog)
     classes = {m["taxonomy_class_id"] for m in result["matches"]}
     assert {"TS03", "TS04"} <= classes
+
+
+REFERENCE_PATCH = """\
+diff --git a/app/pricing.py b/app/pricing.py
+index 1111111..2222222 100644
+--- a/app/pricing.py
++++ b/app/pricing.py
+@@ -10,6 +10,9 @@ def base_price(order):
+     total = order.subtotal
++    surcharge = compute_surcharge(order.region)
++    total += surcharge
+     return total
+@@ -30,5 +33,7 @@ def apply_discount(order):
+     rate = lookup()
+-    return order.subtotal
++    return order.subtotal * discount_rate(order)
+     done = True
+diff --git a/app/ledger.py b/app/ledger.py
+--- a/app/ledger.py
++++ b/app/ledger.py
+@@ -3,4 +3,5 @@
+ import os
++    record_posting(entry)
+ x = 1
+diff --git a/app/audit.py b/app/audit.py
+--- a/app/audit.py
++++ b/app/audit.py
+@@ -3,4 +3,5 @@
+ import os
++from app.rates import regional_rates
+ x = 1
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,2 +1,3 @@
+ intro
++Describe the surcharge in prose only.
+ end
+diff --git a/tests/test_pricing.py b/tests/test_pricing.py
+--- a/tests/test_pricing.py
++++ b/tests/test_pricing.py
+@@ -1,1 +1,2 @@
+ import pytest
++def test_new_helper_name_unique_xyz(): pass
+diff --git a/db/schema.sql b/db/schema.sql
+--- a/db/schema.sql
++++ b/db/schema.sql
+@@ -4,3 +4,3 @@
+ create table t (id int);
+--- legacy comment kept for history
++CREATE INDEX posting_lookup ON t (id);
+ drop table u;
+"""
+TEST_TEXT = (
+    "from app import ledger\n\ndef test_discount():\n    assert discount_rate(cart) == 0.1\n"
+)
+
+
+def test_change_blocks_split_a_diff_into_contiguous_runs() -> None:
+    blocks = change_blocks(REFERENCE_PATCH)
+    by_path = [(b.path, b.line, len(b.plus), len(b.minus)) for b in blocks]
+    assert by_path[:4] == [
+        ("app/pricing.py", 11, 2, 0),
+        ("app/pricing.py", 31, 1, 1),
+        ("app/ledger.py", 4, 1, 0),
+        ("app/audit.py", 4, 1, 0),
+    ]
+    # A removed SQL comment (`-- legacy ...`) inside a hunk is a removed line, not a file header.
+    sql = next(b for b in blocks if b.path == "db/schema.sql")
+    assert sql.minus == ("-- legacy comment kept for history",) and len(sql.plus) == 1
+
+
+def test_unnamed_blocks_are_behaviour_no_test_names_by_file_or_identifier() -> None:
+    flagged = {(b.path, b.line) for b in unnamed_blocks(REFERENCE_PATCH, TEST_TEXT)}
+    # `compute_surcharge` is named nowhere and the SQL index is code too.
+    assert ("app/pricing.py", 11) in flagged and ("db/schema.sql", 5) in flagged
+    # `discount_rate` is named by a test; `ledger` is named through the module import; an
+    # import-only block, a README edit and an edit of a test file are not behaviour a test misses.
+    assert ("app/pricing.py", 31) not in flagged
+    assert ("app/ledger.py", 4) not in flagged
+    assert not {p for p, _ in flagged} & {"app/audit.py", "README.md", "tests/test_pricing.py"}
+
+
+def _reference_task(task: Path) -> Path:
+    _write(task / "instruction.md", "Add a regional surcharge to prices.\n")
+    _write(task / "tests" / "test_pricing.py", TEST_TEXT)
+    # Runner boilerplate names identifiers too, but it runs tests; it does not exercise code.
+    _write(
+        task / "tests" / "test.sh", "#!/bin/bash\n# compute_surcharge record_posting\npytest -q\n"
+    )
+    return task
+
+
+def test_reference_patch_feeds_the_untested_block_signal(tmp_path: Path) -> None:
+    entries = [_entry("HB-TS01-009", signals=["untested_reference_subblock"])]
+    task = _reference_task(tmp_path / "pkg")
+    patch = tmp_path / "fix.patch"
+    _write(patch, REFERENCE_PATCH)
+    # no reference and no solution/: nothing to compare against
+    assert "untested_reference_subblock" not in match_task(task, entries)["signals"]
+    result = match_task(task, entries, reference=patch)
+    refs = result["signals"]["untested_reference_subblock"]
+    assert any(r.startswith("reference app/pricing.py:11 ") for r in refs)
+    # `tests/test.sh` names compute_surcharge, but a runner script exercises no code
+    (hit,) = result["matches"]
+    assert hit["entry_id"] == "HB-TS01-009" and hit["score"] >= 1.5
+    # The same patch shipped as solution/*.patch needs no flag.
+    _write(task / "solution" / "fix.patch", REFERENCE_PATCH)
+    assert match_task(task, entries)["signals"]["untested_reference_subblock"] == refs
+    # Only runner scripts to read: no test code to judge a block against.
+    _write(task / "tests" / "test_pricing.py", "")
+    assert (
+        "untested_reference_subblock" not in match_task(task, entries, reference=patch)["signals"]
+    )
+    # A reference belongs to one task package.
+    view = tmp_path / "view"
+    _write(view / "bundle.json", "{}")
+    _reference_task(view / "tasks" / "alpha")
+    with pytest.raises(ValueError, match="one task"):
+        match_task(view, entries, reference=patch)
+    with pytest.raises(ValueError, match="task package"):
+        match_target(task / "tests" / "test_pricing.py", kind="trace", reference=patch)
+    with pytest.raises(ValueError, match="not found"):
+        match_task(task, entries, reference=tmp_path / "missing.patch")
+
+
+def test_cli_reference_flag_reports_the_blocks(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    task = _reference_task(tmp_path / "pkg")
+    patch = tmp_path / "fix.patch"
+    _write(patch, REFERENCE_PATCH)
+    code, out = _cli(capsys, "match", str(task), "--reference", str(patch), "--json")
+    assert code == 0
+    result = json.loads(out)
+    hit = next(m for m in result["matches"] if m["entry_id"] == "HB-TS01-009")
+    assert "untested_reference_subblock" in hit["matched_signals"]
+    assert any("app/pricing.py:11" in ref for ref in hit["evidence_refs"])
+
+
+def test_solution_code_without_a_patch_still_flags_functions_no_test_calls(tmp_path: Path) -> None:
+    task = tmp_path / "pkg"
+    _write(task / "instruction.md", "Compute totals.\n")
+    _write(task / "tests" / "test_totals.py", "from sol import total_a\n\nassert total_a() == 1\n")
+    _write(
+        task / "solution" / "sol.py",
+        "def total_a():\n    return 1\n\ndef total_b():\n    return 2\n",
+    )
+    entries = [_entry("HB-TS01-009", signals=["untested_reference_subblock"])]
+    refs = match_task(task, entries)["signals"]["untested_reference_subblock"]
+    assert len(refs) == 1 and "total_b" in refs[0]
 
 
 def test_match_view_and_emit_findings(tmp_path: Path) -> None:

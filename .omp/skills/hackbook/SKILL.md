@@ -21,6 +21,7 @@ evallab hackbook list [--class TS04|grader_tamperable] [--side task|run] [--sour
 evallab hackbook show HB-TS04-002 [--json]            # id or slug; unique prefix works
 evallab hackbook search "free text, a judge's proposed mechanism or a finding title" [--class ...] [--side ...] [--limit 10] [--json]
 evallab hackbook match <target> [--kind auto|task|trace|view] [--class TS03] [--direction false_pass|false_fail] [--top 10] [--emit-findings DIR] [--json]
+evallab hackbook match <task-dir> --reference fix.patch    # task + its reference diff: flags blocks no test names (HB-TS01-009)
 evallab hackbook match <trial-dir> --kind trace [--task <task-dir>] [--outcome auto|pass|fail|none] [--fleet-rates FILE]
 evallab hackbook calibrate <pool-dir> [--kind task|trace] [--threshold 0.4] [--write-rates FILE] [--json]
 evallab hackbook coverage [--json]
@@ -83,6 +84,17 @@ proposals still return the nearest entries; abstain when no entry's `mechanism` 
 `tests_or_solution_read`, `network_fetch` and `test_file_tamper` fire on them. Writes to the agent's
 own `/app/tests/` do not. A cheating trace whose only signal is a leak in the prompt (CheatBench
 `harness_leaks_answer`) or a rewritten checker file (HackTrace `test_tamper`) still returns no hit.
+
+**Reference blocks no test names (HB-TS01-009).** With the reference fix as a diff
+(`match <task> --reference PATCH`, or `solution/*.patch` in the package), the signal
+`untested_reference_subblock` flags change blocks whose file and identifiers no test names (runner
+scripts, imports, comments, docs and test files do not count). On 475 MiMo tasks scored against the
+executed `evallab ref-subset` probe, a flagged block is deletable with every hidden test still
+passing about twice as often as the same task's other blocks (`0.57` vs `0.27` on the held-out
+TEST split; `18` tasks higher, `3` lower). It is **a pointer to a block, not a weak-check screen**:
+as a task-level flag its lift on TEST is `1.12` (the regexes: `1.03`), it finds `11%` of the
+droppable blocks, and a plain count of the reference's blocks predicts weak tests better. Read the
+block it names, then run `evallab ref-subset` for the verdict.
 
 Python:
 

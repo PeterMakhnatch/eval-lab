@@ -24,6 +24,7 @@ from evallab.hackbook.models import (
     class_matches,
     load_hackbook,
 )
+from evallab.hackbook.refcov import describe, unnamed_blocks
 from evallab.qa.models import Fault, Finding, FindingSubject, Reviewer, dump_finding
 
 MAX_FILE_BYTES = 512_000
@@ -99,6 +100,7 @@ class TaskSurface:
     prefix: str = ""
     files: dict[str, str] = field(default_factory=dict)
     names: list[str] = field(default_factory=list)
+    reference: str = ""  # reference patch kept outside the package (``match --reference``)
 
     def ref(self, rel: str, line: int | None = None) -> str:
         path = f"{self.prefix}{rel}"
@@ -148,7 +150,9 @@ def _is_text(path: Path) -> bool:
     )
 
 
-def load_task_surface(task_dir: Path, *, prefix: str = "") -> TaskSurface:
+def load_task_surface(
+    task_dir: Path, *, prefix: str = "", reference: Path | None = None
+) -> TaskSurface:
     task_dir = Path(task_dir)
     surface = TaskSurface(task_dir=task_dir, task_id=_task_name(task_dir), prefix=prefix)
     for path in sorted(task_dir.rglob("*")):
@@ -167,6 +171,10 @@ def load_task_surface(task_dir: Path, *, prefix: str = "") -> TaskSurface:
             surface.files[rel] = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+    if reference is not None:
+        if not Path(reference).is_file():
+            raise ValueError(f"reference patch not found: {reference}")
+        surface.reference = Path(reference).read_text(encoding="utf-8", errors="replace")
     return surface
 
 
@@ -352,9 +360,17 @@ _DEF = re.compile(
 @_signal("untested_reference_subblock")
 def _untested_reference(s: TaskSurface) -> list[str]:
     tests = "\n".join(s.tests.values())
-    if not tests or not s.solution:
+    if not tests:
         return []
-    has_patch = any(rel.endswith((".patch", ".diff")) for rel in s.solution)
+    patch = s.reference or "\n".join(
+        text for rel, text in s.solution.items() if rel.endswith((".patch", ".diff"))
+    )
+    if patch:
+        # Runner scripts (``tests/test.sh``: installers, ``git reset``, the pytest line) name no
+        # behaviour and would count as naming any block; only the test code itself does.
+        content = "\n".join(t for rel, t in s.tests.items() if not rel.endswith((".sh", ".bash")))
+        blocks = unnamed_blocks(patch, content) if content else []
+        return [f"reference {describe(block)}" for block in blocks[:3]]
     sol_defs: list[tuple[str, int, str]] = []
     for rel, text in s.solution.items():
         for number, line in _lines(text):
@@ -365,8 +381,7 @@ def _untested_reference(s: TaskSurface) -> list[str]:
             if name.startswith("_") or name in {"main", "solve", "run", "setup", "teardown"}:
                 continue
             sol_defs.append((rel, number, name))
-    tested = [row for row in sol_defs if re.search(rf"\b{re.escape(row[2])}\b", tests)]
-    if not has_patch and not tested:
+    if not any(re.search(rf"\b{re.escape(name)}\b", tests) for _, _, name in sol_defs):
         return []
     refs = [
         f"{s.ref(rel, number)} (`{name}` never exercised by tests/)"
@@ -934,9 +949,13 @@ def is_task_dir(path: Path) -> bool:
 
 
 def _match_one_task(
-    task_dir: Path, pool: Sequence[HackbookEntry], top: int, prefix: str = ""
+    task_dir: Path,
+    pool: Sequence[HackbookEntry],
+    top: int,
+    prefix: str = "",
+    reference: Path | None = None,
 ) -> HackbookMatchResult:
-    surface = load_task_surface(task_dir, prefix=prefix)
+    surface = load_task_surface(task_dir, prefix=prefix, reference=reference)
     if prefix:  # exported views name each task by its tasks/<name> directory
         surface.task_id = task_dir.name
     signals = extract_structural_signals(surface)
@@ -957,16 +976,25 @@ def match_task(
     top: int = 25,
     root: Path | None = None,
     direction: str | None = None,
+    reference: Path | None = None,
 ) -> dict[str, Any]:
-    """Match one task package, or every task of an exported view root."""
+    """Match one task package, or every task of an exported view root.
+
+    ``reference`` is the reference fix as a unified diff kept outside the package (MiMo packages
+    ship no ``solution/``); it feeds ``untested_reference_subblock`` (HB-TS01-009).
+    """
     pool = _pool(entries, taxonomy_class, root, direction)
-    return _match_task_model(Path(task_dir), pool, top).model_dump(by_alias=True, mode="json")
+    return _match_task_model(Path(task_dir), pool, top, reference).model_dump(
+        by_alias=True, mode="json"
+    )
 
 
 def _match_task_model(
-    task_dir: Path, pool: Sequence[HackbookEntry], top: int
+    task_dir: Path, pool: Sequence[HackbookEntry], top: int, reference: Path | None = None
 ) -> HackbookMatchResult:
     if is_view_dir(task_dir):
+        if reference is not None:
+            raise ValueError("a reference patch belongs to one task, not an exported view")
         tasks = [
             _match_one_task(child, pool, top, prefix=f"tasks/{child.name}/")
             for child in sorted((task_dir / "tasks").iterdir())
@@ -1000,7 +1028,7 @@ def _match_task_model(
     prefix = ""
     if task_dir.parent.name == "tasks" and is_view_dir(task_dir.parent.parent):
         prefix = f"tasks/{task_dir.name}/"
-    return _match_one_task(task_dir, pool, top, prefix=prefix)
+    return _match_one_task(task_dir, pool, top, prefix=prefix, reference=reference)
 
 
 # --------------------------------------------------------------------------- traces
@@ -1760,6 +1788,7 @@ def match_target(
     fleet_rates: Path | Mapping[str, float] | None = None,
     non_discriminating_above: float = NON_DISCRIMINATING_RATE,
     direction: str | None = None,
+    reference: Path | None = None,
 ) -> dict[str, Any]:
     """Auto-detect and match a task, view, or trace; optionally emit findings.
 
@@ -1768,12 +1797,15 @@ def match_target(
     (``false_fail``); ``either`` entries always stay. ``fleet_rates`` is a
     ``calibrate --write-rates`` file (or its ``rates`` mapping): hits on entries above
     ``non_discriminating_above`` carry ``non_discriminating`` and are never emitted as findings.
+    ``reference`` (tasks only) is the reference fix as a diff, see :func:`match_task`.
     """
     target = Path(target)
     resolved = detect_kind(target) if kind == "auto" else kind
+    if reference is not None and resolved != "task":
+        raise ValueError("a reference patch applies to a task package")
     pool = _pool(entries, taxonomy_class, root, direction)
     if resolved in {"task", "view"}:
-        result = _match_task_model(target, pool, top)
+        result = _match_task_model(target, pool, top, reference)
         if resolved == "view" and result.kind != "view":
             raise ValueError(f"not an exported view (bundle.json + tasks/): {target}")
     elif resolved == "trace":

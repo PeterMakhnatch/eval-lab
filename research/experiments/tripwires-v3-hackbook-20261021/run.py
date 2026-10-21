@@ -4,8 +4,9 @@ Everything is deterministic and local: no model call, no submitted-code executio
 The runner scans each published ATIF with the shared ``evallab.tripwires.scan_trace``
 report (it owns no detector regex) and reports, per rule and per view, true-positive
 hits over the measured positives and false alarms over the measured negatives, with
-the real denominators, per-item rule ids and step references, and coverage. A missing
-input, label or hash is ``unknown``/``unavailable``, never a clean item or a zero.
+the real denominators, per-item rule ids and step references, and coverage.
+A missing input or label is ``unknown``/``unavailable``, never a clean item or a zero.
+Registered hashes are checked when supplied; unbound inputs retain their observed hash.
 
 Protocol, input map and caveats: ``PROTOCOL.md`` (same directory).
 
@@ -50,7 +51,6 @@ from evallab.results_home import results_root  # noqa: E402
 SCHEMA = "evallab.tripwires_v3_measurement/v1"
 VERSION_ID = "tripwires-v3"
 VIEWS = ("full", "actions")
-EVIDENCE_CHARS = 200
 SCOREBOARD = REPO / "research/qa-scoreboard/scoreboard.csv"
 ASSIGNMENTS = KEYS_DIR / "splits/assignments.csv"
 #: Where the trace-QA lane hands over TB4 Harbor Hub DEV labels (CONTRACT.md data-home table:
@@ -101,8 +101,8 @@ COHORTS: tuple[Cohort, ...] = (
         roles=_VERDICT_ROLES,
         splits=("dev", "test"),
         target="behavior",
-        positive="human-verified cheating/attempt (steinad/CheatBench)",
-        negative="vetted benign; a source negative, not a correctness label",
+        positive="source-labelled cheating or attempted cheating (steinad/CheatBench)",
+        negative="source-labelled benign; not a correctness or uniform-review certificate",
         caveats=("the label says the agent cheated or tried to, not that the grader passed",),
     ),
     Cohort(
@@ -111,7 +111,7 @@ COHORTS: tuple[Cohort, ...] = (
         roles=_VERDICT_ROLES,
         splits=("dev", "test"),
         target="behavior",
-        positive="ACT shortcut label (GPT-5.4 judge or deterministic rule, upstream-audited)",
+        positive="inherited ACT shortcut label; not independently re-adjudicated here",
         negative="ACT negative; a source negative, not a correctness label",
         caveats=("ACT is a behavior label, not solution correctness",),
     ),
@@ -316,13 +316,6 @@ def _step_ref(hit: Any) -> Any:
     return None
 
 
-def _evidence(hit: Any) -> str:
-    if isinstance(hit, dict):
-        for key in ("evidence", "excerpt", "command", "pattern", "mechanism"):
-            if hit.get(key):
-                return str(hit[key])[:EVIDENCE_CHARS]
-        return ""
-    return str(hit)[:EVIDENCE_CHARS]
 
 
 def _fired(rule: str, family: str, eligibility: str, hits: list[Any]) -> dict[str, Any]:
@@ -334,7 +327,6 @@ def _fired(rule: str, family: str, eligibility: str, hits: list[Any]) -> dict[st
         "n_hits": len(hits),
         "steps": sorted(set(refs), key=lambda x: (isinstance(x, str), x)),
         "n_hits_without_step": len(hits) - len(refs),
-        "evidence": _evidence(hits[0]),
     }
 
 
@@ -757,7 +749,7 @@ def render_report(result: dict[str, Any]) -> str:
                 "| rule | family | eligibility | TP | false alarms | other-stratum hits |",
                 "|---|---|---|---|---|---|",
             ]
-            for name, agg in (("ANY verdict rule", m["any_verdict_rule"]), ("legacy v2 OR", m["legacy_v2_or"])):
+            for name, agg in (("ANY verdict rule", m["any_verdict_rule"]), ("legacy-field OR", m["legacy_v2_or"])):
                 lines.append(
                     f"| {name} | | | {fmt(agg['true_positive'])} | {fmt(agg['false_alarm'])} | {agg['other_hits']} |"
                 )
@@ -799,6 +791,8 @@ def run_measure(split: str, expect: str | None, out: Path, root: Path) -> dict[s
         "rules_version": tripwires.RULES_VERSION,
         "fingerprint": fp,
         "catalog": rule_universe(registry),
+        "catalog_source": tripwires.HACKBOOK_TAXONOMY_SOURCE,
+        "entry_coverage": tripwires.HACKBOOK_ENTRY_COVERAGE,
         "not_evaluated": list(NOT_EVALUATED),
         "cohorts": cohorts,
     }

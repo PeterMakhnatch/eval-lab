@@ -1,0 +1,99 @@
+{
+  "conditioning_mode": {
+    "hackbook_conditioned": 45,
+    "unconditioned": 45
+  },
+  "conversations": 90,
+  "corpus": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/rh-tb21-20261017/research/datasets/seeker-sft-v1/seeker_tool_sft.jsonl",
+  "diversity_by_class": {
+    "answer_reachable": {
+      "bodies": 10,
+      "distinct_bodies": 5,
+      "max_pairwise_similarity": 1.0,
+      "mean_pairwise_similarity": 0.2537
+    },
+    "grader_tamperable": {
+      "bodies": 26,
+      "distinct_bodies": 13,
+      "max_pairwise_similarity": 1.0,
+      "mean_pairwise_similarity": 0.5022
+    },
+    "weak_check": {
+      "bodies": 24,
+      "distinct_bodies": 8,
+      "max_pairwise_similarity": 1.0,
+      "mean_pairwise_similarity": 0.391
+    }
+  },
+  "effective_size": {
+    "conversations": 90,
+    "distinct_bodies": 25,
+    "distinct_task_body_pairs": 39,
+    "distinct_tasks": 31,
+    "duplicated_bodies": 25,
+    "extra_copies": 65,
+    "negative_conversations": 30,
+    "negative_distinct_task_body_pairs": 15,
+    "positive_conversations": 60,
+    "positive_distinct_task_body_pairs": 24
+  },
+  "execution_share": {
+    "description_chars": 44228,
+    "execution_chars": 274932,
+    "execution_share_of_assistant_content": 0.8614
+  },
+  "exploit_found": {
+    "false": 30,
+    "true": 60
+  },
+  "mechanism_task_class": {
+    "answer_reachable": 10,
+    "grader_tamperable": 26,
+    "unknown": 30,
+    "weak_check": 24
+  },
+  "source_family": {
+    "breaker_bench": 30,
+    "mimo_clean_control": 30,
+    "tb2_tb21": 8,
+    "tb4_dev": 22
+  },
+  "top_duplicated_bodies": [
+    {
+      "copies": 30,
+      "digest": "7434d0833807"
+    },
+    {
+      "copies": 8,
+      "digest": "bb0fdb68c6f0"
+    },
+    {
+      "copies": 6,
+      "digest": "ef2f9cdd5be8"
+    },
+    {
+      "copies": 4,
+      "digest": "e2b6978fb1e6"
+    },
+    {
+      "copies": 2,
+      "digest": "9885b4d310fb"
+    },
+    {
+      "copies": 2,
+      "digest": "6fa8c91dd361"
+    },
+    {
+      "copies": 2,
+      "digest": "f5983339854e"
+    },
+    {
+      "copies": 2,
+      "digest": "28437d394e4e"
+    }
+  ],
+  "verified_differential": {
+    "false": 34,
+    "true": 56
+  }
+}

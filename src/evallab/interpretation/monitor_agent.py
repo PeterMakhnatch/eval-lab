@@ -382,6 +382,15 @@ class OpenAIInvestigator:
             if message.get("annotations") not in (None, []):
                 raise InvestigatorError("provider external-tool annotations are unsupported")
             content = message["content"]
+            if isinstance(content, list):
+                # Some providers return content as typed parts; only plain text
+                # parts are admissible, anything else stays unsupported.
+                parts: list[str] = []
+                for part in content:
+                    if not isinstance(part, dict) or part.get("type") != "text" or not isinstance(part.get("text"), str):
+                        raise InvestigatorError("provider content must be JSON text")
+                    parts.append(part["text"])
+                content = "".join(parts)
             if not isinstance(content, str):
                 raise InvestigatorError("provider content must be JSON text")
             returned_model = value.get("model")

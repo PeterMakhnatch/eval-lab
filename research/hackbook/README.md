@@ -366,7 +366,7 @@ what the entries were written from. The first held-out number is one frozen vers
 
 About a third of the DEV recall was in-sample. For scale, on the same TEST split: a no-matcher prior
 (the modal DEV category on every task) credits `18`, Epoch's and Tokenless's own flags `15` and `16`,
-plain Opus read `78` (other lane, frozen), and telling a predictor which categories each task has
+the plain read `78` (Codex `gpt-6.1-sol`, other lane, frozen; its #1119 receipt said Opus), and telling a predictor which categories each task has
 gives `78`. Per class: `weak_check` `29/61` (DEV `24/41`), `unstated_requirement` `16/40` (`12/19`),
 `grader_tamperable` `10/20` (`7/12`); the rarer classes have `3` to `7` TEST findings and `0` to `3`
 hits. `match` names no finding id or locus, so only category-level credit counts.

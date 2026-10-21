@@ -1,4 +1,11 @@
-# TB4 QA agent v1: does fixing the harness beat a plain read on the same model?
+# TB4 QA agent v1: does fixing the harness beat a plain read? (model differs: see correction)
+
+> **Correction, 2026-10-21 (DataAnalysisS).** The title and text below say v1 and the plain read ran on the
+> same model (Opus). Retained transcripts show the #1119 plain-read readers ran on Codex `gpt-6.1-sol`
+> (574/574 reader messages); v1 ran on Opus 5.5 (739/739 messages). So the v1 80 vs plain 78 result is a
+> cross-model comparison, and "tied on the same model" is not supported. The v0 (Codex) to plain (Codex)
+> gap of 62 hits is the same-model comparison and reflects the harness limits, not a model change; the
+> v0 to v1 gap mixes both. Numbers are unchanged.
 
 Bridge: `research-context/bridge/2026-10-20-open-qa/qa-agent-v1.md`. Key: `tb4-audit-v1`, TEST split
 (41 tasks, 152 task findings). Scorer: `research/answer-keys/tb4-audit-v1/score_audit.py`, unchanged.
@@ -15,7 +22,7 @@ the 200-line read limit; at most one claim per task):
 | `task-info` read window | default 100 lines, refused above 200 | default and maximum 2,000 lines; a longer range is clipped with a continuation note |
 | Findings per task | not stated; cap left room for one | "record each distinct defect as its own finding" |
 | Tool surface | 7 JSON tools; the 4 runtime tools could not run (no Docker admission) | the 3 source tools: `task-info`, `diff`, `record-finding` |
-| Model / route | Codex `gpt-6.1-sol`, JSON-action loop | `anthropic/claude-opus-5-5`, native OMP subagents (same family as the plain read, #1119) |
+| Model / route | Codex `gpt-6.1-sol`, JSON-action loop | `anthropic/claude-opus-5-5`, native OMP subagents (**not** the same model as the plain read: see the correction above) |
 
 Kept: the packaged common rules and eleven class playbooks (verbatim), the evidence and citation rules,
 `EnvTools` bound to the sealed TEST view exactly as v0 bound it, citation validation in
@@ -67,7 +74,7 @@ After the freeze, only `score.py` changed: its static-scanner output loader. No 
 |---|---|---|---|---|---|
 | QA agent v0 (Codex) | 16 | 1 | 27 | 29 | 15 / 1 / 26 |
 | Static scanner | 46 | 1 | 75 | 112 | 43 / 1 / 72 |
-| Plain Opus read | 78 | 4 | 115 | 151 | 73 / 4 / 108 |
+| Plain read (Codex `gpt-6.1-sol`, not Opus) | 78 | 4 | 115 | 151 | 73 / 4 / 108 |
 | **QA agent v1 (Opus)** | **80** | **3** | **116** | **148** | **76 / 3 / 111** |
 
 Paired bootstrap over tasks (10,000 resamples, seed 20261020), v1 minus plain read: category +1.3 pts

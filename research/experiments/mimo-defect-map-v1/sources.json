@@ -225,6 +225,46 @@
       "bytes": 143374
     },
     {
+      "source_id": "batch2",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/mimo-data-train-v7-batch2-controls-20261018.json",
+      "category": "batch2_v7",
+      "access": "private-repository",
+      "sha256": "sha256:07711d28601c9d5699bf949e0f81c2cb31918e70cb93fa6bdd733584e5b7a448",
+      "bytes": 370163
+    },
+    {
+      "source_id": "batch2_inherited_scope",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/mimo-data-phase2-controls-v7.json",
+      "category": "batch2_v7",
+      "access": "private-repository",
+      "sha256": "sha256:ca3d4460296cdfa017741d3557f3455bccf74b8f26f24643ff4a2c1f50501e80",
+      "bytes": 1492697
+    },
+    {
+      "source_id": "batch2_002486_lineage",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "path": "bridge/2026-10-17-v7/mimo-data-train-v7-002486-lineage-20261018.json",
+      "category": "batch2_v7",
+      "access": "private-repository",
+      "sha256": "sha256:47552cb1a922602e3d275cbae5c2d165431562cfa71a69c6b4b1cf9b048a9583",
+      "bytes": 24904
+    },
+    {
+      "source_id": "variant_001948_setup_python_path",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "path": "library/task-variants/mimo-v2.6-rl__format-code-task-001948/ec0208624b8a.json",
+      "category": "initial_v7",
+      "access": "public",
+      "sha256": "sha256:f840cee93f9204e6440c720d131150a96defde362e51d56ebac67e51445731e6",
+      "bytes": 152646
+    },
+    {
       "source_id": "vals_primary",
       "kind": "authorized-file",
       "repository": "research-context",

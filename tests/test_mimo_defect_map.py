@@ -253,3 +253,171 @@ def test_recall_for_one_class_does_not_credit_another_class() -> None:
     assert metrics["by_primary_class"]["weak_check"]["finding_recall"] == 1
     assert metrics["by_primary_class"]["env_mismatch_or_flaky"]["finding_recall"] == 0
     assert metrics["by_primary_class"]["env_mismatch_or_flaky"]["evaluable_findings"] == 1
+
+
+WEAK_ANCESTOR = "sha256:" + "3" * 64
+SIBLING = "sha256:" + "4" * 64
+TASK = "format-code-task-000001"
+CLASSES = {
+    "weak_check": {"id": "TS01", "key": "weak_check"},
+    "env_mismatch_or_flaky": {"id": "TS09", "key": "env_mismatch_or_flaky"},
+}
+
+
+def catalog_row(
+    package: str,
+    status: str = "repaired",
+    source: str = "batch2",
+    item: str | None = None,
+    staged: str | None = None,
+    edges: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    def observed(agent: str, rewards: list[int], package_digest: str) -> dict[str, Any]:
+        return {
+            "agent": agent,
+            "rewards": rewards,
+            "execution_id": agent,
+            "source_package_digest": package_digest,
+        }
+
+    lineage: dict[str, Any] = {"record_sha256": "sha256:" + "7" * 64}
+    if edges is not None:
+        lineage["registered_edges_newest_first"] = edges
+    return {
+        "task_id": TASK,
+        "package_digest": package,
+        "harbor_digest": "sha256:" + "5" * 64,
+        "verifier_digest": "sha256:" + "6" * 64,
+        "record_id": TASK + "@" + package,
+        "status": status,
+        "repair_scope": "assertion-scoped controls; not blanket semantic certification",
+        "heldout_excluded_from_training": False,
+        "usage": {"training_authorized_by_this_release": False},
+        "evidence": {"source_id": source, "json_pointer": "/tasks/0"},
+        "lineage": lineage,
+        "weakness_review": {"same_task_historical_positive_item": item},
+        "controls": {
+            "strict_reference_nop_pair": True,
+            "reference": observed("oracle", [1, 1, 1], staged or package),
+            "nop": observed("nop", [0, 0, 0], package),
+            "observations": [],
+        },
+    }
+
+
+def handoff() -> dict[str, Any]:
+    return {
+        "source": {"source_id": "batch2", "json_pointer": "/tasks/0"},
+        "strict_assertion_scope_admission": True,
+        "reference_nop_repeat3_pair_proved": True,
+        "transformation": None,
+        "changed_files": None,
+        "supersedes_requested_package": None,
+    }
+
+
+def existing_repair(package: str = CHILD) -> dict[str, Any]:
+    return {
+        "repair_id": f"initial-v7:{TASK}:{package}",
+        "category": "initial_v7",
+        "task_id": TASK,
+        "parent_package_digest": PARENT,
+        "child_package_digest": package,
+        "retained_detail": {"qualified_for_v7": False},
+        "evidence": [{"source_id": "train_repairs", "json_pointer": "/repairs/0"}],
+    }
+
+
+def test_controls_only_repair_stays_controls_and_never_becomes_defect_evidence() -> None:
+    catalog = [
+        catalog_row(WEAK_ANCESTOR, "known-weak", "atlas"),
+        catalog_row(CHILD, item="atlas:task@3333", staged=SIBLING),
+    ]
+    repairs, summary = MAP.reconcile_v7_repairs(catalog, [], {(TASK, CHILD): handoff()}, [])
+    (row,) = repairs
+    assert row["observed_wrong_program_positive"] is False
+    assert row["source_qualification"]["semantic_certification"] is False
+    assert row["known_weak_ancestry"]["ancestry_basis"] == "same_task_id_only_not_established"
+    assert row["known_weak_ancestry"]["ancestor_package_digests_in_registered_lineage"] == []
+    assert row["control_summary"]["nop"]["staged_on_selected_package"] is True
+    assert row["control_summary"]["reference"]["staged_on_selected_package"] is False
+    assert summary["same_task_id_only_ancestry_selected_packages"] == 1
+    # A finding that points at this child cannot lend a class to a controls-only row.
+    linked = {**finding("linked", WEAK_ANCESTOR, TASK), "resolution": {"child_package_digest": CHILD}}
+    (classified,) = MAP.classify_repairs([row], [linked], CLASSES)
+    assert classified["repair_class"]["status"] == "unmapped_underdetermined"
+    assert classified["repair_class"]["class_keys"] == []
+
+
+def test_registered_ancestor_is_bound_exactly_and_labels_do_not_transfer() -> None:
+    edges = [
+        {
+            "package_digest": CHILD,
+            "parent": {"package_digest": SIBLING},
+            "transform": "verifier-repair@1",
+            "components_changed": ["verifier"],
+        },
+        {
+            "package_digest": SIBLING,
+            "parent": {"package_digest": WEAK_ANCESTOR},
+            "transform": "setup-python-path@1",
+            "components_changed": ["environment"],
+        },
+    ]
+    catalog = [catalog_row(WEAK_ANCESTOR, "known-weak", "atlas"), catalog_row(CHILD, source="train", edges=edges)]
+    (row,), summary = MAP.reconcile_v7_repairs(catalog, [existing_repair()], {}, [])
+    ancestry = row["known_weak_ancestry"]
+    assert ancestry["ancestor_package_digests_in_registered_lineage"] == [WEAK_ANCESTOR]
+    assert ancestry["direct_parent_package_digest"] == PARENT
+    assert ancestry["ancestor_is_direct_parent"] is False
+    assert ancestry["label_transferred_to_child"] is ancestry["label_transferred_to_direct_parent"] is False
+    assert [step["transform"] for step in row["corrective_runtime_lineage"]] == ["setup-python-path@1"]
+    assert summary["ancestry_established_selected_packages"] == 1
+
+
+def test_same_task_repairs_for_different_packages_do_not_collapse() -> None:
+    catalog = [catalog_row(CHILD, source="train"), catalog_row(SIBLING)]
+    repairs, summary = MAP.reconcile_v7_repairs(
+        catalog, [existing_repair()], {(TASK, SIBLING): handoff()}, []
+    )
+    assert [row["child_package_digest"] for row in repairs] == [CHILD, SIBLING]
+    assert summary["task_ids_with_multiple_repair_packages"] == {TASK: 2}
+    assert summary["selected_repaired_packages"] == 2
+
+
+def test_existing_exact_repair_is_enriched_not_counted_twice() -> None:
+    catalog = [catalog_row(CHILD, source="train")]
+    repairs, summary = MAP.reconcile_v7_repairs(catalog, [existing_repair()], {}, [])
+    (row,) = repairs
+    assert row["retained_detail"] == {"qualified_for_v7": False}
+    assert [evidence["source_id"] for evidence in row["evidence"]] == ["train_repairs", "clean_v7"]
+    assert (summary["reconciled_to_existing_rows"], summary["added_from_catalog"]) == (1, 0)
+    with pytest.raises(ValueError, match="duplicate repair row"):
+        MAP.reconcile_v7_repairs(catalog, [existing_repair(), existing_repair()], {}, [])
+    with pytest.raises(ValueError, match="no repair history or recognized cohort"):
+        MAP.reconcile_v7_repairs(catalog, [], {}, [])
+
+
+def test_claim_only_finding_does_not_classify_a_repair_and_corrective_detail_is_attached() -> None:
+    catalog = [catalog_row(CHILD, source="train")]
+    runtime = {(TASK, "setup-python-path@1"): {"class_review": {"primary_class": None}}}
+    catalog[0]["lineage"]["registered_edges_newest_first"] = [
+        {
+            "package_digest": CHILD,
+            "parent": {"package_digest": SIBLING},
+            "transform": "setup-python-path@1",
+            "components_changed": ["environment"],
+        }
+    ]
+    repairs, _ = MAP.reconcile_v7_repairs(catalog, [existing_repair()], {}, [], runtime)
+    claim = {
+        **finding("claim", WEAK_ANCESTOR, TASK),
+        "evidence_status": "source_claim",
+        "resolution": {"child_package_digest": CHILD},
+    }
+    (row,) = MAP.classify_repairs(repairs, [claim], CLASSES)
+    assert row["repair_class"]["status"] == "unmapped_underdetermined"
+    assert row["repair_class"]["linked_unsupported_finding_ids"] == ["claim"]
+    assert row["corrective_runtime_lineage"][0]["source_detail"]["class_review"] == {
+        "primary_class": None
+    }

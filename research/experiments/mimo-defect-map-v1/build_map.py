@@ -27,6 +27,7 @@ DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 REQUIRED_CATEGORIES = (
     "atlas114",
     "initial_v7",
+    "batch2_v7",
     "round2",
     "round3",
     "round4",
@@ -349,6 +350,7 @@ def initial_history(
                     "case_bound_expected_pair_at_requested_snapshot"
                 )
                 is True,
+                "strict_reference_nop_pair": measured.get("strict_reference_nop_pair"),
                 "reference": {
                     key: measured.get("reference", {}).get(key)
                     for key in (
@@ -1452,6 +1454,657 @@ def runtime_repair_history(
     )
 
 
+GENERIC_NORMALIZATIONS = frozenset(
+    {
+        "agent-network-none",
+        "separate-verifier",
+        "mtime-normalize",
+        "purge-build-caches",
+        "purge-installed-copies",
+        "strip-future-history",
+    }
+)
+EXPLICIT_RUNTIME_CORRECTIONS = frozenset(
+    {"setup-python-path", "env-keep-files", "env-keep-build-outputs"}
+)
+CONTROLS_ONLY = "controls_only_reference_nop"
+COHORT_CATEGORY = {"batch2": "batch2_v7"}
+RECORDED_SCOPE_KEYS = (
+    "recorded_wrong_cases",
+    "recorded_wrong_zero_vectors",
+    "QA_adjudicated_correct_alternatives",
+    "QA_correct_accepted_vectors",
+    "observed_QA_correct_false_negatives",
+    "nop_native_trials",
+    "reference_native_trials",
+    "unrecorded_correct_implementation_claim",
+)
+
+
+def edge_kind(transform: str) -> str:
+    """Classify a registered transform by name only; never infer a defect from a generic step."""
+    name = transform.split("@")[0]
+    if name in GENERIC_NORMALIZATIONS:
+        return "generic_normalization"
+    if name == "verifier-repair":
+        return "verifier_repair"
+    if name == "leak-close-pypi":
+        return "leak_closure"
+    if name in EXPLICIT_RUNTIME_CORRECTIONS or name.endswith("-collection"):
+        return "explicit_runtime_correction"
+    return "unclassified_transform"
+
+
+def catalog_lineage(row: dict[str, Any]) -> dict[str, Any]:
+    lineage = row["lineage"]
+    edges = [
+        {
+            "package_digest": edge["package_digest"],
+            "parent_package_digest": edge["parent"]["package_digest"],
+            "transform": edge["transform"],
+            "components_changed": edge["components_changed"],
+            "kind": edge_kind(edge["transform"]),
+            "record_sha256": edge.get("record_sha256"),
+        }
+        for edge in lineage.get("registered_edges_newest_first", ())
+    ]
+    return {
+        "kind_mapping_status": "INFERENCE",
+        "kind_basis": "transform name only",
+        "edge_count": len(edges),
+        "registered_edges_newest_first": edges,
+        "record_sha256": lineage.get("record_sha256"),
+    }
+
+
+def known_weak_ancestry(
+    row: dict[str, Any],
+    known_weak: dict[str, list[str]],
+    lineage: dict[str, Any],
+    direct_parent: str | None,
+) -> dict[str, Any]:
+    """Bind a known-weak ancestor only when a registered edge names that exact package.
+
+    A same-task historical positive is task-ID ancestry. It is never evidence about the repaired
+    child or its direct parent, because the verifier changes between those packages.
+    """
+    named = {
+        digest
+        for edge in lineage["registered_edges_newest_first"]
+        for digest in (edge["package_digest"], edge["parent_package_digest"])
+    }
+    candidates = known_weak.get(row["task_id"], [])
+    established = [digest for digest in candidates if digest in named]
+    return {
+        "same_task_historical_positive_item": row["weakness_review"][
+            "same_task_historical_positive_item"
+        ],
+        "same_task_known_weak_package_digests": candidates,
+        "ancestor_package_digests_in_registered_lineage": established,
+        "ancestry_basis": "registered_lineage_edge"
+        if established
+        else "same_task_id_only_not_established"
+        if candidates
+        else None,
+        "direct_parent_package_digest": direct_parent,
+        "ancestor_is_direct_parent": direct_parent in established,
+        "label_transferred_to_child": False,
+        "label_transferred_to_direct_parent": False,
+    }
+
+
+def batch2_details(batch2: dict[str, Any], catalog: list[dict[str, Any]]) -> dict[Any, Any]:
+    """Project only controls-handoff metadata for each batch2 repaired package."""
+    require(
+        batch2["training_admission"] is False
+        and batch2["scoring_allowed"] is False
+        and batch2["dispatch_allowed"] is False
+        and batch2["all_requested_reference_nop_vectors_pass"] is True,
+        "batch2 control handoff changed its admission scope",
+    )
+    details: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in catalog:
+        if row["status"] != "repaired" or row["evidence"]["source_id"] != "batch2":
+            continue
+        pointer = row["evidence"]["json_pointer"]
+        source = at(batch2, pointer)
+        selected = source["selected"]
+        name = task_id(source["task_id"])
+        require(
+            name == row["task_id"]
+            and selected["package_digest"] == row["package_digest"]
+            and selected["harbor_digest"] == row["harbor_digest"]
+            and selected["verifier_digest"] == row["verifier_digest"],
+            f"batch2 metadata disagrees with the catalog selection: {row['task_id']}",
+        )
+        record = source["lineage_record"]
+        superseded = source.get("supersedes_requested_package")
+        coverage = source.get("coverage")
+        inherited = source.get("coverage_scope_inherited_from")
+        details[(name, row["package_digest"])] = {
+            "source": ref("batch2", pointer),
+            "evidence_origin": source["evidence_origin"],
+            "strict_assertion_scope_admission": source["strict_assertion_scope_admission"],
+            "reference_nop_repeat3_pair_proved": source.get("reference_nop_repeat3_pair_proved"),
+            "transformation": source.get("transformation"),
+            "changed_files": source.get("changed_files"),
+            "definition_inventory": source.get("definition_inventory"),
+            "recorded_scope_counts": {key: coverage.get(key) for key in RECORDED_SCOPE_KEYS}
+            if coverage
+            else {
+                key: source.get(key)
+                for key in (
+                    "known_wrong_cases",
+                    "recorded_wrong_zero_vectors",
+                    "adjudicated_correct_alternatives",
+                )
+                if key in source
+            }
+            or None,
+            "inherited_scope": None
+            if inherited is None
+            else {
+                "sha256": inherited["sha256"],
+                "json_pointer": inherited["json_pointer"],
+            },
+            "lineage_record": {
+                key: record.get(key) for key in ("sha256", "status", "complete_edges")
+            },
+            "supersedes_requested_package": None
+            if superseded is None
+            else {
+                key: superseded[key]
+                for key in ("package_digest", "harbor_digest", "verifier_digest")
+            },
+            "source_limits": [
+                text for text in batch2["limits"] if name.removeprefix("format-code-task-") in text
+            ],
+        }
+    return details
+
+
+REVIEW_NOTE = "Reviewer INFERENCE from a read-only metadata review; not a source-recorded diagnosis, not a recall input."
+RUNTIME_CLASS_REVIEWS = {
+    ("format-code-task-001948", "setup-python-path@1"): {
+        "primary_class": None,
+        "status": "unmapped_underdetermined",
+        "note": REVIEW_NOTE,
+        "defect_subject": "derived-package setup helper (pipeline), not the source task or its grader",
+        "candidate_considered": {
+            "env_mismatch_or_flaky": "weak thematic fit only; no bound observation shows one artifact scored differently with a named differing factor"
+        },
+        "not_transferred": "The selected child's weak_check finding binds to the intermediate package after this edge; it does not describe this setup edge or its parent.",
+    },
+    ("format-code-task-002486", "mimo-002486-collection@1"): {
+        "primary_class": None,
+        "direction": None,
+        "status": "unmapped_underdetermined",
+        "note": REVIEW_NOTE,
+        "defect_subject": "control evidence quality: parent nop reached only collection, not a source-task grader defect",
+        "rejected": {
+            "env_mismatch_or_flaky": "the source classifies the parent failure as task work, not infrastructure, and names no differing environment factor",
+            "false_fail": "no wrong grade of a correct submission is recorded; a nop zero is the expected control outcome",
+        },
+        "not_copied_by_analogy_from": "format-code-task-001246",
+    },
+    ("format-code-task-001246", "mimo-001246-collection@1"): {
+        "primary_class": None,
+        "status": "unmapped_underdetermined",
+        "note": REVIEW_NOTE,
+        "existing_finding_unchanged": "The separate source_claim finding keeps its visible env_mismatch_or_flaky/false_fail INFERENCE; it is excluded from supported recall and was not relabeled here.",
+        "evidence_against_candidates": {
+            "unstated_requirement": "the failing line is a first-party import chain in the base checkout, not a grader assertion, and an executed prompt-valid alternate passed",
+            "env_mismatch_or_flaky": "the nop and setup failures are the same deterministic missing-helper ImportError; no artifact was scored differently across environments",
+        },
+        "open_for_owner": "Whether to relabel the existing finding's class/direction is left to the parent integrator.",
+    },
+}
+
+
+def runtime_correction_details(
+    documents: dict[str, Any], catalog: list[dict[str, Any]]
+) -> dict[Any, Any]:
+    """Bind explicit corrective runtime edges to their pinned records; no file bodies are exported."""
+    details: dict[tuple[str, str], dict[str, Any]] = {
+        key: {"class_review": review} for key, review in RUNTIME_CLASS_REVIEWS.items()
+    }
+
+    def selected(task: str) -> dict[str, Any]:
+        rows = [r for r in catalog if r["task_id"] == task and r["status"] == "repaired"]
+        require(len(rows) == 1, f"expected exactly one selected repaired package for {task}")
+        return rows[0]
+
+    task = "format-code-task-001948"
+    variant, transform = documents["variant_001948_setup_python_path"], "setup-python-path@1"
+    edge = next(
+        edge
+        for edge in catalog_lineage(selected(task))["registered_edges_newest_first"]
+        if edge["transform"] == transform
+    )
+    require(
+        task_id(variant["task_name"]) == task
+        and variant["transform"] == transform
+        and variant["variant_digest"] == edge["package_digest"]
+        and variant["parent"]["digest"] == edge["parent_package_digest"],
+        "the 001948 setup-python-path record disagrees with the catalog lineage edge",
+    )
+    details[(task, transform)].update(
+        {
+            "source": ref("variant_001948_setup_python_path", ""),
+            "record_status": variant["status"],
+            "parent_package_digest": variant["parent"]["digest"],
+            "components_changed": variant["components_changed"],
+            "file_digests": [
+                {key: item[key] for key in ("path", "before_sha256", "after_sha256")}
+                for item in variant["files"]
+            ],
+            "tests_tree_sha256_before_and_after": variant["inputs"]["tests_before_sha256"],
+            "setup_python_path": variant["inputs"]["setup_python_path"],
+            "source_fix": variant["inputs"]["source_fix"],
+            "source_recorded_reason": variant["rationale"],
+            "executed_parent_failure": None,
+            "executed_parent_failure_note": "No executed failing observation of the parent is bound in the pinned metadata; the reason is a source-recorded claim, not an observed wrong score. Absence of a bound failure is not evidence that none exists in unpinned logs.",
+            "child_side_controls": "setup-only native controls on the intermediate package are recorded by the source as candidate-only; they are not semantic certification.",
+        }
+    )
+    task = "format-code-task-002486"
+    lineage_record, transform = documents["batch2_002486_lineage"], "mimo-002486-collection@1"
+    child = selected(task)
+    parent_nop = [
+        row
+        for row in documents["batch2_inherited_scope"]["native_controls"]
+        if task_id(row["task_id"]) == task and row["case"] == "nop"
+    ]
+    require(len(parent_nop) == 1, "the 002486 parent nop observation is not unique")
+    observed, scope = parent_nop[0]["observation"], parent_nop[0]["semantic_scope"]["classification"]
+    require(
+        task_id(lineage_record["task_name"]) == task
+        and lineage_record["transform"] == transform
+        and lineage_record["variant_digest"] == child["package_digest"]
+        and lineage_record["parent"]["digest"] == observed["source_package_digest"]
+        and observed["agent"] == "nop"
+        and observed["rewards"] == [0.0, 0.0, 0.0],
+        "the 002486 lineage record disagrees with the catalog or the retained parent nop",
+    )
+    details[(task, transform)].update(
+        {
+            "source": ref("batch2_002486_lineage", ""),
+            "record_status": lineage_record["status"],
+            "parent_package_digest": lineage_record["parent"]["digest"],
+            "parent_harbor_digest": lineage_record["parent"]["harbor_digest"],
+            "components_changed": lineage_record["components_changed"],
+            "file_digests": [
+                {key: item[key] for key in ("path", "before_sha256", "after_sha256")}
+                for item in lineage_record["files"]
+            ],
+            "cause": lineage_record["inputs"]["cause"],
+            "collection_boundary": lineage_record["inputs"]["collection_boundary"],
+            "original_test_definition_count": sum(
+                lineage_record["inputs"]["original_test_definitions"].values()
+            ),
+            "native_controls_executed_on_the_record_itself": lineage_record["inputs"][
+                "native_controls_executed"
+            ],
+            "source_recorded_reason": lineage_record["rationale"],
+            "executed_parent_failure": {
+                "source": ref("batch2_inherited_scope", "/native_controls"),
+                "role": "nop",
+                "package_digest": observed["source_package_digest"],
+                "execution_id": observed["execution_id"],
+                "rewards": observed["rewards"],
+                "source_classification": scope["observed_disposition"],
+                "missing_requested_api_is_task_work": scope["missing_build_install_plan_is_task_work"],
+                "assertion_suite_executed": scope["assertions_executed_now"],
+            },
+        }
+    )
+    return details
+
+
+def corrective_runtime_lineage(
+    task: str,
+    lineage: dict[str, Any],
+    detail: dict[str, Any] | None,
+    child: str,
+    runtime: dict[Any, Any],
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = [
+        {
+            "source": "clean_v7_registered_edge",
+            "transform": edge["transform"],
+            "components_changed": edge["components_changed"],
+            "package_digest": edge["package_digest"],
+            "parent_package_digest": edge["parent_package_digest"],
+        }
+        for edge in lineage["registered_edges_newest_first"]
+        if edge["kind"] == "explicit_runtime_correction"
+    ]
+    transformation = (detail or {}).get("transformation")
+    if transformation and edge_kind(transformation) == "explicit_runtime_correction":
+        steps.append(
+            {
+                "source": "batch2_selected_transformation",
+                "transform": transformation,
+                "changed_files": detail["changed_files"],
+                "package_digest": child,
+                "parent_package_digest": None,
+            }
+        )
+    for step in steps:
+        extra = runtime.get((task, step["transform"]))
+        if extra is not None:
+            step["source_detail"] = extra
+            step["parent_package_digest"] = step["parent_package_digest"] or extra.get(
+                "parent_package_digest"
+            )
+    return steps
+
+
+def staged_role(observed: dict[str, Any], child: str) -> dict[str, Any]:
+    """A control counts for the selected package only when it was staged on that exact package."""
+    return {
+        "rewards": observed.get("rewards"),
+        "execution_id": observed.get("execution_id"),
+        "staged_source_package_digest": observed.get("source_package_digest"),
+        "staged_on_selected_package": observed.get("source_package_digest") == child,
+    }
+
+
+def reconcile_v7_repairs(
+    catalog: list[dict[str, Any]],
+    repairs: list[dict[str, Any]],
+    details: dict[Any, Any],
+    heldout: list[str],
+    runtime: dict[Any, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Cover every selected repaired v7 package once, keyed by exact task+child package."""
+    runtime = runtime or {}
+    known_weak: dict[str, list[str]] = {}
+    for row in catalog:
+        if row["status"] == "known-weak":
+            known_weak.setdefault(row["task_id"], []).append(row["package_digest"])
+    existing: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in repairs:
+        key = (row["task_id"], row["child_package_digest"])
+        require(key not in existing, f"duplicate repair row for exact task/package: {key}")
+        existing[key] = row
+    selected = [(index, row) for index, row in enumerate(catalog) if row["status"] == "repaired"]
+    keys = [(row["task_id"], row["package_digest"]) for _, row in selected]
+    require(len(set(keys)) == len(keys), "catalog repeats a repaired task/package")
+    catalog_status = {(row["task_id"], row["package_digest"]): row["status"] for row in catalog}
+    decorated: dict[tuple[str, str], dict[str, Any]] = {}
+    added: list[dict[str, Any]] = []
+    for index, row in selected:
+        key = (row["task_id"], row["package_digest"])
+        require(
+            row["heldout_excluded_from_training"] is (row["task_id"] in heldout),
+            f"catalog heldout exclusion disagrees with the frozen all-version list: {row['task_id']}",
+        )
+        lineage = catalog_lineage(row)
+        detail = details.get(key)
+        prior = existing.get(key)
+        steps = corrective_runtime_lineage(
+            row["task_id"], lineage, detail, row["package_digest"], runtime
+        )
+        if prior is None:
+            category = COHORT_CATEGORY.get(row["evidence"]["source_id"])
+            require(
+                category is not None and detail is not None,
+                f"selected repaired package has no repair history or recognized cohort: {key}",
+            )
+            parent = next(
+                (
+                    step["parent_package_digest"]
+                    for step in steps
+                    if step["source"] == "batch2_selected_transformation"
+                ),
+                None,
+            )
+        else:
+            category, parent = prior["category"], prior.get("parent_package_digest")
+        newest = lineage["registered_edges_newest_first"][:1]
+        pointer = f"/tasks/{index}"
+        block = {
+            "source": ref("clean_v7", pointer),
+            "record_id": row["record_id"],
+            "status": row["status"],
+            "selection": row.get("selection"),
+            "repair_scope": row["repair_scope"],
+            "heldout_excluded_from_training": row["heldout_excluded_from_training"],
+            "usage": row["usage"],
+            "lineage": lineage,
+            "existing_parent_matches_newest_registered_edge": None
+            if prior is None or not newest
+            else newest[0]["parent_package_digest"] == parent,
+        }
+        controls = row["controls"]
+        common = {
+            "source_catalog": block,
+            "known_weak_ancestry": known_weak_ancestry(row, known_weak, lineage, parent),
+            "corrective_runtime_lineage": steps,
+        }
+        if prior is not None:
+            decorated[key] = {
+                **prior,
+                **common,
+                "evidence": [*prior["evidence"], ref("clean_v7", pointer)],
+            }
+            continue
+        observations = controls.get("observations", [])
+        added.append(
+            {
+                "repair_id": f"v7-catalog:{category}:{row['task_id']}:{row['package_digest']}",
+                "category": category,
+                "task_id": row["task_id"],
+                "repair_kind": CONTROLS_ONLY,
+                "evidence_kind": CONTROLS_ONLY,
+                "observed_wrong_program_positive": False,
+                "parent_package_digest": parent,
+                "parent_binding": "named by the pinned candidate lineage record for the selected transformation"
+                if parent
+                else "not recorded in the pinned catalog or controls-handoff metadata; only the lineage record digest is exported",
+                "supersedes_requested_package": detail["supersedes_requested_package"],
+                "child_package_digest": row["package_digest"],
+                "child_harbor_digest": row["harbor_digest"],
+                "child_verifier_digest": row["verifier_digest"],
+                "historical_label_transferred_to_child": False,
+                "source_qualification": {
+                    "status": "strict_reference_nop_pair_source_scoped",
+                    "scope": row["repair_scope"],
+                    "strict_assertion_scope_admission": detail["strict_assertion_scope_admission"],
+                    "reference_nop_repeat3_pair_proved": detail["reference_nop_repeat3_pair_proved"],
+                    "semantic_certification": False,
+                    "training_admission": False,
+                    "dispatch_authorized": False,
+                },
+                "control_summary": {
+                    "strict_reference_nop_pair": controls.get("strict_reference_nop_pair"),
+                    "reference": staged_role(controls.get("reference", {}), row["package_digest"]),
+                    "nop": staged_role(controls.get("nop", {}), row["package_digest"]),
+                    "other_package_observation_count": sum(
+                        item["observation"]["source_package_digest"] != row["package_digest"]
+                        for item in observations
+                    ),
+                },
+                "controls_handoff": {
+                    key: value
+                    for key, value in detail.items()
+                    if key not in {"source", "supersedes_requested_package"}
+                },
+                **common,
+                "evidence": [ref("clean_v7", pointer), detail["source"]],
+            }
+        )
+    merged = [decorated.get((row["task_id"], row["child_package_digest"]), row) for row in repairs]
+    merged += added
+    retained = [
+        {
+            "repair_id": row["repair_id"],
+            "category": row["category"],
+            "task_id": row["task_id"],
+            "child_package_digest": row["child_package_digest"],
+            "catalog_status_of_exact_package": catalog_status.get(
+                (row["task_id"], row["child_package_digest"])
+            ),
+        }
+        for row in repairs
+        if (row["task_id"], row["child_package_digest"]) not in decorated
+    ]
+    packages: dict[str, set[str]] = {}
+    for row in merged:
+        packages.setdefault(row["task_id"], set()).add(row["child_package_digest"])
+    corrective = [
+        {
+            "task_id": row["task_id"],
+            "child_package_digest": row["child_package_digest"],
+            "transforms": [step["transform"] for step in row["corrective_runtime_lineage"]],
+        }
+        for row in merged
+        if row.get("corrective_runtime_lineage")
+    ]
+    covered = {(row["task_id"], row["child_package_digest"]) for row in merged}
+    summary = {
+        "source": ref("clean_v7", "/tasks"),
+        "identity_join": ["task_id", "child_package_digest"],
+        "catalog_rows_by_status": dict(sorted(Counter(row["status"] for row in catalog).items())),
+        "selected_repaired_packages": len(selected),
+        "selected_distinct_task_ids": len({key[0] for key in keys}),
+        "reconciled_to_existing_rows": len(decorated),
+        "added_from_catalog": len(added),
+        "added_by_category": dict(sorted(Counter(row["category"] for row in added).items())),
+        "selected_packages_without_repair_row": len(set(keys) - covered),
+        "selected_heldout_excluded_packages": sum(
+            row["heldout_excluded_from_training"] for _, row in selected
+        ),
+        "repair_rows_total": len(merged),
+        "repair_rows_by_category": dict(sorted(Counter(row["category"] for row in merged).items())),
+        "retained_repair_rows_outside_selected_catalog": {
+            "count": len(retained),
+            "by_category": dict(sorted(Counter(row["category"] for row in retained).items())),
+            "rows": retained,
+        },
+        "task_ids_with_multiple_repair_packages": {
+            name: len(digests) for name, digests in sorted(packages.items()) if len(digests) > 1
+        },
+        "explicit_runtime_correction_rows": corrective,
+        "ancestry_established_selected_packages": sum(
+            bool(row["known_weak_ancestry"]["ancestor_package_digests_in_registered_lineage"])
+            for row in merged
+            if "known_weak_ancestry" in row
+        ),
+        "same_task_id_only_ancestry_selected_packages": sum(
+            row["known_weak_ancestry"]["ancestry_basis"] == "same_task_id_only_not_established"
+            for row in merged
+            if "known_weak_ancestry" in row
+        ),
+    }
+    require(summary["selected_packages_without_repair_row"] == 0, "v7 repair coverage is incomplete")
+    return merged, summary
+
+
+def classify_repairs(
+    repairs: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    classes: dict[str, dict[str, str]],
+) -> list[dict[str, Any]]:
+    """Attach an INFERENCE class only where a supported source finding gives one; else unmapped.
+
+    Claim-only or diagnostic findings, controls-only rows and corrective transforms are never
+    classified by analogy to another task's repair.
+    """
+    supported = {"source_supported_historical", "differential_confirmed"}
+    linked: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for finding in findings:
+        child = finding.get("resolution", {}).get("child_package_digest")
+        if child and finding.get("primary_class"):
+            linked.setdefault((finding["task_id"], child), []).append(finding)
+    result = []
+    for row in repairs:
+        controls_only = row.get("evidence_kind") == CONTROLS_ONLY
+        candidates = [] if controls_only else linked.get((row["task_id"], row["child_package_digest"]), [])
+        matched = [finding for finding in candidates if finding["evidence_status"] in supported]
+        unsupported = sorted(
+            finding["finding_id"] for finding in candidates if finding not in matched
+        )
+        if matched:
+            keys = sorted({finding["primary_class"]["key"] for finding in matched})
+            result_class = {
+                "status": "INFERENCE",
+                "class_keys": keys,
+                "classes": [classes[key] for key in keys],
+                "basis": "classes already mapped on supported source findings for this exact child package",
+                "linked_finding_ids": sorted(finding["finding_id"] for finding in matched),
+            }
+        else:
+            result_class = {
+                "status": "unmapped_underdetermined",
+                "class_keys": [],
+                "classes": [],
+                "basis": "controls-only repaired metadata does not diagnose a defect"
+                if controls_only
+                else "only claim-only source findings are linked; they keep their own visible INFERENCE mapping"
+                if unsupported
+                else "no class-bearing supported source finding is linked to this exact child package",
+                "linked_finding_ids": [],
+            }
+        if unsupported:
+            result_class["linked_unsupported_finding_ids"] = unsupported
+        result.append({**row, "repair_class": result_class})
+    return result
+
+
+def batch2_coverage(
+    repairs: list[dict[str, Any]], reconciliation: dict[str, Any], batch2: dict[str, Any]
+) -> dict[str, Any]:
+    rows = [row for row in repairs if row["category"] == "batch2_v7"]
+    counts = []
+    for row in rows:
+        recorded = row["controls_handoff"]["recorded_scope_counts"] or {}
+        counts.append(recorded.get("recorded_wrong_cases", recorded.get("known_wrong_cases")))
+    return {
+        "status": "controls_only_reconciled_no_wrong_program_findings",
+        "scope": "20 strict reference/nop pairs; no dispatch or semantic admission",
+        "selected_batch2_tasks": len(batch2["selected_task_ids"]),
+        "repair_rows": len(rows),
+        "added_by_reconciliation": reconciliation["added_by_category"].get("batch2_v7", 0),
+        "strict_reference_nop_pairs": sum(
+            row["control_summary"]["strict_reference_nop_pair"] is True for row in rows
+        ),
+        "reference_all_pass_nop_all_fail_reported": sum(
+            set(row["control_summary"]["reference"]["rewards"] or ()) == {1}
+            and set(row["control_summary"]["nop"]["rewards"] or ()) == {0}
+            for row in rows
+        ),
+        "reference_and_nop_staged_on_selected_package": sum(
+            row["control_summary"]["reference"]["staged_on_selected_package"]
+            and row["control_summary"]["nop"]["staged_on_selected_package"]
+            for row in rows
+        ),
+        "reference_staged_on_other_package_task_ids": sorted(
+            row["task_id"]
+            for row in rows
+            if not row["control_summary"]["reference"]["staged_on_selected_package"]
+        ),
+        "observed_wrong_program_positive_rows": sum(
+            row["observed_wrong_program_positive"] for row in rows
+        ),
+        "inherited_recorded_wrong_case_count_rows": sum(count is not None for count in counts),
+        "inherited_recorded_wrong_case_count_total": sum(count or 0 for count in counts),
+        "inherited_count_interpretation": "Counts from the inherited retained-controls scope; program identities are not exported by the pinned handoff, so they are neither findings nor recall inputs.",
+        "heldout_task_ids": sorted(
+            row["task_id"] for row in rows if row["source_catalog"]["heldout_excluded_from_training"]
+        ),
+        "same_task_other_package_repair_rows": sum(
+            len({other["child_package_digest"] for other in repairs if other["task_id"] == row["task_id"]})
+            > 1
+            for row in rows
+        ),
+        "semantic_admission": False,
+        "training_admission": False,
+        "source_limits": batch2["limits"],
+    }
+
+
 def release_provenance(documents: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """Separate the independent PASS on the candidate bytes from the owner's gate-only adoption."""
     sources = {row["source_id"]: row for row in config["sources"]}
@@ -1901,7 +2554,7 @@ def render_report(manifest: dict[str, Any]) -> str:
         "| Category | Findings | Coverage disposition |",
         "| --- | ---: | --- |",
     ]
-    for category, value in manifest["source_coverage"].items():
+    for category, value in sorted(manifest["source_coverage"].items()):
         lines.append(f"| `{category}` | {value['finding_count']} | {value['status']} |")
     totals = manifest["hardening_round_totals"]
     lines += [
@@ -1933,6 +2586,20 @@ def render_report(manifest: dict[str, Any]) -> str:
         f"- `{runtime['task_id']}` runtime/collection repair: selected package controls reference x3 `{runtime['selected_package_controls']['reference']}` and nop x3 `{runtime['selected_package_controls']['nop']}` are native-custody controls, not semantic certification; roles staged on a different package: `{', '.join(runtime['controls_not_on_selected_package'])}`. Parent-package grades are not transferred.",
         f"- Training wrong-pass cohort: 8 programs / 8 original executions / {training['source_cohort_task_ids']} task IDs. Disputed (excluded from supported recall): `{', '.join(training['disputed_wrongness_execution_ids'])}`; supported rows after exclusions: {training['supported_rows_after_exclusions']}; independent review row status `{json.dumps(training['independent_morning_review_row_status'], sort_keys=True)}`.",
         "- `format-code-task-000657` parent and child reference controls both fail the same original-module timing assertion in one of three runs; the child remains source-unqualified and the failures are not closed here.",
+        "",
+    ]
+    recon, batch2 = manifest["v7_repair_reconciliation"], manifest["source_coverage"]["batch2_v7"]
+    outside = recon["retained_repair_rows_outside_selected_catalog"]
+    lines += [
+        "## v7 repair coverage",
+        "",
+        f"- Pinned `clean_v7` selects **{recon['selected_repaired_packages']}** repaired task/package rows ({recon['selected_distinct_task_ids']} task IDs). Every one has a repair-history row keyed by exact task + child package: **{recon['reconciled_to_existing_rows']}** reconciled to existing records and **{recon['added_from_catalog']}** added (`{json.dumps(recon['added_by_category'], sort_keys=True)}`); uncovered: **{recon['selected_packages_without_repair_row']}**. Total repair rows **{recon['repair_rows_total']}** (`{json.dumps(recon['repair_rows_by_category'], sort_keys=True)}`).",
+        f"- {outside['count']} earlier repair rows are not selected `clean_v7` packages (`{json.dumps(outside['by_category'], sort_keys=True)}`: blocked initial children and later hardening-round children). They are retained, qualified or not, and are not counted among the {recon['selected_repaired_packages']} selected packages.",
+        f"- Task IDs with more than one repaired package stay separate: `{json.dumps(recon['task_ids_with_multiple_repair_packages'], sort_keys=True)}`.",
+        f"- `batch2_v7`: **{batch2['repair_rows']}/{batch2['selected_batch2_tasks']}** rows, scope _{batch2['scope']}_. Controls only: reference-pass/nop-fail reported for **{batch2['reference_all_pass_nop_all_fail_reported']}**, but reference **and** nop were staged on the selected package for only **{batch2['reference_and_nop_staged_on_selected_package']}** (reference staged elsewhere: `{', '.join(batch2['reference_staged_on_other_package_task_ids'])}`). Observed wrong-program positive rows: **{batch2['observed_wrong_program_positive_rows']}**; findings exported: **{batch2['finding_count']}**. The inherited retained-case counts (total {batch2['inherited_recorded_wrong_case_count_total']}) are scope counts, not findings or recall inputs. No semantic or training admission.",
+        f"- Repair classes are INFERENCE only where pinned metadata or a linked source finding supports one: selected packages `{json.dumps(recon['selected_repair_class_status'], sort_keys=True)}`; all repair rows `{json.dumps(recon['repair_class_status'], sort_keys=True)}`. `unmapped_underdetermined` is retained, not guessed.",
+        f"- Known-weak ancestry: {recon['ancestry_established_selected_packages']} selected packages name a known-weak ancestor in a registered lineage edge; {recon['same_task_id_only_ancestry_selected_packages']} share only a task ID with a known-weak package (not established, never transferred). No ancestor label transfers to a child or direct parent.",
+        f"- Explicit corrective runtime lineage (not generic normalizations): `{json.dumps(recon['explicit_runtime_correction_rows'], sort_keys=True)}`.",
         "",
     ]
     lines += [
@@ -2051,6 +2718,31 @@ def main() -> None:
     findings = atlas_findings(documents, classes)
     additions, repairs, controls, coverage = historical_findings(documents, config)
     findings = normalize_findings(findings + additions, classes, documents)
+    catalog = documents["clean_v7"]
+    require(
+        sorted(catalog["usage"]["heldout_task_ids_excluded_from_training_all_versions"])
+        == sorted(heldout),
+        "catalog heldout exclusion list differs from the frozen all-version list",
+    )
+    repairs, reconciliation = reconcile_v7_repairs(
+        catalog["tasks"],
+        repairs,
+        batch2_details(documents["batch2"], catalog["tasks"]),
+        heldout,
+        runtime_correction_details(documents, catalog["tasks"]),
+    )
+    repairs = classify_repairs(repairs, findings, classes)
+    reconciliation["repair_class_status"] = dict(
+        sorted(Counter(row["repair_class"]["status"] for row in repairs).items())
+    )
+    reconciliation["selected_repair_class_status"] = dict(
+        sorted(
+            Counter(
+                row["repair_class"]["status"] for row in repairs if "source_catalog" in row
+            ).items()
+        )
+    )
+    coverage["batch2_v7"] = batch2_coverage(repairs, reconciliation, documents["batch2"])
     matcher = config["matcher"]
     require(
         matcher["status"] == "unavailable",
@@ -2134,6 +2826,7 @@ def main() -> None:
             "matcher_measured": sum(row["status"] == "measured" for row in predictions),
             "new_prediction_candidates": len(candidates),
         },
+        "v7_repair_reconciliation": reconciliation,
         "source_coverage": coverage,
         "hardening_round_totals": round_totals,
         "recall": metrics,

@@ -21,8 +21,8 @@
       "sha256": "sha256:b71de3ea907def09d50bf2fca78ef0d21be0f050eabb3bd153217b18b9ee899d"
     },
     "repairs.json": {
-      "bytes": 459002,
-      "sha256": "sha256:5bb64846f7b8130fdd2918e631661f997ddfe946db109d647c1e3c8eefd2f8b2"
+      "bytes": 683022,
+      "sha256": "sha256:2917f286cbe672f49a047bc917e8dd94cc42baf9c74a2375f3d496b626435606"
     }
   },
   "completion_state": "source_map_complete_matcher_blocked",
@@ -34,7 +34,7 @@
     },
     "matcher_measured": 0,
     "new_prediction_candidates": 0,
-    "repair_rows": 37,
+    "repair_rows": 57,
     "roster_tasks": 567
   },
   "dataset_id": "mimo-defect-map-v1",
@@ -130,7 +130,7 @@
   },
   "producer": {
     "path": "research/experiments/mimo-defect-map-v1/build_map.py",
-    "sha256": "sha256:a1eb991a03fe09c5683c69ec88f214b90d7a5ebdb2def5c605542b08ea7e3290"
+    "sha256": "sha256:f69060a3c65c04a7ca2385c93bcb9a251743aea837326f1db13460dc702d0db7"
   },
   "raw_private_evidence_exported": false,
   "recall": {
@@ -154,6 +154,24 @@
         "matched_task_packages_any_known_class": 0,
         "task_recall_any_known_class": null,
         "unevaluable_findings": 242
+      },
+      "batch2_v7": {
+        "class_label_recall": null,
+        "coverage_status": "controls_only_reconciled_no_wrong_program_findings",
+        "denominator_state": "no_known_findings",
+        "evaluable_exact_package_class_labels": 0,
+        "evaluable_findings": 0,
+        "evaluable_task_packages": 0,
+        "excluded_findings_by_reason": {},
+        "finding_recall": null,
+        "known_exact_package_class_labels": 0,
+        "known_findings": 0,
+        "known_task_packages": 0,
+        "matched_exact_package_class_labels": 0,
+        "matched_findings": 0,
+        "matched_task_packages_any_known_class": 0,
+        "task_recall_any_known_class": null,
+        "unevaluable_findings": 0
       },
       "initial_v7": {
         "class_label_recall": null,
@@ -730,6 +748,46 @@
       "source_id": "train_repairs"
     },
     {
+      "access": "private-repository",
+      "bytes": 370163,
+      "category": "batch2_v7",
+      "path": "bridge/2026-10-17-v7/mimo-data-train-v7-batch2-controls-20261018.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:07711d28601c9d5699bf949e0f81c2cb31918e70cb93fa6bdd733584e5b7a448",
+      "source_id": "batch2"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 1492697,
+      "category": "batch2_v7",
+      "path": "bridge/2026-10-17-v7/mimo-data-phase2-controls-v7.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:ca3d4460296cdfa017741d3557f3455bccf74b8f26f24643ff4a2c1f50501e80",
+      "source_id": "batch2_inherited_scope"
+    },
+    {
+      "access": "private-repository",
+      "bytes": 24904,
+      "category": "batch2_v7",
+      "path": "bridge/2026-10-17-v7/mimo-data-train-v7-002486-lineage-20261018.json",
+      "repository": "research-context",
+      "revision": "ad8df9689b2357cc5a7ce04d94d5ff106eb88e05",
+      "sha256": "sha256:47552cb1a922602e3d275cbae5c2d165431562cfa71a69c6b4b1cf9b048a9583",
+      "source_id": "batch2_002486_lineage"
+    },
+    {
+      "access": "public",
+      "bytes": 152646,
+      "category": "initial_v7",
+      "path": "library/task-variants/mimo-v2.6-rl__format-code-task-001948/ec0208624b8a.json",
+      "repository": "eval-lab",
+      "revision": "4b6f766674c18ab91486d95a270f419df5a4ac10",
+      "sha256": "sha256:f840cee93f9204e6440c720d131150a96defde362e51d56ebac67e51445731e6",
+      "source_id": "variant_001948_setup_python_path"
+    },
+    {
       "access": "authorized-local",
       "bytes": 11569,
       "category": "vals_answer_leak",
@@ -883,6 +941,40 @@
       "physical_witnesses": 242,
       "positive_task_ids": 114,
       "status": "mapped_source_supported_historical_witnesses"
+    },
+    "batch2_v7": {
+      "added_by_reconciliation": 20,
+      "finding_count": 0,
+      "heldout_task_ids": [],
+      "inherited_count_interpretation": "Counts from the inherited retained-controls scope; program identities are not exported by the pinned handoff, so they are neither findings nor recall inputs.",
+      "inherited_recorded_wrong_case_count_rows": 18,
+      "inherited_recorded_wrong_case_count_total": 39,
+      "observed_wrong_program_positive_rows": 0,
+      "reference_all_pass_nop_all_fail_reported": 20,
+      "reference_and_nop_staged_on_selected_package": 17,
+      "reference_staged_on_other_package_task_ids": [
+        "format-code-task-000792",
+        "format-code-task-001269",
+        "format-code-task-002486"
+      ],
+      "repair_rows": 20,
+      "same_task_other_package_repair_rows": 4,
+      "scope": "20 strict reference/nop pairs; no dispatch or semantic admission",
+      "selected_batch2_tasks": 20,
+      "semantic_admission": false,
+      "source_limits": [
+        "Nineteen exact packages retain their existing measured controls and assertion scope. The current bytes of all nineteen packages/records and all eighty-one native facts were freshly reread and matched; no native rerun is claimed.",
+        "002486 changes only deferred import placement inside ten existing test bodies. All original assertion/fixture/decorator/parameter AST remains unchanged. Nop receives no requested implementation.",
+        "002486 retains nine named pytest call failures plus the real unittest method on nop; these are missing-API body failures, not evidence that reference-only assertions ran on nop.",
+        "002486 reference uses the archived curated production patch. The whole HAR161 submission is unadjudicated and is neither a recorded-wrong nor an adjudicated-correct alternative.",
+        "The 000792 reference remains the retained known-honest solution-only override, not the old packaged solve script.",
+        "001269 qualification remains synchronous-scope-only. Its retained wrong-lenient [0] is one observation, not a three-repeat vector.",
+        "The new 002486 lineage record remains candidate; this artifact does not promote global variant status or authorize rollout/model spend.",
+        "Zero Modal executions, paid compute reservations or Codex/model-agent calls were made for this control repair. A failed historical ledger probe is not presented as a measured zero-dollar ledger."
+      ],
+      "status": "controls_only_reconciled_no_wrong_program_findings",
+      "strict_reference_nop_pairs": 20,
+      "training_admission": false
     },
     "initial_v7": {
       "expanded_scope_blocked_train_ids": [
@@ -1114,12 +1206,236 @@
   },
   "source_manifest": {
     "path": "sources.json",
-    "sha256": "sha256:c7f98a82c764b5141d4709fcac5c2f334bc3290a594fb884fe46aa81a7e01900"
+    "sha256": "sha256:2cb771171e439217191dde643bab2531a406fa32e98af70db653280f89fed54c"
   },
   "spend_usd": 0,
   "taxonomy": {
     "purpose": "known_class_mapping_only",
     "source_id": "interim_taxonomy"
   },
-  "training_or_dispatch_authorized": false
+  "training_or_dispatch_authorized": false,
+  "v7_repair_reconciliation": {
+    "added_by_category": {
+      "batch2_v7": 20
+    },
+    "added_from_catalog": 20,
+    "ancestry_established_selected_packages": 3,
+    "catalog_rows_by_status": {
+      "blocked": 9,
+      "known-weak": 114,
+      "repaired": 39,
+      "unchanged-clean-controls": 54
+    },
+    "explicit_runtime_correction_rows": [
+      {
+        "child_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146",
+        "task_id": "format-code-task-001948",
+        "transforms": [
+          "setup-python-path@1"
+        ]
+      },
+      {
+        "child_package_digest": "sha256:182be31d763ddd8607c64818e3660b0b6ca5e994079d4518e82ccde7bd4b1ddb",
+        "task_id": "format-code-task-002451",
+        "transforms": [
+          "env-keep-build-outputs@1"
+        ]
+      },
+      {
+        "child_package_digest": "sha256:aa6cae30652ed7f270b3279a4ef1f6b9924efb799f8858d0344c827be9441d9d",
+        "task_id": "format-code-task-001246",
+        "transforms": [
+          "mimo-001246-collection@1",
+          "env-keep-files@1"
+        ]
+      },
+      {
+        "child_package_digest": "sha256:628a68c0f4cf0b6e1070d180332ce3adbbbc01986c7a1125a19079eb1aa146d9",
+        "task_id": "format-code-task-002486",
+        "transforms": [
+          "mimo-002486-collection@1"
+        ]
+      }
+    ],
+    "identity_join": [
+      "task_id",
+      "child_package_digest"
+    ],
+    "reconciled_to_existing_rows": 19,
+    "repair_class_status": {
+      "INFERENCE": 21,
+      "unmapped_underdetermined": 36
+    },
+    "repair_rows_by_category": {
+      "batch2_v7": 20,
+      "initial_v7": 22,
+      "round2": 7,
+      "round3": 1,
+      "round5": 3,
+      "round6": 4
+    },
+    "repair_rows_total": 57,
+    "retained_repair_rows_outside_selected_catalog": {
+      "by_category": {
+        "initial_v7": 3,
+        "round2": 7,
+        "round3": 1,
+        "round5": 3,
+        "round6": 4
+      },
+      "count": 18,
+      "rows": [
+        {
+          "catalog_status_of_exact_package": "blocked",
+          "category": "initial_v7",
+          "child_package_digest": "sha256:ef7f0e708532f5055f1ae286a451f34fbd1b44f4bf85229b909dd33eb182ca4b",
+          "repair_id": "initial-v7:format-code-task-000232:sha256:ef7f0e708532f5055f1ae286a451f34fbd1b44f4bf85229b909dd33eb182ca4b",
+          "task_id": "format-code-task-000232"
+        },
+        {
+          "catalog_status_of_exact_package": "blocked",
+          "category": "initial_v7",
+          "child_package_digest": "sha256:241deffb2f89765ee3072494e19fcbac5a8233d46c9574a9cb4eaf7f1b909a43",
+          "repair_id": "initial-v7:format-code-task-001809:sha256:241deffb2f89765ee3072494e19fcbac5a8233d46c9574a9cb4eaf7f1b909a43",
+          "task_id": "format-code-task-001809"
+        },
+        {
+          "catalog_status_of_exact_package": "blocked",
+          "category": "initial_v7",
+          "child_package_digest": "sha256:e88f4f16a49fb3b1e6c97c0b9436f88f6db48c4db2feff7b896d85e35a57602f",
+          "repair_id": "initial-v7:format-code-task-001985:sha256:e88f4f16a49fb3b1e6c97c0b9436f88f6db48c4db2feff7b896d85e35a57602f",
+          "task_id": "format-code-task-001985"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:a349fabb0bd8ad60723673475fcf5ffd335d4187443c374e836c1571a6131ab3",
+          "repair_id": "hardening:round2:format-code-task-001248:sha256:a349fabb0bd8ad60723673475fcf5ffd335d4187443c374e836c1571a6131ab3",
+          "task_id": "format-code-task-001248"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:65ae88c5c02fe5d82cb6e88a948c53b77941f1d00e2e8bcac9bc5820a3b671d1",
+          "repair_id": "hardening:round2:format-code-task-000161:sha256:65ae88c5c02fe5d82cb6e88a948c53b77941f1d00e2e8bcac9bc5820a3b671d1",
+          "task_id": "format-code-task-000161"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:6f67e959b78eb7afe596532deee6ddb953150b1931fe1912b95fad6b8dc267f8",
+          "repair_id": "hardening:round2:format-code-task-001914:sha256:6f67e959b78eb7afe596532deee6ddb953150b1931fe1912b95fad6b8dc267f8",
+          "task_id": "format-code-task-001914"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:4c8c08fbbbf1ab9dfd27638dc64c8384c5f31751108a8456b47fd5b134f633bb",
+          "repair_id": "hardening:round2:format-code-task-001480:sha256:4c8c08fbbbf1ab9dfd27638dc64c8384c5f31751108a8456b47fd5b134f633bb",
+          "task_id": "format-code-task-001480"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:6aa4552f67de6d953375229931312cce6807a8e52b0d1d8fc8e39ed151652348",
+          "repair_id": "hardening:round2:format-code-task-001425:sha256:6aa4552f67de6d953375229931312cce6807a8e52b0d1d8fc8e39ed151652348",
+          "task_id": "format-code-task-001425"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:b250117117645b7995ba053069b4d44c83fe2cc3eb9e6eaba6313362cb4b906c",
+          "repair_id": "hardening:round2:format-code-task-001199:sha256:b250117117645b7995ba053069b4d44c83fe2cc3eb9e6eaba6313362cb4b906c",
+          "task_id": "format-code-task-001199"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round2",
+          "child_package_digest": "sha256:15379662b934aba5c51bbf395593e8241bfb01cbd6338321dfb1dc6617ee288a",
+          "repair_id": "hardening:round2:format-code-task-002451:sha256:15379662b934aba5c51bbf395593e8241bfb01cbd6338321dfb1dc6617ee288a",
+          "task_id": "format-code-task-002451"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round3",
+          "child_package_digest": "sha256:f51e104a48be81275072aab763bbcb68ed9e1375d75c51d394f139cceb53fc35",
+          "repair_id": "hardening:round3:format-code-task-001425:sha256:f51e104a48be81275072aab763bbcb68ed9e1375d75c51d394f139cceb53fc35",
+          "task_id": "format-code-task-001425"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round5",
+          "child_package_digest": "sha256:590aff911ef47be4d3a94a7a0a3ef1e12f948d6b23cac199139ae95ecb48ca97",
+          "repair_id": "hardening:round5:format-code-task-001248:sha256:590aff911ef47be4d3a94a7a0a3ef1e12f948d6b23cac199139ae95ecb48ca97",
+          "task_id": "format-code-task-001248"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round5",
+          "child_package_digest": "sha256:1c72776ce65de6a908f60519d8caedc36c16af23860ebe84c5c8335387f65ac4",
+          "repair_id": "hardening:round5:format-code-task-001425:sha256:1c72776ce65de6a908f60519d8caedc36c16af23860ebe84c5c8335387f65ac4",
+          "task_id": "format-code-task-001425"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round5",
+          "child_package_digest": "sha256:09077dc6b4c8e92a52b944cbb116001a464a0e35645d5779b662a31c678e9dd4",
+          "repair_id": "hardening:round5:format-code-task-002451:sha256:09077dc6b4c8e92a52b944cbb116001a464a0e35645d5779b662a31c678e9dd4",
+          "task_id": "format-code-task-002451"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round6",
+          "child_package_digest": "sha256:e2b2a96b32aa08ff3467e5420219dcec5c5c4503a40f2a055ba46c5c8cc8fa55",
+          "repair_id": "hardening:round6:format-code-task-000142:sha256:e2b2a96b32aa08ff3467e5420219dcec5c5c4503a40f2a055ba46c5c8cc8fa55",
+          "task_id": "format-code-task-000142"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round6",
+          "child_package_digest": "sha256:c2738c48b9395c27381f205712059008b2b0b98b8c4b44b4b424bd5a492f7207",
+          "repair_id": "hardening:round6:format-code-task-002395:sha256:c2738c48b9395c27381f205712059008b2b0b98b8c4b44b4b424bd5a492f7207",
+          "task_id": "format-code-task-002395"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round6",
+          "child_package_digest": "sha256:3f99c00f60348d0acd5aa806b259ef5b3b08f31b5f226d57d42ea12fab0477c9",
+          "repair_id": "hardening:round6:format-code-task-000657:sha256:3f99c00f60348d0acd5aa806b259ef5b3b08f31b5f226d57d42ea12fab0477c9",
+          "task_id": "format-code-task-000657"
+        },
+        {
+          "catalog_status_of_exact_package": null,
+          "category": "round6",
+          "child_package_digest": "sha256:88a9c8f07104bc11aa39c2556f9d2c2f6834cb6d819884965497618aa99fc478",
+          "repair_id": "hardening:round6:format-code-task-000371:sha256:88a9c8f07104bc11aa39c2556f9d2c2f6834cb6d819884965497618aa99fc478",
+          "task_id": "format-code-task-000371"
+        }
+      ]
+    },
+    "same_task_id_only_ancestry_selected_packages": 21,
+    "selected_distinct_task_ids": 37,
+    "selected_heldout_excluded_packages": 13,
+    "selected_packages_without_repair_row": 0,
+    "selected_repair_class_status": {
+      "INFERENCE": 17,
+      "unmapped_underdetermined": 22
+    },
+    "selected_repaired_packages": 39,
+    "source": {
+      "json_pointer": "/tasks",
+      "source_id": "clean_v7"
+    },
+    "task_ids_with_multiple_repair_packages": {
+      "format-code-task-000089": 2,
+      "format-code-task-000125": 2,
+      "format-code-task-000371": 2,
+      "format-code-task-000657": 2,
+      "format-code-task-001248": 2,
+      "format-code-task-001425": 4,
+      "format-code-task-001809": 2,
+      "format-code-task-001985": 2,
+      "format-code-task-002451": 3
+    }
+  }
 }

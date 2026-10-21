@@ -17,6 +17,7 @@ This is a metadata-only retrospective source map. It is not a completed matcher 
 | Category | Findings | Coverage disposition |
 | --- | ---: | --- |
 | `atlas114` | 242 | mapped_source_supported_historical_witnesses |
+| `batch2_v7` | 0 | controls_only_reconciled_no_wrong_program_findings |
 | `initial_v7` | 36 | pinned_initial_source_cases_and_control_scopes |
 | `round2` | 10 | retained_complete_round |
 | `round3` | 3 | retained_complete_round |
@@ -47,6 +48,16 @@ Independent review verdicts come from the pinned morning review's cited ranges o
 - Training wrong-pass cohort: 8 programs / 8 original executions / 6 task IDs. Disputed (excluded from supported recall): `c5625dc0-ffd0-4204-88f0-2e79f587d528`; supported rows after exclusions: 7; independent review row status `{"independently_reproduced_fail_on_repaired_grader": 2, "located_in_repair_source_not_independently_replayed": 3, "not_independently_located": 3}`.
 - `format-code-task-000657` parent and child reference controls both fail the same original-module timing assertion in one of three runs; the child remains source-unqualified and the failures are not closed here.
 
+## v7 repair coverage
+
+- Pinned `clean_v7` selects **39** repaired task/package rows (37 task IDs). Every one has a repair-history row keyed by exact task + child package: **19** reconciled to existing records and **20** added (`{"batch2_v7": 20}`); uncovered: **0**. Total repair rows **57** (`{"batch2_v7": 20, "initial_v7": 22, "round2": 7, "round3": 1, "round5": 3, "round6": 4}`).
+- 18 earlier repair rows are not selected `clean_v7` packages (`{"initial_v7": 3, "round2": 7, "round3": 1, "round5": 3, "round6": 4}`: blocked initial children and later hardening-round children). They are retained, qualified or not, and are not counted among the 39 selected packages.
+- Task IDs with more than one repaired package stay separate: `{"format-code-task-000089": 2, "format-code-task-000125": 2, "format-code-task-000371": 2, "format-code-task-000657": 2, "format-code-task-001248": 2, "format-code-task-001425": 4, "format-code-task-001809": 2, "format-code-task-001985": 2, "format-code-task-002451": 3}`.
+- `batch2_v7`: **20/20** rows, scope _20 strict reference/nop pairs; no dispatch or semantic admission_. Controls only: reference-pass/nop-fail reported for **20**, but reference **and** nop were staged on the selected package for only **17** (reference staged elsewhere: `format-code-task-000792, format-code-task-001269, format-code-task-002486`). Observed wrong-program positive rows: **0**; findings exported: **0**. The inherited retained-case counts (total 39) are scope counts, not findings or recall inputs. No semantic or training admission.
+- Repair classes are INFERENCE only where pinned metadata or a linked source finding supports one: selected packages `{"INFERENCE": 17, "unmapped_underdetermined": 22}`; all repair rows `{"INFERENCE": 21, "unmapped_underdetermined": 36}`. `unmapped_underdetermined` is retained, not guessed.
+- Known-weak ancestry: 3 selected packages name a known-weak ancestor in a registered lineage edge; 21 share only a task ID with a known-weak package (not established, never transferred). No ancestor label transfers to a child or direct parent.
+- Explicit corrective runtime lineage (not generic normalizations): `[{"child_package_digest": "sha256:228541ef14380263d4ba882a48d3ff2a7ecff540b3368806e36eb973743fc146", "task_id": "format-code-task-001948", "transforms": ["setup-python-path@1"]}, {"child_package_digest": "sha256:182be31d763ddd8607c64818e3660b0b6ca5e994079d4518e82ccde7bd4b1ddb", "task_id": "format-code-task-002451", "transforms": ["env-keep-build-outputs@1"]}, {"child_package_digest": "sha256:aa6cae30652ed7f270b3279a4ef1f6b9924efb799f8858d0344c827be9441d9d", "task_id": "format-code-task-001246", "transforms": ["mimo-001246-collection@1", "env-keep-files@1"]}, {"child_package_digest": "sha256:628a68c0f4cf0b6e1070d180332ce3adbbbc01986c7a1125a19079eb1aa146d9", "task_id": "format-code-task-002486", "transforms": ["mimo-002486-collection@1"]}]`.
+
 
 ## Retrospective recall
 
@@ -60,6 +71,7 @@ Per-category denominators (including real zero-denominator rounds) and every unm
 | Category | Known supported findings | Evaluable | State |
 | --- | ---: | ---: | --- |
 | `atlas114` | 242 | 0 | none_evaluable; coverage `mapped_source_supported_historical_witnesses` |
+| `batch2_v7` | 0 | 0 | no_known_findings; coverage `controls_only_reconciled_no_wrong_program_findings` |
 | `initial_v7` | 34 | 0 | none_evaluable; coverage `pinned_initial_source_cases_and_control_scopes` |
 | `round2` | 7 | 0 | none_evaluable; coverage `retained_complete_round` |
 | `round3` | 1 | 0 | none_evaluable; coverage `retained_complete_round` |

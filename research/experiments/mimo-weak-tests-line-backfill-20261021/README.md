@@ -3,12 +3,12 @@
 Date: 2026-10-21. Spend: **$0**. Local Docker only, one task per shared FIFO
 acquisition; no model calls, Modal, cloud compute, or shared-service change.
 
-**Status: partial delivery, not completion.** The 567-task primary sweep is
-finished and every reported candidate has an adjudication. The line-level
-backfill of 265 block-only tasks is not finished, and three confirmed defect
-groups still lack a repair or an exclusion. `summary.json` is the
-machine-readable receipt; `build.py` recomputes it from the frozen atlas and the
-line-backfill output root.
+**Status: execution checkpoint, not HAR-209 completion.** The 567-task primary
+sweep and its adjudications are finished. The 265-task line backfill continues
+under the existing single-lane controller. Confirmed defects now have consumed,
+exact-package scientific-use exclusions; newly reported candidates still need
+their own bound review. `summary.json` is a frozen checkpoint, not live progress.
+`build.py` recomputes it from the atlas, reports, reviews and exclusion inventory.
 
 ## What is established
 
@@ -19,14 +19,16 @@ line-backfill output root.
 | Primary statuses | 453 measured, 90 not applicable, 22 budget exhausted, 2 baseline mismatch | `atlas.jsonl` |
 | Block candidates adjudicated | 278: 79 confirmed weak, 114 neutral, 50 out of scope, 35 uncertain; 0 unreviewed | `atlas.jsonl` |
 | Line survivors adjudicated | 674 across 302 scans: 163 required gap, 62 non-positive, 301 equivalent/optional, 148 uncertain; 0 unreviewed | `atlas.jsonl` |
-| Published key | 114 confirmed weak tasks, 242 executable witnesses (79 block + 163 line) | `../answer-keys/mimo-weak-tests-v2.1/summary.json` |
+| Published frozen key | 114 confirmed weak tasks, 242 executable witnesses (79 block + 163 line) | `../../answer-keys/mimo-weak-tests-v2.1/summary.json` |
 
 Frozen atlas SHA-256 `84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450`.
-The 567 primary reports, their grade logs, reference patches and packages were
-re-hashed here: 1,133 report/log bindings matched, 0 missing, 0 mismatched, and
-all 567 reference patches and packages are present. `format-code-task-002940` is
-the one task with no archived reference patch or grade-log binding, so a
-line-level pass cannot run for it until a reference exists.
+`primary-custody.json` records this owner's SHA-256 check of all **1,133**
+report/log bindings: none missing or mismatched, exactly 567 unique primary IDs.
+`002940` has no archived grade-log or reference binding. A later reference
+**does** exist: the resumed plan binds
+`eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002940/solution.patch`,
+SHA-256 `ccbf226a22de878040a9a1815881d4c3b2e599c008069cd5398e3f012a0e9c41`.
+That does not retroactively fill the historical absence.
 
 ## Candidate adjudication (Done-when 2)
 
@@ -53,27 +55,36 @@ cleanliness labels.
 
 ## Repair or exclusion (Done-when 3)
 
-| Disposition | Tasks | Evidence |
-|---|---|---|
-| Demonstrated targeted repair | `001809`, `001985`, `002486`, `002391` | separately versioned packages with recorded wrong-zero vectors; not full semantic certification |
-| Explicit exclusion (literal v5 `excluded` row + `qa.finding/v1`) | `001694`, `001833`, `000865`, `000803`, `000838` | `mimo-clean-v5-census/verify-overrides.csv` (SHA-256 `7a23e3b7…`), `findings/*.json`, `docs/mimo/README.md` |
-| Historical hold, defect now unknown | `002661` | v5 row retained; do not quote as established unfairness |
-| Confirmed, **no repair and no exclusion** | `candidate-0036-software-data-engineering`, `candidate-1789-security-appsec`, the 13 base-gap tasks | open |
-| Not applicable to the current generation | plain v6/v7 manifests | 0 literal per-task holds; generic `unverified` gating only |
+`scientific-exclusions.json` is a generated, **consumed** inventory, keyed by
+full task ID and `registry.task_directory_digest`, not a component digest or
+task-ID-wide rule. `summary.json` gives its exact checkpoint totals by
+classification and claim status; package-pair counts are not unique-task counts.
 
-The current-generation control inventory also lists `format-code-task-001833` as
-`runnable: true` while the three prompt-misaligned tasks with the same kind of
-inherited hold are `runnable: false`. The hidden non-idempotent
-`django.contrib.messages` append is a property of the test command, not of the
-package bytes, so that queue entry contradicts the recorded exclusion. It was
-**recorded, not edited**: `pending-controls.json` is a completed campaign's
-input inventory whose SHA-256 is pinned in `modal-readiness.json`.
+| Disposition | Scope | Evidence |
+|---|---|---|
+| Demonstrated targeted historical repair | `001809`, `001985`, `002486`, `002391` | Versioned packages and recorded wrong-zero vectors; only the declared cases are qualified |
+| Accepted wrong-patch originals excluded | All 114 supported frozen-atlas packages and every requirement-supported fresh wrong-patch package in the bound reviews | Atlas and fresh review hashes, package/reference/witness bytes, full/nop/accepted-wrong grade triplets |
+| Static defects excluded | Compile-only `001694`; unfair `001833`, `000865`, `000803`, `000838`; terminal `candidate-0036-software-data-engineering`, `candidate-1789-security-appsec`; all 13 base-regression gaps | Claim-specific audit and exact source/current-package identities |
+| Conservative holds, not established failures | Four unresolved original claims and scoped unmeasured child packages | Typed `unknown` / `unmeasured_on_package`; no invented failed controls |
+
+Manifest reads overlay the veto without rewriting historical source bytes;
+fresh writes, census combination/reporting, and direct admission cannot restore
+scientific acceptance with clean controls or a pass override. Admission gate
+**v5** checks exclusions before selectable steps. Diagnostic oracle/nop,
+mutation, ref-subset and repair controls remain allowed.
+
+The completed campaign's `pending-controls.json` is unchanged, including
+`001833`'s historical `runnable: true`; its pinned hash and observations remain
+historical, not scientific admission. No existing training/repair manifest or
+answer key is expanded. A different child digest receives neither its parent's
+veto nor inherited certification; ordinary controls still apply.
 
 ## Line-level backfill (Done-when 1)
 
-The plan is the 265 cohort tasks with a block report and no line scan; its
-identity hash is `ea014420f1103be8a72805fb217643a3915e0013079e668c0f37ba83cb1ef3c5`
-(`plan.tsv` in the output root). Each task runs as
+The plan covers 265 unique cohort task IDs with no previous line scan.
+`resume-plan-20261021.json` binds every actual package and reference; its SHA-256
+is `91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a`.
+Retries and older overwritten attempts never add another task to coverage.
 
 ```sh
 uv run --no-sync evallab docker-lock run --timeout 900 har209/line-backfill/<task> -- \
@@ -81,26 +92,42 @@ uv run --no-sync evallab docker-lock run --timeout 900 har209/line-backfill/<tas
   --output-dir <root>/<task> --mutants 20 --memory 3g --max-grades 24
 ```
 
-Executed today, measured from the CLI's own grade lines: **17 tasks**, each with
-`full = 1` and `nop = 0`; 11 of them kept at least one surviving one-edit mutant.
-Those 17 runs are **not counted as coverage**: the first driver passed the shared
-root as `--output-dir`, and `hack ref-subset run` writes into that directory
-without appending the task id, so the per-task `report.json` files overwrote each
-other. The surviving artifacts are preserved under `_attempts/20261021-overwritten/`
-with `recovered-from-run-log.json`; the grade lines remain in `run.log`. The
-driver now writes one directory per task.
+The first driver's **17 attempts** wrote to the shared output root and
+overwrote per-task summaries. Their archived logs remain under
+`_attempts/20261021-overwritten/`, `recovered-from-run-log.json`, and `run.log`;
+they are **not** counted as 17 covered tasks. The continuation uses a unique
+directory per task, preserves interrupted logs, validates completed identities,
+and skips existing reports instead of rerunning them.
 
-Bound per-task reports in this receipt: **3** tasks (`000169` measured pass with
-6 of 17 mutants surviving, `000341` measured fail with 5 of 17, `000587`
-measured fail with 2 of 5; every control pair is `full = 1`, `nop = 0` and every
-package digest and reference SHA-256 matches the archived atlas). Remaining
-without a line scan: **262** tasks, listed in
-`summary.json` (`line_coverage.remaining_task_ids`); 261 are executable and
-`format-code-task-002940` has no reference patch.
+`summary.json` pins the measured/inapplicable/unavailable stage counts, usable
+control pairs, reviewed and unreviewed survivor counts, and the exact remaining
+task-ID frontier. It is not a completion claim while either the report frontier
+or candidate-review frontier is nonempty. The frozen 265-task plan, not retry or
+log-entry counts, defines the denominator.
 
-New survivors are `unreviewed` by construction: a surviving edit is a candidate,
-not a defect, until a semantic review batch accepts it. No new scan is ingested
-into a published answer key, so no key bytes change here.
+Each frozen review file binds report/log/reference/witness hashes. Label
+inheritance requires the exact same package, reference, minimal and dropped
+patch bytes plus new usable confirmation controls — never just the task ID.
+Recorded mutant grades come from `grades.log`, not the pre-mutation report
+snapshot. Timeouts and generated-but-unattempted mutants remain explicit.
+No new result is automatically ingested into the published answer key.
+
+## Exercised consumer proof
+
+`scientific-use-smoke.json` records actual acceptance predicates on explicitly
+synthetic green census signals: all 114 supported original packages are
+rejected, as are all 23 audited source identities (22 confirmed, one scoped
+unmeasured hold). These synthetic signals are **not new benchmark grades**.
+Real `tasks admit` CLI calls reject the new `000169` line-positive package and
+the exact raw `000803` package, and route unknown `000495` to `needs_review`.
+Only the preflight runs; no Docker, paid model or other admission step executes.
+
+The source-identity regression failed before the producer stopped assuming a
+manifest run digest identified the retained original, then passed after repair.
+`include-counterexample.json` additionally executes exact archived helper bodies:
+the reference loads a relative main recipe; two accepted mutants double its
+directory and exit 1. This bounded helper proof is not a strengthened-grader
+certificate or a full-project replay.
 
 ## PR #918's failed profile
 
@@ -126,8 +153,8 @@ neither repairs the profile nor certifies the corpus.
 - Adjudications are instruction-level source reviews over recorded
   `full=1`/`nop=0` controls on the bound package. They are not fresh replays,
   repaired-package certificates, or clean-task certificates.
-- The line-level backfill is incomplete (see above); the 17 recovered attempts
-  carry grade-line evidence only.
+- The line backfill and fresh candidate review remain incomplete at this
+  checkpoint. Archived unavailable or overwritten attempts are not extra tasks.
 - Labels bind to package digests. A rematerialized or repaired package needs its
   own controls; old grades must not be transferred.
 - The positive-only key supplies no detector recall, false-alarm rate or
@@ -136,5 +163,14 @@ neither repairs the profile nor certifies the corpus.
 ## Rebuild and check
 
 ```sh
-uv run python research/experiments/mimo-weak-tests-line-backfill-20261021/build.py --check
+uv run --no-sync python research/experiments/mimo-weak-tests-line-backfill-20261021/build_exclusions.py
+uv run --no-sync python research/experiments/mimo-weak-tests-line-backfill-20261021/build.py
+uv run --no-sync python research/experiments/mimo-weak-tests-line-backfill-20261021/build.py --check
 ```
+
+The producer reads the initial `backfill-reviews.json` plus sorted
+`review-batches/*.json`; duplicate task IDs fail. Hash changes, unusable controls,
+stale adjudications, and confirmed wrong-patch packages missing an exclusion
+refuse receipt generation. Counts can change while the authorized controller
+is still running.
+

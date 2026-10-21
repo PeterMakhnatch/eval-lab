@@ -1062,3 +1062,89 @@ def test_oracle_reference_render_failure_is_infra_not_crash(tmp_path: Path) -> N
     assert result.record.verdict == "not_admitted"
     assert result.record.steps[0].status == "infra"
     assert "staging broke" in result.record.steps[0].detail
+
+
+@pytest.mark.parametrize(
+    ("classification", "claim_status", "verify", "verdict"),
+    [
+        ("confirmed_defect", "confirmed", "fail:weak-tests", "rejected"),
+        ("conservative_hold", "unknown", "unverified:semantic-hold", "needs_review"),
+    ],
+)
+def test_bound_scientific_exclusion_cannot_be_bypassed_by_custom_admission_steps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    classification: str,
+    claim_status: str,
+    verify: str,
+    verdict: str,
+) -> None:
+    from evallab import mimo_clean
+    from evallab.registry import task_directory_digest
+
+    task = _task_dir(tmp_path)
+    digest = task_directory_digest(task)
+    inventory = tmp_path / "exclusions.json"
+    inventory.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.mimo_scientific_exclusions/v1",
+                "exclusions": [
+                    {
+                        "task_id": "x",
+                        "package_digest": digest,
+                        "classification": classification,
+                        "claim_status": claim_status,
+                        "verify": verify,
+                        "reason": "exact-package adjudication",
+                        "evidence": [{"kind": "review", "path": "recorded-evidence.json"}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mimo_clean, "SCIENTIFIC_EXCLUSIONS_REL", inventory)
+    calls: list[str] = []
+
+    def pass_step(step: StepDef, ctx) -> admission.AdmissionStepRecord:
+        calls.append(step.name)
+        return admission.AdmissionStepRecord(
+            name=step.name, kind=step.kind, status="pass", duration_s=0.0
+        )
+
+    kwargs = {
+        **_ctx_kwargs(tmp_path, task),
+        "steps": [StepDef(name="test-only-pass", kind="test-only")],
+        "step_runners": {"test-only": pass_step},
+        "update_variant_status": False,
+    }
+    result = admission.admit_task(task, **kwargs)
+    assert result.record.verdict == verdict
+    assert result.record.package_digest == digest
+    assert result.record.steps[0].name == "scientific-exclusion"
+    assert classification in result.record.steps[0].detail
+    assert result.record.skipped_steps == ["test-only-pass"]
+    assert calls == []
+    assert json.loads(result.record_path.read_text())["verdict"] == verdict
+
+    # Byte-distinct children are not rejected by task id, nor certified by this inventory.
+    (task / "solution/solve.sh").write_text("#!/bin/sh\n# distinct child\n", encoding="utf-8")
+    child = admission.admit_task(task, **kwargs)
+    assert child.record.package_digest != digest
+    assert calls == ["test-only-pass"]
+    assert all(step.name != "scientific-exclusion" for step in child.record.steps)
+
+
+def test_admission_missing_exclusion_inventory_is_infra_not_a_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import mimo_clean
+
+    task = _task_dir(tmp_path)
+    monkeypatch.setattr(mimo_clean, "SCIENTIFIC_EXCLUSIONS_REL", tmp_path / "missing.json")
+    result = admission.admit_task(
+        task, **_ctx_kwargs(tmp_path, task), steps=[], update_variant_status=False
+    )
+    assert result.record.verdict == "not_admitted"
+    assert result.record.steps[0].status == "infra"

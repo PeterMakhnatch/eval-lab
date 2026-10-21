@@ -1,0 +1,19 @@
+{
+  "atlas_sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450",
+  "distinct_task_ids": 567,
+  "method": "Read each primary report and grade log named by the frozen atlas; SHA-256 compare; no benchmark rerun.",
+  "mismatched": [],
+  "missing": [],
+  "observed_at": "2026-10-21T17:47:52.434238+00:00",
+  "report_log_bindings_checked": 1133,
+  "retry_counting": "One primary slot per distinct task ID; preserved unavailable/interrupted attempts are not extra primary tasks.",
+  "schema": "har209.primary_custody/v1",
+  "sources": {
+    "continuation_229": 229,
+    "frozen_338": 338
+  },
+  "tasks": 567,
+  "without_grade_log_binding": [
+    "format-code-task-002940"
+  ]
+}

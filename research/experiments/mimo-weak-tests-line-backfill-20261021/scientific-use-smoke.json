@@ -1,0 +1,404 @@
+{
+  "audited_source_checks": [
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:044e69495c5570af40b8b2989ddbf980154dbe86bba012f695fbd82b211c0190",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001694",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001694"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:0bc037eaa0abf9b7fa2baab70f3809b30c8258c2c7ec4cb5bf364a455eb8b044",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000051",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000051"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:9f7702e5b99270e1059a4f92254a0d9e30db998e0efe61a9a7acee1e4556e392",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000118",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000118"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:dc95e90ebaceb0aa2c1348e885b8e8ee9f1bbd7af07f184701a9519d7578b930",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000262",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000262"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:d66073b7a330effbb00df29a0d41fe796fbcf8daa52fb0229507c29920f38b10",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000749",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000749"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:d04948bd92382bcd67b71ba5678ace5ea30ff71c62b70100ab7d0ecd272c772a",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001235",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001235"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:9666f3b95d873fcdf7bf3042c3b25e408551f5fa05540178555df887462eced1",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001308",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001308"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:08364e827b25e194a37a8e0010f0aa7d3ed7b689d1e89a2aaa1d28e5ae3b8341",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001651",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001651"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:8d55c2063db5aa206f68279f0be03cb2b4ce91a5fd498b7c859c87d9e03c306c",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001782",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001782"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:08a2cf69cf126f0db46ce9352fb979e782b447d140d9466ab12a93344ad775b6",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002012",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002012"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:52f0b0a4570c5f219bf667e7fd60c7565760367f3e085d361012bda2fd809300",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002570",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002570"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:5bdbc6b0c91675103181f4114f1423558e5ec29087b225ade65d852b1f62961f",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002918",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002918"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:41138834046f15206df11a44176e677d0bd8cbd90f7e3cdc4896bee787d2c256",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002959",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002959"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:b2c69e781f8b5ca4ec4384c883e5edda14d0ce8cb46590fd1d46403e8f5bf821",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002979",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002979"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:bfc2dece06735ef317905f43ceab80ff62902ae2c2738f3d6a5ce92798653a58",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001833",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001833"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000865",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000865"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:76fbdf2f57a227fbd2a0a6b9544641de1a1a616859e86c9a2456900ba475a2b5",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000803",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000803"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:65b6d6281eecb76ac71ba20e3d5ef65e2fec0696c52c503811a2e9f39018e0f8",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000838",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-000838"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:4abbea586afbaed1f877ad70277250f1e20637d4a7f3b461101ffd19f00ab1a0",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001809",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001809"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:e4a7905b5037912cd5e87184da89f6c5a2815172282ac25b42284fcfd9b5e408",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001985",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-001985"
+    },
+    {
+      "claim_status": "unmeasured_on_package",
+      "classification": "conservative_hold",
+      "package_digest": "sha256:2135c3b5028a86de7197dcc48aeb6b4f7f6572e0cec7e09495ba037aee06f2e6",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002486",
+      "synthetic_green_census_accepted": false,
+      "task_id": "format-code-task-002486"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:3bb4e1a6626adc35d5837ad7ecea65d89a288be20dd362697b751ef4809a17c2",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-1789-security-appsec",
+      "synthetic_green_census_accepted": false,
+      "task_id": "candidate-1789-security-appsec"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "package_digest": "sha256:1cd36c1c322547754d4034c1f08a75581e3c7bebfa51f1fd58bebd75a4920572",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0036-software-data-engineering",
+      "synthetic_green_census_accepted": false,
+      "task_id": "candidate-0036-software-data-engineering"
+    }
+  ],
+  "cli_records": [
+    {
+      "command": [
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/.venv/bin/evallab",
+        "tasks",
+        "admit",
+        "--task",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000803",
+        "--jobs-dir",
+        "/tmp/har209-admission-smoke-20261021/jobs",
+        "--output",
+        "/tmp/har209-admission-smoke-20261021/format-code-task-000803.json",
+        "--by",
+        "FOREMAN_AGENT",
+        "--no-variant-status",
+        "--skip-mutation",
+        "--json"
+      ],
+      "exit_code": 1,
+      "record": {
+        "created_at": "2026-10-21T18:21:56Z",
+        "created_by": "FOREMAN_AGENT",
+        "duration_s": 0.014890708960592747,
+        "failed_attacks": [],
+        "failing_steps": [
+          "scientific-exclusion"
+        ],
+        "gate": "tasks.admit/v5",
+        "harbor_digest": "sha256:2a690474ac9b58afaa3b5432fa7e61343c6be040cba970efbd2bbf93ca5909ac",
+        "mutation_skipped": true,
+        "package_digest": "sha256:76fbdf2f57a227fbd2a0a6b9544641de1a1a616859e86c9a2456900ba475a2b5",
+        "review_steps": [],
+        "schema": "evallab.task_admission/v1",
+        "skipped_steps": [
+          "static-scan",
+          "oracle",
+          "nop",
+          "cheat:git_history",
+          "cheat:verifier_peek",
+          "cheat:reward_plant",
+          "cheat:answer_symlink",
+          "cheat:upstream_fetch",
+          "cheat:skip_plant",
+          "cheat:tamper_tracked_conftest",
+          "cheat:tamper_sitecustomize",
+          "cheat:tamper_shadow_timeout",
+          "cheat:tamper_reward_writer",
+          "cheat:tamper_source_exit",
+          "cheat:tamper_source_pytest_patch",
+          "cheat:tamper_source_skip",
+          "cheat:tamper_source_skiptest",
+          "battery",
+          "mutation"
+        ],
+        "steps": [
+          {
+            "command": [],
+            "detail": "format-code-task-000803@sha256:76fbdf2f57a227fbd2a0a6b9544641de1a1a616859e86c9a2456900ba475a2b5: confirmed_defect:confirmed: Instruction requests --- when the text_align argument is omitted. Hidden test additionally requires explicit text_align=None to produce ---, an unstated edge; old failure/pass observations do not by themselves prove a correct alternate.. Diagnostic controls remain allowed; this veto is scientific admission only.",
+            "duration_s": 0.014776333700865507,
+            "findings": [],
+            "job_dir": null,
+            "kind": "scientific-exclusion",
+            "name": "scientific-exclusion",
+            "reference": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
+            "rewards": [],
+            "status": "fail",
+            "survivor_patches": []
+          }
+        ],
+        "survivor_patches": [],
+        "task": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000803",
+        "unproven_steps": [],
+        "variant_record": null,
+        "verdict": "rejected"
+      }
+    },
+    {
+      "command": [
+        "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T173454875812Z-c58c97a1bcdb438e8e44d058287010b6/.venv/bin/evallab",
+        "tasks",
+        "admit",
+        "--task",
+        "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000495",
+        "--jobs-dir",
+        "/tmp/har209-admission-smoke-20261021/jobs",
+        "--output",
+        "/tmp/har209-admission-smoke-20261021/format-code-task-000495.json",
+        "--by",
+        "FOREMAN_AGENT",
+        "--no-variant-status",
+        "--skip-mutation",
+        "--json"
+      ],
+      "exit_code": 1,
+      "record": {
+        "created_at": "2026-10-21T18:21:58Z",
+        "created_by": "FOREMAN_AGENT",
+        "duration_s": 0.012205499690026045,
+        "failed_attacks": [],
+        "failing_steps": [],
+        "gate": "tasks.admit/v5",
+        "harbor_digest": "sha256:c4675b14820dc089a2753e3ba8fc48fda4c89728af5733f5c68ec6ba904962e3",
+        "mutation_skipped": true,
+        "package_digest": "sha256:0cddeb65615ad49de6860cba94a0f984ec18fa046dc54a941cb879e74fd71210",
+        "review_steps": [
+          "scientific-exclusion"
+        ],
+        "schema": "evallab.task_admission/v1",
+        "skipped_steps": [
+          "static-scan",
+          "oracle",
+          "nop",
+          "cheat:git_history",
+          "cheat:verifier_peek",
+          "cheat:reward_plant",
+          "cheat:answer_symlink",
+          "cheat:upstream_fetch",
+          "cheat:skip_plant",
+          "cheat:tamper_tracked_conftest",
+          "cheat:tamper_sitecustomize",
+          "cheat:tamper_shadow_timeout",
+          "cheat:tamper_reward_writer",
+          "cheat:tamper_source_exit",
+          "cheat:tamper_source_pytest_patch",
+          "cheat:tamper_source_skip",
+          "cheat:tamper_source_skiptest",
+          "battery",
+          "mutation"
+        ],
+        "steps": [
+          {
+            "command": [],
+            "detail": "format-code-task-000495@sha256:0cddeb65615ad49de6860cba94a0f984ec18fa046dc54a941cb879e74fd71210: conservative_hold:unknown: Conservative hold only; the alleged semantic defect remains unknown. Raw issue asks that a Fn::Join DefinitionString pass. Blanket intrinsic skipping is labelled known-wrong by the historical baseline, but reference difference alone does not prove a literal-requirement violation. Requested snapshot has no admissible reference; later37 supplement now supplies a production-only reference with public behavior [1,1,1] and retains the old nop [0,0,0], without changing the tests or semantic admission. Conservative hold only; the alleged semantic defect remains unknown. Raw issue asks that a Fn::Join DefinitionString pass. Blanket intrinsic skipping is labelled known-wrong by the historical baseline, but reference difference alone does not prove a literal-requirement violation. Requested snapshot has no admissible reference; later37 supplement now supplies a production-only reference with public behavior [1,1,1] and retains the old nop [0,0,0], without changing the tests or semantic admission.. Diagnostic controls remain allowed; this veto is scientific admission only.",
+            "duration_s": 0.012105832807719707,
+            "findings": [],
+            "job_dir": null,
+            "kind": "scientific-exclusion",
+            "name": "scientific-exclusion",
+            "reference": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
+            "rewards": [],
+            "status": "review",
+            "survivor_patches": []
+          }
+        ],
+        "survivor_patches": [],
+        "task": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000495",
+        "unproven_steps": [],
+        "variant_record": null,
+        "verdict": "needs_review"
+      }
+    }
+  ],
+  "earlier_line_positive_cli_record": {
+    "created_at": "2026-10-21T18:10:35Z",
+    "created_by": "FOREMAN_AGENT",
+    "duration_s": 0.020149500109255314,
+    "failed_attacks": [],
+    "failing_steps": [
+      "scientific-exclusion"
+    ],
+    "gate": "tasks.admit/v5",
+    "harbor_digest": "sha256:de3fa3f4d6b4f09f791e91bdfe6d56ecfe8cfeae5709e006dedaf06c37a914bf",
+    "mutation_skipped": true,
+    "package_digest": "sha256:8d85e8accf1b321af4c9a2a98855480a3e0899d0fac8a8574359d43f7957f141",
+    "review_steps": [],
+    "schema": "evallab.task_admission/v1",
+    "skipped_steps": [
+      "static-scan",
+      "oracle",
+      "nop",
+      "cheat:git_history",
+      "cheat:verifier_peek",
+      "cheat:reward_plant",
+      "cheat:answer_symlink",
+      "cheat:upstream_fetch",
+      "cheat:skip_plant",
+      "cheat:tamper_tracked_conftest",
+      "cheat:tamper_sitecustomize",
+      "cheat:tamper_shadow_timeout",
+      "cheat:tamper_reward_writer",
+      "cheat:tamper_source_exit",
+      "cheat:tamper_source_pytest_patch",
+      "cheat:tamper_source_skip",
+      "cheat:tamper_source_skiptest",
+      "battery",
+      "mutation"
+    ],
+    "steps": [
+      {
+        "command": [],
+        "detail": "format-code-task-000169@sha256:8d85e8accf1b321af4c9a2a98855480a3e0899d0fac8a8574359d43f7957f141: confirmed_defect:confirmed: Changing the second and to or defeats prepend_path=False for a relative top-level recipe. recipe() first stores dirname(recipe_file), then calls include(recipe_file, prepend_path=False); a relative main path with a directory component is joined to that same directory again before opening. This breaks the requested include workflow and preservation of ordinary recipe loading, although the recorded fixtures use absolute temporary main paths. The mutation removes the only logging.error(e) call from the added include failure handler while retaining exit(1). Exiting is only half of the explicit default failure contract; the missing-file/runtime-error fixtures assert SystemExit(1) but do not assert a log record. Forcing the main recipe load to prepend its own directory causes a relative recipe path with a directory component to be duplicated. It does not change only an internal flag: it breaks opening the main recipe before its sibling include can run. Absolute temporary paths in the recorded tests do not expose this difference. Replacing the first and with or makes the path condition true for a relative main recipe whenever include.prepend_path exists, even though the main load passes prepend_path=False. The resulting directory duplication prevents normal relative main-recipe loading and sibling includes.. Diagnostic controls remain allowed; this veto is scientific admission only.",
+        "duration_s": 0.020064624957740307,
+        "findings": [],
+        "job_dir": null,
+        "kind": "scientific-exclusion",
+        "name": "scientific-exclusion",
+        "reference": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
+        "rewards": [],
+        "status": "fail",
+        "survivor_patches": []
+      }
+    ],
+    "survivor_patches": [],
+    "task": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000169",
+    "unproven_steps": [],
+    "variant_record": null,
+    "verdict": "rejected"
+  },
+  "gate": "tasks.admit/v5",
+  "inventory_sha256_at_observation": "94482119e4ba4682d1dab5c63f567d4b36815f1991c49b273d5bfe13c9bef33b",
+  "method": "Real acceptance predicates on explicitly synthetic green census signals, exact retained source-package digests, and real admission CLI invocations stopping at preflight. No new benchmark grades, Docker containers, model calls, or paid spend.",
+  "observed_at": "2026-10-21T18:21:58.996951+00:00",
+  "paid_spend_usd": 0,
+  "schema": "har209.scientific_use_smoke/v1",
+  "supported_original_atlas_packages_accepted": 0,
+  "supported_original_atlas_packages_checked": 114
+}

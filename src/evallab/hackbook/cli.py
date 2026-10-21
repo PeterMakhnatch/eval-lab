@@ -151,6 +151,7 @@ def _match_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         fleet_rates=args.fleet_rates,
         non_discriminating_above=args.non_discriminating_above,
         direction=args.direction,
+        reference=args.reference,
     )
     if args.json:
         print(json.dumps(result, indent=2))
@@ -291,6 +292,12 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
         type=Path,
         metavar="TASK_DIR",
         help="Task package of a trace: task-side entries count in full only if they fire on it",
+    )
+    match.add_argument(
+        "--reference",
+        type=Path,
+        metavar="PATCH",
+        help="Task only: the reference fix as a unified diff; flags its blocks no test names",
     )
     match.add_argument(
         "--fleet-rates",

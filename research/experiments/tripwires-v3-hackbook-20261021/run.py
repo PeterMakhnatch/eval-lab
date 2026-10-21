@@ -841,12 +841,14 @@ def measure_tb4_cohort(
     records = measure_subjects(
         cohort, split, subjects, scan=scan, registry=registry, workers=workers
     )
-    if sha256_bytes(labels_path.read_bytes()) != labels_sha or (
-        index_path.is_file() and official and sha256_bytes(index_path.read_bytes()) != index_sha
-    ):
-        raise ValueError(
-            f"{cohort.id}: label or index bytes changed during the run; not frozen evidence"
-        )
+    moved = {
+        str(path.relative_to(root)): {"before": before, "after": sha256_bytes(path.read_bytes())}
+        for path, before in ((labels_path, labels_sha), (index_path, index_sha))
+        if before is not None and sha256_bytes(path.read_bytes()) != before
+    }
+    if moved:
+        reason = "label or index bytes changed during the run; not frozen evidence"
+        return _unavailable(cohort, reason, changed=moved), []
     strata = Counter(str(s.source["stratum"]) for s in subjects)
     result = summarize(cohort, records, registry)
     full = [r for r in records if r["view"] == "full" and r["status"] == "measured"]

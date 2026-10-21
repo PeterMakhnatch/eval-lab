@@ -43,8 +43,8 @@ from the shared loader `evallab.qa.answer_key.load_answer_key`.
 | hacktrace-act-v1 | `6a089780f64fb363478240bc468a3435762eec9d4937575f745aac872d34a098` | dev 150 (75/75), test 150 (75/75) | fail = ACT shortcut label / pass = ACT negative / none | behavior; not solution correctness |
 | mimo-v7-canonical-pass70 | `bad2bd2d57a03656a4f4492154f58e26dd7d9fe83674a3082f8451b1f6029f28` | test 70 only | `source_label` wrong_pass (6) / real_pass (64) / none | outcome (grading correctness, not intent) |
 | mimo-fresh-window3 | `080dd9dd7e45db4b3a1c0ecbfdd57e6acee75b9584f9d50b7394d29e6555396b` (+ `coverage.jsonl` `fa798d17…3a834d`) | test 52 only | wrong_pass (4) / real_pass (17) / `not_a_pass` (31, other) | outcome; not_a_pass is an agent failure, neither positive nor negative |
-| tb4-hub-dev-official | census `full/labels-all.jsonl` + `tb4-hub/trajectory-index.jsonl` (neither existed at 01:15 ET Oct 21) | dev only | `pass:known_exploit` / `pass:neither` / other strata (below) | documented-mechanism agreement |
-| tb4-hub-dev-bootstrap | census `bootstrap/labels-all.jsonl` (supplementary; hash recorded in results, file was still being written) | dev only | same mapping | documented-mechanism agreement |
+| tb4-hub-dev-official | census `full/labels-all.jsonl` + `tb4-hub/trajectory-index.jsonl` (both present at 02:55 ET Oct 21 but still being rewritten by the producer; hashes are recorded per run) | dev only | `pass:known_exploit` / `pass:neither` / other strata (below) | documented-mechanism agreement |
+| tb4-hub-dev-bootstrap | census `bootstrap/labels-all.jsonl` (supplementary; unchanged since 01:15 ET; hash recorded per run) | dev only | same mapping | documented-mechanism agreement |
 
 `mimo-fresh-window3` is resolved from the registered key (`research/answer-keys/mimo-fresh-window3`,
 52 items; collection `2026-10-19/fresh-window3/a0297e57d0bdfd4c93023662`; label sources pinned in
@@ -96,9 +96,10 @@ Boundaries and binding:
 * Binding: results record the sha256 of the exact label (and index) bytes parsed and of every
   trajectory scanned (`input_sha256`, `hash_bound: false` because the producer publishes no
   per-trajectory hash), the `assignments.csv` hash and a per-view binding hash. The label and
-  index files are re-hashed after the scan; a change raises, so a snapshot of a still-moving
-  producer output cannot be published as frozen evidence. Freeze only after the producer's
-  labels stop changing.
+  index files are re-hashed after the scan. If either changed, that cohort is reported
+  `unavailable` (with the before/after hashes) and no counts are kept, so a snapshot of a
+  still-moving producer output is never frozen evidence; rerun once the producer's files stop
+  changing.
 * Privacy: retained records hold ids, census label, mechanism ids, stratum, rule ids and step
   refs. The census `evidence`/`facts` text and all actor text are dropped.
 
@@ -117,8 +118,10 @@ Boundaries and binding:
    fingerprint, a missing `--expect-fingerprint`, and an existing `results-test.json`,
    `predictions-test.jsonl` or `report-test.md` (outputs are retained, never overwritten). Any
    byte change to the closure, catalog, helper or runner is a new `tripwires-v3@` identity.
-4. Dev run for TB4: `… run.py measure --split dev` (also scores the cheatbench/hacktrace dev
-   splits; do not retune on a retained test result).
+4. Dev run, including TB4: `… run.py measure --split dev --workers 12 --out <existing dir>`
+   (also scores the cheatbench/hacktrace dev splits; do not retune on a retained test result).
+   Raw Hub trajectories are ~10 MB each, so `--workers` (process-parallel, identical results) is
+   needed in practice. Rerun if a TB4 cohort reports its source moved.
 5. Publish: `… run.py publish --results …/results-test.json`. One row per measured, registered
    cohort x view with `system = tripwires-v3@<12>/<view>`, `recall`/`false_alarm_rate` = the
    `any_verdict_rule` aggregate, `n_items` = registered in split, `n_measured` = positives +

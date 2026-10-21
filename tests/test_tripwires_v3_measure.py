@@ -538,8 +538,12 @@ def test_tb4_inputs_are_bound_by_hash_and_a_changing_source_is_refused(tmp_path:
             stream.write("\n")
         return scan_by_command(agent_steps, steps)
 
-    with pytest.raises(ValueError, match="changed during the run"):
-        _tb4("tb4-hub-dev-bootstrap", tmp_path, scan=producer_rewrites_labels)
+    moved, rows = _tb4("tb4-hub-dev-bootstrap", tmp_path, scan=producer_rewrites_labels)
+    assert moved["status"] == "unavailable" and rows == []
+    assert "changed during the run" in moved["reason"]
+    changed = moved["changed"]["2026-10-21/tb4-dev-census/bootstrap/labels-all.jsonl"]
+    assert changed["before"] != changed["after"]
+    assert "views" not in moved
 
 
 def test_tb4_records_carry_ids_and_step_refs_but_no_actor_or_label_text(tmp_path: Path) -> None:

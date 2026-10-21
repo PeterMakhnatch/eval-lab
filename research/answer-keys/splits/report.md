@@ -339,3 +339,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | qa-env-audit-v2-muse-test-20261021 | | | tasks in no key | 2 | |
 | cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | envcheck-tb4-39 | 1 | 0 |
 | cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | tb4-audit-v1 | 0 | 2 |
+| hackbook-match-tb4-test-once-20261021 | inspected | Hackbook (hackbook-match@*) from 2026-10-21 | (no key items) | 0 | 0 |

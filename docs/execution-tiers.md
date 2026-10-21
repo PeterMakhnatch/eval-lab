@@ -248,6 +248,21 @@ non-ExecutableJudge stays an explicit refusal; sha-pinned assets whose
 local bytes differ from the pin (several tasks' `task.toml`) also remain
 refused rather than approximated.
 
+Deterministic local transforms (2026-10-21): the recipe interpreter also
+evaluates `write_text`/`write_bytes` of content computed only from
+hash-pinned staged inputs and literals (including `json.dumps` of
+constants and regex-extractions over fetched verifier files), rewritten
+copies (`read_text` → counted `str.replace` → `write_text`),
+`shutil.copyfile` between staged paths, safe extraction of pinned local
+zip/tar archives (regular files only, no symlinks/escapes, member modes
+recorded), `mkdir`/`touch`/`chmod`, and digest assertions. Input digests
+are verified against their pins before a transform reads them; every
+generated file is hashed, recorded in `setup_data.generated`, bound into
+the grader digest, and written only under the port data directories.
+Recipes that run generator programs/subprocesses, load code
+(`importlib`, RNG-based synthesis), fetch external URLs, or need a
+With-block tempdir workflow stay refused.
+
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,
 `outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the

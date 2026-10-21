@@ -1,0 +1,290 @@
+{
+  "by_arm": {
+    "loss-target-768:assistant": {
+      "arm": "assistant",
+      "finished": 6,
+      "max_new_tokens": 768,
+      "runs": 6,
+      "runs_with_unparsed_turns": 0,
+      "source": "loss-target-768",
+      "turns": 24,
+      "unparsed_tool_call_turns": 0,
+      "unparsed_turn_rate": 0.0
+    },
+    "loss-target-768:full": {
+      "arm": "full",
+      "finished": 1,
+      "max_new_tokens": 768,
+      "runs": 6,
+      "runs_with_unparsed_turns": 5,
+      "source": "loss-target-768",
+      "turns": 44,
+      "unparsed_tool_call_turns": 28,
+      "unparsed_turn_rate": 0.6364
+    },
+    "pilot-768:base": {
+      "arm": "base",
+      "finished": 4,
+      "max_new_tokens": 768,
+      "runs": 6,
+      "runs_with_unparsed_turns": 0,
+      "source": "pilot-768",
+      "turns": 32,
+      "unparsed_tool_call_turns": 0,
+      "unparsed_turn_rate": 0.0
+    },
+    "pilot-768:trained": {
+      "arm": "trained",
+      "finished": 6,
+      "max_new_tokens": 768,
+      "runs": 6,
+      "runs_with_unparsed_turns": 0,
+      "source": "pilot-768",
+      "turns": 26,
+      "unparsed_tool_call_turns": 0,
+      "unparsed_turn_rate": 0.0
+    }
+  },
+  "rows": [
+    {
+      "arm": "base",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 63,
+      "source": "pilot-768",
+      "task": "cargo-flight-dispatch",
+      "turns": 7,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "base",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 51,
+      "source": "pilot-768",
+      "task": "fin-saccr-rwa",
+      "turns": 8,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "base",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 221,
+      "source": "pilot-768",
+      "task": "html-js-filter",
+      "turns": 3,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "base",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "pilot-768",
+      "task": "uefi-bootkit",
+      "turns": 8,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "base",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 88,
+      "source": "pilot-768",
+      "task": "vf2-speedup-networkx",
+      "turns": 3,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "base",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 138,
+      "source": "pilot-768",
+      "task": "vpp-loss-divergence",
+      "turns": 3,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 82,
+      "source": "pilot-768",
+      "task": "cargo-flight-dispatch",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 668,
+      "source": "pilot-768",
+      "task": "fin-saccr-rwa",
+      "turns": 5,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 76,
+      "source": "pilot-768",
+      "task": "html-js-filter",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 369,
+      "source": "pilot-768",
+      "task": "uefi-bootkit",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 73,
+      "source": "pilot-768",
+      "task": "vf2-speedup-networkx",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "trained",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 192,
+      "source": "pilot-768",
+      "task": "vpp-loss-divergence",
+      "turns": 5,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 100,
+      "source": "loss-target-768",
+      "task": "cargo-flight-dispatch",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 127,
+      "source": "loss-target-768",
+      "task": "fin-saccr-rwa",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 99,
+      "source": "loss-target-768",
+      "task": "html-js-filter",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 99,
+      "source": "loss-target-768",
+      "task": "uefi-bootkit",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 99,
+      "source": "loss-target-768",
+      "task": "vf2-speedup-networkx",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "assistant",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 99,
+      "source": "loss-target-768",
+      "task": "vpp-loss-divergence",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "full",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "loss-target-768",
+      "task": "cargo-flight-dispatch",
+      "turns": 8,
+      "unparsed_tool_call_turns": 6
+    },
+    {
+      "arm": "full",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "loss-target-768",
+      "task": "fin-saccr-rwa",
+      "turns": 8,
+      "unparsed_tool_call_turns": 5
+    },
+    {
+      "arm": "full",
+      "finished": true,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 116,
+      "source": "loss-target-768",
+      "task": "html-js-filter",
+      "turns": 4,
+      "unparsed_tool_call_turns": 0
+    },
+    {
+      "arm": "full",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "loss-target-768",
+      "task": "uefi-bootkit",
+      "turns": 8,
+      "unparsed_tool_call_turns": 5
+    },
+    {
+      "arm": "full",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "loss-target-768",
+      "task": "vf2-speedup-networkx",
+      "turns": 8,
+      "unparsed_tool_call_turns": 6
+    },
+    {
+      "arm": "full",
+      "finished": false,
+      "max_new_tokens": 768,
+      "solve_sh_chars": 0,
+      "source": "loss-target-768",
+      "task": "vpp-loss-divergence",
+      "turns": 8,
+      "unparsed_tool_call_turns": 6
+    }
+  ]
+}

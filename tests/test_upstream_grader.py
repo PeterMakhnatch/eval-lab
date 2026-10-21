@@ -1083,6 +1083,7 @@ def test_native_docker_platform_overlay_preserves_resources_and_rejects_unenforc
             self._effective_cpus = 2
             self._effective_memory_mb = 4096
             self._container_id = "inert-owned-container"
+            self.environment_id = "native-content-identity"
 
         async def _write_resources_compose_file(self) -> Path:
             path = tmp_path / "native-resources.json"
@@ -1108,7 +1109,13 @@ def test_native_docker_platform_overlay_preserves_resources_and_rejects_unenforc
             events.append(("stop", delete))
 
         async def _daemon_json(self, *_: str) -> Any:
-            return [{"HostConfig": host}]
+            return [
+                {
+                    "HostConfig": host,
+                    "Image": "sha256:inert-daemon-image",
+                    "Config": {"Image": "hb__native-content-identity"},
+                }
+            ]
 
     _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
     monkeypatch.setattr(grader, "docker_available_resources", lambda: (8, 16384))
@@ -1130,6 +1137,11 @@ def test_native_docker_platform_overlay_preserves_resources_and_rejects_unenforc
         assert overlay["deploy"]["resources"]["limits"] == {"cpus": "2", "memory": "4096M"}
         asyncio.run(first.start())
         assert active.observations[0]["limits_verified"] is True
+        image = active.observations[0]["native_image_identity"]
+        assert image["environment_id"] == "native-content-identity"
+        assert image["docker_image_reference"] == "hb__native-content-identity"
+        assert image["docker_image_id"] == "sha256:inert-daemon-image"
+        assert image["cache_hit"] is None
         asyncio.run(first.stop())
         active.claimed.clear()
         second = runtime(
@@ -1184,6 +1196,8 @@ def test_modal_closure_requires_completed_hydration_and_terminal_public_wait(
             self._effective_memory_mb = 4096
             self._sandbox_timeout = 230
             self._sandbox = None
+            self.environment_id = "native-modal-context"
+            self._image = SimpleNamespace(object_id="im-inert-hydrated-image")
 
         def _cpu_config(self) -> tuple[int, int]:
             return (2, 2)
@@ -1222,6 +1236,11 @@ def test_modal_closure_requires_completed_hydration_and_terminal_public_wait(
             asyncio.run(environment.stop())
         else:
             asyncio.run(environment.start())
+            image = active.observations[0]["native_image_identity"]
+            assert image["environment_id"] == "native-modal-context"
+            assert image["modal_image_id"] == "im-inert-hydrated-image"
+            assert image["docker_image_id"] is None
+            assert image["cache_hit"] is None
             asyncio.run(environment.stop())
             if mode == "unknown":
                 assert environment._upstream_cleaned is False

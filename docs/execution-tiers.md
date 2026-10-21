@@ -151,6 +151,71 @@ separately and can prevent the next allocation. These are reservation estimates,
 **not invoices or a provider-wide dollar kill switch**; Sandbox TTL does not
 claim to terminate an image builder. Planning is not spending authorization.
 
+## Candidate files, patches and fixed-port replay
+
+`evallab.candidate_runner.run_candidate` reuses the native grader above rather
+than introducing another backend or price model. Submit exactly one of:
+`files` (a relative-path/content mapping or artifact directory), `patch` (unified
+diff text, or a `Path` to it), or `solution_bundle` (an explicitly executable
+native `solve.sh` directory). An artifact named `solve.sh` is **not** implicitly
+executed. Files and patches are installed only inside the fresh task environment;
+the source package and caller inputs remain immutable.
+
+```python
+from pathlib import Path
+from evallab.candidate_runner import run_candidate, run_candidates
+
+result = run_candidate(
+    Path("/data/native-task"),
+    files={"answer.txt": "candidate output\n"},
+    target_dir="/app",
+    backend="docker",
+    output_dir=Path("/data/evidence/candidate-001"),
+)
+```
+
+Use `grader="port", port_task=Path("/data/pinned-port/native-task")` for the
+actual PM fixed scorer. The adapter prepares a separate verifier from the
+port's complete locked container context, hash-verifies locally available setup
+assets, and invokes its real file-submission judge. Unsupported setup,
+artifact-binding, service, hardware or external-model shapes are refused, never
+approximated with selected assertions. The source identity, prepared identity,
+raw scorer output and explicitly reported per-test results remain separate.
+The structural inventory is
+[`static-inventory.json`](../research/experiments/candidate-execution-20261021/static-inventory.json);
+static admission is not runtime qualification.
+
+Observed Modal limit (2026-10-21, `fin-saccr-rwa` port): the PM verifier
+Containerfile's `dnf install shadow-utils` step fails in Modal's image builder
+(`cpio: cap_set_file failed - Operation not supported`), so the verifier image
+never builds and the cell is `status=error`, `reward=null` with the full
+reservation retained. The `cargo-flight-dispatch` port Containerfile contains
+the same step, so Modal-routed port grading of these two ports is unqualified;
+the inventory's "Modal-only" port rows mean resource routing only. The native
+upstream grader on Modal is unaffected (measured, closure proven).
+
+`run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
+returns one ordered outcome per request. Atomic `candidate.json`,
+`outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the
+driver stops. Docker/auto trials serialize so separated roles cannot exceed
+two owned local containers; Modal work is bounded by the requested concurrency
+and the **same** native campaign reservation ledger. Supply one approval,
+`max_usd`, `spend_ledger`, billing tag and owned app for the entire paid run;
+individual requests cannot replace that policy.
+
+Results retain native reward, per-test evidence, agent/verifier log paths,
+errors and infrastructure cost estimates. Infrastructure failure is unmeasured,
+not reward zero. No universal pass threshold is inferred from continuous
+rewards. Known hosted-judge API costs are outside the infrastructure cap; a
+GA hosted-judge package refuses before allocation without implying all MiMo
+packages need that API. Ordinary native MiMo code packages use the upstream
+route. Images retain native content-based caching; source-context digests and
+observed image IDs are reported separately, with no invented cache-hit claim.
+
+The module CLI supports `--files-dir`, `--files-json`, `--patch-file`,
+`--solution-bundle`, `--request` and `--batch`; `--plan` performs local planning
+without provider/daemon calls, evidence staging or ledger mutation.
+
 ## Modal Sandbox controls
 
 Modal launches pass `sandbox_timeout_secs` to Harbor rather than inheriting its

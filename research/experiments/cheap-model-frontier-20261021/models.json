@@ -1,0 +1,59 @@
+{
+  "schema": "cm1.openrouter.models/v1",
+  "recorded_at": "2026-10-21T04:36:02.383Z",
+  "endpoint": "https://openrouter.ai/api/v1",
+  "canonical_source_url": "https://openrouter.ai/api/v1/models",
+  "canonical_recorded_at": "2026-10-21T05:05:12.775Z",
+  "lane_cap_usd": 4.0,
+  "provider_policy": "One exact provider slug per model; no fallbacks or account privacy changes. DeepSeek's former first-party slug is absent from the live catalog, so this campaign explicitly uses DeepInfra FP8, not that historical route.",
+  "models": [
+    {
+      "slug": "gpt-oss-120b",
+      "id": "openai/gpt-oss-120b",
+      "canonical_id": "openai/gpt-oss-120b",
+      "billing_provider": "DeepInfra",
+      "provider": {"order": ["deepinfra/bf16"], "allow_fallbacks": false, "require_parameters": true},
+      "reasoning": {"effort": "medium", "exclude": true},
+      "input_usd_per_million": 0.037,
+      "output_usd_per_million": 0.17,
+      "context_length": 131072,
+      "source_url": "https://openrouter.ai/api/v1/models/openai/gpt-oss-120b/endpoints"
+    },
+    {
+      "slug": "qwen3.6-35b-a3b",
+      "id": "qwen/qwen3.6-35b-a3b",
+      "canonical_id": "qwen/qwen3.6-35b-a3b-20260415",
+      "billing_provider": "DeepInfra",
+      "provider": {"order": ["deepinfra/fp8"], "allow_fallbacks": false, "require_parameters": true},
+      "reasoning": {"enabled": true, "exclude": true},
+      "input_usd_per_million": 0.1,
+      "output_usd_per_million": 0.95,
+      "context_length": 262144,
+      "source_url": "https://openrouter.ai/api/v1/models/qwen/qwen3.6-35b-a3b/endpoints"
+    },
+    {
+      "slug": "glm-5.3-flash",
+      "id": "z-ai/glm-5.3-flash",
+      "canonical_id": "z-ai/glm-5.3-flash-20260826",
+      "billing_provider": "Z.AI",
+      "provider": {"order": ["z-ai/fp8"], "allow_fallbacks": false, "require_parameters": true},
+      "reasoning": {"effort": "medium", "exclude": true},
+      "input_usd_per_million": 0.15,
+      "output_usd_per_million": 0.5,
+      "context_length": 1048576,
+      "source_url": "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints"
+    },
+    {
+      "slug": "deepseek-v4.1-flash",
+      "id": "deepseek/deepseek-v4.1-flash",
+      "canonical_id": "deepseek/deepseek-v4.1-flash-20260910",
+      "billing_provider": "DeepInfra",
+      "provider": {"order": ["deepinfra/fp8"], "allow_fallbacks": false, "require_parameters": true},
+      "reasoning": {"effort": "medium", "exclude": true},
+      "input_usd_per_million": 0.14,
+      "output_usd_per_million": 0.42,
+      "context_length": 1048576,
+      "source_url": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+    }
+  ]
+}

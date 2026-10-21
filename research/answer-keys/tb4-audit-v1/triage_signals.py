@@ -344,7 +344,7 @@ class SealedReader:
         key = (rel, max_lines)
         if key in self._cache:
             return self._cache[key]
-        prefix = f"{rel}:"
+        # Rows come back as the path once, then "<line>: <text>".
         out_lines: list[str] = []
         start, long_lines = 1, 0
         while start <= max_lines:
@@ -360,10 +360,7 @@ class SealedReader:
             clipped = rows[-1] == CLIP_MARK
             if clipped:
                 rows = rows[:-1]
-            texts = [
-                row[len(prefix) :].partition(": ")[2] if row.startswith(prefix) else ""
-                for row in rows
-            ]
+            texts = [row.partition(": ")[2] for row in rows[1:]]
             if clipped:
                 if len(texts) <= 1:
                     self.long_line_clips += 1

@@ -101,7 +101,7 @@ of a passing grader: inspect its result's execution status and reward.
 
 | Capability | Input and result | Evidence boundary |
 |---|---|---|
-| `task-info` | `{}` inventories instruction, configuration, environment, tests and reference; `path` reads up to 2,000 lines (`start_line`/`end_line` continue a longer file; a longer range is clipped with a continuation note, not refused); `path` plus literal `pattern` searches | Citable package-relative lines. Root README/cheat material and out-of-package files are excluded. Reviewer access is not solver access. |
+| `task-info` | `{}` inventories instruction, configuration, environment, tests and reference; `path` reads up to 2,000 lines (`start_line`/`end_line` continue a longer file; a longer range is clipped with a continuation note, not refused); `path` plus literal `pattern` searches | Citable package-relative lines. A read prints the path once, then one `<physical line>: <exact source line>` row per line (cite `path:line`); search hits keep `path:line: text` rows. Root README/cheat material and out-of-package files are excluded. Reviewer access is not solver access. |
 | `run-upstream-grader` | `solution_dir` relative to this run's `candidates/`, **or** a structured `submission`; returns the first-party runner's reward, per-test results, errors and raw evidence paths | Original task/verifier bytes are unchanged. Raw reward does not establish semantic correctness. |
 | `run-reference` | `{}` runs the task's reference/oracle in a fresh environment | A failed, timed-out or unmeasured reference is not proof that the task is infeasible. |
 | `run-blank` | `{}` runs a fresh empty/no-op attempt | No usable result means unknown, not zero reward or a clean task. |

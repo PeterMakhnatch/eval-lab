@@ -49,6 +49,7 @@ ANSWER_SCHEMA = _Answer.model_json_schema()
 TOOL_HELP = """Only these read-only evidence tools exist. No shell, Python execution, network,
 URLs, arbitrary host paths, or writes are available. Paths are workspace-relative or /workspace/.
 read: {"path": "prompt.md", "start_line": 1, "end_line": 100}; a directory lists retained files.
+      A file read prints the path once, then "<line>: <text>" rows; cite it as path:line.
 grep: {"path": "steps.txt", "pattern": "literal text"}; case-insensitive literal search;
       path may be a directory, including ".". Results include exact file:line citations.
 diff: {"path": "file_changes.diff", "start_line": 1, "end_line": 100}; read a retained diff.
@@ -147,15 +148,19 @@ class WorkspaceTools:
                 raise ValueError(f"read at most {self.max_read_lines} lines per call")
             clamped, end = end, start + self.max_read_lines - 1
         lines = self._read(rel).splitlines()
-        rows, size = [], 0
+        # Heading style: the path once, then "<physical line>: <exact source line>" rows, so a
+        # citation is f"{path}:{line}" without repeating the path on every row.
+        rows, size = [], len(rel) + 1
         for number in range(start, min(end, len(lines)) + 1):
-            row = f"{rel}:{number}: {lines[number - 1]}"
+            row = f"{number}: {lines[number - 1]}"
             remaining = self.max_chars - size
             if len(row) + 1 > remaining:
                 rows.append(row[: max(0, remaining)] + "\n[line or range clipped; narrow the read]")
                 break
             rows.append(row)
             size += len(row) + 1
+        if rows:
+            rows.insert(0, rel)
         if clamped is not None and rows and end < min(clamped, len(lines)):
             rows.append(f"[read clipped to {self.max_read_lines} lines; continue at "
                         f"{rel}:{end + 1} (total lines: {len(lines)})]")

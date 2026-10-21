@@ -522,7 +522,7 @@ class _SetupRecipe:
         args = [self.expression(arg) for arg in node.args]
         if len(args) > len(params) or len(args) < len(params) - len(defaults):
             raise GraderRefusal("unsupported setup-data helper arity")
-        bindings = dict(zip(params, args))
+        bindings = dict(zip(params, args, strict=False))
         if len(args) < len(params):
             bindings.update(zip(params[len(args):], defaults[-(len(params) - len(args)):], strict=True))
         saved = self.names

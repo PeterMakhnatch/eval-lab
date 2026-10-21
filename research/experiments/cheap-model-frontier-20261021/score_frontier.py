@@ -79,8 +79,9 @@ def v1_rows(root: Path) -> tuple[list[dict], dict]:
                   'failures': failures}
 
 
-def cost_for(events: list[dict], prefix: str) -> dict:
-    started = [e for e in events if e['event'] == 'started' and e['identity'].startswith(prefix)]
+def cost_for(events: list[dict], prefix: str, version: str | None = None) -> dict:
+    started = [e for e in events if e['event'] == 'started' and e['identity'].startswith(prefix)
+               and (version is None or e.get('adapter_version') == version)]
     settled = {e['call_id']: e for e in events if e['event'] == 'settled'}
     known = sum(settled[e['call_id']]['cost_nano'] for e in started if e['call_id'] in settled)
     unknown = [e for e in started if e['call_id'] not in settled]
@@ -105,7 +106,7 @@ def score(rows: list[dict], output: Path) -> dict:
 def make_plot(result: dict) -> str:
     """Opus is a horizontal reference, not a fabricated dollar-coordinate."""
     width, height, left, right, top, bottom = 1000, 610, 90, 710, 60, 480
-    points = [r for r in result['rows'] if r['measurement_complete'] and r['test_cost']['billed_usd'] is not None]
+    points = [r for r in result['rows'] if r.get('test_started') and r.get('score') and r['test_cost']['billed_usd'] is not None]
     xmax = max([r['test_cost']['billed_usd'] for r in points] + [0.05]) * 1.2
     ymax = 152
     def x(cost):
@@ -138,16 +139,21 @@ def make_plot(result: dict) -> str:
         xx = x(row['test_cost']['billed_usd'])
         yy = y(row['score']['category_1to1']['recall']['k'])
         color = colors[models.index(row['model']) % len(colors)]
+        complete = row.get('measurement_complete')
+        fill = color if complete else 'white'
         if row['protocol'] == 'plain':
-            svg += [f'<circle cx="{xx}" cy="{yy}" r="6" fill="{color}"/>']
+            svg += [f'<circle cx="{xx}" cy="{yy}" r="6" fill="{fill}" stroke="{color}" stroke-width="2"/>']
+        elif row['protocol'] == 'v1':
+            svg += [f'<rect x="{xx - 6}" y="{yy - 6}" width="12" height="12" fill="{fill}" stroke="{color}" stroke-width="2"/>']
         else:
-            svg += [f'<rect x="{xx - 6}" y="{yy - 6}" width="12" height="12" fill="{color}"/>']
-        label = html.escape(f"{row['slug']} / {row['protocol']}")
-        svg += [f'<text x="{xx + 9}" y="{yy + (-10 if index % 2 else 16)}" font-size="12">{label}</text>']
+            svg += [f'<path d="M{xx},{yy - 8} L{xx + 7},{yy + 6} L{xx - 7},{yy + 6} Z" fill="{fill}" stroke="{color}" stroke-width="2"/>']
+        label = html.escape(f"{row['slug']} / {row['protocol']} {row.get('adapter_version', '')}".strip())
+        if not complete:
+            label += html.escape(f" ({row['coverage']['tasks_with_status']}/41 tasks)")
     svg += [f'<path d="M{left},{top} V{bottom} H{right}" stroke="#17212b" fill="none"/>',
             '<text x="400" y="537" text-anchor="middle" font-size="14">TEST billed OpenRouter model cost (USD; DEV cost separate)</text>',
             '<text x="22" y="270" transform="rotate(-90 22,270)" text-anchor="middle" font-size="14">Category one-to-one matches / 152 gold findings</text>',
-            '<text x="90" y="566" font-size="12">Only complete, fully billed TEST runs are plotted. Circles: plain; squares: v1.</text>',
+            '<text x="90" y="566" font-size="12">Filled: complete 41-task TEST runs. Open: partial TEST runs (coverage in label); hits use the full 152 denominator. Circles plain, squares v1, triangles v2.</text>',
             '<text x="90" y="587" font-size="12">Opus API-equivalent cost is unmeasured; subscription marginal $0 is not a fair API-price coordinate.</text>',
             '</g></svg>']
     return '\n'.join(svg) + '\n'
@@ -180,19 +186,26 @@ def main() -> None:
             'limitation': '65-environment Elo/total-spend comparison, not TB4 finding recall or a transferable dollar price'}}
     for model in models:
         for protocol in ('plain', 'v1'):
-            root = configuration_root(args.out, protocol, model)
-            rows, coverage = plain_rows(root, harness.CATEGORY) if protocol == 'plain' else v1_rows(root)
-            attempted = (root / 'test-exposure-claim.json').exists()
-            cells = score(rows, work / f"{protocol}-{model['slug']}.score.json") if attempted else None
-            freeze = root / 'freeze.json'
-            result['rows'].append({'model': model['id'], 'slug': model['slug'], 'protocol': protocol,
-                'provider': model['provider'], 'test_started': attempted, 'coverage': coverage,
-                'measurement_complete': attempted and coverage['tasks_with_status'] == 41
-                    and not coverage['failures']
-                    and coverage['complete_tasks'] + coverage['abstained_tasks'] == 41,
-                'score': cells, 'test_cost': cost_for(events, f"{protocol}/{model['slug']}/test/"),
-                'dev_cost': cost_for(events, f"{protocol}/{model['slug']}/dev/"),
-                'freeze_sha256': hashlib.sha256(freeze.read_bytes()).hexdigest() if freeze.exists() else None})
+            base = args.out / protocol / model['slug']
+            versions = sorted(p.name for p in base.glob('*') if (p / 'freeze.json').exists()) if base.exists() else []
+            for version in versions:
+                root = base / version
+                rows, coverage = plain_rows(root, harness.CATEGORY) if protocol == 'plain' else v1_rows(root)
+                attempted = (root / 'test-exposure-claim.json').exists()
+                cells = score(rows, work / f"{protocol}-{model['slug']}-{version}.score.json") if attempted else None
+                freeze = root / 'freeze.json'
+                result['rows'].append({'model': model['id'], 'slug': model['slug'], 'protocol': protocol,
+                    'adapter_version': version,
+                    'provider': model['provider'], 'test_started': attempted, 'coverage': coverage,
+                    'measurement_complete': attempted and coverage['tasks_with_status'] == 41
+                        and not coverage['failures']
+                        and coverage['complete_tasks'] + coverage['abstained_tasks'] == 41,
+                    'score': cells, 'test_cost': cost_for(events, f"{protocol}/{model['slug']}/test/", version),
+                    'dev_cost': cost_for(events, f"{protocol}/{model['slug']}/dev/", version),
+                    'freeze_sha256': hashlib.sha256(freeze.read_bytes()).hexdigest() if freeze.exists() else None})
+    muse_score = args.out.parent / 'task-qa-v2-muse/test-score.json'
+    if muse_score.exists():
+        result['rows'].append(json.loads(muse_score.read_text()))
     result['campaign_cost'] = cost_for(events, '')
     target = args.publish or work
     target.mkdir(parents=True, exist_ok=True)

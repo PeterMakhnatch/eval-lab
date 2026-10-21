@@ -20,14 +20,18 @@ from pathlib import Path
 from typing import Any
 
 from evallab.qa.ask import WorkspaceTools
+from evallab.qa.env_catalog import DefectCatalog
+from evallab.qa.env_execution import ExecutionPolicy
 from evallab.qa.models import Finding
 from evallab.registry import task_directory_digest
 
 TOOL_NAMES = (
-    "task-info", "run-upstream-grader", "run-reference", "run-blank", "probe", "diff",
-    "record-finding",
+    "task-info", "run-upstream-grader", "run-port-grader", "run-reference", "run-blank",
+    "probe", "diff", "record-finding", "hackbook",
 )
-_RUNTIME_TOOLS = frozenset({"run-upstream-grader", "run-reference", "run-blank", "probe"})
+_RUNTIME_TOOLS = frozenset({
+    "run-upstream-grader", "run-port-grader", "run-reference", "run-blank", "probe",
+})
 _CITATION = re.compile(r"([^:\n]+):([1-9][0-9]*)(?:-([1-9][0-9]*))?")
 #: Source-read window for ``task-info`` (v1): a call with no ``end_line`` returns up to this
 #: many lines, and a longer range is clipped with a continuation note instead of refused.
@@ -68,7 +72,8 @@ class EnvTools:
 
     def __init__(
         self, task_dir: Path, run_dir: Path, *, repo_root: Path, max_seconds: float = 600,
-        view_dir: Path | None = None,
+        view_dir: Path | None = None, hackbook_path: Path | None = None,
+        execution_config: Path | None = None,
     ) -> None:
         if isinstance(max_seconds, bool) or not isinstance(max_seconds, int | float) or not 0 < max_seconds <= 28_800:
             raise ValueError("max_seconds must be in (0, 28800]")
@@ -84,6 +89,11 @@ class EnvTools:
             view_root = view_dir.expanduser().absolute().resolve()
             if requested_run.is_relative_to(view_root) or view_root.is_relative_to(requested_run):
                 raise ValueError("exported view and QA output directories must be disjoint")
+        self.catalog = DefectCatalog(hackbook_path) if hackbook_path is not None else None
+        self.execution = (
+            ExecutionPolicy.from_file(execution_config, repo_root=repo_root)
+            if execution_config is not None else ExecutionPolicy.local(repo_root=repo_root)
+        )
         self.run_dir = _owned_directory(run_dir)
         self.repo_root = repo_root.resolve(strict=True)
         self.max_seconds = max_seconds
@@ -177,6 +187,10 @@ class EnvTools:
             result = self._diff(args)
         elif name == "record-finding":
             result = self._record_finding(args)
+        elif name == "hackbook":
+            if self.catalog is None:
+                raise ValueError("hackbook source is not configured by the session owner")
+            result = self.catalog.lookup(args)
         else:
             result = self._execute(name, args)
         return {
@@ -208,6 +222,10 @@ class EnvTools:
             "instruction": self.reader.run("read", {"path": "instruction.md"}),
             "defect_classes": list(defect_classes()), "tools": list(TOOL_NAMES),
             "finding_schema": Finding.model_json_schema(),
+            "hackbook": {"configured": self.catalog is not None,
+                         "catalog_digest": self.catalog.digest if self.catalog else None,
+                         "scope": "generic_classes_only; no case examples or executable payloads"},
+            "execution_policy": self.execution.public_config(),
             "tool_arguments": {
                 "task-info": {"path": "optional package-relative path", "start_line": 1,
                               "end_line": READ_WINDOW_LINES,
@@ -219,14 +237,21 @@ class EnvTools:
                                    "path": "absolute in-container output path for file/json"},
                     "plan": False, "timeout_seconds": 600,
                 },
-                "run-reference": {"plan": False, "timeout_seconds": 600},
-                "run-blank": {"plan": False, "timeout_seconds": 600},
+                "run-port-grader": {
+                    "solution_dir": "relative directory under out/candidates/",
+                    "submission": "same ordinary structured candidate as run-upstream-grader",
+                    "plan": False, "timeout_seconds": 600,
+                },
+                "run-reference": {"grader": "upstream | port", "plan": False, "timeout_seconds": 600},
+                "run-blank": {"grader": "upstream | port", "plan": False, "timeout_seconds": 600},
                 "probe": {"solution_dir": "relative directory under out/candidates/",
                           "test": "Python assertions, run in fresh reference and candidate containers",
                           "submission": "alternative to solution_dir; same structured format as above",
                           "plan": False, "timeout_seconds": 300},
                 "diff": {"left": "package path or candidate/<relative-file>",
                          "right": "package path or candidate/<relative-file>"},
+                "hackbook": {"defect_class": "optional canonical class", "query": "optional text",
+                             "limit": 11},
                 "record-finding": {"defect_class": "one canonical task-side class",
                                    "finding": "qa.finding/v1 matching finding_schema; root_cause=[defect_class]"},
             },
@@ -368,8 +393,19 @@ class EnvTools:
     def _observe(self, tool: str, result: dict[str, Any]) -> dict[str, Any]:
         identity = uuid.uuid4().hex
         measured = result.get("status") == "measured" and result.get("executed") is True
-        if tool != "probe" and measured and result.get("task", {}).get("digest") != self.task_digest:
-            raise ValueError("native grader result belongs to a different task package")
+        if measured and task_directory_digest(self.task_dir) != self.task_digest:
+            raise ValueError("task source changed while native grading was running")
+        policy = result.get("execution_policy", {})
+        if tool != "probe" and measured:
+            if policy.get("grader") == "port":
+                original = policy.get("original_task", {})
+                selected = policy.get("selected_grader", {})
+                if (policy.get("digest") != self.execution.digest
+                        or original.get("path") != str(self.task_dir)
+                        or not isinstance(selected, dict) or selected.get("kind") != "port"):
+                    raise ValueError("port result is not bound to this source and owner-selected grader")
+            elif result.get("task", {}).get("digest") != self.task_digest:
+                raise ValueError("native grader result belongs to a different task package")
         receipt = {
             "schema": "qa.env.observation/v1", "id": identity, "tool": tool,
             "task_id": self.task_id, "task_digest": self.task_digest,
@@ -383,19 +419,19 @@ class EnvTools:
         }
 
     def _execute(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
-        from evallab.upstream_grader import run_upstream_grader
-
         if name == "probe":
             return self._probe(args)
-        if set(args) - {"solution_dir", "submission", "plan", "timeout_seconds", "platform"}:
+        if set(args) - {"solution_dir", "submission", "plan", "timeout_seconds", "platform", "grader"}:
             raise ValueError("unknown grader argument; backend/paid approval are owner policy")
         if "plan" in args and type(args["plan"]) is not bool:
             raise ValueError("plan must be boolean")
-        if name != "run-upstream-grader" and {"solution_dir", "submission"} & set(args):
+        candidate_tool = name in {"run-upstream-grader", "run-port-grader"}
+        if candidate_tool and "grader" in args:
+            raise ValueError("select run-upstream-grader or run-port-grader; grader cannot relabel a candidate tool")
+        if not candidate_tool and {"solution_dir", "submission"} & set(args):
             raise ValueError("reference/blank controls do not take candidate files")
-        candidate = None
-        if name == "run-upstream-grader":
-            candidate = self._candidate(args)
+        grader = "port" if name == "run-port-grader" else args.get("grader", "upstream")
+        candidate = self._candidate(args) if candidate_tool else None
         requested = args.get("timeout_seconds", 600)
         if type(requested) is not int or requested <= 0:
             raise ValueError("timeout_seconds must be a positive integer")
@@ -403,9 +439,10 @@ class EnvTools:
         if timeout < 1:
             raise TimeoutError("less than one second remains for native grading")
         native_root = _owned_directory(self.run_dir / "native")
-        result = run_upstream_grader(
-            self.task_dir, candidate, oracle=name == "run-reference", blank=name == "run-blank",
-            backend="docker", platform=args.get("platform"), timeout_seconds=timeout,
+        result = self.execution.run(
+            self.task_dir, candidate, grader=grader,
+            oracle=name == "run-reference", blank=name == "run-blank",
+            platform=args.get("platform"), timeout_seconds=timeout,
             output_dir=native_root / uuid.uuid4().hex, plan=args.get("plan", False),
         )
         if args.get("plan", False):
@@ -416,8 +453,6 @@ class EnvTools:
     def _probe(self, args: dict[str, Any]) -> dict[str, Any]:
         import ast
         import shutil
-
-        from evallab.upstream_grader import run_upstream_grader
 
         if set(args) - {"solution_dir", "submission", "test", "plan", "timeout_seconds", "platform"}:
             raise ValueError("unknown probe argument")
@@ -455,9 +490,9 @@ class EnvTools:
             timeout = min(requested, int(self.remaining_seconds()))
             if timeout < 1:
                 raise TimeoutError("QA task time budget exhausted between fresh probe controls")
-            observations[label] = run_upstream_grader(
+            observations[label] = self.execution.run(
                 package, candidate if label == "candidate" else None,
-                oracle=label == "reference", backend="docker", timeout_seconds=timeout,
+                oracle=label == "reference", timeout_seconds=timeout,
                 platform=args.get("platform"), plan=args.get("plan", False),
                 output_dir=directory / f"{label}-native",
             )
@@ -491,14 +526,18 @@ def _tool_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             request = json.load(sys.stdin)
         else:
             request = json.loads(Path(args.request).read_text(encoding="utf-8"))
-        if not isinstance(request, dict) or set(request) - {"task", "out", "args", "max_seconds", "view"}:
-            raise ValueError("request needs task, out and args, with optional max_seconds and view")
+        if not isinstance(request, dict) or set(request) - {
+            "task", "out", "args", "max_seconds", "view", "hackbook", "execution_config",
+        }:
+            raise ValueError("request needs task, out and args; optional max_seconds, view, hackbook, execution_config")
         if not all(isinstance(request.get(key), str) and request[key] for key in ("task", "out")):
             raise ValueError("task and out must be nonempty paths")
         tools = EnvTools(
             Path(request["task"]), Path(request["out"]), repo_root=root,
             max_seconds=request.get("max_seconds", 600),
             view_dir=Path(request["view"]) if request.get("view") is not None else None,
+            hackbook_path=Path(request["hackbook"]) if request.get("hackbook") is not None else None,
+            execution_config=Path(request["execution_config"]) if request.get("execution_config") is not None else None,
         )
         with redirect_stdout(sys.stderr):
             result = tools.call(args.env_tool, request.get("args", {}))

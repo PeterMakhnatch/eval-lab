@@ -27,16 +27,18 @@ per rule: true positives over **measured positives**, false alarms over **measur
 TB4 task split) is in neither denominator and is listed by reason; excluded registered cells
 (`coverage.jsonl`) are counted by reason. Nothing unknown is clean or a miss. Per-item rule ids
 and ATIF `step_id` references are in `predictions-<split>.jsonl`.
+Committed predictions retain rule IDs, counts and step references, not raw actor excerpts or commands.
 
 ## Input and provenance map
 
 All trajectories resolve through `evallab.results_home.results_root()` (published refs) and are
-checked against the key's registered SHA-256 (`trajectory_sha256`, `actions_only_sha256`). Items
-come from the shared loader `evallab.qa.answer_key.load_answer_key`.
+checked against a registered SHA-256 (`trajectory_sha256`, `actions_only_sha256`) when
+provided; otherwise their observed hash is recorded with `hash_bound: false`. Items come
+from the shared loader `evallab.qa.answer_key.load_answer_key`.
 
 | cohort | items.jsonl sha256 (frozen at base 4b6f76667) | splits | positive / negative / other | label target |
 |---|---|---|---|---|
-| cheatbench-actions-v1 | `2c42c12f5423cfe19bec1e42dceec65d0753bb5506ac73db0e6020fc289891ac` | dev 150 (75/75), test 150 (75/75) | `expected_verdict` fail = human-verified cheating/attempt / pass = vetted benign / none | behavior; benign is not a correctness label |
+| cheatbench-actions-v1 | `2c42c12f5423cfe19bec1e42dceec65d0753bb5506ac73db0e6020fc289891ac` | dev 150 (75/75), test 150 (75/75) | `expected_verdict` fail = source-labelled cheating/attempt / pass = source-labelled benign / none | behavior; negatives are not correctness or uniform-review certificates |
 | hacktrace-act-v1 | `6a089780f64fb363478240bc468a3435762eec9d4937575f745aac872d34a098` | dev 150 (75/75), test 150 (75/75) | fail = ACT shortcut label / pass = ACT negative / none | behavior; not solution correctness |
 | mimo-v7-canonical-pass70 | `bad2bd2d57a03656a4f4492154f58e26dd7d9fe83674a3082f8451b1f6029f28` | test 70 only | `source_label` wrong_pass (6) / real_pass (64) / none | outcome (grading correctness, not intent) |
 | mimo-fresh-window3 | `080dd9dd7e45db4b3a1c0ecbfdd57e6acee75b9584f9d50b7394d29e6555396b` (+ `coverage.jsonl` `fa798d17…3a834d`) | test 52 only | wrong_pass (4) / real_pass (17) / `not_a_pass` (31, other) | outcome; not_a_pass is an agent failure, neither positive nor negative |

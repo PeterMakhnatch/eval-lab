@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from evallab.hackbook.matcher import match_target
+from evallab.hackbook.matcher import calibrate_pool, match_target
 from evallab.hackbook.models import (
     HackbookEntry,
     coverage_summary,
@@ -193,6 +193,27 @@ def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     return 0
 
 
+def _calibrate_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    pool = args.pool if args.pool.is_absolute() else Path.cwd() / args.pool
+    report = calibrate_pool(pool, kind=args.kind, threshold=args.threshold, root=root)
+    if args.json:
+        print(json.dumps(report, indent=2))
+        return 0
+    print(
+        f"calibration of {report['pool']}: {report['n']} {report['kind']}s, "
+        f"{report['zero_hit']} with no hit, {report['zero_strong']} with no strong hit"
+    )
+    flagged = report["universal"]
+    print(
+        f"entries firing on >= {report['threshold']:.0%} of the pool "
+        f"(cannot tell its {report['kind']}s apart): {', '.join(flagged) or 'none'}"
+    )
+    top = sorted(report["entries"].items(), key=lambda kv: -kv[1]["share"])[:10]
+    for entry_id, row in top:
+        print(f"  {entry_id:<12} {row['share']:>6.1%} fire  {row['strong_share']:>6.1%} strong")
+    return 0
+
+
 def _filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--class", dest="taxonomy_class", help="TS01..RS07 or class name")
     parser.add_argument("--side", choices=("task", "run"))
@@ -240,3 +261,13 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     )
     coverage.add_argument("--json", action="store_true")
     coverage.set_defaults(func=_coverage_command)
+
+    calibrate = sub.add_parser(
+        "calibrate",
+        help="Per-entry firing share over a pool of tasks or traces; flags non-discriminating entries",
+    )
+    calibrate.add_argument("pool", type=Path, help="Directory of task packages or trace dirs")
+    calibrate.add_argument("--kind", choices=("task", "trace"), default="task")
+    calibrate.add_argument("--threshold", type=float, default=0.4)
+    calibrate.add_argument("--json", action="store_true")
+    calibrate.set_defaults(func=_calibrate_command)

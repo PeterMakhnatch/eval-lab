@@ -37,7 +37,9 @@ def hackbook_markdown(task_dir: Path, *, top: int = 8) -> tuple[str, list[str]]:
     from evallab.hackbook.matcher import match_target
     from evallab.hackbook.models import load_hackbook
 
-    result = match_target(task_dir, kind="task", top=top)
+    # A seeker hunts wrong passes; a false-fail entry (unstated requirement, flaky env) takes a
+    # slot of the top-N page and never yields a pass.
+    result = match_target(task_dir, kind="task", top=top, direction="false_pass")
     entries = {entry.id: entry for entry in load_hackbook()}
     lines = [
         "# Hackbook toolkit: known cheat patterns matched to this task's grader surface",

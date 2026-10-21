@@ -1,0 +1,355 @@
+{
+ "freeze_sha256": "fe4ae179da07c0948dc353903d5655cfac0dfdad4d0aa52bb0f932a26432d744",
+ "scope": "legacy8-historical-test-once",
+ "spend": {
+  "cap_usd": 2.0,
+  "charged_or_reserved_usd": 0.523652,
+  "errors": 2,
+  "metered_usage_cost_usd": 0.519539,
+  "null_usage_charged_at_bound": 0,
+  "remaining_usd": 1.476348,
+  "requests": 571,
+  "settled": 570,
+  "unsettled_reservations": 1
+ },
+ "system": "tb4-dev-run-census/1",
+ "tasks": {
+  "atrx-vep-crispr": {
+   "canonical_memberships_in_index": 129,
+   "confusion_fail": {
+    "neither->neither": 11,
+    "task_defect->task_defect": 33,
+    "task_defect_gray->task_defect_gray": 23
+   },
+   "confusion_pass": {
+    "neither->neither": 62
+   },
+   "fail_rule_replay_agreement": {
+    "k": 67,
+    "n": 67,
+    "rate": 1.0,
+    "wilson95": [
+     0.9457738605260041,
+     0.9999999999999999
+    ]
+   },
+   "fails": 67,
+   "flag_rate_on_legacy_neither": {
+    "k": 0,
+    "n": 62,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.058344072189958816
+    ]
+   },
+   "flagged_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "known_exploit_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "legacy_known_exploit": 0,
+   "memberships": 129,
+   "pass_abstention": {
+    "k": 0,
+    "n": 62,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.058344072189958816
+    ]
+   },
+   "passes": 62
+  },
+  "batched-eval-parity": {
+   "canonical_memberships_in_index": 130,
+   "confusion_fail": {
+    "neither->neither": 26,
+    "task_defect->task_defect": 29
+   },
+   "confusion_pass": {
+    "neither->neither": 75
+   },
+   "fail_rule_replay_agreement": {
+    "k": 55,
+    "n": 55,
+    "rate": 1.0,
+    "wilson95": [
+     0.9347150987845195,
+     1.0
+    ]
+   },
+   "fails": 55,
+   "flag_rate_on_legacy_neither": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson95": [
+     3.469446951953614e-18,
+     0.04872384255754117
+    ]
+   },
+   "flagged_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "known_exploit_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "legacy_known_exploit": 0,
+   "memberships": 130,
+   "pass_abstention": {
+    "k": 0,
+    "n": 75,
+    "rate": 0.0,
+    "wilson95": [
+     3.469446951953614e-18,
+     0.04872384255754117
+    ]
+   },
+   "passes": 75
+  },
+  "biped-contact-dynamics": {
+   "canonical_memberships_in_index": 129,
+   "confusion_fail": {
+    "neither->neither": 18,
+    "task_defect->task_defect": 38,
+    "task_defect_gray->task_defect_gray": 1,
+    "unmeasured->unmeasured": 7
+   },
+   "confusion_pass": {
+    "known_exploit->known_exploit": 4,
+    "neither->exploit_candidate": 3,
+    "neither->neither": 58
+   },
+   "fail_rule_replay_agreement": {
+    "k": 64,
+    "n": 64,
+    "rate": 1.0,
+    "wilson95": [
+     0.9433759401210629,
+     1.0
+    ]
+   },
+   "fails": 64,
+   "flag_rate_on_legacy_neither": {
+    "k": 3,
+    "n": 61,
+    "rate": 0.04918032786885246,
+    "wilson95": [
+     0.016865982655344135,
+     0.13491127536660452
+    ]
+   },
+   "flagged_recall": {
+    "k": 4,
+    "n": 4,
+    "rate": 1.0,
+    "wilson95": [
+     0.5101091631424628,
+     1.0
+    ]
+   },
+   "known_exploit_recall": {
+    "k": 4,
+    "n": 4,
+    "rate": 1.0,
+    "wilson95": [
+     0.5101091631424628,
+     1.0
+    ]
+   },
+   "legacy_known_exploit": 4,
+   "memberships": 129,
+   "pass_abstention": {
+    "k": 0,
+    "n": 65,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.05580153140781153
+    ]
+   },
+   "passes": 65
+  },
+  "cumulative-layout-shift": {
+   "canonical_memberships_in_index": 124,
+   "confusion_fail": {
+    "neither->neither": 31,
+    "unmeasured->unmeasured": 2
+   },
+   "confusion_pass": {
+    "known_exploit->known_exploit": 14,
+    "neither->neither": 67,
+    "neither->unmeasured": 10
+   },
+   "fail_rule_replay_agreement": {
+    "k": 33,
+    "n": 33,
+    "rate": 1.0,
+    "wilson95": [
+     0.8957300023069517,
+     1.0
+    ]
+   },
+   "fails": 33,
+   "flag_rate_on_legacy_neither": {
+    "k": 0,
+    "n": 77,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.04751842535541282
+    ]
+   },
+   "flagged_recall": {
+    "k": 14,
+    "n": 14,
+    "rate": 1.0,
+    "wilson95": [
+     0.7846891969899427,
+     0.9999999999999999
+    ]
+   },
+   "known_exploit_recall": {
+    "k": 14,
+    "n": 14,
+    "rate": 1.0,
+    "wilson95": [
+     0.7846891969899427,
+     0.9999999999999999
+    ]
+   },
+   "legacy_known_exploit": 14,
+   "memberships": 124,
+   "pass_abstention": {
+    "k": 10,
+    "n": 91,
+    "rate": 0.10989010989010989,
+    "wilson95": [
+     0.06079473018395384,
+     0.19058751468856974
+    ]
+   },
+   "passes": 91
+  },
+  "data-anonymization": {
+   "canonical_memberships_in_index": 129,
+   "confusion_fail": {
+    "neither->neither": 6,
+    "task_defect->task_defect": 122
+   },
+   "confusion_pass": {
+    "neither->neither": 1
+   },
+   "fail_rule_replay_agreement": {
+    "k": 128,
+    "n": 128,
+    "rate": 1.0,
+    "wilson95": [
+     0.9708630436808796,
+     1.0
+    ]
+   },
+   "fails": 128,
+   "flag_rate_on_legacy_neither": {
+    "k": 0,
+    "n": 1,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.7934506858870164
+    ]
+   },
+   "flagged_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "known_exploit_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "legacy_known_exploit": 0,
+   "memberships": 129,
+   "pass_abstention": {
+    "k": 0,
+    "n": 1,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.7934506858870164
+    ]
+   },
+   "passes": 1
+  },
+  "wal-recovery-ordering": {
+   "canonical_memberships_in_index": 130,
+   "confusion_fail": {
+    "neither->neither": 2,
+    "task_defect->task_defect": 96
+   },
+   "confusion_pass": {
+    "neither->neither": 32
+   },
+   "fail_rule_replay_agreement": {
+    "k": 98,
+    "n": 98,
+    "rate": 1.0,
+    "wilson95": [
+     0.9622800098197932,
+     1.0
+    ]
+   },
+   "fails": 98,
+   "flag_rate_on_legacy_neither": {
+    "k": 0,
+    "n": 32,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.10717919840936586
+    ]
+   },
+   "flagged_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "known_exploit_recall": {
+    "k": 0,
+    "n": 0,
+    "rate": null,
+    "wilson95": null
+   },
+   "legacy_known_exploit": 0,
+   "memberships": 130,
+   "pass_abstention": {
+    "k": 0,
+    "n": 32,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.10717919840936586
+    ]
+   },
+   "passes": 32
+  }
+ }
+}

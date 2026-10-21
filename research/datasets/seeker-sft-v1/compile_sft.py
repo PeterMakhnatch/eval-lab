@@ -21,6 +21,7 @@ import argparse
 import json
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from typing import Any
 
 from build import (
@@ -38,14 +39,47 @@ from build import (
 )
 
 
+@dataclass(frozen=True)
+class _ParsedResponse:
+    commands: list[dict[str, Any]]
+    is_task_complete: bool
+    error: str
+
+
+class _FallbackTerminusJSONPlainParser:
+    def parse_response(self, response: str) -> _ParsedResponse:
+        try:
+            doc = json.loads(response)
+        except Exception as exc:
+            return _ParsedResponse(commands=[], is_task_complete=False, error=str(exc))
+        if not isinstance(doc, dict):
+            return _ParsedResponse(commands=[], is_task_complete=False, error="not a dict")
+        for req in ("analysis", "plan", "commands"):
+            if req not in doc:
+                return _ParsedResponse(commands=[], is_task_complete=False, error=f"missing {req}")
+        cmds = doc["commands"]
+        if not isinstance(cmds, list) or not all(
+            isinstance(c, dict) and isinstance(c.get("keystrokes"), str) for c in cmds
+        ):
+            return _ParsedResponse(commands=[], is_task_complete=False, error="invalid commands")
+        return _ParsedResponse(
+            commands=cmds,
+            is_task_complete=bool(doc.get("task_complete", False)),
+            error="",
+        )
+
+
 def _make_terminus_parser() -> Any:
     existing = sys.modules.get("harbor")
     if existing is not None and not hasattr(existing, "__path__"):
         for k in [m for m in sys.modules if m == "harbor" or m.startswith("harbor.")]:
             sys.modules.pop(k, None)
-    from harbor.agents.terminus_2.terminus_json_plain_parser import TerminusJSONPlainParser
+    try:
+        from harbor.agents.terminus_2.terminus_json_plain_parser import TerminusJSONPlainParser
 
-    return TerminusJSONPlainParser()
+        return TerminusJSONPlainParser()
+    except ModuleNotFoundError:
+        return _FallbackTerminusJSONPlainParser()
 
 
 TIER1_SFT_PATH = HERE / "tier1_witness_sft.jsonl"

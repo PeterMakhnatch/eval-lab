@@ -1168,6 +1168,7 @@ def run_leak_audit(
         HERE / "compile_sft.py",
         HERE / "eval_tb4_dev.py",
         HERE / "tier1_witness_sft.jsonl",
+        HERE / "seeker_tool_sft.jsonl",
         HERE / "data_quality_audit.json",
         HERE / "tb4_dev_eval_cohort.json",
         REPO_ROOT / "tests/test_seeker_sft_v1.py",

@@ -4,7 +4,7 @@
   "digests": {
     "admitted_sft_jsonl_sha256": "sha256:bf305ed0c4caabc3ecdb6f39ab7e4ce77916cd026ecfb9994f18767e6e857472",
     "quarantined_jsonl_sha256": "sha256:48c82b892c63413d1a52730442902609fe733bff8bf877267d531375d1740f47",
-    "source_manifests_json_sha256": "sha256:25250ee546ea37a9f8a1efc7d03b93e518cdd6bc32a6d8f22a9e8bb56e904ae1",
+    "source_manifests_json_sha256": "sha256:d873b5403eabf966542f15ba7d5e20fc5c913d7d1a9ba177bf4c089614abf446",
     "summary_json_sha256": "sha256:fa1e859c5ef06753c7c2c3b1866c46a343ffa3261f4204ce74e5f96689b9a38e"
   },
   "literal_tb4_test_hits_across_all_files": 0,

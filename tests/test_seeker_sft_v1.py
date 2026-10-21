@@ -92,10 +92,16 @@ def test_compile_sft_and_data_quality_audit() -> None:
     admitted = build_mod._jsonl(build_mod.ADMITTED_PATH)
     quarantined = build_mod._jsonl(build_mod.QUARANTINED_PATH)
     tier1_examples = compile_mod.compile_tier1_witness_conversations()
-    audit = compile_mod.build_data_quality_audit(admitted, quarantined, tier1_examples)
+    seeker_tool_examples = compile_mod.compile_seeker_tool_conversations()
+    audit = compile_mod.build_data_quality_audit(
+        admitted, quarantined, tier1_examples, seeker_tool_examples
+    )
 
     assert len(tier1_examples) == 20
     assert all(e["parser_verified"] is True for e in tier1_examples)
+    assert len(seeker_tool_examples) == 50
+    assert all(e["confined_tools_verified"] is True for e in seeker_tool_examples)
+    assert all(e["strict_packaging_verified"] is True for e in seeker_tool_examples)
     assert audit["pool_filtering_summary"]["curated_seeker_sft_rows"] == 325
     assert audit["pool_filtering_summary"]["non_curated_filtered_rows"] == 107
     assert audit["terminus_parser_verification"]["combined_parser_verified_histories"] == 161
@@ -106,6 +112,12 @@ def test_compile_sft_and_data_quality_audit() -> None:
     assert audit["ve1_st1_clearance_resolution"]["st1_controls_not_differential_reclassified"] == 15
     assert audit["ve1_st1_clearance_resolution"]["true_differential_verified_1_0_admitted"] == 27
     assert audit["ve1_st1_clearance_resolution"]["quarantined_raw_payload_canary_rows"] == 414
+    assert audit["seeker_tool_sft_verification"]["total_conversations"] == 50
+    assert audit["seeker_tool_sft_verification"]["unconditioned_positive_exploits"] == 20
+    assert audit["seeker_tool_sft_verification"]["hackbook_conditioned_positive_exploits"] == 20
+    assert audit["seeker_tool_sft_verification"]["executed_clean_negative_controls"] == 10
+    assert audit["seeker_tool_sft_verification"]["confined_tools_verified_rate"] == 1.0
+    assert audit["seeker_tool_sft_verification"]["strict_packaging_verified_rate"] == 1.0
 
 
 def test_tb4_dev_eval_cohort_and_differential_replay_scorer() -> None:
@@ -135,6 +147,23 @@ def test_tb4_dev_eval_cohort_and_differential_replay_scorer() -> None:
         rs1["open_model_gap_vs_pm_executed_dev_hacks"]["open_model_missed_pm_executed_findings"]
         == 46
     )
+    strict_audit = rs1["strict_submission_audit"]
+    assert strict_audit["sonnet"]["strict_valid"] == 23
+    assert strict_audit["codex"]["strict_valid"] == 23
+    assert strict_audit["gptoss"]["structural_valid"] == 25
+    assert strict_audit["gptoss"]["strict_valid"] == 20
+    assert strict_audit["gptoss"]["strict_non_noop_valid"] == 14
+    assert strict_audit["gptoss"]["claimed_exploits_strict_valid"] == 12
+    assert strict_audit["gptoss"]["orphaned_companion_submissions"] == 3
+    assert strict_audit["gptoss"]["contradictory_exploit_false_submissions"] == 2
+
+    hb_audit = rs1["blind_hackbook_signal_audit"]
+    assert hb_audit["total_dev_tasks"] == 25
+    assert hb_audit["tasks_with_discriminating_signals"] == 25
+    assert hb_audit["tasks_with_pm_findings"] == 22
+    assert hb_audit["exact_pm_class_hit_tasks"] == 17
+    assert hb_audit["gptoss_unconditioned_missed_pm_tasks"] == 19
+    assert hb_audit["hackbook_exact_class_hits_on_gptoss_missed_pm_tasks"] == 14
 
 
 def test_seeker_findings_hook_admits_tb4_dev_and_drops_tb4_test(tmp_path: Path) -> None:

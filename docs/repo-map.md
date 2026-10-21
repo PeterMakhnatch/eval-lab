@@ -665,11 +665,11 @@ inputs:
   - path: src/evallab/seeker/confine.py
     digest: sha256:03546cf023f346fa129b13f88db942c5d4b4967bd54ac4ba59133798b09528dd
   - path: src/evallab/seeker/lanes.py
-    digest: sha256:ce91f332919781e0bd15a46045aeb6f24359c21383468ee527fc0fae6c946414
+    digest: sha256:24f18bbab2626ce78ef40612796ef2f0dedfbf75a7a495298c96ce3b3ce1923d
   - path: src/evallab/seeker/packets.py
     digest: sha256:90f557dbf5bdbe3e209aceae0d4f96bf08aff8ca2975171d317444eed9f59fd8
   - path: src/evallab/seeker/prompt.py
-    digest: sha256:b54295101533bbe129f0b6a43ebd51f280b854557132c7ed7022d18dbf3eccd1
+    digest: sha256:17da4b3e5742e4b36fa04b0805720df08cbcc497a84fed177fcea02859f9c46f
   - path: src/evallab/seeker/replay_port.py
     digest: sha256:d581a84dc72f0337dab3a01c080e87807a1f18bffa96b92e5fe12b087e804fcc
   - path: src/evallab/semantic_facts.py

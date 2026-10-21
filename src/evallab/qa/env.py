@@ -560,3 +560,9 @@ def add_env_commands(sub: Any) -> None:
     from evallab.qa.env_agent import add_env_agent_command
 
     add_env_agent_command(commands)
+    from evallab.qa.env_export import add_export_commands
+
+    add_export_commands(commands)
+    from evallab.qa.env_critic import add_critic_command
+
+    add_critic_command(commands)

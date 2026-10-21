@@ -273,6 +273,41 @@ training data must exclude TEST tasks, findings, and trajectories.
   were later found inside that pilot's train set (`status-0800.md` row
   10): the result stands as a negative, but do not reuse that split.
 
+## 8. Teacher-data export, model attestation, failure facts
+
+What it is: the gate between retained audit runs and anything used as training
+or teacher data (spec `audit-harness-spec.md` §4h, build item 8).
+
+```bash
+.venv/bin/evallab qa env export-sft --audit-root <sessions> --seeker-root <seeker run root> \
+  --executed-clean <manifest.json> --out <new dir> [--guard-scope reported|tb4-heldout] [--allow-unattested]
+.venv/bin/evallab qa env attest --session <agent dir> | --transcript <jsonl> --requested <model>
+.venv/bin/evallab qa env critic --audit-root <sessions> --out <new dir> [--min-sessions 2]
+```
+
+- Rows only from runs ending in an execution-confirmed finding (a host-revalidated
+  measured `witness:<id>`, or a seeker differential replay with upstream 1.0 and port 0.0)
+  or an execution-confirmed clean (strict repeat controls, reference all 1.0 and nop all
+  0.0 — "not semantic certification"). Source-only, refuted and unmeasured runs are
+  refused with every failing reason written to `refusals.jsonl`.
+- Split guard: refuses a task that is `test`/`heldout` in any answer key
+  (`research/answer-keys/splits/assignments.csv`), any tb4-audit-v1 TEST task by name or
+  digest, and any id in `--refuse-ids`. Dedup is by distinct `(task, body)`; `report.json`
+  counts rows, distinct tasks and per class. Each row carries a `qa.teacher_clearance/v1`
+  record (guard, execution evidence, model attestation, dedup key).
+- Model attestation (`qa/agent_lanes.py`): the requested model is compared with the model
+  the journal and OMP transcripts show answered. A mismatch (including an OMP fallback or
+  a requested-model change mid-session) is `ModelMismatch`/exit 1 and is never exported;
+  `unreported` (Codex exec does not report its served model) is exported only with
+  `--allow-unattested`, and the row says so.
+- Failure-fact critic (`qa/env_critic.py`): classifies sessions that did not end in a
+  measured witness as `parse`, `driver_error`, `no_finish`, `unmeasured` or `source_only`
+  from recorded status only, clusters by cause and proposes one-line facts plus a DEV-only
+  re-run set. Nothing is applied automatically: a fact becomes a line in
+  `src/evallab/qa/facts/<family>.md` (with its evidence) through a reviewed PR, and
+  `env_critic.facts_for(task_id)` is what a lead packet loads.
+
+
 ## What does not work yet
 
 - **Frozen Task-QA v2 TEST score.** The campaign never froze: the OMP

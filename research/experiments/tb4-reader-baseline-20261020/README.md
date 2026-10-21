@@ -1,5 +1,13 @@
 # TB4 reader baseline: how many of PM's findings does a plain read find, and does the leaderboard help?
 
+> **Correction, 2026-10-21 (DataAnalysisS).** This experiment's receipt and text say the readers and judges
+> ran on Opus 5.5. The retained OMP transcripts say otherwise: all 574 static-arm and 610 leaderboard-arm
+> reader assistant messages (ReadS00-10, ReadL00-10) and all 22 judge sessions record provider
+> `openai-codex`, model `gpt-6.1-sol`. The native `task` model override was not honored. Scores are unchanged;
+> only the model label is. The original wording below is kept except where marked, so the record shows
+> what was claimed. QA agent v1 (#1121) did run on Opus 5.5, so the v1-versus-plain comparison is
+> cross-model; the v0 (Codex) versus plain comparison is the same-model one.
+
 Bridge: `research-context/bridge/2026-10-20-open-qa/run-census.md` (pA-SELF-2). Written before any
 reader output exists; the prompt (`reader_prompt.md`) is frozen with it.
 
@@ -16,7 +24,7 @@ reader output exists; the prompt (`reader_prompt.md`) is frozen with it.
 
 - Tasks: all 66 in `tb4-audit-v1` (25 dev, 41 test). The reader is not trained or tuned on any of it,
   so reporting dev and test together is fair; both are reported.
-- Reader: `anthropic/claude-opus-5-5` subagents, fresh context, 6 tasks each, opaque task ids, one
+- Reader: subagents (declared `anthropic/claude-opus-5-5`; actually Codex `gpt-6.1-sol`, see the correction above), fresh context, 6 tasks each, opaque task ids, one
   frozen prompt for both arms. Arm `static` sees the exported GT-1 task view. Arm `leaderboard`
   sees the same view plus `failure-evidence.md` (public trials only; no key, no PM text). Arms use
   different batch shuffles and different agents, so no agent sees both arms.
@@ -45,7 +53,7 @@ matches 4/238 because it needs the reader to cite a Karotte-port test file or sy
 never sees. Neither says the reader found the same defect. So the declared primary is reported as
 declared, and a semantic match is added as the measure to read:
 
-- **Semantic recall.** For each task, an Opus judge sees the key's findings (id, title, class) with
+- **Semantic recall.** For each task, a judge (Codex `gpt-6.1-sol`, not Opus) sees the key's findings (id, title, class) with
   PM's text for the task, and two anonymised lists of reader findings (A and B, arm order random per
   task). It builds a 1-to-1 matching per list: `same` (the reader finding identifies the same fault, same
   place and mechanism, whatever its class label), `partial` (same area, different mechanism) or none.
@@ -60,7 +68,7 @@ below is therefore a lower bound only.
 ## Results
 
 Cost $0 metered. 22 reader subagents (11 per arm, 6 tasks each) and 22 match judges (two independent passes
-of 11), all `anthropic/claude-opus-5-5`. 66/66 reader files per arm, no malformed output.
+of 11). The receipt said all `anthropic/claude-opus-5-5`; the retained transcripts record `openai-codex/gpt-6.1-sol` (see the correction above). 66/66 reader files per arm, no malformed output.
 
 ### 1. Declared metrics (`report.md`): the lenient modes say the leaderboard hurts; they do not measure the same defect
 
@@ -77,7 +85,7 @@ task gets 13.9% on this mode, so 51% overstates what the reader found.
 
 ### 2. Semantic match (`report-semantic.md`, `agreement.md`): read this one
 
-An Opus judge matched each reader finding to the key finding it describes, 1-to-1, `same` only when it names
+A judge (Codex `gpt-6.1-sol`) matched each reader finding to the key finding it describes, 1-to-1, `same` only when it names
 the same fault in the same place.
 
 | arm | key findings found (same) | precision lower bound | dev | test |
@@ -105,7 +113,7 @@ the same fault in the same place.
 
 ### What a tool-using QA agent has to beat
 
-On the frozen 66 tasks, a no-tools Opus read finds **30% [24, 36] of the key's findings at a 28% precision
+On the frozen 66 tasks, a no-tools read (Codex `gpt-6.1-sol`, see the correction above) finds **30% [24, 36] of the key's findings at a 28% precision
 lower bound** (3.8 findings per task, 64/66 tasks with a claim). A harness that executes graders and
 replays exploits should clear that on executed-exploit findings (`reward_hack`: 36%) and on `ambiguity`,
 where the read scores 22%.

@@ -185,6 +185,15 @@ The structural inventory is
 [`static-inventory.json`](../research/experiments/candidate-execution-20261021/static-inventory.json);
 static admission is not runtime qualification.
 
+Observed Modal limit (2026-10-21, `fin-saccr-rwa` port): the PM verifier
+Containerfile's `dnf install shadow-utils` step fails in Modal's image builder
+(`cpio: cap_set_file failed - Operation not supported`), so the verifier image
+never builds and the cell is `status=error`, `reward=null` with the full
+reservation retained. The `cargo-flight-dispatch` port Containerfile contains
+the same step, so Modal-routed port grading of these two ports is unqualified;
+the inventory's "Modal-only" port rows mean resource routing only. The native
+upstream grader on Modal is unaffected (measured, closure proven).
+
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,
 `outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the

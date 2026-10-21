@@ -2,61 +2,17 @@
   "counts": {
     "by_family": {
       "mimo-repairs": 54,
-      "tb4-dev": 66
+      "tb4-dev": 25
     },
     "by_split": {
-      "eval": 52,
-      "train": 68
+      "eval": 38,
+      "train": 41
     },
-    "pairs": 120,
-    "runnable": 65
+    "pairs": 79,
+    "runnable": 24
   },
   "dataset_id": "seeker-gym-v0",
   "pairs": [
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/atrx-vep-crispr",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/atrx-vep-crispr",
-      "pair_id": "tb4-dev:atrx-vep-crispr",
-      "runnable": true,
-      "split": "train",
-      "task": "atrx-vep-crispr"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/batched-eval-parity",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/batched-eval-parity",
-      "pair_id": "tb4-dev:batched-eval-parity",
-      "runnable": true,
-      "split": "train",
-      "task": "batched-eval-parity"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/biped-contact-dynamics",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/biped-contact-dynamics",
-      "pair_id": "tb4-dev:biped-contact-dynamics",
-      "runnable": true,
-      "split": "eval",
-      "task": "biped-contact-dynamics"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/bun-sourcemap-leak",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/bun-sourcemap-leak",
-      "pair_id": "tb4-dev:bun-sourcemap-leak",
-      "runnable": true,
-      "split": "eval",
-      "task": "bun-sourcemap-leak"
-    },
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
@@ -82,50 +38,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/coq-block-bound",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/coq-block-bound",
-      "pair_id": "tb4-dev:coq-block-bound",
-      "runnable": true,
-      "split": "train",
-      "task": "coq-block-bound"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/ctr-optimization",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/ctr-optimization",
-      "pair_id": "tb4-dev:ctr-optimization",
-      "runnable": true,
-      "split": "train",
-      "task": "ctr-optimization"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/cumulative-layout-shift",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/cumulative-layout-shift",
-      "pair_id": "tb4-dev:cumulative-layout-shift",
-      "runnable": true,
-      "split": "train",
-      "task": "cumulative-layout-shift"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/data-anonymization",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/data-anonymization",
-      "pair_id": "tb4-dev:data-anonymization",
-      "runnable": true,
-      "split": "train",
-      "task": "data-anonymization"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/distributed-dedup",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/distributed-dedup",
@@ -133,17 +45,6 @@
       "runnable": true,
       "split": "eval",
       "task": "distributed-dedup"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/embedding-drift-monitor",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/embedding-drift-monitor",
-      "pair_id": "tb4-dev:embedding-drift-monitor",
-      "runnable": true,
-      "split": "train",
-      "task": "embedding-drift-monitor"
     },
     {
       "family": "tb4-dev",
@@ -159,17 +60,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/foodstuff-beta-activity",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/foodstuff-beta-activity",
-      "pair_id": "tb4-dev:foodstuff-beta-activity",
-      "runnable": true,
-      "split": "train",
-      "task": "foodstuff-beta-activity"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/formal-crypto",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/formal-crypto",
@@ -177,17 +67,6 @@
       "runnable": true,
       "split": "train",
       "task": "formal-crypto"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/fp8-rmsnorm-gemm",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/fp8-rmsnorm-gemm",
-      "pair_id": "tb4-dev:fp8-rmsnorm-gemm",
-      "runnable": true,
-      "split": "train",
-      "task": "fp8-rmsnorm-gemm"
     },
     {
       "family": "tb4-dev",
@@ -225,28 +104,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/freight-dispatch-shift",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/freight-dispatch-shift",
-      "pair_id": "tb4-dev:freight-dispatch-shift",
-      "runnable": true,
-      "split": "train",
-      "task": "freight-dispatch-shift"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/glycan-ms2-elucidation",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/glycan-ms2-elucidation",
-      "pair_id": "tb4-dev:glycan-ms2-elucidation",
-      "runnable": true,
-      "split": "eval",
-      "task": "glycan-ms2-elucidation"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/gsea-proteomics",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/gsea-proteomics",
@@ -269,17 +126,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/hof-topology-interpenetration",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/hof-topology-interpenetration",
-      "pair_id": "tb4-dev:hof-topology-interpenetration",
-      "runnable": true,
-      "split": "train",
-      "task": "hof-topology-interpenetration"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/html-js-filter",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/html-js-filter",
@@ -287,28 +133,6 @@
       "runnable": true,
       "split": "eval",
       "task": "html-js-filter"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/interleaved-vigenere",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/interleaved-vigenere",
-      "pair_id": "tb4-dev:interleaved-vigenere",
-      "runnable": true,
-      "split": "eval",
-      "task": "interleaved-vigenere"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/intrastat-meldung",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/intrastat-meldung",
-      "pair_id": "tb4-dev:intrastat-meldung",
-      "runnable": true,
-      "split": "eval",
-      "task": "intrastat-meldung"
     },
     {
       "family": "tb4-dev",
@@ -324,50 +148,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/ks-solver-cpp",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/ks-solver-cpp",
-      "pair_id": "tb4-dev:ks-solver-cpp",
-      "runnable": true,
-      "split": "eval",
-      "task": "ks-solver-cpp"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/kv-live-surgery",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/kv-live-surgery",
-      "pair_id": "tb4-dev:kv-live-surgery",
-      "runnable": true,
-      "split": "eval",
-      "task": "kv-live-surgery"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/lake-temp-glm",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/lake-temp-glm",
-      "pair_id": "tb4-dev:lake-temp-glm",
-      "runnable": true,
-      "split": "train",
-      "task": "lake-temp-glm"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/layout-config-recreation",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/layout-config-recreation",
-      "pair_id": "tb4-dev:layout-config-recreation",
-      "runnable": true,
-      "split": "eval",
-      "task": "layout-config-recreation"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/layout-config-recreation2",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/layout-config-recreation2",
@@ -375,17 +155,6 @@
       "runnable": true,
       "split": "eval",
       "task": "layout-config-recreation2"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/legacy-utility-triage",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/legacy-utility-triage",
-      "pair_id": "tb4-dev:legacy-utility-triage",
-      "runnable": true,
-      "split": "eval",
-      "task": "legacy-utility-triage"
     },
     {
       "family": "tb4-dev",
@@ -412,50 +181,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/medical-claims-processing",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/medical-claims-processing",
-      "pair_id": "tb4-dev:medical-claims-processing",
-      "runnable": true,
-      "split": "train",
-      "task": "medical-claims-processing"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/mp-checkpoint-consolidation",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/mp-checkpoint-consolidation",
-      "pair_id": "tb4-dev:mp-checkpoint-consolidation",
-      "runnable": true,
-      "split": "train",
-      "task": "mp-checkpoint-consolidation"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/music-harmony",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/music-harmony",
-      "pair_id": "tb4-dev:music-harmony",
-      "runnable": true,
-      "split": "train",
-      "task": "music-harmony"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/mvcc-lsm-compaction",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/mvcc-lsm-compaction",
-      "pair_id": "tb4-dev:mvcc-lsm-compaction",
-      "runnable": true,
-      "split": "train",
-      "task": "mvcc-lsm-compaction"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/nextjs-performance",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/nextjs-performance",
@@ -463,28 +188,6 @@
       "runnable": true,
       "split": "train",
       "task": "nextjs-performance"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/ontology-kg-querying",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/ontology-kg-querying",
-      "pair_id": "tb4-dev:ontology-kg-querying",
-      "runnable": true,
-      "split": "train",
-      "task": "ontology-kg-querying"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/payments-pipeline-fix",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/payments-pipeline-fix",
-      "pair_id": "tb4-dev:payments-pipeline-fix",
-      "runnable": true,
-      "split": "eval",
-      "task": "payments-pipeline-fix"
     },
     {
       "family": "tb4-dev",
@@ -511,17 +214,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/production-planning",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/production-planning",
-      "pair_id": "tb4-dev:production-planning",
-      "runnable": true,
-      "split": "train",
-      "task": "production-planning"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": null,
       "not_runnable_reason": "pm port not in local checkout",
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/protein-autointerp-disulfide",
@@ -529,61 +221,6 @@
       "runnable": false,
       "split": "train",
       "task": "protein-autointerp-disulfide"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/react-lead-form",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/react-lead-form",
-      "pair_id": "tb4-dev:react-lead-form",
-      "runnable": true,
-      "split": "train",
-      "task": "react-lead-form"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/retro-console-soc",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/retro-console-soc",
-      "pair_id": "tb4-dev:retro-console-soc",
-      "runnable": true,
-      "split": "train",
-      "task": "retro-console-soc"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/risk-scorer-replay",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/risk-scorer-replay",
-      "pair_id": "tb4-dev:risk-scorer-replay",
-      "runnable": true,
-      "split": "train",
-      "task": "risk-scorer-replay"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/roy-polymorph-cn",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/roy-polymorph-cn",
-      "pair_id": "tb4-dev:roy-polymorph-cn",
-      "runnable": true,
-      "split": "train",
-      "task": "roy-polymorph-cn"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/rs-archive-clone",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/rs-archive-clone",
-      "pair_id": "tb4-dev:rs-archive-clone",
-      "runnable": true,
-      "split": "train",
-      "task": "rs-archive-clone"
     },
     {
       "family": "tb4-dev",
@@ -599,17 +236,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/session-window-debug",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/session-window-debug",
-      "pair_id": "tb4-dev:session-window-debug",
-      "runnable": true,
-      "split": "train",
-      "task": "session-window-debug"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/sglang-qwen-burst",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/sglang-qwen-burst",
@@ -617,50 +243,6 @@
       "runnable": true,
       "split": "train",
       "task": "sglang-qwen-burst"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/shadow-relay",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/shadow-relay",
-      "pair_id": "tb4-dev:shadow-relay",
-      "runnable": true,
-      "split": "eval",
-      "task": "shadow-relay"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/sound-change-cascade",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/sound-change-cascade",
-      "pair_id": "tb4-dev:sound-change-cascade",
-      "runnable": true,
-      "split": "eval",
-      "task": "sound-change-cascade"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/takens-embedding-lean",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/takens-embedding-lean",
-      "pair_id": "tb4-dev:takens-embedding-lean",
-      "runnable": true,
-      "split": "train",
-      "task": "takens-embedding-lean"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/telecom-entity-resolution",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/telecom-entity-resolution",
-      "pair_id": "tb4-dev:telecom-entity-resolution",
-      "runnable": true,
-      "split": "eval",
-      "task": "telecom-entity-resolution"
     },
     {
       "family": "tb4-dev",
@@ -698,17 +280,6 @@
     {
       "family": "tb4-dev",
       "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/vllm-deepseek-streaming",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/vllm-deepseek-streaming",
-      "pair_id": "tb4-dev:vllm-deepseek-streaming",
-      "runnable": true,
-      "split": "eval",
-      "task": "vllm-deepseek-streaming"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
       "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/vpp-loss-divergence",
       "not_runnable_reason": null,
       "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/vpp-loss-divergence",
@@ -716,28 +287,6 @@
       "runnable": true,
       "split": "train",
       "task": "vpp-loss-divergence"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/wal-recovery-ordering",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/wal-recovery-ordering",
-      "pair_id": "tb4-dev:wal-recovery-ordering",
-      "runnable": true,
-      "split": "train",
-      "task": "wal-recovery-ordering"
-    },
-    {
-      "family": "tb4-dev",
-      "fixed_kind": "pm_port",
-      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/wdm-design",
-      "not_runnable_reason": null,
-      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/wdm-design",
-      "pair_id": "tb4-dev:wdm-design",
-      "runnable": true,
-      "split": "train",
-      "task": "wdm-design"
     },
     {
       "family": "mimo-repairs",

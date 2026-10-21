@@ -30,6 +30,12 @@ material. `target.findings` are `qa.finding/v1` objects
   strict repeat-3 controls reference `[1,1,1]` / nop `[0,0,0]` on the
   exact package, no open supported finding; repaired rows source-qualified).
 
+**Correction (2026-10-21):** the first release's hash split put 19 train
+rows on the frozen 33 held-out MiMo IDs. Those rows are now forced into
+the test split (flagged `heldout_excluded_from_training`); train has 0
+held-out rows. The Qwen3-8B pilot (PR #1146) trained on the pre-fix
+train split, so its frozen-test numbers carry that caveat.
+
 ## Hard rules
 
 - **No tb4-audit-v1 data** (tasks, findings or trajectories) is included;

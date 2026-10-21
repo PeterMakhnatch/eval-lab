@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.seeker.confine import TOOL_SCHEMAS, ConfinedTools, sandbox_profile
-from evallab.seeker.prompt import SYSTEM_PROMPT, user_prompt
+from evallab.seeker.prompt import system_prompt, user_prompt
 
 DRIVERS: dict[str, dict[str, str]] = {
     "sonnet": {"kind": "omp", "model": "anthropic/claude-sonnet-5-5"},
@@ -97,7 +97,7 @@ def _omp_result(stdout: str) -> tuple[str, dict[str, int], float, list[str]]:
 
 
 def run_omp_lane(
-    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False
+    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False, prompt_variant: str = "base"
 ) -> dict[str, Any]:
     model = DRIVERS[driver]["model"]
     profile = workspace.parent / f"{workspace.name}.sb"
@@ -108,13 +108,13 @@ def run_omp_lane(
         "--model", model, "--thinking", "medium",
         "--mode", "json", "--cwd", str(workspace),
         "--tools", "read,grep,glob,write",
-        "--system-prompt", SYSTEM_PROMPT,
+        "--system-prompt", system_prompt(prompt_variant),
         user_prompt(task, hackbook=hackbook),
     ]
     started = time.monotonic()
     record: dict[str, Any] = {
         "driver": driver, "model": model, "task": task, "started_at": _now(),
-        "workspace": str(workspace), "hackbook": hackbook,
+        "workspace": str(workspace), "hackbook": hackbook, "prompt_variant": prompt_variant,
     }
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
@@ -152,6 +152,7 @@ def run_openrouter_lane(
     *,
     timeout: float = 900.0,
     hackbook: bool = False,
+    prompt_variant: str = "base",
     post: Callable[[dict[str, Any], str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
@@ -160,7 +161,7 @@ def run_openrouter_lane(
     post = post or _openrouter_post
     tools = ConfinedTools(workspace)
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt(prompt_variant)},
         {"role": "user", "content": user_prompt(task, hackbook=hackbook)},
     ]
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -168,7 +169,7 @@ def run_openrouter_lane(
     started = time.monotonic()
     record: dict[str, Any] = {
         "driver": "gptoss", "model": DRIVERS["gptoss"]["model"], "task": task,
-        "started_at": _now(), "workspace": str(workspace), "hackbook": hackbook,
+        "started_at": _now(), "workspace": str(workspace), "hackbook": hackbook, "prompt_variant": prompt_variant,
     }
     error: str | None = None
     finished = False

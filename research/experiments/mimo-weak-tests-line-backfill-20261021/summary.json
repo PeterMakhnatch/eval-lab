@@ -63,42 +63,35 @@
     "limits": "Each report is one attempt on a distinct planned task, bound to its package and reference; retries are not extra tasks. Measured line stages, unavailable attempts and inapplicable stages remain separate. Survivors need hash-bound semantic adjudication and scored return-code-zero controls; unreviewed is not a finding.",
     "line_stage_not_reported_task_ids": [],
     "mutant_stage_status_counts": {
-      "measured": 60,
-      "not_applicable": 9
+      "measured": 66,
+      "not_applicable": 10
     },
-    "new_block_candidates": 29,
-    "new_block_unreviewed": 4,
-    "new_reports": 69,
-    "new_scans": 69,
+    "new_block_candidates": 34,
+    "new_block_unreviewed": 5,
+    "new_reports": 76,
+    "new_scans": 76,
     "new_scans_by_status": {
       "budget_exhausted": 1,
-      "measured": 68
+      "measured": 75
     },
     "new_scans_by_verdict": {
-      "fail": 29,
-      "pass": 40
+      "fail": 34,
+      "pass": 42
     },
-    "new_survivors": 162,
+    "new_survivors": 180,
     "new_survivors_review": {
-      "equivalent_or_optional": 53,
+      "equivalent_or_optional": 57,
       "non_positive": 26,
-      "required_gap": 30,
-      "uncertain": 40,
-      "unreviewed": 13
+      "required_gap": 37,
+      "uncertain": 42,
+      "unreviewed": 18
     },
-    "new_survivors_unreviewed": 13,
+    "new_survivors_unreviewed": 18,
     "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
     "plan_sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
     "planned_backfill_tasks": 265,
     "planned_sha256": "7405662e6e4b7a317d0687d0707931c4b86acd55556a7f7b6028a7ff1c8e84c9",
     "remaining_task_ids": [
-      "format-code-task-001891",
-      "format-code-task-000905",
-      "format-code-task-002756",
-      "format-code-task-001259",
-      "format-code-task-002389",
-      "format-code-task-002801",
-      "format-code-task-002672",
       "format-code-task-000311",
       "format-code-task-002002",
       "format-code-task-000371",
@@ -289,7 +282,7 @@
       "format-code-task-000116",
       "format-code-task-002940"
     ],
-    "remaining_tasks": 196,
+    "remaining_tasks": 189,
     "review_inputs": [
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/backfill-reviews.json",
@@ -318,6 +311,14 @@
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/04b.json",
         "sha256": "4122b35bbe9a294c5f2655f7f94c53ffbfe967ebba1632a2164b3b6ceac8321a"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05a.json",
+        "sha256": "c75e2b4ff39586a6094a30211875619755558c2eb509d51c1175d76aef2d8eeb"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05b.json",
+        "sha256": "7fb4ac0ebec8ffe9ce0b648a8790fa4c53e41a5c90d7d23c431648f41f1cd4be"
       }
     ],
     "scans": [
@@ -1442,7 +1443,43 @@
         "verdict": "fail"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": null,
+          "dropped_behavior": "Optional cancel_orders defaults; false/None request-parameter omission in Trading/Broker clients; removal of model annotations already superseded by the kept optional fields.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:3: \"[Bug]: pydantic ValidationError when calling close_all_positions\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:26: \"trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:38-46: \"    print(trading_client.close_all_positions(cancel_orders=True))\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/instruction.md:47-54: \"__root__ -> 0 -> body -> available\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch:6-13: \"+    available: Optional[float] = None\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:8-12: \"+        cancel_orders: Optional[bool] = None,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:58-61: \"+            {\\\"cancel_orders\\\": cancel_orders} if cancel_orders else None,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/dropped.patch:69-79: \"-    existing_qty: float\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:40-53: \"+        account_id, cancel_orders=False\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:88-104: \"+    close_orders = trading_client.close_all_positions(cancel_orders=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000363/tests/test.patch:120: \"+python -m pytest -v -rA tests/broker/broker_client/test_trading_routes.py::test_close_all_positions_for_account_partial_failed_body tests/trading/trading_client/test_position_routes.py::test_close_all_positions_partial_failed_body\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:1: \"== full reward=1.0 rc=0 scored 2.2s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:19: \"== nop reward=0.0 rc=0 scored 2.1s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log:196: \"== confirm reward=1.0 rc=0 scored 2.1s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 196,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 2.1s",
+            "seconds": 2.1,
+            "sha256": "062485d1a7988f869683e05b3190ec8ffeba5d7f39d69cfa398bc6ccce74ce0d"
+          },
+          "label": "out_of_scope",
+          "missing_evidence": null,
+          "reason": "The issue is a TradingClient.close_all_positions response ValidationError, with False explicitly supplied in the reproduction and True in the traceback. The kept model definitions make all four missing FailedClosePositionDetails fields optional. Earlier float annotations left above them are overwritten by the later same-name annotations/defaults in the Python class body, so removing those duplicates is not required. The omitted client defaults and omission of false-valued request dictionaries are separate API/request-construction changes; the supplied calls do not omit cancel_orders. The two selected grader tests exercise partial code/message response bodies with False and both pass. This omission therefore does not leave the reported parsing defect unfixed. It is distinct from the Trading line mutant that newly discards an explicitly True cancellation request.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000363/minimal.patch",
+          "witness_sha256": "271d98d6fb52bf736e6d25e3ca0e0d5916fe2444b1774710e741e2c2082c8072"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -1477,25 +1514,25 @@
             "file": "alpaca/broker/client.py",
             "id": "eefd1afce8",
             "line": 1034,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "alpaca/trading/client.py",
             "id": "e66791e7fc",
             "line": 279,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "alpaca/broker/client.py",
             "id": "7ce937d7d6",
             "line": 1034,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "alpaca/trading/client.py",
             "id": "3b6a3a3b53",
             "line": 279,
-            "review": "unreviewed"
+            "review": "required_gap"
           }
         ],
         "task_id": "format-code-task-000363",
@@ -1610,37 +1647,37 @@
             "file": "src/gluonts/model/forecast.py",
             "id": "3f2f2f9c72",
             "line": 46,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "src/gluonts/model/forecast.py",
             "id": "16cf5661c9",
             "line": 105,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/gluonts/model/forecast.py",
             "id": "3ffce14b01",
             "line": 45,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/gluonts/model/forecast.py",
             "id": "a1bf56a667",
             "line": 51,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/gluonts/model/forecast.py",
             "id": "082494ceab",
             "line": 162,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "src/gluonts/model/forecast.py",
             "id": "b4214ad879",
             "line": 172,
-            "review": "unreviewed"
+            "review": "required_gap"
           }
         ],
         "task_id": "format-code-task-000513",
@@ -3036,6 +3073,49 @@
         "verdict": "pass"
       },
       {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "3005df7e91f834911468a4db6630706772a448efab6bb0c5ab6c78bb638334cd",
+        "grades_log_sha256": "6da892e4983927022afbb395d7fb6ad54679910e63c7bc6c1905b3148faaa0cf",
+        "kept_fraction": 0.4444,
+        "minimal_patch_sha256": "deed0ac5e71878844edc9812f0a42a4dc40066bdbda23d2700a04be548675c86",
+        "mutant_stage": {
+          "killed": 3,
+          "reason": "",
+          "status": "measured",
+          "survivors": 1,
+          "tried": 4,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:bf0e19c83a7e9bae92170fb481626a2276c88dd7ffe10158426a8b29795f6a26",
+        "reference_sha256": "30196223edeab3fcda31f401b84f9144f20803a7a4545ccee1f037ae11c4abe8",
+        "report_sha256": "b4704dc3e9ccbe38f45ba62f0a74d2fe88ba96618a30d9527388a1f8a987ccc5",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "quark/utils/weight.py",
+            "id": "394473803e",
+            "line": 48,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-000905",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
         "block_review": {
           "evidence_refs": [
             "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000926/instruction.md:94: \"The HTML is badly formatted in the children 2, 3, 4 got one extra level of indentation.\"",
@@ -3275,7 +3355,7 @@
             "file": "fastavro/json_write.py",
             "id": "b036809caf",
             "line": 5,
-            "review": "unreviewed"
+            "review": "uncertain"
           }
         ],
         "task_id": "format-code-task-000932",
@@ -3446,6 +3526,67 @@
         "task_id": "format-code-task-001248",
         "usable_controls": true,
         "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "75664104a2a2c084d1ec92fb371de79db9ab50bfa786929efeec38a4049efe88",
+        "grades_log_sha256": "8a9f26567a13caf848c6fac0ad7283a600b762cd947e0a7eb7c115a45778ca76",
+        "kept_fraction": 0.5957,
+        "minimal_patch_sha256": "524d54b4a269c4df7082aba1b00236d0e884eea136de081ea21606ed66b0e85d",
+        "mutant_stage": {
+          "killed": 2,
+          "reason": "",
+          "status": "measured",
+          "survivors": 4,
+          "tried": 6,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:4abb712c4ea5b7460ec3a4621ed9a3720b8ebb6cb99299791eedeac85199550d",
+        "reference_sha256": "4678ed34712fc5765dd0fe0a4c2c71256c8d099213d73d336809ac3e863f50a3",
+        "report_sha256": "dd4239a36f23fb533b981d47327d81517e698f3675f898e319a268ac8a1a94e6",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "moto/s3/models.py",
+            "id": "4bdcd21d8f",
+            "line": 2015,
+            "review": "unreviewed"
+          },
+          {
+            "file": "moto/s3/models.py",
+            "id": "20dcc36cd9",
+            "line": 1578,
+            "review": "unreviewed"
+          },
+          {
+            "file": "moto/s3/models.py",
+            "id": "62c201cbd4",
+            "line": 1577,
+            "review": "unreviewed"
+          },
+          {
+            "file": "moto/s3/models.py",
+            "id": "9a54f032fc",
+            "line": 1577,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-001259",
+        "usable_controls": true,
+        "verdict": "fail"
       },
       {
         "block_review": null,
@@ -4064,6 +4205,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "0a064d6b6fdb29578f16b5cb30d7a86c2620cbb02cf2c2ea559419e798236a05",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 0,
+          "reason": "no mutable code on the lines the reference wrote",
+          "status": "not_applicable",
+          "survivors": 0,
+          "tried": 0,
+          "unscored": 0,
+          "verdict": "unknown"
+        },
+        "package_digest": "sha256:669d7945afd842b6a48cc139ea33b7e79b4d25afba64f4d74c4818426c791877",
+        "reference_sha256": "b69e0501f65e6074acfedd0c33f442227d23322c6672a699f614b98771067e37",
+        "report_sha256": "c6e0417e54eee0a9eb00c9d5224d8715846c5d82f34e983cd31bc95ce8809015",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-001891",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "892fe9d4812cc5b32374e4c3f26a23b688461d58433c32c368e99197a66ebda1",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -4393,7 +4570,41 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": null,
+          "dropped_behavior": "The _annotate type-hint extension, __all__ additions for AddDPNoiseParams/QuantileParams, and an unrelated version downgrade. None removes the retained runtime import or annotation call.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:3: \"pipeline_dp.AddDPNoiseParams(noise_kind, l0_sensitivity=None, linf_sensitivity=None, l1_sensitivity=None, l2_sensitivity=None, budget_weight=1, output_noise_stddev=False)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/instruction.md:9: \"annotate the returned collection with the params and computed budget\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:9: \"+from pipeline_dp.aggregate_params import AddDPNoiseParams\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:146-156: \"+            return self._annotate(anonymized_col, params=params, budget=budgets)\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch:189: \"+        return self._backend.map_values(col, add_noise, \\\"Add noise\\\")\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch:9-21: \"+__version__ = '0.3.0'\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/dropped.patch:31-35: \"+                                aggregate_params.AddDPNoiseParams],\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:81-118: \"+    params = pipeline_dp.AddDPNoiseParams(\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002149/tests/test.patch:182-232: \"+def test_budget_weight_changes_allocated_budget_and_noise_per_session():\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:24: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log:349: \"== confirm reward=1.0 rc=0 scored 2.5s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 349,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 2.5s",
+            "seconds": 2.5,
+            "sha256": "8f45b81dfac82394ead1e9f26191a9767c5b13297e115556c685e137551de25c"
+          },
+          "label": "neutral",
+          "missing_evidence": null,
+          "reason": "The accepted omission keeps the public pipeline_dp.AddDPNoiseParams import, both noise methods, sensitivity/budget forwarding, map_values, report attachment and runtime annotation call. The removed _annotate Union member is only a type annotation; the import remains the required public attribute without an __all__ entry. Star-import exports, the unrelated QuantileParams export and a 0.3.1-to-0.3.0 version change are not requested behavior. Thus the passing minimal patch is a complete fix for the omitted behaviors, not evidence of an incomplete required runtime path. This does not adjudicate the separate line-default or report-flag mutations.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002149/minimal.patch",
+          "witness_sha256": "81567571ab8f82eed8ff6c76021b3751389ac2bece58295d7bd5d17e542d2da8"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -4428,13 +4639,13 @@
             "file": "pipeline_dp/aggregate_params.py",
             "id": "5c4cbed299",
             "line": 819,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "pipeline_dp/dp_engine.py",
             "id": "a73f5ff7bb",
             "line": 609,
-            "review": "unreviewed"
+            "review": "uncertain"
           }
         ],
         "task_id": "format-code-task-002149",
@@ -5192,6 +5403,61 @@
             "status": "scored"
           }
         },
+        "dropped_patch_sha256": "dd94a3f1761e087e3c366b2a1d63d7723259902ee87740661630f69be7c452d9",
+        "grades_log_sha256": "b45704309c14ebb094c4eeaec1c7b043e3a64fe7c4a58dbf35ad9b81de7f2b9f",
+        "kept_fraction": 0.5,
+        "minimal_patch_sha256": "ab59d78431ca929d0df82c23b09b5a9b5acaaecbbb39df1953c06b7a3dfb2539",
+        "mutant_stage": {
+          "killed": 17,
+          "reason": "",
+          "status": "measured",
+          "survivors": 3,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:03508c71ff5a9674e8286f8f2162efc31fff9942c793f3dee9583f3b51bbea0b",
+        "reference_sha256": "c12905e7c08ef20feec9b6f25986819c27e38587fcad35f1b1bf71d09dccb4bc",
+        "report_sha256": "9a85188f93651eff4623104e18ead11ec3fc6926ecf28f160072d6381e571a8c",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "src/pip/_internal/download.py",
+            "id": "4d12f25f22",
+            "line": 345,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/pip/_internal/download.py",
+            "id": "4d5b7e2f25",
+            "line": 327,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/pip/_internal/download.py",
+            "id": "bace0b3112",
+            "line": 347,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-002389",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
         "dropped_patch_sha256": null,
         "grades_log_sha256": "777e4bd496c3c9c349d85a784db56257017a4595da9a78bd489630e8775a4e18",
         "kept_fraction": 1.0,
@@ -5640,6 +5906,42 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "0fc85d302bf051341a55d940fc4c3326badbd252e2b662b3b86ccfef9f008aa2",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 1,
+          "reason": "",
+          "status": "measured",
+          "survivors": 0,
+          "tried": 1,
+          "unscored": 0,
+          "verdict": "pass"
+        },
+        "package_digest": "sha256:a286d548fd4a038c953fbeed27bfe0298f5842cb2489bb48f5e2c1bbe0023c46",
+        "reference_sha256": "be0aab0f5918cfe35b56073f3731aace42ff53b53f5e2f3e1583ced763070f4f",
+        "report_sha256": "cd0d41a34051014ddd54a7fac2badcd1f03c78dbcd3dea385c06b9b158c03669",
+        "status": "measured",
+        "survivors": [],
+        "task_id": "format-code-task-002672",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "a18a92ee821d5c3327d693554ecbfd04446627389133c93c57370e8be70b52e4",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -5687,7 +5989,42 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": null,
+          "dropped_behavior": "Final Dedent closing the outer DO UPDATE indentation after the optional WHERE sequence.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:11-12: \"Within the query, anything that is before the `on` is formatted absolutely perfectly, but after it fails to indent.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:41-43: \"on conflict (id) do update\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/instruction.md:47-58: \"If I have just a `update` statement (without a `do`) it indents as follows just fine.\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch:13-29: \"+                ImplicitIndent,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch:27-29: \"                 Sequence(\\\"WHERE\\\", Ref(\\\"ExpressionSegment\\\"), optional=True),\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/dropped.patch:5-12: \"+                Dedent,\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:20-50: \"+def test_postgres_on_conflict_do_update_indents_set_clause() -> None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:53-110: \"+def test_postgres_plain_update_set_indent_preserved() -> None:\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002726/tests/test.patch:130: \"+PYTHONPATH=src python -m pytest test/dialects/postgres_test.py -k 'on_conflict or plain_update' -v\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:288-297: \"collecting ... collected 26 items / 21 deselected / 5 selected\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:1: \"== full reward=1.0 rc=0 scored 2.6s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:20: \"== nop reward=0.0 rc=0 scored 2.7s\"",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log:280: \"== confirm reward=1.0 rc=0 scored 3.0s\""
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 280,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 3.0s",
+            "seconds": 3.0,
+            "sha256": "50c8672b4d5557de2a7056714e8c22e3ea29425b740733b029857917073701a9"
+          },
+          "label": "uncertain",
+          "missing_evidence": "Pinned enclosing PostgreSQL INSERT/conflict grammar and SQLFluff indentation/reflow consumers sufficient to derive a specific incorrect required suffix or subsequent-statement output from this final-Dedent omission. No fresh formatting run is permitted or claimed.",
+          "reason": "The minimal patch retains the import plus Indent/ImplicitIndent and the first Dedent that produce the requested SET/assignment/WHERE indentation, but omits the final Dedent after the optional WHERE. The current confirm log records all five selected formatting tests passing. Missing a closing marker creates a source-level concern about suffix/following-statement indentation, yet the bound hunk does not retain the enclosing INSERT grammar or SQLFluff indentation/reflow consumers. There is no demonstrated required SQL/output counterexample in the retained evidence, and marker-balance arithmetic alone cannot prove one. The grader covers simple conflict updates, WHERE, multiple assignments, DO NOTHING and standalone UPDATE, but not a suffix/following statement witness. Keep the exact omission uncertain rather than inheriting a defect or declaring the task clean.",
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002726/minimal.patch",
+          "witness_sha256": "2bcfe62dc538e59c4e43c1bab2dfa48367ea22924eee77b66c3229aa6b8fff56"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -5736,6 +6073,55 @@
             "status": "scored"
           }
         },
+        "dropped_patch_sha256": "23282c4be8608fa236e7c504f7d20d5c1498192bff43da88748289cdea5b6fdb",
+        "grades_log_sha256": "e10f9674aa0912ab10332e4faee57c063757726c37ec2a0ff2713ef2a4930d47",
+        "kept_fraction": 0.8462,
+        "minimal_patch_sha256": "8f32ba5d59dfd65d78b6f4ed54cafbbc1faf292224e9ace5c301956311f2be09",
+        "mutant_stage": {
+          "killed": 1,
+          "reason": "",
+          "status": "measured",
+          "survivors": 2,
+          "tried": 3,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:175abc8664e4f11ce6c8848b1d5ce4826d433b52abddab63a06d0afac23d2adc",
+        "reference_sha256": "f2567e3b57e040a14bd4a4cd132503803f8b1e29fa636f9b8d1c12624e3cce80",
+        "report_sha256": "7aaa564d1d26fc58e8575f3ff719f55e59d561fa65442f8bad6393fd2bac12cb",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "src/streamlink/cache.py",
+            "id": "2b2e4442fa",
+            "line": 73,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/streamlink/cache.py",
+            "id": "9e44a2d1e3",
+            "line": 78,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-002756",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
         "dropped_patch_sha256": null,
         "grades_log_sha256": "d82e8ceaf2290761e162091282fb962d9693c6c323410c0fa5b463a5f3353084",
         "kept_fraction": 1.0,
@@ -5759,7 +6145,59 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": {
+            "expected": "The NOS matcher accepts the named video URL so normal routing can reach its fixed stream extraction.",
+            "fresh_execution": false,
+            "kind": "static_named_required_url_counterexample",
+            "predicted_actual": "The retained re.compile(r\"https?://(?:\\w+\\.)?nos\\.nl/(?:live|video|collectie)\") cannot match the /l/ path, so this plugin is not selected for the exact required URL.",
+            "scenario": "Select the NOS plugin for the instruction's URL https://nos.nl/l/2490404 after applying minimal.patch."
+          },
+          "dropped_code": [
+            "src/streamlink/plugins/nos.py#0"
+          ],
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/instruction.md:19-25: the requested example video is https://nos.nl/l/2490404",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/instruction.md:46-50: the issue explicitly reports \"No plugin can handle URL\" for that exact URL",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/minimal.patch:5-19: only the @type validator changes; URL registration is not fixed",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/dropped.patch:8-13: the retained matcher has only live|video|collectie while the omitted replacement adds l/ and livestream/",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:24-39: the patch adds matcher acceptance for /l/2490404, but these assertions are not selected by the real runner",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:68-78: schema tests directly instantiate NOS for /live without routing through matcher selection",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:120-128: mimo_test_command.sh explicitly executes only the three schema tests",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test_command.sh:1: verifier invokes mimo_test_command.sh, not the broader test_commands.json entry",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:1: == full reward=1.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:22: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:88: == drop-block:src/streamlink/plugins/nos.py#0 reward=1.0 rc=0 scored 2.1s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:109-128: == confirm reward=1.0 rc=0 scored 1.8s; exactly three TestNOSSchema tests pass"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 109,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.8s",
+            "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+          },
+          "label": "confirmed_weak",
+          "limits": "No live NOS request, fresh matcher invocation or replay was executed. The static proof is for the registered NOS matcher and the named /l/ URL; no claim is made about all URLs or all other plugins.",
+          "reason": "The accepted minimal patch keeps the @type list-validation fix but drops the pluginmatcher update. Its retained regex only permits paths beginning live, video or collectie, so the specifically required example https://nos.nl/l/2490404 remains outside NOS routing. The actual runner invokes only three TestNOSSchema methods, whose fixture constructs NOS(session,\"https://nos.nl/live\") directly; it bypasses the TestPluginCanHandleUrlNOS matcher assertions added elsewhere in the very same test patch. The exact subset received the recorded confirm=1 scored rc=0 grade despite this unimplemented named URL requirement. This independently agrees with the frozen atlas claim, but is supported here by current exact subset bytes and current control headers rather than inheritance by task ID.",
+          "recorded_omission_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "recorded_omission_grade_evidence": {
+            "line": 88,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+            "quote": "== drop-block:src/streamlink/plugins/nos.py#0 reward=1.0 rc=0 scored 2.1s",
+            "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/minimal.patch",
+          "witness_sha256": "1e62407d652af83fc5e598e9590218df5a4a5891c9bedbeb5fbccac389579a40"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -5791,6 +6229,91 @@
         "status": "measured",
         "survivors": [],
         "task_id": "format-code-task-002758",
+        "usable_controls": true,
+        "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": "fa780366994b98e6e1fdfcaa7af84c16ef1f2aaed5381404b0d3a2706003ef3b",
+        "grades_log_sha256": "345a7bb991bf628ecbbc6c179f04fda5f62d50c93691c2022878c4c5632443da",
+        "kept_fraction": 0.9277,
+        "minimal_patch_sha256": "1136e32065c08bc389322e001ea5923b41bdf1e26ef3cbf7ce3e6d0b1230b37b",
+        "mutant_stage": {
+          "killed": 12,
+          "reason": "",
+          "status": "measured",
+          "survivors": 8,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:89c59bf815ef78e6710f7a540a23fe871d2708df6eba9f1e1d3fcb3b3db22822",
+        "reference_sha256": "ac688e209b39b0144d26f31395fba59a0f46b5bd8a56d43d72756bb56b55840e",
+        "report_sha256": "1c747db8ad6162624b8a67ab04ee13139e26be91da599011fc911737c231f5cc",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "id": "d6b57848d1",
+            "line": 210,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "id": "ba5092ba00",
+            "line": 175,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "id": "aa7f37bd5e",
+            "line": 198,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "id": "402ba836d3",
+            "line": 173,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "id": "fadeb61a8f",
+            "line": 176,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "id": "21006858df",
+            "line": 226,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/en/descendant.py",
+            "id": "2fbda168b4",
+            "line": 229,
+            "review": "unreviewed"
+          },
+          {
+            "file": "src/wiktextract/extractor/zh/descendant.py",
+            "id": "c0c0be8b02",
+            "line": 188,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-002801",
         "usable_controls": true,
         "verdict": "fail"
       },
@@ -5965,28 +6488,28 @@
         "verdict": "pass"
       }
     ],
-    "usable_control_pairs": 69
+    "usable_control_pairs": 76
   },
   "schema": "har209.weak_test_coverage/v1",
   "scientific_exclusions": {
     "by_claim_status": {
-      "confirmed": 183,
+      "confirmed": 186,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 183,
+      "confirmed_defect": 186,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "confirmed_wrong_patch_package_pairs_checked": 125,
+    "confirmed_wrong_patch_package_pairs_checked": 128,
     "confirmed_wrong_patch_package_pairs_missing": [],
-    "exact_package_pairs": 209,
-    "fresh_review_supported_packages": 13,
-    "fresh_review_supported_witnesses": 32,
+    "exact_package_pairs": 212,
+    "fresh_review_supported_packages": 17,
+    "fresh_review_supported_witnesses": 40,
     "limits": "Exact package exclusions and conservative holds are separate from execution grades. Unlisted repaired children receive no inherited certification; historical manifests and completed experiment plans are unchanged.",
     "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
-    "sha256": "b5ea993b1a65ee5fe74f3aaaf92b22e0c464e40eb6245bccf9e3b80c93682bad",
+    "sha256": "3f0fcc1f3bac2c150470e960124ab7e681f49cf402a3e344ff31f3e7e4ddf570",
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

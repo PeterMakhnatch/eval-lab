@@ -1,0 +1,1197 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview05A (native requirement-level source and recorded-control review only)",
+  "reviewed_at_utc": "2026-10-21T19:31:01.025285+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-000513",
+      "format-code-task-002758",
+      "format-code-task-000932"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/05a.json",
+    "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Read exact canonical plan rows, full task instructions and reference patches, the one minimal/dropped block witness, all seven full survivor patches, complete packaged test patches, verifier command chains and authoritative grades.log headers. Hash every bound source file. Adjudicate narrowly against required behavior, use explicit static examples/path proofs rather than fresh controls, and preserve generated-but-unattempted/budget boundaries. No producer or validator was run."
+  },
+  "frozen_source_bindings": {
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "atlas": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+    }
+  },
+  "summary": {
+    "reports": 3,
+    "block_fail_candidates": 1,
+    "block_labels": {
+      "confirmed_weak": 1,
+      "neutral": 0,
+      "out_of_scope": 0,
+      "uncertain": 0
+    },
+    "reported_survivors": 7,
+    "reviewed_survivors": 7,
+    "survivor_labels": {
+      "required_gap": 5,
+      "equivalent_or_optional": 1,
+      "non_positive": 0,
+      "uncertain": 1
+    },
+    "generated_mutants": 180,
+    "attempted_mutants": 21,
+    "recorded_killed_mutants": 14,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 159,
+    "authoritative_grade_records": 36,
+    "confirmed_positive_claims": 6,
+    "confirmed_positive_identities": [
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "16cf5661c9"
+      },
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "3ffce14b01"
+      },
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "a1bf56a667"
+      },
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "082494ceab"
+      },
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "b4214ad879"
+      },
+      {
+        "task_id": "format-code-task-002758",
+        "kind": "block",
+        "id": "block"
+      }
+    ],
+    "task_ids_with_confirmed_positive_claims": [
+      "format-code-task-000513",
+      "format-code-task-002758"
+    ],
+    "uncertain_claims": 1,
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-000932",
+        "kind": "line",
+        "id": "b036809caf"
+      }
+    ],
+    "task_ids_with_uncertain_claims": [
+      "format-code-task-000932"
+    ],
+    "not_promoted_identities": [
+      {
+        "task_id": "format-code-task-000513",
+        "kind": "line",
+        "id": "3f2f2f9c72",
+        "label": "equivalent_or_optional"
+      }
+    ],
+    "limitations": [
+      "All three assigned completed reports, the sole block-fail omission and all seven reported line survivors are adjudicated; zero candidates remain unrecorded.",
+      "Six positive claims have exact scored rc=0 full=1/nop=0/witness=1 headers. The block witness uses the recorded confirm grade in block.grade; controls contains only full and nop.",
+      "Five QuantileForecast gaps are a degenerate left-tail fit, wrong segment on four knots, a first-segment unpacking error, out-of-range two-knot right anchor, and linear treatment beyond a stored right edge. The NOS block omits routing for the explicitly named /l/ video URL.",
+      "The private helper's upper-extrapolation segment mutation is unreachable through the required quantile consumer and is not promoted. The fastavro union-default survivor remains uncertain: validation is retained and the concrete issue does not specify union-default preservation; a potential unrelated encoding regression is not called harmless or a required gap.",
+      "The forecast scan generated 179 mutants but attempted only 20. All 159 generated-but-unattempted candidates remain outside adjudication. The NOS line stage is not_applicable rather than a clean line certificate.",
+      "Every recorded grade header in these completed logs is scored rc=0, including reward-zero controls/killed mutants; no recorded timeout or unscored attempt is silently converted to a negative. Recorded grade timeout, max-grades, mutant limit, memory and network limits are preserved per report.",
+      "Package directory/image digests were not recomputed. Exact measured package identities match canonical plan/report/atlas; cited file bytes are individually hashed. Static counterexamples were not freshly executed and do not certify packages globally.",
+      "No controls, Docker, inference/model/cloud or other remote API, build, test, lint, formatting, producer/validation check, git command or immutable-input edit was performed. Only this new review JSON is written; parent owns integration and verification."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-000513",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513",
+      "package_digest": "sha256:d61fe4636abe00ec3f78fcb60b075c3bafd5d220e47141a0f1e83856af231fc9",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000513/solution.patch",
+      "reference_sha256": "f48dea17ca3d03ba468558c039f749e9c8332fbdf675470b8fb69b56d2e66835",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/report.json",
+      "report_sha256": "06bf49144c88a4aa4ce932dc49f5d15aadac1c79eca255836989fe09c88da191",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+      "grades_log_sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md",
+      "instruction_sha256": "7f3707003eb68dd991ae3424125e2ed4dbe4b93e2a746594194e090b7a8acf54",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/task.toml",
+      "task_toml_sha256": "37f5ffeeb13b449b1e42c07471490201236aa0ce621d837197f502d0ad9ebf09",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch",
+      "test_patch_sha256": "bf7f21a51e9ea4d1123469b696a8e6e0e55f1fe4c72c3e09d4813ce1d5281ce4",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.sh",
+      "test_runner_sha256": "b1ba112496a7570863721b3ab4efc76f2b2f0dd0250e8cd49ac30f53520fc362",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test_command.sh",
+      "test_command_sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "75155a06d16bf8a0a94843df95bd3a3f790a51df6e2af8e11ca4a244da514689",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513",
+        "package_digest": "sha256:d61fe4636abe00ec3f78fcb60b075c3bafd5d220e47141a0f1e83856af231fc9",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000513/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "f48dea17ca3d03ba468558c039f749e9c8332fbdf675470b8fb69b56d2e66835",
+        "task_id": "format-code-task-000513"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:879a8228679d87491ab95298e39d66252aecaa585e67cbfb1110d26d100e1a0d",
+      "started_at": "2026-10-21T19:09:44+00:00",
+      "finished_at": "2026-10-21T19:11:19+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 3.3s",
+          "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+          "line": 19,
+          "quote": "== nop reward=0.0 rc=0 scored 2.6s",
+          "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "The package path/digest are the immutable measured identity agreed by the canonical frozen plan, completed report and atlas. Cited file bytes were independently SHA256-bound; the package directory and image were not recomposed or extracted."
+      },
+      "block": null,
+      "survivors": [
+        {
+          "id": "3f2f2f9c72",
+          "label": "equivalent_or_optional",
+          "reason": "The changed idx=(1) affects only _linear_interpolation when x exceeds the largest stored quantile. For the required QuantileForecast.quantile consumer, right_tail=min(last_quantile, max(penultimate_quantile, 0.9)) is never greater than the largest stored quantile, and x>=right_tail is routed to ExponentialTailApproximation.right before the helper can run. Therefore the changed helper branch is unreachable on this required public path. A direct call to the private helper above the stored range can differ, but that is not the requested consumer behavior and is not promoted to a weak-test defect.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3f2f2f9c72.patch:18-38: only the helper upper-extrapolation segment changes",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3f2f2f9c72.patch:146-158: effective right threshold is bounded above by the last stored quantile",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3f2f2f9c72.patch:168-199: right-tail routing precedes the private interpolation call",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:25-32,80-123: required public method calls exercise interior and exponential tails, not a private helper upper extrapolation API",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:88: == mutant:3f2f2f9c72 reward=1.0 rc=0 scored 3.0s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 88,
+            "quote": "== mutant:3f2f2f9c72 reward=1.0 rc=0 scored 3.0s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3f2f2f9c72.patch",
+          "patch_sha256": "676122594b490570a6a8175e32c59268157dd6097449a118070107b968a70b4b",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 46,
+          "end_line": 46,
+          "operator": "drop-operand",
+          "original": "len(xs) - 1",
+          "replacement": "(1)",
+          "counterexample": {
+            "kind": "static_required_path_refutation",
+            "scenario": "For any valid stored coordinates and a missing request x>xs[-1], ask QuantileForecast.quantile(x).",
+            "expected_and_predicted_actual": "Both reference and survivor take the exponential right-tail branch, because right_tail<=xs[-1]<x. The mutated idx assignment is not evaluated.",
+            "fresh_execution": false
+          },
+          "limits": "Equivalence is scoped to the required QuantileForecast.quantile path; this is not a global equivalence certificate for direct private-helper callers."
+        },
+        {
+          "id": "16cf5661c9",
+          "label": "required_gap",
+          "reason": "The left-tail denominator becomes log((q1+t)/(q1+t)+t)=log(1+t), eliminating q0 from the fitted slope. The result remains finite and below the first array, so it satisfies the grader's weak sign/non-linearity checks, but is no longer an exponential tail approximation fitted from the two nearest stored tail quantiles as required. With the specified base forecast the coefficient is about 9e8 instead of a slope determined by q0=0.1 and q1=0.5, and the extrapolated branch does not approach the first stored array at its anchor. This is a concrete two-point-fit defect, not merely a difference from the reference implementation.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/16cf5661c9.patch:86-91: first tail coordinate is replaced by the second in the logarithmic slope denominator",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/16cf5661c9.patch:103-121: the left prediction multiplies that broken slope and anchors at the second array",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/16cf5661c9.patch:168-191: the public quantile method routes q=0.05 to this left approximation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:90-105: the left-tail test only requires finite values below [1,2] and unequal to a linear extrapolation; no two-point calibration or expected exponential magnitude is checked",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:135: == mutant:16cf5661c9 reward=1.0 rc=0 scored 2.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 135,
+            "quote": "== mutant:16cf5661c9 reward=1.0 rc=0 scored 2.8s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/16cf5661c9.patch",
+          "patch_sha256": "488d3f9d752973cb20d2982120bc4156021de8d74def81f275a24c6fb23dd93d",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 105,
+          "end_line": 105,
+          "operator": "integer-shift",
+          "original": "0",
+          "replacement": "1",
+          "counterexample": {
+            "kind": "static_two_point_fit_counterexample",
+            "scenario": "forecast_arrays=[[1,2],[10,20],[100,200]], forecast_keys=[\"0.1\",\"0.5\",\"0.9\"], any valid start period; request quantile(0.05). Let t=1e-8.",
+            "expected": "A left exponential fitted to the two nearest stored quantiles (0.1,[1,2]) and (0.5,[10,20]); in the retained logarithmic parameterization the slope denominator is log((0.5+t)/(0.1+t)+t).",
+            "predicted_actual": "[10,20] + [9,18] * log((0.05+t)/(0.5+t)+t) / log(1+t), a huge negative result whose slope ignores the first coordinate. As the query approaches 0.1 from below this tail does not approach [1,2].",
+            "fresh_execution": false,
+            "basis": "Symbolic substitution in the fully retained left-tail producer and public routing, not an execution of task code or an additional scored control."
+          },
+          "limits": "No new numerical task execution was performed. The exact tolerance/formula is not asserted to be the only legal implementation; losing a required fitting coordinate is the defect."
+        },
+        {
+          "id": "3ffce14b01",
+          "label": "required_gap",
+          "reason": "Changing the upper-range comparison from x>xs[-1] to x>xs[1] routes every interior query after the second knot to the final stored segment. Three-knot fixtures conceal this because that segment happens to be the correct segment after the second knot. With four knots the public method instead interpolates/extrapolates using a non-surrounding pair, contradicting the explicit requirement to interpolate between surrounding stored arrays.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3ffce14b01.patch:18-38: x>xs[1] chooses the final pair rather than searching the surrounding knots",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3ffce14b01.patch:146-158,168-199: the concrete four-knot interior query is routed to this helper, not a tail",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:25-32,80-87: the nontrivial interpolation fixture has only three stored knots and queries its final segment",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:174-189: the other interpolation case has only two quantile arrays after mean is removed; there is no four-knot interior segment test",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:153: == mutant:3ffce14b01 reward=1.0 rc=0 scored 3.0s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 153,
+            "quote": "== mutant:3ffce14b01 reward=1.0 rc=0 scored 3.0s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/3ffce14b01.patch",
+          "patch_sha256": "2c4a9523109e959fe4ee9e042d6b0f86144f41955d88e4861a20e9b752a2eab2",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 45,
+          "end_line": 45,
+          "operator": "drop-negation",
+          "original": "-",
+          "replacement": "",
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "scenario": "forecast_arrays=np.array([[0.0],[10.0],[30.0],[110.0]]), forecast_keys=[\"0.1\",\"0.3\",\"0.5\",\"0.9\"], any valid start period; request quantile(0.4).",
+            "expected": "Approximately np.array([20.0]), interpolating the surrounding 0.3 and 0.5 arrays.",
+            "predicted_actual": "Approximately np.array([10.0]): idx=3 chooses the 0.5/0.9 arrays and computes 30 + (0.4-0.5)/(0.9-0.5)*(110-30). The effective thresholds remain 0.1 and 0.9, so this incorrect helper path is reachable.",
+            "fresh_execution": false
+          },
+          "limits": "Numerical values are algebraic predictions from the cited source, not new scored results."
+        },
+        {
+          "id": "a1bf56a667",
+          "label": "required_gap",
+          "reason": "The y slice extends to idx+2 but is still unpacked into only two variables. For an interior request in the first segment of the task's own three-knot forecast, that slice contains all three arrays and raises ValueError instead of returning the required horizon-aligned interpolated ndarray. The tested final segment is protected only by Python slice truncation, which hides the extra element.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/a1bf56a667.patch:18-38: y_low,y_high receives ys[idx-1:idx+2], causing three-value unpacking when a later knot exists",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/a1bf56a667.patch:146-158,168-199: quantile(0.3) lies strictly between the effective tails and invokes the helper",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:25-32,80-87: the three-knot fixture checks only quantile(0.75), whose final-segment y slice truncates to two arrays",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:174-189: the two-quantile interpolation fixture also truncates to two arrays, leaving the first segment of three-or-more knots unchecked",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:358: == mutant:a1bf56a667 reward=1.0 rc=0 scored 2.9s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 358,
+            "quote": "== mutant:a1bf56a667 reward=1.0 rc=0 scored 2.9s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/a1bf56a667.patch",
+          "patch_sha256": "37ee1e806a402dc698c23ba001e7e3a095e5deb70cc4aad2d1a70599177780c1",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 51,
+          "end_line": 51,
+          "operator": "integer-shift",
+          "original": "1",
+          "replacement": "2",
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "scenario": "Use the instruction's forecast_arrays=[[1,2],[10,20],[100,200]], forecast_keys=[\"0.1\",\"0.5\",\"0.9\"], and any valid start period; request quantile(0.3).",
+            "expected": "Approximately np.array([5.5,11.0]), the midpoint between the 0.1 and 0.5 arrays.",
+            "predicted_actual": "ValueError from unpacking ys[0:3] into y_low,y_high. idx=1 and both effective-tail comparisons are false, so this is a reachable required public input.",
+            "fresh_execution": false
+          },
+          "limits": "The exception and expected array are source-derived; no fresh control or test was executed."
+        },
+        {
+          "id": "082494ceab",
+          "label": "required_gap",
+          "reason": "The right-tail anchor changes from the penultimate array y_coord[-2] to fixed y_coord[2]. The public method supports forecasts with two stored quantiles, but such a right-tail request now indexes past the list and raises IndexError instead of returning an exponential approximation. For the three-knot tested forecast the index exists and shifts the tail by the last-minus-penultimate array; the tests only require a finite value beyond the last array, so the wrong calibration survives.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/082494ceab.patch:123-144: the right-tail prediction adds self.y_coord[2] regardless of how many knots exist",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/082494ceab.patch:168-193: the public method constructs an approximation for two or more quantiles and invokes right() for a right-tail query",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:108-123: the right-tail fixture has three knots and checks only shape, finiteness, direction and non-linearity",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:174-189: the only two-quantile forecast is queried in the interior, never on its right tail",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:376: == mutant:082494ceab reward=1.0 rc=0 scored 2.9s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 376,
+            "quote": "== mutant:082494ceab reward=1.0 rc=0 scored 2.9s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/082494ceab.patch",
+          "patch_sha256": "801777bb9eaf4c08eff22b1ec310f2858cb7362e4f80e885e6ecf623bf728bb4",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 162,
+          "end_line": 162,
+          "operator": "drop-negation",
+          "original": "-",
+          "replacement": "",
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "scenario": "forecast_arrays=np.array([[1.0,2.0],[10.0,20.0]]), forecast_keys=[\"0.25\",\"0.75\"], any valid start period; request quantile(0.95).",
+            "expected": "A horizon-aligned NumPy array extrapolated from the two available right-tail quantiles, not an exception.",
+            "predicted_actual": "IndexError at self.y_coord[2]. The effective right threshold is min(0.75,max(0.25,0.9))=0.75, so quantile(0.95) necessarily reaches the broken anchor.",
+            "fresh_execution": false
+          },
+          "limits": "No new task execution was performed; the list-index failure follows directly from the retained public branch and two-element prediction list."
+        },
+        {
+          "id": "b4214ad879",
+          "label": "required_gap",
+          "reason": "Replacing min with max removes the upper bound tying the effective right-tail threshold to the largest stored quantile. If that largest quantile is below 0.9, a request beyond the entire stored range but below 0.9 falls through to _linear_interpolation and gets linear extrapolation, contrary to the requirement to use an exponential tail approximation from the two nearest tail quantiles. The primary fixture's last stored quantile is exactly 0.9, where min and max coincide, so the grader never observes this mode-selection defect.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/instruction.md:3-7: public quantile lookup, surrounding-array interpolation and two-nearest-quantile exponential tails are required",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/b4214ad879.patch:146-158: right_tail becomes max(last,max(penultimate,0.9))",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/b4214ad879.patch:168-199: a query below the inflated threshold falls through to _linear_interpolation even when above every stored knot",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/b4214ad879.patch:18-38: the helper upper-range branch performs ordinary linear extrapolation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:25-32,108-123: the checked right-tail forecast ends at 0.9, making the mutated threshold equal the reference threshold",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000513/tests/test.patch:174-189: the forecast ending at 0.75 is queried only at 0.5, not beyond its rightmost quantile",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:1: == full reward=1.0 rc=0 scored 3.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:19: == nop reward=0.0 rc=0 scored 2.6s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log:449: == mutant:b4214ad879 reward=1.0 rc=0 scored 3.0s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/grades.log",
+            "line": 449,
+            "quote": "== mutant:b4214ad879 reward=1.0 rc=0 scored 3.0s",
+            "sha256": "949132ef1c738372c4689cf08f082ebdd30ab922d744639ae2b9306b5326be0d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000513/mutants/b4214ad879.patch",
+          "patch_sha256": "a6f04d30768d09fae4fc06e814688f87f096949c77dd8467ee6f718bbd7f6efe",
+          "file": "src/gluonts/model/forecast.py",
+          "line": 172,
+          "end_line": 172,
+          "operator": "min-max",
+          "original": "min",
+          "replacement": "max",
+          "counterexample": {
+            "kind": "static_required_input_counterexample",
+            "scenario": "forecast_arrays=np.array([[0.0],[10.0]]), forecast_keys=[\"0.25\",\"0.75\"], any valid start period; request quantile(0.8). Let t=1e-8.",
+            "expected": "An exponential right-tail approximation from the 0.25 and 0.75 quantiles; in the retained two-point tail parameterization this is [10 * log((0.75+t)/(0.2+t)+t) / log((0.75+t)/(0.25+t)+t)].",
+            "predicted_actual": "Approximately np.array([11.0]), the linear extrapolation 0+(0.8-0.25)/(0.75-0.25)*10. The survivor raises the right threshold from 0.75 to 0.9, selecting the wrong mode for 0.8.",
+            "fresh_execution": false
+          },
+          "limits": "The task does not mandate the exact reference formula; the claimed defect is linear rather than exponential treatment of a request beyond the stored right edge. All outputs above are symbolic/algebraic predictions, not fresh controls."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 179,
+        "tried": 20,
+        "killed": 14,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 6,
+        "generated_but_unattempted": 159,
+        "grade_records": 20
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 25,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 3.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.3
+        },
+        {
+          "label": "nop",
+          "line": 19,
+          "quote": "== nop reward=0.0 rc=0 scored 2.6s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.6
+        },
+        {
+          "label": "drop-block:src/gluonts/model/forecast.py#1",
+          "line": 35,
+          "quote": "== drop-block:src/gluonts/model/forecast.py#1 reward=0.0 rc=0 scored 2.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.4
+        },
+        {
+          "label": "drop-block:src/gluonts/model/forecast.py#2",
+          "line": 51,
+          "quote": "== drop-block:src/gluonts/model/forecast.py#2 reward=0.0 rc=0 scored 2.3s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.3
+        },
+        {
+          "label": "drop-block:src/gluonts/model/forecast.py#0",
+          "line": 67,
+          "quote": "== drop-block:src/gluonts/model/forecast.py#0 reward=0.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "mutant:3f2f2f9c72",
+          "line": 88,
+          "quote": "== mutant:3f2f2f9c72 reward=1.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:aadda893e5",
+          "line": 106,
+          "quote": "== mutant:aadda893e5 reward=0.0 rc=0 scored 2.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.9
+        },
+        {
+          "label": "mutant:16cf5661c9",
+          "line": 135,
+          "quote": "== mutant:16cf5661c9 reward=1.0 rc=0 scored 2.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.8
+        },
+        {
+          "label": "mutant:3ffce14b01",
+          "line": 153,
+          "quote": "== mutant:3ffce14b01 reward=1.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:928c7a6fa3",
+          "line": 171,
+          "quote": "== mutant:928c7a6fa3 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:b438e7d5c1",
+          "line": 204,
+          "quote": "== mutant:b438e7d5c1 reward=0.0 rc=0 scored 3.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.2
+        },
+        {
+          "label": "mutant:033def25d6",
+          "line": 221,
+          "quote": "== mutant:033def25d6 reward=0.0 rc=0 scored 3.8s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.8
+        },
+        {
+          "label": "mutant:db1cce1244",
+          "line": 249,
+          "quote": "== mutant:db1cce1244 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:fba314d946",
+          "line": 277,
+          "quote": "== mutant:fba314d946 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:b324e095af",
+          "line": 307,
+          "quote": "== mutant:b324e095af reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:da54b2e1ec",
+          "line": 329,
+          "quote": "== mutant:da54b2e1ec reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:a1bf56a667",
+          "line": 358,
+          "quote": "== mutant:a1bf56a667 reward=1.0 rc=0 scored 2.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.9
+        },
+        {
+          "label": "mutant:082494ceab",
+          "line": 376,
+          "quote": "== mutant:082494ceab reward=1.0 rc=0 scored 2.9s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.9
+        },
+        {
+          "label": "mutant:4171d6798f",
+          "line": 394,
+          "quote": "== mutant:4171d6798f reward=0.0 rc=0 scored 2.9s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.9
+        },
+        {
+          "label": "mutant:f6e808d038",
+          "line": 424,
+          "quote": "== mutant:f6e808d038 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:b4214ad879",
+          "line": 449,
+          "quote": "== mutant:b4214ad879 reward=1.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:5b6a7dde4b",
+          "line": 467,
+          "quote": "== mutant:5b6a7dde4b reward=0.0 rc=0 scored 2.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.2
+        },
+        {
+          "label": "mutant:558a195dc0",
+          "line": 489,
+          "quote": "== mutant:558a195dc0 reward=0.0 rc=0 scored 3.0s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.0
+        },
+        {
+          "label": "mutant:7a8d700b81",
+          "line": 520,
+          "quote": "== mutant:7a8d700b81 reward=0.0 rc=0 scored 3.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.1
+        },
+        {
+          "label": "mutant:ab082dc9fb",
+          "line": 551,
+          "quote": "== mutant:ab082dc9fb reward=0.0 rc=0 scored 3.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 3.2
+        }
+      ],
+      "limits": [
+        "The review adjudicates only the reported passing witnesses, not all possible omissions/mutants or whole-task correctness.",
+        "No task controls, Docker, model/remote APIs, builds, tests, linters, formatters, producer/validation checks, or git commands were run by this worker. Recorded grades were read, not regenerated.",
+        "Source-reasoned examples and path proofs below are not fresh executed controls. Parent owns integrated verification, scientific exclusions and delivery.",
+        "The completed scan generated 179 mutants and attempted only its recorded 20-mutant limit. The other 159 were generated but unattempted; they are not killed, negative, or adjudicated.",
+        "The complete new helper, tail producer and public quantile consumer are visible in the reference/survivor patches. No image extraction or full base-repository checkout was needed to derive these narrowly scoped paths."
+      ]
+    },
+    {
+      "task_id": "format-code-task-002758",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758",
+      "package_digest": "sha256:c263d49ee18eff44b139f6a3f9ceff3622575208c405630267e53370cd78d1a4",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002758/solution.patch",
+      "reference_sha256": "83bfac08f4bcdc5320c00fc2db8801a4177b65a236f1b22cd88f9d0837594539",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/report.json",
+      "report_sha256": "54b9e1f865b3e73f843e56f0b1ad2a3157c3e5e29780eba9820ecefe27dcc841",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+      "grades_log_sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/minimal.patch",
+      "minimal_patch_sha256": "1e62407d652af83fc5e598e9590218df5a4a5891c9bedbeb5fbccac389579a40",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/dropped.patch",
+      "dropped_patch_sha256": "32aa1e8a14a7bf5c87118c7fcd263f8808f5e40c75b8642d470056bfeda13c40",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/instruction.md",
+      "instruction_sha256": "fabbd25f6025617691d9e9fb27557f0991d623a1854231bd09d0a0c9b1b23806",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/task.toml",
+      "task_toml_sha256": "aaec2d84d08f373c52929bb24e3174d508254f53b047bd7a1da66ae2dc38d6fc",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch",
+      "test_patch_sha256": "b5b7984f698d1b6a87f35ae5219d2c674a95cec4943e49fe162c26ca552b0d7f",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.sh",
+      "test_runner_sha256": "88b733bd8b0159963b99d90faef87858073c8c88b1443f219a2bd631fcdeeeac",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "415b10f41c3b06a3d84640ca0f4b40b2061ac5bbcd0d76c45200cbe528017d47",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758",
+        "package_digest": "sha256:c263d49ee18eff44b139f6a3f9ceff3622575208c405630267e53370cd78d1a4",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002758/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "83bfac08f4bcdc5320c00fc2db8801a4177b65a236f1b22cd88f9d0837594539",
+        "task_id": "format-code-task-002758"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:156cdbebc7df326efe3bc07aca4db3b28c41c3742eb47756da8e8476d2b5bb7e",
+      "started_at": "2026-10-21T19:15:28+00:00",
+      "finished_at": "2026-10-21T19:16:06+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.8,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.7s",
+          "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+          "line": 22,
+          "quote": "== nop reward=0.0 rc=0 scored 1.7s",
+          "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "The package path/digest are the immutable measured identity agreed by the canonical frozen plan, completed report and atlas. Cited file bytes were independently SHA256-bound; the package directory and image were not recomposed or extracted."
+      },
+      "block": {
+        "label": "confirmed_weak",
+        "reason": "The accepted minimal patch keeps the @type list-validation fix but drops the pluginmatcher update. Its retained regex only permits paths beginning live, video or collectie, so the specifically required example https://nos.nl/l/2490404 remains outside NOS routing. The actual runner invokes only three TestNOSSchema methods, whose fixture constructs NOS(session,\"https://nos.nl/live\") directly; it bypasses the TestPluginCanHandleUrlNOS matcher assertions added elsewhere in the very same test patch. The exact subset received the recorded confirm=1 scored rc=0 grade despite this unimplemented named URL requirement. This independently agrees with the frozen atlas claim, but is supported here by current exact subset bytes and current control headers rather than inheritance by task ID.",
+        "dropped_code": [
+          "src/streamlink/plugins/nos.py#0"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+          "line": 109,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.8s",
+          "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+        },
+        "recorded_omission_grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "recorded_omission_grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log",
+          "line": 88,
+          "quote": "== drop-block:src/streamlink/plugins/nos.py#0 reward=1.0 rc=0 scored 2.1s",
+          "sha256": "3d3745028bdd44c36be334e4b152463eb80cef2d1a74ac9ff458c00475bc93fe"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/minimal.patch",
+        "witness_sha256": "1e62407d652af83fc5e598e9590218df5a4a5891c9bedbeb5fbccac389579a40",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/instruction.md:19-25: the requested example video is https://nos.nl/l/2490404",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/instruction.md:46-50: the issue explicitly reports \"No plugin can handle URL\" for that exact URL",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/minimal.patch:5-19: only the @type validator changes; URL registration is not fixed",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/dropped.patch:8-13: the retained matcher has only live|video|collectie while the omitted replacement adds l/ and livestream/",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:24-39: the patch adds matcher acceptance for /l/2490404, but these assertions are not selected by the real runner",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:68-78: schema tests directly instantiate NOS for /live without routing through matcher selection",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test.patch:120-128: mimo_test_command.sh explicitly executes only the three schema tests",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002758/tests/test_command.sh:1: verifier invokes mimo_test_command.sh, not the broader test_commands.json entry",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:1: == full reward=1.0 rc=0 scored 1.7s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:22: == nop reward=0.0 rc=0 scored 1.7s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:88: == drop-block:src/streamlink/plugins/nos.py#0 reward=1.0 rc=0 scored 2.1s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002758/grades.log:109-128: == confirm reward=1.0 rc=0 scored 1.8s; exactly three TestNOSSchema tests pass"
+        ],
+        "counterexample": {
+          "kind": "static_named_required_url_counterexample",
+          "scenario": "Select the NOS plugin for the instruction's URL https://nos.nl/l/2490404 after applying minimal.patch.",
+          "expected": "The NOS matcher accepts the named video URL so normal routing can reach its fixed stream extraction.",
+          "predicted_actual": "The retained re.compile(r\"https?://(?:\\w+\\.)?nos\\.nl/(?:live|video|collectie)\") cannot match the /l/ path, so this plugin is not selected for the exact required URL.",
+          "fresh_execution": false
+        },
+        "limits": "No live NOS request, fresh matcher invocation or replay was executed. The static proof is for the registered NOS matcher and the named /l/ URL; no claim is made about all URLs or all other plugins."
+      },
+      "survivors": [],
+      "line_scan_summary": {
+        "generated": 0,
+        "tried": 0,
+        "killed": 0,
+        "unscored": 0,
+        "limit": 20,
+        "status": "not_applicable",
+        "verdict": "unknown",
+        "reason": "no mutable code on the lines the reference wrote",
+        "reported_survivors": 0,
+        "generated_but_unattempted": 0,
+        "grade_records": 0
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 5,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "nop",
+          "line": 22,
+          "quote": "== nop reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "drop-block:src/streamlink/plugins/nos.py#1",
+          "line": 55,
+          "quote": "== drop-block:src/streamlink/plugins/nos.py#1 reward=0.0 rc=0 scored 1.7s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.7
+        },
+        {
+          "label": "drop-block:src/streamlink/plugins/nos.py#0",
+          "line": 88,
+          "quote": "== drop-block:src/streamlink/plugins/nos.py#0 reward=1.0 rc=0 scored 2.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.1
+        },
+        {
+          "label": "confirm",
+          "line": 109,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        }
+      ],
+      "limits": [
+        "The review adjudicates only the reported passing witnesses, not all possible omissions/mutants or whole-task correctness.",
+        "No task controls, Docker, model/remote APIs, builds, tests, linters, formatters, producer/validation checks, or git commands were run by this worker. Recorded grades were read, not regenerated.",
+        "Source-reasoned examples and path proofs below are not fresh executed controls. Parent owns integrated verification, scientific exclusions and delivery.",
+        "The line stage is explicitly not_applicable with reason \"no mutable code on the lines the reference wrote\": zero generated/tried mutants is not evidence that other semantic mutations are resisted."
+      ]
+    },
+    {
+      "task_id": "format-code-task-000932",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932",
+      "package_digest": "sha256:358553371ec4e728e3e1b03126fa4ccadda706b003c11e1add81ef848de4d0c7",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000932/solution.patch",
+      "reference_sha256": "182a93482ab04fad536e7efb32581fd1665227be52f45ad6d194899706a0c841",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/report.json",
+      "report_sha256": "a619c2ff0689b7135aa6eb9492846dda02926afe7c2c0c965a09e5c5fbbfb793",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log",
+      "grades_log_sha256": "a585d1d5d7ad0111fdaf49e892b48d8acb0cbccecc340b59d9e85f49a166031d",
+      "minimal_patch_path": null,
+      "minimal_patch_sha256": null,
+      "dropped_patch_path": null,
+      "dropped_patch_sha256": null,
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/instruction.md",
+      "instruction_sha256": "e6ada9ff2af39711be1b0081ae2150b0d176bba9c595f9bcaa35e8bca944216d",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/task.toml",
+      "task_toml_sha256": "8e0e5fd7674cf09c18fb6bc8d8a4b26759dd76bfb4132ebf34b11be6327501de",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test.patch",
+      "test_patch_sha256": "669efe681923653d99010c393ca388876a6224d95d16aefc1529a96bc538bfc8",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test.sh",
+      "test_runner_sha256": "f6dd540e933b0a5623ada5a87a66b35bc5bb932295ffe2bada630a2fc2d94243",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test_command.sh",
+      "test_command_sha256": "7b3144ddb1a817c5eb7761d3f6737dd294d3521d6c8ca96e690a0aea11a001aa",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "19d2a7507a7c46fd0ef56262e08ab3a64978e0b22f3bc6e6da7e90c8dbf6cd63",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932",
+        "package_digest": "sha256:358553371ec4e728e3e1b03126fa4ccadda706b003c11e1add81ef848de4d0c7",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000932/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "182a93482ab04fad536e7efb32581fd1665227be52f45ad6d194899706a0c841",
+        "task_id": "format-code-task-000932"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:24fadce099f6c8cb979686992433d79330f7074bb3a965a5c69345a4034748e2",
+      "started_at": "2026-10-21T19:17:28+00:00",
+      "finished_at": "2026-10-21T19:18:08+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "pass",
+      "recorded_kept_fraction": 1.0,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.1s",
+          "sha256": "a585d1d5d7ad0111fdaf49e892b48d8acb0cbccecc340b59d9e85f49a166031d"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log",
+          "line": 28,
+          "quote": "== nop reward=0.0 rc=0 scored 1.1s",
+          "sha256": "a585d1d5d7ad0111fdaf49e892b48d8acb0cbccecc340b59d9e85f49a166031d"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "The package path/digest are the immutable measured identity agreed by the canonical frozen plan, completed report and atlas. Cited file bytes were independently SHA256-bound; the package directory and image were not recomposed or extracted."
+      },
+      "block": null,
+      "survivors": [
+        {
+          "id": "b036809caf",
+          "label": "uncertain",
+          "reason": "This survivor flips the pre-existing write_union_type default from True to False while retaining the new validator argument and its forwarding to writer. The explicit issue asks for schema-type enforcement or an opt-in validation parameter and demonstrates only non-union Weather fields. The changed default therefore does not itself establish a missing requested validation behavior. It is also not globally equivalent: the retained documentation says False omits union type information and may prevent json_read decoding, so an unrelated public-API/round-trip regression is plausible. The selected grader's backward-compatibility test uses only the non-union Weather schema and cannot decide that broader compatibility claim. Without an explicit required union-default invariant and the full encoder/reader consumer context for this exact image, do not promote the scored survivor as a required gap or certify it harmless.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/instruction.md:17-21,25-38: the reproduced schema contains string/long/int fields, not unions",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/instruction.md:83-85: request is incompatible-type enforcement, possibly via an added validation parameter; no union-output default is specified",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/mutants/b036809caf.patch:9-10: default write_union_type becomes False while validator=None is still added",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/mutants/b036809caf.patch:14-22: retained documentation says False produces clear JSON which may not decode back via json_read",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/mutants/b036809caf.patch:26-35: both write_union_type and validator are still forwarded to their existing consumers",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test.patch:26-36,39-142: all six added acceptance cases use the non-union Weather schema",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test.patch:70-86: the named backward-compatibility test only checks that mismatched primitive Weather fields are written without validation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-000932/tests/test.patch:147-155: the actual runner selects just those six new validation/Weather tests, not the rest of test_json.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log:1: == full reward=1.0 rc=0 scored 1.1s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log:28: == nop reward=0.0 rc=0 scored 1.1s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log:147-172: == mutant:b036809caf reward=1.0 rc=0 scored 1.2s; all six selected tests pass"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/grades.log",
+            "line": 147,
+            "quote": "== mutant:b036809caf reward=1.0 rc=0 scored 1.2s",
+            "sha256": "a585d1d5d7ad0111fdaf49e892b48d8acb0cbccecc340b59d9e85f49a166031d"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-000932/mutants/b036809caf.patch",
+          "patch_sha256": "69c108b1fa8e5327aeeae9aae01d1c6cb3d67fe80feaa89e952f5058d4c31b8d",
+          "file": "fastavro/json_write.py",
+          "line": 5,
+          "end_line": 5,
+          "operator": "boolean-constant",
+          "original": "True",
+          "replacement": "False",
+          "counterexample": {
+            "kind": "static_potential_compatibility_case_not_a_confirmed_required_gap",
+            "scenario": "Call json_writer without write_union_type for a record with a union field, e.g. fields=[{\"name\":\"v\",\"type\":[\"null\",\"string\"]}], records=[{\"v\":\"x\"}], and consider reading the emitted JSON back.",
+            "observed_source_fact": "For the omitted keyword, the survivor passes write_union_type=False to AvroJSONEncoder where the reference/base signature passes True. The retained docstring warns of missing union type information and possible json_read incompatibility.",
+            "predicted_actual": "[INFERENCE] Union branch tags may be omitted and decoding may change. Exact emitted bytes or a reader exception were not established from the available partial consumer source and were not executed.",
+            "fresh_execution": false
+          },
+          "missing_evidence": [
+            "A requirement-level basis that preserving the pre-existing union-encoding default is part of acceptance for this validation issue, rather than an unrelated compatibility regression.",
+            "The complete AvroJSONEncoder/json_reader source bound to the task image, or existing exact consumer output, to establish the precise union round-trip consequence. No image extraction, upstream fetch or new control is authorized here."
+          ],
+          "limits": "Positive grade is preserved exactly, but this candidate is not admitted as a required gap. Uncertainty is about broader required compatibility scope and consumer outcome, not about whether the default changed."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 1,
+        "tried": 1,
+        "killed": 0,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 1,
+        "generated_but_unattempted": 0,
+        "grade_records": 1
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 6,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "nop",
+          "line": 28,
+          "quote": "== nop reward=0.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "drop-docs-comments",
+          "line": 58,
+          "quote": "== drop-docs-comments reward=1.0 rc=0 scored 2.0s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 2.0
+        },
+        {
+          "label": "drop-block:fastavro/json_write.py#2",
+          "line": 85,
+          "quote": "== drop-block:fastavro/json_write.py#2 reward=0.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        },
+        {
+          "label": "drop-block:fastavro/json_write.py#0",
+          "line": 116,
+          "quote": "== drop-block:fastavro/json_write.py#0 reward=0.0 rc=0 scored 1.1s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.1
+        },
+        {
+          "label": "mutant:b036809caf",
+          "line": 147,
+          "quote": "== mutant:b036809caf reward=1.0 rc=0 scored 1.2s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.2
+        }
+      ],
+      "limits": [
+        "The review adjudicates only the reported passing witnesses, not all possible omissions/mutants or whole-task correctness.",
+        "No task controls, Docker, model/remote APIs, builds, tests, linters, formatters, producer/validation checks, or git commands were run by this worker. Recorded grades were read, not regenerated.",
+        "Source-reasoned examples and path proofs below are not fresh executed controls. Parent owns integrated verification, scientific exclusions and delivery."
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -26,7 +26,11 @@ TB4_AUDIT_DIR = Path("research/answer-keys/tb4-audit-v1")
 
 Side = Literal["task", "run"]
 Direction = Literal["false_pass", "false_fail", "either"]
-EvidenceStatus = Literal["executed", "claimed"]
+Outcome = Literal["pass", "fail"]
+# executed: a witness or differential replay was run against the grader; observed: seen in an
+# archived real agent run by a deterministic check of the submission, actions or verifier output,
+# not replayed; claimed: the source says so.
+EvidenceStatus = Literal["executed", "observed", "claimed"]
 Source = Literal[
     "preference_model_tb4",
     "benchjack",
@@ -41,6 +45,8 @@ Source = Literal[
     "automationbench_verified",
     "rea_environments",
     "wandr",
+    "reward_seeker",
+    "tb4_run_census",
 ]
 ExampleSource = Literal[
     Source,
@@ -189,6 +195,13 @@ class HackbookMatchHit(_Model):
     regex_hits: list[dict[str, Any]] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     detection_recipe: DetectionRecipe
+    # True when the trace was matched together with its task package and this task-side entry
+    # also fires on that package (the weakness exists and the run touched it); None otherwise.
+    task_confirmed: bool | None = None
+    # Share of a declared fleet this entry fires on (``--fleet-rates``); ``non_discriminating``
+    # marks entries above the prevalence gate: they measure the harness, not the task or run.
+    fleet_rate: float | None = None
+    non_discriminating: bool = False
     exploit_template: ExploitTemplate
     fix_pattern: FixPattern
 
@@ -201,6 +214,9 @@ class HackbookMatchResult(_Model):
     target: str
     task_id: str | None = None
     trial_id: str | None = None
+    outcome: Outcome | None = None
+    dropped_by_outcome: list[str] = Field(default_factory=list)
+    task_gate: list[str] | None = None
     signals: dict[str, list[str]] = Field(default_factory=dict)
     matches: list[HackbookMatchHit] = Field(default_factory=list)
     tasks: list[HackbookMatchResult] = Field(default_factory=list)
@@ -410,6 +426,13 @@ def validate_no_tb4_test_leak(
     return problems
 
 
+def _status_counts(examples: Iterable[HackbookExample]) -> dict[str, int]:
+    counts = {"executed": 0, "observed": 0, "claimed": 0}
+    for ex in examples:
+        counts[ex.evidence_status] += 1
+    return counts
+
+
 def coverage_summary(
     entries: Sequence[HackbookEntry] | None = None, *, root: Path | None = None
 ) -> dict[str, Any]:
@@ -433,7 +456,7 @@ def coverage_summary(
             e for e in c_entries if any(ex.evidence_status == "executed" for ex in e.examples)
         ]
         examples = [ex for e in c_entries for ex in e.examples]
-        exec_examples = [ex for ex in examples if ex.evidence_status == "executed"]
+        by_status = _status_counts(examples)
         srcs = sorted({s for e in c_entries for s in e.sources} | {ex.source for ex in examples})
         by_class.append(
             {
@@ -442,8 +465,9 @@ def coverage_summary(
                 "executed_entries": len(exec_entries),
                 "claimed_only_entries": len(c_entries) - len(exec_entries),
                 "examples": len(examples),
-                "executed_examples": len(exec_examples),
-                "claimed_examples": len(examples) - len(exec_examples),
+                "executed_examples": by_status["executed"],
+                "observed_examples": by_status["observed"],
+                "claimed_examples": by_status["claimed"],
                 "entry_ids": [e.id for e in c_entries],
                 "sources": srcs,
             }
@@ -465,15 +489,16 @@ def coverage_summary(
             )
         ]
         s_examples = [ex for e in pool for ex in e.examples if ex.source == src]
-        s_exec_examples = [ex for ex in s_examples if ex.evidence_status == "executed"]
+        s_status = _status_counts(s_examples)
         by_source.append(
             {
                 "source": src,
                 "entries": len(s_entries),
                 "executed_entries": len(s_exec_entries),
                 "examples": len(s_examples),
-                "executed_examples": len(s_exec_examples),
-                "claimed_examples": len(s_examples) - len(s_exec_examples),
+                "executed_examples": s_status["executed"],
+                "observed_examples": s_status["observed"],
+                "claimed_examples": s_status["claimed"],
                 "classes": sorted({e.taxonomy_class_id for e in s_entries}),
             }
         )
@@ -482,7 +507,7 @@ def coverage_summary(
     ]
     claimed_only_ids = [e.id for e in pool if e.id not in set(exec_entry_ids)]
     all_examples = [ex for e in pool for ex in e.examples]
-    exec_examples_total = sum(1 for ex in all_examples if ex.evidence_status == "executed")
+    total_status = _status_counts(all_examples)
     return {
         "total_entries": len(pool),
         "task_side_entries": sum(1 for e in pool if e.side == "task"),
@@ -491,8 +516,9 @@ def coverage_summary(
         "entries_claimed_only": len(claimed_only_ids),
         "executed_entry_share": round(len(exec_entry_ids) / len(pool), 4) if pool else 0.0,
         "total_examples": len(all_examples),
-        "executed_examples": exec_examples_total,
-        "claimed_examples": len(all_examples) - exec_examples_total,
+        "executed_examples": total_status["executed"],
+        "observed_examples": total_status["observed"],
+        "claimed_examples": total_status["claimed"],
         "executed_entry_ids": exec_entry_ids,
         "claimed_only_entry_ids": claimed_only_ids,
         "by_class": by_class,

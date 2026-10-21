@@ -97,20 +97,42 @@ def _ledger_spend() -> dict[str, Any]:
     }
 
 
+def _normalize(results: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
+    """Flatten either result shape into `(arm, task, run)` triples.
+
+    `seeker-sft-pilot-20261021` writes `{"runs": {"<arm>:<task>": ...}}`;
+    `seeker-sft-loss-target-20261021` writes `{"arms": {"<arm>": {"runs": {...}}}}`.
+    """
+    triples: list[tuple[str, str, dict[str, Any]]] = []
+    if "arms" in results:
+        for arm, payload in sorted(results["arms"].items()):
+            for task, run in sorted((payload.get("runs") or {}).items()):
+                triples.append((arm, task, run))
+        return triples
+    for key, run in sorted((results.get("runs") or {}).items()):
+        arm, task = key.split(":", 1)
+        triples.append((arm, task, run))
+    return triples
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--summary-only", action="store_true")
+    parser.add_argument("--results", default=str(HERE / "pilot-results.json"))
+    parser.add_argument("--out-root", default=str(RESULTS_ROOT))
+    parser.add_argument("--summary-name", default="replay-summary.json")
     args = parser.parse_args(argv)
 
-    results_path = HERE / "pilot-results.json"
+    results_path = Path(args.results)
     results = json.loads(results_path.read_text(encoding="utf-8"))
     validate_strict = _load_strict_validator()
 
-    submissions_root = RESULTS_ROOT / "submissions"
-    replay_root = RESULTS_ROOT / "replay"
+    results_root = Path(args.out_root)
+    submissions_root = results_root / "submissions"
+    replay_root = results_root / "replay"
     rows: list[dict[str, Any]] = []
-    for key, run in sorted(results["runs"].items()):
-        arm, task = key.split(":", 1)
+    for arm, task, run in _normalize(results):
+        key = f"{arm}:{task}"
         sub_dir = submissions_root / arm / task
         sub_dir.mkdir(parents=True, exist_ok=True)
         for rel, content in (run.get("submission") or {}).items():
@@ -201,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
     summary = {
+        "results": results_path.as_posix(),
         "runs": rows,
         "by_arm": {},
         "modal_spend": _ledger_spend(),
@@ -216,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
             "upstream_reward_1": sum(1 for r in arm_rows if r["upstream_reward"] == 1.0),
             "confirmed_1_0": sum(1 for r in arm_rows if r["confirmed_1_0"]),
         }
-    out = HERE / "replay-summary.json"
+    out = results_path.parent / args.summary_name
     out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2, sort_keys=True))
     print(f"wrote {out}")

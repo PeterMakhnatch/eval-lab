@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from evallab.hackbook.matcher import calibrate_pool, match_target
+from evallab.hackbook.matcher import (
+    NON_DISCRIMINATING_RATE,
+    calibrate_pool,
+    fleet_rates_from_calibration,
+    match_target,
+)
 from evallab.hackbook.models import (
     HackbookEntry,
     coverage_summary,
@@ -117,9 +122,11 @@ def _search_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
 
 def _print_hits(hits: list[dict[str, Any]], indent: str = "") -> None:
     for hit in hits:
+        flag = "  [non-discriminating]" if hit.get("non_discriminating") else ""
+        rate = f" fleet={hit['fleet_rate']:.0%}" if hit.get("fleet_rate") is not None else ""
         print(
             f"{indent}{hit['score']:>6.2f}  {hit['entry_id']:<12} {hit['taxonomy_class_id']} "
-            f"{hit['slug']}"
+            f"{hit['slug']}{rate}{flag}"
         )
         if hit["matched_signals"]:
             print(f"{indent}        signals: {', '.join(hit['matched_signals'])}")
@@ -139,6 +146,11 @@ def _match_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         top=args.top,
         emit_findings_dir=emit,
         root=root,
+        outcome=None if args.outcome == "none" else args.outcome,
+        task_dir=args.task,
+        fleet_rates=args.fleet_rates,
+        non_discriminating_above=args.non_discriminating_above,
+        direction=args.direction,
     )
     if args.json:
         print(json.dumps(result, indent=2))
@@ -157,6 +169,11 @@ def _match_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         label = result["task_id"] or result["target"]
         print(f"{result['kind']} {label}: {len(result['matches'])} matches")
         print(f"signals: {', '.join(sorted(result['signals'])) or '-'}")
+        if result.get("outcome"):
+            dropped = ", ".join(result["dropped_by_outcome"]) or "none"
+            print(f"outcome: {result['outcome']} (dropped as inapplicable: {dropped})")
+        if result.get("task_gate") is not None:
+            print(f"task gate: {', '.join(result['task_gate']) or 'no task-side entry fires'}")
         _print_hits(result["matches"])
     if "findings" in result:
         print(f"wrote {len(result['findings'])} qa.finding/v1 files to {emit}")
@@ -174,20 +191,22 @@ def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         f"{cov['entries_with_executed_evidence']}/{cov['total_entries']} "
         f"({cov['executed_entry_share'] * 100:.1f}%) with executed evidence, "
         f"{cov['total_examples']} examples ({cov['executed_examples']} executed, "
-        f"{cov['claimed_examples']} claimed)"
+        f"{cov['observed_examples']} observed, {cov['claimed_examples']} claimed)"
     )
     print("\nBy taxonomy class:")
     for row in cov["by_class"]:
         print(
             f"  {row['taxonomy_class_id']} {row['taxonomy_class']:<32} "
             f"entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
-            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})"
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2} "
+            f"obs={row['observed_examples']:>2} claimed={row['claimed_examples']:>2})"
         )
     print("\nBy source:")
     for row in cov["by_source"]:
         print(
             f"  {row['source']:<26} entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
-            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})  "
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2} "
+            f"obs={row['observed_examples']:>2} claimed={row['claimed_examples']:>2})  "
             f"classes={','.join(row['classes'])}"
         )
     return 0
@@ -196,6 +215,9 @@ def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
 def _calibrate_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     pool = args.pool if args.pool.is_absolute() else Path.cwd() / args.pool
     report = calibrate_pool(pool, kind=args.kind, threshold=args.threshold, root=root)
+    if args.write_rates is not None:
+        rates = fleet_rates_from_calibration(report)
+        args.write_rates.write_text(json.dumps(rates, indent=2, sort_keys=True) + "\n")
     if args.json:
         print(json.dumps(report, indent=2))
         return 0
@@ -231,7 +253,7 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
 
     list_parser = sub.add_parser("list", help="List entries")
     _filters(list_parser)
-    list_parser.add_argument("--evidence", choices=("executed", "claimed"))
+    list_parser.add_argument("--evidence", choices=("executed", "observed", "claimed"))
     list_parser.add_argument("--json", action="store_true")
     list_parser.set_defaults(func=_list_command)
 
@@ -252,6 +274,36 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     match.add_argument("--kind", choices=("auto", "task", "trace", "view"), default="auto")
     match.add_argument("--class", dest="taxonomy_class", help="Only entries of this class")
     match.add_argument("--top", type=int, default=25)
+    match.add_argument(
+        "--direction",
+        choices=("false_pass", "false_fail"),
+        help="Only entries that let a wrong run pass / fail a right one (plus either); "
+        "a reward seeker wants false_pass",
+    )
+    match.add_argument(
+        "--outcome",
+        choices=("auto", "pass", "fail", "none"),
+        default="auto",
+        help="Trace verdict: drops entries that cannot explain it (auto reads the verifier reward)",
+    )
+    match.add_argument(
+        "--task",
+        type=Path,
+        metavar="TASK_DIR",
+        help="Task package of a trace: task-side entries count in full only if they fire on it",
+    )
+    match.add_argument(
+        "--fleet-rates",
+        type=Path,
+        metavar="FILE",
+        help="calibrate --write-rates output: flag entries firing on most of that fleet",
+    )
+    match.add_argument(
+        "--non-discriminating-above",
+        type=float,
+        default=NON_DISCRIMINATING_RATE,
+        help="Fleet share above which a hit is flagged non_discriminating (default 0.95)",
+    )
     match.add_argument("--emit-findings", type=Path, metavar="DIR")
     match.add_argument("--json", action="store_true")
     match.set_defaults(func=_match_command)
@@ -269,5 +321,11 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     calibrate.add_argument("pool", type=Path, help="Directory of task packages or trace dirs")
     calibrate.add_argument("--kind", choices=("task", "trace"), default="task")
     calibrate.add_argument("--threshold", type=float, default=0.4)
+    calibrate.add_argument(
+        "--write-rates",
+        type=Path,
+        metavar="FILE",
+        help="Write per-entry strong firing shares for `match --fleet-rates`",
+    )
     calibrate.add_argument("--json", action="store_true")
     calibrate.set_defaults(func=_calibrate_command)

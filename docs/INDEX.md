@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:6296d2ce934febd54f5d7f2d4d2d69e37fe39ad6db9da0462b247c77372aae5c
+    digest: sha256:a7d771ec4cb764fd164557e30a5f3fa31b6b03862b1cf51c2d3dd8a7f4877c48
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md

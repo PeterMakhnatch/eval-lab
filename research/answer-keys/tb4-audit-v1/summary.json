@@ -333,6 +333,7 @@
         "cm1-qwen-plain-json-v3-test-20261021",
         "qa-task-s2-prompt-dev",
         "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
@@ -343,11 +344,13 @@
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
         "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
       "biped-contact-dynamics": [
         "cm1-qwen-plain-json-v3-test-20261021",
+        "seeker-gym-v0-test-touch-20261021",
         "tr1-historical-eight-inspection-20261021",
         "tr1-legacy8-frozen-once-20261021"
       ],
@@ -356,7 +359,8 @@
         "qa-task-s1-heldout-read",
         "qa-task-s2-heldout-metadata",
         "qa-task-s2a-ordinary-heldout-20261019",
-        "ref-subset-tb4-39-sweep"
+        "ref-subset-tb4-39-sweep",
+        "seeker-gym-v0-test-touch-20261021"
       ],
       "cargo-flight-dispatch": [
         "breaker-rediscovery-pilot",

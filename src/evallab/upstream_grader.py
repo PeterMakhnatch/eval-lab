@@ -662,8 +662,132 @@ def _manifest_platforms(payload: Any) -> set[str]:
     return found
 
 
+def _parse_docker_memory(value: str) -> float:
+    """Parse a ``docker stats`` memory quantity (``155MiB``, ``1.2GiB``) to MiB."""
+    match = re.fullmatch(r"\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z]+)\s*", value or "")
+    if not match:
+        return 0.0
+    amount, unit = float(match.group(1)), match.group(2)
+    factors = {
+        "b": 1 / 1048576,
+        "kb": 1000 / 1048576,
+        "kib": 1 / 1024,
+        "mb": 1000000 / 1048576,
+        "mib": 1.0,
+        "gb": 1000000000 / 1048576,
+        "gib": 1024.0,
+    }
+    return amount * factors.get(unit.lower(), 0.0)
+
+
+def _docker_stats() -> list[dict[str, Any]]:
+    completed = subprocess.run(
+        ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    rows = []
+    for line in completed.stdout.splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def _docker_capacity() -> tuple[float, int, dict[str, Any]]:
+    """Admitted local capacity for candidate grading.
+
+    Bounded existing containers keep the strict subtraction in
+    :func:`docker_available_resources`. A pre-existing *unbounded* service
+    (e.g. a local Postgres that predates this run and must not be stopped)
+    no longer refuses every grade: it is charged a bounded reserve derived
+    from its observed usage (1.5x observed memory, 2x observed CPU, with
+    floors of 128 MiB / 0.25 CPU and ceilings of 2048 MiB / 2 CPU per
+    container; 512 MiB / 0.5 CPU when usage is unobservable). The same
+    2 CPU / 2 GiB controller margin is still subtracted, and a task whose
+    declared CPU/memory exceeds what remains is still refused -- limits
+    are never lowered. Reserves are disclosed in the admission receipt.
+    """
+    try:
+        cpus, memory = docker_available_resources()
+        return (
+            cpus,
+            memory,
+            {"capacity_mode": "bounded_containers_subtracted", "existing_reserves": []},
+        )
+    except ValueError as exc:
+        if "unbounded CPU or memory" not in str(exc):
+            raise
+    info = _docker_query("info", "--format", "{{json .}}")
+    total_cpus, total_bytes = info.get("NCPU"), info.get("MemTotal")
+    if (
+        not isinstance(total_cpus, int)
+        or not isinstance(total_bytes, int)
+        or total_cpus < 1
+        or total_bytes < 1
+    ):
+        raise GraderRefusal("Docker daemon resource capacity is unavailable")
+    available_cpus = float(total_cpus - 2)
+    available_memory = total_bytes // (1024 * 1024) - 2048
+    stats: dict[str, Any] = {}
+    try:
+        for row in _docker_stats():
+            stats[str(row.get("Name") or "")] = row
+            if row.get("ID"):
+                stats[str(row["ID"])] = row
+    except (OSError, subprocess.SubprocessError, ValueError):
+        stats = {}
+    completed = subprocess.run(
+        ["docker", "ps", "--quiet"], capture_output=True, text=True, check=True, timeout=30
+    )
+    wanted = completed.stdout.split()
+    containers = _docker_query("inspect", *wanted) if wanted else []
+    reserves: list[dict[str, Any]] = []
+    for container in containers if isinstance(containers, list) else []:
+        host = container.get("HostConfig") or {}
+        cpu_nanos = host.get("NanoCpus") or 0
+        if not cpu_nanos:
+            period, quota = host.get("CpuPeriod") or 0, host.get("CpuQuota") or 0
+            cpu_nanos = quota * 1_000_000_000 / period if period > 0 and quota > 0 else 0
+        memory_limit = host.get("Memory") or 0
+        name = str(container.get("Name") or container.get("Id") or "").lstrip("/")
+        if cpu_nanos > 0 and memory_limit > 0:
+            reserve_cpu, reserve_memory = (
+                cpu_nanos / 1_000_000_000,
+                math.ceil(memory_limit / 1048576),
+            )
+            mode = "declared_limits"
+        else:
+            row = stats.get(name) or stats.get(str(container.get("Id") or "")[:12]) or {}
+            observed_memory = _parse_docker_memory(str(row.get("MemUsage", "")).split("/")[0])
+            try:
+                observed_cpu = float(str(row.get("CPUPerc", "")).rstrip("%")) / 100.0
+            except ValueError:
+                observed_cpu = 0.0
+            if observed_memory > 0:
+                reserve_memory = min(2048, max(128, math.ceil(observed_memory * 1.5)))
+                reserve_cpu = min(2.0, max(0.25, observed_cpu * 2))
+                mode = "observed_usage_reserve"
+            else:
+                reserve_cpu, reserve_memory, mode = 0.5, 512, "default_reserve_unobserved"
+        available_cpus -= reserve_cpu
+        available_memory -= reserve_memory
+        reserves.append(
+            {"container": name, "mode": mode, "cpus": reserve_cpu, "memory_mb": int(reserve_memory)}
+        )
+    return (
+        max(0.0, available_cpus),
+        max(0, int(available_memory)),
+        {
+            "capacity_mode": "observed_reserve_for_unbounded_containers",
+            "existing_reserves": reserves,
+        },
+    )
+
+
 def _admit_docker(plan: Mapping[str, Any]) -> dict[str, Any]:
-    cpus, memory = docker_available_resources()
+    cpus, memory, capacity = _docker_capacity()
     required_cpus = max(resource["cpus"] for resource in plan["resources"])
     required_memory = max(resource["memory_mb"] for resource in plan["resources"])
     if cpus < required_cpus or memory < required_memory:
@@ -699,6 +823,7 @@ def _admit_docker(plan: Mapping[str, Any]) -> dict[str, Any]:
         "available_cpus": cpus,
         "available_memory_mb": memory,
         "image_platforms_checked": images,
+        **capacity,
     }
 
 
@@ -991,7 +1116,7 @@ def _runtime_type(name: str) -> type:
                     raise GraderRefusal("native Docker resource limits are missing")
                 self._upstream_role = active.claim(cpus, memory)
                 available_cpus, available_memory = await asyncio.to_thread(
-                    docker_available_resources
+                    lambda: _docker_capacity()[:2]
                 )
                 if available_cpus < cpus or available_memory < memory:
                     raise GraderRefusal(

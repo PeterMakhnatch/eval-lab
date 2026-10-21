@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import contextlib
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -9,6 +11,7 @@ import subprocess
 import sys
 import textwrap
 import tomllib
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -338,6 +341,65 @@ def test_agent_environment_compose_is_admitted_for_modal(packages: tuple[Path, P
     put(original / "environment/docker-compose.yaml", "services: {main: {}}\n")
     described = port.describe_port_task(original, fixed)
     assert described["task_id"] == "native-task"
+
+
+def test_pure_helper_expressions_and_flat_destination_maps() -> None:
+    recipe = port._SetupRecipe(ast.parse("""
+HUB_TASK = "native-task"
+HUB_REV = "4.0.0"
+SHA = "c" * 64
+SERVICES = {"api"}
+def destination(ctx, hub_path):
+    parts = hub_path.split("/")
+    if parts[:2] == ["environment", "packet"]:
+        return ctx.intermediate_data / "packet" / "/".join(parts[2:])
+    if parts[0] == "environment" and parts[1] in SERVICES:
+        return ctx.root_data / "services" / "/".join(parts[1:])
+    raise ValueError("none")
+def setup(ctx):
+    files = {path: (destination(ctx, path), sha) for path, sha in {"environment/packet/a.txt": SHA, "environment/api/b.txt": SHA}.items()}
+    ctx.fetch_hub(HUB_TASK, HUB_REV, files)
+"""), "native-task")
+    assert {(a["source"], a["destination"]) for a in recipe.assets} == {
+        ("environment/packet/a.txt", "intermediate_data/packet/a.txt"),
+        ("environment/api/b.txt", "root_data/services/api/b.txt"),
+    }
+    flat = port._SetupRecipe(ast.parse("""
+ROOT = Path(__file__).resolve().parent
+def destination(path):
+    if path.startswith("tests/"):
+        return ROOT / "root_data" / "tests" / path.removeprefix("tests/")
+    return ROOT / "root_data" / "upstream" / path
+FILES = {"tests/x.txt": "d" * 64, "environment/y.txt": "e" * 64}
+"""), "native-task")
+    assert {(a["source"], a["destination"]) for a in flat.assets} == {
+        ("tests/x.txt", "root_data/tests/x.txt"),
+        ("environment/y.txt", "root_data/upstream/environment/y.txt"),
+    }
+
+
+def test_deterministic_write_text_and_archive_transforms() -> None:
+    recipe = port._SetupRecipe(ast.parse("""
+HUB_TASK = "native-task"
+HUB_REV = "4.0.0"
+SHA = "a" * 64
+EXPECTED = {"ok": True}
+def setup(ctx):
+    hidden = ctx.root_data
+    ctx.fetch_hub(HUB_TASK, HUB_REV, {"environment/data/a.txt": (hidden / "a.txt", SHA)})
+    (hidden / "expected.json").write_text(json.dumps(EXPECTED, indent=2) + chr(10))
+    (hidden / "copy.txt").write_text((hidden / "expected.json").read_text())
+"""), "native-task", upstream=None)
+    generated = {entry["destination"]: entry for entry in recipe.generated.values()}
+    assert generated["root_data/expected.json"]["sha256"]
+    assert generated["root_data/copy.txt"]["sha256"] == generated["root_data/expected.json"]["sha256"]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as bundle:
+        bundle.writestr("tool/run.sh", "#!/bin/sh\ntrue\n")
+    recipe.generated["root_data/blob.zip"] = {"destination": "root_data/blob.zip", "sha256": hashlib.sha256(buffer.getvalue()).hexdigest(), "content": buffer.getvalue()}
+    recipe._extract_archive(port.PurePosixPath("root_data/blob.zip"), port.PurePosixPath("intermediate_data/tools"))
+    assert recipe.generated["intermediate_data/tools/tool/run.sh"]["content"] == b"#!/bin/sh\ntrue\n"
+    assert recipe.generated["intermediate_data/tools/tool/run.sh"]["mode"] == 0o644
 
 
 @pytest.mark.parametrize("mutation,reason", [

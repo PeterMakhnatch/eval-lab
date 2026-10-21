@@ -92,6 +92,8 @@ CANONICAL_SOURCES: tuple[str, ...] = (
     "automationbench_verified",
     "rea_environments",
     "wandr",
+    "reward_seeker",
+    "tb4_run_census",
 )
 
 EVAL3_SAMPLE_ISSUES: tuple[str, ...] = (
@@ -134,6 +136,39 @@ def _load_tb4_witness_ids() -> list[str]:
         return []
     payload = json.loads(witness_path.read_text(encoding="utf-8"))
     return sorted(str(w["finding_id"]) for w in payload.get("witnesses", []))
+
+
+def _load_tb4_dev_finding_ids() -> list[str]:
+    """``dev``-split finding ids of ``tb4-audit-v1`` (test-split ids are never read into a list)."""
+    items_path = REPO_ROOT / "research/answer-keys/tb4-audit-v1/items.jsonl"
+    if not items_path.is_file():
+        return []
+    ids: list[str] = []
+    for line in items_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get("split") == "dev" and row.get("role") == "finding":
+            ids.append(str(row["item_id"]))
+    return sorted(ids)
+
+
+MIMO_WEAK_TEST_KEYS = ("mimo-weak-tests-v1", "mimo-weak-tests-v2", "mimo-weak-tests-v2.1")
+
+
+def _mimo_weak_test_split_tasks() -> set[str]:
+    """Task names in the ``test`` split of any MiMo weak-test key (never written to the catalog)."""
+    tasks: set[str] = set()
+    for key in MIMO_WEAK_TEST_KEYS:
+        items_path = REPO_ROOT / "research/answer-keys" / key / "items.jsonl"
+        if not items_path.is_file():
+            continue
+        for line in items_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                if row.get("split") == "test":
+                    tasks.add(str(row["subject"]["task_id"]).rsplit("/", 1)[-1])
+    return tasks
 
 
 def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> list[str]:
@@ -225,6 +260,11 @@ def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> 
             f"missing executed TB4 dev witnesses: {sorted(expected_witnesses - executed_pm)}"
         )
 
+    cited = {ex.item_or_task_id for entry in entries for ex in entry.examples}
+    uncited_dev = sorted(set(_load_tb4_dev_finding_ids()) - cited)
+    if uncited_dev:
+        errors.append(f"tb4-audit-v1 dev findings no entry cites: {uncited_dev}")
+
     eval3_present = {
         ex.item_or_task_id for entry in entries for ex in entry.examples if ex.source == "eval3"
     }
@@ -240,6 +280,13 @@ def validate_catalog(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> 
             )
             if leaks:
                 errors.append(f"{path.relative_to(REPO_ROOT)}: tb4 test-split leak: {leaks}")
+
+    mimo_test_tasks = _mimo_weak_test_split_tasks()
+    for entry in entries:
+        for ex in entry.examples:
+            key, _, task = ex.item_or_task_id.partition(":")
+            if key in MIMO_WEAK_TEST_KEYS and task in mimo_test_tasks:
+                errors.append(f"{entry.id}: cites a test-split item of {key}: {ex.item_or_task_id}")
 
     return errors
 
@@ -266,6 +313,9 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
     }
     executed_examples_by_source = _sorted_counts(
         ex.source for ex in all_examples if ex.evidence_status == "executed"
+    )
+    observed_examples_by_source = _sorted_counts(
+        ex.source for ex in all_examples if ex.evidence_status == "observed"
     )
     witness_ids = _load_tb4_witness_ids()
 
@@ -423,6 +473,20 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
             "executed_examples_count": executed_examples_by_source.get("wandr", 0),
             "source_url": "https://parsewave.ai/benchmark-research/wandr",
         },
+        "reward_seeker": {
+            "entries_count": entries_by_source["reward_seeker"],
+            "examples_count": examples_by_source.get("reward_seeker", 0),
+            "executed_examples_count": executed_examples_by_source.get("reward_seeker", 0),
+            "source_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1151",
+            "evidence": "differential replay: upstream grader reward 1.0, PM port reward 0.0",
+        },
+        "tb4_run_census": {
+            "entries_count": entries_by_source["tb4_run_census"],
+            "examples_count": examples_by_source.get("tb4_run_census", 0),
+            "observed_examples_count": observed_examples_by_source.get("tb4_run_census", 0),
+            "source_url": "https://github.com/PeterMakhnatch/eval-lab/pull/1137",
+            "evidence": "deterministic submission-code signature on archived DEV passes, not replayed",
+        },
     }
 
     return {
@@ -459,6 +523,13 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
             "forbidden_test_items_checked": len(test_items),
             "leak_count": 0,
             "status": "clean",
+        },
+        "tb4_dev_finding_coverage": {
+            "dev_findings": len(_load_tb4_dev_finding_ids()),
+            "cited_by_an_example": len(
+                set(_load_tb4_dev_finding_ids())
+                & {ex.item_or_task_id for e in entries for ex in e.examples}
+            ),
         },
         "source_summaries": source_summaries,
     }

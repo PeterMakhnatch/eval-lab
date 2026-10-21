@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--jobs", type=int, default=2)
     run.add_argument("--force", action="store_true")
     run.add_argument("--hackbook", action="store_true", help="Add the matched Hackbook toolkit page")
-    run.add_argument("--prompt-variant", choices=("base", "solvetime", "solvetime-deps"), default="base")
+    run.add_argument("--prompt-variant", choices=("base", "solvetime", "solvetime-deps", "shortcut-only"), default="base")
     run.set_defaults(fn=cmd_run)
     validate = sub.add_parser("validate")
     validate.set_defaults(fn=cmd_validate)

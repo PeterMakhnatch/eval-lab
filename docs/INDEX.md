@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:6296d2ce934febd54f5d7f2d4d2d69e37fe39ad6db9da0462b247c77372aae5c
+    digest: sha256:a7d771ec4cb764fd164557e30a5f3fa31b6b03862b1cf51c2d3dd8a7f4877c48
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -94,6 +94,8 @@ inputs:
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
     digest: sha256:17587e087cea130547b9997332df26f202fe6585a3dd330a3d84b7529646045c
+  - path: docs/open-qa-harness.md
+    digest: sha256:a38cae2524982a4319d2cc61cea760ff1cfd592e8f3f9828cdaf051fff0c87e6
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
@@ -323,6 +325,7 @@ an operator can see what is archived.
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
+| `docs/open-qa-harness.md` | The open QA harness: what was built on 2026-10-21, and how to run it | `living` | `operator, runner` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -379,6 +382,7 @@ an operator can see what is archived.
 | `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
+| `docs/open-qa-harness.md` | The open QA harness: what was built on 2026-10-21, and how to run it | `living` | `operator, runner` |
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |

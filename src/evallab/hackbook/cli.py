@@ -150,6 +150,8 @@ def _match_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         task_dir=args.task,
         fleet_rates=args.fleet_rates,
         non_discriminating_above=args.non_discriminating_above,
+        direction=args.direction,
+        reference=args.reference,
     )
     if args.json:
         print(json.dumps(result, indent=2))
@@ -190,20 +192,22 @@ def _coverage_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         f"{cov['entries_with_executed_evidence']}/{cov['total_entries']} "
         f"({cov['executed_entry_share'] * 100:.1f}%) with executed evidence, "
         f"{cov['total_examples']} examples ({cov['executed_examples']} executed, "
-        f"{cov['claimed_examples']} claimed)"
+        f"{cov['observed_examples']} observed, {cov['claimed_examples']} claimed)"
     )
     print("\nBy taxonomy class:")
     for row in cov["by_class"]:
         print(
             f"  {row['taxonomy_class_id']} {row['taxonomy_class']:<32} "
             f"entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
-            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})"
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2} "
+            f"obs={row['observed_examples']:>2} claimed={row['claimed_examples']:>2})"
         )
     print("\nBy source:")
     for row in cov["by_source"]:
         print(
             f"  {row['source']:<26} entries={row['entries']:>2} (exec={row['executed_entries']:>2})  "
-            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2})  "
+            f"examples={row['examples']:>2} (exec={row['executed_examples']:>2} "
+            f"obs={row['observed_examples']:>2} claimed={row['claimed_examples']:>2})  "
             f"classes={','.join(row['classes'])}"
         )
     return 0
@@ -250,7 +254,7 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
 
     list_parser = sub.add_parser("list", help="List entries")
     _filters(list_parser)
-    list_parser.add_argument("--evidence", choices=("executed", "claimed"))
+    list_parser.add_argument("--evidence", choices=("executed", "observed", "claimed"))
     list_parser.add_argument("--json", action="store_true")
     list_parser.set_defaults(func=_list_command)
 
@@ -272,6 +276,12 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
     match.add_argument("--class", dest="taxonomy_class", help="Only entries of this class")
     match.add_argument("--top", type=int, default=25)
     match.add_argument(
+        "--direction",
+        choices=("false_pass", "false_fail"),
+        help="Only entries that let a wrong run pass / fail a right one (plus either); "
+        "a reward seeker wants false_pass",
+    )
+    match.add_argument(
         "--outcome",
         choices=("auto", "pass", "fail", "none"),
         default="auto",
@@ -282,6 +292,12 @@ def build_hackbook_parser(commands: argparse._SubParsersAction) -> None:
         type=Path,
         metavar="TASK_DIR",
         help="Task package of a trace: task-side entries count in full only if they fire on it",
+    )
+    match.add_argument(
+        "--reference",
+        type=Path,
+        metavar="PATCH",
+        help="Task only: the reference fix as a unified diff; flags its blocks no test names",
     )
     match.add_argument(
         "--fleet-rates",

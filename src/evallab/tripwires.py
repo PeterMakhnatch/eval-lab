@@ -4079,11 +4079,13 @@ _UNIMPLEMENTED_ENTRIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     (
         "needs_grader_static_check",
         "whether the grader reads references, hashes or judge evidence from the agent-writable "
-        "workspace, and whether its fork/pipe wrapper isolates candidate code, are properties "
-        "of the grader files; an agent step neither creates nor reveals them (overwriting a "
-        "pre-existing grader file is already the v2 grader-tamper surface). Needs: a static "
-        "check over tests/ and the judge input builder",
-        ("HB-TS04-007", "HB-TS04-008"),
+        "workspace, whether its fork/pipe wrapper isolates candidate code, whether it checks a "
+        "process requirement only through a proxy counter or marker, and whether its integrity "
+        "check covers the whole artifact, are properties of the grader files; an agent step "
+        "neither creates nor reveals them (overwriting a pre-existing grader file is already "
+        "the v2 grader-tamper surface). Needs: a static check over tests/ and the judge input "
+        "builder",
+        ("HB-TS01-012", "HB-TS01-013", "HB-TS04-007", "HB-TS04-008"),
     ),
     (
         "needs_task_static_check",
@@ -4127,7 +4129,7 @@ def _build_entry_coverage() -> dict[str, dict[str, Any]]:
     return dict(sorted(coverage.items()))
 
 
-#: Every canonical Hackbook v0 entry (55) and how the tripwires treat it. ``rules`` are the
+#: Every canonical Hackbook v0 entry (57) and how the tripwires treat it. ``rules`` are the
 #: hackbook rules above (derived from the rule table); ``v2_report_keys`` are pre-existing
 #: report sections that already cover part of the entry (unchanged, not re-emitted).
 HACKBOOK_ENTRY_COVERAGE: dict[str, dict[str, Any]] = _build_entry_coverage()

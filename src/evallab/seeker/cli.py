@@ -205,7 +205,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     for item in items:
         if item["scope"] == "task" and item["split"] == "dev" and "reward_hack" in item["pm_types"]:
             pm_rh.setdefault(item["task"], []).append(item)
-    upstream: dict[str, dict[str, Any]] = {}
+    upstream: dict[tuple[str, str], dict[str, Any]] = {}
     up_dir = args.out / "replay/upstream"
     if up_dir.is_dir():
         for file in up_dir.glob("*.json"):

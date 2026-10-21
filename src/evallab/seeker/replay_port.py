@@ -61,16 +61,22 @@ def child(task: str, submission: Path, stage: Path, result: Path) -> None:
     reward: float | None = None
     notes = f"extracted: {written}"
     if task == "vf2-speedup-networkx":
-        from environment.tasks.vf2_speedup_networkx import scoring_script as ss
+        from environment.tasks.vf2_speedup_networkx import (  # ty: ignore[unresolved-import]
+            scoring_script as ss,
+        )
 
         ss._read_speed_seed = lambda store=None: 123456789  # as the port's own tests pin it
         reward, _meta = ss.score(app)
     elif task == "html-js-filter":
-        from environment.tasks.html_js_filter import scoring_script as ss
+        from environment.tasks.html_js_filter import (  # ty: ignore[unresolved-import]
+            scoring_script as ss,
+        )
 
         reward, _meta = ss.score(app / "filter.py")
     elif task == "fin-saccr-rwa":
-        from environment.tasks.fin_saccr_rwa import scoring_script as ss
+        from environment.tasks.fin_saccr_rwa import (  # ty: ignore[unresolved-import]
+            scoring_script as ss,
+        )
 
         artifacts = [app / "output/sa_ccr_results.csv", app / "output/sa_ccr_workings.xlsx"]
         if not all(a.is_file() for a in artifacts):
@@ -78,9 +84,14 @@ def child(task: str, submission: Path, stage: Path, result: Path) -> None:
             return
         reward, _meta = ss.score(*artifacts)
     elif task == "cargo-flight-dispatch":
-        from environment.paths import INTERMEDIATE_DATA_DIR
-        from environment.tasks.cargo_flight_dispatch import scoring_script as ss
-        from environment.tasks.cargo_flight_dispatch.workspace import CODE_FILES, install_workspace
+        from environment.paths import INTERMEDIATE_DATA_DIR  # ty: ignore[unresolved-import]
+        from environment.tasks.cargo_flight_dispatch import (  # ty: ignore[unresolved-import]
+            scoring_script as ss,
+        )
+        from environment.tasks.cargo_flight_dispatch.workspace import (  # ty: ignore[unresolved-import]
+            CODE_FILES,
+            install_workspace,
+        )
 
         work = stage / "work"
         install_workspace(INTERMEDIATE_DATA_DIR, work, work / "data", work / "output/flight_plan.json")

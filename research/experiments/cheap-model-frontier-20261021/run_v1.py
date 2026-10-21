@@ -65,6 +65,7 @@ def run_task(out, campaign, model, split, task, transport, module, Session):
                 {'role': 'user', 'content': f'Assigned session: {sid}. Begin the package review.'}]
     error = None
     status = 'incomplete'
+    repairs = 0
     try:
         for turn in range(module.MAX_TOOL_CALLS + 1):
             if time.monotonic() >= session.deadline:
@@ -72,7 +73,25 @@ def run_task(out, campaign, model, split, task, transport, module, Session):
             result = cm.complete(out, model, transport, messages, f"v1/{model['slug']}/{split}/{sid}/{turn}",
                                  schema=SCHEMA)
             messages.append({'role': 'assistant', 'content': result.content})
-            kind, action = cm.parse_action(json.loads(result.content))
+            try:
+                kind, action = cm.parse_action(cm.extract_json(result.content))
+                if kind == 'final':
+                    missing = [key for key in ('summary', 'limitations') if key not in action]
+                    if missing:
+                        raise ValueError(f"final is missing required argument(s): {', '.join(missing)}")
+            except ValueError as exc:
+                if repairs >= 1:
+                    raise
+                repairs += 1
+                messages.append({'role': 'user', 'content': cm.REPAIR_PROMPT.format(error=str(exc))})
+                result = cm.complete(out, model, transport, messages,
+                                     f"v1/{model['slug']}/{split}/{sid}/{turn}/repair", schema=SCHEMA)
+                messages.append({'role': 'assistant', 'content': result.content})
+                kind, action = cm.parse_action(cm.extract_json(result.content))
+                if kind == 'final':
+                    missing = [key for key in ('summary', 'limitations') if key not in action]
+                    if missing:
+                        raise ValueError(f"final is missing required argument(s): {', '.join(missing)}") from exc
             if kind == 'final':
                 observation = session.finish(**action)
                 if not observation['ok']:
@@ -88,7 +107,7 @@ def run_task(out, campaign, model, split, task, transport, module, Session):
     session.persist()
     record = {'schema': 'cm1.v1.task/v1', 'task': task, 'sid': sid, 'split': split,
               'model': model['id'], 'adapter_version': cm.VERSION, 'status': status,
-              'error': error, 'tool_calls': session.calls,
+              'error': error, 'tool_calls': session.calls, 'repairs': repairs,
               'seconds': round(time.monotonic() - session.started, 3),
               'billing_journal': str(out / 'cost.jsonl'),
               'legacy_finding_cost': 'unmeasured v1 host placeholder; never use as API billing'}

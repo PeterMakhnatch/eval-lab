@@ -60,7 +60,7 @@ LANES = ("codex", "omp", "openai")
 
 #: Models the OMP lane may be pinned to. ``--model`` accepts fuzzy selectors, so the
 #: selector must be fully qualified and the served model is verified on every turn.
-OMP_MODELS = ("anthropic/claude-sonnet-5-5", "anthropic/claude-opus-5-5")
+OMP_MODELS = ("anthropic/claude-sonnet-5-5", "anthropic/claude-opus-5-5", "meta/muse-wonder-1.0-contributor")
 #: Resolved through ``shutil.which`` when a driver is built.
 OMP_COMMAND: tuple[str, ...] = ("omp",)
 OMP_SYSTEM_PROMPT = (
@@ -144,11 +144,20 @@ class DriverError(RuntimeError):
 class Driver(Protocol):
     """What ``EnvAuditSession`` may rely on, whichever lane backs it."""
 
-    lane: str
-    thread_id: str | None
-    invocations: int
-    cumulative: dict[str, int]
-    facts: dict[str, Any] | None
+    @property
+    def lane(self) -> str: ...
+
+    @property
+    def thread_id(self) -> str | None: ...
+
+    @property
+    def invocations(self) -> int: ...
+
+    @property
+    def cumulative(self) -> dict[str, int]: ...
+
+    @property
+    def facts(self) -> dict[str, Any] | None: ...
 
     def turn(self, prompt: str, *, timeout_seconds: float) -> dict[str, Any]: ...
 
@@ -377,11 +386,11 @@ def _omp_usage(message: dict[str, Any]) -> tuple[dict[str, int | None], float | 
     read, write = _count(raw.get("cacheRead")), _count(raw.get("cacheWrite"))
     cost = raw.get("cost")
     total = cost.get("total") if isinstance(cost, dict) else None
-    api_usd = float(total) if _number(total) else None
-    if None in (fresh, out, read, write):
+    api_usd = float(total) if isinstance(total, int | float) and not isinstance(total, bool) else None
+    if fresh is None or out is None or read is None or write is None:
         return unknown, api_usd
-    prompt_tokens = fresh + read + write  # type: ignore[operator]
-    if prompt_tokens <= 0 or out <= 0:  # type: ignore[operator]
+    prompt_tokens = fresh + read + write
+    if prompt_tokens <= 0 or out <= 0:
         return unknown, api_usd
     return {
         "input_tokens": prompt_tokens,
@@ -469,9 +478,13 @@ class OmpDriver:
         self._api_usd: float | None = 0.0
         self._static = {
             "lane": "omp",
-            "provider": "anthropic via OMP, stored subscription OAuth account",
+            "provider": "anthropic via OMP, stored subscription OAuth account"
+            if model.startswith("anthropic/")
+            else f"{model.split('/', 1)[0]} via OMP contributor route",
             "requested_model": model,
-            "authenticated_route": "anthropic_subscription_oauth_via_omp",
+            "authenticated_route": "anthropic_subscription_oauth_via_omp"
+            if model.startswith("anthropic/")
+            else "omp_contributor_route",
             "executable": self._executable,
             "version": version[0][:200],
             "thread_id_kind": "native_omp_session",
@@ -491,6 +504,9 @@ class OmpDriver:
             "cache_write_input_tokens and output_tokens; unknown stays null",
             "accounting": "subscription route verified by an Anthropic subscription-window "
             "probe before every turn; this lane has no metered API fallback. "
+            "api_equivalent_usd is OMP's list-price estimate, not a charge."
+            if model.startswith("anthropic/")
+            else "OMP contributor route; no metered API fallback is configured here. "
             "api_equivalent_usd is OMP's list-price estimate, not a charge.",
             "limitations": [
                 "OMP does not report which credential served a turn; the subscription "
@@ -638,7 +654,11 @@ class OmpDriver:
     def turn(self, prompt: str, *, timeout_seconds: float) -> dict[str, Any]:
         data = _check_prompt(prompt)
         timeout = _check_timeout(timeout_seconds)
-        reading = _read_subscription(max(1.0, min(30.0, timeout)))
+        reading = (
+            _read_subscription(max(1.0, min(30.0, timeout)))
+            if self.model.startswith("anthropic/")
+            else {"route": "omp_contributor_route", "subscription_probe": "not_applicable"}
+        )
         self.invocations += 1
         try:
             return self._turn(prompt, data, timeout, reading)
@@ -717,7 +737,7 @@ class OmpDriver:
             "provider": message["provider"],
             "metered_usd": 0.0,
             "cost_known": True,
-            "cost_basis": "anthropic_subscription",
+            "cost_basis": "anthropic_subscription" if self.model.startswith("anthropic/") else "omp_contributor_route",
             "api_equivalent_usd": api_usd,
             "subscription_reading": reading,
             "transport": self.facts,
@@ -731,7 +751,7 @@ class OmpDriver:
             "usage_complete": self._usage_complete,
             "cumulative_usage": dict(self.cumulative),
             "metered_usd": 0.0,
-            "cost_basis": "anthropic_subscription",
+            "cost_basis": "anthropic_subscription" if self.model.startswith("anthropic/") else "omp_contributor_route",
             "api_equivalent_usd": self._api_usd,
         }
 
@@ -768,6 +788,8 @@ class OpenAIDriver:
             raise DriverError("openai lane requires an explicit positive metered max_usd")
         if not (_number(input_usd_per_million, positive=True)
                 and _number(output_usd_per_million, positive=True)):
+            raise DriverError("openai lane requires explicit positive input and output prices")
+        if input_usd_per_million is None or output_usd_per_million is None:
             raise DriverError("openai lane requires explicit positive input and output prices")
         key = os.environ.get(api_key_env, "")
         if not key:
@@ -884,7 +906,7 @@ class OpenAIDriver:
             "request_sha256": sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
             "reserved_usd": reservation.reserved_usd,
         })
-        if hasattr(self.transport, "timeout_seconds"):
+        if isinstance(self.transport, OpenAIInvestigator):
             self.transport.timeout_seconds = min(timeout, OPENAI_MAX_TRANSPORT_SECONDS)
         try:
             completion = self.transport.complete(
@@ -950,8 +972,9 @@ class OpenAIDriver:
             "output_tokens": completion.output_tokens if known else None,
         }
         estimate = (
-            self.budget.usage_cost(completion.input_tokens, completion.output_tokens)  # type: ignore[arg-type]
-            if known else None
+            self.budget.usage_cost(completion.input_tokens, completion.output_tokens)
+            if known and completion.input_tokens is not None and completion.output_tokens is not None
+            else None
         )
         return {
             "response": completion.content,

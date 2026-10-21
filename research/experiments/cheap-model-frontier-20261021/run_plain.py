@@ -12,6 +12,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import shutil
 import time
 import urllib.parse
@@ -41,7 +42,7 @@ DEV_TASKS = ('cargo-flight-dispatch', 'html-js-filter', 'protein-autointerp-disu
 MAX_TOOLS = 60
 MAX_SECONDS = 900
 MAX_OUTPUT = 8000
-VERSION = 'json-v2'
+VERSION = 'json-v3'
 
 
 def action_schema(tools: tuple[str, ...]) -> dict:
@@ -107,6 +108,41 @@ def parse_action(value: Any) -> tuple[str, Any]:
     if not isinstance(requests, list) or not 1 <= len(requests) <= 8:
         raise ValueError('expected one to eight tool requests')
     return 'requests', requests
+
+
+def extract_json(text: Any) -> Any:
+    """Tolerantly recover one JSON value from a cheap model's reply.
+
+    Accepts a bare object, a fenced block, or prose wrapped around one balanced
+    object, and repairs trailing commas. This only changes *parsing*; the
+    recovered value still has to pass ``parse_action``/``validate_final``, so no
+    evidence rule is loosened and nothing is invented.
+    """
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('provider content must be JSON text')
+    stripped = text.strip()
+    fenced = re.fullmatch(r"```(?:json)?[ \t]*\n(.*)\n```", stripped, flags=re.S)
+    if fenced:
+        stripped = fenced.group(1).strip()
+    candidates = [stripped]
+    start = stripped.find('{')
+    if start > 0:
+        candidates.append(stripped[start:])
+    for candidate in candidates:
+        for attempt in (candidate, re.sub(r',\s*([}\]])', r'\1', candidate)):
+            try:
+                return json.loads(attempt)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError('provider content must be JSON text: no recoverable JSON object')
+
+
+REPAIR_PROMPT = (
+    'Your previous reply could not be used: {error}. Nothing from it was executed. '
+    'Reply with exactly ONE JSON object and nothing else: either '
+    '{{"requests":[{{"tool":"<tool>","args":{{...}}}}]}} (1-8 requests) or '
+    '{{"final":<the required final object>}}. Do not wrap it in code fences or prose.'
+)
 
 
 def prepare(out: Path) -> dict[str, Any]:
@@ -316,15 +352,28 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
                 {'role': 'user', 'content': f'Assigned id: {aid}. Package root: /workspace/. Read the package and return its JSON.\n' + tools.run('read', {'path': '.'})}]
     started = time.monotonic()
     calls = 0
+    repairs = 0
     status = 'incomplete'
     error = None
     try:
         for turn in range(MAX_TOOLS + 1):
             if time.monotonic() - started >= MAX_SECONDS:
-                raise TimeoutError('900-second task limit')
+                raise TimeoutError(f'{MAX_SECONDS}-second task limit')
             result = complete(out, model, transport, messages, f"plain/{model['slug']}/{split}/{aid}/{turn}")
             messages.append({'role': 'assistant', 'content': result.content})
-            kind, action = parse_action(json.loads(result.content))
+            try:
+                kind, action = parse_action(extract_json(result.content))
+                if kind == 'final':
+                    validate_final(action, aid)
+            except ValueError as exc:
+                if repairs >= 1:
+                    raise
+                repairs += 1
+                messages.append({'role': 'user', 'content': REPAIR_PROMPT.format(error=str(exc))})
+                result = complete(out, model, transport, messages,
+                                    f"plain/{model['slug']}/{split}/{aid}/{turn}/repair")
+                messages.append({'role': 'assistant', 'content': result.content})
+                kind, action = parse_action(extract_json(result.content))
             if kind == 'final':
                 final = validate_final(action, aid)
                 _write_json(dest / 'final.json', final)
@@ -348,19 +397,26 @@ def run_task(out: Path, model: dict, split: str, task: str, transport: OpenAIInv
         error = {'type': type(exc).__name__, 'message': str(exc) if not isinstance(exc, OSError) else 'provider or filesystem I/O failed'}
     record = {'schema': 'cm1.plain.task/v1', 'task': task, 'aid': aid, 'split': split,
               'model': model['id'], 'adapter_version': VERSION, 'status': status,
-              'error': error, 'tool_calls': calls, 'seconds': round(time.monotonic() - started, 3)}
+              'error': error, 'tool_calls': calls, 'repairs': repairs, 'seconds': round(time.monotonic() - started, 3)}
     _write_json(dest / 'status.json', record)
     print(_json(record), flush=True)
     return record
 
 
 def main() -> None:
+    global MAX_SECONDS, MAX_TOOLS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=DEFAULT_OUT)
     parser.add_argument('--prepare', action='store_true')
     parser.add_argument('--model')
     parser.add_argument('--split', choices=('dev', 'test'), default='dev')
+    parser.add_argument('--max-seconds', type=int, default=MAX_SECONDS,
+                        help='per-task wall-clock budget (default 900)')
+    parser.add_argument('--max-tools', type=int, default=MAX_TOOLS,
+                        help='per-task tool-call budget (default 60)')
     args = parser.parse_args()
+    MAX_SECONDS = args.max_seconds
+    MAX_TOOLS = args.max_tools
     args.out.mkdir(parents=True, exist_ok=True)
     if args.prepare:
         print(_json(prepare(args.out)))

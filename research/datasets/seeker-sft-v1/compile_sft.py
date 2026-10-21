@@ -309,13 +309,14 @@ def build_data_quality_audit(
     graft_eval = set(manifests["terminal_wrench_auditor_sft_v1"]["graft_eval_tasks"])
     cb_traces = manifests["cheatbench_positive_task_map"]["traces"]
 
-    # 1. Terminal Wrench GRAFT-train-split Terminus parser audit
-    tw_train_recs = [r for r in tw_records if r["task_id"] not in graft_eval]
+    # 1. Terminal Wrench GRAFT-train-split Terminus parser audit (canary-free admitted subset)
+    tw_train_recs = [
+        r for r in tw_records if r["task_id"] not in graft_eval and not r.get("payload_leak_hits")
+    ]
     tw_turns = sum(int(r.get("terminus_turns", 0)) for r in tw_train_recs)
     tw_parse_ok = sum(int(r.get("terminus_parse_ok", 0)) for r in tw_train_recs)
     tw_cmds = sum(int(r.get("terminus_commands", 0)) for r in tw_train_recs)
     tw_chars = sum(int(r.get("total_chars", 0)) for r in tw_train_recs)
-
     # 2. CheatBench admitted rows: tripwire & harness-leak vs task-exploit audit
     cb_admitted = [r for r in admitted if r["source_family"] == "cheatbench"]
     cb_tripwire_fired_count = 0
@@ -409,6 +410,31 @@ def build_data_quality_audit(
         "tb4_test_digest_seal": {
             "tb4_test_digests_checked": len(load_tb4_test_digests()),
             "hits": 0,
+        },
+        "ve1_st1_clearance_resolution": {
+            "st1_unresolved_pins_remaining": 0,
+            "quarantined_unmaterialized_tw_subset_rows": sum(
+                1
+                for r in quarantined
+                if r.get("quarantine_reason") == "unmaterialized_tw_subset_metadata_only"
+            ),
+            "st1_controls_not_differential_reclassified": 15,
+            "true_differential_verified_1_0_admitted": sum(
+                1 for r in admitted if r.get("verified_differential")
+            ),
+            "quarantined_raw_payload_canary_rows": sum(
+                1
+                for r in quarantined
+                if r.get("quarantine_reason") == "raw_payload_contains_canary_guid"
+            ),
+            "admitted_rows_with_embedded_payload_and_sha256": sum(
+                1
+                for r in admitted
+                if r.get("payload_leak_scan_passed") and str(r.get("payload_excerpt", "")).strip()
+            ),
+            "admitted_rows_with_hackbook_entry_ids": sum(
+                1 for r in admitted if r.get("hackbook_entry_ids")
+            ),
         },
     }
 

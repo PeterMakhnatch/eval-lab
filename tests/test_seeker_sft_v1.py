@@ -1,9 +1,10 @@
-"""Unit tests for the seeker-sft-v1 dataset builder, SFT compiler, TB4 DEV scorer, and TB4 TEST leak guard (ST-1 / pE-SELF-1)."""
+"""Unit tests for the seeker-sft-v1 dataset builder, SFT compiler, TB4 DEV scorer, and TB4 TEST leak guard (ST-1 / pE-SELF-1 / pE-SELF-2)."""
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -45,15 +46,25 @@ def test_admitted_sft_excludes_tb4_test_tasks_digests_aliases_canaries_and_graft
     assert leak_audit["tb4_test_task_hits_in_admitted"] == 0
     assert leak_audit["literal_tb4_test_hits_across_all_files"] == 0
     assert leak_audit["canary_hits_in_admitted"] == 0
+    assert leak_audit["raw_payload_canary_hits_in_admitted"] == 0
+    assert leak_audit["raw_payload_tb4_test_hits_in_admitted"] == 0
+    assert leak_audit["unresolved_pin_placeholders"] == 0
+    assert leak_audit["admitted_rows_with_embedded_payload_and_sha256"] == 432
 
     _, tb4_test, _, _ = mod.load_tb4_sets()
     manifests = json.loads(mod.SOURCE_MANIFESTS_PATH.read_text(encoding="utf-8"))
     graft_eval = set(manifests["terminal_wrench_auditor_sft_v1"]["graft_eval_tasks"])
 
-    assert len(admitted) == 911
-    assert summary["counts"]["admitted_curated_seeker_sft_rows"] == 400
+    assert len(admitted) == 432
+    assert len(quarantined) == 1191
+    assert summary["counts"]["admitted_curated_seeker_sft_rows"] == 325
     assert summary["counts"]["admitted_tier1_replay_verified"] == 86
-    assert summary["counts"]["admitted_tier1_differential_verified"] == 42
+    assert summary["counts"]["admitted_tier1_differential_verified"] == 27
+
+    for row in admitted + quarantined:
+        src_pin = row["source_pin"]
+        pin_sha = str(src_pin.get("artifact_sha256") or src_pin.get("csv_sha256") or "")
+        assert re.fullmatch(r"sha256:[0-9a-f]{64}", pin_sha)
 
     for row in admitted:
         assert row["training_status"] == "admitted_sft"
@@ -61,6 +72,15 @@ def test_admitted_sft_excludes_tb4_test_tasks_digests_aliases_canaries_and_graft
         assert row["task_id"] not in tb4_test
         assert not mod.is_tb4_test_alias(row["task_id"], tb4_test)
         assert row["source_family"] != "school_of_reward_hacks"
+        assert row["payload_leak_scan_passed"] is True
+        assert re.fullmatch(r"sha256:[0-9a-f]{64}", str(row["payload_sha256"]))
+        assert int(row["payload_bytes"]) > 0
+        assert str(row["payload_excerpt"]).strip()
+        assert len(row["hackbook_entry_ids"]) >= 1
+        if str(row["trajectory_id"]).startswith("mimo-eo:"):
+            assert row["verified_differential"] is False
+            assert row["replay_evidence"]["nop_control_reward"] == 0.0
+            assert row["replay_evidence"]["hardened_reward"] is None
         if row["source_family"] == "terminal_wrench":
             assert row["task_id"] not in graft_eval
             assert row["graft_tw_split"] == "train"
@@ -76,13 +96,16 @@ def test_compile_sft_and_data_quality_audit() -> None:
 
     assert len(tier1_examples) == 20
     assert all(e["parser_verified"] is True for e in tier1_examples)
-    assert audit["pool_filtering_summary"]["curated_seeker_sft_rows"] == 400
-    assert audit["pool_filtering_summary"]["non_curated_filtered_rows"] == 511
-    assert audit["terminus_parser_verification"]["combined_parser_verified_histories"] == 171
-    assert audit["terminus_parser_verification"]["combined_parser_verified_supervised_turns"] == 496
+    assert audit["pool_filtering_summary"]["curated_seeker_sft_rows"] == 325
+    assert audit["pool_filtering_summary"]["non_curated_filtered_rows"] == 107
+    assert audit["terminus_parser_verification"]["combined_parser_verified_histories"] == 161
+    assert audit["terminus_parser_verification"]["combined_parser_verified_supervised_turns"] == 464
     assert audit["terminus_parser_verification"]["combined_parse_pass_rate"] == 1.0
-    assert audit["cheatbench_dev_action_audit"]["harness_leak_only_rows"] == 467
-    assert audit["cheatbench_dev_action_audit"]["task_level_exploit_rows"] == 49
+    assert audit["ve1_st1_clearance_resolution"]["st1_unresolved_pins_remaining"] == 0
+    assert audit["ve1_st1_clearance_resolution"]["quarantined_unmaterialized_tw_subset_rows"] == 65
+    assert audit["ve1_st1_clearance_resolution"]["st1_controls_not_differential_reclassified"] == 15
+    assert audit["ve1_st1_clearance_resolution"]["true_differential_verified_1_0_admitted"] == 27
+    assert audit["ve1_st1_clearance_resolution"]["quarantined_raw_payload_canary_rows"] == 414
 
 
 def test_tb4_dev_eval_cohort_and_differential_replay_scorer() -> None:
@@ -103,6 +126,15 @@ def test_tb4_dev_eval_cohort_and_differential_replay_scorer() -> None:
     assert smoke["diagnostic_port_also_passed_with_tripwire_1_1"] == 1
     assert smoke["rejected_invalid_controls_or_binding"] == 1
     assert smoke["non_exploit_trials"] == 1
+
+    rs1 = cohort["rs1_baseline_comparison"]
+    assert rs1["drivers"]["sonnet"]["confirmed_differential_exploits_1_0"] == 1
+    assert rs1["drivers"]["sonnet"]["matched_pm_findings_count"] == 4
+    assert rs1["drivers"]["gptoss"]["matched_pm_findings_count"] == 3
+    assert (
+        rs1["open_model_gap_vs_pm_executed_dev_hacks"]["open_model_missed_pm_executed_findings"]
+        == 46
+    )
 
 
 def test_seeker_findings_hook_admits_tb4_dev_and_drops_tb4_test(tmp_path: Path) -> None:
@@ -143,7 +175,7 @@ def test_seeker_findings_hook_admits_tb4_dev_and_drops_tb4_test(tmp_path: Path) 
     admitted, quarantined, summary = mod.build_records(findings_file)
     leak_audit = mod.run_leak_audit(admitted, quarantined, summary)
     assert leak_audit["status"] == "pass"
-    assert len(admitted) == 912
+    assert len(admitted) == 433
     seeker_rows = [r for r in admitted if r["trajectory_id"].startswith("tb4-dev-seeker:")]
     assert len(seeker_rows) == 1
     assert seeker_rows[0]["task_id"] == dev_task

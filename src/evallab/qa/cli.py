@@ -100,3 +100,6 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     from evallab.qa.env import add_env_commands
 
     add_env_commands(sub)
+    from evallab.qa.env_lint import add_env_lint_commands
+
+    add_env_lint_commands(sub)

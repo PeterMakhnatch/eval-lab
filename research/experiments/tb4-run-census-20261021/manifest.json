@@ -1,0 +1,107 @@
+{
+ "assertions": {
+  "dev_tasks_covered": true,
+  "every_task_is_dev": true,
+  "test_or_unassigned_tasks": []
+ },
+ "freeze_sha256": "fe4ae179da07c0948dc353903d5655cfac0dfdad4d0aa52bb0f932a26432d744",
+ "index": {
+  "index": "/Users/petermakhnatch/Developer/eval-lab-results/tb4-hub/trajectory-index.jsonl",
+  "index_sha256": "caf654ddc7a21c8be93a7b047b949b9df3c94f970d8f02417ca5a13e33eac5c0",
+  "legacy_dev_tasks": [
+   "distributed-dedup",
+   "vf2-speedup-networkx"
+  ],
+  "summary": "/Users/petermakhnatch/Developer/eval-lab-results/tb4-hub/acquisition-summary.json",
+  "summary_sha256": "3c39598745689f92134627a28d41fe01e067e9cd5e6651e129f9083d74ce58d1"
+ },
+ "judge_spend": {
+  "cap_usd": 2.0,
+  "charged_or_reserved_usd": 0.268624,
+  "errors": 2,
+  "metered_usage_cost_usd": 0.264511,
+  "null_usage_charged_at_bound": 0,
+  "remaining_usd": 1.731376,
+  "requests": 379,
+  "settled": 378,
+  "unsettled_reservations": 1
+ },
+ "labels": {
+  "exploit_candidate": 5,
+  "known_exploit": 14,
+  "neither": 1798,
+  "no_documented_mechanism": 549,
+  "task_defect": 211,
+  "task_defect_gray": 241,
+  "unmeasured": 1022,
+  "unscored": 10
+ },
+ "labels_sha256": "6711553a075a3a7fcbe769d909a4f855cdeb204e30b1b48459fbdc79c7f4c307",
+ "raw_trajectories": "external, never in git: ~/Developer/eval-lab-results/tb4-hub (see archive_tree_sha256)",
+ "records": 3850,
+ "schema": {
+  "fields": [
+   "system",
+   "membership_id",
+   "task",
+   "split",
+   "row_id",
+   "board_rank",
+   "model",
+   "effort",
+   "hub_trial_id",
+   "archive_trial_id",
+   "job_id",
+   "attempt",
+   "reward",
+   "side",
+   "label",
+   "mechanisms",
+   "mechanisms_checked",
+   "mechanisms_unchecked",
+   "method",
+   "judge_route",
+   "prompt_version",
+   "evidence",
+   "confidence",
+   "facts",
+   "catalog_source",
+   "provenance",
+   "group_id",
+   "producer_id",
+   "source_identity"
+  ],
+  "unknown_is_not_clean": "label unmeasured/unscored/no_documented_mechanism never means clean"
+ },
+ "split_key": "tb4-audit-v1",
+ "strata": {
+  "canonical": 2835,
+  "incomplete": 135,
+  "quarantine": 880
+ },
+ "system": "tb4-dev-run-census/1",
+ "tasks": {
+  "cad-model": 175,
+  "cargo-flight-dispatch": 175,
+  "distributed-dedup": 175,
+  "fin-saccr-rwa": 175,
+  "freecad-impeller": 175,
+  "freecad-platform-drawing": 175,
+  "freecad-spring-clip": 175,
+  "gsea-proteomics": 175,
+  "heat-pump-warranty": 175,
+  "html-js-filter": 175,
+  "jax-speedrun-gpu": 175,
+  "layout-config-recreation2": 175,
+  "live-database-cutover": 175,
+  "math-eval-grader": 175,
+  "nextjs-performance": 175,
+  "photonic-waveguide-routing": 175,
+  "satb-audio-transcription": 175,
+  "sglang-qwen-burst": 175,
+  "uefi-bootkit": 175,
+  "vba-userform-port": 175,
+  "vf2-speedup-networkx": 175,
+  "vpp-loss-divergence": 175
+ }
+}

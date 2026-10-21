@@ -1,0 +1,94 @@
+{
+ "dev_tasks": [
+  "cad-model",
+  "cargo-flight-dispatch",
+  "distributed-dedup",
+  "fin-saccr-rwa",
+  "freecad-impeller",
+  "freecad-platform-drawing",
+  "freecad-spring-clip",
+  "gsea-proteomics",
+  "heat-pump-warranty",
+  "html-js-filter",
+  "jax-speedrun-gpu",
+  "layout-config-recreation2",
+  "live-database-cutover",
+  "math-eval-grader",
+  "nextjs-performance",
+  "photonic-waveguide-routing",
+  "satb-audio-transcription",
+  "sglang-qwen-burst",
+  "uefi-bootkit",
+  "vba-userform-port",
+  "vf2-speedup-networkx",
+  "vpp-loss-divergence"
+ ],
+ "files_sha256": {
+  "calibrate.py": "c87f1fdc3d5323225298e9b382835fbb30314ec67523cffb188b65f4be818282",
+  "census_core.py": "ff89c2d384602981c0f43ee3c440b24ac4ea723e7e7209ac6d8925c9182c3952",
+  "cheap_judge.py": "644176e8efab4534a2aa15c28b735fc88b960907252cb696e29591bf87a5bba4",
+  "evidence.py": "c70165efe288b72a1a65418c63b759a72206a61e3bd984603fcf19c19ec99ce8",
+  "fail_rules.py": "5dcfd0172b1a2d45c5ede7ebbbd5e50bfe408dad6d2c92f2e28f8f9f1a2594e0",
+  "index.py": "b0e439c4a3bc7d94c3d404ea68bd186af40675b36da0dfbbbde1585e717c1860",
+  "legacy.py": "76a7e6ced4864a4742092f0d65066fd350b800edb42b346451cf2a7a6bd0bd40",
+  "mechanisms.py": "6478f6f08b3ac55662f0c2fae5e3effc2182117a8c34a4b2099d32367a9ffa43",
+  "pass_rules.py": "3b0f9cac576173290cb9b09c683659a0f27ca47ce9cac704bac697f09b47f2d9",
+  "run_census.py": "9378353e25cba756c87a2387465b62295f0eb522629547271058c92608decb93",
+  "tables.py": "e4a73f8e1a1ff3923601465998d9c486846353b0099f5e74686a93ecb74e0a74",
+  "validate_legacy8.py": "2b77b07b583ad75543a85e0fa201eb471fffcf79d704a3735e3458dd00b92ee3"
+ },
+ "index": {
+  "index": "/Users/petermakhnatch/Developer/eval-lab-results/tb4-hub/trajectory-index.jsonl",
+  "index_sha256": "caf654ddc7a21c8be93a7b047b949b9df3c94f970d8f02417ca5a13e33eac5c0",
+  "legacy_dev_tasks": [
+   "distributed-dedup",
+   "vf2-speedup-networkx"
+  ],
+  "summary": "/Users/petermakhnatch/Developer/eval-lab-results/tb4-hub/acquisition-summary.json",
+  "summary_sha256": "3c39598745689f92134627a28d41fe01e067e9cd5e6651e129f9083d74ce58d1"
+ },
+ "judge": {
+  "cap_usd": 2.0,
+  "max_request_usd": 0.02,
+  "prompt_version": "mechanism-reading/1",
+  "route": "gpt-oss-120b",
+  "routes": {
+   "glm-5.3-flash": {
+    "max_tokens": 6500,
+    "model": "z-ai/glm-5.3-flash",
+    "price_in_per_mtok": 0.15,
+    "price_out_per_mtok": 0.5,
+    "provider": {
+     "allow_fallbacks": false,
+     "order": [
+      "z-ai/fp8"
+     ]
+    },
+    "verified": "Z.AI fp8 $0.15/$0.50 per Mtok, 1048576 ctx, uptime 100% on 2026-10-21"
+   },
+   "gpt-oss-120b": {
+    "max_tokens": 6500,
+    "model": "openai/gpt-oss-120b",
+    "price_in_per_mtok": 0.037,
+    "price_out_per_mtok": 0.17,
+    "provider": {
+     "allow_fallbacks": false,
+     "order": [
+      "deepinfra/bf16"
+     ]
+    },
+    "verified": "DeepInfra bf16 $0.037/$0.17 per Mtok, 131072 ctx, uptime 100% on 2026-10-21"
+   }
+  },
+  "system_prompt_sha256": "d0d7f89bc028d77415f8398f4c5dc784655f61cc4050cdb76badced4db1eedb7"
+ },
+ "positive_rule": "known_exploit/task_defect need deterministic proof; judge yes needs a verified quote and yields exploit_candidate only; unsure/error/refusal is unmeasured",
+ "registry": {
+  "findings": 86,
+  "mechanisms": 88,
+  "sha256": "4185757eebefa55e1c02890a25f82a550ef849a5962e497ca8e448bfd7c764c7",
+  "tasks": 22
+ },
+ "split_key": "tb4-audit-v1",
+ "system": "tb4-dev-run-census/1"
+}

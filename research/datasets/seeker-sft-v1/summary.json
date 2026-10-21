@@ -1,65 +1,67 @@
 {
   "admitted_by_data_quality_stratum": {
     "tier1_replay_verified": 86,
-    "tier2_cheatbench_harness_leak_only": 467,
+    "tier2_cheatbench_harness_leak_only": 63,
     "tier2_cheatbench_task_exploit": 49,
-    "tier2_graft_tw_task_exploit": 216,
+    "tier2_graft_tw_task_exploit": 141,
     "tier2_hacktrace_outcome_verified": 31,
     "tier2_hacktrace_unverified_outcome": 44,
     "tier2_tb4_dev_hub_exploit": 18
   },
   "admitted_by_licence": {
-    "Apache-2.0": 320,
+    "Apache-2.0": 245,
     "CC-BY-4.0": 75,
-    "MIT": 516
+    "MIT": 112
   },
   "admitted_by_mechanism_run_class": {
-    "answer_lookup": 119,
-    "exploit_grader_gap": 606,
-    "tamper_with_grading": 186
+    "answer_lookup": 109,
+    "exploit_grader_gap": 157,
+    "tamper_with_grading": 166
   },
   "admitted_by_mechanism_task_class": {
-    "answer_reachable": 119,
-    "grader_tamperable": 186,
-    "weak_check": 606
+    "answer_reachable": 109,
+    "grader_tamperable": 166,
+    "weak_check": 157
   },
   "admitted_by_source_family": {
     "breaker_bench": 15,
-    "cheatbench": 516,
+    "cheatbench": 112,
     "hacktrace": 75,
     "mimo": 57,
     "tb2_tb21": 4,
     "tb4_dev": 28,
-    "terminal_wrench": 216
+    "terminal_wrench": 141
   },
   "counts": {
-    "admitted_all_reported_keys_disjoint": 364,
-    "admitted_curated_seeker_sft_rows": 400,
-    "admitted_sft_rows": 911,
-    "admitted_tb4_dev_eval_disjoint": 882,
-    "admitted_tier1_differential_verified": 42,
+    "admitted_all_reported_keys_disjoint": 297,
+    "admitted_curated_seeker_sft_rows": 325,
+    "admitted_sft_rows": 432,
+    "admitted_tb4_dev_eval_disjoint": 403,
+    "admitted_tier1_differential_verified": 27,
     "admitted_tier1_replay_verified": 86,
-    "admitted_tier2_source_verified_agentic": 825,
+    "admitted_tier2_source_verified_agentic": 346,
     "excluded_tb4_test_rows_dropped_before_serialization": 22,
-    "quarantined_records": 712,
+    "quarantined_records": 1191,
     "quarantined_school_of_reward_hacks_underlying_rows": 1073
   },
   "dataset_id": "seeker-sft-v1",
   "quarantined_by_reason": {
     "ambiguous_task_identity_or_no_tool_calls": 242,
     "graft_tw_eval_split_quarantined": 81,
+    "raw_payload_contains_canary_guid": 414,
     "reported_test_split": 345,
     "tb4_test_alias_quarantined": 8,
+    "unmaterialized_tw_subset_metadata_only": 65,
     "upstream_training_canary_and_no_verifier": 36
   },
   "quarantined_by_source_family": {
     "breaker_bench": 16,
-    "cheatbench": 369,
+    "cheatbench": 773,
     "hacktrace": 75,
     "mimo": 93,
     "school_of_reward_hacks": 36,
     "tb2_tb21": 42,
-    "terminal_wrench": 81
+    "terminal_wrench": 156
   },
   "schema": "evallab.seeker_sft.summary/v1",
   "tb4_dev_breakdown": {

@@ -447,3 +447,28 @@ def test_cli_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     trace = _atif(tmp_path / "trajectory.json")
     code, out = _cli(capsys, "match", str(trace), "--kind", "trace", "--class", "RS03")
     assert code == 0 and "RS03" in out
+
+
+def test_cli_coverage(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out = _cli(capsys, "coverage", "--json")
+    cov = json.loads(out)
+    assert code == 0 and cov["total_entries"] >= 55
+    assert cov["entries_with_executed_evidence"] >= 39
+    assert {row["taxonomy_class_id"] for row in cov["by_class"]} == CLASSES
+    assert {
+        "preference_model_tb4",
+        "benchjack",
+        "cheatbench",
+        "terminal_wrench",
+        "hacktrace",
+        "envcheck",
+        "mimo_atlas",
+        "eval3",
+        "tb2_to_tb21",
+        "bespoke_tb4",
+        "automationbench_verified",
+        "rea_environments",
+        "wandr",
+    } <= {row["source"] for row in cov["by_source"]}
+    code, out = _cli(capsys, "coverage")
+    assert code == 0 and "By taxonomy class:" in out and "By source:" in out

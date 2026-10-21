@@ -207,6 +207,10 @@
             "mimo_atlas",
             "eval3",
             "tb2_to_tb21",
+            "bespoke_tb4",
+            "automationbench_verified",
+            "rea_environments",
+            "wandr",
             "taxonomy_v1",
             "delphik_open_defect"
           ],
@@ -401,7 +405,11 @@
           "envcheck",
           "mimo_atlas",
           "eval3",
-          "tb2_to_tb21"
+          "tb2_to_tb21",
+          "bespoke_tb4",
+          "automationbench_verified",
+          "rea_environments",
+          "wandr"
         ],
         "type": "string"
       },
@@ -455,7 +463,11 @@
     "envcheck",
     "mimo_atlas",
     "eval3",
-    "tb2_to_tb21"
+    "tb2_to_tb21",
+    "bespoke_tb4",
+    "automationbench_verified",
+    "rea_environments",
+    "wandr"
   ],
   "x-canonical-structural-signals": [
     "unread_output_mentions",

@@ -1,12 +1,15 @@
 {
+  "admitted_rows_with_embedded_payload_and_sha256": 429,
   "canary_hits_in_admitted": 0,
   "digests": {
-    "admitted_sft_jsonl_sha256": "sha256:1295f3f677e18a597c4bc78cf12bd54adb3b287ab18956fd6c1cafaa28c57482",
-    "quarantined_jsonl_sha256": "sha256:22c7249ab5313eadd96852fdba6f57ff4a2a530915fee59b8fec70e3de771f8f",
-    "source_manifests_json_sha256": "sha256:e8bfec6777d95af25a223520c4641a1c459b7e6721cc398ccb97ca3d19ea03bc",
-    "summary_json_sha256": "sha256:733f4fbb5b99a8963c00ace968d9bf98570696eefc43f7ffa1a989cdc9ecc083"
+    "admitted_sft_jsonl_sha256": "sha256:1f4169945f5b338646806f132740c740f6067795e335d4ec091e2e686a4485bd",
+    "quarantined_jsonl_sha256": "sha256:44bbeb85f42b3cd5e72669c21efd59da26805842ee1b8338e091fe01f2b6778b",
+    "source_manifests_json_sha256": "sha256:9618a4eea646e9c3c0ed435ac4dc113e724713572bceb32426bb0411170682be",
+    "summary_json_sha256": "sha256:171fcdb945f369adfcf86029514b4a545f574ca04e8cf3546bd3ef941283d7d8"
   },
   "literal_tb4_test_hits_across_all_files": 0,
+  "raw_payload_canary_hits_in_admitted": 0,
+  "raw_payload_tb4_test_hits_in_admitted": 0,
   "schema": "evallab.seeker_sft.leak_audit/v1",
   "status": "pass",
   "tb4_test_aliases_checked": [
@@ -18,5 +21,6 @@
   "tb4_test_findings_checked": 152,
   "tb4_test_task_hits_in_admitted": 0,
   "tb4_test_tasks_checked": 41,
-  "tb4_test_trials_checked": 416
+  "tb4_test_trials_checked": 416,
+  "unresolved_pin_placeholders": 0
 }

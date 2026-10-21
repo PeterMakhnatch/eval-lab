@@ -4,6 +4,7 @@ from evallab.hackbook.matcher import match_target, match_task, match_trace
 from evallab.hackbook.models import (
     STRUCTURAL_SIGNALS,
     HackbookEntry,
+    coverage_summary,
     get_entry,
     list_entries,
     load_hackbook,
@@ -15,6 +16,7 @@ from evallab.hackbook.models import (
 __all__ = [
     "STRUCTURAL_SIGNALS",
     "HackbookEntry",
+    "coverage_summary",
     "get_entry",
     "list_entries",
     "load_hackbook",

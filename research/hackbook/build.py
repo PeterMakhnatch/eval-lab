@@ -88,6 +88,10 @@ CANONICAL_SOURCES: tuple[str, ...] = (
     "mimo_atlas",
     "eval3",
     "tb2_to_tb21",
+    "bespoke_tb4",
+    "automationbench_verified",
+    "rea_environments",
+    "wandr",
 )
 
 EVAL3_SAMPLE_ISSUES: tuple[str, ...] = (
@@ -390,6 +394,34 @@ def build_summary(entries: list[HackbookEntry], taxonomy: dict[str, Any]) -> dic
                 "research/answer-keys/tb21-weak-tests-v1",
             ],
             "source_url": "https://github.com/PeterMakhnatch/eval-lab/tree/main/research/answer-keys/tb2-to-tb21-v1",
+        },
+        "bespoke_tb4": {
+            "entries_count": entries_by_source["bespoke_tb4"],
+            "examples_count": examples_by_source.get("bespoke_tb4", 0),
+            "executed_examples_count": executed_examples_by_source.get("bespoke_tb4", 0),
+            "dev_issues_referenced": ["#1634", "#1639", "#1766", "#1770", "#1772"],
+            "source_url": "https://github.com/harbor-framework/terminal-bench/issues?q=author%3Ashivank-bespokelabs",
+        },
+        "automationbench_verified": {
+            "entries_count": entries_by_source["automationbench_verified"],
+            "examples_count": examples_by_source.get("automationbench_verified", 0),
+            "executed_examples_count": executed_examples_by_source.get(
+                "automationbench_verified", 0
+            ),
+            "total_fixes": 210,
+            "source_url": "https://www.kaggle.com/datasets/parsewave/automationbench-verified-v0-0",
+        },
+        "rea_environments": {
+            "entries_count": entries_by_source["rea_environments"],
+            "examples_count": examples_by_source.get("rea_environments", 0),
+            "executed_examples_count": executed_examples_by_source.get("rea_environments", 0),
+            "source_url": "https://github.com/earakely-scale/rea-environments",
+        },
+        "wandr": {
+            "entries_count": entries_by_source["wandr"],
+            "examples_count": examples_by_source.get("wandr", 0),
+            "executed_examples_count": executed_examples_by_source.get("wandr", 0),
+            "source_url": "https://parsewave.ai/benchmark-research/wandr",
         },
     }
 

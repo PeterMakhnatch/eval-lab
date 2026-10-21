@@ -1,0 +1,66 @@
+{
+  "artifacts": {
+    "dev.jsonl": {
+      "rows": 24,
+      "sha256": "sha256:d70320fcf49ab377ceb818fb6e88914d9d2cb95a050532d5f65b39f81fae2f07"
+    },
+    "test.jsonl": {
+      "rows": 29,
+      "sha256": "sha256:a3d9c9b9fc0810d6021f4a9c04a8b00964da3c0abac65fb85d36bf8e9caccfd8"
+    },
+    "train.jsonl": {
+      "rows": 142,
+      "sha256": "sha256:f4d3d5cec5616559b2b956e43d51b660727f446f26751c422cdf491093c5b142"
+    }
+  },
+  "counts": {
+    "by_split": {
+      "dev": 24,
+      "test": 29,
+      "train": 142
+    },
+    "by_split_label": {
+      "dev": {
+        "negative": 12,
+        "positive": 12
+      },
+      "test": {
+        "negative": 11,
+        "positive": 18
+      },
+      "train": {
+        "negative": 58,
+        "positive": 84
+      }
+    },
+    "examples": 195,
+    "findings_in_positive_targets": 242,
+    "negatives": 81,
+    "positives": 114
+  },
+  "dataset_id": "qa-sft-mimo-v0",
+  "heldout_rule": "examples whose task is in the frozen 33 held-out IDs are flagged in executed_evidence/input sources and must be excluded from training use",
+  "schema": "qa-sft-mimo-v0",
+  "sources": [
+    {
+      "path": "research/experiments/mimo-defect-map-v1/findings.json",
+      "sha256": "sha256:a615bfec8f1c7b84e3d8c4c4c5ea3d97f3c939236a63cb8635ce9064e1310fce"
+    },
+    {
+      "path": "research/experiments/mimo-defect-map-v1/inventory.json",
+      "sha256": "sha256:33d0a46b7069572d013e27932059c304c3174dac0669a436f6d8ddc7fd685065"
+    },
+    {
+      "path": "research/experiments/mimo-executed-clean-v1/manifest.json",
+      "sha256": "sha256:4f51d0ae3a65aa36be9cf86976ec37e5ef816bf27f936524ceb42586df0d231b"
+    },
+    {
+      "path": "research/experiments/mimo-clean-v7/manifest.json",
+      "sha256": "sha256:ba553cd2c002c18582bca3b77c0c97b689df2dc3ac3fca83534a86dbb5ef74a7"
+    }
+  ],
+  "spend_usd": 0,
+  "split_rule": "sha256(task_id) bucket ~80/10/10; no task_id in two splits",
+  "tb4_audit_v1_check": "producer never reads tb4-audit-v1; emitted blob scanned for tb4-audit references: none",
+  "training_authorized_by_this_release": false
+}

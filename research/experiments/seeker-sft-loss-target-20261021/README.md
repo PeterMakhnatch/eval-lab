@@ -121,10 +121,17 @@ no arm reaches even half the similarity of a reproduction: the corpus's exploit
 
 The `3072` re-run was **stopped at the lane's Modal cap** before it returned
 results, so the clean same-budget `full`-vs-`assistant` comparison is not
-available. What the `768` run establishes is the budget confound itself: pE-SELF-5
-measured `0/12` confirmed with a generator that silently truncated any submission
-longer than `768` tokens, so its negative result is confounded for exactly the
-runs that tried to write a real exploit.
+available.
+
+**Correction (pE-SELF-7).** An earlier revision of this file claimed that
+pE-SELF-5's `0/12` was "confounded for exactly the runs that tried to write a real
+exploit". The measured truncation rates do not support that: pE-SELF-5's `base`
+and `trained` arms have **zero** unparsed tool-call turns (`0/32` and `0/26`), and
+so does this experiment's `assistant` arm (`0/24`). Only the `full` arm here hit
+the budget (`28/44` turns, `5/6` runs). The budget is a real protocol hazard — it
+silently destroys a run — but it did **not** cause pE-SELF-5's negative result,
+which stands on its own. See
+`research/experiments/seeker-eval-v1-20261021/truncation-analysis.json`.
 
 ## TB4 TEST leak check (`leak_check.py`, `leak-check.json`)
 

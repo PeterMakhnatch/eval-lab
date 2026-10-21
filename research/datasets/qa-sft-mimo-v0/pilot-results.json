@@ -1,0 +1,61 @@
+{
+ "base": "Qwen/Qwen3-8B",
+ "test_base_zero_shot": {
+  "positives": 18,
+  "detected": 0,
+  "negatives": 11,
+  "false_alarms": 0,
+  "unparsed": 29
+ },
+ "dev_by_checkpoint": {
+  "epoch2": {
+   "positives": 12,
+   "detected": 1,
+   "negatives": 12,
+   "false_alarms": 0,
+   "unparsed": 0
+  },
+  "epoch3": {
+   "positives": 12,
+   "detected": 12,
+   "negatives": 12,
+   "false_alarms": 10,
+   "unparsed": 0
+  }
+ },
+ "selected": "epoch3",
+ "test_trained_once": {
+  "positives": 18,
+  "detected": 18,
+  "negatives": 11,
+  "false_alarms": 11,
+  "unparsed": 0
+ },
+ "tb4_dev_probe": [
+  {
+   "task_id": "terminal-bench/cad-model",
+   "expected_category": "prompt_misaligned",
+   "generation": "{\"findings\": [{\"category\": \"weak\", \"root_cause\": \"format-code-task-v2\", \"file\": \"mimo-weak-tests-v2.1:format-code-task-v2\", \"violated_requirement\": \"Archived instruction-adjudicated wrong-patch witness; taxonomy mapping is inference, not fresh differential confirmation.\"}]}"
+  },
+  {
+   "task_id": "terminal-bench/cargo-flight-dispatch",
+   "expected_category": "prompt_misaligned",
+   "generation": "{\"findings\": [{\"category\": \"weak\", \"root_cause\": \"weak_check\", \"file\": \"mimo-weak-tests-v2.1:format-code-task-000911:block\", \"violated_requirement\": \"Archived instruction-adjudicated wrong-patch witness; taxonomy mapping is inference, not fresh differential confirmation.\"}]}"
+  },
+  {
+   "task_id": "terminal-bench/distributed-dedup",
+   "expected_category": "reachable",
+   "generation": "{\"findings\": [{\"category\": \"weak\", \"root_cause\": \"weak_check\", \"file\": \"mimo-weak-tests-v2.1:format-code-task-000930:block\", \"violated_requirement\": \"Archived instruction-adjudicated wrong-patch witness; taxonomy mapping is inference, not fresh differential confirmation.\"}]}"
+  },
+  {
+   "task_id": "terminal-bench/fin-saccr-rwa",
+   "expected_category": "weak",
+   "generation": "{\"findings\": []}"
+  },
+  {
+   "task_id": "terminal-bench/freecad-impeller",
+   "expected_category": "prompt_misaligned",
+   "generation": "{\"findings\": [{\"category\": \"weak\", \"root_cause\": \"weak_check\", \"file\": \"mimo-weak-tests-v2.1:format-code-task-000941:block\", \"violated_requirement\": \"Archived instruction-adjudicated wrong-patch witness; taxonomy mapping is inference, not fresh differential confirmation.\"}]}"
+  }
+ ]
+}

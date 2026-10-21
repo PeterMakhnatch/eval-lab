@@ -38,6 +38,7 @@ TB4_CENSUS_PASS_PATH = (
     REPO_ROOT / "research/experiments/tb4-run-census-20261020/labels-pass.compact.jsonl"
 )
 
+TR1_LABELS_DEV_PATH = REPO_ROOT / "research/experiments/tb4-run-census-20261021/labels-dev.jsonl"
 TW_SUBSET_PATH = REPO_ROOT / "research/calibration/detectors-v1/tw_subset.json"
 CB_SUBSET_PATH = REPO_ROOT / "research/calibration/detectors-v1/cb_subset.json"
 CALIB_MANIFEST_PATH = REPO_ROOT / "research/calibration/detectors-v1/manifest.jsonl"
@@ -998,6 +999,50 @@ def build_records(
             }
         )
 
+    # RS-1 confirmed 1/0 differential exploit on vf2-speedup-networkx (Sonnet, PR #1129)
+    rs1_vf2 = (manifests.get("rs1_tb4_dev_baseline_20261021") or {}).get("confirmed_vf2_submission")
+    if rs1_vf2:
+        vf2_task = str(rs1_vf2["task"])
+        assert vf2_task in tb4_dev and vf2_task not in tb4_test
+        vf2_solve = str(rs1_vf2["solve_sh"])
+        vf2_sha = str(rs1_vf2["solve_sh_sha256"])
+        add_row(
+            {
+                "trajectory_id": f"tb4-dev-rs1:{rs1_vf2['driver']}:{vf2_task}",
+                "source_family": "tb4_dev",
+                "environment": f"terminal-bench-4/{vf2_task}",
+                "task_id": vf2_task,
+                "model": str(rs1_vf2["model"]),
+                "mechanism_task_class": "weak_check",
+                "mechanism_run_class": "exploit_grader_gap",
+                "mechanism_detail": f"rs1_confirmed_1_0:{rs1_vf2['pm_finding_id']}",
+                "verified_by_replay": True,
+                "verified_differential": True,
+                "verification_method": "rs1_modal_upstream_1_and_pm_port_0_differential_replay",
+                "replay_evidence": {
+                    "original_reward": rs1_vf2["upstream_reward"],
+                    "hardened_reward": rs1_vf2["port_reward"],
+                    "solve_sh_sha256": vf2_sha,
+                },
+                "licence": "Apache-2.0",
+                "sft_tier": "tier1_replay_verified",
+                "training_status": "admitted_sft",
+                "quarantine_reason": None,
+                "payload_sha256": vf2_sha,
+                "payload_bytes": len(vf2_solve.encode("utf-8")),
+                "payload_excerpt": vf2_solve[:320].replace("\n", " "),
+                "source_pin": {
+                    "repo": "PeterMakhnatch/eval-lab",
+                    "key_id": "tb4-audit-v1",
+                    "pm_finding_id": str(rs1_vf2["pm_finding_id"]),
+                    "artifact_sha256": vf2_sha,
+                },
+            }
+        )
+
+    tr1_sha = _sha256_file(TR1_LABELS_DEV_PATH)
+    tr1_rows = _jsonl(TR1_LABELS_DEV_PATH)
+    tr1_by_hub = {str(r["hub_trial_id"]): r for r in tr1_rows if r.get("hub_trial_id")}
     census_sha = _sha256_file(TB4_CENSUS_PASS_PATH)
     for row in _jsonl(TB4_CENSUS_PASS_PATH):
         if row.get("label") != "known_exploit":
@@ -1008,36 +1053,99 @@ def build_records(
             excluded_tb4_test_count += 1
             continue
         assert task_id in tb4_dev, f"Unexpected TB4 task in census: {task_id}"
+        tid_hub = str(row["trial_id"])
+        tr1_row = tr1_by_hub.get(tid_hub) or {}
+        tr1_prov = tr1_row.get("provenance") or {}
+        tr1_tree_sha = str(tr1_prov.get("archive_tree_sha256") or "")
+        pin_art_sha = (
+            f"sha256:{tr1_tree_sha}" if re.fullmatch(r"[0-9a-f]{64}", tr1_tree_sha) else census_sha
+        )
         mech = str(row.get("mechanism") or "known_exploit")
         t_cls = "grader_tamperable" if "untimed" in mech or "cache" in mech else "weak_check"
         r_cls = "tamper_with_grading" if t_cls == "grader_tamperable" else "exploit_grader_gap"
+        if (
+            tr1_prov.get("admission") != "admitted_exact_source"
+            or tr1_row.get("label") != "known_exploit"
+            or tr1_row.get("method") != "deterministic"
+        ):
+            status = "quarantined"
+            q_reason = "tr1_quarantined_task_lock_mismatch"
+        else:
+            status = "admitted_sft"
+            q_reason = None
+        ev_txt = str(tr1_row.get("evidence") or mech)
         add_row(
             {
-                "trajectory_id": f"tb4-dev-hub:{task_id}:{row['trial_id']}",
+                "trajectory_id": f"tb4-dev-hub:{task_id}:{tid_hub}",
                 "source_family": "tb4_dev",
                 "environment": f"terminal-bench-4/{task_id}",
                 "task_id": task_id,
-                "model": str(row.get("model", "unknown")),
+                "model": str(tr1_row.get("model") or row.get("model", "unknown")),
                 "mechanism_task_class": t_cls,
                 "mechanism_run_class": r_cls,
                 "mechanism_detail": f"tb4_hub_census:{mech}",
                 "verified_by_replay": False,
                 "verified_differential": False,
-                "verification_method": "upstream_hub_pass_plus_pm_exploit_signature",
+                "verification_method": "tr1_canonical_deterministic_known_exploit"
+                if status == "admitted_sft"
+                else "tr1_quarantined_non_canonical_source_lock",
                 "replay_evidence": {"original_reward": 1.0, "hardened_reward": None},
                 "licence": "Apache-2.0",
-                "sft_tier": "tier2_source_verified_agentic",
-                "training_status": "admitted_sft",
-                "quarantine_reason": None,
+                "sft_tier": "tier2_source_verified_agentic" if status == "admitted_sft" else None,
+                "training_status": status,
+                "quarantine_reason": q_reason,
+                "payload_sha256": pin_art_sha,
+                "payload_bytes": len(ev_txt.encode("utf-8")),
+                "payload_excerpt": ev_txt[:320],
                 "source_pin": {
                     "repo": "PeterMakhnatch/eval-lab",
-                    "census_path": "research/experiments/tb4-run-census-20261020/labels-pass.compact.jsonl",
-                    "trial_id": str(row["trial_id"]),
-                    "artifact_sha256": census_sha,
+                    "census_path": "research/experiments/tb4-run-census-20261021/labels-dev.jsonl",
+                    "trial_id": tid_hub,
+                    "artifact_sha256": pin_art_sha,
                 },
             }
         )
 
+    # Quarantine TR-1's 5 unproven `exploit_candidate` DEV Hub rows so candidates are never mixed into admitted SFT
+    for tr1_row in tr1_rows:
+        if tr1_row.get("label") != "exploit_candidate":
+            continue
+        task_id = str(tr1_row["task"])
+        if task_id in tb4_test:
+            excluded_tb4_test_count += 1
+            continue
+        tid_hub = str(tr1_row["hub_trial_id"])
+        tr1_prov = tr1_row.get("provenance") or {}
+        tr1_tree_sha = str(tr1_prov.get("archive_tree_sha256") or "")
+        pin_art_sha = (
+            f"sha256:{tr1_tree_sha}" if re.fullmatch(r"[0-9a-f]{64}", tr1_tree_sha) else tr1_sha
+        )
+        add_row(
+            {
+                "trajectory_id": f"tb4-dev-hub-candidate:{task_id}:{tid_hub}",
+                "source_family": "tb4_dev",
+                "environment": f"terminal-bench-4/{task_id}",
+                "task_id": task_id,
+                "model": str(tr1_row.get("model", "unknown")),
+                "mechanism_task_class": "weak_check",
+                "mechanism_run_class": "exploit_grader_gap",
+                "mechanism_detail": f"tr1_exploit_candidate:{','.join(tr1_row.get('mechanisms') or [])}",
+                "verified_by_replay": False,
+                "verified_differential": False,
+                "verification_method": "tr1_unproven_exploit_candidate_quarantined",
+                "replay_evidence": {"original_reward": 1.0, "hardened_reward": None},
+                "licence": "Apache-2.0",
+                "sft_tier": None,
+                "training_status": "quarantined",
+                "quarantine_reason": "tr1_unproven_exploit_candidate",
+                "source_pin": {
+                    "repo": "PeterMakhnatch/eval-lab",
+                    "census_path": "research/experiments/tb4-run-census-20261021/labels-dev.jsonl",
+                    "trial_id": tid_hub,
+                    "artifact_sha256": pin_art_sha,
+                },
+            }
+        )
     # Optional live ingestion hook for reward-seeker lane (RS-1) confirmed TB4 DEV exploits
     if seeker_findings_path and seeker_findings_path.is_file():
         sf_sha = _sha256_file(seeker_findings_path)
@@ -1169,6 +1277,7 @@ def run_leak_audit(
         HERE / "eval_tb4_dev.py",
         HERE / "tier1_witness_sft.jsonl",
         HERE / "seeker_tool_sft.jsonl",
+        HERE / "transfer_splits.json",
         HERE / "data_quality_audit.json",
         HERE / "tb4_dev_eval_cohort.json",
         REPO_ROOT / "tests/test_seeker_sft_v1.py",

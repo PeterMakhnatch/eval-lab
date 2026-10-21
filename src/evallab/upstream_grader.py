@@ -473,7 +473,10 @@ def _modal_admission(
             "Modal CPU snapshots/images require linux/amd64; no architecture fallback is permitted"
         )
     blocker = modal_resource_blocker(Path(plan["task"]["path"]))
-    if blocker:
+    # Compose is the one blocker this grader now admits on Modal: Harbor's
+    # DinD strategy bounds the whole stack inside the declared-resource
+    # sandbox (plan_upstream_grader still refuses Compose for Docker/auto).
+    if blocker and not blocker.startswith("Modal does not support Compose services"):
         raise GraderRefusal(blocker)
     ledger = _read_ledger(spend_ledger, approval=approval, cap=float(max_usd))
     prior = _committed_spend(ledger)
@@ -522,15 +525,18 @@ def plan_upstream_grader(
         raise GraderRefusal("multi-step task replay is unsupported; no partial task is graded")
     if not (package / "instruction.md").is_file() or not (package / "tests" / "test.sh").is_file():
         raise GraderRefusal("an original Harbor instruction.md and tests/test.sh are required")
-    # Native Compose may add unbounded services not described by task.toml.
-    # Refuse instead of allocating those services with fabricated/default limits.
-    if any(
+    # Compose services have no per-service limits in task.toml, so local
+    # Docker still refuses them. On Modal, Harbor runs the Compose stack
+    # DinD inside one sandbox allocated at the exact declared agent
+    # CPU/memory, which is the bound; explicit backend="modal" is the only
+    # admitted Compose route (auto never silently chooses it).
+    if backend != "modal" and any(
         (package / folder / name).exists()
         for folder in ("environment", "tests")
         for name in _COMPOSE_NAMES
     ):
         raise GraderRefusal(
-            "Compose tasks are unsupported by this exact-resource primitive; sidecar resource admission is not implemented"
+            "Compose tasks are unsupported by this exact-resource primitive except on Modal (backend='modal'); sidecar resource admission is not implemented for local Docker"
         )
     environment = config.get("environment") or {}
     verifier = config.get("verifier") or {}

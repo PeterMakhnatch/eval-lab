@@ -232,6 +232,22 @@ unique basename against the port's submission paths; duplicate artifact
 basenames refuse at describe time, and a missing/ambiguous binding at
 runtime is an infrastructure error, never a synthetic reward.
 
+Port setup-recipe shapes (2026-10-21): the offline recipe interpreter in
+`candidate_port` now also resolves `ctx.fetch(ctx.hub_url(task, rev,
+path), dest, sha)` (the per-file form of `fetch_hub`), the `image_data`
+data dir, recipes with no `setup(ctx)` that declare a hash-pinned
+`{source: (dest, sha)}` map or a flat `{source: sha}` map plus a pure
+`destination()` helper, module-local pure helper functions used for
+destinations/predicates (Assign/If/Return bodies over comparisons,
+boolean logic, string split/join/startswith/removeprefix, path joins and
+slices), dict/list comprehensions with pure filter conditions, and
+taken-branch-only `if` statements in the setup body. Anything that still
+needs the network (external URLs, image-layer fetches), generates or
+transforms data (write_text/rewrite/patch/unpack of fetched files), or a
+non-ExecutableJudge stays an explicit refusal; sha-pinned assets whose
+local bytes differ from the pin (several tasks' `task.toml`) also remain
+refused rather than approximated.
+
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,
 `outcomes/INDEX.json` and `batch.json` receipts preserve completed work if the

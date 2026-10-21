@@ -6,13 +6,13 @@
  ],
  "chosen": "drop_attempts",
  "fingerprint": {
-  "combined": "66bcd74be1dcd6ef59220827b3d0c82b98a2b0c108e552dbc5561f850055e8ea",
-  "implementation": "950033d6d8b1f725f703f93066e84fde62e3a8b90aeb09897420227b9832b3f6",
+  "combined": "7b9391dce8552e9e2ec10fdb6391eb4fac3d81367aa3d5c2cc7d41b78cd9b2a0",
+  "implementation": "cc0e2de90d30d2b9105811eff72671e3fc6465c811e8599a8ca3750213b32ec3",
   "inputs": {
    "research/experiments/tripwires-v3-hackbook-20261021/predictions-dev.jsonl": "149a3ce828623ce374e0fb91266480eb4da5a2ab1ceb9cdb496ce1d0b616725d",
    "research/experiments/tripwires-v3-hackbook-20261021/predictions-test.jsonl": "82dfa6c801327a14917ae56d7bdda2015c9c4b76d123e82ca35567ab63cb8aa5"
   },
-  "system_id": "tripwires-v4@66bcd74be1dc"
+  "system_id": "tripwires-v4@7b9391dce855"
  },
  "schema": "evallab.tripwires_v4_precision/v1",
  "seed": "tripwires-v4-tune-holdout-20261021",

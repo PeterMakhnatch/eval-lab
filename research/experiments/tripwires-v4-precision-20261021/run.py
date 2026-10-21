@@ -212,11 +212,15 @@ def score(gate: str, expect: str) -> dict[str, Any]:
             "gate": counts(sel, gate),
             "v3_any": counts(sel, "v3_any"),
         }
+    v3_test = json.loads((V3_DIR / "results-test.json").read_text())
     for cohort in TEST_COHORTS:
+        registered = v3_test["cohorts"][cohort]["registered_in_split"]
         for view in ("full", "actions"):
             sel = [r for r in test if r["cohort"] == cohort and r["view"] == view]
+            cell = counts(sel, gate)
+            cell["registered"] = registered
             out["cohorts"][f"{cohort}/{view}/test"] = {
-                "gate": counts(sel, gate),
+                "gate": cell,
                 "v3_any": counts(sel, "v3_any"),
             }
     decisions = []
@@ -279,22 +283,26 @@ def publish(result: dict[str, Any], path: Path = SCOREBOARD) -> dict[str, int]:
             cell = result["cohorts"][f"{cohort}/{view}/test"]["gate"]
             n_items = cell["positives"] + cell["negatives"]
             row = {
-                "timestamp_utc": stamp,
+                "date_utc": stamp,
                 "key_id": cohort,
                 "split": "test",
                 "category": "all",
-                "family": "Deterministic tripwires",
+                "agent": "Deterministic tripwires",
                 "system": f"{result['fingerprint']['system_id']}/{view}",
                 "recall": str(cell["recall"]),
                 "false_alarm_rate": str(cell["false_alarm_rate"]),
-                "category_match": "n/a",
                 "root_cause_match": "n/a",
-                "cost_usd": "0.0",
-                "n_items": str(n_items),
+                "paired_discrimination": "n/a",
+                "cost_per_item_usd": "0.0",
+                "n_items": str(cell["registered"]),
                 "n_measured": str(n_items),
-                "tp": str(cell["true_positives"]),
-                "fn": str(cell["positives"] - cell["true_positives"]),
-                "status": "complete",
+                "n_pairs": "0",
+                "n_pairs_measured": "0",
+                "status": (
+                    "complete"
+                    if n_items == cell["registered"]
+                    else f"partial: {n_items} of {cell['registered']} measured"
+                ),
                 "notes": (
                     f"Frozen confirmation gate `{result['gate']}` over tripwires-v3@d338116d6583 "
                     f"rule hits, selected on TB4 DEV tune half only (seed {SEED}); {view} view; "

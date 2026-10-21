@@ -63,7 +63,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:854ffef6b8541c702b6e9c28d9a9f18088841b65361aeb5951b41d7a5d9a8167
+    digest: sha256:5bfb85ca14a820b11c93b98ae864912b4a7f67d85b9a25710eb7c60362d0134d
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -103,7 +103,7 @@ inputs:
   - path: docs/qa-contract.md
     digest: sha256:7109b75163134eaca1db56c99cfafb07f6714777b27ef2b2d46d5c31f1d5d9d2
   - path: docs/qa-task.md
-    digest: sha256:e74ac0c350c02ef2ffa41b13e9480340d6b1da74ef35ae435cf13eaf973d9760
+    digest: sha256:ced3c88db1d0bd1ff292a4fcd8d099ea9b415af0fbe71d7254302eadb606c891
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md

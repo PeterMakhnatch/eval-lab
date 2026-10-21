@@ -36,7 +36,6 @@ BASE = "Qwen/Qwen3-8B"
 
 
 def score(rows):
-    import re
 
     pos = det = neg = fa = unparsed = 0
     for row in rows:
@@ -54,7 +53,13 @@ def score(rows):
         else:
             neg += 1
             fa += bool(found)
-    return {"positives": pos, "detected": det, "negatives": neg, "false_alarms": fa, "unparsed": unparsed}
+    return {
+        "positives": pos,
+        "detected": det,
+        "negatives": neg,
+        "false_alarms": fa,
+        "unparsed": unparsed,
+    }
 
 
 @app.function(image=image, gpu="A10G", volumes={"/data": vol}, timeout=3 * 60 * 60)
@@ -68,20 +73,42 @@ def run():
         tok.pad_token = tok.eos_token
 
     def load(name):
-        return [json.loads(line) for line in pathlib.Path(f"/data/{name}").read_text().splitlines() if line]
+        return [
+            json.loads(line)
+            for line in pathlib.Path(f"/data/{name}").read_text().splitlines()
+            if line
+        ]
 
-    train, dev, test, tb4 = load("pilot-train.jsonl"), load("pilot-dev.jsonl"), load("pilot-test.jsonl"), load("pilot-tb4.jsonl")
+    train, dev, test, tb4 = (
+        load("pilot-train.jsonl"),
+        load("pilot-dev.jsonl"),
+        load("pilot-test.jsonl"),
+        load("pilot-tb4.jsonl"),
+    )
 
     def generate(model, rows):
         out = []
         for row in rows:
-            ids = tok(row["prompt"], return_tensors="pt", truncation=True, max_length=2048).to(model.device)
+            ids = tok(row["prompt"], return_tensors="pt", truncation=True, max_length=2048).to(
+                model.device
+            )
             with torch.no_grad():
-                gen = model.generate(**ids, max_new_tokens=300, do_sample=False, pad_token_id=tok.eos_token_id)
-            out.append({**row, "generation": tok.decode(gen[0][ids["input_ids"].shape[1] :], skip_special_tokens=True)})
+                gen = model.generate(
+                    **ids, max_new_tokens=300, do_sample=False, pad_token_id=tok.eos_token_id
+                )
+            out.append(
+                {
+                    **row,
+                    "generation": tok.decode(
+                        gen[0][ids["input_ids"].shape[1] :], skip_special_tokens=True
+                    ),
+                }
+            )
         return out
 
-    model = AutoModelForCausalLM.from_pretrained(BASE, torch_dtype=torch.bfloat16, device_map="auto")
+    model = AutoModelForCausalLM.from_pretrained(
+        BASE, torch_dtype=torch.bfloat16, device_map="auto"
+    )
     results = {"base": BASE, "test_base_zero_shot": score(generate(model, test))}
     pathlib.Path("/data/out").mkdir(exist_ok=True)
     pathlib.Path("/data/out/results.json").write_text(json.dumps(results, indent=2))
@@ -102,15 +129,42 @@ def run():
             input_ids.append(b["input_ids"] + [tok.pad_token_id] * pad)
             labels.append(b["labels"] + [-100] * pad)
             attn.append([1] * len(b["input_ids"]) + [0] * pad)
-        return {"input_ids": torch.tensor(input_ids), "labels": torch.tensor(labels), "attention_mask": torch.tensor(attn)}
+        return {
+            "input_ids": torch.tensor(input_ids),
+            "labels": torch.tensor(labels),
+            "attention_mask": torch.tensor(attn),
+        }
 
-    lora = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.0, task_type="CAUSAL_LM",
-                      target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"])
+    lora = LoraConfig(
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0.0,
+        task_type="CAUSAL_LM",
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
     model = get_peft_model(model, lora)
     model.gradient_checkpointing_enable()
-    args = TrainingArguments(output_dir="/tmp/ckpt", per_device_train_batch_size=1, gradient_accumulation_steps=8,
-                             num_train_epochs=3, learning_rate=1e-4, logging_steps=10, save_strategy="epoch",
-                             bf16=True, report_to=[], seed=17, gradient_checkpointing=True)
+    args = TrainingArguments(
+        output_dir="/tmp/ckpt",
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=8,
+        num_train_epochs=3,
+        learning_rate=1e-4,
+        logging_steps=10,
+        save_strategy="epoch",
+        bf16=True,
+        report_to=[],
+        seed=17,
+        gradient_checkpointing=True,
+    )
     encoded = [encode(row) for row in train]
     Trainer(model=model, args=args, train_dataset=encoded, data_collator=collate).train()
 

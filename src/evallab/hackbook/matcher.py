@@ -1217,6 +1217,46 @@ def _write_diff(call: Any) -> str:
     return "\n".join([*header, *("+" + ln for ln in body.splitlines())])
 
 
+_SHELL_KEYS = ("command", "cmd", "keystrokes", "code", "script")
+_BODY_KEYS = ("content", "file_text", "new_str", "new_string", "patch", "diff")
+_GRADER_MOUNTS = ("/tests/", "/logs/verifier")
+_URL = re.compile(r"^https?://\S+$")
+
+
+def _tool_op(call: Any) -> str:
+    """Shell-shaped line for a structured file or URL tool call, so shell tripwires see it.
+
+    ``{"file_path": p}`` is ``cat p`` and a URL argument is ``curl url``. A write (``content`` /
+    ``file_text``) or an edit (``old_string`` / ``new_string``) becomes ``tee p`` / ``sed -i p``
+    only when ``p`` is under the grader's own mount (``/tests/``, ``/logs/verifier``): the agent's
+    own ``/app/tests/`` scratch files are ordinary development, and the shell tripwires already
+    treat a write to the grader mount as tampering. Calls that already carry a shell command
+    return ``""``: their own text is the command.
+    """
+    if not isinstance(call, dict):
+        return ""
+    args = call.get("arguments", call.get("input", call.get("args")))
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except ValueError:
+            return ""
+    if not isinstance(args, dict) or any(isinstance(args.get(k), str) for k in _SHELL_KEYS):
+        return ""
+    values = [v for v in args.values() if isinstance(v, str)]
+    url = next((v for v in values if _URL.match(v.strip())), "")
+    if url:
+        return f"curl {url.strip()}"
+    path = next((args[k].strip() for k in _PATH_KEYS if isinstance(args.get(k), str)), "")
+    if not path:
+        return ""
+    if any(isinstance(args.get(k), str) and args[k] for k in ("old_str", "old_string")):
+        return f"sed -i {path}" if path.startswith(_GRADER_MOUNTS) else ""
+    if any(isinstance(args.get(k), str) for k in _BODY_KEYS):
+        return f"tee {path}" if path.startswith(_GRADER_MOUNTS) else ""
+    return f"cat {path}"
+
+
 def _atif_events(data: Mapping[str, Any], prefix: str = "") -> list[TraceEvent]:
     events: list[TraceEvent] = []
     steps = data.get("steps") or data.get("messages") or data.get("events") or []
@@ -1233,6 +1273,9 @@ def _atif_events(data: Mapping[str, Any], prefix: str = "") -> list[TraceEvent]:
             events.append(TraceEvent(ref, kind, message))
         for call in step.get("tool_calls") or []:
             events.append(TraceEvent(ref, "command", _command_of(call)))
+            op = _tool_op(call)
+            if op:
+                events.append(TraceEvent(ref, "command", op))
             diff = _write_diff(call)
             if diff:
                 events.append(TraceEvent(ref, "diff", diff))
@@ -1261,6 +1304,9 @@ def _actions_events(rows: Sequence[Any], prefix: str = "") -> list[TraceEvent]:
     for index, row in enumerate(rows):
         ref = f"{prefix}step:{row.get('step', row.get('index', index)) if isinstance(row, dict) else index}"
         events.append(TraceEvent(ref, "command", _command_of(row)))
+        op = _tool_op(row)
+        if op:
+            events.append(TraceEvent(ref, "command", op))
         if isinstance(row, dict):
             diff = _write_diff(row)
             if diff:

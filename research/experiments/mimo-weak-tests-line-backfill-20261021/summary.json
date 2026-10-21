@@ -63,38 +63,35 @@
     "limits": "Each report is one attempt on a distinct planned task, bound to its package and reference; retries are not extra tasks. Measured line stages, unavailable attempts and inapplicable stages remain separate. Survivors need hash-bound semantic adjudication and scored return-code-zero controls; unreviewed is not a finding.",
     "line_stage_not_reported_task_ids": [],
     "mutant_stage_status_counts": {
-      "measured": 83,
+      "measured": 86,
       "not_applicable": 11
     },
     "new_block_candidates": 41,
-    "new_block_unreviewed": 1,
-    "new_reports": 94,
-    "new_scans": 94,
+    "new_block_unreviewed": 0,
+    "new_reports": 97,
+    "new_scans": 97,
     "new_scans_by_status": {
       "budget_exhausted": 1,
-      "measured": 93
+      "measured": 96
     },
     "new_scans_by_verdict": {
       "fail": 41,
-      "pass": 53
+      "pass": 56
     },
-    "new_survivors": 244,
+    "new_survivors": 254,
     "new_survivors_review": {
-      "equivalent_or_optional": 80,
+      "equivalent_or_optional": 101,
       "non_positive": 31,
-      "required_gap": 52,
-      "uncertain": 55,
-      "unreviewed": 26
+      "required_gap": 54,
+      "uncertain": 58,
+      "unreviewed": 10
     },
-    "new_survivors_unreviewed": 26,
+    "new_survivors_unreviewed": 10,
     "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
     "plan_sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a",
     "planned_backfill_tasks": 265,
     "planned_sha256": "7405662e6e4b7a317d0687d0707931c4b86acd55556a7f7b6028a7ff1c8e84c9",
     "remaining_task_ids": [
-      "format-code-task-000242",
-      "format-code-task-002915",
-      "format-code-task-001246",
       "format-code-task-001614",
       "format-code-task-000471",
       "format-code-task-001671",
@@ -264,7 +261,7 @@
       "format-code-task-000116",
       "format-code-task-002940"
     ],
-    "remaining_tasks": 171,
+    "remaining_tasks": 168,
     "review_inputs": [
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/backfill-reviews.json",
@@ -317,6 +314,18 @@
       {
         "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/07b.json",
         "sha256": "db577539344f276acbb041cd95aa127dc430bc9bbb97f24d034648376514902b"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08a.json",
+        "sha256": "bc3758ffd3397351f065674917b28d420486ae71e67c7a4c628d4df8e40b8fba"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08b.json",
+        "sha256": "a67761a0a096a5ccf662b62e8c83b76d7d396ab6815c34c5207c3af3c7b6055d"
+      },
+      {
+        "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08c.json",
+        "sha256": "a16b224bc0f09f31f3081446e1320b7d084a91bf52084bad00f6e497652c88a4"
       }
     ],
     "scans": [
@@ -1169,6 +1178,73 @@
         "task_id": "format-code-task-000227",
         "usable_controls": true,
         "verdict": "fail"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
+        "grades_log_sha256": "3771a4f7f0b236d409dc2f0bfbf0d84334bc1ea485fd21a0c290fbb021f230a3",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 1,
+          "reason": "",
+          "status": "measured",
+          "survivors": 5,
+          "tried": 6,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:796ab6331fcb09f0df764f38a4f85fa4bfcf46abdbbc413e21cd4b834036d464",
+        "reference_sha256": "9b1aea7d5324f61836d2a20cc0ddce9e5eac816c6cf4fa122345808b94455d61",
+        "report_sha256": "99326de2a653c8ee91dab7c97afa7cb44ba0097387025c609c98ff730e4b90c4",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "lib/cartopy/crs.py",
+            "id": "bf1efc1d31",
+            "line": 1265,
+            "review": "unreviewed"
+          },
+          {
+            "file": "lib/cartopy/crs.py",
+            "id": "7ae3a947f0",
+            "line": 1267,
+            "review": "unreviewed"
+          },
+          {
+            "file": "lib/cartopy/crs.py",
+            "id": "77bfbd1acf",
+            "line": 1266,
+            "review": "unreviewed"
+          },
+          {
+            "file": "lib/cartopy/crs.py",
+            "id": "1f6123ddec",
+            "line": 1269,
+            "review": "unreviewed"
+          },
+          {
+            "file": "lib/cartopy/crs.py",
+            "id": "b9095ee12f",
+            "line": 1265,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-000242",
+        "usable_controls": true,
+        "verdict": "pass"
       },
       {
         "block_review": null,
@@ -3964,6 +4040,61 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "39cb5cf352ffd7fa4a59cd2355a51367c7b48272e7bd7f165eb77eccf6672fd2",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 17,
+          "reason": "",
+          "status": "measured",
+          "survivors": 3,
+          "tried": 20,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:91dae7160069d5c5c5695afa20bc436a85177413bdf394ece327048061a3f77a",
+        "reference_sha256": "1c94db9ab446476806737ee9ad079d0cc62e5f04f8d7f11f6e3d018065f3523c",
+        "report_sha256": "962f3b371ac8e417562c17caa969d865ab9b19177244d20eb1bc6482896dfacb",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "burnman/classes/solutionmodel.py",
+            "id": "323865e88f",
+            "line": 41,
+            "review": "unreviewed"
+          },
+          {
+            "file": "burnman/classes/solutionmodel.py",
+            "id": "216f642edc",
+            "line": 43,
+            "review": "unreviewed"
+          },
+          {
+            "file": "burnman/classes/solutionmodel.py",
+            "id": "239e3d051c",
+            "line": 45,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-001246",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "4128647c0607aee9643630e18b058da5ab15b0d6db53e1869cf82a7ce8068d85",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -4812,19 +4943,19 @@
             "file": "libfmp/c3/c3s2_dtw.py",
             "id": "fa099eae83",
             "line": 144,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "libfmp/c3/c3s2_dtw.py",
             "id": "ef6c250b29",
             "line": 121,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "libfmp/c3/c3s2_dtw.py",
             "id": "b603fd8bdf",
             "line": 93,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-001886",
@@ -7652,67 +7783,67 @@
             "file": "pylingual/decompiler.py",
             "id": "c1dee1dff7",
             "line": 443,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "c16b2eb485",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "8a67ff570a",
             "line": 98,
-            "review": "unreviewed"
+            "review": "required_gap"
           },
           {
             "file": "pylingual/main.py",
             "id": "6971856e9a",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/decompiler.py",
             "id": "a9537af276",
             "line": 103,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "pylingual/main.py",
             "id": "7b01b1d3a3",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "227aacf821",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "95fa015fa1",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "6de2fe0ecb",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "d9bf37b48f",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "pylingual/main.py",
             "id": "55e2ea84fb",
             "line": 101,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           }
         ],
         "task_id": "format-code-task-002790",
@@ -8039,6 +8170,55 @@
           }
         },
         "dropped_patch_sha256": null,
+        "grades_log_sha256": "f024441032103b44082f2d8a4b0434475d0e9b02a68bbe6ec56a6427b94c75ef",
+        "kept_fraction": 1.0,
+        "minimal_patch_sha256": null,
+        "mutant_stage": {
+          "killed": 4,
+          "reason": "",
+          "status": "measured",
+          "survivors": 2,
+          "tried": 6,
+          "unscored": 0,
+          "verdict": "fail"
+        },
+        "package_digest": "sha256:fc8ce9a9331c32f42d4384dabffb10078986ed3abb328601c501ffd618de1a33",
+        "reference_sha256": "7a0b6c844dd1fe02ff965be5bf282431265ccbb6527814624f2e556b8a161b0c",
+        "report_sha256": "c6fefa9f6301e1cad712d78b85c2e7cd3038da0dc3f63b092519b7ae7cb95386",
+        "status": "measured",
+        "survivors": [
+          {
+            "file": "mitiq/utils.py",
+            "id": "5716a823be",
+            "line": 53,
+            "review": "unreviewed"
+          },
+          {
+            "file": "mitiq/utils.py",
+            "id": "168f29a29b",
+            "line": 58,
+            "review": "unreviewed"
+          }
+        ],
+        "task_id": "format-code-task-002915",
+        "usable_controls": true,
+        "verdict": "pass"
+      },
+      {
+        "block_review": null,
+        "controls": {
+          "full": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "nop": {
+            "rc": 0,
+            "reward": 0.0,
+            "status": "scored"
+          }
+        },
+        "dropped_patch_sha256": null,
         "grades_log_sha256": "12fbe33e42a920de6a9dc4ecb6b79d138df1daaa7a6c3ac4ae0d8f43a6847d13",
         "kept_fraction": 1.0,
         "minimal_patch_sha256": null,
@@ -8097,7 +8277,58 @@
         "verdict": "pass"
       },
       {
-        "block_review": null,
+        "block_review": {
+          "counterexample": {
+            "fresh_execution": false,
+            "kind": "required_scope_refutation",
+            "scenario": "Import module_rag.agent_tools and call either named public API after applying minimal.patch.",
+            "source_reasoned_result": "The complete requested implementation is still present; none of its statements imports _verify_modern. Missing the separate optional verification CLI does not itself remove a specified input/transition/output/exception behavior."
+          },
+          "dropped_behavior": "Unrequested standalone integration/self-verification, not any requested wrapper behavior.",
+          "dropped_code": [
+            "api/module_rag/_verify_modern.py#0"
+          ],
+          "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/dropped.patch",
+          "dropped_patch_sha256": "8d1d1005e9e0ba5a2dadb673f9a7647a2706ef90399eb70de22ec06de5be8417",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: \"Python library module module_rag.agent_tools\" and the two named public APIs define the required scope",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:1-147: extra standalone _verify_modern workflow includes external-service prerequisites, training, assertions and cleanup",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete required library source",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:7-78: retains exactly the complete 72-line agent_tools source",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/dropped.patch:7-147: only the 141-line standalone integration utility is omitted",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: the effective hidden command imports/tests agent_tools only; the optional utility is not selected",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:47: == drop-file:api/module_rag/_verify_modern.py reward=1.0 rc=0 scored 1.5s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:70: == confirm reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "line": 70,
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "quote": "== confirm reward=1.0 rc=0 scored 1.4s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "label": "out_of_scope",
+          "limits": "This is not a whole-task correctness certificate. The recorded confirm is reused, not rerun; the optional integration utility and its external resources were not executed.",
+          "reason": "The omission removes only the unsolicited 141-line module_rag._verify_modern integration verification utility. Its workflow creates/trains/queries/deletes temporary datasets and checks chunking, incremental training, contextual retrieval and optional external services. Instruction.md requests only the module_rag.agent_tools library with search_knowledge_base and make_kb_tool. The complete 72-line requested module, including scope resolution, tenant fallback, retrieval settings, exact messages, ranked/trimmed text and fixed-scope closure, is retained byte-for-byte in minimal.patch. The current recorded confirm scores 1 with usable full=1/nop=0 controls, but dropping an unrequested integration utility is not a required-behavior omission and is not a confirmed weak-test witness.",
+          "retained_code": [
+            "api/module_rag/agent_tools.py#0"
+          ],
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "omitted_verify_modern_source_sha256": "774f175dcf831dcb321d451cec8a75bb4d20f6357030a0b3ac1d8b39354e23bc",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "retained_agent_tools_source_sha256": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c",
+            "source_hash_method": "Full added-file source bytes reconstructed from the exact reference/minimal/dropped all-new-file patches."
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch",
+          "witness_sha256": "25d5fdde2124f5e7b3240cbc8ae28fb25cb0be7dbe553fef546bbc236a3a8d5d"
+        },
         "controls": {
           "full": {
             "rc": 0,
@@ -8132,73 +8363,73 @@
             "file": "api/module_rag/_verify_modern.py",
             "id": "ccbe0effe1",
             "line": 36,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/agent_tools.py",
             "id": "90acae6f84",
             "line": 62,
-            "review": "unreviewed"
+            "review": "uncertain"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "07c4f97ea9",
             "line": 50,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "25d6b0a6f6",
             "line": 140,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "ba0c0d08c4",
             "line": 38,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "1f3c10a125",
             "line": 88,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "2c55753808",
             "line": 27,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "72923f06f2",
             "line": 51,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "3b33a5ce81",
             "line": 127,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "b13d35c6ea",
             "line": 28,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/_verify_modern.py",
             "id": "28d0f5d1c1",
             "line": 96,
-            "review": "unreviewed"
+            "review": "equivalent_or_optional"
           },
           {
             "file": "api/module_rag/agent_tools.py",
             "id": "370b8768b6",
             "line": 34,
-            "review": "unreviewed"
+            "review": "uncertain"
           }
         ],
         "task_id": "format-code-task-003023",
@@ -8206,28 +8437,28 @@
         "verdict": "fail"
       }
     ],
-    "usable_control_pairs": 94
+    "usable_control_pairs": 97
   },
   "schema": "har209.weak_test_coverage/v1",
   "scientific_exclusions": {
     "by_claim_status": {
-      "confirmed": 189,
+      "confirmed": 191,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 189,
+      "confirmed_defect": 191,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "confirmed_wrong_patch_package_pairs_checked": 131,
+    "confirmed_wrong_patch_package_pairs_checked": 133,
     "confirmed_wrong_patch_package_pairs_missing": [],
-    "exact_package_pairs": 215,
-    "fresh_review_supported_packages": 23,
-    "fresh_review_supported_witnesses": 58,
+    "exact_package_pairs": 217,
+    "fresh_review_supported_packages": 25,
+    "fresh_review_supported_witnesses": 60,
     "limits": "Exact package exclusions and conservative holds are separate from execution grades. Unlisted repaired children receive no inherited certification; historical manifests and completed experiment plans are unchanged.",
     "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/scientific-exclusions.json",
-    "sha256": "b5bb7e6b64b698b277299d0761f63bc6a042e5c71a6c86c2146e5cab49078c67",
+    "sha256": "4fecc03296b72f7034918bb08fc7ce87de06720c6139db9b99932a7d8a59ed65",
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

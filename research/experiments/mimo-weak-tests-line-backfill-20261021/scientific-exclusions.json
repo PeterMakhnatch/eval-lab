@@ -9926,6 +9926,65 @@
       "defect_class": "accepted-required-gap",
       "evidence": [
         {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:3: public pure DTW helpers for feature-sequence alignment",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/instruction.md:7: constrained path example and purity/immutability contract",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/fa099eae83.patch:167: the sole semantic difference from the full reference",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-001886/solution.patch:117: complete valid-shape recurrence",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:154: constrained three-column fixture",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886/tests/test.patch:353: actual launcher selects this test file",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:1: full=1 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:25: nop=0 rc=0 scored",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log:144: current exact witness=1 rc=0 scored"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/grades.log",
+          "grades_log_sha256": "sha256:69eb88f5a07f2e5dc144db09e689193750a53eccc706d33f8800734de5a5e9b2",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:a1fad9f820450cb2de386b844d29236fb729c9a19dd448a5a7075f41eee8bf88",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-001886",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08c.json",
+          "reference_sha256": "sha256:84d93b4cb1ee97c966c731343f9248c3217b7cddddc4fc2be49d4b1e33db3342",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/report.json",
+          "report_sha256": "sha256:25a9a432461dc51a29ffbe802501316d780fad947becbd2a78d708fd548dbc4c",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-001886",
+            "witness_id": "fa099eae83"
+          },
+          "sha256": "sha256:a16b224bc0f09f31f3081446e1320b7d084a91bf52084bad00f6e497652c88a4",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-001886/mutants/fa099eae83.patch",
+          "witness_sha256": "sha256:2248bca4642177dc049336d0c5b8aa72ca71295449283e075eb13dbe164e03fb"
+        }
+      ],
+      "package_digest": "sha256:a1fad9f820450cb2de386b844d29236fb729c9a19dd448a5a7075f41eee8bf88",
+      "reason": "The public constrained DTW path helper must backtrack an optimal path from an accumulated cost matrix, not just reproduce the supplied three-column fixture. The mutant replaces the predecessor column m-1 by constant 1. At m=3 this can choose a value that belongs to none of the predecessor locations tested in the following if/elif, sending the path to the wrong fallback. For the explicitly supplied nonnegative 4x4 cost matrix in counterexample, the reference-generated D has first candidates [2,11,4], whereas the mutant computes [2,1,4]. It falls to (2,1), subsequently walks through unreachable (1,0), and returns a path containing a forbidden (1,0) step with node-cost 6 rather than the valid diagonal optimum of cost 3. Every selected constrained correctness/purity fixture has at most three columns (or is single-cell), so the changed expression equals m-1 at the first checked backtracking step; the accepted current grade misses this general valid-shape defect. This is source-derived path/arithmetic reasoning, not task code execution or a fresh scored control.",
+      "task_id": "format-code-task-001886",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
           "example_witness": {
             "controls": {
               "full": {
@@ -13025,6 +13084,69 @@
             }
           },
           "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:3: public decompile has trust_lnotab=False; False uses model segmentation and True derives trusted boundaries before translation",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:5: required B/I/E labels, duplicate-line handling, score=1 and starts_line behavior",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/instruction.md:7: local CLI exposes the same behavior with --trust-lnotab and help text; invalid/empty grouping raises ValueError",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:1: == full reward=1.0 rc=0 scored 2.0s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:24: == nop reward=0.0 rc=0 scored 1.7s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch:95-103: Click option has is_flag=True, default=True",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch:107-113: main forwards trust_lnotab=trust_lnotab",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:69-87: public decompile defaults False but explicitly forwards its received value into Decompiler",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002790/solution.patch:17-32: constructor stores trust_lnotab and run_segmentation returns early to trusted boundaries when truthy",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:187-199: only false-mode assertion invokes the Python API with an explicit False",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790/tests/test.patch:336-385: CLI coverage is help plus explicit --trust-lnotab, not omitted-flag default",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:582-603: this exact mutant still passes all eleven selected tests",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log:582: == mutant:8a67ff570a reward=1.0 rc=0 scored 1.8s"
+          ],
+          "execution_grade_transferred": false,
+          "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/grades.log",
+          "grades_log_sha256": "sha256:563a9d68d672db1f19b47afb9bee8225edaec90409e170a38880521cdbe036db",
+          "kind": "reviewed_backfill_accepted_wrong_patch",
+          "package_digest": "sha256:5fb6a006a9378dae37f70b66b76aa22ae2d535b3603a9cbffe7f78de0b35f50f",
+          "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002790",
+          "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08a.json",
+          "reference_sha256": "sha256:ba6d5a14ba71c19ad9bf7bd4d239f0cac555a96744c5686f3767b3c245972c60",
+          "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/report.json",
+          "report_sha256": "sha256:5727d9cd40777b4b8604adc65bd76fc990f224487427b93459f1b71bd1fb6018",
+          "review_label": "required_gap",
+          "selector": {
+            "task_id": "format-code-task-002790",
+            "witness_id": "8a67ff570a"
+          },
+          "sha256": "sha256:bc3758ffd3397351f065674917b28d420486ae71e67c7a4c628d4df8e40b8fba",
+          "witness_grade": {
+            "rc": 0,
+            "reward": 1.0,
+            "status": "scored"
+          },
+          "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-002790/mutants/8a67ff570a.patch",
+          "witness_sha256": "sha256:187ec010dbc607b8b74ccba28f4144d600b9f7004b85cc5e97fa83b7eb64840a"
+        }
+      ],
+      "package_digest": "sha256:5fb6a006a9378dae37f70b66b76aa22ae2d535b3603a9cbffe7f78de0b35f50f",
+      "reason": "The CLI boolean flag now has default=True rather than False. An ordinary CLI invocation without --trust-lnotab therefore forwards trust_lnotab=True to the named public decompile wrapper, which explicitly passes it to Decompiler and takes the early trusted-lnotab segmentation branch. This violates the requested opt-in trusted mode and the instruction that False/default uses the normal segmentation model path, exposed with the same behavior on the local CLI. The selected false-mode test calls the Python API with trust_lnotab=False; the CLI tests check only --help and an invocation that explicitly supplies --trust-lnotab. No selected test asserts the CLI value or model path when the flag is absent, explaining this recorded scored survivor without inventing a new execution.",
+      "task_id": "format-code-task-002790",
+      "verify": "fail:weak-tests"
+    },
+    {
+      "claim_status": "confirmed",
+      "classification": "confirmed_defect",
+      "defect_class": "accepted-required-gap",
+      "evidence": [
+        {
+          "controls": {
+            "full": {
+              "rc": 0,
+              "reward": 1.0,
+              "status": "scored"
+            },
+            "nop": {
+              "rc": 0,
+              "reward": 0.0,
+              "status": "scored"
+            }
+          },
+          "evidence_refs": [
             "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:3-6",
             "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/instruction.md:26",
             "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-002801/tests/test.patch:19-105",
@@ -14048,24 +14170,36 @@
     {
       "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/07b.json",
       "sha256": "sha256:db577539344f276acbb041cd95aa127dc430bc9bbb97f24d034648376514902b"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08a.json",
+      "sha256": "sha256:bc3758ffd3397351f065674917b28d420486ae71e67c7a4c628d4df8e40b8fba"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08b.json",
+      "sha256": "sha256:a67761a0a096a5ccf662b62e8c83b76d7d396ab6815c34c5207c3af3c7b6055d"
+    },
+    {
+      "path": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08c.json",
+      "sha256": "sha256:a16b224bc0f09f31f3081446e1320b7d084a91bf52084bad00f6e497652c88a4"
     }
   ],
   "schema": "evallab.mimo_scientific_exclusions/v1",
   "scope": "Exact task/package pairs excluded from accepted scientific use (training, scored benchmark evaluation, and admission/certification). Diagnostic oracle/nop, mutation, and repair controls remain allowed; this inventory is not dispatch or spend authorization.",
   "totals": {
     "by_claim_status": {
-      "confirmed": 189,
+      "confirmed": 191,
       "unknown": 14,
       "unmeasured_on_package": 12
     },
     "by_classification": {
-      "confirmed_defect": 189,
+      "confirmed_defect": 191,
       "conservative_hold": 26
     },
     "confirmed_base_regression_tasks": 13,
-    "exact_package_pairs": 215,
-    "fresh_review_supported_packages": 23,
-    "fresh_review_supported_witnesses": 58,
+    "exact_package_pairs": 217,
+    "fresh_review_supported_packages": 25,
+    "fresh_review_supported_witnesses": 60,
     "supported_original_atlas_packages_excluded": 114,
     "unresolved_task_ids": [
       "candidate-1702-ml-inference",

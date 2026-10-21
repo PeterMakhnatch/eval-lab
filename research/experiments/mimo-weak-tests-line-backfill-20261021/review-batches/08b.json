@@ -1,0 +1,1308 @@
+{
+  "schema": "mimo.line_backfill_reviews/v1",
+  "reviewed_by": "BackfillReview08B (native requirement-level source and recorded-control review only)",
+  "reviewed_at_utc": "2026-10-21T20:27:03.217812+00:00",
+  "review_scope": {
+    "assigned_task_ids": [
+      "format-code-task-003023"
+    ],
+    "artifact_only": "research/experiments/mimo-weak-tests-line-backfill-20261021/review-batches/08b.json",
+    "output_root": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265",
+    "spend_usd": 0,
+    "new_execution": false,
+    "docker_invoked": false,
+    "model_or_remote_apis_invoked": false,
+    "builds_tests_linters_formatters_or_checks_invoked": false,
+    "commits_or_other_repository_file_edits": false,
+    "immutable_inputs_modified": false,
+    "method": "Inspect exact canonical plan/package/instruction/reference, current report and authoritative raw grade headers, minimal/dropped block witness, all 12 full survivor patches, full hidden test patch and effective launcher selection. Analyze complete embedded new-file sources and hashes; distinguish unsolicited integration utility mutations from requested wrapper behavior, and preserve uncertainty around explicit public annotations without inventing annotation-driven consumers. No new controls or validation commands."
+  },
+  "frozen_source_bindings": {
+    "resume_plan": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/resume-plan-20261021.json",
+      "sha256": "91a5f1541c3c5a60d09d8b8a6df419848d3d4817888357e2692d3d7ceca3940a"
+    },
+    "atlas": {
+      "path": "/Users/petermakhnatch/.local/state/foreman/worktrees/20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8/research/answer-keys/mimo-weak-tests-v2.1/atlas.jsonl",
+      "sha256": "84cc524b654b944fcbf286f2fd2c189bff3ebf2c071e3d180fe0d311ca282450"
+    }
+  },
+  "summary": {
+    "reports": 1,
+    "block_fail_candidates": 1,
+    "block_labels": {
+      "confirmed_weak": 0,
+      "neutral": 0,
+      "out_of_scope": 1,
+      "uncertain": 0
+    },
+    "reported_survivors": 12,
+    "reviewed_survivors": 12,
+    "survivor_labels": {
+      "required_gap": 0,
+      "equivalent_or_optional": 10,
+      "non_positive": 0,
+      "uncertain": 2
+    },
+    "generated_mutants": 118,
+    "attempted_mutants": 20,
+    "recorded_killed_mutants": 8,
+    "recorded_unscored_mutants": 0,
+    "generated_but_unattempted_mutants": 98,
+    "authoritative_grade_records": 24,
+    "confirmed_positive_claims": 0,
+    "confirmed_positive_identities": [],
+    "task_ids_with_confirmed_positive_claims": [],
+    "uncertain_claims": 2,
+    "uncertain_identities": [
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "90acae6f84"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "370b8768b6"
+      }
+    ],
+    "task_ids_with_uncertain_claims": [
+      "format-code-task-003023"
+    ],
+    "not_promoted_identities": [
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "block",
+        "id": "block",
+        "label": "out_of_scope"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "ccbe0effe1",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "07c4f97ea9",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "25d6b0a6f6",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "ba0c0d08c4",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "1f3c10a125",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "2c55753808",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "72923f06f2",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "3b33a5ce81",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "b13d35c6ea",
+        "label": "equivalent_or_optional"
+      },
+      {
+        "task_id": "format-code-task-003023",
+        "kind": "line",
+        "id": "28d0f5d1c1",
+        "label": "equivalent_or_optional"
+      }
+    ],
+    "limitations": [
+      "The sole assigned completed report, its fail-block omission and all 12 reported line survivors are recorded exactly once; no other task is included.",
+      "Usable current full=1/nop=0 controls and reward=1 scored rc=0 witnesses are byte-bound, but passing witnesses are not automatically semantically positive. No required behavior gap is confirmed here.",
+      "The block removes only an unrequested standalone integration utility. Ten line survivors change only that optional utility; its real assertion/entrypoint/cleanup/import defects are not misdescribed as global equivalence.",
+      "90acae6f84 and 370b8768b6 remain uncertain, not positive: they narrow explicitly shown public annotations but do not alter required runtime paths; required annotation-observing consumers/typing policy are unavailable.",
+      "All 13 tests in the hidden test file are actually selected. The optional integration utility is not selected, and dependency stubs mean no real backend/DB/ES/LLM integration is established by these grades.",
+      "The scan generated 118 mutants and attempted only 20 (12 survivors, 8 killed); 98 generated-but-unattempted mutants remain unadjudicated. Max-grades, timeout, memory, network and stage/status boundaries are preserved.",
+      "Actual cited file/source SHA256 values are recorded, but package directory/image digests were not recomputed and no full base source/image was extracted.",
+      "No validation commands, producer checks, new controls, Docker, model/remote APIs, tests/build/lint/formatters, git commands or edits outside this new review JSON were performed. Parent verifies the integrated artifact."
+    ]
+  },
+  "reports": [
+    {
+      "task_id": "format-code-task-003023",
+      "package_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023",
+      "package_digest": "sha256:4239e5f983fe80d8bb9eb1cc74394764e4e28718bbf0ec6e5e20b04fb2664f6e",
+      "reference_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch",
+      "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/report.json",
+      "report_sha256": "7f1a008e48162620dc122c652626e8bb5bcf0881a0b8dad791f2c81139a53b62",
+      "grades_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+      "grades_log_sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c",
+      "minimal_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch",
+      "minimal_patch_sha256": "25d5fdde2124f5e7b3240cbc8ae28fb25cb0be7dbe553fef546bbc236a3a8d5d",
+      "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/dropped.patch",
+      "dropped_patch_sha256": "8d1d1005e9e0ba5a2dadb673f9a7647a2706ef90399eb70de22ec06de5be8417",
+      "instruction_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md",
+      "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+      "task_toml_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/task.toml",
+      "task_toml_sha256": "a106a95d3ae35d9f2406f2344777a3416cb85313ddfb219924ec63ca5ea8d886",
+      "test_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch",
+      "test_patch_sha256": "0375ebd02a5630ef87af0ac358baaedcdfa0af1edfd0ff2abd4c2874dc5f5f7c",
+      "test_runner_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.sh",
+      "test_runner_sha256": "8d310108587721b50db1326258342e084a5776ebc48b9d0a22d07df71cc1652c",
+      "test_command_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test_command.sh",
+      "test_command_sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+      "command_log_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/command-20261021T190629040693Z-56ff3cc360e242c28e4cb25103c281b8.log",
+      "command_log_sha256": "b9d6140770fae6f2d5ae0b4082cff75a06759ab713ba71e49bb7a805eee3b5da",
+      "frozen_plan_row": {
+        "package": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023",
+        "package_digest": "sha256:4239e5f983fe80d8bb9eb1cc74394764e4e28718bbf0ec6e5e20b04fb2664f6e",
+        "patch": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch",
+        "reference_binding_source": "archived_report",
+        "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+        "task_id": "format-code-task-003023"
+      },
+      "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:34fae5164af5e9ac6d91dee1a1507849760d7b12fb3ca227ccbf7d01d03dbe1f",
+      "started_at": "2026-10-21T20:15:48+00:00",
+      "finished_at": "2026-10-21T20:17:15+00:00",
+      "recorded_status": "measured",
+      "recorded_block_verdict": "fail",
+      "recorded_kept_fraction": 0.338,
+      "controls": {
+        "full": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "nop": {
+          "reward": 0.0,
+          "rc": 0,
+          "status": "scored"
+        }
+      },
+      "control_evidence": {
+        "full": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.3s",
+          "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+        },
+        "nop": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 1.4s",
+          "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+        }
+      },
+      "binding_checks": {
+        "package_path_matches_frozen_plan_and_atlas": true,
+        "package_digest_matches_frozen_plan_and_atlas": true,
+        "reference_path_matches_frozen_plan_and_atlas": true,
+        "reference_bytes_match_report_frozen_plan_and_atlas": true,
+        "instruction_hash_matches_atlas": true,
+        "task_toml_hash_matches_atlas": true,
+        "current_package_directory_digest_recomputed": false,
+        "package_binding_scope": "Immutable measured package/image identity is agreed by the canonical plan, completed report and atlas. Cited source/patch/launcher/log bytes are individually hashed; the package directory and image were not recomposed/extracted."
+      },
+      "required_behavior_map": [
+        {
+          "requirement": "Resolve explicit plus source datasets in first-seen deduplicated order; use effective tenant when omitted; forward scope/top_k/retrieval_type/rerank to retrieval.",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:5: \"preserve first-seen order while removing duplicates\" and forward backend settings",
+          "retained_implementation_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:27-55: source lookup and complete scope/tenant/retrieval path"
+        },
+        {
+          "requirement": "Return exactly 未找到可用知识库。 for no scope, and 知识库中未检索到相关内容。 for no retrieved records.",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:7: two exact fallback messages",
+          "retained_implementation_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:53-58: both explicit returns remain"
+        },
+        {
+          "requirement": "Return ranked 1-based QA/片段 blocks with content stripped and blank lines between blocks.",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:7: \"numbered blocks in ranked order, separated by a blank line\"",
+          "retained_implementation_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:59-64: enumeration/tag/strip/join logic"
+        },
+        {
+          "requirement": "Factory returns a query-only callable with fixed scope/top_k and does not mutate caller dataset lists.",
+          "instruction_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:9: \"accepts only query: str\" and list nonmutation",
+          "retained_implementation_ref": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:49,67-78: copy list before extension and retain full factory delegation"
+        }
+      ],
+      "effective_grader": {
+        "launcher_chain": [
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.sh",
+            "sha256": "8d310108587721b50db1326258342e084a5776ebc48b9d0a22d07df71cc1652c",
+            "lines": "14-34",
+            "selection": "Restores hidden test targets, applies tests/test.patch, and runs the contents of test_command.sh; reward follows the inner command exit status."
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test_command.sh",
+            "sha256": "7127a2d85db4abf824b4a311773e247afcb0c1e825c8c3a30979c464a229afd1",
+            "lines": "1",
+            "quote": "bash /workspace/repo/mimo_test_command.sh"
+          },
+          {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch",
+            "sha256": "0375ebd02a5630ef87af0ac358baaedcdfa0af1edfd0ff2abd4c2874dc5f5f7c",
+            "lines": "450-466",
+            "quote": "exec python -m pytest -p no:cacheprovider /workspace/repo/usercase-test-coderl/test_agent_tools.py -v"
+          }
+        ],
+        "selected_hidden_test_files": [
+          "usercase-test-coderl/test_agent_tools.py"
+        ],
+        "selected_tests_observed": 13,
+        "full_log_evidence": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1-22: \"collected 13 items\" and \"13 passed\" under the full header",
+        "module_import": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75: from module_rag import agent_tools",
+        "stub_scope": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:17-131: replaces sqlalchemy/context/RagDataset/retrieval/sync_db; source lookup and backend returns are local fakes",
+        "coverage_scope": "All 13 tests in the added test file are selected. They cover the library fallback/format/scope/forwarding/tenant/factory/query-only/nonmutation behavior and repeat/fresh-process stability. They do not select _verify_modern, run its external-service integration work, or inspect the changed annotations.",
+        "annotation_limit": "No signature/type-hint assertions or prescribed static type checker occur in the selected test file. The explicit nullable signatures in the instruction still create a metadata-conformity question for the two annotation-only survivors.",
+        "new_execution": false
+      },
+      "source_context": {
+        "retained_complete_reference_sources": [
+          {
+            "embedded_source_path": "api/module_rag/_verify_modern.py",
+            "container_patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch",
+            "container_patch_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "source_sha256": "774f175dcf831dcb321d451cec8a75bb4d20f6357030a0b3ac1d8b39354e23bc",
+            "source_lines": 141,
+            "patch_lines": "7-147"
+          },
+          {
+            "embedded_source_path": "api/module_rag/agent_tools.py",
+            "container_patch_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch",
+            "container_patch_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "source_sha256": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c",
+            "source_lines": 72,
+            "patch_lines": "154-225"
+          }
+        ],
+        "actual_required_consumer": "make_kb_tool closes over the fixed settings and imports search_knowledge_base from module_rag.agent_tools when the query-only callable is invoked (reference patch lines 219-225). The complete required public wrapper and this consumer are retained, not inferred from diff size.",
+        "optional_script_dependency_direction": "The optional _verify_modern imports agent_tools (reference line 24), while agent_tools has no _verify_modern import in its complete 72-line source. The selected tests also import only agent_tools.",
+        "unavailable_context": "No full base-repository source tree, real application annotation consumer, actual retrieval backend implementation or running DB/ES/LLM context is retained in this exact task package/report/reference bundle. Scoped scratch/reference/report listings found no independent source snapshot. No image extraction was attempted. This limits global equivalence/integration claims, not the direct evidence that the requested wrappers remain present.",
+        "source_analysis_method": "Read complete reference/minimal/dropped patches and all 12 complete survivor patch bytes, compare their embedded all-new-file sources statically, inspect each decisive mutation in raw patch ranges, and bind full source hashes. Ten survivors change only the optional verification source; two change only an annotation in agent_tools."
+      },
+      "block": {
+        "label": "out_of_scope",
+        "reason": "The omission removes only the unsolicited 141-line module_rag._verify_modern integration verification utility. Its workflow creates/trains/queries/deletes temporary datasets and checks chunking, incremental training, contextual retrieval and optional external services. Instruction.md requests only the module_rag.agent_tools library with search_knowledge_base and make_kb_tool. The complete 72-line requested module, including scope resolution, tenant fallback, retrieval settings, exact messages, ranked/trimmed text and fixed-scope closure, is retained byte-for-byte in minimal.patch. The current recorded confirm scores 1 with usable full=1/nop=0 controls, but dropping an unrequested integration utility is not a required-behavior omission and is not a confirmed weak-test witness.",
+        "evidence_refs": [
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: \"Python library module module_rag.agent_tools\" and the two named public APIs define the required scope",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:1-147: extra standalone _verify_modern workflow includes external-service prerequisites, training, assertions and cleanup",
+          "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete required library source",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch:7-78: retains exactly the complete 72-line agent_tools source",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/dropped.patch:7-147: only the 141-line standalone integration utility is omitted",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: the effective hidden command imports/tests agent_tools only; the optional utility is not selected",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:47: == drop-file:api/module_rag/_verify_modern.py reward=1.0 rc=0 scored 1.5s",
+          "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:70: == confirm reward=1.0 rc=0 scored 1.4s"
+        ],
+        "grade": {
+          "reward": 1.0,
+          "rc": 0,
+          "status": "scored"
+        },
+        "grade_evidence": {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+          "line": 70,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.4s",
+          "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+        },
+        "witness_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/minimal.patch",
+        "witness_sha256": "25d5fdde2124f5e7b3240cbc8ae28fb25cb0be7dbe553fef546bbc236a3a8d5d",
+        "dropped_patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/dropped.patch",
+        "dropped_patch_sha256": "8d1d1005e9e0ba5a2dadb673f9a7647a2706ef90399eb70de22ec06de5be8417",
+        "dropped_code": [
+          "api/module_rag/_verify_modern.py#0"
+        ],
+        "retained_code": [
+          "api/module_rag/agent_tools.py#0"
+        ],
+        "dropped_behavior": "Unrequested standalone integration/self-verification, not any requested wrapper behavior.",
+        "source_bindings": {
+          "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+          "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+          "retained_agent_tools_source_sha256": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c",
+          "omitted_verify_modern_source_sha256": "774f175dcf831dcb321d451cec8a75bb4d20f6357030a0b3ac1d8b39354e23bc",
+          "source_hash_method": "Full added-file source bytes reconstructed from the exact reference/minimal/dropped all-new-file patches."
+        },
+        "counterexample": {
+          "kind": "required_scope_refutation",
+          "scenario": "Import module_rag.agent_tools and call either named public API after applying minimal.patch.",
+          "source_reasoned_result": "The complete requested implementation is still present; none of its statements imports _verify_modern. Missing the separate optional verification CLI does not itself remove a specified input/transition/output/exception behavior.",
+          "fresh_execution": false
+        },
+        "limits": "This is not a whole-task correctness certificate. The recorded confirm is reused, not rerun; the optional integration utility and its external resources were not executed."
+      },
+      "survivors": [
+        {
+          "id": "ccbe0effe1",
+          "label": "equivalent_or_optional",
+          "reason": "This drops PASS += ok only in the extra standalone _verify_modern.check helper. Its FAIL accumulation and exit-status condition remain intact; a successful check would no longer increment the script summary counter. No requested search/make callable, retrieval call, returned text, or input-list handling changes: the complete agent_tools source is byte-identical to the reference. The instruction asks for a library wrapper, not a verification report or PASS counter, so the passing mutation is optional-script noise, not a required behavioral gap.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ccbe0effe1.patch:39-44: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ccbe0effe1.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:93: == mutant:ccbe0effe1 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 93,
+            "quote": "== mutant:ccbe0effe1 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ccbe0effe1.patch",
+          "patch_sha256": "69a0397be31c2c79ccc14606f4f6ae2938b00a8a34be312801025e9be0d3a2d1",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 36,
+          "end_line": 36,
+          "operator": "drop-statement",
+          "original": "PASS += ok",
+          "replacement": "pass",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "3d7bf3f7d4557fe1424bc94036c3a689aa98417da78ba3866791daa95e88538e",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "For check(\"example\", True), the optional script leaves PASS unchanged instead of incrementing it; FAIL is unchanged. The requested wrapper implementation is identical.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "This does not certify the optional script summary as correct; it excludes its counter from the required library behavior."
+        },
+        {
+          "id": "90acae6f84",
+          "label": "uncertain",
+          "reason": "The only change to the requested library is the public make_kb_tool dataset_ids annotation: list[str] | None becomes list[str], while the default remains None and the entire closure body is unchanged. Thus passing None, fixing source/dataset/tenant/top_k, forwarding the query, rejecting extra arguments, and not mutating the caller list have no changed runtime path. However instruction.md:9 explicitly writes the nullable annotated signature, so this is not an unconditional API-equivalence claim. A type-hint/introspection consumer could observe the narrower annotation, but neither the selected grader nor retained real consumers establishes annotation-driven behavior as part of the required runtime contract. With no concrete required runtime input/output/exception violation, this is not promoted to required_gap; the explicit-signature concern remains uncertain rather than being dismissed as harmless.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:9: displayed public signature explicitly includes dataset_ids: list[str] | None = None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/90acae6f84.patch:214-225: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/90acae6f84.patch:162,183-225: postponed annotations, None default and full runtime body/delegation are retained",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:116: == mutant:90acae6f84 reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 116,
+            "quote": "== mutant:90acae6f84 reward=1.0 rc=0 scored 1.3s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/90acae6f84.patch",
+          "patch_sha256": "a14200c30509ce90e6608c0e7ffcb2932441addef61182905c5dbecf3f1e88b7",
+          "file": "api/module_rag/agent_tools.py",
+          "line": 62,
+          "end_line": 62,
+          "operator": "drop-operand",
+          "original": "list[str] | None",
+          "replacement": "(list[str])",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "774f175dcf831dcb321d451cec8a75bb4d20f6357030a0b3ac1d8b39354e23bc",
+              "api/module_rag/agent_tools.py": "4a59aeecceb85a4cb4e71e1230ea2e46e3d3c0b56b53e565fa0001b1015ccaac"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/agent_tools.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_metadata_difference_not_established_as_required_runtime_counterexample",
+            "scenario": "typing.get_type_hints(agent_tools.make_kb_tool)[\"dataset_ids\"] after normal module import",
+            "reference_metadata": "list[str] | None",
+            "predicted_survivor_metadata": "list[str]",
+            "required_runtime_path": "make_kb_tool(source_id=\"src-a\", dataset_ids=None, tenant_id=7, top_k=3)(\"orders 表有哪些字段\") follows the same unchanged delegation as the reference; any datasets attached to src-a are resolved by the unchanged search body.",
+            "scope": "The metadata difference is real by source reasoning, but whether an annotation-observing consumer is required is not established. No changed required runtime return/exception/backend call is identified.",
+            "fresh_execution": false
+          },
+          "missing_evidence": [
+            "The instruction does not state whether exact annotation metadata is an independently required observable beyond the shown call contract.",
+            "No retained actual caller, agent-tool schema builder, annotation consumer, or prescribed static-type-checking policy for make_kb_tool was available in this package/report/reference bundle."
+          ],
+          "limits": "Not promoted without an established required annotation-observing behavior. This uncertainty does not certify exact public-signature metadata equivalence. No type checker, introspection script, task import or control was executed."
+        },
+        {
+          "id": "07c4f97ea9",
+          "label": "equivalent_or_optional",
+          "reason": "Only the standalone verification fixture changes chunk_text(..., chunk_size=200, overlap=30) to chunk_size=201. The requested agent wrapper does not perform document chunking, and no required chunk size is specified. All required library source bytes are retained unchanged, including retrieval options and formatting. The grader selects only test_agent_tools.py, not this external-service integration workflow, so this is an optional fixture change rather than evidence of a missing required check.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/07c4f97ea9.patch:53-57: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/07c4f97ea9.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:139: == mutant:07c4f97ea9 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 139,
+            "quote": "== mutant:07c4f97ea9 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/07c4f97ea9.patch",
+          "patch_sha256": "b89d468ea0f8532a08453d6df707d04129fa507fc94fc1233a491092fc079554",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 50,
+          "end_line": 50,
+          "operator": "integer-shift",
+          "original": "200",
+          "replacement": "201",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "45fb9fc67262b3023029c25657af3f069007c7f69a82314e39ab23a79bd022a2",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "If the optional verification workflow reaches its strategy loop, it asks the chunker for size 201 instead of 200. No particular chunking output or remote-service outcome is asserted here.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "No chunker or integration service was executed; equivalence is scoped to the requested library wrapper, not the optional fixture."
+        },
+        {
+          "id": "25d6b0a6f6",
+          "label": "equivalent_or_optional",
+          "reason": "The inverted __name__ guard disables main when the extra _verify_modern module is run as a script and would instead attempt main on direct import after its dependencies resolve. That is a real defect in the extra integration utility, not a change to the requested module_rag.agent_tools API. The full agent_tools file remains byte-identical, contains no import of _verify_modern, and the selected hidden command imports/tests agent_tools only. The instruction does not require this integration CLI, so its entry-point bug is not promoted as weak checking of the specified library task.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/25d6b0a6f6.patch:143-147: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/25d6b0a6f6.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:195: == mutant:25d6b0a6f6 reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 195,
+            "quote": "== mutant:25d6b0a6f6 reward=1.0 rc=0 scored 1.3s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/25d6b0a6f6.patch",
+          "patch_sha256": "85f4511ced2a827d9ca6ff14864e628633bd100715b7fbdf926de3700b8b53c9",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 140,
+          "end_line": 140,
+          "operator": "negate-compare",
+          "original": "==",
+          "replacement": "!=",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "cdfd27897ba24e87e30910700a6559142c8ee6cbae4f3fcf73d3b454baa63a3e",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "After its imports/initialization succeed, __name__=\"__main__\" makes the mutated guard false and skips main; an ordinary import with another module name makes it true. This is an optional-module path, not a required wrapper call.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "The optional script is not globally equivalent or safe to import. No external dependencies were loaded and no script was executed by this reviewer."
+        },
+        {
+          "id": "ba0c0d08c4",
+          "label": "equivalent_or_optional",
+          "reason": "The edit suppresses only the optional verification helper's detail suffix in printed PASS/FAIL diagnostics. It does not alter even that helper's PASS/FAIL arithmetic, and leaves every byte of the required agent_tools library intact. Instruction.md specifies the library's returned numbered text and empty messages, not diagnostic text from _verify_modern.check; these are separate outputs. Therefore this surviving diagnostic reduction is optional, not a required text-formatting gap.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ba0c0d08c4.patch:39-44: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ba0c0d08c4.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:253: == mutant:ba0c0d08c4 reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 253,
+            "quote": "== mutant:ba0c0d08c4 reward=1.0 rc=0 scored 1.3s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/ba0c0d08c4.patch",
+          "patch_sha256": "b81c4739f087257d5165c27532253e632e28120673f67f688715cabcbc63e9a9",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 38,
+          "end_line": 38,
+          "operator": "conditional-branch",
+          "original": "f' — {detail}' if detail else ''",
+          "replacement": "('')",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "e6c87737a577cad657edcb5b588ad214946336c591e3ce957fbab916dd9a0e6f",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "A nonempty detail argument such as \"example detail\" is omitted from the optional check diagnostic instead of appearing after an em dash. The search_knowledge_base return value is unaffected.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "No claim is made that optional diagnostics are identical; they are not the task's requested LLM-ready return text."
+        },
+        {
+          "id": "1f3c10a125",
+          "label": "equivalent_or_optional",
+          "reason": "The mutant reverses the standalone integration script's expected skipped flag for a second train_document call. For a skipped=True training result it would count a failure instead of a success. The task, however, requests a knowledge retrieval/text wrapper and tool factory, not incremental training or a training-verification script; agent_tools is byte-identical. A wrong assertion in the extra utility is not a demonstrated violation of any required library call and is not promoted.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/1f3c10a125.patch:92-96: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/1f3c10a125.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:315: == mutant:1f3c10a125 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 315,
+            "quote": "== mutant:1f3c10a125 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/1f3c10a125.patch",
+          "patch_sha256": "a7c40d73ec164d0bcb94a64c2405ff542a82754c9a89de252de16f0c643a043b",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 88,
+          "end_line": 88,
+          "operator": "boolean-constant",
+          "original": "True",
+          "replacement": "False",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "4bf701293c1a67b6e7730700a8f4e8dfdb887e990588c2b5486f5a61eb8dbe29",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "Conditionally, if the optional second training result is {\"skipped\": True}, the reference check condition is true and the survivor condition is false. No actual backend result is assumed or newly observed.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "This is source reasoning about an optional assertion, not a new observation of train_document or an equivalence claim for the integration script."
+        },
+        {
+          "id": "2c55753808",
+          "label": "equivalent_or_optional",
+          "reason": "This changes only the standalone integration script's sample DOC expression, removing its Elasticsearch/vector-database paragraph operand. It does not change records supplied to the required wrapper, the wrapper's ranked formatting, or any other agent_tools source bytes. The task neither mandates this sample corpus nor requests training/demo data. Changes to this optional fixture cannot establish a required retrieval/output gap for the library.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/2c55753808.patch:30-36: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/2c55753808.patch:153-224: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:376: == mutant:2c55753808 reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 376,
+            "quote": "== mutant:2c55753808 reward=1.0 rc=0 scored 1.3s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/2c55753808.patch",
+          "patch_sha256": "402170a923742535c1518a107c6e3a64c38fe0bfc85259c307f8ffa0c0b0dbd5",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 27,
+          "end_line": 28,
+          "operator": "drop-operand",
+          "original": "'公司每年提供15天带薪年假。' * 8 + '\\n\\n'\n    '向量数据库采用 Elasticsearch 8,利用 dense_vector 做 kNN 近似检索。' * 8",
+          "replacement": "('公司每年提供15天带薪年假。' * 8)",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "019bd9550c750adda50d9c81676e8502606702945dc6f613749f51081f1c7ba1",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "The optional DOC fixture expression no longer includes the removed vector-database paragraph operand. Any downstream integration-data effect depends on a workflow outside the required library API.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "No training/indexing result is fabricated. The surviving library source, despite its shifted patch coordinates, is identical to the reference."
+        },
+        {
+          "id": "72923f06f2",
+          "label": "equivalent_or_optional",
+          "reason": "Only the optional integration script's chunk-count assertion changes from len(cs)>=1 to len(cs)>1. A valid one-chunk result would become an optional-script failure, but the requested library performs no chunk production and specifies no chunk-count condition. All required search/factory source is byte-identical, so the change is an out-of-scope verification assertion rather than a required behavior missing from the selected tests.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/72923f06f2.patch:53-57: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/72923f06f2.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:442: == mutant:72923f06f2 reward=1.0 rc=0 scored 1.3s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 442,
+            "quote": "== mutant:72923f06f2 reward=1.0 rc=0 scored 1.3s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/72923f06f2.patch",
+          "patch_sha256": "4ca56d9ce6f482c18a307bec3f9f2f830d60a734669269cb6f2728bf947b8f46",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 51,
+          "end_line": 51,
+          "operator": "boundary",
+          "original": ">=",
+          "replacement": ">",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "9f2bc2b291fe8c6ea12fc1339ea0b75af5485abba682486d02f31fd8ba115d5a",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "For an optional chunker result with exactly one chunk, the reference assertion succeeds while the survivor assertion fails. This does not describe a call to either required public function.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "A one-chunk result is a static conditional example, not an executed chunking control."
+        },
+        {
+          "id": "3b33a5ce81",
+          "label": "equivalent_or_optional",
+          "reason": "The negated dataset-presence guard changes cleanup in the extra integration script: with an existing dataset it skips build_store(ds).drop(), and with no dataset it attempts build_store(None) inside its cleanup exception handler. These can be real integration-cleanup defects, but the instruction asks only for the two library wrappers; neither required wrapper creates/deletes this test dataset or calls build_store. The entire agent_tools source remains unchanged. This is not promoted to a missing required public behavior.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/3b33a5ce81.patch:129-140: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/3b33a5ce81.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:501: == mutant:3b33a5ce81 reward=1.0 rc=0 scored 1.4s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 501,
+            "quote": "== mutant:3b33a5ce81 reward=1.0 rc=0 scored 1.4s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/3b33a5ce81.patch",
+          "patch_sha256": "c148f5f249cc9784e85bb03e45446d9d0e92deb25f87c0815971fb1b1a9daf86",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 127,
+          "end_line": 127,
+          "operator": "negate-condition",
+          "original": "ds",
+          "replacement": "not (ds)",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "9d943a571d41e0c225cca7ce8c4f7d9aa6a5731c9f1e839e076ed8c40e7afc24",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "Conditionally on a truthy dataset row, the optional script no longer calls build_store(ds).drop(); the subsequent SQL cleanup remains. No actual index leak or service outcome was observed.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "The label is scoped to optional cleanup, not a statement that this mutation is globally harmless or that external resources were cleaned."
+        },
+        {
+          "id": "b13d35c6ea",
+          "label": "equivalent_or_optional",
+          "reason": "The arithmetic edit introduces string subtraction in the optional _verify_modern DOC initializer; once its earlier imports resolve, importing/running that utility would raise TypeError before main. This is not called equivalent as a script. However the requested agent_tools file is byte-identical and does not import _verify_modern; instruction.md does not require the optional verification module or sample training corpus. The selected grader imports only agent_tools and its recorded witness passes all 13 selected tests. A crash isolated to the unsolicited utility is therefore not promoted to a required library gap.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/b13d35c6ea.patch:30-36: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/b13d35c6ea.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:576: == mutant:b13d35c6ea reward=1.0 rc=0 scored 1.5s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 576,
+            "quote": "== mutant:b13d35c6ea reward=1.0 rc=0 scored 1.5s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/b13d35c6ea.patch",
+          "patch_sha256": "03b0da7a88b690ce807a30590667d34f3af5e6d2ebb3af182dfae061a81fe38d",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 28,
+          "end_line": 28,
+          "operator": "arithmetic",
+          "original": "+",
+          "replacement": "-",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "07557a392c3d1937e16a7b259e484539668cbeafcc8b72d78ff3f397a16d2b6e",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "After prerequisite imports succeed, evaluation of the modified DOC expression reaches subtraction of str operands and raises TypeError. This optional-module error is a static prediction, not an executed control.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "No global equivalence or optional-module import safety is claimed. The base repository was not extracted, so no claim is made about unretained incidental consumers of the optional script."
+        },
+        {
+          "id": "28d0f5d1c1",
+          "label": "equivalent_or_optional",
+          "reason": "This strengthens only the optional integration script's smoke assertion from dlt-or-ETL-or-集成 to dlt-or-(ETL-and-集成), because and binds more tightly than or. For example text containing ETL but neither dlt nor 集成 changes the assertion outcome. It does not change the required search formatter or any agent_tools source bytes. No task requirement mandates these particular retrieved keywords or this smoke-check utility, so the survivor is an optional assertion change, not a demonstrated required output gap.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/28d0f5d1c1.patch:99-102: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/28d0f5d1c1.patch:154-225: complete agent_tools source is unchanged from the reference, including both requested public callables",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:643: == mutant:28d0f5d1c1 reward=1.0 rc=0 scored 1.8s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 643,
+            "quote": "== mutant:28d0f5d1c1 reward=1.0 rc=0 scored 1.8s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/28d0f5d1c1.patch",
+          "patch_sha256": "8710ac7b3a3f29640fa4608cafe193e0e88df18a20ea4586859d73fe6639ee9f",
+          "file": "api/module_rag/_verify_modern.py",
+          "line": 96,
+          "end_line": 96,
+          "operator": "boolean-operator",
+          "original": "or",
+          "replacement": "and",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "cf4034e0d8246e484afddeebb5fa0301131bf1499f6e2e6432d011943ba445ae",
+              "api/module_rag/agent_tools.py": "bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/_verify_modern.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_optional_behavior_difference_not_a_required_gap",
+            "scenario_and_predicted_effect": "For optional smoke-check txt=\"[1] (片段) ETL\", the reference condition is true and the mutated condition is false. The public wrapper's computation of txt is unchanged.",
+            "required_library_effect": "No source change to either requested callable; complete embedded agent_tools source SHA256 remains bae46448510e614025f058d3de62d1ae11864a4b657e600ace34d87f2e3d178c.",
+            "fresh_execution": false
+          },
+          "limits": "This is a symbolic Boolean example and not an observation of retrieval results or a claim that arbitrary required records must contain those keywords."
+        },
+        {
+          "id": "370b8768b6",
+          "label": "uncertain",
+          "reason": "The only changed library line narrows the public search_knowledge_base dataset_ids annotation from list[str] | None to list[str]. The default None, the dataset_ids-or-empty copy, source merge/deduplication, tenant fallback, backend settings, exact empty messages, trimming and ranked formatting all remain unchanged. Python does not enforce this postponed annotation on calls, so the source establishes no changed required runtime result even for dataset_ids=None. The instruction nevertheless explicitly shows the nullable annotated signature at line 5. A consumer reading type hints could distinguish the survivor, but no retained real consumer or selected test requires annotation-based validation/schema construction. This genuine boundary is kept uncertain: exact metadata conformity is not certified, and a mere annotation mismatch is not promoted as a concrete required behavioral gap.",
+          "evidence_refs": [
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:3-9: required work is the search_knowledge_base library API and make_kb_tool factory; no integration verification/training/chunking CLI is requested",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/instruction.md:5: displayed public signature explicitly includes dataset_ids: list[str] | None = None",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/370b8768b6.patch:183-211: exact changed source in the full retained survivor patch",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/370b8768b6.patch:162,183-225: postponed annotations, None default and full runtime body/delegation are retained",
+            "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-003023/solution.patch:154-225: complete requested agent_tools implementation, independent of the standalone verification workflow",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/packages/mimo-v2.6-rl-code/format-code-task-003023/tests/test.patch:75,450-466: hidden test imports agent_tools; the effective command selects only test_agent_tools.py",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:1: == full reward=1.0 rc=0 scored 1.3s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:24: == nop reward=0.0 rc=0 scored 1.4s",
+            "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log:666: == mutant:370b8768b6 reward=1.0 rc=0 scored 1.6s"
+          ],
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "grade_evidence": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/grades.log",
+            "line": 666,
+            "quote": "== mutant:370b8768b6 reward=1.0 rc=0 scored 1.6s",
+            "sha256": "a8fd61ec98105d1e5b35c40150b083bb659b683dd13863ce5fdb02ccf83d398c"
+          },
+          "patch_path": "/Users/petermakhnatch/Developer/eval-lab/derived/qa/ref-subset/line-backfill-265/format-code-task-003023/mutants/370b8768b6.patch",
+          "patch_sha256": "42066076d18fc44ee99293a6a735b46811b7ba89170038c5f8bb37c19c0da441",
+          "file": "api/module_rag/agent_tools.py",
+          "line": 34,
+          "end_line": 34,
+          "operator": "drop-operand",
+          "original": "list[str] | None",
+          "replacement": "(list[str])",
+          "source_bindings": {
+            "instruction_sha256": "0c96b6c73893848014355b6657ccbcdf88176d4e6275c9be4e6def4ac5c27cf0",
+            "reference_sha256": "ad875971366bd7bde6e7efeb5cc8280a551f915763e6114a749c8aa9553b66f3",
+            "effective_new_file_sha256": {
+              "api/module_rag/_verify_modern.py": "774f175dcf831dcb321d451cec8a75bb4d20f6357030a0b3ac1d8b39354e23bc",
+              "api/module_rag/agent_tools.py": "fefef019dd428ab1e506fe558db32b1409f881ea030d1503abce974cc09ca71d"
+            },
+            "source_hash_method": "SHA256 of complete added-file source bytes reconstructed from this all-new-file unified patch; these are embedded sources, not independently present host source files.",
+            "changed_source_files_against_reference": [
+              "api/module_rag/agent_tools.py"
+            ]
+          },
+          "counterexample": {
+            "kind": "static_metadata_difference_not_established_as_required_runtime_counterexample",
+            "scenario": "typing.get_type_hints(agent_tools.search_knowledge_base)[\"dataset_ids\"] after normal module import",
+            "reference_metadata": "list[str] | None",
+            "predicted_survivor_metadata": "list[str]",
+            "required_runtime_path": "search_knowledge_base(\"anything\", dataset_ids=None, tenant_id=7) with no source follows ids=list(dataset_ids or []) and returns the same exact 未找到可用知识库。 message as the reference; list/source/backend cases use the same body.",
+            "scope": "The metadata difference is real by source reasoning, but whether an annotation-observing consumer is required is not established. No changed required runtime return/exception/backend call is identified.",
+            "fresh_execution": false
+          },
+          "missing_evidence": [
+            "Whether the displayed annotation must be exposed exactly as introspectable public metadata, independently of accepting the displayed inputs, is not made explicit.",
+            "No retained actual annotation-driven caller or prescribed static-type-checking contract for search_knowledge_base was available in this package/report/reference bundle."
+          ],
+          "limits": "Not promoted without an established required annotation-observing behavior. This uncertainty does not certify exact public-signature metadata equivalence. No type checker, introspection script, task import or control was executed."
+        }
+      ],
+      "line_scan_summary": {
+        "generated": 118,
+        "tried": 20,
+        "killed": 8,
+        "unscored": 0,
+        "limit": 20,
+        "status": "measured",
+        "verdict": "fail",
+        "reason": "",
+        "reported_survivors": 12,
+        "generated_but_unattempted": 98,
+        "grade_records": 20
+      },
+      "recorded_execution_limits": {
+        "grade_timeout_s": 1800,
+        "max_grades": 24,
+        "memory": "3g",
+        "network": "none"
+      },
+      "authoritative_grade_records": 24,
+      "recorded_grade_headers": [
+        {
+          "label": "full",
+          "line": 1,
+          "quote": "== full reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "nop",
+          "line": 24,
+          "quote": "== nop reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "drop-file:api/module_rag/_verify_modern.py",
+          "line": 47,
+          "quote": "== drop-file:api/module_rag/_verify_modern.py reward=1.0 rc=0 scored 1.5s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.5
+        },
+        {
+          "label": "confirm",
+          "line": 70,
+          "quote": "== confirm reward=1.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:ccbe0effe1",
+          "line": 93,
+          "quote": "== mutant:ccbe0effe1 reward=1.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:90acae6f84",
+          "line": 116,
+          "quote": "== mutant:90acae6f84 reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "mutant:07c4f97ea9",
+          "line": 139,
+          "quote": "== mutant:07c4f97ea9 reward=1.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:fb3b8c59f2",
+          "line": 162,
+          "quote": "== mutant:fb3b8c59f2 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:25d6b0a6f6",
+          "line": 195,
+          "quote": "== mutant:25d6b0a6f6 reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "mutant:104de753f0",
+          "line": 218,
+          "quote": "== mutant:104de753f0 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:ba0c0d08c4",
+          "line": 253,
+          "quote": "== mutant:ba0c0d08c4 reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "mutant:87241e52eb",
+          "line": 276,
+          "quote": "== mutant:87241e52eb reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:1f3c10a125",
+          "line": 315,
+          "quote": "== mutant:1f3c10a125 reward=1.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:94a966a944",
+          "line": 338,
+          "quote": "== mutant:94a966a944 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:2c55753808",
+          "line": 376,
+          "quote": "== mutant:2c55753808 reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "mutant:0ee3aaa1d6",
+          "line": 399,
+          "quote": "== mutant:0ee3aaa1d6 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:72923f06f2",
+          "line": 442,
+          "quote": "== mutant:72923f06f2 reward=1.0 rc=0 scored 1.3s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.3
+        },
+        {
+          "label": "mutant:54f85c409d",
+          "line": 465,
+          "quote": "== mutant:54f85c409d reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:3b33a5ce81",
+          "line": 501,
+          "quote": "== mutant:3b33a5ce81 reward=1.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:df0538ba76",
+          "line": 524,
+          "quote": "== mutant:df0538ba76 reward=0.0 rc=0 scored 1.4s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.4
+        },
+        {
+          "label": "mutant:b13d35c6ea",
+          "line": 576,
+          "quote": "== mutant:b13d35c6ea reward=1.0 rc=0 scored 1.5s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.5
+        },
+        {
+          "label": "mutant:8921642a21",
+          "line": 599,
+          "quote": "== mutant:8921642a21 reward=0.0 rc=0 scored 1.5s",
+          "grade": {
+            "reward": 0.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.5
+        },
+        {
+          "label": "mutant:28d0f5d1c1",
+          "line": 643,
+          "quote": "== mutant:28d0f5d1c1 reward=1.0 rc=0 scored 1.8s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.8
+        },
+        {
+          "label": "mutant:370b8768b6",
+          "line": 666,
+          "quote": "== mutant:370b8768b6 reward=1.0 rc=0 scored 1.6s",
+          "grade": {
+            "reward": 1.0,
+            "rc": 0,
+            "status": "scored"
+          },
+          "seconds": 1.6
+        }
+      ],
+      "limits": [
+        "The current grades.log has 24 exact parsed headers: full, nop, drop-file, confirm and 20 mutant attempts. report.grades stops after confirm and is not the source of line grades.",
+        "Every header is scored rc=0; 12 mutant headers have reward=1 and 8 have reward=0. The nop inner pytest command exits 2 for missing agent_tools, but the authoritative outer nop header is reward=0 rc=0 scored; these distinct exit codes are not conflated.",
+        "The mutant limit is 20 and max_grades is 24. The 98 generated-but-unattempted mutants are neither killed nor adjudicated; this completed report is not a clean-task certificate.",
+        "The out-of-scope omission and ten optional-script survivors are not promoted. The two annotation-only public-signature concerns stay uncertain because concrete required runtime behavior is unchanged and required annotation-observing scope is not established.",
+        "Static examples describe source-predicted conditions only; no backend, DB, ES, LLM, type checker, task module, test, or witness was executed by this worker.",
+        "No controls, Docker, model/remote APIs, build/test/lint/formatter, producer/validation commands, git commands or immutable-input edits were performed. Only the assigned new 08b.json is written; parent owns integrated verification and delivery."
+      ]
+    }
+  ]
+}

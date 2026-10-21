@@ -61,7 +61,7 @@ uv run --no-sync python research/experiments/eval3-harness-v1/grade.py prepare \
 
 keys run -- uv run --no-sync python research/experiments/eval3-harness-v1/grade.py grade \
   runs/eval3-study --out runs/eval3-grade \
-  --model openrouter-metered/openai/gpt-oss-120b \
+  --model openrouter-metered/z-ai/glm-5.3-flash \
   --budget-dir runs/eval3-budget --max-usd 1 \
   --approve 'Current, explicitly approved study and dollar cap'
 ```
@@ -116,9 +116,14 @@ cannot support a general model-leaderboard claim.
 
 The public default judge is GPT-6 Luna with high reasoning and a 64,000-token
 output allowance. This adapter defaults to the existing pinned OpenRouter
-GPT-OSS-120b route, medium reasoning and 6,000 output tokens, with a read-only JSON
+GLM-5.3-Flash route, medium reasoning and 6,000 output tokens, with a read-only JSON
 action transport. Those are disclosed configuration differences. The published
 policy explicitly permits another judge, but only auditor outputs graded with
 the same frozen judge configuration and compatible task universe are comparable.
 The public `tb4-audit-v1` key is not used to manufacture judgments or issue credit.
 A source-supported claim is not a newly executed exploit or task certification.
+
+GPT-OSS-120b failed the retained-cohort transport qualification, including
+non-text provider responses and invalid citations; it did not produce usable
+auditor rankings. GLM is an explicitly selected new judge configuration, not an
+automatic fallback or a mixture of partially successful GPT-OSS judgments.

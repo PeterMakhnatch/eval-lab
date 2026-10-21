@@ -29,7 +29,7 @@ ADAPTER_VERSION = "eval3-policy-adapter/1"
 STATES = {"completed", "limit_reached", "failed", "pending", "ungraded"}
 TERMINAL = {"completed", "limit_reached"}
 LEVELS = ("low", "medium", "high")
-DEFAULT_MODEL = "openrouter-metered/openai/gpt-oss-120b"
+DEFAULT_MODEL = "openrouter-metered/z-ai/glm-5.3-flash"
 MAX_OUTPUT = 6000
 
 

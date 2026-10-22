@@ -2315,6 +2315,31 @@ def _data_backfill_command(
     return ledger.exit_code
 
 
+def _data_lint_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.data_lint import lint_dataset
+
+    dataset = _resolve(root, args.dataset)
+    answer_keys = _resolve(root, args.answer_keys) if args.answer_keys else None
+    registry = _resolve(root, args.registry) if args.registry else None
+    report = lint_dataset(
+        dataset,
+        answer_keys=answer_keys,
+        registry=registry,
+        body_path=args.body_path,
+        checks=args.checks,
+    )
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"data lint: {report['dataset']} ({report['rows']} rows) -> {report['status']}")
+        for finding in report["findings"]:
+            print(f"  [{finding['severity']}] {finding['check']}: {finding['detail']}")
+    return 1 if report["status"] == "issues" else 0
+
+
 def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5843,6 +5868,35 @@ def parser() -> argparse.ArgumentParser:
     )
     data_backfill.add_argument("--database-url")
     data_backfill.set_defaults(func=_data_backfill_command)
+
+    data_lint = data_commands.add_parser(
+        "lint",
+        help="Deterministic training-data lints: dedup, split leakage, coverage",
+    )
+    data_lint.add_argument("dataset", type=Path, help="Dataset JSONL (messages, files or submission rows)")
+    data_lint.add_argument(
+        "--answer-keys",
+        type=Path,
+        help="Answer-key tasks.jsonl with a `split` column, for the split-leak check",
+    )
+    data_lint.add_argument(
+        "--registry",
+        type=Path,
+        help="A registry JSON with `pairs` (family, task), for the family split-leak check",
+    )
+    data_lint.add_argument(
+        "--body-path",
+        default="submission/solve.sh",
+        help="Suffix identifying the candidate body inside a row",
+    )
+    data_lint.add_argument(
+        "--checks",
+        nargs="+",
+        default=["dedup", "split_leak", "coverage"],
+        choices=["dedup", "split_leak", "coverage"],
+    )
+    data_lint.add_argument("--json", action="store_true", help="Emit the full report as JSON")
+    data_lint.set_defaults(func=_data_lint_command)
 
     db = commands.add_parser("db", help="Manage the derived PostgreSQL index")
     db_commands = db.add_subparsers(dest="db_command", required=True)

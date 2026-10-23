@@ -90,55 +90,57 @@ class ScriptedAgent(AgentEnvAgent):
         events = []
         loop = asyncio.get_running_loop()
         with gateway_only_network(url) as denied:
-            async with streamablehttp_client(url, headers=headers) as (reader, writer, _):
-                async with ClientSession(reader, writer) as session:
-                    await session.initialize()
-                    offered = await session.list_tools()
-                    names = [tool.name for tool in offered.tools]
-                    refusal = await session.call_tool(WORLD_TOOL, {"case_id": spec["params"]["case_id"]})
-                    refusal_text = "\n".join(getattr(part, "text", "") for part in refusal.content)
-                    proof = {
-                        "role": role, "tool": WORLD_TOOL, "listed": WORLD_TOOL in names,
-                        "call_refused": refusal.isError, "refusal": refusal_text,
-                        "tool_names": names,
-                    }
-                    if proof["listed"] or not proof["call_refused"]:
-                        raise RuntimeError("Agent role can access world-only tool")
-                    # Test endpoint isolation from the actual agent container, not
-                    # from the trusted verifier. Read only; never expose payloads.
-                    base = url.removesuffix("/mcp")
-                    leak = {}
-                    async with httpx.AsyncClient(headers=headers, trust_env=False) as client:
-                        card_response = await client.get(base + "/.well-known/agent-env.json")
-                        card_response.raise_for_status()
-                        trajectory = await client.get(base + "/trajectory")
-                        leak["trajectory"] = {"status": trajectory.status_code, "reachable": trajectory.is_success, "bytes": len(trajectory.content)}
-                        for child in card_response.json().get("children_environments", []):
-                            rpc = child["url"]
-                            response = await client.post(base + rpc, json={"jsonrpc": "2.0", "id": 1, "method": "data/get", "params": {}})
-                            body = response.json() if response.is_success else {}
-                            leak[child["name"]] = {"status": response.status_code, "reachable": response.is_success and "result" in body, "bytes": len(response.content)}
-                    async def call_async(system, tool, args):
-                        reply = await session.call_tool(f"{system}_{tool}", args)
-                        text = "\n".join(getattr(part, "text", "") for part in reply.content)
-                        if reply.isError:
-                            events.append({"system": system, "tool": tool, "args": args, "raised": text})
-                            raise RuntimeError(text)
-                        # MiMo return dictionaries stay dictionaries (including
-                        # its validation errors); only raised errors raise here.
-                        result = reply.structuredContent
-                        if result is None:
-                            result = json.loads(text)
-                        if isinstance(result, dict) and set(result) == {"result"}:
-                            result = result["result"]
-                        events.append({"system": system, "tool": tool, "args": args, "result": result})
-                        return result
-                    def call(system, tool, args):
-                        return asyncio.run_coroutine_threadsafe(call_async(system, tool, args), loop).result(timeout=60)
-                    if spec["control"] == "naive":
-                        report = await asyncio.to_thread(naive, CONTROLS["oracle"], call, spec["params"])
-                    else:
-                        report = await asyncio.to_thread(CONTROLS[spec["control"]].run, call, spec["params"])
+            async with (
+                streamablehttp_client(url, headers=headers) as (reader, writer, _),
+                ClientSession(reader, writer) as session,
+            ):
+                await session.initialize()
+                offered = await session.list_tools()
+                names = [tool.name for tool in offered.tools]
+                refusal = await session.call_tool(WORLD_TOOL, {"case_id": spec["params"]["case_id"]})
+                refusal_text = "\n".join(getattr(part, "text", "") for part in refusal.content)
+                proof = {
+                    "role": role, "tool": WORLD_TOOL, "listed": WORLD_TOOL in names,
+                    "call_refused": refusal.isError, "refusal": refusal_text,
+                    "tool_names": names,
+                }
+                if proof["listed"] or not proof["call_refused"]:
+                    raise RuntimeError("Agent role can access world-only tool")
+                # Test endpoint isolation from the actual agent container, not
+                # from the trusted verifier. Read only; never expose payloads.
+                base = url.removesuffix("/mcp")
+                leak = {}
+                async with httpx.AsyncClient(headers=headers, trust_env=False) as client:
+                    card_response = await client.get(base + "/.well-known/agent-env.json")
+                    card_response.raise_for_status()
+                    trajectory = await client.get(base + "/trajectory")
+                    leak["trajectory"] = {"status": trajectory.status_code, "reachable": trajectory.is_success, "bytes": len(trajectory.content)}
+                    for child in card_response.json().get("children_environments", []):
+                        rpc = child["url"]
+                        response = await client.post(base + rpc, json={"jsonrpc": "2.0", "id": 1, "method": "data/get", "params": {}})
+                        body = response.json() if response.is_success else {}
+                        leak[child["name"]] = {"status": response.status_code, "reachable": response.is_success and "result" in body, "bytes": len(response.content)}
+                async def call_async(system, tool, args):
+                    reply = await session.call_tool(f"{system}_{tool}", args)
+                    text = "\n".join(getattr(part, "text", "") for part in reply.content)
+                    if reply.isError:
+                        events.append({"system": system, "tool": tool, "args": args, "raised": text})
+                        raise RuntimeError(text)
+                    # MiMo return dictionaries stay dictionaries (including
+                    # its validation errors); only raised errors raise here.
+                    result = reply.structuredContent
+                    if result is None:
+                        result = json.loads(text)
+                    if isinstance(result, dict) and set(result) == {"result"}:
+                        result = result["result"]
+                    events.append({"system": system, "tool": tool, "args": args, "result": result})
+                    return result
+                def call(system, tool, args):
+                    return asyncio.run_coroutine_threadsafe(call_async(system, tool, args), loop).result(timeout=60)
+                if spec["control"] == "naive":
+                    report = await asyncio.to_thread(naive, CONTROLS["oracle"], call, spec["params"])
+                else:
+                    report = await asyncio.to_thread(CONTROLS[spec["control"]].run, call, spec["params"])
         evidence = {
             "type": "bench_evidence", "rbac": proof, "answer_leak_probe": leak,
             "non_gateway_network_attempts": denied,

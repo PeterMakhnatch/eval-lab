@@ -7,7 +7,8 @@ audience: [builder, analyst, operator]
 
 A reproducible, $0 comparison of eval windows and training sequence-token costs.
 No provider client, resource creation or model inference is used. Prices dated
-2026-10-08 are sourced observations, not historical invoice tariffs.
+2026-10-08 are sourced observations, not historical invoice tariffs; the Tinker
+row (`tinker.hosted_training.qwen3-5-9b`) was re-observed on 2026-10-23.
 
 ```sh
 env -u VIRTUAL_ENV uv run --no-sync evallab price bench

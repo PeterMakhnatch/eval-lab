@@ -554,9 +554,9 @@ entries:
     provider: tinker
     kind: hosted_training
     sku: qwen3-5-9b
-    rates: {input_per_1m: 0.66, cached_input_per_1m: 0.132, output_per_1m: 1.995, train_per_1m: 1.463, storage_gib_month: 0.10}
+    rates: {input_per_1m: 0.30, cached_input_per_1m: 0.06, output_per_1m: 0.807, train_per_1m: 1.463, storage_gib_month: 0.10}
     billing: per_second
     specs: {}
     source: https://tinker-docs.thinkingmachines.ai/tinker/models
-    observed_at: "2026-10-08"
-    notes: "list price; prefill $0.66 (cached $0.132, 80% off), sample $1.995, train $1.463 per 1M; checkpoint storage $0.10/GB-mo; 64K context Tinker ID Qwen/Qwen3.5-9B; LoRA/RL API not raw GPU rental"
+    observed_at: "2026-10-23"
+    notes: "list price; prefill $0.30 (cached $0.06, 80% off), sample $0.807, train $1.463 per 1M; checkpoint storage $0.10/GB-mo; 64K context Tinker ID Qwen/Qwen3.5-9B; no :peft:262144 (256K) variant listed for this model in models.json on 2026-10-23; whether the OpenAI-compatible endpoint accepts 256K-context model IDs UNCHECKED — free probe on 2026-10-23 returned HTTP 402 billing-blocked before model validation, $0 billed; LoRA/RL API not raw GPU rental"

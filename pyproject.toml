@@ -11,7 +11,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "daytona>=0.210.0",
-    "duckdb>=1.5.5",
+    # 2.0 rewrites the Python API and writes a one-way storage format that the
+    # 1.5 checkouts still in use cannot read; migrate deliberately, not via lock refresh.
+    "duckdb>=1.5.5,<2",
     "huggingface-hub>=1.29.0",
     "psycopg[binary]>=3.2,<4",
     "pyarrow>=25.0.1",
@@ -68,7 +70,7 @@ dev = [
     "fastapi==0.141.1",
     "openai>=2,<3",
     "hypothesis>=6.100,<7",
-    "pytest>=8.4,<9",
+    "pytest>=8.4,<10",
     "pytest-xdist>=3.8,<4",
     "ruff>=0.12,<1",
 ]

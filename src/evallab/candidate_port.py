@@ -14,13 +14,16 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import shutil
+import stat
 import tarfile
 import tomllib
 import zipfile
 import zlib
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, BinaryIO
 
 import tomlkit
 
@@ -298,16 +301,27 @@ class _HelperReturn:
 
 
 class _SetupRecipe:
-    """Interpret only local data declarations, never arbitrary setup Python.
+    """Interpret pinned data declarations and bounded deterministic transforms.
 
-    This is the existing port's DataContext.fetch_hub convention: constants,
-    dictionaries/comprehensions and loops that construct hash-pinned copies.
-    Transforming/generating/unpacking/external-download recipes are refused,
-    not skipped or approximated. Their actual setup must be qualified first.
+    External bytes are resolved only from an explicitly supplied hash-keyed
+    cache. No setup Python, network request, or ambient cache lookup runs here.
     """
 
-    def __init__(self, tree: ast.Module, task_id: str, upstream: Path | None = None) -> None:
+    def __init__(
+        self,
+        tree: ast.Module,
+        task_id: str,
+        upstream: Path | None = None,
+        *,
+        asset_cache: Path | str | None = None,
+        port_context: Path | None = None,
+    ) -> None:
         self.upstream = Path(upstream) if upstream is not None else None
+        self.asset_cache = Path(asset_cache).expanduser().absolute() if asset_cache is not None else None
+        self.port_context = Path(port_context) if port_context is not None else None
+        self.external_inputs: list[dict[str, str]] = []
+        self.directories: dict[str, int] = {}
+        self.cleared_directories: list[str] = []
         # Deterministic local transforms write into this virtual staged FS;
         # reads resolve only to hash-pinned staged inputs or earlier writes.
         self.generated: dict[str, dict[str, Any]] = {}
@@ -351,8 +365,196 @@ class _SetupRecipe:
             self.names[setup.args.args[0].arg] = self.names["ctx"]
             with contextlib.suppress(_RecipeReturn):
                 self.statements(setup.body)
-        if not self.assets:
+        if not self.assets and not self.generated:
             raise GraderRefusal("setup_data.py declared no locally resolvable hash-pinned assets")
+
+    @staticmethod
+    def _pinned_digest(digest: str) -> str:
+        if not isinstance(digest, str):
+            raise GraderRefusal("setup-data asset requires an exact sha256")
+        value = digest.removeprefix("sha256:")
+        if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+            raise GraderRefusal("setup-data asset requires an exact lowercase sha256")
+        return value
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _asset_file(source: Path) -> Iterator[BinaryIO]:
+        """Open only a regular file, without following the final path link."""
+        try:
+            descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    raise GraderRefusal(f"pinned setup asset is not a regular file: {source}")
+                yield handle
+        except OSError as exc:
+            raise GraderRefusal(f"cannot read pinned setup asset without following symlinks: {source}: {exc}") from exc
+
+    @staticmethod
+    def _asset_bytes(source: Path, digest: str) -> bytes:
+        with _SetupRecipe._asset_file(source) as handle:
+            data = handle.read()
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise GraderRefusal(f"local setup asset differs from pinned sha256:{digest}: {source}")
+        return data
+
+    def _cached_asset(self, digest: str) -> Path:
+        """Resolve only explicit cache/<bare-sha256>, checking every lookup."""
+        digest = self._pinned_digest(digest)
+        if self.asset_cache is None:
+            raise GraderRefusal(
+                f"setup-data recipe requires nonlocal/transforming external asset sha256:{digest}; "
+                f"supply explicit asset_cache containing {digest}; no download is attempted"
+            )
+        source = self.asset_cache / digest
+        if self.asset_cache.is_symlink() or source.is_symlink():
+            raise GraderRefusal(f"offline asset cache rejects symlinks for sha256:{digest}: {source}")
+        if not self.asset_cache.is_dir() or not source.is_file():
+            raise GraderRefusal(f"offline asset cache needs regular file sha256:{digest} at {source}; no download is attempted")
+        with self._asset_file(source) as handle:
+            if hashlib.file_digest(handle, "sha256").hexdigest() != digest:
+                raise GraderRefusal(f"local setup asset differs from pinned sha256:{digest}: {source}")
+        return source
+
+    def _cached_bytes(self, digest: str) -> tuple[Path, bytes]:
+        digest = self._pinned_digest(digest)
+        source = self._cached_asset(digest)
+        return source, self._asset_bytes(source, digest)
+
+    def _data_path(self, value: Any) -> PurePosixPath:
+        if not isinstance(value, PurePosixPath):
+            raise GraderRefusal("setup-data destination must be a port data-directory path")
+        relative = _relative(str(value))
+        if not relative.parts or relative.parts[0] not in {str(path) for path in self.names["ctx"].values()}:
+            raise GraderRefusal("setup-data destination is outside the port data directories")
+        return relative
+
+    def _fetch_external(self, url: Any, destination: Any, digest: Any) -> None:
+        if not isinstance(url, str) or not url:
+            raise GraderRefusal("external setup-data asset has no source URL")
+        relative = self._data_path(destination)
+        if len(relative.parts) < 2:
+            raise GraderRefusal("external setup-data file cannot replace a data-directory root")
+        if self._pinned_digest(digest) != digest:
+            raise GraderRefusal("ctx.fetch requires an exact bare lowercase sha256")
+        source = self._cached_asset(digest)
+        self.generated.pop(str(relative), None)
+        self.assets[:] = [asset for asset in self.assets if asset["destination"] != str(relative)]
+        self.assets.append({
+            "source": str(source), "source_kind": "asset_cache", "source_url": url,
+            "destination": str(relative), "sha256": digest,
+        })
+
+    @staticmethod
+    def _tar_keep_filter(node: ast.AST | None) -> str:
+        if node is None:
+            return "all"
+        if isinstance(node, ast.Lambda) and len(node.args.args) == 1:
+            name = node.args.args[0].arg
+            for expression, label in (
+                (f"lambda {name}: True", "all"),
+                (f"lambda {name}: not Path({name}.name).name.startswith('._')", "exclude-appledouble-basename"),
+            ):
+                expected = ast.parse(expression, mode="eval").body
+                if ast.dump(node, include_attributes=False) == ast.dump(expected, include_attributes=False):
+                    return label
+        raise GraderRefusal("ctx.fetch_tar requires an explicitly supported deterministic keep filter")
+
+    def _fetch_tar(self, call: ast.Call) -> None:
+        if len(call.args) != 3 or len(call.keywords) > 1 or any(keyword.arg != "keep" for keyword in call.keywords):
+            raise GraderRefusal("unsupported ctx.fetch_tar arguments")
+        keep = self._tar_keep_filter(call.keywords[0].value if call.keywords else None)
+        url, digest, destination = map(self.expression, call.args)
+        if not isinstance(url, str) or not url:
+            raise GraderRefusal("external setup-data archive has no source URL")
+        destination = self._data_path(destination)
+        if self._pinned_digest(digest) != digest:
+            raise GraderRefusal("ctx.fetch_tar requires an exact bare lowercase sha256")
+        source, data = self._cached_bytes(digest)
+        marker = f".extracted-{digest[:16]}"
+        marker_path = str(destination / marker)
+        if marker_path in self.generated:
+            provenance = self.generated[marker_path].get("provenance", {})
+            if provenance.get("kind") == "tar-extraction-marker" and provenance.get("archive_sha256") == digest:
+                return
+            raise GraderRefusal("setup archive has a preexisting extraction marker without verified extraction custody")
+        if any(asset["destination"] == marker_path for asset in self.assets):
+            raise GraderRefusal("setup archive has a preexisting extraction marker without verified extraction custody")
+        if self.port_context is not None and (self.port_context / marker_path).exists():
+            raise GraderRefusal("setup archive has a preexisting extraction marker without verified extraction custody")
+        files: dict[str, tuple[bytes, int]] = {}
+        directories: set[str] = {str(destination)}
+        seen: dict[str, str] = {}
+        try:
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as bundle:
+                for member in bundle:
+                    path = PurePosixPath(member.name)
+                    if (
+                        not member.name or path.is_absolute() or ".." in path.parts
+                        or "\\" in member.name or "\x00" in member.name
+                    ):
+                        raise GraderRefusal(f"unsafe setup archive member path: {member.name!r}")
+                    name = str(path)
+                    if not (member.isfile() or member.isdir()) or member.sparse is not None:
+                        raise GraderRefusal(f"setup archive contains a link/special/non-regular member: {member.name!r}")
+                    if member.isfile() and (member.name.endswith("/") or member.name.rsplit("/", 1)[-1] == "."):
+                        raise GraderRefusal(f"setup archive regular member has a directory-shaped path: {member.name!r}")
+                    if member.mode < 0 or member.mode & ~0o777:
+                        raise GraderRefusal(f"setup archive contains unsafe permission bits: {member.name!r}")
+                    if name in seen or (path.parts and path.parts[0] == marker) or any(parent.as_posix() in seen and seen[parent.as_posix()] == "file" for parent in path.parents):
+                        raise GraderRefusal(f"setup archive member overwrite/conflict: {member.name!r}")
+                    if member.isfile() and (name == "." or any(other.startswith(name + "/") for other in seen)):
+                        raise GraderRefusal(f"setup archive member overwrite/conflict: {member.name!r}")
+                    seen[name] = "dir" if member.isdir() else "file"
+                    # Validate every member, including entries excluded by the
+                    # known filter; a filter cannot hide a dangerous archive.
+                    if keep == "exclude-appledouble-basename" and path.name.startswith("._"):
+                        continue
+                    target = destination if name == "." else destination / path
+                    for parent in (target, *target.parents):
+                        if parent == destination or parent.is_relative_to(destination):
+                            if member.isdir() or parent != target:
+                                directories.add(str(parent))
+                    if member.isfile():
+                        handle = bundle.extractfile(member)
+                        if handle is None:
+                            raise GraderRefusal(f"setup archive cannot read regular member: {member.name!r}")
+                        with handle:
+                            content = handle.read()
+                        if len(content) != member.size:
+                            raise GraderRefusal(f"setup archive member size differs: {member.name!r}")
+                        # Python tarfile's filter="data": never retain
+                        # group/other write or an execute bit not owned by user.
+                        mode = member.mode & 0o755
+                        if not mode & 0o100:
+                            mode &= ~0o111
+                        files[str(target)] = (content, mode | 0o600)
+        except (tarfile.TarError, EOFError) as exc:
+            raise GraderRefusal("external setup asset is not a readable pinned tar archive") from exc
+        if self.port_context is not None:
+            for relative in (destination, *destination.parents):
+                if str(relative) == ".":
+                    continue
+                existing = self.port_context / relative
+                if existing.exists() and not existing.is_dir():
+                    raise GraderRefusal(f"setup archive destination conflicts with a port file: {relative}")
+        prefix = str(destination)
+        self.assets[:] = [asset for asset in self.assets if asset["destination"] != prefix and not asset["destination"].startswith(prefix + "/")]
+        for mapping in (self.generated, self.directories):
+            for name in [name for name in mapping if name == prefix or name.startswith(prefix + "/")]:
+                del mapping[name]
+        self.cleared_directories.append(prefix)
+        self.directories.update({name: 0o755 for name in directories})
+        provenance = {"kind": "tar-member", "source_url": url, "archive_sha256": digest, "filter": keep}
+        for name, (content, mode) in files.items():
+            self._write_staged(PurePosixPath(name), content, mode)
+            self.generated[name]["provenance"] = {**provenance, "member": str(PurePosixPath(name).relative_to(destination))}
+        self._write_staged(destination / marker, b"", 0o644)
+        self.generated[str(destination / marker)]["provenance"] = {**provenance, "kind": "tar-extraction-marker"}
+        self.external_inputs.append({
+            "source": str(source), "source_kind": "asset_cache", "source_url": url, "sha256": digest,
+            "destination": str(destination), "operation": "fetch_tar", "filter": keep,
+        })
 
     def _read_staged(self, relative: PurePosixPath) -> bytes:
         key = str(relative)
@@ -360,9 +562,14 @@ class _SetupRecipe:
             return self.generated[key]["content"]
         for asset in self.assets:
             if asset["destination"] == key:
+                if asset.get("source_kind") == "asset_cache":
+                    return self._cached_bytes(asset["sha256"])[1]
                 if self.upstream is None:
                     break
-                return (self.upstream / asset["source"]).read_bytes()
+                source = self.upstream / asset["source"]
+                if any(path.is_symlink() for path in (source, *source.parents) if path == self.upstream or path.is_relative_to(self.upstream)):
+                    raise GraderRefusal(f"pinned setup asset uses a symlink: {asset['source']}")
+                return self._asset_bytes(source, asset["sha256"])
         raise GraderRefusal(f"setup transform reads a file that is not a pinned staged input: {key}")
 
     def _write_staged(self, relative: PurePosixPath, data: bytes, mode: int | None = None) -> None:
@@ -768,6 +975,13 @@ class _SetupRecipe:
         """
         if isinstance(call.func, ast.Attribute):
             method = call.func.attr
+            if isinstance(call.func.value, ast.Name) and call.func.value.id in {"ctx", "context"}:
+                if method == "fetch" and len(call.args) == 3 and not call.keywords:
+                    self._fetch_external(*map(self.expression, call.args))
+                    return
+                if method == "fetch_tar":
+                    self._fetch_tar(call)
+                    return
             if isinstance(call.func.value, ast.Name) and call.func.value.id == "shutil":
                 args = [self.expression(arg) for arg in call.args]
                 if method == "copyfile" and len(args) == 2 and all(isinstance(arg, PurePosixPath) for arg in args):
@@ -955,7 +1169,12 @@ def _interface(port: Path, task_id: str) -> dict[str, Any]:
     }
 
 
-def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[str, Any], list[dict[str, str]]]:
+def _describe(
+    upstream_task: Path | str,
+    port_task: Path | str,
+    *,
+    asset_cache: Path | str | None = None,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
     upstream, port = Path(upstream_task).resolve(), Path(port_task).resolve()
     if not upstream.is_dir() or not port.is_dir() or upstream == port:
         raise GraderRefusal("original and port must be distinct existing task directories")
@@ -1008,27 +1227,65 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
     _basenames = [PurePosixPath(value).name for value in artifacts]
     if len(set(_basenames)) != len(_basenames):
         raise GraderRefusal("native artifact basenames are ambiguous; an explicit port binding is required")
-    recipe = _SetupRecipe(ast.parse((port / "setup_data.py").read_text()), task_id, upstream=upstream)
+    recipe = _SetupRecipe(
+        ast.parse((port / "setup_data.py").read_text()), task_id, upstream=upstream,
+        asset_cache=asset_cache, port_context=port,
+    )
     seen: dict[str, str] = {}
+    cached_contents: dict[str, bytes] = {}
     for asset in recipe.assets:
         if asset["destination"] in seen and seen[asset["destination"]] != asset["sha256"]:
             raise GraderRefusal("setup-data recipe has conflicting destination identities")
         seen[asset["destination"]] = asset["sha256"]
+        if asset.get("source_kind") == "asset_cache":
+            _, cached_contents[asset["destination"]] = recipe._cached_bytes(asset["sha256"])
+            continue
         source = upstream / asset["source"]
         if not source.is_file() or source.is_symlink():
             raise GraderRefusal(f"pinned setup asset is unavailable locally: {asset['source']}")
-        actual = hashlib.sha256(source.read_bytes()).hexdigest()
-        if actual != asset["sha256"]:
-            raise GraderRefusal(f"local upstream asset differs from pinned port setup-data sha256: {asset['source']}")
+        recipe._asset_bytes(source, asset["sha256"])
     source_pin = _source_pin(upstream)
     generated = sorted(
-        ({"destination": entry["destination"], "sha256": entry["sha256"], **({"mode": entry["mode"]} if "mode" in entry else {})} for entry in recipe.generated.values()),
+        ({
+            "destination": entry["destination"], "sha256": entry["sha256"],
+            **({"mode": entry["mode"]} if "mode" in entry else {}),
+            **({"provenance": entry["provenance"]} if "provenance" in entry else {}),
+        } for entry in recipe.generated.values()),
         key=lambda entry: entry["destination"],
     )
-    grader_digest = _sha(_json({"port_tree": port_digest, "assets": sorted(recipe.assets, key=lambda asset: (asset["destination"], asset["source"])), "generated": generated}).encode())
+    directories = [{"destination": name, "mode": mode} for name, mode in sorted(recipe.directories.items())]
+    files = {asset["destination"] for asset in recipe.assets} | set(recipe.generated)
+    required_directories = set(recipe.directories)
+    for name in files:
+        required_directories.update(str(parent) for parent in PurePosixPath(name).parents if str(parent) != ".")
+    if files & required_directories:
+        raise GraderRefusal("setup-data recipe has conflicting file/directory destinations")
+    for name in files | required_directories:
+        existing = port / name
+        if any(name == prefix or name.startswith(prefix + "/") for prefix in recipe.cleared_directories):
+            continue
+        if existing.exists() and existing.is_dir() != (name in required_directories):
+            raise GraderRefusal(f"setup-data destination conflicts with the immutable port layout: {name}")
+
+    def asset_identity(asset: dict[str, str]) -> dict[str, str]:
+        return {**asset, "source": "sha256:" + asset["sha256"]} if asset.get("source_kind") == "asset_cache" else asset
+
+    identity: dict[str, Any] = {
+        "port_tree": port_digest,
+        "assets": sorted((asset_identity(asset) for asset in recipe.assets), key=lambda asset: (asset["destination"], asset["source"])),
+        "generated": generated,
+    }
+    if recipe.external_inputs:
+        identity["external_inputs"] = sorted((asset_identity(asset) for asset in recipe.external_inputs), key=_json)
+    if directories:
+        identity["directories"] = directories
+    if recipe.cleared_directories:
+        identity["cleared_directories"] = sorted(set(recipe.cleared_directories))
+    grader_digest = _sha(_json(identity).encode())
     runtime = {"task_id": task_id, "required_hardware": interface["required_hardware"], "artifacts": artifacts, "grader_digest": grader_digest}
     containerfile_text = (port / "Containerfile").read_text()
-    generated_dockerfile = _copy_gitkeep_form(_image_dockerfile(containerfile_text), port, recipe.assets) + _IMAGE_SUFFIX
+    staged_paths = [*recipe.assets, *generated, *directories]
+    generated_dockerfile = _copy_gitkeep_form(_image_dockerfile(containerfile_text), port, staged_paths) + _IMAGE_SUFFIX
     logical_image = _sha(_json({"grader_digest": grader_digest, "driver": _sha(_DRIVER.encode()), "config": runtime, "test_sh": _TEST_SH, "dockerfile": generated_dockerfile}).encode())
     result = {
         "schema": "evallab.candidate_port/v1", "task_dir": str(upstream), "upstream_task": str(upstream), "port_task": str(port), "task_id": task_id,
@@ -1036,23 +1293,36 @@ def _describe(upstream_task: Path | str, port_task: Path | str) -> tuple[dict[st
         "upstream_identity": {"path": str(upstream), "id": task_id, "exact_tree_digest": upstream_digest, "task_toml_sha256": _sha((upstream / "task.toml").read_bytes()), "source_pin": source_pin, "export_declared_pin": UPSTREAM_EXPORT_PIN if source_pin is None else None, "pin_verification": "git metadata" if source_pin else "export pin declaration; exact local bytes separately bound"},
         "port_identity": {"path": str(port), "id": task_id, "exact_tree_digest": port_digest, "source_pin": port_pin, "required_fixed_pin": PM_FIXED_PIN, "pin_verification": "git metadata" if port_pin else "no checkout metadata; exact local bytes bound, pin unverified", "containerfile_sha256": _sha((port / "Containerfile").read_bytes()), "lock_sha256": _sha((port / "uv.lock").read_bytes()), "manifest_sha256": _sha((port / ".manifest.json").read_bytes())},
         "resources": [agent_resource, verifier_resource], "port_interface": interface,
-        "setup_data": {"mode": "offline exact hash-pinned copies", "asset_count": len(recipe.assets), "assets": recipe.assets, "generated": generated},
+        "setup_data": {
+            "mode": "offline exact hash-pinned copies", "asset_count": len(recipe.assets), "assets": recipe.assets, "generated": generated,
+            **({"external_inputs": recipe.external_inputs} if recipe.external_inputs else {}),
+            **({"directories": directories} if directories else {}),
+            **({"cleared_directories": sorted(set(recipe.cleared_directories))} if recipe.cleared_directories else {}),
+        },
         "native_image_identity": {
             "agent": {"source_context": str(upstream / "environment"), "exact_context_digest": _tree_digest(upstream / "environment"), "docker_image": agent_resource["docker_image"]},
             "verifier": {"source_context": str(port), "logical_digest": logical_image, "exact_context_digest": None, "materialization": "pending", "candidate_independent": True, "evidence_path_independent": True},
         },
-        "support": {"static_admission": "candidate", "runtime_qualified": False, "local": "requires strict live Docker admission and a successful full-port image build", "modal": "requires upstream native platform/resource admission, one shared approval/cap/ledger and successful image hydration", "refusals": [], "runtime_network": "fixed verifier no-network; no provider credentials or model invocation", "limitations": ["Only one file-submission ExecutableJudge step; runtime checks exact original artifact bindings before scoring.", "Only local sha256-pinned setup-data copy recipes; transformations/external downloads are refused.", "CPU/memory exact; declared storage is minimum free capacity, not a disk quota.", "Port metadata and explicitly named per-test results are retained; aggregate counts do not invent passing test identities."]},
+        "support": {"static_admission": "candidate", "runtime_qualified": False, "local": "requires strict live Docker admission and a successful full-port image build", "modal": "requires upstream native platform/resource admission, one shared approval/cap/ledger and successful image hydration", "refusals": [], "runtime_network": "fixed verifier no-network; no provider credentials or model invocation", "limitations": ["Only one file-submission ExecutableJudge step; runtime checks exact original artifact bindings before scoring.", "Only explicitly supported deterministic setup-data recipes; external bytes require an explicit verified hash-keyed asset cache, never an automatic download.", "CPU/memory exact; declared storage is minimum free capacity, not a disk quota.", "Port metadata and explicitly named per-test results are retained; aggregate counts do not invent passing test identities."]},
         "_runtime": runtime,
         "_generated": [recipe.generated[entry["destination"]] for entry in generated],
         "_deletions": list(recipe.deletions),
+        "_cached_contents": cached_contents,
+        "_directories": directories,
+        "_cleared_directories": sorted(set(recipe.cleared_directories)),
     }
     return result, recipe.assets
 
 
-def describe_port_task(upstream_task: Path | str, port_task: Path | str) -> dict[str, Any]:
-    """Describe an admitted full scorer using local immutable source bytes only."""
+def describe_port_task(
+    upstream_task: Path | str,
+    port_task: Path | str,
+    *,
+    asset_cache: Path | str | None = None,
+) -> dict[str, Any]:
+    """Describe immutable source bytes; external assets need explicit cache/<sha256>."""
     try:
-        result, _ = _describe(upstream_task, port_task)
+        result, _ = _describe(upstream_task, port_task, asset_cache=asset_cache)
     except (OSError, SyntaxError, KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, GraderRefusal):
             raise
@@ -1060,19 +1330,32 @@ def describe_port_task(upstream_task: Path | str, port_task: Path | str) -> dict
     result.pop("_runtime")
     result.pop("_generated", None)
     result.pop("_deletions", None)
+    result.pop("_cached_contents", None)
+    result.pop("_directories", None)
+    result.pop("_cleared_directories", None)
     return result
 
 
-def prepare_port_task(upstream_task: Path | str, port_task: Path | str, output_dir: Path | str) -> dict[str, Any]:
-    """Materialize a fresh native task; never mutate original/port/candidate inputs."""
+def prepare_port_task(
+    upstream_task: Path | str,
+    port_task: Path | str,
+    output_dir: Path | str,
+    *,
+    asset_cache: Path | str | None = None,
+) -> dict[str, Any]:
+    """Materialize exact pinned bytes without mutating sources or fetching assets."""
     try:
-        result, assets = _describe(upstream_task, port_task)
+        result, assets = _describe(upstream_task, port_task, asset_cache=asset_cache)
         upstream, port, destination = Path(result["upstream_task"]), Path(result["port_task"]), Path(output_dir).resolve()
-        if destination.exists() or any(destination == source or destination.is_relative_to(source) or source.is_relative_to(destination) for source in (upstream, port)):
-            raise GraderRefusal("port output_dir must be fresh and outside both immutable source trees")
+        sources = (upstream, port, Path(asset_cache).expanduser().resolve()) if asset_cache is not None else (upstream, port)
+        if destination.exists() or any(destination == source or destination.is_relative_to(source) or source.is_relative_to(destination) for source in sources):
+            raise GraderRefusal("port output_dir must be fresh and outside immutable source trees and the asset cache")
         runtime = result.pop("_runtime")
         generated = result.pop("_generated", [])
         deletions = result.pop("_deletions", [])
+        cached_contents = result.pop("_cached_contents", {})
+        directories = result.pop("_directories", [])
+        cleared_directories = result.pop("_cleared_directories", [])
         # Resolve all refusal boundaries before creating any output bytes.
         config = tomlkit.parse((upstream / "task.toml").read_text())
         verifier = config.get("verifier", tomlkit.table())
@@ -1100,19 +1383,31 @@ def prepare_port_task(upstream_task: Path | str, port_task: Path | str, output_d
         (destination / "task.toml").write_text(tomlkit.dumps(config))
         tests = destination / "tests"
         shutil.copytree(port, tests)
+        for name in cleared_directories:
+            target = tests / name
+            if target.is_dir():
+                shutil.rmtree(target)
+        for entry in sorted(directories, key=lambda entry: len(PurePosixPath(entry["destination"]).parts)):
+            (tests / entry["destination"]).mkdir(parents=True, exist_ok=True)
         for asset in assets:
             target = tests / asset["destination"]
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(upstream / asset["source"], target)
+            if asset.get("source_kind") == "asset_cache":
+                target.write_bytes(cached_contents[asset["destination"]])
+                target.chmod(0o644)
+            else:
+                shutil.copy2(upstream / asset["source"], target)
         containerfile_text = (port / "Containerfile").read_text()
-        (tests / "Dockerfile").write_text(_copy_gitkeep_form(_image_dockerfile(containerfile_text), port, assets) + _IMAGE_SUFFIX)
+        (tests / "Dockerfile").write_text(_copy_gitkeep_form(_image_dockerfile(containerfile_text), port, [*assets, *generated, *directories]) + _IMAGE_SUFFIX)
         for entry in generated:
             target = tests / entry["destination"]
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(entry["content"])
             if "mode" in entry:
                 target.chmod(entry["mode"])
-        _final_destinations = {asset["destination"] for asset in assets} | {entry["destination"] for entry in generated}
+        for entry in directories:
+            (tests / entry["destination"]).chmod(entry["mode"])
+        _final_destinations = {asset["destination"] for asset in assets} | {entry["destination"] for entry in generated} | {entry["destination"] for entry in directories}
         for prefix in deletions:
             if any(dest == prefix or dest.startswith(prefix + "/") for dest in _final_destinations):
                 continue

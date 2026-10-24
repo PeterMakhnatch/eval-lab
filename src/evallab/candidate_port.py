@@ -503,7 +503,7 @@ class _SetupRecipe:
         directories: set[str] = {str(destination)}
         seen: dict[str, str] = {}
         try:
-            with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as bundle:
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as bundle:
                 for member in bundle:
                     path = PurePosixPath(member.name)
                     if (

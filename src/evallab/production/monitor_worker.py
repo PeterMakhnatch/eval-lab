@@ -24,12 +24,19 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from evallab.live_watch import WatchThresholds, evaluate_alerts
+from evallab.production.asset_exporter import (
+    LABEL_VERIFICATION_SCHEMA,
+    _measured_reward,
+    verify_label_proof,
+)
+from evallab.production.corpus_queue import CorpusRegistry
 from evallab.qa import trace_cheap
 from evallab.tripwires import scan_prefix
 
@@ -88,6 +95,14 @@ def _normalized(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
+def _nonempty_str(value: Any) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _canon(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
 class JournalConsumer(Protocol):
     def read_consumer(self, consumer_id: str, *, limit: int = 100) -> list[dict[str, Any]]: ...
 
@@ -123,6 +138,8 @@ class _Run:
     controls: dict[str, ControlRequest] = field(default_factory=dict)
     control_events: dict[str, dict[str, Any]] = field(default_factory=dict)
     seen_events: set[str] = field(default_factory=set)
+    suspicions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    promoted: dict[str, dict[str, Any]] = field(default_factory=dict)
     task_id: str = "unknown"
     source_kind: str = "live_sandbox"
     executor_id: str | None = None
@@ -148,12 +165,14 @@ class MisalignmentLiveWorker:
         control_ttl_seconds: float = 30.0,
         latency_target_seconds: float = 2.0,
         gate_rules: frozenset[str] = _GATE_RULES,
+        registry: CorpusRegistry | None = None,
     ) -> None:
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
             raise ValueError("control_ttl_seconds must be finite and positive")
         if not math.isfinite(latency_target_seconds) or latency_target_seconds <= 0:
             raise ValueError("latency_target_seconds must be finite and positive")
         self._sink = emit
+        self._registry = registry
         self._judge = judge
         self._clock = clock
         self._control_ttl = control_ttl_seconds
@@ -216,10 +235,11 @@ class MisalignmentLiveWorker:
         *,
         status: str = "provisional",
         prefix_step: int | None = None,
+        event_id: str | None = None,
     ) -> dict[str, Any]:
         self._seq += 1
         event = {
-            "event_id": str(uuid4()),
+            "event_id": event_id or str(uuid4()),
             "run_id": run_id,
             "system": "misalignment",
             "event_type": event_type,
@@ -383,6 +403,16 @@ class MisalignmentLiveWorker:
         started = time.monotonic()
         steps = [run.steps[n] for n in sorted(run.steps)]
         prefix = max(run.steps, default=None)
+        # Freeze the exact observed prefix this score was computed over; the
+        # digest binds later label verification to these bytes, not to a
+        # re-merged view of the same step ids.
+        try:
+            canon_steps = _canon(steps)
+            frozen_steps = json.loads(canon_steps)
+            prefix_digest = hashlib.sha256(canon_steps.encode("utf-8")).hexdigest()
+        except (TypeError, ValueError):
+            frozen_steps = None
+            prefix_digest = None
         coverage = self._coverage(run, steps)
         source = {
             "source_event_id": source_event.get("event_id"),
@@ -432,11 +462,24 @@ class MisalignmentLiveWorker:
                 "source_kind": run.source_kind,
                 "confirmation_scope": "observed_prefix_behavior",
                 "outcome_verified": False,
+                "trace_prefix_sha256": prefix_digest,
                 "coverage": coverage,
                 "semantic_triage": "pending" if self._judge else "unavailable",
             }
-            output.append(self._emit(run_id, "monitor.suspicion", card, prefix_step=prefix))
+            emitted_card = self._emit(
+                run_id, "monitor.suspicion", card, prefix_step=prefix
+            )
+            output.append(emitted_card)
             run.cards.add(card_id)
+            run.suspicions[card_id] = {
+                "card": card,
+                "event_id": emitted_card.get("event_id"),
+                "prefix": prefix,
+                "steps": frozen_steps,
+                "digest": prefix_digest,
+                "task_manifest": copy.deepcopy(run.task_manifest),
+                "baselines": copy.deepcopy(run.baselines),
+            }
             cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
@@ -544,6 +587,452 @@ class MisalignmentLiveWorker:
                     status="confirmed" if confirmed else "provisional",
                     prefix_step=prefix,
                 )
+                record = self._runs.get(run_id)
+                if record is not None and card["card_id"] in record.suspicions:
+                    record.suspicions[card["card_id"]]["card"] = update
+
+    def _load_proof(
+        self, receipt: str | Path | Mapping[str, Any], root: Path
+    ) -> tuple[dict[str, Any], str]:
+        """Read the independent verification receipt; return (proof, sha256).
+
+        The digest keys on canonical receipt content, so a path and the
+        equivalent mapping share one idempotent promotion key.
+        """
+        proof: dict[str, Any]
+        if isinstance(receipt, Mapping):
+            try:
+                proof = json.loads(_canon(dict(receipt)))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"verification receipt is not JSON-serializable: {exc}"
+                ) from exc
+        elif isinstance(receipt, (str, Path)):
+            path = Path(receipt).expanduser()
+            if not path.is_absolute():
+                path = root / path
+            try:
+                raw = path.resolve().read_bytes()
+            except OSError as exc:
+                raise ValueError(f"verification receipt is unreadable: {exc}") from exc
+            try:
+                proof = json.loads(raw)
+            except ValueError as exc:
+                raise ValueError(f"verification receipt is not JSON: {exc}") from exc
+        else:
+            raise ValueError(
+                "verification receipt must be a mapping or a JSON receipt path"
+            )
+        if not isinstance(proof, dict):
+            raise ValueError("verification receipt is not a JSON object")
+        return proof, hashlib.sha256(_canon(proof).encode("utf-8")).hexdigest()
+
+    def _promotion_registry(self, registry: CorpusRegistry | None) -> CorpusRegistry | None:
+        """The corpus registry promotion resolves identities through.
+
+        An explicit ``registry`` argument wins; otherwise the registry bound
+        to the journal this worker consumes (``consume``/``recover``) or to
+        the emit sink's owning queue supplies it. ``None`` means the caller
+        wired no corpus — TEST/heldout sealing then falls back to the emit
+        sink's own admission boundary.
+        """
+        if registry is not None:
+            return registry
+        for source in (
+            self._registry,
+            self._recovered_queue,
+            getattr(self._sink, "__self__", None),
+        ):
+            candidate = getattr(source, "registry", None)
+            if isinstance(candidate, CorpusRegistry):
+                return candidate
+        return None
+
+    def verify_and_promote_trace_label(
+        self,
+        run_id: str,
+        card_id: str,
+        receipt: str | Path | Mapping[str, Any],
+        *,
+        repo_root: str | Path | None = None,
+        registry: CorpusRegistry | None = None,
+    ) -> dict[str, Any]:
+        """Promote one suspicion card to a verified ``labeled_trace`` asset.
+
+        The ``receipt`` is an *independent* verification proof — never the
+        semantic suspicion card itself. Two recognized producer forms (see
+        ``evallab.production.asset_exporter.verify_label_proof``): a
+        deterministic ``evallab.trace_label_verification/v1`` whose
+        ``verdict_rule`` equals the card's tripwire rule — re-derived by
+        running ``scan_prefix`` again over the card's frozen prefix, so a
+        fabricated rule string plus a reward cannot prove anything — and
+        whose ``measurement.evidence_ref`` loads a measured execution
+        receipt that itself binds the run/task and records an execution
+        status, or an explicit ground-truth
+        ``evallab.trace_label_adjudication/v1`` naming a validated human
+        adjudicator whose ``record`` loads a standalone
+        ``evallab.trace_label_adjudication_record/v1`` source receipt (a
+        declared human judgment — the caller owns the record file's
+        custody/authenticity; this check binds structure, provenance shape,
+        identity, and the exact frozen prefix only). The proof must bind
+        ``run_id``, ``dataset_id``, ``item_id``, ``task_id``, the card's
+        ``prefix_step``, and the exact observed-prefix digest the card was
+        scored on; every citation in the card and the proof must resolve
+        verbatim against an observed executed action step in that frozen
+        prefix — proposed or future steps never qualify.
+
+        Before anything is emitted the declared ``dataset_id``/``item_id``
+        resolves through the corpus registry (explicit ``registry`` argument,
+        worker configuration, or the bound journal's): unregistered,
+        TEST/heldout-sealed, or run-conflicting identities refuse promotion —
+        a caller-supplied ``frozen_eval_token`` is never accepted here. Any
+        problem raises ``ValueError`` before a byte is emitted and leaves
+        worker state untouched.
+
+        On success emits ``trace.label_verified`` then ``asset.verified``
+        (kind ``labeled_trace``) with deterministic event ids keyed on the
+        source-evidence content digest, so replay after restart is idempotent;
+        re-promoting the same card with a *different* receipt is refused. The
+        original suspicion card's ``outcome_verified`` stays False — the
+        promotion events carry the verification.
+        """
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("monitor worker is closed")
+            run = self._runs.get(run_id)
+            record = None if run is None else run.suspicions.get(card_id)
+            if run is None or record is None:
+                raise ValueError(
+                    f"unknown suspicion card {card_id!r} for run {run_id!r}"
+                )
+            card = record["card"]
+            root = (
+                Path(repo_root).expanduser().resolve()
+                if repo_root is not None
+                else Path.cwd().resolve()
+            )
+            proof, receipt_sha256 = self._load_proof(receipt, root)
+
+            def load_measured(ref: Any) -> Any:
+                if not isinstance(ref, str) or not ref.strip():
+                    return None
+                target = Path(ref).expanduser()
+                if not target.is_absolute():
+                    target = root / target
+                try:
+                    return _measured_reward(target.resolve())
+                except OSError:
+                    return None
+
+            def load_record(ref: Any) -> dict[str, Any] | None:
+                if not isinstance(ref, str) or not ref.strip():
+                    return None
+                target = Path(ref).expanduser()
+                if not target.is_absolute():
+                    target = root / target
+                try:
+                    data = json.loads(
+                        target.resolve().read_text(encoding="utf-8")
+                    )
+                except (OSError, ValueError, UnicodeError):
+                    return None
+                return data if isinstance(data, dict) else None
+
+            problems: list[str] = []
+            # Corpus resolution runs before any emit: TEST/heldout-sealed and
+            # unregistered identities refuse promotion here, never by relying
+            # on the emit sink's admission halfway through the writes. The
+            # resolved item's task must equal the run's committed task, so the
+            # corpus identity cannot float free of the observed run.
+            bound_registry = self._promotion_registry(registry)
+            item = None
+            proof_dataset = _nonempty_str(proof.get("dataset_id"))
+            proof_item = _nonempty_str(proof.get("item_id"))
+            if (
+                bound_registry is not None
+                and proof_dataset is not None
+                and proof_item is not None
+            ):
+                try:
+                    item = bound_registry.get(proof_dataset, proof_item)
+                except (KeyError, ValueError) as exc:
+                    problems.append(
+                        f"unregistered corpus identity "
+                        f"{proof_dataset}/{proof_item}: {exc}"
+                    )
+                else:
+                    if item.split != "dev":
+                        problems.append(
+                            f"corpus identity {proof_dataset}/{proof_item} "
+                            f"is sealed as {item.split}"
+                        )
+                    run_task = run.task_id if run.task_id != "unknown" else None
+                    if item.task_id is not None:
+                        if run_task is None:
+                            problems.append(
+                                "run has no committed task identity to bind "
+                                "the corpus item"
+                            )
+                        elif CorpusRegistry.task_name(
+                            item.task_id
+                        ) != CorpusRegistry.task_name(run_task):
+                            problems.append(
+                                "resolved corpus item task conflicts with the "
+                                "run's committed task"
+                            )
+                    declared_proof_digest = _nonempty_str(proof.get("task_digest"))
+                    if declared_proof_digest is not None:
+                        if item.task_digest is None:
+                            problems.append(
+                                "declared task_digest cannot be bound to the "
+                                "registered item"
+                            )
+                        elif declared_proof_digest != item.task_digest:
+                            problems.append(
+                                "declared task_digest conflicts with the "
+                                "registered item"
+                            )
+                    seal = bound_registry.sealed_identity(
+                        task_id=_nonempty_str(proof.get("task_id")),
+                        task_digest=declared_proof_digest,
+                    )
+                    if seal is not None:
+                        problems.append(f"declared task identity is sealed by {seal}")
+            steps = record.get("steps")
+            prefix = record.get("prefix")
+            card_digest = _nonempty_str(record.get("digest")) or _nonempty_str(
+                card.get("trace_prefix_sha256")
+            )
+            steps_digest: str | None = None
+            if not isinstance(steps, list) or not steps or type(prefix) is not int:
+                problems.append("suspicion card has no frozen observed prefix")
+            else:
+                try:
+                    steps_digest = hashlib.sha256(
+                        _canon(steps).encode("utf-8")
+                    ).hexdigest()
+                except (TypeError, ValueError):
+                    problems.append("frozen observed prefix is not JSON-serializable")
+                else:
+                    if card_digest is not None and steps_digest != card_digest:
+                        problems.append(
+                            "frozen prefix no longer matches the card's committed digest"
+                        )
+            card_rule = _nonempty_str(card.get("rule"))
+            if (
+                steps_digest is not None
+                and card_rule is not None
+                and proof.get("schema") == LABEL_VERIFICATION_SCHEMA
+            ):
+                # The declared verdict rule must re-derive from the observed
+                # prefix at the card's own cited step — re-running the
+                # deterministic scan is the proof a rule string plus a reward
+                # cannot fake.
+                probe = replace(
+                    run,
+                    task_manifest=record.get("task_manifest", run.task_manifest),
+                    baselines=record.get("baselines", run.baselines),
+                )
+                assert isinstance(steps, list)  # steps_digest implies it
+                try:
+                    observed = {
+                        (alert.get("rule"), alert.get("step_ref"))
+                        for alert in self._detect(run_id, probe, steps)
+                    }
+                except Exception:
+                    problems.append(
+                        "deterministic verdict rule cannot be re-derived from "
+                        "the frozen prefix"
+                    )
+                else:
+                    card_evidence = card.get("evidence")
+                    cited = (
+                        card_evidence[0].get("step")
+                        if isinstance(card_evidence, list)
+                        and card_evidence
+                        and isinstance(card_evidence[0], Mapping)
+                        else None
+                    )
+                    if (card_rule, f"head#{cited}") not in observed:
+                        problems.append(
+                            "verdict_rule does not re-derive from the frozen "
+                            "observed prefix at the card's cited step"
+                        )
+            verification, proof_problems = verify_label_proof(
+                proof,
+                expect={
+                    "run_id": run_id,
+                    "dataset_id": item.dataset_id if item is not None else None,
+                    "item_id": item.item_id if item is not None else None,
+                    "task_id": run.task_id if run.task_id != "unknown" else None,
+                    "task_digest": item.task_digest if item is not None else None,
+                    "label": card.get("judge_label")
+                    if isinstance(card.get("judge_label"), str)
+                    else None,
+                    "rule": card.get("rule"),
+                    "prefix_step": prefix,
+                    "trace_prefix_sha256": steps_digest,
+                },
+                load_measured=load_measured,
+                load_record=load_record,
+            )
+            problems.extend(proof_problems)
+            action_text = {
+                action["step"]: action["text"]
+                for action in trace_cheap.actions_only(steps)
+            } if isinstance(steps, list) else {}
+            card_evidence = card.get("evidence")
+            if not isinstance(card_evidence, list) or not card_evidence:
+                problems.append("suspicion card carries no observed-prefix citations")
+                card_evidence = []
+            citations: list[dict[str, Any]] = []
+            seen: set[tuple[int, str]] = set()
+            for tag, entries in (
+                ("card", card_evidence),
+                ("proof", verification["evidence"] if verification else []),
+            ):
+                for entry in entries:
+                    if (
+                        not isinstance(entry, Mapping)
+                        or type(entry.get("step")) is not int
+                        or not _nonempty_str(entry.get("quote"))
+                    ):
+                        problems.append(f"{tag} citation is malformed")
+                        continue
+                    step, quote = entry["step"], entry["quote"]
+                    if step not in action_text:
+                        problems.append(
+                            f"{tag} cites step {step}: not an observed executed "
+                            "action step in the frozen prefix"
+                        )
+                        continue
+                    if _normalized(quote) not in _normalized(action_text[step]):
+                        problems.append(
+                            f"{tag} quote on step {step} is not verbatim in the "
+                            "observed prefix"
+                        )
+                        continue
+                    key = (step, quote)
+                    if key not in seen:
+                        seen.add(key)
+                        citations.append({"step": step, "quote": quote})
+            if not citations:
+                problems.append("no verified observed-prefix citations")
+            if problems:
+                raise ValueError(
+                    "trace label verification failed: " + "; ".join(problems)
+                )
+            assert verification is not None and steps_digest is not None
+            prior = run.promoted.get(card_id)
+            if prior is not None:
+                if prior.get("receipt_sha256") != receipt_sha256:
+                    raise ValueError(
+                        "suspicion card already promoted by a different "
+                        "verification receipt"
+                    )
+                if prior.get("asset_event") is not None:
+                    return {
+                        "label_event": prior["label_event"],
+                        "asset_event": prior["asset_event"],
+                    }
+            mechanism = (
+                verification.get("mechanism")
+                or _nonempty_str(card.get("mechanism"))
+                or str(card.get("rule"))
+            )
+            label_receipt = {
+                "schema": "evallab.trace_label/v1",
+                "status": "verified",
+                "label": verification["label"],
+                "dataset_id": verification["dataset_id"],
+                "item_id": verification["item_id"],
+                "task_id": verification["task_id"],
+                "trace_sha256": steps_digest,
+                "mechanism": mechanism,
+                "evidence": citations,
+                "verification": verification,
+                "source_card_id": card_id,
+                "source_suspicion_event_id": record.get("event_id"),
+                "source_receipt_sha256": receipt_sha256,
+            }
+            promotion_key = hashlib.sha256(
+                _canon(
+                    {
+                        "run_id": run_id,
+                        "card_id": card_id,
+                        "receipt_sha256": receipt_sha256,
+                    }
+                ).encode("utf-8")
+            ).hexdigest()
+            label_event = self._emit(
+                run_id,
+                "trace.label_verified",
+                {
+                    "card_id": card_id,
+                    "source_suspicion_event_id": record.get("event_id"),
+                    "source_receipt_sha256": receipt_sha256,
+                    "rule": card.get("rule"),
+                    "label": verification["label"],
+                    "mechanism": mechanism,
+                    "dataset_id": verification["dataset_id"],
+                    "item_id": verification["item_id"],
+                    "task_id": verification["task_id"],
+                    "prefix_step": prefix,
+                    "trace_prefix_sha256": steps_digest,
+                    "outcome_verified": True,
+                    "verification_mode": verification["mode"],
+                    "label_receipt": label_receipt,
+                },
+                status="confirmed",
+                prefix_step=prefix,
+                event_id=str(
+                    uuid5(
+                        NAMESPACE_URL,
+                        "evallab.misalignment.trace_label_verified:" + promotion_key,
+                    )
+                ),
+            )
+            asset_event = self._emit(
+                run_id,
+                "asset.verified",
+                {
+                    "asset_id": (
+                        f"labeled-trace:{run_id}:{card_id[:16]}:"
+                        f"{receipt_sha256[:12]}"
+                    ),
+                    "kind": "labeled_trace",
+                    "status": "confirmed",
+                    "dataset_id": verification["dataset_id"],
+                    "item_id": verification["item_id"],
+                    "task_id": verification["task_id"],
+                    **(
+                        {"task_digest": verification["task_digest"]}
+                        if _nonempty_str(verification.get("task_digest"))
+                        else {}
+                    ),
+                    "label_receipt": label_receipt,
+                    "trace_steps": steps,
+                    "mechanism": mechanism,
+                    "source_event_id": label_event.get("event_id"),
+                    "source_event_type": "trace.label_verified",
+                    "source_card_id": card_id,
+                    "source_suspicion_event_id": record.get("event_id"),
+                },
+                status="confirmed",
+                prefix_step=prefix,
+                event_id=str(
+                    uuid5(
+                        NAMESPACE_URL,
+                        "evallab.misalignment.asset_verified:" + promotion_key,
+                    )
+                ),
+            )
+            run.promoted[card_id] = {
+                "receipt_sha256": receipt_sha256,
+                "label_event": label_event,
+                "asset_event": asset_event,
+            }
+            return {"label_event": label_event, "asset_event": asset_event}
 
     def pre_action_gate(self, run_id: str, step: Mapping[str, Any]) -> dict[str, Any]:
         """Synchronous, model-free decision; a proposed step is never treated as executed."""
@@ -792,6 +1281,13 @@ class MisalignmentLiveWorker:
                         if kind == "monitor.suspicion":
                             card_id = payload["card_id"]
                             run.cards.add(card_id)
+                            run.suspicions[card_id] = {
+                                "card": payload,
+                                "event_id": event.get("event_id"),
+                                "prefix": event.get("prefix_step"),
+                                "steps": None,
+                                "digest": payload.get("trace_prefix_sha256"),
+                            }
                             if payload.get("semantic_triage") != "pending":
                                 pending.pop(card_id, None)
                                 continue
@@ -848,6 +1344,12 @@ class MisalignmentLiveWorker:
                             pending[card_id] = (run_id, prefix, frozen, copy.deepcopy(payload))
                     elif kind == "monitor.triage_unavailable":
                         pending.pop(payload["card_id"], None)
+                    elif kind == "trace.label_verified":
+                        promoted_card = payload.get("card_id")
+                        if isinstance(promoted_card, str) and promoted_card:
+                            run.promoted[promoted_card] = {
+                                "receipt_sha256": payload.get("source_receipt_sha256")
+                            }
                     elif kind in {
                         "control.requested",
                         "control.acknowledged",
@@ -863,6 +1365,17 @@ class MisalignmentLiveWorker:
                         if control.executor_id:
                             run.executor_id = control.executor_id
             self._recovered_queue = queue
+            # Rebuild each suspicion's frozen prefix view from the committed
+            # steps at or below its checkpoint so promotion verification can
+            # re-run after restart.
+            for recovered in self._runs.values():
+                for record in recovered.suspicions.values():
+                    if record.get("steps") is None and type(record.get("prefix")) is int:
+                        record["steps"] = [
+                            recovered.steps[n]
+                            for n in sorted(recovered.steps)
+                            if n <= record["prefix"]
+                        ]
             self.expire_controls()
             for run_id, prefix, steps, card in pending.values():
                 if self._pool is not None:

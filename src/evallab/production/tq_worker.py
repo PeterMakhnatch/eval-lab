@@ -32,11 +32,12 @@ import hashlib
 import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.qa import counterfactual
 from evallab.qa import task as qa_task
 from evallab.qa.models import (
@@ -172,12 +173,13 @@ def _annotation_summary(direction: Direction, annotation: Mapping[str, Any]) -> 
 class TaskQualityLiveWorker:
     """A continuously runnable, model-free-by-default Task Quality consumer.
 
-    ``backend`` is the existing QA Harbor backend; ``replay_runner`` is the
-    existing counterfactual runner. ``candidate_runner`` optionally injects the
-    canonical artifact replay runner. Tests can replace those collaborators,
-    the clock and the queue without consulting Docker, credentials or a model.
-    An optional read-only ``reader(finding, bundle)`` can refine a candidate's
-    explanation, but cannot turn its static observation into confirmed evidence.
+    ``backend`` selects ``docker``, ``modal`` or ``auto``; an injected QA backend
+    remains supported for model-free tests. ``execution_config`` carries one
+    worker-owned cloud approval, ledger, cap and attribution across every replay
+    and repair control. Queue payloads cannot override that policy.
+    ``replay_runner`` and ``candidate_runner`` replace the canonical executors in
+    tests; an optional read-only ``reader`` can refine static explanations but
+    cannot manufacture confirmed evidence.
     """
 
     def __init__(
@@ -187,6 +189,13 @@ class TaskQualityLiveWorker:
         repo_root: Path | str,
         worker_id: str = "task-quality-live",
         backend: Any = None,
+        execution_config: ExecutionBackendConfig | None = None,
+        modal_app_name: str | None = None,
+        spend_ledger: Path | str | None = None,
+        approval: str | None = None,
+        max_usd: float | None = None,
+        billing_tag: str | None = None,
+        allow_local_docker: bool | None = None,
         replay_runner: Callable[..., dict[str, Any]] | None = None,
         candidate_runner: Callable[..., dict[str, Any]] | None = None,
         reader: Callable[[Finding, dict[str, Any]], Finding] | None = None,
@@ -196,9 +205,25 @@ class TaskQualityLiveWorker:
         self.queue = queue
         self.repo_root = Path(repo_root).resolve()
         self.worker_id = worker_id
-        self.backend = (
-            backend if backend is not None else qa_task.HarborBackend(repo_root=self.repo_root)
+        self.execution_config = execution_config or ExecutionBackendConfig(
+            backend=backend if isinstance(backend, str) else "docker",
+            modal_app_name=modal_app_name,
+            spend_ledger=spend_ledger,
+            approval=approval,
+            max_usd=max_usd,
+            billing_tag=billing_tag,
+            **({"allow_local_docker": allow_local_docker} if allow_local_docker is not None else {}),
         )
+        if allow_local_docker is not None:
+            self.execution_config = replace(
+                self.execution_config,
+                allow_local_docker=self.execution_config.allow_local_docker and allow_local_docker,
+            )
+        self._injected_backend = backend is not None and not isinstance(backend, str)
+        self.backend = backend if self._injected_backend else qa_task.HarborBackend(
+            repo_root=self.repo_root, allow_local_docker=self.execution_config.allow_local_docker
+        )
+        self._replay_spend_gate: Any = None
         self.replay_runner = replay_runner or counterfactual.replay
         self.candidate_runner = candidate_runner
         self.reader = reader
@@ -207,6 +232,36 @@ class TaskQualityLiveWorker:
         # execution with enough lease for either executor plus collection.
         self.lease_seconds = max(7200, trial_timeout_seconds * 2)
         self.clock = clock or (lambda: datetime.now(UTC).isoformat())
+
+    def _spend_gate(self, usd_per_execution: float) -> Any:
+        from evallab.regrade import CloudSpendGate
+
+        config = self.execution_config
+        if config.spend_ledger is None:
+            raise ValueError("Modal worker execution requires a persisted spend_ledger")
+        return CloudSpendGate(
+            approval=config.approval or "",
+            cap_usd=config.max_usd or 0.0,
+            usd_per_execution=usd_per_execution,
+            spend_ledger=config.spend_ledger,
+            modal_app_name=config.modal_app_name,
+            billing_tag=config.billing_tag,
+        )
+
+    def _qa_backend(self) -> Any:
+        """Select repair controls lazily; annotation-only work needs no runtime."""
+        selected = self.execution_config.require_backend()
+        if not self._injected_backend and selected == "modal" and self.backend.environment != "modal":
+            from evallab.qa.task_modal import ModalBackend
+            from evallab.regrade import MODAL_USD_PER_ALLOCATION_UNIT
+
+            self.backend = ModalBackend(
+                repo_root=self.repo_root,
+                spend_gate=self._spend_gate(MODAL_USD_PER_ALLOCATION_UNIT),
+                modal_app_name=self.execution_config.modal_app_name,
+                billing_tag=self.execution_config.billing_tag,
+            )
+        return self.backend
 
     def _path(self, value: str | Path) -> Path:
         path = Path(value).expanduser()
@@ -404,6 +459,7 @@ class TaskQualityLiveWorker:
         label: str,
     ) -> dict[str, Any]:
         self._renew(job)
+        selected = self.execution_config.require_backend()
         self._unchanged(job)
         work = self.repo_root / "runs" / "task-quality-live" / uuid.uuid4().hex / label
         digest = job.original_digest if package == job.original else job.repaired_digest
@@ -413,7 +469,7 @@ class TaskQualityLiveWorker:
             from evallab.candidate_runner import run_candidate
 
             kwargs: dict[str, Any] = {
-                "backend": "docker",
+                **self.execution_config.candidate_kwargs(),
                 "timeout_seconds": self.trial_timeout_seconds,
                 "output_dir": work,
                 "target_dir": job.payload.get("target_dir"),
@@ -439,9 +495,15 @@ class TaskQualityLiveWorker:
             grader = counterfactual.Grader(
                 job.task_id, "task-quality-live", digest, package, job.event_id
             )
-            raw = self.replay_runner(
-                source, grader, work, repo_root=self.repo_root, environment="docker"
-            )
+            replay_kwargs: dict[str, Any] = {
+                "repo_root": self.repo_root,
+                "environment": "modal" if selected == "modal" else "docker",
+            }
+            if selected == "modal":
+                if self._replay_spend_gate is None:
+                    self._replay_spend_gate = self._spend_gate(counterfactual.CLOUD_USD_PER_EXECUTION)
+                replay_kwargs["spend_gate"] = self._replay_spend_gate
+            raw = self.replay_runner(source, grader, work, **replay_kwargs)
             reward = qa_task.finite_reward(raw.get("regraded"))
             usable = (
                 not raw.get("refusals")
@@ -788,19 +850,21 @@ class TaskQualityLiveWorker:
         input_digest = self._input_digest(job, source, "wrong_pass")
         if job.repaired is None or job.repaired_digest is None:
             raise ValueError("repair job lost its resolved repaired package")
-        task = self.backend.resolve(job.repaired)
-        blocker = self.backend.resource_blocker(job.repaired)
+        backend = self._qa_backend()
+        task = backend.resolve(job.repaired)
+        blocker = backend.resource_blocker(job.repaired)
         if blocker:
             raise ValueError(blocker)
         reference_patch = job.payload.get("reference_patch")
         if reference_patch is not None:
-            self.backend.bind_reference_patch(job.repaired, self._path(reference_patch))
+            backend.bind_reference_patch(job.repaired, self._path(reference_patch))
         records: dict[str, list[dict[str, Any]]] = {"reference": [], "nop": [], "exploit": []}
         for name, agent in (("reference", "oracle"), ("nop", "nop")):
             for repeat in range(3):
                 self._renew(job)
                 self._unchanged(job)
-                observation = self.backend.control(
+                self.execution_config.require_backend()
+                observation = backend.control(
                     task, agent, timeout_seconds=self.trial_timeout_seconds
                 )
                 reward = qa_task.finite_reward(observation.facts.get("reward"))

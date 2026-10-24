@@ -9,10 +9,10 @@ executes a caller's solve.sh, using the existing native solution-directory mode.
 are execution errors, never host-side installation or an invented reward.
 
 ``run_candidates`` accepts an ordered sequence of candidate keyword mappings.
-Execution policy is batch-wide: candidates cannot override the backend, cap,
-approval, ledger, app, billing tag, timeout, or evidence locations. Modal uses
-only the native runner's durable reservation ledger. The cap bounds admitted
-conservative reservations, not provider invoices or a provider billing switch.
+Execution policy is batch-wide: candidates cannot override the backend, local
+Docker permission, cap, approval, ledger, app, billing tag, timeout, or evidence
+locations. Modal uses only the native runner's durable reservation ledger. The
+cap bounds admitted conservative reservations, not provider invoices or a provider billing switch.
 The known GA hosted-verifier-judge contract is refused before allocation: this
 lane has no authorization or meter for that separate API. This is not a generic
 detector of arbitrary external costs embedded in task scripts.
@@ -52,6 +52,7 @@ from typing import Any, Literal
 
 from evallab import upstream_grader as native
 from evallab.docker_lock import default_state_dir
+from evallab.execution_backend import LocalDockerDisabledError, require_local_docker
 
 Grader = Literal["upstream", "port"]
 Files = Mapping[str, str | bytes] | Path | str
@@ -574,10 +575,13 @@ def _atomic_json(path: Path, data: Any) -> None:
 
 
 @contextlib.contextmanager
-def _local_lane(backend: native.Backend) -> Iterator[None]:
+def _local_lane(
+    backend: native.Backend, *, allow_local_docker: bool | None = None
+) -> Iterator[None]:
     if backend == "modal":
         yield
         return
+    require_local_docker(allow_local_docker=allow_local_docker)
     # Native slots=1 still applies. This lane lock also covers concurrent API
     # callers/processes, and intentionally serializes auto's possible Docker work.
     with _LOCAL_TRIAL_LOCK:
@@ -645,6 +649,7 @@ def run_candidate(
     grader: Grader = "upstream",
     port_task: Path | str | None = None,
     backend: native.Backend = "auto",
+    allow_local_docker: bool | None = None,
     platform: str | None = None,
     timeout_seconds: int = 600,
     max_usd: float | None = None,
@@ -663,6 +668,9 @@ def run_candidate(
     add/change/delete hunks, not renames, binary data, or symlink creation.
     Existing inputs/evidence are never overwritten. Single-input refusals with
     unsafe evidence paths cannot write evidence and return output_dir=None.
+    ``allow_local_docker=False`` or EVALLAB_DISABLE_LOCAL_DOCKER=1 forbids local
+    execution; ``auto`` then selects Modal with the same explicit cloud policy.
+    True never overrides the environment switch, including at native startup.
     """
     output = (
         Path(output_dir).expanduser().resolve()
@@ -677,9 +685,18 @@ def run_candidate(
     except (OSError, ValueError, TypeError) as exc:
         return _empty_result("refused", f"{type(exc).__name__}: {exc}", planned=bool(plan))
     prepared: _Prepared | None = None
+    local_docker_disabled = False
     created = False
     result: dict[str, Any]
     try:
+        if backend in {"auto", "docker"}:
+            try:
+                require_local_docker(allow_local_docker=allow_local_docker)
+            except LocalDockerDisabledError:
+                if backend == "docker":
+                    raise
+                backend = "modal"
+                local_docker_disabled = True
         prepared = _prepare(
             task, files=files, patch=patch, solution_bundle=solution_bundle,
             target_dir=target_dir, patch_strip=patch_strip, grader=grader, port_task=port_task,
@@ -711,10 +728,11 @@ def run_candidate(
         drift = _drift(prepared)
         if drift:
             raise native.GraderRefusal("; ".join(drift))
-        with _local_lane(backend):
+        with _local_lane(backend, allow_local_docker=allow_local_docker):
             observed = native.run_upstream_grader(
                 native_task, solution,
                 backend=backend, platform=platform, timeout_seconds=timeout_seconds,
+                allow_local_docker=allow_local_docker,
                 max_usd=max_usd, approval=approval, spend_ledger=spend_ledger,
                 modal_app_name=modal_app_name, billing_tag=billing_tag,
                 output_dir=output / "native",
@@ -757,10 +775,15 @@ def run_candidate(
             result["error"] = "; ".join(filter(None, [result.get("error"), *drift]))
     except KeyboardInterrupt:
         result = _empty_result("cancelled", "candidate interrupted; inspect native evidence for cleanup")
+    except LocalDockerDisabledError as exc:
+        result = _empty_result("refused", f"{type(exc).__name__}: {exc}", planned=plan)
+        result["reason_code"] = "execution_backend_refused"
     except (native.GraderRefusal, OSError, ValueError, TypeError) as exc:
         result = _empty_result("refused" if not output.exists() or isinstance(exc, native.GraderRefusal) else "error", f"{type(exc).__name__}: {exc}", planned=plan)
     except Exception as exc:
         result = _empty_result("error", f"{type(exc).__name__}: {exc}", planned=plan)
+    if local_docker_disabled and result.get("status") == "refused":
+        result["reason_code"] = "execution_backend_refused"
     if plan:
         return result
     if not created:
@@ -784,6 +807,7 @@ def run_candidates(
     *,
     max_concurrency: int = 2,
     backend: native.Backend = "auto",
+    allow_local_docker: bool | None = None,
     platform: str | None = None,
     timeout_seconds: int = 600,
     max_usd: float | None = None,
@@ -829,6 +853,7 @@ def run_candidates(
         "backend": backend, "platform": platform, "timeout_seconds": timeout_seconds,
         "max_usd": max_usd, "approval": approval, "spend_ledger": spend_ledger,
         "modal_app_name": modal_app_name, "billing_tag": billing_tag, "plan": plan,
+        "allow_local_docker": allow_local_docker,
     }
     results = [_empty_result("unstarted", "candidate has not started", planned=plan) for _ in requests]
     if not plan:

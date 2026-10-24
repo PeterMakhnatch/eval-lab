@@ -779,3 +779,59 @@ def test_native_single_create_does_not_repeat_an_ambiguous_allocation(
 
     assert len(allocated) == 1
     assert not (env.trial_paths.trial_dir / "egress-lock.json").exists()
+
+
+def test_regrade_subprocess_policy_reaches_native_app_and_labels(tmp_path, monkeypatch):
+    from evallab import regrade
+
+    trial = tmp_path / "out" / "trial"
+    gate = regrade.CloudSpendGate(
+        "approved scoped snapshot fixture",
+        1.0,
+        0.01,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-snapshot",
+        billing_tag="owned",
+    )
+    gate.charge()
+    policy = {
+        "trial_dir": str(trial),
+        "approval": gate.approval,
+        "cap_usd": gate.cap_usd,
+        "usd_per_execution": gate.usd_per_execution,
+        "spend_ledger": str(gate.spend_ledger),
+        "modal_app_name": gate.modal_app_name,
+        "billing_tag": gate.billing_tag,
+    }
+    monkeypatch.setenv(regrade._REGRADE_MODAL_POLICY_ENV, json.dumps(policy))
+    captured = {}
+    monkeypatch.setattr(
+        ModalEnvironment, "__init__", lambda self, *args, **kwargs: captured.update(kwargs)
+    )
+    RegradeModalEnvironment(trial_paths=SimpleNamespace(trial_dir=trial))
+    assert captured["app_name"] == "owned-snapshot"
+    assert captured["labels"]["evallab.billing_tag"] == "owned"
+    assert captured["sandbox_timeout_secs"] == 3600
+    with pytest.raises(ValueError, match="different output trial"):
+        RegradeModalEnvironment(trial_paths=SimpleNamespace(trial_dir=tmp_path / "other"))
+
+    # A bridge for a changed approval cannot reach native construction.
+    policy["approval"] = "different approval"
+    monkeypatch.setenv(regrade._REGRADE_MODAL_POLICY_ENV, json.dumps(policy))
+    captured.clear()
+    with pytest.raises(ValueError, match="differs at approval"):
+        RegradeModalEnvironment(trial_paths=SimpleNamespace(trial_dir=trial))
+    assert not captured
+
+
+def test_explicit_modal_environment_kwargs_ignore_stray_regrade_bridge(monkeypatch):
+    from evallab import regrade
+
+    monkeypatch.setenv(regrade._REGRADE_MODAL_POLICY_ENV, "unrelated invalid JSON")
+    captured = {}
+    monkeypatch.setattr(
+        ModalEnvironment, "__init__", lambda self, *args, **kwargs: captured.update(kwargs)
+    )
+    labels = {"evallab.billing_tag": "explicit"}
+    RegradeModalEnvironment(app_name="explicit-app", labels=labels)
+    assert captured["app_name"] == "explicit-app" and captured["labels"] == labels

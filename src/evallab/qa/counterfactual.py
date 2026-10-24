@@ -7,11 +7,11 @@ still hashes to its record (:func:`repaired_graders`). A repair derived from a
 raw-grader package gets ``separate-verifier@10`` composed over it
 (:func:`separate_over`) so raw repairs also grade in a separate verifier.
 
-Retained diffs use the same model-free oracle-script matrix path as
-verifier-repair validation (:func:`evallab.runner.run_matrix`): the script
-applies the retained change, and the native executor owns setup, isolation,
-artifact collection and grading. This is a new control, not a recovered
-original workspace or trajectory. Without a diff, a retained snapshot uses
+Retained diffs use the model-free oracle-script matrix path, or the canonical
+native candidate runner when an explicit cloud app/label policy is configured.
+The native executor owns setup, isolation, artifact collection and grading.
+This is a new control, not a recovered original workspace or trajectory.
+Without a diff, a retained snapshot uses
 native Harbor ``trial regrade`` against the immutable source trial. Missing
 artifacts and ATIF are never fabricated.
 
@@ -41,6 +41,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from evallab.execution_backend import require_local_docker
 
 if TYPE_CHECKING:
     from evallab.regrade import CloudSpendGate
@@ -75,9 +77,16 @@ def check_backend(environment: str, spend_gate: CloudSpendGate | None) -> None:
     if environment not in ENVIRONMENTS:
         raise ValueError(f"unsupported replay environment: {environment!r}")
     if environment == "docker":
+        require_local_docker()
         return
     if spend_gate is None:
         raise ValueError(f"{environment} replays are paid: pass a CloudSpendGate")
+    if environment != "modal" and (
+        spend_gate.spend_ledger is not None
+        or spend_gate.modal_app_name is not None
+        or spend_gate.billing_tag is not None
+    ):
+        raise ValueError("an owned Modal app/spend policy cannot be used by another cloud backend")
     problem = lab_harbor_problem()
     if problem is not None:
         raise ValueError(f"refusing {environment} replay: {problem}")
@@ -88,9 +97,15 @@ def _local_docker_gate(environment: str, label: str) -> contextlib.AbstractConte
         return contextlib.nullcontext()
     from evallab.docker_lock import docker_slot
 
+    require_local_docker()
     stack = contextlib.ExitStack()
-    stack.enter_context(DOCKER_SLOTS)
-    stack.enter_context(docker_slot(label=label))
+    try:
+        stack.enter_context(DOCKER_SLOTS)
+        stack.enter_context(docker_slot(label=label))
+        require_local_docker()
+    except BaseException:
+        stack.close()
+        raise
     return stack
 
 
@@ -487,6 +502,55 @@ def _replay_patch(
     from evallab.runner import run_matrix
     from evallab.schemas import ExperimentMatrix, MatrixRun
 
+    check_backend(environment, spend_gate)
+    config = tomllib.loads((grader.package / "task.toml").read_text(encoding="utf-8"))
+    script = _patch_script(diff, config["environment"]["workdir"])
+    script_digest = hashlib.sha256(script.encode()).hexdigest()
+    if environment == "modal" and spend_gate is not None and (
+        spend_gate.spend_ledger is not None
+        or spend_gate.modal_app_name is not None
+        or spend_gate.billing_tag is not None
+    ):
+        from evallab.candidate_runner import run_candidate
+        from evallab.upstream_grader import _CLEANUP_SECONDS
+
+        # Matrix controls cannot carry sandbox labels. The canonical artifact
+        # runner owns the complete cloud policy and full-resource reservation;
+        # do not double-charge the older logical-execution estimate as well.
+        output = repo_root / "runs" / "qa-trace-regrade" / f"qa-replay-{new_ulid().lower()}"
+        submission: dict[str, Any] = {"patch": diff} if diff else {"files": {}}
+        result = run_candidate(
+            grader.package,
+            **submission,
+            target_dir=config["environment"]["workdir"],
+            backend="modal",
+            allow_local_docker=False,
+            approval=spend_gate.approval,
+            max_usd=spend_gate.cap_usd,
+            spend_ledger=spend_gate.spend_ledger,
+            modal_app_name=spend_gate.modal_app_name,
+            billing_tag=spend_gate.billing_tag,
+            # Native admission includes cleanup inside the one-hour lifetime.
+            timeout_seconds=3600 - _CLEANUP_SECONDS,
+            output_dir=output,
+        )
+        score = (
+            _score(result.get("reward"))
+            if result.get("status") == "measured" and result.get("executed") is True
+            else None
+        )
+        return {
+            "regraded": score,
+            "input_kind": "native_patch_replay",
+            "candidate_receipt": str(output / "candidate.json"),
+            "job_dir": result.get("native_output_dir") or result.get("output_dir"),
+            "refusals": [] if score is not None else ["patch_replay_failed"],
+            "environment": environment,
+            "execution_error": result.get("error"),
+            "script_sha256": script_digest,
+            "cloud_spend": spend_gate.to_json(),
+            "native_spend": result.get("spend"),
+        }
     if environment != "docker" and spend_gate is not None:
         try:
             spend_gate.charge()
@@ -497,10 +561,6 @@ def _replay_patch(
                 "refusals": ["spend_cap_reached"],
                 "environment": environment,
             }
-
-    config = tomllib.loads((grader.package / "task.toml").read_text(encoding="utf-8"))
-    script = _patch_script(diff, config["environment"]["workdir"])
-    script_digest = hashlib.sha256(script.encode()).hexdigest()
     root = repo_root / "runs" / "qa-trace-regrade"
     scripts = root / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
@@ -661,6 +721,8 @@ def replay(
                     else None
                 ),
             )
+            if spend_gate is not None and environment != "docker":
+                row["cloud_spend"] = spend_gate.to_json()
         else:
             if diff_text is None:
                 if not diff_path.is_file():

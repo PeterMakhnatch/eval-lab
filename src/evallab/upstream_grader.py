@@ -35,6 +35,7 @@ from typing import Any, Literal
 
 from evallab.campaign_execution import docker_available_resources
 from evallab.docker_lock import docker_slot
+from evallab.execution_backend import LocalDockerDisabledError, require_local_docker
 from evallab.registry import task_directory_digest
 from evallab.regrade import CloudSpendGate, SpendCapReached, modal_resource_blocker
 
@@ -647,6 +648,7 @@ def plan_upstream_grader(
 
 
 def _docker_query(*arguments: str) -> Any:
+    require_local_docker()
     completed = subprocess.run(
         ["docker", *arguments], capture_output=True, text=True, check=True, timeout=30
     )
@@ -687,6 +689,7 @@ def _parse_docker_memory(value: str) -> float:
 
 
 def _docker_stats() -> list[dict[str, Any]]:
+    require_local_docker()
     completed = subprocess.run(
         ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
         capture_output=True,
@@ -715,6 +718,7 @@ def _docker_capacity() -> tuple[float, int, dict[str, Any]]:
     declared CPU/memory exceeds what remains is still refused -- limits
     are never lowered. Reserves are disclosed in the admission receipt.
     """
+    require_local_docker()
     try:
         cpus, memory = docker_available_resources()
         return (
@@ -793,6 +797,7 @@ def _docker_capacity() -> tuple[float, int, dict[str, Any]]:
 
 
 def _admit_docker(plan: Mapping[str, Any]) -> dict[str, Any]:
+    require_local_docker()
     cpus, memory, capacity = _docker_capacity()
     required_cpus = max(resource["cpus"] for resource in plan["resources"])
     required_memory = max(resource["memory_mb"] for resource in plan["resources"])
@@ -844,6 +849,7 @@ class _Execution:
     storage_observations: list[dict[str, Any]] = field(default_factory=list)
     started_monotonic: float = field(default_factory=time.monotonic)
     elapsed_seconds: float | None = None
+    allow_local_docker: bool | None = None
 
     def claim(self, cpus: int, memory: int) -> str:
         resources = self.plan["resources"]
@@ -1094,8 +1100,13 @@ def _runtime_type(name: str) -> type:
 
         class UpstreamDockerEnvironment(HostIsolatedDockerEnvironment):
             def __init__(
-                self, *, upstream_platform: str, session_id: str, trial_paths: Any, **kwargs: Any
+                self, *, upstream_platform: str, session_id: str, trial_paths: Any,
+                allow_local_docker: bool | None = None, **kwargs: Any
             ) -> None:
+                require_local_docker(allow_local_docker=allow_local_docker)
+                active = _active_execution()
+                require_local_docker(allow_local_docker=active.allow_local_docker)
+                self._upstream_allow_local_docker = allow_local_docker
                 self._upstream_platform = upstream_platform
                 self._upstream_cleaned = False
                 self._upstream_role: str | None = None
@@ -1106,7 +1117,30 @@ def _runtime_type(name: str) -> type:
                     trial_paths=trial_paths,
                     **kwargs,
                 )
-                _active_execution().environments.append(self)
+                active.environments.append(self)
+
+            @classmethod
+            def _engine_cmd(cls, *command: str) -> list[str]:
+                # A hard opt-out must not strand resources from an earlier start.
+                cleanup = bool(command) and (
+                    command[0] in {"stop", "kill", "rm", "rmi"}
+                    or len(command) > 1
+                    and (
+                        command[0] in {"container", "image", "network", "volume"}
+                        and command[1] == "rm"
+                        or command[0] == "container" and command[1] in {"stop", "kill"}
+                    )
+                )
+                if not cleanup:
+                    require_local_docker()
+                return super()._engine_cmd(*command)
+
+            async def _run_docker_compose_command(
+                self, command: list[str], **kwargs: Any
+            ) -> Any:
+                if not command or command[0] not in {"stop", "down", "rm", "kill"}:
+                    require_local_docker(allow_local_docker=self._upstream_allow_local_docker)
+                return await super()._run_docker_compose_command(command, **kwargs)
 
             async def _write_resources_compose_file(self) -> Path:
                 path = await super()._write_resources_compose_file()
@@ -1116,7 +1150,9 @@ def _runtime_type(name: str) -> type:
                 return path
 
             async def start(self, force_build: bool = False) -> None:
+                require_local_docker(allow_local_docker=self._upstream_allow_local_docker)
                 active = _active_execution()
+                require_local_docker(allow_local_docker=active.allow_local_docker)
                 cpus, memory = self._effective_cpus, self._effective_memory_mb
                 if cpus is None or memory is None:
                     raise GraderRefusal("native Docker resource limits are missing")
@@ -1128,6 +1164,7 @@ def _runtime_type(name: str) -> type:
                     raise GraderRefusal(
                         "Docker capacity changed before fresh environment allocation"
                     )
+                require_local_docker(allow_local_docker=self._upstream_allow_local_docker)
                 await super().start(force_build=force_build)
                 if self._container_id is None:
                     raise RuntimeError("native Docker start returned no inspectable container")
@@ -1325,12 +1362,13 @@ def _trial_config(
     platform: str,
     modal_app_name: str | None,
     billing_tag: str | None,
+    allow_local_docker: bool | None = None,
 ) -> dict[str, Any]:
     import tomllib
 
     config = tomllib.loads((staged_task / "task.toml").read_text(encoding="utf-8"))
     environment_kwargs: dict[str, Any] = (
-        {"upstream_platform": platform}
+        {"upstream_platform": platform, "allow_local_docker": allow_local_docker}
         if backend == "docker"
         else {
             "sandbox_timeout_secs": plan["timeout_seconds"] + _CLEANUP_SECONDS,
@@ -1370,6 +1408,12 @@ def _trial_config(
 
 
 async def _execute_native(config: dict[str, Any], active: _Execution) -> dict[str, Any]:
+    environment = config.get("environment") or {}
+    if environment.get("import_path") == "evallab.upstream_grader:UpstreamDockerEnvironment":
+        require_local_docker(allow_local_docker=active.allow_local_docker)
+        require_local_docker(
+            allow_local_docker=(environment.get("kwargs") or {}).get("allow_local_docker")
+        )
     from harbor.models.trial.config import TrialConfig  # ty: ignore[unresolved-import]
     from harbor.trial.trial import Trial  # ty: ignore[unresolved-import]
 
@@ -1377,6 +1421,11 @@ async def _execute_native(config: dict[str, Any], active: _Execution) -> dict[st
     try:
         trial = await Trial.create(TrialConfig.model_validate(config))
         result = await asyncio.wait_for(trial.run(), timeout=active.plan["timeout_seconds"])
+        if environment.get("import_path") == "evallab.upstream_grader:UpstreamDockerEnvironment":
+            require_local_docker(allow_local_docker=active.allow_local_docker)
+            require_local_docker(
+                allow_local_docker=(environment.get("kwargs") or {}).get("allow_local_docker")
+            )
         return result.model_dump(mode="json")
     finally:
         try:
@@ -1930,6 +1979,7 @@ def run_upstream_grader(
     oracle: bool = False,
     blank: bool = False,
     backend: Backend = "auto",
+    allow_local_docker: bool | None = None,
     platform: str | None = None,
     timeout_seconds: int = 600,
     max_usd: float | None = None,
@@ -1942,10 +1992,20 @@ def run_upstream_grader(
 ) -> dict[str, Any]:
     """Grade one input with a script-only agent; errors are not reward=0 or pass.
 
-    ``auto`` may select approved Modal ONLY when pre-execution Docker admission
-    fails. Neither a Docker execution failure nor a Modal refusal triggers retry
-    on another backend. Existing output directories are never resumed/overwritten.
+    ``auto`` may select approved Modal when local Docker is disabled or its
+    pre-execution admission fails. ``allow_local_docker=False`` and
+    EVALLAB_DISABLE_LOCAL_DOCKER=1 are hard opt-outs; True cannot override the
+    environment. A Docker execution failure never triggers another backend.
+    Existing output directories are never resumed/overwritten.
     """
+    local_docker_refusal: LocalDockerDisabledError | None = None
+    if backend in {"auto", "docker"}:
+        try:
+            require_local_docker(allow_local_docker=allow_local_docker)
+        except LocalDockerDisabledError as exc:
+            local_docker_refusal = exc
+            if backend == "auto":
+                backend = "modal"
     prepared = plan_upstream_grader(
         task,
         solution_dir,
@@ -1962,6 +2022,15 @@ def run_upstream_grader(
         billing_tag=billing_tag,
     )
     if plan:
+        if local_docker_refusal is not None:
+            if backend == "docker":
+                prepared.update(
+                    status="refused", runnable=False, reward=None,
+                    error=f"{type(local_docker_refusal).__name__}: {local_docker_refusal}",
+                    refusals=[str(local_docker_refusal)],
+                )
+            if not prepared["runnable"]:
+                prepared["reason_code"] = "execution_backend_refused"
         return prepared
     output = (
         Path(output_dir).expanduser().resolve()
@@ -1997,11 +2066,14 @@ def run_upstream_grader(
     error = None
     status = "refused"
     try:
+        if backend in {"auto", "docker"}:
+            require_local_docker(allow_local_docker=allow_local_docker)
         if not prepared["runnable"]:
             raise GraderRefusal("; ".join(prepared["refusals"]))
         staged_task, solution = _stage_inputs(prepared, output)
         with contextlib.ExitStack() as stack:
             if backend in {"docker", "auto"}:
+                require_local_docker(allow_local_docker=allow_local_docker)
                 # One native environment at a time, including separate verifiers;
                 # retain the existing host-wide FIFO rather than private slots.
                 slot = contextlib.ExitStack()
@@ -2014,6 +2086,9 @@ def run_upstream_grader(
                         )
                     )
                     admission = _admit_docker(prepared)
+                except LocalDockerDisabledError:
+                    slot.close()
+                    raise
                 except (OSError, ValueError, subprocess.SubprocessError, TimeoutError) as exc:
                     slot.close()
                     if backend == "docker":
@@ -2063,8 +2138,9 @@ def run_upstream_grader(
                 platform=str(chosen_platform),
                 modal_app_name=modal_app_name,
                 billing_tag=billing_tag,
+                allow_local_docker=allow_local_docker,
             )
-            active = _Execution(prepared)
+            active = _Execution(prepared, allow_local_docker=allow_local_docker)
             status = "error"
             payload = asyncio.run(_execute_native(config, active))
     except KeyboardInterrupt:
@@ -2074,6 +2150,9 @@ def run_upstream_grader(
             "timeout",
             f"fresh native trial exceeded the {timeout_seconds}-second execution watchdog",
         )
+    except LocalDockerDisabledError as exc:
+        local_docker_refusal = exc
+        status, error = "refused", f"{type(exc).__name__}: {exc}"
     except (GraderRefusal, SpendCapReached) as exc:
         status, error = "refused", str(exc)
     except Exception as exc:
@@ -2099,6 +2178,11 @@ def run_upstream_grader(
         spend=spend,
         admission=admission,
     )
+    if result["status"] == "refused" and local_docker_refusal is not None:
+        result["reason_code"] = "execution_backend_refused"
+        if active is not None and not active.claimed:
+            result["executed"] = False
+            result["task_external_api_calls"] = 0
     if spend is not None and active is not None:
         try:
             result["spend"] = _reconcile_spend(
@@ -2169,6 +2253,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "oracle",
             "blank",
             "backend",
+            "allow_local_docker",
             "platform",
             "timeout_seconds",
             "plan",

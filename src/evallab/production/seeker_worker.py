@@ -22,12 +22,17 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from evallab.candidate_runner import run_candidate
+from evallab.execution_backend import (
+    ExecutionBackend,
+    ExecutionBackendConfig,
+    LocalDockerDisabledError,
+)
 from evallab.hackbook.matcher import is_task_dir, match_task
 from evallab.hackbook.models import (
     HackbookEntry,
@@ -207,9 +212,11 @@ class SeekerFailureMemory:
     def record(self, item: FailedShortcutRecord) -> None:
         # Infrastructure observations are retained in the journal, not treated as
         # evidence against a candidate. Also discard legacy unmeasured failures.
-        if item.failure_kind in {"original_grader_unavailable", "repaired_grader_unverified"} or (
-            item.failure_kind == "upstream_failed" and item.original_reward is None
-        ):
+        if item.failure_kind in {
+            "original_grader_unavailable",
+            "repaired_grader_unverified",
+            "execution_backend_refused",
+        } or (item.failure_kind == "upstream_failed" and item.original_reward is None):
             return
         self.records.append(item)
         self._index(item)
@@ -744,7 +751,14 @@ def verify_differential_replay(
     *,
     attempt_dir: Path,
     grader_fn: CandidateGrader = run_candidate,
-    backend: Literal["auto", "docker", "modal"] = "docker",
+    backend: ExecutionBackend | None = None,
+    execution_config: ExecutionBackendConfig | None = None,
+    modal_app_name: str | None = None,
+    spend_ledger: Path | str | None = None,
+    approval: str | None = None,
+    max_usd: float | None = None,
+    billing_tag: str | None = None,
+    allow_local_docker: bool | None = None,
     timeout_seconds: int = 600,
 ) -> DifferentialGradeOutcome:
     """Grade the exact same submission on the original and repaired graders.
@@ -756,6 +770,17 @@ def verify_differential_replay(
     - unverified upstream passes (``repaired_reward is None`` or ``repaired_reward > 0.0``)
       NEVER confirm an exploit.
     """
+    config = execution_config or ExecutionBackendConfig(
+        backend=backend or "docker",
+        modal_app_name=modal_app_name,
+        spend_ledger=spend_ledger,
+        approval=approval,
+        max_usd=max_usd,
+        billing_tag=billing_tag,
+        **({"allow_local_docker": allow_local_docker} if allow_local_docker is not None else {}),
+    )
+    if allow_local_docker is not None:
+        config = replace(config, allow_local_docker=config.allow_local_docker and allow_local_docker)
     submission_files = candidate.ensure_submission_files()
     candidate_digest = compute_candidate_digest(submission_files)
     if task.reference_digest and candidate_digest == task.reference_digest:
@@ -778,13 +803,27 @@ def verify_differential_replay(
             )
             if attempt > 0:
                 time.sleep(3.0)
-            res = dict(grader_fn(target_task, output_dir=try_dir, **kwargs))
+            try:
+                policy = config.candidate_kwargs()
+            except LocalDockerDisabledError as exc:
+                return {
+                    "status": "refused",
+                    "reward": None,
+                    "executed": False,
+                    "reason_code": "execution_backend_refused",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            res = dict(grader_fn(target_task, output_dir=try_dir, **kwargs, **policy))
             err_text = str(res.get("error") or "")
             if (
                 res.get("status") in {"refused", "error"}
                 and "admitted after controller margin" in err_text
+                and policy["backend"] != "modal"
             ):
-                if grader_fn is run_candidate and "solve.sh" in submission_files:
+                if (
+                    grader_fn is run_candidate
+                    and "solve.sh" in submission_files
+                ):
                     from evallab.qa.task import HarborBackend
                     from evallab.registry import task_directory_digest
 
@@ -806,7 +845,11 @@ def verify_differential_replay(
 
                     hb_dir = out_dir.with_name(f"{out_dir.name}-hb")
                     shutil.rmtree(hb_dir, ignore_errors=True)
-                    hb = HarborBackend(repo_root=Path(__file__).resolve().parents[3])
+                    config.require_backend()
+                    hb = HarborBackend(
+                        repo_root=Path(__file__).resolve().parents[3],
+                        allow_local_docker=config.allow_local_docker,
+                    )
                     obs = hb.run_container_trial(
                         hb_target,
                         digest=task_directory_digest(hb_target),
@@ -882,7 +925,6 @@ def verify_differential_replay(
             up_dir,
             solution_bundle=bundle_dir,
             grader="upstream",
-            backend=backend,
             timeout_seconds=timeout_seconds,
         )
     else:
@@ -892,7 +934,6 @@ def verify_differential_replay(
             up_dir,
             files=submission_files,
             grader="upstream",
-            backend=backend,
             timeout_seconds=timeout_seconds,
         )
     orig_reward = _optional_float(original_res.get("reward"))
@@ -923,7 +964,9 @@ def verify_differential_replay(
             original_status=orig_status,
             repaired_status="not_run",
             differential_confirmed=False,
-            failure_kind="upstream_failed"
+            failure_kind="execution_backend_refused"
+            if original_res.get("reason_code") == "execution_backend_refused"
+            else "upstream_failed"
             if orig_status == "measured"
             and not original_res.get("error")
             and orig_reward is not None
@@ -945,7 +988,6 @@ def verify_differential_replay(
                 solution_bundle=bundle_dir,
                 grader="port",
                 port_task=task.repaired_task,
-                backend=backend,
                 timeout_seconds=timeout_seconds,
             )
         else:
@@ -955,7 +997,6 @@ def verify_differential_replay(
                 files=submission_files,
                 grader="port",
                 port_task=task.repaired_task,
-                backend=backend,
                 timeout_seconds=timeout_seconds,
             )
     else:
@@ -965,7 +1006,6 @@ def verify_differential_replay(
                 rep_dir,
                 solution_bundle=bundle_dir,
                 grader="upstream",
-                backend=backend,
                 timeout_seconds=timeout_seconds,
             )
         else:
@@ -974,7 +1014,6 @@ def verify_differential_replay(
                 rep_dir,
                 files=submission_files,
                 grader="upstream",
-                backend=backend,
                 timeout_seconds=timeout_seconds,
             )
     rep_reward = _optional_float(repaired_res.get("reward"))
@@ -1006,7 +1045,9 @@ def verify_differential_replay(
             original_status=orig_status,
             repaired_status=rep_status,
             differential_confirmed=False,
-            failure_kind="repaired_grader_unverified",
+            failure_kind="execution_backend_refused"
+            if repaired_res.get("reason_code") == "execution_backend_refused"
+            else "repaired_grader_unverified",
             failure_reason=reason,
             failed_tests=rep_failed or failed_tests,
             failure_excerpts=rep_excerpts or excerpts,
@@ -1076,7 +1117,12 @@ def _extract_failed_test_ids(result: Mapping[str, Any]) -> tuple[str, ...]:
 
 
 class RewardSeekerLiveWorker:
-    """Real-time Reward Seeker worker pulling DEV tasks and repaired tasks from the queue."""
+    """Live DEV-task consumer with one explicit policy for both differential grades.
+
+    ``execution_config`` (or its constructor keyword fields) selects Docker,
+    Modal or auto and forwards the same cloud ledger, approval and cap to every
+    candidate execution. A Modal attempt never falls back to laptop Docker.
+    """
 
     def __init__(
         self,
@@ -1090,7 +1136,14 @@ class RewardSeekerLiveWorker:
         attempt_generator: AttemptGenerator | None = None,
         grader_fn: CandidateGrader = run_candidate,
         driver: str = "gptoss",
-        backend: Literal["auto", "docker", "modal"] = "docker",
+        backend: ExecutionBackend | None = None,
+        execution_config: ExecutionBackendConfig | None = None,
+        modal_app_name: str | None = None,
+        spend_ledger: Path | str | None = None,
+        approval: str | None = None,
+        max_usd: float | None = None,
+        billing_tag: str | None = None,
+        allow_local_docker: bool | None = None,
         max_attempts: int = 3,
         top_hackbook_k: int = 8,
         lease_seconds: int = 300,
@@ -1120,7 +1173,21 @@ class RewardSeekerLiveWorker:
         self.attempt_generator = attempt_generator
         self.grader_fn = grader_fn
         self.driver = driver
-        self.backend: Literal["auto", "docker", "modal"] = backend
+        self.execution_config = execution_config or ExecutionBackendConfig(
+            backend=backend or "docker",
+            modal_app_name=modal_app_name,
+            spend_ledger=spend_ledger,
+            approval=approval,
+            max_usd=max_usd,
+            billing_tag=billing_tag,
+            **({"allow_local_docker": allow_local_docker} if allow_local_docker is not None else {}),
+        )
+        if allow_local_docker is not None:
+            self.execution_config = replace(
+                self.execution_config,
+                allow_local_docker=self.execution_config.allow_local_docker and allow_local_docker,
+            )
+        self.backend = self.execution_config.selected_backend()
         self.max_attempts = max_attempts
         self.top_hackbook_k = top_hackbook_k
         self.lease_seconds = lease_seconds
@@ -2108,7 +2175,7 @@ class RewardSeekerLiveWorker:
                         candidate,
                         attempt_dir=workspace / "replay",
                         grader_fn=self.grader_fn,
-                        backend=self.backend,
+                        execution_config=self.execution_config,
                         timeout_seconds=self.timeout_seconds,
                     )
                 last_orig_reward = grade.original_reward

@@ -568,3 +568,59 @@ def test_native_healthcheck_prepares_reference_before_reading_or_snapshotting(
     checks = [event for event in report["execution"]["events"] if event["kind"] == "healthcheck"]
     assert [event["status"] for event in checks] == ["ready" if healthy else "failed"]
     assert provider.allocations and all(sandbox.terminated for sandbox in provider.allocations)
+
+
+@pytest.mark.parametrize("separate", [False, True])
+def test_ref_subset_modal_passes_gate_app_and_labels_to_both_native_roles(
+    tmp_path, monkeypatch, separate
+):
+    package = ref_subset.Package.load(_package(tmp_path / "package", separate=separate))
+    gate = CloudSpendGate(
+        "approved configured subset fixture",
+        1.0,
+        0.01,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-subset",
+        billing_tag="owned",
+    )
+    captured = []
+
+    def environment(**kwargs):
+        captured.append(kwargs)
+        return SimpleNamespace(
+            session_id=kwargs["session_id"], _sandbox_timeout=kwargs["sandbox_timeout_secs"]
+        )
+
+    monkeypatch.setattr(ref_subset_modal, "_AgentEnvironment", environment)
+    monkeypatch.setattr(ref_subset_modal, "_VerifierEnvironment", environment)
+    sandbox = ref_subset_modal.ModalSandbox(
+        package, spend_gate=gate, out_dir=tmp_path / "out"
+    )
+    try:
+        sandbox._environment("prepare", verifier=False)
+        sandbox._environment("grade", verifier=True)
+    finally:
+        sandbox.runner.close()
+    assert len(captured) == 2
+    assert all(kwargs["app_name"] == "owned-subset" for kwargs in captured)
+    assert all(kwargs["labels"]["evallab.billing_tag"] == "owned" for kwargs in captured)
+    assert all(kwargs["spend_gate"] is gate for kwargs in captured)
+    assert gate.executions == 0  # constructors do not spend or call a provider
+
+
+@pytest.mark.parametrize("where", ["task", "evidence"])
+def test_ref_subset_modal_cannot_place_ledger_in_immutable_or_evidence_tree(tmp_path, where):
+    package = ref_subset.Package.load(_package(tmp_path / "package"))
+    output = tmp_path / "out"
+    ledger = (package.path if where == "task" else output) / "spend.json"
+    gate = CloudSpendGate(
+        "approved fixture",
+        1.0,
+        0.01,
+        spend_ledger=ledger,
+        modal_app_name="owned-subset",
+        billing_tag="owned",
+    )
+    with pytest.raises(ValueError, match="outside immutable"):
+        ref_subset_modal.ModalSandbox(package, spend_gate=gate, out_dir=output)
+    assert not ledger.exists() and not output.exists()

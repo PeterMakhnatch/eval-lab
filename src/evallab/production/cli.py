@@ -226,7 +226,7 @@ async def _cycle(runtime: Any, relay: Any, connection: Any) -> dict[str, Any]:
 async def _run_once(args: argparse.Namespace, root: Path, connection: Any) -> dict[str, Any]:
     async with AsyncExitStack() as resources:
         runtime = _runtime(args, root, connection.queue)
-        resources.callback(runtime.close)
+        resources.push_async_callback(asyncio.to_thread, runtime.close)
         relay = _relay(args, connection.queue)
         resources.push_async_callback(relay.close)
         return await _cycle(runtime, relay, connection)
@@ -296,7 +296,7 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
         runtime = relay = None
         if args.workers:
             runtime = _runtime(args, root, connection.queue)
-            resources.callback(runtime.close)
+            resources.push_async_callback(asyncio.to_thread, runtime.close)
             relay = _relay(args, connection.queue)
             resources.push_async_callback(relay.close)
         _emit({

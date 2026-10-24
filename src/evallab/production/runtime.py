@@ -68,7 +68,7 @@ class MeasurementUnavailableError(RuntimeError):
 
 
 def _measured_grade(
-    grader: CandidateGrader, *args: Any, **kwargs: Any
+    grader: CandidateGrader, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
     result = grader(*args, **kwargs)
     reward = result.get("reward")

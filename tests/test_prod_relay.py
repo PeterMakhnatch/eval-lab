@@ -12,6 +12,7 @@ from typing import Any
 
 import psycopg
 import pytest
+
 from evallab.production.corpus_queue import CorpusRegistry, ProductionQueueConnectionError
 from evallab.production.relay import OutboxRelay, open_production_queue
 

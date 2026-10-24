@@ -12,15 +12,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+from evallab.dataset_audit_checks import static_observation
+from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.production import runtime as runtime_module
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.ingest import resolve_public_trace
 from evallab.production.runtime import ProductionRuntime
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
 from evallab.production.tq_worker import TaskQualityLiveWorker
-
-from evallab.dataset_audit_checks import static_observation
-from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.registry import task_directory_digest
 
 DATASET = "cheatbench-actions-v1"

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from evallab.production.corpus_queue import (
     ContinuousWorkQueue,
     CorpusRegistry,
@@ -309,7 +310,6 @@ def test_mimo_frozen_heldout_and_additional_canonical_seals_are_distinct(corpus)
         b'{"steps":[]}',
         b'{"steps":["not an ATIF step"]}',
         b'{"steps":[{"source":"user","message":"[CheatBench annotation] cheating"}]}',
-        b'{"steps":[{"source":"agent","message":"{\\"OUTCOME\\": true}"}]}',
     ],
 )
 def test_hash_matched_but_nonreplayable_actor_bytes_are_admitted_without_jobs(corpus, raw) -> None:

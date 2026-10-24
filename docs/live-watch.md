@@ -671,6 +671,72 @@ are strictly excluded. Multi-trial jobs disambiguate records via `attempt_id`.
 
 ## Live production control plane
 
+### Production CLI
+
+The CLI uses the committed corpus registry and one durable queue. Paths default
+under the selected workspace; use `--repo-root` for an explicit source root and
+`--database` for a dedicated SQLite path or PostgreSQL DSN. Queue options work
+before or after the leaf command.
+
+```bash
+# Seed all four registered public corpora; repeating this preserves event/job IDs.
+uv run evallab prod ingest
+uv run evallab prod status
+
+# Consume one cycle, with no model driver enabled.
+uv run evallab prod run-once --systems misalignment
+
+# Read-only dashboard, loopback:8765; neither workers nor relay are started.
+uv run evallab prod serve
+
+# Explicitly opt into continuous public-trajectory replay and outbox delivery.
+uv run evallab prod serve --workers --systems misalignment \
+  --nats-url nats://127.0.0.1:4222
+```
+
+`ingest --dataset <registry-id>` can be repeated to select corpora. The defaults
+cover TB4 task and finding records, the historical MiMo 567-package inventory,
+CheatBench, and HackTrace. Only effective DEV records are persisted: canonical
+cross-key TEST locks and permanent MiMo heldout locks override a source-local DEV
+label. JSON receipts distinguish source counts, effective admissions, exclusions,
+and executable jobs; findings and context rows are not additional runnable tasks.
+No frozen-evaluation token is accepted by these production commands.
+
+Each admission includes source-record and split-authority hashes, package
+availability/digest checks, and read-only candidate-runner preflight. Static
+admission is not execution proof or scientific qualification. Only an existing,
+digest-matched public actor trajectory with a valid blinded ATIF projection seeds
+a replay job. A missing exact historical package, differential pair, or owned
+candidate is recorded as unavailable—not replaced with a latest-version alias,
+synthetic submission, or invented Task Quality/Seeker job. Re-ingesting changed
+source/preflight under the same native identity fails explicitly rather than
+overwriting the append-only journal.
+
+`run-once` runs the selected Task Quality, Reward Seeker, and/or Misalignment
+consumers and then one relay cycle. `serve --workers` supervises the same cycle
+alongside HTTP; shutdown waits for in-flight consumers before closing resources.
+Seeker defaults to supplied candidates only. `--seeker-driver sonnet` or `codex`
+explicitly selects an existing OMP subscription driver; local model backends are
+not accepted.
+
+For PostgreSQL, `--sqlite-fallback <path>` selects the local fallback (default:
+`derived/production/prod-queue.sqlite` under the source root). Fallback occurs
+only when the initial PostgreSQL connection is unavailable. Schema,
+transaction, and mid-flight failures propagate; they never silently move an
+existing queue to another backend. Check the JSON backend/fallback receipt:
+separate PostgreSQL and SQLite journals are not an automatic failback or
+cross-backend replication mechanism.
+
+The optional NATS JetStream relay publishes durable outbox envelopes to
+`evallab.production.events` in the file-backed `EVALLAB_PRODUCTION` stream.
+It uses the event ID as `Nats-Msg-Id` and marks an event published only after a
+valid stream acknowledgement. Missing/unavailable NATS leaves events durable and
+unpublished; restarting the consumer retries them. Delivery is at least once:
+JetStream deduplicates crash-window retries only within its configured finite
+duplicate window. The relay does not overwrite an existing stream's settings.
+
+### HTTP and worker contracts
+
 `evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`
 serves one FastAPI application over the same `ContinuousWorkQueue` used by the
 production workers. The dashboard at `/` shows the Public Corpus Queue, independent

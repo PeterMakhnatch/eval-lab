@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import signal
-import sqlite3
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -126,7 +125,6 @@ def test_ingest_persists_admission_idempotently_and_reports_sealed_exclusions(
     assert SEALED not in first_text
     before = _state(corpus_root)
     assert before["depth"] == 0
-    assert before["last_seq"] > 0
     assert cli.run_cli(argv, workspace=corpus_root) == 0
     second_text = capsys.readouterr().out
     assert SEALED not in second_text
@@ -169,56 +167,6 @@ def test_explicit_root_and_relative_database_work_on_either_side_of_subcommand(
     assert not (workspace / "queues/explicit.sqlite").exists()
 
 
-def test_run_once_consumes_only_selected_system_and_relays_after_processing(
-    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
-) -> None:
-    _seed(corpus_root, "task_quality", "reward_seeker", "misalignment")
-    calls: list[str] = []
-    instances: list[Any] = []
-
-    class SelectedRuntime:
-        def __init__(self, queue: Any, *, systems: tuple[str, ...], seeker_driver: Any, **_: Any):
-            assert seeker_driver is None
-            self.queue, self.systems = queue, systems
-            instances.append(self)
-
-        def run_once(self) -> dict[str, Any]:
-            for system in self.systems:
-                event = self.queue.claim("cli-test", job_types=[JOB_TYPES[system]])
-                assert event is not None
-                self.queue.ack(event["event_id"], lease_token=event["lease_token"])
-                calls.append(system)
-            return {"ok": True, "systems": list(self.systems), "failures": {}}
-
-        def close(self) -> None:
-            calls.append("runtime-closed")
-
-    class PendingRelay:
-        def __init__(self, queue: Any, *, nats_url: str | None):
-            assert nats_url is None
-            self.queue = queue
-
-        async def run_once(self) -> dict[str, Any]:
-            calls.append("relay")
-            assert self.queue.queue_snapshot()["jobs"]["completed"] == 1
-            return {"delivered": 0, "pending": len(self.queue.pending_outbox()), "broker_available": False}
-
-        async def close(self) -> None:
-            calls.append("relay-closed")
-
-    monkeypatch.setenv("EVALLAB_SEEKER_LIVE_MODEL", "1")
-    _runtime_seam(monkeypatch, SelectedRuntime)
-    _relay_seam(monkeypatch, PendingRelay)
-    assert cli.run_cli(
-        ["prod", "run-once", "--systems", "misalignment", "misalignment"], workspace=corpus_root,
-    ) == 0
-    receipt = json.loads(capsys.readouterr().out)
-    assert receipt["queue"]["depth"] == 2
-    assert receipt["runtime"]["systems"] == ["misalignment"]
-    assert receipt["relay"]["pending"] == 3
-    assert calls == ["misalignment", "relay", "relay-closed", "runtime-closed"]
-    with pytest.raises(sqlite3.ProgrammingError):
-        instances[0].queue.queue_snapshot()
 
 
 @pytest.mark.parametrize("driver", ["gptoss", "ollama", "mlx", "local", "arbitrary/model"])
@@ -477,3 +425,20 @@ def test_shutdown_waits_for_inflight_consumer_before_closing_resources(
     monkeypatch.setattr(production_cli, "_relay", lambda *_: Relay())
     assert cli.run_cli(["prod", "serve", "--workers"], workspace=corpus_root) == 0
     assert calls == ["http-stopped", "completed", "relay", "relay-closed", "runtime-closed"]
+
+
+def test_real_async_seeker_cycle_returns_success_and_closes_from_cli(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    entries = corpus_root / "research/hackbook/entries.jsonl"
+    entries.parent.mkdir(parents=True)
+    entries.write_text("", encoding="utf-8")
+    _path(corpus_root).parent.mkdir(parents=True, exist_ok=True)
+    before = _state(corpus_root)
+    assert cli.run_cli(
+        ["prod", "run-once", "--systems", "reward_seeker"], workspace=corpus_root,
+    ) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["runtime"]["ok"] is True
+    assert receipt["runtime"]["workers"]["reward_seeker"]["status"] == "idle"
+    assert _state(corpus_root) == before

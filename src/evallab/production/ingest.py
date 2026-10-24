@@ -11,6 +11,10 @@ with an empty artifact mapping. This is a lifecycle/asset check, not a candidate
 Docker probe, executed control, model generation, or proof of measurability.
 Static admission therefore remains ``unknown`` until real execution. Raw index
 rows (including evaluator labels) are hashed for custody but never exported.
+
+Explicit refreshes append v2 last-observed metadata for existing DEV admissions.
+They inspect only digest-matched retained packages and the real offline port
+adapter; the original admission and every executable job stay immutable.
 """
 
 from __future__ import annotations
@@ -28,12 +32,15 @@ from uuid import NAMESPACE_URL, uuid5
 from evallab.production.corpus_queue import (
     DATASETS,
     ContinuousWorkQueue,
+    CorpusRegistry,
     CorpusItem,
     IdempotencyConflict,
+    source_record_digest,
 )
 from evallab.results_home import results_root
 
 _GYM_PATH = Path("research/experiments/seeker-gym-v0/gym.json")
+_PORT_INVENTORY_PATH = Path("research/experiments/candidate-execution-20261021/static-inventory.json")
 
 
 def _digest(data: bytes) -> str:
@@ -223,6 +230,9 @@ class _Preflight:
         self.packages: dict[Path, dict[str, Any]] = {}
         self.plans: dict[tuple[Path, Path | None, str], dict[str, Any]] = {}
         self.revisions: dict[Path, str | None] = {}
+        self.port_inventory: dict[str, Any] | None = None
+        self.port_adapter: dict[str, Any] | None = None
+        self.port_observations: dict[tuple[Path, str, Path, str, Path | None], dict[str, Any]] = {}
         split_path = root / "research/answer-keys/splits/assignments.csv"
         self.split_authority = {
             "path": "research/answer-keys/splits/assignments.csv",
@@ -400,6 +410,175 @@ class _Preflight:
             },
             "executed": False,
             "execution_proof": False,
+        }
+
+    def _retained_ports(self) -> dict[str, Any]:
+        if self.port_inventory is None:
+            path = self.root / _PORT_INVENTORY_PATH
+            raw = path.read_bytes() if path.is_file() else None
+            document = json.loads(raw) if raw is not None else {}
+            if raw is not None and document.get("schema") != "evallab.candidate_execution_inventory/v1":
+                raise ValueError("retained port inventory has an unsupported schema")
+            rows: dict[str, dict[str, Any]] = {}
+            for row in document.get("tasks", []):
+                identity = row.get("id")
+                if (
+                    not isinstance(identity, str) or not identity or identity in (".", "..")
+                    or Path(identity).name != identity or identity in rows
+                ):
+                    raise ValueError("retained port inventory requires unique native task IDs")
+                rows[identity] = row
+            self.port_inventory = {
+                "tasks": rows,
+                "source_roots": document.get("source_roots") or {},
+                "source": {
+                    "path": _PORT_INVENTORY_PATH.as_posix(),
+                    "sha256": _digest(raw) if raw is not None else None,
+                },
+            }
+        return self.port_inventory
+
+    def _native_port(
+        self,
+        selected: Path,
+        digest: str,
+        row: dict[str, Any],
+        *,
+        asset_cache: Path | None,
+    ) -> dict[str, Any]:
+        from evallab import candidate_port, upstream_grader
+        from evallab.registry import task_directory_digest
+
+        inventory = self._retained_ports()
+        identity = row["id"]
+        port = _path(row.get("port_task"), self.root)
+        port_root = _path(inventory["source_roots"].get("port"), self.root)
+        result: dict[str, Any] = {
+            "state": "blocked",
+            "reason": "retained inventory does not bind an exact fixed-port locator",
+            "executed": False,
+            "execution_proof": False,
+            "runtime_qualified": False,
+            "inventory": inventory["source"],
+            "adapter": self.port_adapter,
+            "asset_cache": _portable(asset_cache, self.root) if asset_cache is not None else None,
+        }
+        if (
+            port is None or port_root is None or port != (port_root / identity).resolve()
+            or (row.get("source_pins") or {}).get("port_required") != candidate_port.PM_FIXED_PIN
+            or not row.get("port_exact_tree_digest")
+        ):
+            return result
+        key = selected, digest, port, row["port_exact_tree_digest"], asset_cache
+        if key in self.port_observations:
+            return dict(self.port_observations[key])
+        result["port_identity"] = {
+            "path": _portable(port, self.root),
+            "expected_exact_tree_digest": row["port_exact_tree_digest"],
+            "required_fixed_pin": candidate_port.PM_FIXED_PIN,
+        }
+        try:
+            if not port.is_dir():
+                result.update(state="unavailable", reason="retained exact port directory is unavailable locally")
+            else:
+                original_tree = upstream_grader._tree_digest(selected)
+                port_tree = upstream_grader._tree_digest(port)
+                result["port_identity"]["observed_exact_tree_digest"] = port_tree
+                result["upstream_exact_tree_digest"] = original_tree
+                if port_tree != row["port_exact_tree_digest"]:
+                    result["reason"] = "available port bytes differ from the retained exact inventory"
+                else:
+                    described = candidate_port.describe_port_task(selected, port, asset_cache=asset_cache)
+                    if (
+                        described["upstream_identity"]["exact_tree_digest"] != original_tree
+                        or described["port_identity"]["exact_tree_digest"] != port_tree
+                        or task_directory_digest(selected) != digest
+                        or upstream_grader._tree_digest(selected) != original_tree
+                        or upstream_grader._tree_digest(port) != port_tree
+                    ):
+                        raise upstream_grader.GraderRefusal("immutable original/port inputs changed during description")
+                    setup = described["setup_data"]
+                    result.update(
+                        state="described",
+                        reason="real offline native-port description; no image build or runtime execution",
+                        basis=described["schema"],
+                        grader_digest=described["grader_digest"],
+                        setup_data={
+                            "sha256": source_record_digest(setup),
+                            "asset_count": setup["asset_count"],
+                            "generated_count": len(setup.get("generated", [])),
+                            "external_input_count": len(setup.get("external_inputs", [])),
+                            "input_sha256s": sorted({
+                                entry["sha256"]
+                                for entry in (*setup["assets"], *setup.get("external_inputs", []))
+                            }),
+                        },
+                        native_image_identity_sha256=source_record_digest(described["native_image_identity"]),
+                    )
+        except (OSError, ValueError) as exc:
+            result["reason"] = str(exc).replace(str(self.root) + "/", "")
+        self.port_observations[key] = result
+        return dict(result)
+
+    def refresh(
+        self, item: CorpusItem, *, asset_cache: Path | None, admitted_package: dict[str, Any]
+    ) -> dict[str, Any]:
+        from evallab import candidate_port, upstream_grader
+
+        if self.port_adapter is None:
+            self.port_adapter = {
+                "schema": "evallab.candidate_port/v1",
+                "sources": {
+                    module.__name__: _digest(Path(module.__file__).read_bytes())
+                    for module in (candidate_port, upstream_grader)
+                },
+                "required_fixed_pin": candidate_port.PM_FIXED_PIN,
+            }
+        inventory = self._retained_ports()
+        row = inventory["tasks"].get((item.task_id or "").rsplit("/", 1)[-1])
+        candidates = _package_locators(item, self.root)
+        admitted_path = _path(admitted_package.get("path"), self.root)
+        if (
+            admitted_package.get("identity_verified")
+            and admitted_package.get("observed_digest") == item.task_digest
+            and admitted_path is not None and admitted_path not in candidates
+        ):
+            candidates.append(admitted_path)
+        inspected = [self.package(path) for path in candidates]
+        asset: dict[str, Any] = {
+            "available": False,
+            "identity_verified": False,
+            "expected_digest": item.task_digest,
+            "reason": "no existing task package matches the admitted source record's exact digest",
+            "locators": inspected,
+        }
+        selected = None
+        for path, observation in zip(candidates, inspected, strict=True):
+            if item.task_digest and observation.get("observed_digest") == item.task_digest:
+                selected = path
+                asset.update(observation, identity_verified=True)
+                break
+        native = {
+            "state": "unavailable",
+            "reason": asset["reason"] if selected is None else "no trusted retained port locator exists for this task",
+            "inventory": inventory["source"],
+            "adapter": self.port_adapter,
+            "asset_cache": _portable(asset_cache, self.root) if asset_cache is not None else None,
+            "executed": False,
+            "execution_proof": False,
+            "runtime_qualified": False,
+        }
+        if selected is not None and row is not None:
+            assert item.task_digest is not None
+            native = self._native_port(selected, item.task_digest, row, asset_cache=asset_cache)
+        return {
+            "schema": "production.corpus-preflight/v2",
+            "source_record": self.source(item),
+            "task_package": asset,
+            "native_port": native,
+            "executed": False,
+            "execution_proof": False,
+            "runtime_qualified": False,
         }
 
 
@@ -586,4 +765,224 @@ def ingest_corpus(
             field: sum(report[field] for report in datasets.values())
             for field in ("source", "admitted", "queued", "blocked", "excluded")
         },
+    }
+
+
+def _refresh_item(registry: CorpusRegistry, admission: dict[str, Any]) -> CorpusItem:
+    payload = admission["payload"]
+    dataset, identity = payload["dataset_id"], payload["item_id"]
+    try:
+        item = registry.admit(dataset, identity)
+    except KeyError:
+        raise IdempotencyConflict("admitted corpus source record is no longer registered") from None
+    source = (payload.get("preflight") or {}).get("source_record") or {}
+    if (
+        payload.get("schema") != "production.corpus-admission/v1"
+        or payload.get("split") != "dev" or item.split != "dev"
+        or payload.get("task_id") != item.task_id
+        or payload.get("task_digest") != item.task_digest
+        or source.get("sha256") != item.source_record_sha256
+        or source.get("record_id") != item.item_id
+        or source.get("path") != _portable(item.source_path, registry.repo_root.resolve())
+    ):
+        raise IdempotencyConflict(
+            f"corpus source identity changed for {dataset}/{identity}; "
+            "preflight refresh cannot rewrite immutable admission custody"
+        )
+    return item
+
+
+def _frozen_preflight_inputs(
+    previous: Sequence[dict[str, Any]], observation: dict[str, Any]
+) -> None:
+    package = observation["task_package"]
+    observed_packages = {
+        entry["path"]: entry["observed_digest"]
+        for entry in package["locators"] if entry.get("observed_digest")
+    }
+    port = observation["native_port"].get("port_identity") or {}
+    expected_port = port.get("expected_exact_tree_digest")
+    observed_port = port.get("observed_exact_tree_digest")
+    if expected_port and observed_port and expected_port != observed_port:
+        raise IdempotencyConflict("retained port bytes changed from their immutable inventory fingerprint")
+    for prior in previous:
+        original = prior.get("task_package") or {}
+        if (
+            original.get("identity_verified") and original.get("path") in observed_packages
+            and original.get("observed_digest") != observed_packages[original["path"]]
+        ):
+            raise IdempotencyConflict("admitted exact task package changed at its immutable source path")
+        original_tree = (prior.get("native_port") or {}).get("upstream_exact_tree_digest")
+        current_tree = observation["native_port"].get("upstream_exact_tree_digest")
+        if (
+            original_tree and current_tree and original.get("path") == package.get("path")
+            and original_tree != current_tree
+        ):
+            raise IdempotencyConflict("admitted exact task package mode/tree fingerprint changed")
+        fixed = (prior.get("native_port") or {}).get("port_identity") or {}
+        if fixed.get("path") and fixed.get("path") == port.get("path"):
+            frozen = fixed.get("expected_exact_tree_digest") or fixed.get("observed_exact_tree_digest")
+            if frozen and expected_port != frozen:
+                raise IdempotencyConflict("retained port fingerprint changed at its immutable source path")
+
+
+def refresh_corpus_preflight(
+    queue: ContinuousWorkQueue,
+    *,
+    dataset_ids: Sequence[str] | None = None,
+    run_id: str,
+    asset_cache: str | Path | None = None,
+) -> dict[str, Any]:
+    """Append last-observed offline support, never admissions or executable work."""
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("run_id must be a non-empty string")
+    if isinstance(dataset_ids, str):
+        raise ValueError("dataset_ids must be a sequence, not a string")
+    requested = set(DATASETS if dataset_ids is None else dataset_ids)
+    unknown = requested.difference(DATASETS)
+    if unknown:
+        raise ValueError(f"unknown production dataset IDs: {sorted(unknown)}")
+    root = queue.registry.repo_root.resolve()
+    cache = None if asset_cache is None else Path(asset_cache).expanduser()
+    if cache is not None:
+        cache = (cache if cache.is_absolute() else root / cache).resolve()
+    # A queue's registry snapshot and frozen-evaluation token are not authority
+    # to refresh a source record that has since changed or become sealed.
+    registry = CorpusRegistry(root)
+    events = queue.corpus_preflight_events()
+    admissions = [
+        event for event in events
+        if event["event_type"] == "queue.corpus_admitted"
+        and event["payload"].get("dataset_id") in requested
+        and event["payload"].get("split") == "dev"
+    ]
+    items = [_refresh_item(registry, event) for event in admissions]
+    history = {
+        event["event_id"]: [event["payload"]["preflight"]] for event in admissions
+    }
+    for event in events:
+        payload = event["payload"]
+        admission_id = payload.get("admission_event_id")
+        if event["event_type"] == "queue.corpus_preflight_updated" and admission_id in history:
+            history[admission_id].append(payload["preflight"])
+    preflight = _Preflight(root, split_digest=registry.split_assignments_digest)
+    observations = [
+        preflight.refresh(
+            item, asset_cache=cache,
+            admitted_package=admission["payload"]["preflight"]["task_package"],
+        )
+        for admission, item in zip(admissions, items, strict=True)
+    ]
+    for admission, observation in zip(admissions, observations, strict=True):
+        _frozen_preflight_inputs(history[admission["event_id"]], observation)
+    # Large offline archive decodes may outlive source/split updates. Check all
+    # admissions again before writing; never turn such drift into a new version.
+    current = CorpusRegistry(root)
+    if current.split_assignments_digest != registry.split_assignments_digest:
+        raise IdempotencyConflict("canonical split authority changed during preflight refresh")
+    for admission in admissions:
+        _refresh_item(current, admission)
+    datasets = {
+        dataset: {"inspected": 0, "recorded": 0, "unchanged": 0, "items": []}
+        for dataset in DATASETS if dataset in requested
+    }
+    for admission, item, observation in zip(admissions, items, observations, strict=True):
+        event, recorded = queue.append_corpus_preflight(
+            admission["event_id"], observation, run_id=run_id
+        )
+        report = datasets[item.dataset_id]
+        report["inspected"] += 1
+        report["recorded" if recorded else "unchanged"] += 1
+        report["items"].append({
+            "item_id": item.item_id,
+            "task_id": item.task_id,
+            "task_digest": item.task_digest,
+            "recorded": recorded,
+            "observation_event_id": event["event_id"],
+            "preflight": event["payload"]["preflight"],
+        })
+    return {
+        "schema": "production.corpus-preflight-refresh/v1",
+        "run_id": run_id,
+        "datasets": datasets,
+        "totals": {
+            field: sum(report[field] for report in datasets.values())
+            for field in ("inspected", "recorded", "unchanged")
+        },
+        "executed": False,
+        "execution_proof": False,
+        "runtime_qualified": False,
+    }
+
+
+def preflight_summary(queue: ContinuousWorkQueue) -> dict[str, Any]:
+    """Project complete last-observed counts without reading/probing source bytes."""
+    admissions: dict[str, dict[str, Any]] = {}
+    latest: dict[str, dict[str, Any]] = {}
+    for event in queue.corpus_preflight_events():
+        payload = event["payload"]
+        if event["event_type"] == "queue.corpus_admitted":
+            if (
+                payload.get("dataset_id") in DATASETS and payload.get("split") == "dev"
+                and payload.get("schema") == "production.corpus-admission/v1"
+            ):
+                admissions[event["event_id"]] = event
+            continue
+        admission_id = payload.get("admission_event_id")
+        original = admissions.get(admission_id)
+        if original is None:
+            continue
+        source = original["payload"]["preflight"]["source_record"]
+        if (
+            payload.get("schema") == "production.corpus-preflight-update/v1"
+            and payload.get("source_record_sha256") == source["sha256"]
+            and all(payload.get(field) == original["payload"].get(field) for field in (
+                "dataset_id", "item_id", "task_id", "task_digest", "split"
+            ))
+        ):
+            latest[admission_id] = event
+    states = ("described", "blocked", "unavailable", "not_observed")
+    datasets: dict[str, dict[str, Any]] = {
+        dataset: {
+            "admitted": 0, "observed": 0,
+            "native_port": dict.fromkeys(states, 0), "last_observed_at": None,
+        }
+        for dataset in DATASETS
+    }
+    last: dict[str, dict[str, Any]] = {}
+    for admission_id, admission in admissions.items():
+        dataset = admission["payload"]["dataset_id"]
+        report = datasets[dataset]
+        report["admitted"] += 1
+        observation = latest.get(admission_id)
+        state = (
+            observation["payload"]["preflight"].get("native_port", {}).get("state")
+            if observation is not None else "not_observed"
+        )
+        if state not in states:
+            state = "not_observed"
+        report["native_port"][state] += 1
+        if state != "not_observed":
+            report["observed"] += 1
+            if dataset not in last or observation["seq"] > last[dataset]["seq"]:
+                last[dataset] = observation
+                report["last_observed_at"] = observation["ts"]
+    newest = max(last.values(), key=lambda event: event["seq"], default=None)
+    return {
+        "schema": "production.corpus-preflight-summary/v1",
+        "datasets": datasets,
+        "totals": {
+            **{
+                field: sum(report[field] for report in datasets.values())
+                for field in ("admitted", "observed")
+            },
+            "native_port": {
+                state: sum(report["native_port"][state] for report in datasets.values())
+                for state in states
+            },
+        },
+        "last_observed_at": newest["ts"] if newest is not None else None,
+        "executed": False,
+        "execution_proof": False,
+        "runtime_qualified": False,
     }

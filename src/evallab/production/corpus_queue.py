@@ -441,6 +441,7 @@ class ContinuousWorkQueue:
                 run_id TEXT NOT NULL, system TEXT NOT NULL, event_type TEXT NOT NULL,
                 envelope TEXT NOT NULL)""",
             "CREATE INDEX IF NOT EXISTS production_events_run_seq ON events(run_id, seq)",
+            "CREATE INDEX IF NOT EXISTS production_events_type_seq ON events(event_type, seq)",
             """CREATE TABLE IF NOT EXISTS outbox (
                 event_id TEXT PRIMARY KEY REFERENCES events(event_id),
                 seq BIGINT NOT NULL UNIQUE REFERENCES events(seq), job_type TEXT,
@@ -682,6 +683,115 @@ class ContinuousWorkQueue:
                 parameters.append(run_id)
             rows = self._execute(sql + " ORDER BY seq LIMIT ?", (*parameters, limit)).fetchall()
             return [json.loads(row[0]) for row in rows]
+
+    def corpus_preflight_events(self) -> list[dict[str, Any]]:
+        """Read the complete admission/observation projection, not worker evidence."""
+        with self._transaction():
+            rows = self._execute(
+                """SELECT envelope FROM events
+                WHERE event_type IN ('queue.corpus_admitted', 'queue.corpus_preflight_updated')
+                ORDER BY seq"""
+            ).fetchall()
+            return [json.loads(row[0]) for row in rows]
+
+    def append_corpus_preflight(
+        self,
+        admission_event_id: str,
+        preflight: Mapping[str, Any],
+        *,
+        run_id: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Serialize observation heads and deduplicate identical concurrent refreshes.
+
+        A transition binds the preceding head, so A -> B -> A retains all three
+        observations. Presentation run IDs and timestamps never own identity.
+        """
+        _text(admission_event_id, "admission_event_id")
+        _text(run_id, "run_id")
+        observation = json.loads(_json(dict(preflight)))
+        with self._transaction(write=True):
+            row = self._execute(
+                "SELECT envelope FROM events WHERE event_id = ?", (admission_event_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(admission_event_id)
+            admission = json.loads(row[0])
+            original = admission["payload"]
+            if (
+                admission["event_type"] != "queue.corpus_admitted"
+                or original.get("schema") != "production.corpus-admission/v1"
+                or original.get("dataset_id") not in DATASETS
+                or original.get("split") != "dev"
+            ):
+                raise ValueError("preflight refresh requires an existing canonical DEV admission")
+            source = observation.get("source_record") or {}
+            admitted_source = (original.get("preflight") or {}).get("source_record") or {}
+            if not admitted_source.get("sha256") or any(
+                source.get(field) != admitted_source.get(field)
+                for field in ("path", "record_id", "sha256")
+            ):
+                raise IdempotencyConflict("preflight source record differs from its immutable admission")
+            if observation.get("schema") != "production.corpus-preflight/v2" or any(
+                scope.get(field) is not False
+                for scope in (observation, observation.get("native_port") or {})
+                for field in ("executed", "execution_proof", "runtime_qualified")
+            ):
+                raise ValueError("preflight refresh is offline observation, never qualification")
+            prefix = f"production-preflight:v1:{admission_event_id}:"
+            history = self._execute(
+                """SELECT envelope FROM events
+                WHERE event_type = 'queue.corpus_preflight_updated' AND idempotency_key LIKE ?
+                ORDER BY seq DESC""",
+                (prefix + "%",),
+            ).fetchall()
+            previous = admission if not history else json.loads(history[0][0])
+            if history and previous["payload"]["preflight"] == observation:
+                return previous, False
+            # Recheck frozen fingerprints under the journal's native write lock:
+            # another refresher may have committed while offline probing ran.
+            native = observation["native_port"]
+            package = observation["task_package"]
+            port = native.get("port_identity") or {}
+            for row in history:
+                prior = json.loads(row[0])["payload"]["preflight"]
+                prior_native = prior.get("native_port") or {}
+                prior_port = prior_native.get("port_identity") or {}
+                if (
+                    port.get("path") and port.get("path") == prior_port.get("path")
+                    and port.get("expected_exact_tree_digest")
+                    != prior_port.get("expected_exact_tree_digest")
+                ):
+                    raise IdempotencyConflict("immutable retained-port fingerprint changed")
+                if (
+                    package.get("path") and package.get("path") == prior["task_package"].get("path")
+                    and native.get("upstream_exact_tree_digest")
+                    and prior_native.get("upstream_exact_tree_digest")
+                    and native["upstream_exact_tree_digest"] != prior_native["upstream_exact_tree_digest"]
+                ):
+                    raise IdempotencyConflict("immutable original-package tree fingerprint changed")
+            digest = source_record_digest(observation)
+            key = f"{prefix}{previous['event_id']}:{digest}"
+            event = {
+                "event_id": str(uuid5(NAMESPACE_URL, key)),
+                "run_id": run_id,
+                "system": "queue",
+                "event_type": "queue.corpus_preflight_updated",
+                "ts": _now(),
+                "prefix_step": None,
+                "status": "applied",
+                "payload": {
+                    "schema": "production.corpus-preflight-update/v1",
+                    **{field: original[field] for field in (
+                        "dataset_id", "item_id", "task_id", "task_digest", "split"
+                    )},
+                    "admission_event_id": admission_event_id,
+                    "previous_event_id": previous["event_id"],
+                    "source_record_sha256": source["sha256"],
+                    "observation_sha256": digest,
+                    "preflight": observation,
+                },
+            }
+            return self._append(self._normalize(event, None), key, None), True
 
     def read_consumer(self, consumer_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         _text(consumer_id, "consumer_id")

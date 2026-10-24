@@ -687,7 +687,7 @@ inputs:
   - path: src/evallab/seeker/feedback.py
     digest: sha256:93206293f24fb8bd1e40a35fa3d783d0cf46041a67f5c0ebb410534c87dc4ace
   - path: src/evallab/seeker/lanes.py
-    digest: sha256:ed512e52b9ed43a33ba082669144b539c175f410d6376c43ee0f0624b0fd48e2
+    digest: sha256:7a60b46a7cd1d9b56a0790b41916db2610f9a48b72af5890246eee2febd68fbd
   - path: src/evallab/seeker/packets.py
     digest: sha256:90f557dbf5bdbe3e209aceae0d4f96bf08aff8ca2975171d317444eed9f59fd8
   - path: src/evallab/seeker/prompt.py

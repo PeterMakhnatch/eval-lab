@@ -262,10 +262,9 @@ def test_refresh_uses_explicit_cache_relative_to_repo_root_for_real_offline_port
     inventory.parent.mkdir(parents=True)
     inventory.write_text(json.dumps({
         "schema": "evallab.candidate_execution_inventory/v1",
-        "source_roots": {"upstream": str(original.parent), "port": str(fixed.parent)},
+        "source_roots": {"port": str(fixed.parent)},
         "tasks": [{
-            "id": "native-task", "upstream_task": str(original), "port_task": str(fixed),
-            "upstream_exact_tree_digest": _tree_digest(original),
+            "id": "native-task", "port_task": str(fixed),
             "port_exact_tree_digest": _tree_digest(fixed),
             "source_pins": {"port_required": PM_FIXED_PIN},
         }],

@@ -185,6 +185,14 @@ def _trial(
     return trial
 
 
+def _native_result(trial: Path, reward: Any, mode: str) -> None:
+    """The result.json shape written by HarborBackend, without a container."""
+    (trial / "result.json").write_text(
+        json.dumps({"at": TS, "exception": None, "mode": mode, "reward": reward}),
+        encoding="utf-8",
+    )
+
+
 def _task_package(root: Path, name: str) -> Path:
     task = root / name
     (task / "tests").mkdir(parents=True)
@@ -559,6 +567,110 @@ class TestVerifiedAssetExport:
         assert receipts["nop"][0]["reward"] == 0.0
         assert repair["split"] == "dev"
         assert manifest["rows_jsonl_sha256"]
+
+    @pytest.mark.parametrize(
+        "native_groups",
+        [("reference",), ("nop",), ("exploit",), ("reference", "nop", "exploit")],
+    )
+    def test_native_backend_control_receipts(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        native_groups: tuple[str, ...],
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        modes = {"reference": "oracle", "nop": "nop", "exploit": "shortcut"}
+        for group in native_groups:
+            for record in chain["evidence"][group]:
+                _native_result(Path(record["evidence_ref"]), record["reward"], modes[group])
+
+        manifest = exporter.export_verified_assets(tmp_path / "export")
+
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 0
+
+    @pytest.mark.parametrize(
+        "native_runs",
+        [("exploit_run",), ("repaired_run",), ("exploit_run", "repaired_run")],
+    )
+    def test_native_backend_witness_receipts(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        native_runs: tuple[str, ...],
+    ) -> None:
+        chain = _exploit_chain(queue, tmp_path)
+        for run in native_runs:
+            _native_result(chain[run], 1.0 if run == "exploit_run" else 0.0, "shortcut")
+
+        manifest = exporter.export_verified_assets(tmp_path / "export")
+
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 0
+
+    @pytest.mark.parametrize(
+        "changes,missing",
+        [
+            ({"exception": "RuntimeError: trial failed"}, None),
+            ({"exception": ""}, None),
+            ({"mode": "unknown"}, None),
+            ({"mode": []}, None),
+            ({"at": ""}, None),
+            ({"at": None}, None),
+            ({"reward": None}, None),
+            ({"reward": True}, None),
+            ({"reward": float("nan")}, None),
+            ({"reward": float("inf")}, None),
+            ({"reward": 0.0}, None),
+            ({"verifier_result": {"rewards": {"reward": 0.0}}}, None),
+            ({"verifier_result": None}, None),
+            ({}, "at"),
+            ({}, "exception"),
+            ({}, "mode"),
+            ({}, "reward"),
+        ],
+    )
+    def test_native_backend_receipts_fail_closed(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        changes: dict[str, Any],
+        missing: str | None,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        trial = Path(chain["evidence"]["reference"][0]["evidence_ref"])
+        _native_result(trial, 1.0, "oracle")
+        result = json.loads((trial / "result.json").read_text())
+        result.update(changes)
+        if missing is not None:
+            del result[missing]
+        (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
+
+        row, problems = exporter.verify_asset_event(chain["asset"])
+
+        assert row is None
+        assert any(
+            "reference[0]" in problem and "measured receipt" in problem
+            for problem in problems
+        )
+
+    def test_native_and_harbor_result_forms_must_agree(
+        self, exporter: VerifiedAssetExporter, queue: ContinuousWorkQueue, tmp_path: Path
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        trial = Path(chain["evidence"]["reference"][0]["evidence_ref"])
+        _native_result(trial, 1.0, "oracle")
+        result = json.loads((trial / "result.json").read_text())
+        result["verifier_result"] = {"rewards": {"reward": 1.0}}
+        (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
+
+        row, problems = exporter.verify_asset_event(chain["asset"])
+
+        assert row is not None
+        assert problems == []
 
     def test_unknown_kind_rejected(
         self, exporter: VerifiedAssetExporter, queue: ContinuousWorkQueue, tmp_path: Path

@@ -277,14 +277,27 @@ def _claims(data: Mapping[str, Any], keys: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _result_json_reward(path: Path) -> float | None:
+    """Read Harbor TrialResult or HarborBackend's native trial summary."""
     data = _read_json(path)
     if not isinstance(data, dict):
         return None
     rewards = data.get("verifier_result")
     rewards = rewards.get("rewards") if isinstance(rewards, dict) else None
-    if not isinstance(rewards, dict):
-        return None
-    return finite_reward(rewards.get("reward"))
+    harbor_reward = (
+        finite_reward(rewards.get("reward")) if isinstance(rewards, dict) else None
+    )
+    if {"at", "exception", "mode", "reward"} <= data.keys():
+        if (
+            _nonempty_str(data["at"]) is None
+            or data["mode"] not in ("oracle", "nop", "shortcut")
+            or data["exception"] is not None
+        ):
+            return None
+        native_reward = finite_reward(data["reward"])
+        if "verifier_result" in data and native_reward != harbor_reward:
+            return None
+        return native_reward
+    return harbor_reward
 
 
 def _verifier_file_reward(path: Path) -> float | None:

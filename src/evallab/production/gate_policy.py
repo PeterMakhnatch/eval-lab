@@ -24,7 +24,14 @@ A cue is never a deny.
 Path model. Task paths are POSIX and resolved lexically against the policy
 ``cwd`` (tracked through ``cd``/``pushd``/subshells inside the command and,
 with ``persistent_shell``, across ``prefix`` steps) with ``..`` and ``//``
-collapsed. No host I/O, no symlink resolution, no subprocess, no model.
+collapsed. A shell tool call's own directory argument (``cwd``, ``workdir``,
+``working_directory``, ``working_dir``; also inside JSON-encoded arguments)
+replaces the carried shell directory for that call only, resolved against the
+policy ``cwd``; it neither changes nor leaks into other calls or later steps.
+A per-call directory with ``$``/backticks or ``~`` is unresolvable: relative
+operands then stay unjudged. ``workdir`` set inside a Codex ``exec`` script's
+``tools.exec_command({...})`` is not read. No host I/O, no symlink resolution,
+no subprocess, no model.
 
 Precedence (documented and tested):
 
@@ -62,9 +69,11 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from evallab.edit_signals import (
+    SHELL_TOOL_NAMES,
     blank_quoted_and_heredocs,
     codex_apply_patches,
     step_bash_commands,
+    tool_bash_commands,
 )
 from evallab.history_mining import _coerce_arguments, history_mining_signals
 from evallab.step_layers import effective_tool_calls
@@ -362,6 +371,21 @@ _SEARCH_TOOLS = frozenset({"grep", "rg", "search", "search_files", "codebase_sea
 _LIST_TOOLS = frozenset({"glob", "ls", "list_dir", "list_directory", "list_files", "find_file"})
 
 
+_CALL_CWD = "_gate_cwd"
+_DIRECTORY_KEYS = ("workdir", "cwd", "working_directory", "working_dir")
+
+
+def _directory_argument(arguments: Any) -> str | None:
+    """The per-call working directory a shell tool call asks for, if any."""
+    if not isinstance(arguments, Mapping):
+        return None
+    for key in _DIRECTORY_KEYS:
+        value = arguments.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def _view(step: Mapping[str, Any]) -> dict[str, Any]:
     """Step copy whose ``tool_calls`` use lower-case bare tool names and dict arguments."""
     calls = step.get("tool_calls")
@@ -386,6 +410,10 @@ def _view(step: Mapping[str, Any]) -> dict[str, Any]:
                 name = "bash"
                 if "command" not in arguments and isinstance(arguments.get("cmd"), str):
                     arguments["command"] = arguments["cmd"]
+        if name in SHELL_TOOL_NAMES:
+            directory = _directory_argument(arguments)
+            if directory is not None:
+                item[_CALL_CWD] = directory
         item["function_name"] = name
         item["arguments"] = arguments
         normalized.append(item)
@@ -1896,21 +1924,47 @@ def _py_flags(shell: _Shell, tree: ast.Module, path: str | None, evidence: str) 
 # ---------------------------------------------------------------------------
 
 
+def _call_directory(call: Mapping[str, Any], policy_cwd: str) -> tuple[bool, str | None]:
+    """``(explicit, directory)`` for a tool call's own working directory.
+
+    An explicit per-call directory is resolved against the task ``cwd`` (never
+    against shell state) and replaces the carried shell directory for that call
+    only. ``None`` means the directory was given but cannot be resolved lexically.
+    """
+    raw = call.get(_CALL_CWD)
+    if not isinstance(raw, str):
+        return False, None
+    if "$" in raw or "`" in raw:
+        return True, None
+    return True, _resolve(policy_cwd, raw)
+
+
 def _step_findings(
     view: Mapping[str, Any], start_cwd: str | None, policy_cwd: str
 ) -> tuple[_Findings, str | None]:
-    """Findings of one step plus the shell cwd it leaves behind."""
+    """Findings of one step plus the persistent shell cwd it leaves behind.
+
+    Shell calls without a per-call directory share one shell that starts in
+    ``start_cwd`` (so ``cd`` carries between them). A call with an explicit
+    directory runs in its own shell there and leaves the persistent cwd alone.
+    """
     findings = _Findings()
     shell = _Shell(start_cwd, findings)
-    for command in step_bash_commands(dict(view)):
-        shell.run(command)
+    calls = [call for call in view["tool_calls"] if call["function_name"] in SHELL_TOOL_NAMES]
+    for call in calls:
+        explicit, directory = _call_directory(call, policy_cwd)
+        runner = _Shell(directory, findings) if explicit else shell
+        for command in tool_bash_commands(call):
+            runner.run(command)
     tool = _Shell(policy_cwd, findings)
     for mode, recursive, raw, evidence in _tool_accesses(view):
         tool.push(mode, _resolve(policy_cwd, raw), evidence, recursive)
-    for path, text in _tool_call_files(dict(view)):
-        findings.contents.append(
-            (None if path.startswith("tool:") else _resolve(policy_cwd, path), text)
-        )
+    for call in view["tool_calls"]:
+        _, base = _call_directory(call, policy_cwd)
+        base = base if _CALL_CWD in call else policy_cwd
+        for path, text in _tool_call_files({"tool_calls": [call]}):
+            target = None if path.startswith("tool:") else _resolve(base, path)
+            findings.contents.append((target, text))
     for path, text in list(findings.contents):
         if path is None or path.endswith(".py"):
             tool.python_code(text, executed=False, path=path, evidence=_clip(text, 80))

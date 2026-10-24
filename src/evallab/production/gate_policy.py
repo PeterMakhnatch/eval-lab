@@ -1159,9 +1159,13 @@ class _Shell:
                     words.pop(0)
                 else:
                     break
-            if base == "timeout" and words and words[0][1] is not None:
-                if re.fullmatch(r"\d+(\.\d+)?[smhd]?", words[0][1]):
-                    words.pop(0)
+            if (
+                base == "timeout"
+                and words
+                and words[0][1] is not None
+                and re.fullmatch(r"\d+(\.\d+)?[smhd]?", words[0][1])
+            ):
+                words.pop(0)
         return words
 
     # -- program dispatch --------------------------------------------------
@@ -1262,11 +1266,12 @@ class _Shell:
                     self.write(arg[3:], evidence)
                 elif arg.startswith("if="):
                     self.read(arg[3:], evidence)
-        elif base == "sed" and any(
-            re.fullmatch(r"-[A-Za-z]*i[^\s]*|--in-place(?:=.*)?", arg) for arg in _strs(args)
-        ):
-            self.inplace(args, evidence)
-        elif base == "perl" and any(re.fullmatch(r"-[A-Za-z]*i\S*", arg) for arg in _strs(args)):
+        elif (
+            base == "sed"
+            and any(
+                re.fullmatch(r"-[A-Za-z]*i[^\s]*|--in-place(?:=.*)?", arg) for arg in _strs(args)
+            )
+        ) or (base == "perl" and any(re.fullmatch(r"-[A-Za-z]*i\S*", arg) for arg in _strs(args))):
             self.inplace(args, evidence)
         elif base in ("curl", "wget"):
             opts, pos = _split(
@@ -1655,13 +1660,23 @@ def _fold(node: ast.AST | None, env: Mapping[str, str], cwd: str | None) -> str 
                 return None
             if node.func.attr != "joinpath":
                 return base
-            tail = [_fold(arg, env, cwd) for arg in node.args]
-            return None if any(part is None for part in tail) else _join([base, *tail])  # type: ignore[list-item]
-        folded = [_fold(arg, env, cwd) for arg in node.args]
-        if not folded or any(part is None for part in folded):
+            tail: list[str] = [base]
+            for arg in node.args:
+                part = _fold(arg, env, cwd)
+                if part is None:
+                    return None
+                tail.append(part)
+            return _join(tail)
+        folded: list[str] = []
+        for arg in node.args:
+            part = _fold(arg, env, cwd)
+            if part is None:
+                return None
+            folded.append(part)
+        if not folded:
             return None
         if name in _JOINS or name in _PATH_CTORS:
-            return _join(folded)  # type: ignore[arg-type]
+            return _join(folded)
         if name in _PASSTHROUGH and len(folded) == 1:
             return folded[0]
     return None

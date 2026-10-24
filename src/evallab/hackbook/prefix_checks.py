@@ -52,7 +52,7 @@ import re
 import shlex
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeGuard
 
 from evallab.edit_signals import EDIT_TOOL_NAMES, SHELL_TOOL_NAMES, tool_bash_commands
 
@@ -65,7 +65,7 @@ _CATALOG = "research/hackbook/entries.jsonl"
 __all__ = ["STRUCTURAL_CHECKS", "STRUCTURAL_ENTRY_IDS", "package_context", "scan_structural_prefix"]
 
 
-def _is_int(value: Any) -> bool:
+def _is_int(value: Any) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -1004,7 +1004,7 @@ def _const_num(node: ast.AST | None) -> float | None:
     return None
 
 
-def _is_number(value: Any) -> bool:
+def _is_number(value: Any) -> TypeGuard[int | float]:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
@@ -1080,8 +1080,34 @@ _FIELD_LINE_RE = re.compile(
 )
 _BACKTICK_NAME_RE = re.compile(r"`([a-z][a-z0-9_]{2,})`")
 _NOT_FIELDS = frozenset(
-    "python python3 pip bash json csv true false null none pytest numpy pandas stdout stderr main "
-    "input output sort sorted list dict string int float bool".split()
+    [
+        "python",
+        "python3",
+        "pip",
+        "bash",
+        "json",
+        "csv",
+        "true",
+        "false",
+        "null",
+        "none",
+        "pytest",
+        "numpy",
+        "pandas",
+        "stdout",
+        "stderr",
+        "main",
+        "input",
+        "output",
+        "sort",
+        "sorted",
+        "list",
+        "dict",
+        "string",
+        "int",
+        "float",
+        "bool",
+    ]
 )
 
 

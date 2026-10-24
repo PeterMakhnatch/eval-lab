@@ -335,3 +335,11 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-fresh-window3 | 0 | 52 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-v7-canonical-pass70 | 0 | 70 |
 | hackbook-match-tb4-test-once-20261021 | inspected | Hackbook (hackbook-match@*) from 2026-10-21 | (no key items) | 0 | 0 |
+| tripwires-inherited-tb4-dev-inspection-20261024 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21, Deterministic tripwires (tripwires-v4@*) from 2026-10-21, Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | envcheck-tb4-39 | 3 | 8 |
+| tripwires-inherited-tb4-dev-inspection-20261024 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21, Deterministic tripwires (tripwires-v4@*) from 2026-10-21, Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | executed-outcomes-v1 | 1 | 1 |
+| tripwires-inherited-tb4-dev-inspection-20261024 | inspected | Deterministic tripwires (tripwires-v3@*) from 2026-10-21, Deterministic tripwires (tripwires-v4@*) from 2026-10-21, Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | tb4-audit-v1 | 86 | 0 |
+| tripwires-v4-inherited-tune-boundary-20261024 | tuned | Deterministic tripwires (tripwires-v4@*) from 2026-10-21, Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | envcheck-tb4-39 | 1 | 3 |
+| tripwires-v4-inherited-tune-boundary-20261024 | tuned | Deterministic tripwires (tripwires-v4@*) from 2026-10-21, Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | tb4-audit-v1 | 36 | 0 |
+| tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | envcheck-tb4-39 | 1 | 1 |
+| tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | executed-outcomes-v1 | 1 | 1 |
+| tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | tb4-audit-v1 | 16 | 0 |

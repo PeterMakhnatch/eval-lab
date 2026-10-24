@@ -302,7 +302,7 @@ def test_decision_cell_counts_unknowns_outside_both_denominators() -> None:
         ("negative", False),
         ("other", True),
     ]
-    for i, (role, value) in enumerate(values):
+    for i, (role, _value) in enumerate(values):
         records.append(
             _record({"rules": [], "structural": []}, role=role, cluster=f"c{i}", source_label=role)
         )

@@ -130,7 +130,7 @@ def _step_text(value: Any) -> str:
     return ""
 
 
-def _cited_quote(step: Mapping[str, Any], quote: str) -> str:
+def _cited_quote(step: dict[str, Any], quote: str) -> str:
     """A quote present in ``step``; some detectors report a path/pattern, so fall
     back to the actual action text (or message) when it is not verbatim."""
     text = json.dumps(step, ensure_ascii=False, default=str)
@@ -166,9 +166,7 @@ def _is_int(value: Any, *, minimum: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
-def _evidence_items(
-    raw: Any, *, artifacts: bool, basis: str | None = None
-) -> list[dict[str, Any]]:
+def _evidence_items(raw: Any, *, artifacts: bool, basis: str | None = None) -> list[dict[str, Any]]:
     """Shape-checked structural evidence.
 
     Trace evidence is ``{step, quote}`` (optionally ``source`` path and ``line``). An

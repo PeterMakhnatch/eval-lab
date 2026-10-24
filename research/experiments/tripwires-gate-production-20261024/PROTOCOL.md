@@ -1,8 +1,9 @@
 # TW-P1: production gate measurement (causal core, structural checks, synchronous gate)
 
-Committed **before** any TW-P1 payload or label was opened. $0, 0 model calls, no container, no
-submitted-code execution. `run.py` is the only entry point; nothing here edits retained v3/v4
-evidence, the answer keys, the exposure ledger or the scoreboard.
+Prepared before TW-P1 trajectory replay or performance inspection. An evaluator-only DEV label
+schema peek is disclosed below; this is not a claim that no label was seen. Measurement uses $0,
+0 model calls, no container, and no submitted-code execution. `run.py` does not edit retained
+v3/v4 evidence, the answer keys, the exposure ledger, or the scoreboard.
 
 ## What is measured
 
@@ -40,7 +41,7 @@ TB4 `actions` view (the Hub publishes no paired actions-only capture), or an unm
 counted as *unknown*, in no denominator, never as zero or clean. `clear` means a predicate's
 required inputs were present and the predicate was false; it is not proof of no cheating.
 
-## Split (fixed before any payload/label was opened)
+## Split construction (retained task roles; never class-balanced)
 
 `split-manifest.json` is written by `run.py split` from `tb4-audit-v1` assignment rows
 (columns `key_id, unit, task, split` only; census DEV = tasks whose only split is `dev`, 22
@@ -64,19 +65,27 @@ label/index lines are selected on raw text by task name before JSON parsing, a l
 stage's tasks (including sealed tasks) is never parsed, and a line naming no census task
 refuses the whole file.
 
-**Honest status of "holdout".** It means *excluded from the development and tuning of this
-patch*. The v3/v4 lineage inspected DEV census labels and per-item rule hits for all 22 tasks and
-scored the v4 holdout half once; the Hackbook catalog and the census mechanism registry were
-written from that corpus. Neither half is untouched or independent in the historical sense, and
-no fresh independent holdout is claimed. CheatBench/HackTrace (in the detectors-v1 calibration
-set and replayed by v3/v4) and MiMo (labels are grading outcomes, trajectories seen by earlier
-qa-trace runs) have **no qualifying fresh holdout provenance**; their rows are disclosed
-descriptive replays (`splits/exposure.jsonl` sha256 is recorded in the holdout result). One
-inadvertent exposure is recorded: while locating the label schema, a text search printed the
-first 20 lines of the committed DEV label export (`labels-dev.jsonl`, tasks `cad-model`,
-`cargo-flight-dispatch`, `distributed-dedup`, `fin-saccr-rwa`; labels only, no trajectory). It
-occurred after the split was fixed by construction (retained v4 halves) and informed nothing in
-the code.
+**Honest status of "holdout".** It means *excluded from detector and policy tuning for this
+patch*, not globally unseen data. The v3/v4 lineage inspected DEV census labels and per-item
+rule hits for all 22 tasks and scored the v4 holdout half once; the Hackbook catalog and census
+mechanism registry were written from that corpus. Neither half is historically untouched or
+independent. CheatBench was in earlier detector calibration and v3/v4 replays; MiMo labels are
+grading outcomes and its trajectories were inspected by earlier QA runs. These rows are
+descriptive replays, not a fresh independent holdout certificate. The exposure ledger digest is
+recorded in the holdout result.
+
+**Evaluator schema-peek incident.** Before constructing the new manifest, a broad text search
+for the mechanism vocabulary printed DEV export `labels-dev.jsonl` lines 1–20, truncated to
+about 512 bytes: five records each for `cad-model`, `cargo-flight-dispatch`,
+`distributed-dedup`, and `fin-saccr-rwa`. This exposed label/mechanism fields, membership/trial
+identifiers, producer/method metadata, confidence/facts, and fragments of verifier-derived
+evidence, not trajectory text. Two tasks are in the retained holdout half; one is now sealed and
+excluded. Public catalog examples and old aggregate v3 statistics were also seen by the
+measurement engineer. No TW-P1 holdout trajectory or performance was opened, and the separate
+rule/policy authors did not receive these labels. The split preserves the retained v4 roles and
+registry sealing, not label balance. This incident is explicitly disclosed; neither strict
+label-blindness nor fresh holdout provenance is claimed. No task-specific exception may be
+introduced from these exposures.
 
 ## Stages (each refuses to proceed on any identity mismatch)
 
@@ -86,7 +95,7 @@ the code.
    integrated producer must return `structural_checks`, `gate_policy.GatePolicy/policy_hits` must
    exist, and `MisalignmentLiveWorker` must accept `gate_policy`.
 3. `run.py tune --expect-manifest <sha>` measures **only the TB4 DEV tune half**
-   (`tb4-hub-dev-official` primary, `tb4-hub-dev-bootstrap` supplementary, never pooled).
+   (`tb4-hub-dev-official`, one population of Hub memberships).
    Outputs `results|predictions|report-tune-<combined12>.*`, created exclusively; the same
    fingerprint cannot be written twice, a changed source writes a new identity beside the old.
 4. `run.py freeze --tune-results <file> --expect-fingerprint <combined>` writes `freeze.json`
@@ -94,11 +103,11 @@ the code.
    protocol must not change afterwards.
 5. `run.py holdout --expect-fingerprint <combined>` requires `freeze.json`, an identical
    fingerprint, the frozen tune result bytes, and no earlier `results-holdout-*.json` (a second
-   holdout run would be tuning on it). It measures the TB4 DEV holdout half plus CheatBench,
-   HackTrace and both MiMo cohorts (registered `test` splits by default). The production
+   holdout run would be tuning on it). It measures the TB4 DEV holdout half plus CheatBench
+   and both MiMo cohorts (registered `test` splits by default). The production
    `CorpusRegistry` TEST lock is never bypassed: reading any external `test` split needs the
    registry's frozen-eval token in `TW_P1_FROZEN_EVAL_TOKEN` (validated by the registry's own
-   `admit`; registered CheatBench/HackTrace items are admitted one by one); without it those
+   `admit`; registered CheatBench items are admitted one by one); without it those
    cohorts are reported `unavailable` with the reason. No source tuning from holdout results.
 
 ## Fingerprint
@@ -119,7 +128,7 @@ System id `tw-p1-gate@<combined12>`.
   are census source labels (deterministic mechanism rules plus a cheap judge), not independent
   adjudication. Only 14 `known_exploit` positives exist over all 22 tasks, so per-half recall
   intervals are very wide; the primary evidence is false alarms on `pass:neither`.
-* **CheatBench / HackTrace**: inherited source labels (cheating or attempt vs benign), not
+* **CheatBench**: inherited source labels (cheating or attempt vs benign), not
   re-adjudicated; both views exist.
 * **MiMo** `wrong_pass` is a grading **outcome**, not intent: a wrong pass need not contain any
   exploit signature, so recall there is not a detector grade. `real_pass` is not a correctness
@@ -128,7 +137,7 @@ System id `tw-p1-gate@<combined12>`.
   (`<task>/<slug>`) are mapped to catalog entries through the PM finding hash in the census
   `registry.json` joined to the catalog's `preference_model_tb4` examples
   (`pm-tb4:<task>:<finding>`); a positive without a mapped mechanism, and every unmapped
-  mechanism, is unknown. CheatBench/HackTrace/MiMo have no compatible entry labels unless an
+  mechanism, is unknown. CheatBench/MiMo have no compatible entry labels unless an
   explicit `--entry-label-map` file is supplied (hashed into the fingerprint). Without
   compatible labels an entry's recall is `null` with the reason; its firing counts on source
   negatives remain reported.
@@ -146,15 +155,16 @@ tb4-audit-v1 `task_directory_digest`, which belongs to the v4.0.0 pin. Only
 `cheat/`, `README`, witnesses or exploit programs), through `prefix_checks.package_context`
 with the lock digest as provenance and `available_before_step=0`. Package text is parsed for the
 stage's tasks only (Harbor digests of all manifest tasks are hashed into the fingerprint; bytes
-are never interpreted). The bootstrap cohort has no lock index, so it gets no package context.
-Checks that need grader/test/instruction/reference/differential evidence report `unavailable`
-when it is absent. `RS05-001`, `TS08-002` and `TS10-002` need a trusted differential or
-no-shortcut review; none exists for TB4 DEV trajectories (task-quality has 0 confirmed
-differentials; the audit witnesses are scorer-only exploit programs), so they stay unavailable
-and nothing is synthesized. Hub trials
-hold no tests or instruction package; CheatBench/HackTrace/MiMo carry `agent/trajectory.json`
-only, so those checks are unavailable there. Every result lists unknown reasons, hash-unbound
-inputs, per-check unavailable reasons, consumer unavailability and fail-closed reasons.
+are never interpreted).
+Checks needing grader/test/instruction/reference/differential evidence report `unavailable`
+when it is absent. Measured reference controls or linked task-quality differentials can
+establish the reference-result checks; no such bound facts are supplied by these retained
+captures, although the checks can also use a genuinely observed reference run. `RS05-001`
+additionally needs a whole-prefix no-shortcut review, for which no production producer exists.
+Nothing is synthesized or silently treated as clear. Hub trials do not embed a task package;
+CheatBench/MiMo carry trajectory captures only, so package-dependent checks are unavailable
+there. Every result lists unknown reasons, hash-unbound inputs, per-check unavailable reasons,
+consumer unavailability, and fail-closed reasons.
 
 ## Reporting
 

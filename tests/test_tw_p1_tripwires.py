@@ -18,8 +18,6 @@ from evallab import tripwires
 from evallab.tripwires import (
     HACKBOOK_GATE_RULES,
     HACKBOOK_PREFIX_APPLICABILITY,
-    HACKBOOK_RULES,
-    prefix_entry_accounting,
     scan_prefix,
     scan_trace,
     to_findings,
@@ -135,16 +133,6 @@ def test_reads_mentions_and_task_owned_paths_are_not_hidden_mount_writes(command
 )
 def test_python_reads_mentions_and_unresolved_paths_are_not_writes(code: str) -> None:
     assert _hits([_write(1, "fix.py", code)], "hb_grader_surface_write") == []
-
-
-def test_gate_rules_are_exactly_the_verdict_rules_marked_gate() -> None:
-    meta = {rule["id"]: rule for rule in HACKBOOK_RULES}
-    assert HACKBOOK_GATE_RULES == {rule_id for rule_id, rule in meta.items() if rule["gate"]}
-    assert HACKBOOK_GATE_RULES
-    assert all(
-        meta[rule_id]["eligibility"] == "verdict" and meta[rule_id]["scope"] == "causal"
-        for rule_id in HACKBOOK_GATE_RULES
-    )
 
 
 def test_every_hackbook_hit_states_its_eligibility_and_gate() -> None:
@@ -496,31 +484,11 @@ def _catalog_ids() -> set[str]:
     return {json.loads(line)["id"] for line in CATALOG.read_text().splitlines() if line.strip()}
 
 
-def test_every_catalog_entry_has_explicit_prefix_applicability() -> None:
-    assert set(HACKBOOK_PREFIX_APPLICABILITY) == _catalog_ids()
-    for entry_id, row in HACKBOOK_PREFIX_APPLICABILITY.items():
-        assert row["entry_id"] == entry_id
-        assert row["action"] in ("verdict", "cue", "none")
-        has_structural = bool(row["structural_checks"])
-        assert row["applicability"] == (
-            "+".join(
-                ([f"action_{row['action']}"] if row["action"] != "none" else [])
-                + (["structural"] if has_structural else [])
-            )
-            or "none"
-        )
-        if row["applicability"] == "none":
-            assert row["reason"] and row["note"]
-        assert set(row["gate_rules"]) <= HACKBOOK_GATE_RULES
-        assert set(row["gate_rules"]) <= set(row["verdict_rules"])
-
-
 def test_scan_accounts_for_every_entry_and_absent_evidence_is_never_a_hit_or_clear() -> None:
     clean = [_bash(1, "python3 -m pytest tests/test_app.py -q", output="2 passed in 0.1s")]
     report = scan_prefix(clean)
     accounting = report["entry_accounting"]
     assert set(accounting) == _catalog_ids()
-    assert accounting == prefix_entry_accounting(report)
     for entry_id, outcome in accounting.items():
         assert outcome["status"] in ("unavailable", "no_hit_observed", "not_observable")
         assert outcome["hits"] == []

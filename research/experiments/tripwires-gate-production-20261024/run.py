@@ -274,7 +274,7 @@ def manifest_body(
     v4 split put in tune stays in tune (if still effective DEV); the legacy v4 holdout tasks and
     any effective DEV task v4 never saw (no census labels or trajectories: unknown) go to
     holdout, so no previously scored task moves into tune. Sealed census tasks are excluded and
-    listed, never unsealed. Frozen before any TW-P1 payload or label is opened.
+    listed, never unsealed. Task roles are retained from metadata, never chosen from labels.
     """
     rows = tb4_assignment_rows(assignments)
     census = dev_tasks_of(rows)

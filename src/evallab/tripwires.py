@@ -1117,7 +1117,7 @@ def _tool_paths(call: dict[str, Any]) -> list[str]:
     return paths
 
 
-def _tool_edits(step: dict[str, Any]) -> list[tuple[str, str]]:
+def _tool_edits(step: Mapping[str, Any]) -> list[tuple[str, str]]:
     """``(target, kind)`` file-access edit tool calls in one step.
 
     Kinds: ``"whole"`` (whole-file writes: ``Write``/``create``), or
@@ -1187,7 +1187,7 @@ def _removes_asserts(old: str, new: str) -> bool:
     return len(_ASSERT_RE.findall(new)) < len(_ASSERT_RE.findall(old))
 
 
-def _tool_read_paths(step: dict[str, Any]) -> list[str]:
+def _tool_read_paths(step: Mapping[str, Any]) -> list[str]:
     """Read targets of file-access read tool calls in one step."""
     calls = step.get("tool_calls")
     if not isinstance(calls, list):
@@ -3480,7 +3480,7 @@ def _operands(args: Sequence[str], value_flags: frozenset[str] = frozenset()) ->
 
 def _flag_value(args: Sequence[str], short: str, long: str) -> str | None:
     for position, arg in enumerate(args):
-        if arg == short or arg == long:
+        if arg in (short, long):
             return args[position + 1] if position + 1 < len(args) else None
         if arg.startswith(long + "="):
             return arg[len(long) + 1 :]
@@ -5145,10 +5145,7 @@ def prefix_entry_accounting(report: Mapping[str, Any]) -> dict[str, dict[str, An
             structural = "unavailable"
         else:
             structural = "clear" if mine else "none"
-        if applicability["action"] == "none":
-            action = "none"
-        else:
-            action = "hit" if action_hit else "no_hit"
+        action = "none" if applicability["action"] == "none" else "hit" if action_hit else "no_hit"
         if hits:
             status = "hit"
         elif structural == "unavailable":

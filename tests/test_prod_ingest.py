@@ -77,7 +77,7 @@ def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]
     assignments.parent.mkdir(parents=True)
     assignments.write_text(
         "key_id,item_id,split,task\n"
-        "another-key,unrelated-id,heldout,other-heldout\n",
+        f"{TB4},unrelated-id,heldout,other-heldout\n",
         encoding="utf-8",
     )
     ref, digest = _actor(results, "cheat-dev")
@@ -290,7 +290,7 @@ def test_mimo_frozen_heldout_and_additional_canonical_seals_are_distinct(corpus)
     root, _ = corpus
     assignments = root / "research/answer-keys/splits/assignments.csv"
     assignments.write_text(
-        assignments.read_text() + "another-key,extra-mimo-lock,heldout,mimo-a\n"
+        assignments.read_text() + f"{TB4},extra-mimo-lock,heldout,mimo-a\n"
     )
     with ContinuousWorkQueue(":memory:", registry=CorpusRegistry(root)) as queue:
         report = ingest_corpus(queue, dataset_ids=[MIMO])

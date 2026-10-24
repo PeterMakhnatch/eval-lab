@@ -871,6 +871,7 @@ def test_external_registration_conflicts_fail_closed(
         task_digest=None,
         source_path=tmp_path / "rollouts.jsonl",
         metadata={"source_kind": "public_rollout"},
+        source_record_sha256="sha256:" + "0" * 64,
     )
     registered = registry.register_external(item)
     assert registered.split == "dev"
@@ -886,6 +887,7 @@ def test_external_registration_conflicts_fail_closed(
                 task_digest=None,
                 source_path=tmp_path / "rollouts.jsonl",
                 metadata={},
+                source_record_sha256="sha256:" + "0" * 64,
             )
         )
     # Canonical datasets are never writable through the external API.
@@ -899,6 +901,7 @@ def test_external_registration_conflicts_fail_closed(
                 task_digest=None,
                 source_path=tmp_path / "x",
                 metadata={},
+                source_record_sha256="sha256:" + "0" * 64,
             )
         )
 

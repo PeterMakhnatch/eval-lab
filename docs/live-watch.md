@@ -678,6 +678,23 @@ Task Quality / Reward Seeker / Misalignment systems, live intervention requests,
 and distinct verified assets. Opening the dashboard does not dispatch jobs or call
 a model.
 
+The public `evallab.production` package exports `CorpusRegistry`,
+`ContinuousWorkQueue`, all three live workers, `create_app`, and `app_from_env`.
+Construct the registry from the committed local corpus indices, then pass one
+dedicated queue to the Task Quality and Reward Seeker workers and
+`emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
+registry rather than a caller's split label; TEST remains sealed without the
+explicit per-operation frozen-evaluation token.
+
+The queue transaction that records a confirmed Seeker `1.0 -> 0.0` differential
+also enqueues `task_quality.repair_task`. Task Quality replays the same immutable
+submission and qualifies the pinned repair only after nine fresh executions:
+reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
+`reward_seeker.rebreak_task` against the repaired package. Confirmed
+`exploit_witness` and `repaired_task` assets are distinct from provisional monitor
+suspicions. Worker phase updates use the shared `step_id` field; their missing
+reasoning/tool capture is reported as a coverage gap, not a clean trace.
+
 The ASGI factory `evallab.production.control_plane:app_from_env` requires
 `EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).
 `EVALLAB_OPERATOR_TOKEN` enables intervention requests and
@@ -708,4 +725,9 @@ stopped, or quarantined anything. The monitor consumes the request and records
 `control.requested`, `control.acknowledged`, and finally `control.applied` or
 `control.expired`. Only an applied event changes the displayed run state.
 
-Focused verification: `uv run pytest tests/test_control_plane.py`.
+Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py`.
+The end-to-end test executes trusted local fixture submissions and both graders,
+shares the real SQLite journal across all four parts, verifies gap-free SSE
+snapshot/replay and asset recovery, and checks executor-acknowledged interventions.
+It does not run a model, dispatch Docker/cloud jobs, or establish scientific
+qualification for a live corpus.

@@ -30,7 +30,7 @@ from evallab.qa import task as qa_task
 from evallab.qa.models import Finding, FindingSubject, Refutation, Reproducer, Reviewer
 from evallab.registry import task_directory_digest
 
-JOB_TYPES = ("task_quality", "task_quality.audit_task", "task_quality.repair_task")
+JOB_TYPES = ("task_quality.audit_task", "task_quality.repair_task")
 Direction = Literal["unfair_fail", "wrong_pass"]
 
 
@@ -92,7 +92,9 @@ class TaskQualityLiveWorker:
         self.queue = queue
         self.repo_root = Path(repo_root).resolve()
         self.worker_id = worker_id
-        self.backend = backend if backend is not None else qa_task.HarborBackend(repo_root=self.repo_root)
+        self.backend = (
+            backend if backend is not None else qa_task.HarborBackend(repo_root=self.repo_root)
+        )
         self.replay_runner = replay_runner or counterfactual.replay
         self.candidate_runner = candidate_runner
         self.reader = reader
@@ -155,11 +157,7 @@ class TaskQualityLiveWorker:
         *,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        context = {
-            key: job.payload[key]
-            for key in ("dataset_id", "item_id")
-            if key in job.payload
-        }
+        context = {key: job.payload[key] for key in ("dataset_id", "item_id") if key in job.payload}
         return self.queue.append_event(
             {
                 "event_id": str(uuid.uuid4()),
@@ -208,7 +206,10 @@ class TaskQualityLiveWorker:
 
     @staticmethod
     def _has_candidate(job: _Job) -> bool:
-        return job.payload.get("exploit_files") is not None or job.payload.get("solution_bundle") is not None
+        return (
+            job.payload.get("exploit_files") is not None
+            or job.payload.get("solution_bundle") is not None
+        )
 
     def _candidate_source(self, job: _Job, source: Path | None) -> bool:
         if not self._has_candidate(job):
@@ -262,20 +263,37 @@ class TaskQualityLiveWorker:
                 kwargs["files"] = job.payload["exploit_files"]
             raw = (self.candidate_runner or run_candidate)(package, **kwargs)
             reward = qa_task.finite_reward(raw.get("reward"))
-            usable = raw.get("status") == "measured" and raw.get("executed") is True and not raw.get("error")
+            usable = (
+                raw.get("status") == "measured"
+                and raw.get("executed") is True
+                and not raw.get("error")
+            )
             ref = raw.get("output_dir")
         else:
             if source is None:
-                raise ValueError("replay requires retained trial evidence or immutable candidate input")
+                raise ValueError(
+                    "replay requires retained trial evidence or immutable candidate input"
+                )
             grader = counterfactual.Grader(
                 job.task_id, "task-quality-live", digest, package, job.event_id
             )
-            raw = self.replay_runner(source, grader, work, repo_root=self.repo_root, environment="docker")
+            raw = self.replay_runner(
+                source, grader, work, repo_root=self.repo_root, environment="docker"
+            )
             reward = qa_task.finite_reward(raw.get("regraded"))
-            usable = not raw.get("refusals") and not raw.get("execution_error") and raw.get("outcome") != "refused"
+            usable = (
+                not raw.get("refusals")
+                and not raw.get("execution_error")
+                and raw.get("outcome") != "refused"
+            )
             ref = raw.get("job_dir") or raw.get("regrade_dir") or raw.get("matrix_receipt")
         measured = bool(usable and reward is not None and isinstance(ref, str) and ref)
-        return {"reward": reward if measured else None, "measured": measured, "evidence_ref": ref, "execution": raw}
+        return {
+            "reward": reward if measured else None,
+            "measured": measured,
+            "evidence_ref": ref,
+            "execution": raw,
+        }
 
     def process_job(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
         """Stream the static candidates before differential execution starts."""
@@ -302,28 +320,53 @@ class TaskQualityLiveWorker:
                 stage="static_reader",
                 verdict="unknown",
                 category="false_negative" if direction == "unfair_fail" else "false_positive",
-                summary=("Possible unfair failure (including unstated timing/format requirements)" if direction == "unfair_fail" else "Possible wrong pass"),
+                summary=(
+                    "Possible unfair failure (including unstated timing/format requirements)"
+                    if direction == "unfair_fail"
+                    else "Possible wrong pass"
+                ),
                 severity="high",
                 fault="eval",
                 evidence_refs=[str(job.original), *([str(source)] if source is not None else [])],
-                reproducer=Reproducer(kind="harbor_trial", path=str(source)) if source is not None else None,
+                reproducer=Reproducer(kind="harbor_trial", path=str(source))
+                if source is not None
+                else None,
                 reviewer=Reviewer(agent="task-quality-live"),
                 measurement="not_run",
-                root_cause=["unstated_requirement"] if direction == "unfair_fail" and static.facts.get("a_unstated_literal") is True else [],
+                root_cause=["unstated_requirement"]
+                if direction == "unfair_fail" and static.facts.get("a_unstated_literal") is True
+                else [],
             )
             if self.reader is not None:
                 reviewed = self.reader(finding.model_copy(deep=True), bundle)
                 if reviewed.id != finding.id or reviewed.subject != finding.subject:
                     raise ValueError("reader cannot change the candidate's identity or subject")
-                finding = reviewed.model_copy(update={"verdict": "unknown", "measurement": "not_run", "refutation": Refutation()})
+                finding = reviewed.model_copy(
+                    update={
+                        "verdict": "unknown",
+                        "measurement": "not_run",
+                        "refutation": Refutation(),
+                    }
+                )
             input_digest = self._input_digest(job, source, direction)
             candidates.append((direction, source, finding, input_digest))
-            self._finding_event(job, finding, "provisional", "static_reader", static=bundle["static"], input_digest=input_digest)
+            self._finding_event(
+                job,
+                finding,
+                "provisional",
+                "static_reader",
+                static=bundle["static"],
+                input_digest=input_digest,
+            )
         findings: list[dict[str, Any]] = []
         complete = True
         for direction, source, finding, input_digest in candidates:
-            original = self._execute(job, source, job.original, direction=direction, label="original")
-            repaired = self._execute(job, source, job.repaired, direction=direction, label="repaired")
+            original = self._execute(
+                job, source, job.original, direction=direction, label="original"
+            )
+            repaired = self._execute(
+                job, source, job.repaired, direction=direction, label="repaired"
+            )
             if self._input_digest(job, source, direction) != input_digest:
                 raise ValueError("submission changed during differential replay")
             measured = (
@@ -335,25 +378,43 @@ class TaskQualityLiveWorker:
             confirmed = measured and (original["reward"], repaired["reward"]) == expected
             status = "confirmed" if confirmed else "refuted" if measured else "provisional"
             complete = complete and bool(measured)
-            finding = finding.model_copy(update={
-                "stage": "differential_replay",
-                "verdict": "fail" if confirmed else "pass" if measured else "unknown",
-                "measurement": "measured" if measured else "ran_without_usable_result",
-                "evidence_refs": finding.evidence_refs + [r["evidence_ref"] for r in (original, repaired) if r["evidence_ref"]],
-                "refutation": Refutation(
-                    status="verified" if confirmed else "refuted" if measured else "unverified",
-                    by="task-quality-live/differential",
-                    reason=f"original={original['reward']!r}, repaired={repaired['reward']!r}; expected {expected}" if measured else "Differential execution unavailable; hypothesis remains provisional",
-                ),
-            })
+            finding = finding.model_copy(
+                update={
+                    "stage": "differential_replay",
+                    "verdict": "fail" if confirmed else "pass" if measured else "unknown",
+                    "measurement": "measured" if measured else "ran_without_usable_result",
+                    "evidence_refs": finding.evidence_refs
+                    + [r["evidence_ref"] for r in (original, repaired) if r["evidence_ref"]],
+                    "refutation": Refutation(
+                        status="verified" if confirmed else "refuted" if measured else "unverified",
+                        by="task-quality-live/differential",
+                        reason=f"original={original['reward']!r}, repaired={repaired['reward']!r}; expected {expected}"
+                        if measured
+                        else "Differential execution unavailable; hypothesis remains provisional",
+                    ),
+                }
+            )
             self._unchanged(job)
-            self._finding_event(job, finding, status, "differential_replay", direction=direction, original=original, repaired=repaired)
+            self._finding_event(
+                job,
+                finding,
+                status,
+                "differential_replay",
+                direction=direction,
+                original=original,
+                repaired=repaired,
+            )
             findings.append(finding.model_dump(mode="json", by_alias=True))
         qualification = None
         if envelope["event_type"] == "task_quality.repair_task" and complete:
             qualification = self._qualify_repair(job)
             complete = qualification["measured"]
-        self._emit(job, "task_quality.completed" if complete else "task_quality.blocked", "applied" if complete else "provisional", {"worker_id": self.worker_id, "finding_ids": [f["id"] for f in findings]})
+        self._emit(
+            job,
+            "task_quality.completed" if complete else "task_quality.blocked",
+            "applied" if complete else "provisional",
+            {"worker_id": self.worker_id, "finding_ids": [f["id"] for f in findings]},
+        )
         return {"complete": complete, "findings": findings, "qualification": qualification}
 
     def qualify_repair(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
@@ -381,25 +442,56 @@ class TaskQualityLiveWorker:
             for repeat in range(3):
                 self._renew(job)
                 self._unchanged(job)
-                observation = self.backend.control(task, agent, timeout_seconds=self.trial_timeout_seconds)
+                observation = self.backend.control(
+                    task, agent, timeout_seconds=self.trial_timeout_seconds
+                )
                 reward = qa_task.finite_reward(observation.facts.get("reward"))
                 ref = observation.facts.get("job_path")
-                measured = observation.status == "executed" and not observation.facts.get("exception") and reward is not None and isinstance(ref, str) and bool(ref)
-                record = {"reward": reward if measured else None, "measured": measured, "evidence_ref": ref, "execution": observation.model_dump(mode="json")}
+                measured = (
+                    observation.status == "executed"
+                    and not observation.facts.get("exception")
+                    and reward is not None
+                    and isinstance(ref, str)
+                    and bool(ref)
+                )
+                record = {
+                    "reward": reward if measured else None,
+                    "measured": measured,
+                    "evidence_ref": ref,
+                    "execution": observation.model_dump(mode="json"),
+                }
                 records[name].append(record)
-                self._emit(job, "task_quality.repair_control", "provisional", {"control": name, "repeat": repeat + 1, **record})
+                self._emit(
+                    job,
+                    "task_quality.repair_control",
+                    "provisional",
+                    {"control": name, "repeat": repeat + 1, **record},
+                )
         for repeat in range(3):
-            record = self._execute(job, source, job.repaired, direction="wrong_pass", label=f"exploit-{repeat + 1}")
+            record = self._execute(
+                job, source, job.repaired, direction="wrong_pass", label=f"exploit-{repeat + 1}"
+            )
             records["exploit"].append(record)
-            self._emit(job, "task_quality.repair_control", "provisional", {"control": "exploit", "repeat": repeat + 1, **record})
+            self._emit(
+                job,
+                "task_quality.repair_control",
+                "provisional",
+                {"control": "exploit", "repeat": repeat + 1, **record},
+            )
         self._unchanged(job)
         if self._input_digest(job, source, "wrong_pass") != input_digest:
             raise ValueError("exploit input changed during repair qualification")
         all_records = [record for group in records.values() for record in group]
-        references = [self._path(record["evidence_ref"]) for record in all_records if record["measured"]]
+        references = [
+            self._path(record["evidence_ref"]) for record in all_records if record["measured"]
+        ]
         measured = all(record["measured"] for record in all_records) and len(set(references)) == 9
         rewards = {name: [record["reward"] for record in group] for name, group in records.items()}
-        qualified = measured and rewards == {"reference": [1.0] * 3, "nop": [0.0] * 3, "exploit": [0.0] * 3}
+        qualified = measured and rewards == {
+            "reference": [1.0] * 3,
+            "nop": [0.0] * 3,
+            "exploit": [0.0] * 3,
+        }
         payload = {
             **job.payload,
             "original_task_package": str(job.original),
@@ -418,8 +510,22 @@ class TaskQualityLiveWorker:
             "qualified": qualified,
             "measured": measured,
         }
-        event_type = "task_quality.repair_qualified" if qualified else "task_quality.repair_rejected" if measured else "task_quality.repair_unavailable"
-        event = self._emit(job, event_type, "confirmed" if qualified else "refuted" if measured else "provisional", payload, idempotency_key=f"tq-qualified:{job.event_id}:{job.repaired_digest}" if qualified else None)
+        event_type = (
+            "task_quality.repair_qualified"
+            if qualified
+            else "task_quality.repair_rejected"
+            if measured
+            else "task_quality.repair_unavailable"
+        )
+        event = self._emit(
+            job,
+            event_type,
+            "confirmed" if qualified else "refuted" if measured else "provisional",
+            payload,
+            idempotency_key=f"tq-qualified:{job.event_id}:{job.repaired_digest}"
+            if qualified
+            else None,
+        )
         if qualified:
             self._emit(
                 job,
@@ -436,11 +542,18 @@ class TaskQualityLiveWorker:
                 },
                 idempotency_key=f"tq-asset:{job.event_id}:{job.repaired_digest}",
             )
-        return {"qualified": qualified, "measured": measured, "control_rewards": rewards, "event": event}
+        return {
+            "qualified": qualified,
+            "measured": measured,
+            "control_rewards": rewards,
+            "event": event,
+        }
 
     def run_once(self) -> dict[str, Any] | None:
         """Lease only Task Quality jobs; acknowledge only measured completion."""
-        envelope = self.queue.claim(self.worker_id, job_types=JOB_TYPES, lease_seconds=self.lease_seconds)
+        envelope = self.queue.claim(
+            self.worker_id, job_types=JOB_TYPES, lease_seconds=self.lease_seconds
+        )
         if envelope is None:
             return None
         try:
@@ -448,21 +561,23 @@ class TaskQualityLiveWorker:
         except BaseException as exc:
             try:
                 if isinstance(exc, Exception):
-                    self.queue.append_event({
-                        "event_id": str(uuid.uuid4()),
-                        "run_id": envelope["run_id"],
-                        "system": "task_quality",
-                        "event_type": "task_quality.failed",
-                        "seq": 0,
-                        "ts": self.clock(),
-                        "prefix_step": None,
-                        "status": "provisional",
-                        "payload": {
-                            "job_id": envelope["event_id"],
-                            "worker_id": self.worker_id,
-                            "error": f"{type(exc).__name__}: {exc}",
-                        },
-                    })
+                    self.queue.append_event(
+                        {
+                            "event_id": str(uuid.uuid4()),
+                            "run_id": envelope["run_id"],
+                            "system": "task_quality",
+                            "event_type": "task_quality.failed",
+                            "seq": 0,
+                            "ts": self.clock(),
+                            "prefix_step": None,
+                            "status": "provisional",
+                            "payload": {
+                                "job_id": envelope["event_id"],
+                                "worker_id": self.worker_id,
+                                "error": f"{type(exc).__name__}: {exc}",
+                            },
+                        }
+                    )
             finally:
                 self.queue.release(envelope["event_id"], lease_token=envelope["lease_token"])
             raise

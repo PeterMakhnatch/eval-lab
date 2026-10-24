@@ -46,14 +46,30 @@ class Journal:
                 self.keys[idempotency_key] = stored
             return copy.deepcopy(stored)
 
-    def add(self, event_type="trace.partial", *, system="task_quality", run_id="run-1", event_id=None,
-            status="provisional", prefix_step=None, **payload):
-        return self.append_event({
-            "event_id": event_id or f"event-{len(self.events) + 1}",
-            "run_id": run_id, "system": system, "event_type": event_type,
-            "seq": 0, "ts": NOW.isoformat(), "prefix_step": prefix_step,
-            "status": status, "payload": payload,
-        })
+    def add(
+        self,
+        event_type="trace.partial",
+        *,
+        system="task_quality",
+        run_id="run-1",
+        event_id=None,
+        status="provisional",
+        prefix_step=None,
+        **payload,
+    ):
+        return self.append_event(
+            {
+                "event_id": event_id or f"event-{len(self.events) + 1}",
+                "run_id": run_id,
+                "system": system,
+                "event_type": event_type,
+                "seq": 0,
+                "ts": NOW.isoformat(),
+                "prefix_step": prefix_step,
+                "status": status,
+                "payload": payload,
+            }
+        )
 
     def read_events(self, *, after_seq=0, limit=100):
         with self.lock:
@@ -80,10 +96,17 @@ def app(journal):
 
 
 def _post(client, *, action="pause", run_id="run-1", request_id="request-1", headers=AUTH, **extra):
-    return client.post("/api/intervene", headers=headers, json={
-        "action": action, "run_id": run_id, "reason": "Inspect the verifier before continuing",
-        "request_id": request_id, **extra,
-    })
+    return client.post(
+        "/api/intervene",
+        headers=headers,
+        json={
+            "action": action,
+            "run_id": run_id,
+            "reason": "Inspect the verifier before continuing",
+            "request_id": request_id,
+            **extra,
+        },
+    )
 
 
 def _stream(app, *, cursor=None, stop: Callable[[str], bool], on_frame=None):
@@ -92,6 +115,7 @@ def _stream(app, *, cursor=None, stop: Callable[[str], bool], on_frame=None):
     TestClient/httpx buffer an infinite SSE body; this transport instead sends an
     actual http.disconnect, without a live server, network, or timing sleeps.
     """
+
     async def run():
         disconnected = asyncio.Event()
         request_sent = False
@@ -117,10 +141,17 @@ def _stream(app, *, cursor=None, stop: Callable[[str], bool], on_frame=None):
                     disconnected.set()
 
         scope = {
-            "type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
-            "http_version": "1.1", "method": "GET", "scheme": "http",
-            "path": "/api/stream", "raw_path": b"/api/stream", "query_string": b"",
-            "root_path": "", "server": ("testserver", 80), "client": ("testclient", 1),
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/api/stream",
+            "raw_path": b"/api/stream",
+            "query_string": b"",
+            "root_path": "",
+            "server": ("testserver", 80),
+            "client": ("testclient", 1),
             "headers": [(b"last-event-id", cursor.encode())] if cursor is not None else [],
         }
         await asyncio.wait_for(app(scope, receive, send), timeout=5)
@@ -147,8 +178,15 @@ def test_dashboard_serves_all_production_parts_without_exposing_operator_token(a
         response = client.get("/")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    for label in ("Public Corpus Queue", "Three Real-Time Systems", "Task Quality", "Reward Seeker",
-                  "Misalignment Monitor", "Live Interventions", "Verified Asset Store"):
+    for label in (
+        "Public Corpus Queue",
+        "Three Real-Time Systems",
+        "Task Quality",
+        "Reward Seeker",
+        "Misalignment Monitor",
+        "Live Interventions",
+        "Verified Asset Store",
+    ):
         assert label in response.text
     assert "new EventSource('/api/stream')" in response.text
     assert TOKEN not in response.text
@@ -159,17 +197,40 @@ def test_dashboard_serves_all_production_parts_without_exposing_operator_token(a
 def test_state_projects_queue_workers_growing_traces_findings_and_distinct_assets(app, journal):
     journal.add("task_quality.started", worker_id="tq-worker")
     journal.add(prefix_step=1, step={"step_id": 1, "message": "first"})
-    journal.add(prefix_step=2, steps=[{"step_id": 1, "message": "first updated"}, {"step_id": 2, "message": "second"}])
+    journal.add(
+        prefix_step=2,
+        steps=[{"step_id": 1, "message": "first updated"}, {"step_id": 2, "message": "second"}],
+    )
     journal.add(system="reward_seeker", prefix_step=1, step={"step_id": 1, "message": "attack"})
-    journal.add(system="misalignment", prefix_step=2, partial_trace={"steps": [{"step_id": 2, "message": "observed"}]})
+    journal.add(
+        system="misalignment",
+        prefix_step=2,
+        partial_trace={"steps": [{"step_id": 2, "message": "observed"}]},
+    )
     journal.add("qa.finding/v1", finding_id="finding-1", summary="Verifier bypass", severity="high")
     with TestClient(app) as client:
         provisional = client.get("/api/state").json()
         assert provisional["suspicion_cards"][0]["status"] == "provisional"
-        journal.add("qa.finding/v1", finding_id="finding-1", summary="Replay disproved bypass", severity="high", status="refuted")
+        journal.add(
+            "qa.finding/v1",
+            finding_id="finding-1",
+            summary="Replay disproved bypass",
+            severity="high",
+            status="refuted",
+        )
         journal.add("asset.verified", status="confirmed", asset_id="repair-1", kind="repaired_task")
-        journal.add("asset.verified", status="confirmed", asset={"asset_id": "repair-1", "kind": "repaired_task"})
-        journal.add("asset.verified", system="reward_seeker", status="confirmed", asset_id="exploit-1", kind="exploit_witness")
+        journal.add(
+            "asset.verified",
+            status="confirmed",
+            asset={"asset_id": "repair-1", "kind": "repaired_task"},
+        )
+        journal.add(
+            "asset.verified",
+            system="reward_seeker",
+            status="confirmed",
+            asset_id="exploit-1",
+            kind="exploit_witness",
+        )
         journal.add("asset.verified", asset_id="not-verified", kind="labeled_trace")
         state = client.get("/api/state").json()
     assert state["queue"]["depth"] == 7
@@ -202,11 +263,22 @@ def test_queue_lease_snapshot_is_authoritative_over_stale_worker_start(app, jour
 def test_projection_retention_is_bounded_without_losing_distinct_asset_counts(journal):
     projection = LiveProjection(max_runs=2, max_steps=2, max_cards=2)
     for run in range(3):
-        projection.apply(journal.add(run_id=f"run-{run}", prefix_step=3,
-                                     steps=[{"step_id": i} for i in (1, 2, 3)]))
-        projection.apply(journal.add("monitor.suspicion", run_id=f"run-{run}", finding_id=f"finding-{run}"))
-        projection.apply(journal.add("asset.verified", status="confirmed", asset_id=f"asset-{run}", kind="labeled_trace"))
-    projection.apply(journal.add("asset.verified", status="confirmed", asset_id="asset-0", kind="labeled_trace"))
+        projection.apply(
+            journal.add(
+                run_id=f"run-{run}", prefix_step=3, steps=[{"step_id": i} for i in (1, 2, 3)]
+            )
+        )
+        projection.apply(
+            journal.add("monitor.suspicion", run_id=f"run-{run}", finding_id=f"finding-{run}")
+        )
+        projection.apply(
+            journal.add(
+                "asset.verified", status="confirmed", asset_id=f"asset-{run}", kind="labeled_trace"
+            )
+        )
+    projection.apply(
+        journal.add("asset.verified", status="confirmed", asset_id="asset-0", kind="labeled_trace")
+    )
     state = projection.state(journal.queue_snapshot())
     assert len(state["partial_traces"]) == len(state["suspicion_cards"]) == 2
     assert all([s["step_id"] for s in t["steps"]] == [2, 3] for t in state["partial_traces"])
@@ -314,7 +386,9 @@ def test_sse_invalid_or_unknown_cursor_never_silently_restarts(app, cursor, expe
     assert response.status_code == expected
 
 
-@pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": TOKEN}])
+@pytest.mark.parametrize(
+    "headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": TOKEN}]
+)
 def test_operator_interventions_require_authentication(app, journal, headers):
     with TestClient(app) as client:
         response = _post(client, headers=headers)
@@ -333,7 +407,9 @@ def test_unconfigured_control_gate_fails_closed_but_dashboard_remains_readable(j
 
 
 @pytest.mark.parametrize("action", ["pause", "cancel", "quarantine"])
-def test_operator_intervention_records_authenticated_audit_and_only_requests_action(app, journal, action):
+def test_operator_intervention_records_authenticated_audit_and_only_requests_action(
+    app, journal, action
+):
     journal.add(prefix_step=1, step={"step_id": 1})
     with TestClient(app) as client:
         response = _post(client, action=action)
@@ -346,8 +422,12 @@ def test_operator_intervention_records_authenticated_audit_and_only_requests_act
     assert event["event_type"] == "operator.control_requested"
     assert event["status"] == "provisional"
     assert event["payload"] == {
-        "request_id": "request-1", "action": action, "target": "run-1", "operator": "peter",
-        "reason": "Inspect the verifier before continuing", "state": "requested",
+        "request_id": "request-1",
+        "action": action,
+        "target": "run-1",
+        "operator": "peter",
+        "reason": "Inspect the verifier before continuing",
+        "state": "requested",
     }
     assert event["ts"] == NOW.isoformat()
     assert TOKEN not in json.dumps(event)
@@ -385,7 +465,9 @@ def test_simultaneous_intervention_request_reconciles_the_journal_winner(app, jo
 
 
 def test_intervention_id_cannot_be_reused_by_a_different_operator(journal):
-    app = create_app(journal, operator_tokens={TOKEN: "peter", "second-capability": "other"}, clock=lambda: NOW)
+    app = create_app(
+        journal, operator_tokens={TOKEN: "peter", "second-capability": "other"}, clock=lambda: NOW
+    )
     with TestClient(app) as client:
         assert _post(client).status_code == 202
         response = _post(client, headers={"Authorization": "Bearer second-capability"})
@@ -393,10 +475,17 @@ def test_intervention_id_cannot_be_reused_by_a_different_operator(journal):
     assert len(journal.events) == 1
 
 
-@pytest.mark.parametrize("extra", [
-    {"action": "delete"}, {"reason": "  "}, {"run_id": ""}, {"operator": "forged"},
-    {"request_id": "unsafe\ninjected"}, {"target": "\x00"},
-])
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"action": "delete"},
+        {"reason": "  "},
+        {"run_id": ""},
+        {"operator": "forged"},
+        {"request_id": "unsafe\ninjected"},
+        {"target": "\x00"},
+    ],
+)
 def test_invalid_interventions_never_write_to_journal(app, journal, extra):
     with TestClient(app) as client:
         response = _post(client, **extra)
@@ -416,16 +505,31 @@ def test_intervention_is_not_acknowledged_when_durable_append_fails(app, journal
     assert "requested" not in response.json()
 
 
-@pytest.mark.parametrize(("action", "run_state"), [("pause", "paused"), ("cancel", "stopped"), ("quarantine", "quarantined")])
+@pytest.mark.parametrize(
+    ("action", "run_state"),
+    [("pause", "paused"), ("cancel", "stopped"), ("quarantine", "quarantined")],
+)
 def test_run_state_changes_only_after_executor_applied_event(app, journal, action, run_state):
     journal.add(prefix_step=1, step={"step_id": 1})
     with TestClient(app) as client:
         assert _post(client, action=action).status_code == 202
-        journal.add("control.acknowledged", system="misalignment", request_id="request-1", executor_id="executor-1")
+        journal.add(
+            "control.acknowledged",
+            system="misalignment",
+            request_id="request-1",
+            executor_id="executor-1",
+        )
         acknowledged = client.get("/api/state").json()
         assert acknowledged["interventions"][0]["state"] == "acknowledged"
         assert acknowledged["partial_traces"][0]["run_state"] == "running"
-        journal.add("control.applied", system="misalignment", status="applied", request_id="request-1", executor_id="executor-1", run_state=run_state)
+        journal.add(
+            "control.applied",
+            system="misalignment",
+            status="applied",
+            request_id="request-1",
+            executor_id="executor-1",
+            run_state=run_state,
+        )
         applied = client.get("/api/state").json()
         assert applied["interventions"][0]["state"] == "applied"
         assert applied["partial_traces"][0]["run_state"] == run_state
@@ -454,7 +558,11 @@ def test_factory_requires_explicit_database_before_constructing_queue(monkeypatc
     def forbidden(*args, **kwargs):
         pytest.fail("No implicit database/queue may be constructed")
 
-    monkeypatch.setitem(sys.modules, "evallab.production.corpus_queue", SimpleNamespace(ContinuousWorkQueue=forbidden))
+    monkeypatch.setitem(
+        sys.modules,
+        "evallab.production.corpus_queue",
+        SimpleNamespace(ContinuousWorkQueue=forbidden),
+    )
     monkeypatch.delenv("EVALLAB_PRODUCTION_DATABASE", raising=False)
     with pytest.raises(ValueError, match="EVALLAB_PRODUCTION_DATABASE"):
         app_from_env()

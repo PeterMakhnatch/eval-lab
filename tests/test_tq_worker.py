@@ -94,7 +94,8 @@ class QABackend:
         if self.real_static:
             return static_observation(task)
         return AuditObservation(
-            stage="static", status="recorded",
+            stage="static",
+            status="recorded",
             facts={"coverage": "harbor-test-source", "a_unstated_literal": True},
         )
 
@@ -112,13 +113,20 @@ class QABackend:
         reward = values.pop(0) if len(values) > 1 else values[0]
         name = "reused" if self.same_evidence else f"{agent}-{len(self.calls)}"
         return AuditObservation(
-            stage="oracle" if agent == "oracle" else "nop", status=self.status,
-            facts={"reward": reward, "exception": self.exception, "job_path": str(self.root / name)},
+            stage="oracle" if agent == "oracle" else "nop",
+            status=self.status,
+            facts={
+                "reward": reward,
+                "exception": self.exception,
+                "job_path": str(self.root / name),
+            },
         )
 
 
 class Replay:
-    def __init__(self, original: Path, *, original_reward: Any = 1.0, repaired_reward: Any = 0.0) -> None:
+    def __init__(
+        self, original: Path, *, original_reward: Any = 1.0, repaired_reward: Any = 0.0
+    ) -> None:
         self.original = original
         self.original_reward = original_reward
         self.repaired_reward = repaired_reward
@@ -134,11 +142,15 @@ class Replay:
             self.before(trial, grader, work)
         self.calls.append({"trial": trial, "grader": grader, "work": work})
         return {
-            "regraded": self.original_reward if grader.package == self.original else self.repaired_reward,
+            "regraded": self.original_reward
+            if grader.package == self.original
+            else self.repaired_reward,
             "refusals": self.refusals,
             "execution_error": self.error,
             "outcome": "flips",
-            "job_dir": str(repo_root / "reused-replay") if self.same_evidence else str(work / "job"),
+            "job_dir": str(repo_root / "reused-replay")
+            if self.same_evidence
+            else str(work / "job"),
         }
 
 
@@ -156,7 +168,9 @@ def package(path: Path, *, repaired: bool = False) -> Path:
 
 def trial(path: Path, *, reward: float = 1.0) -> Path:
     (path / "verifier").mkdir(parents=True)
-    (path / "result.json").write_text(json.dumps({"verifier_result": {"rewards": {"reward": reward}}}))
+    (path / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": reward}}})
+    )
     (path / "verifier/agent.diff").write_text(PATCH)
     return path
 
@@ -167,13 +181,21 @@ def setup(tmp_path: Path):
     repaired = package(tmp_path / "repaired", repaired=True)
     source = trial(tmp_path / "trial")
     envelope = {
-        "event_id": "job-1", "run_id": "live-run-1", "system": "queue",
-        "event_type": "task_quality.audit_task", "seq": 1, "ts": NOW,
-        "prefix_step": None, "status": "applied",
+        "event_id": "job-1",
+        "run_id": "live-run-1",
+        "system": "queue",
+        "event_type": "task_quality.audit_task",
+        "seq": 1,
+        "ts": NOW,
+        "prefix_step": None,
+        "status": "applied",
         "payload": {
-            "task_package": "original", "repaired_task": "repaired",
-            "passing_runs": ["trial"], "failing_runs": [],
-            "dataset_id": "fixture", "item_id": "format-task",
+            "task_package": "original",
+            "repaired_task": "repaired",
+            "passing_runs": ["trial"],
+            "failing_runs": [],
+            "dataset_id": "fixture",
+            "item_id": "format-task",
         },
     }
     queue = MemoryQueue()
@@ -183,8 +205,15 @@ def setup(tmp_path: Path):
         queue, repo_root=tmp_path, backend=backend, replay_runner=replay, clock=lambda: NOW
     )
     return SimpleNamespace(
-        root=tmp_path, original=original, repaired=repaired, source=source,
-        envelope=envelope, queue=queue, backend=backend, replay=replay, worker=worker,
+        root=tmp_path,
+        original=original,
+        repaired=repaired,
+        source=source,
+        envelope=envelope,
+        queue=queue,
+        backend=backend,
+        replay=replay,
+        worker=worker,
     )
 
 
@@ -278,7 +307,9 @@ def test_infrastructure_or_shared_execution_cannot_confirm_or_refute(setup, fail
     assert finding_events(s.queue)[-1]["status"] == "provisional"
 
 
-def test_existing_static_reader_and_counterfactual_matrix_are_integrated(setup, monkeypatch) -> None:
+def test_existing_static_reader_and_counterfactual_matrix_are_integrated(
+    setup, monkeypatch
+) -> None:
     s = setup
     s.backend.real_static = True
     matrices = []
@@ -287,7 +318,9 @@ def test_existing_static_reader_and_counterfactual_matrix_are_integrated(setup, 
     def matrix_runner(matrix, *, root):
         matrices.append(matrix)
         return SimpleNamespace(
-            results=[{"status": "ok", "rewards": [1.0 if len(matrices) == 1 else 0.0], "error": None}],
+            results=[
+                {"status": "ok", "rewards": [1.0 if len(matrices) == 1 else 0.0], "error": None}
+            ],
             receipt_path=root / "runs" / matrix.name / "receipt.json",
         )
 
@@ -304,7 +337,10 @@ def test_existing_static_reader_and_counterfactual_matrix_are_integrated(setup, 
     assert [matrix.task for matrix in matrices] == [str(s.original), str(s.repaired)]
     final = events[-1]["payload"]
     assert final["original"]["execution"]["input_kind"] == "native_patch_replay"
-    assert final["original"]["execution"]["script_sha256"] == final["repaired"]["execution"]["script_sha256"]
+    assert (
+        final["original"]["execution"]["script_sha256"]
+        == final["repaired"]["execution"]["script_sha256"]
+    )
     assert (s.source / "verifier/agent.diff").read_text() == PATCH
 
 
@@ -314,11 +350,14 @@ def test_reader_explanation_never_bypasses_differential_confirmation(setup) -> N
 
     def reader(finding: Finding, bundle: dict[str, Any]) -> Finding:
         seen.append(bundle)
-        return finding.model_copy(update={
-            "summary": "Exact newline rule is absent from the instruction",
-            "verdict": "fail", "measurement": "measured",
-            "refutation": Refutation(status="verified"),
-        })
+        return finding.model_copy(
+            update={
+                "summary": "Exact newline rule is absent from the instruction",
+                "verdict": "fail",
+                "measurement": "measured",
+                "refutation": Refutation(status="verified"),
+            }
+        )
 
     s.worker.reader = reader
     s.worker.process_job(s.envelope)
@@ -334,17 +373,28 @@ def test_reader_explanation_never_bypasses_differential_confirmation(setup) -> N
 def test_qualifies_only_nine_independent_executions_and_emits_verified_asset(setup) -> None:
     s = setup
     s.envelope["payload"].update(
-        ref_passes=99, nop=-99, exploit=-99, reference_patch="reference.patch", status="obsolete",
-        fixed_task="independent-heldout", candidate_digest="sha256:known-candidate",
+        ref_passes=99,
+        nop=-99,
+        exploit=-99,
+        reference_patch="reference.patch",
+        status="obsolete",
+        fixed_task="independent-heldout",
+        candidate_digest="sha256:known-candidate",
     )
     result = s.worker.qualify_repair(s.envelope)
     assert result["qualified"] is True
     assert result["measured"] is True
-    assert result["control_rewards"] == {"reference": [1.0] * 3, "nop": [0.0] * 3, "exploit": [0.0] * 3}
+    assert result["control_rewards"] == {
+        "reference": [1.0] * 3,
+        "nop": [0.0] * 3,
+        "exploit": [0.0] * 3,
+    }
     assert s.backend.calls == [(s.repaired, "oracle")] * 3 + [(s.repaired, "nop")] * 3
     assert len(s.replay.calls) == 3
     assert s.backend.bound_patches == [(s.repaired, s.root / "reference.patch")]
-    controls = [event for event in s.queue.events if event["event_type"] == "task_quality.repair_control"]
+    controls = [
+        event for event in s.queue.events if event["event_type"] == "task_quality.repair_control"
+    ]
     assert len(controls) == 9
     assert all(event["status"] == "provisional" for event in controls)
     qualified = result["event"]
@@ -353,7 +403,11 @@ def test_qualifies_only_nine_independent_executions_and_emits_verified_asset(set
     payload = qualified["payload"]
     assert payload["status"] == "confirmed"
     assert (payload["ref_passes"], payload["nop"], payload["exploit"]) == (3, 0, 0)
-    assert (payload["reference_trials"], payload["nop_trials"], payload["exploit_trials"]) == (3, 3, 3)
+    assert (payload["reference_trials"], payload["nop_trials"], payload["exploit_trials"]) == (
+        3,
+        3,
+        3,
+    )
     assert payload["task_package"] == str(s.repaired)
     assert payload["original_task_package"] == str(s.original)
     assert payload["fixed_task"] == "independent-heldout"
@@ -368,7 +422,17 @@ def test_qualifies_only_nine_independent_executions_and_emits_verified_asset(set
     assert asset["payload"]["item_id"] == "format-task"
 
 
-@pytest.mark.parametrize("group,score", [("oracle", 0.0), ("oracle", 0.5), ("nop", 1.0), ("nop", 0.1), ("exploit", 1.0), ("exploit", 0.5)])
+@pytest.mark.parametrize(
+    "group,score",
+    [
+        ("oracle", 0.0),
+        ("oracle", 0.5),
+        ("nop", 1.0),
+        ("nop", 0.1),
+        ("exploit", 1.0),
+        ("exploit", 0.5),
+    ],
+)
 def test_any_incorrect_control_rejects_repair_without_promoting(setup, group, score) -> None:
     s = setup
     if group == "exploit":
@@ -380,10 +444,16 @@ def test_any_incorrect_control_rejects_repair_without_promoting(setup, group, sc
     assert result["measured"] is True
     assert result["event"]["event_type"] == "task_quality.repair_rejected"
     assert result["event"]["status"] == "refuted"
-    assert not any(event["event_type"] in {"task_quality.repair_qualified", "asset.verified"} for event in s.queue.events)
+    assert not any(
+        event["event_type"] in {"task_quality.repair_qualified", "asset.verified"}
+        for event in s.queue.events
+    )
 
 
-@pytest.mark.parametrize("failure", ["missing_reward", "boolean_reward", "exception", "status", "reused_control", "reused_exploit"])
+@pytest.mark.parametrize(
+    "failure",
+    ["missing_reward", "boolean_reward", "exception", "status", "reused_control", "reused_exploit"],
+)
 def test_incomplete_or_reused_controls_never_qualify(setup, failure: str) -> None:
     s = setup
     if failure == "missing_reward":
@@ -451,7 +521,11 @@ def test_mutating_inputs_cannot_publish_a_confirmation(setup, mutate: str) -> No
 
     def before(trial_dir, grader, work):
         if s.replay.calls:
-            path = s.repaired / "tests/test.py" if mutate == "package" else trial_dir / "verifier/agent.diff"
+            path = (
+                s.repaired / "tests/test.py"
+                if mutate == "package"
+                else trial_dir / "verifier/agent.diff"
+            )
             path.write_text("changed during replay\n")
 
     s.replay.before = before
@@ -481,7 +555,13 @@ def test_seeker_immutable_candidate_replays_same_files_on_both_graders_and_contr
         assert kwargs["files"] == {"out.txt": "wrong answer"}
         assert kwargs["backend"] == "docker"
         assert kwargs["target_dir"] == "/app"
-        return {"status": "measured", "executed": True, "reward": float(task == s.original), "error": None, "output_dir": str(kwargs["output_dir"])}
+        return {
+            "status": "measured",
+            "executed": True,
+            "reward": float(task == s.original),
+            "error": None,
+            "output_dir": str(kwargs["output_dir"]),
+        }
 
     s.worker.candidate_runner = candidate_runner
     s.worker.process_job(s.envelope)
@@ -496,8 +576,11 @@ def test_candidate_plan_is_not_executed_evidence(setup) -> None:
     s = setup
     s.envelope["payload"].update(exploit_files={"out.txt": "wrong"}, exploit_run="trial")
     s.worker.candidate_runner = lambda task, **kwargs: {
-        "status": "measured", "executed": False, "reward": 0.0,
-        "output_dir": str(kwargs["output_dir"]), "error": None,
+        "status": "measured",
+        "executed": False,
+        "reward": 0.0,
+        "output_dir": str(kwargs["output_dir"]),
+        "error": None,
     }
     assert s.worker.process_job(s.envelope)["complete"] is False
     assert finding_events(s.queue)[-1]["status"] == "provisional"

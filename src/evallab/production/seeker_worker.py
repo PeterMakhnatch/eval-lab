@@ -170,9 +170,7 @@ class SeekerFailureMemory:
     records: list[FailedShortcutRecord] = field(default_factory=list)
     _signatures: set[str] = field(default_factory=set, init=False, repr=False)
     _digests: set[str] = field(default_factory=set, init=False, repr=False)
-    _entry_Mechanism_keys: set[tuple[str, str]] = field(
-        default_factory=set, init=False, repr=False
-    )
+    _entry_Mechanism_keys: set[tuple[str, str]] = field(default_factory=set, init=False, repr=False)
     _exhausted_entries: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -292,7 +290,9 @@ class SeekerFailureMemory:
         return "\n".join(lines)
 
     @classmethod
-    def from_events(cls, events: Sequence[Mapping[str, Any]], *, task_id: str) -> SeekerFailureMemory:
+    def from_events(
+        cls, events: Sequence[Mapping[str, Any]], *, task_id: str
+    ) -> SeekerFailureMemory:
         memory = cls()
         seen_attempts: set[tuple[str, int]] = set()
         for envelope in events:
@@ -453,7 +453,14 @@ class SeekerJobOutcome:
 
 
 AttemptGenerator = Callable[
-    [ResolvedSeekerTask, int, HackbookTaskCue | None, Sequence[HackbookTaskCue], SeekerFailureMemory, Path],
+    [
+        ResolvedSeekerTask,
+        int,
+        HackbookTaskCue | None,
+        Sequence[HackbookTaskCue],
+        SeekerFailureMemory,
+        Path,
+    ],
     SeekerAttemptCandidate | Mapping[str, Any],
 ]
 CandidateGrader = Callable[..., dict[str, Any]]
@@ -589,9 +596,7 @@ def match_task_hackbook_cues(
     """Match a task package and/or task cue text against false-pass Hackbook entries."""
     catalog = list(entries) if entries is not None else load_hackbook(root)
     entry_by_id = {
-        entry.id: entry
-        for entry in catalog
-        if entry.direction in {"false_pass", "either"}
+        entry.id: entry for entry in catalog if entry.direction in {"false_pass", "either"}
     }
     scored: dict[str, HackbookTaskCue] = {}
 
@@ -761,7 +766,9 @@ def verify_differential_replay(
         )
     )
     orig_reward = _optional_float(original_res.get("reward"))
-    orig_status = str(original_res.get("status") or ("measured" if orig_reward is not None else "error"))
+    orig_status = str(
+        original_res.get("status") or ("measured" if orig_reward is not None else "error")
+    )
     failed_tests = _extract_failed_test_ids(original_res)
     excerpts = tuple(failure_excerpts(original_res))
     orig_trial = str(
@@ -771,7 +778,11 @@ def verify_differential_replay(
         or up_dir
     )
 
-    if orig_status != "measured" or original_res.get("error") or not _is_exact_reward(orig_reward, 1.0):
+    if (
+        orig_status != "measured"
+        or original_res.get("error")
+        or not _is_exact_reward(orig_reward, 1.0)
+    ):
         reason = str(
             original_res.get("error")
             or f"original grader returned reward={orig_reward} (status={orig_status})"
@@ -1016,9 +1027,7 @@ class RewardSeekerLiveWorker:
             )
 
     @asynccontextmanager
-    async def _lease_heartbeat(
-        self, event_id: str, lease_token: str
-    ) -> AsyncIterator[None]:
+    async def _lease_heartbeat(self, event_id: str, lease_token: str) -> AsyncIterator[None]:
         async def heartbeat() -> None:
             interval = max(1.0, min(30.0, self.lease_seconds / 3))
             while True:
@@ -1111,7 +1120,10 @@ class RewardSeekerLiveWorker:
                 f"task {task_id!r} matched sealed tb4-audit-v1 TEST split identifier(s): {leaks}"
             )
 
-        measurable_flag = raw_payload.get("measurable", meta.get("measurable", raw_payload.get("runnable", meta.get("runnable", True))))
+        measurable_flag = raw_payload.get(
+            "measurable",
+            meta.get("measurable", raw_payload.get("runnable", meta.get("runnable", True))),
+        )
         if measurable_flag is False:
             raise SeekerRefusalError(f"task {task_id!r} is marked not measurable / not runnable")
 
@@ -1265,9 +1277,7 @@ class RewardSeekerLiveWorker:
                 if not isinstance(item, Mapping):
                     continue
                 files_written = tuple(str(x) for x in (item.get("files_written") or ()))
-                entry_id = (
-                    str(item["hackbook_entry_id"]) if item.get("hackbook_entry_id") else None
-                )
+                entry_id = str(item["hackbook_entry_id"]) if item.get("hackbook_entry_id") else None
                 taxonomy_class = str(item.get("taxonomy_class") or "weak_check")
                 mechanism = str(item.get("mechanism") or "")
                 target_check = str(item["target_check"]) if item.get("target_check") else None
@@ -1326,7 +1336,9 @@ class RewardSeekerLiveWorker:
         shutil.copytree(
             task.original_task,
             task_dest,
-            ignore=shutil.ignore_patterns("solution", "solutions", "oracle", "cheat", "__pycache__", ".git"),
+            ignore=shutil.ignore_patterns(
+                "solution", "solutions", "oracle", "cheat", "__pycache__", ".git"
+            ),
         )
         (workspace / "submission").mkdir(parents=True, exist_ok=True)
         (workspace / "hackbook.md").write_text(
@@ -1433,10 +1445,13 @@ class RewardSeekerLiveWorker:
                     notes = dict(parsed)
             except ValueError:
                 notes = {}
-        cue_id = str(
-            notes.get("hackbook_entry_id")
-            or (default_cue.entry_id if default_cue is not None else "")
-        ) or None
+        cue_id = (
+            str(
+                notes.get("hackbook_entry_id")
+                or (default_cue.entry_id if default_cue is not None else "")
+            )
+            or None
+        )
         taxonomy_class = str(
             notes.get("class")
             or (default_cue.taxonomy_class if default_cue is not None else "weak_check")
@@ -1818,7 +1833,7 @@ class RewardSeekerLiveWorker:
                         "blocked_entry_ids": memory.blocked_entry_ids,
                         "skipped_duplicates": skipped_duplicates,
                         "step": {
-                            "step_index": attempts_run,
+                            "step_id": attempts_run,
                             "phase": "attempt_started",
                             "hackbook_entry_id": candidate.hackbook_entry_id,
                             "mechanism": candidate.mechanism,
@@ -1921,13 +1936,12 @@ class RewardSeekerLiveWorker:
                     "failure_reason": grade.failure_reason,
                     "failed_tests": list(grade.failed_tests),
                     "failure_excerpts": [
-                        {"test": name, "excerpt": text}
-                        for name, text in grade.failure_excerpts
+                        {"test": name, "excerpt": text} for name, text in grade.failure_excerpts
                     ],
                     "original_trial_dir": grade.original_trial_dir,
                     "repaired_trial_dir": grade.repaired_trial_dir,
                     "step": {
-                        "step_index": attempts_run,
+                        "step_id": attempts_run,
                         "phase": "grader_feedback",
                         "original_reward": grade.original_reward,
                         "repaired_reward": grade.repaired_reward,
@@ -1973,16 +1987,14 @@ class RewardSeekerLiveWorker:
                     and _is_exact_reward(grade.repaired_reward, 0.0)
                 ):
                     preserved_failing_runs = list(task.raw_payload.get("failing_runs") or [])
-                    downstream_repaired_task = (
-                        grade.materialized_repaired_task or str(task.repaired_task)
+                    downstream_repaired_task = grade.materialized_repaired_task or str(
+                        task.repaired_task
                     )
-                    passing_runs = (
-                        [grade.original_trial_dir] if grade.original_trial_dir else []
+                    passing_runs = [grade.original_trial_dir] if grade.original_trial_dir else []
+                    repaired_runs = [grade.repaired_trial_dir] if grade.repaired_trial_dir else []
+                    finding_id = (
+                        f"seeker-{task.task_id}-{candidate_digest.removeprefix('sha256:')[:12]}"
                     )
-                    repaired_runs = (
-                        [grade.repaired_trial_dir] if grade.repaired_trial_dir else []
-                    )
-                    finding_id = f"seeker-{task.task_id}-{candidate_digest.removeprefix('sha256:')[:12]}"
                     confirmed_payload: dict[str, Any] = {
                         **task.raw_payload,
                         "worker_id": self.worker_id,
@@ -2039,8 +2051,7 @@ class RewardSeekerLiveWorker:
                     )
                     emitted.append(confirmed_event)
                     asset_id = (
-                        f"witness:{task.task_id}:"
-                        f"{candidate_digest.removeprefix('sha256:')[:12]}"
+                        f"witness:{task.task_id}:{candidate_digest.removeprefix('sha256:')[:12]}"
                     )
                     asset_event = await self._emit_event(
                         run_id=task.run_id,

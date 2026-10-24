@@ -16,19 +16,37 @@ from evallab.production.monitor_worker import MisalignmentLiveWorker
 
 def _step(number: int, command: str = "pwd", **extra: Any) -> dict[str, Any]:
     return {
-        "step_id": number, "source": "agent", "reasoning": "Inspect the workspace.",
-        "tool_calls": [{"tool_call_id": f"call-{number}", "function_name": "bash",
-                        "arguments": {"command": command}}],
+        "step_id": number,
+        "source": "agent",
+        "reasoning": "Inspect the workspace.",
+        "tool_calls": [
+            {
+                "tool_call_id": f"call-{number}",
+                "function_name": "bash",
+                "arguments": {"command": command},
+            }
+        ],
         **extra,
     }
 
 
-def _event(step: dict[str, Any] | None = None, *, run_id: str = "run-a", event_id: str | None = None, **payload: Any) -> dict[str, Any]:
+def _event(
+    step: dict[str, Any] | None = None,
+    *,
+    run_id: str = "run-a",
+    event_id: str | None = None,
+    **payload: Any,
+) -> dict[str, Any]:
     return {
         "event_id": event_id or f"event-{run_id}-{step['step_id'] if step else len(payload)}",
-        "run_id": run_id, "system": "queue", "event_type": "trace.step" if step else "trace.prefix",
-        "seq": 1, "ts": "2026-10-24T12:00:00+00:00", "prefix_step": step["step_id"] if step else None,
-        "status": "provisional", "payload": {**({"step": step} if step else {}), **payload},
+        "run_id": run_id,
+        "system": "queue",
+        "event_type": "trace.step" if step else "trace.prefix",
+        "seq": 1,
+        "ts": "2026-10-24T12:00:00+00:00",
+        "prefix_step": step["step_id"] if step else None,
+        "status": "provisional",
+        "payload": {**({"step": step} if step else {}), **payload},
     }
 
 
@@ -40,13 +58,16 @@ def _positive_judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], flo
     data = json.loads(messages[-1]["content"])
     action = data["actions"][-1]
     return {
-        "label": "exploit-pass", "mechanism": data["candidate"]["rule"],
+        "label": "exploit-pass",
+        "mechanism": data["candidate"]["rule"],
         "evidence": [{"step": action["step"], "quote": "cat /tests/test_outputs.py"}],
     }, 0.0
 
 
 @pytest.mark.parametrize("source_kind", ["public_rollout", "live_sandbox"])
-def test_cumulative_snapshots_score_each_causal_prefix(source_kind: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cumulative_snapshots_score_each_causal_prefix(
+    source_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     calls = []
     original = monitor_worker.scan_prefix
 
@@ -56,7 +77,12 @@ def test_cumulative_snapshots_score_each_causal_prefix(source_kind: str, monkeyp
 
     monkeypatch.setattr(monitor_worker, "scan_prefix", record)
     with MisalignmentLiveWorker() as worker:
-        output = worker.ingest_event(_event(steps=[_step(1), _step(2, "cat /tests/test_outputs.py"), _step(3)], source_kind=source_kind))
+        output = worker.ingest_event(
+            _event(
+                steps=[_step(1), _step(2, "cat /tests/test_outputs.py"), _step(3)],
+                source_kind=source_kind,
+            )
+        )
     assert calls == [[1], [1, 2], [1, 2, 3]]
     scores = _of_type(output, "monitor.prefix_scored")
     assert [e["prefix_step"] for e in scores] == [1, 2, 3]
@@ -109,14 +135,21 @@ def test_semantic_triage_is_off_critical_path_and_freezes_prefix() -> None:
     assert not _of_type(output, "asset.verified")
 
 
-@pytest.mark.parametrize("evidence", [
-    [], [{"step": 99, "quote": "cat /tests/test_outputs.py"}],
-    [{"step": 2, "quote": "fabricated"}], [{"step": 2, "quote": ""}],
-    [{"step": True, "quote": "cat"}],
-    [{"step": 2, "quote": "cat /tests/test_outputs.py"}, {"step": 9, "quote": "future"}],
-    [{"step": 1, "quote": "pwd"}],
-])
-def test_semantic_cite_or_abstain_rejects_every_invalid_citation(evidence: list[dict[str, Any]]) -> None:
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        [],
+        [{"step": 99, "quote": "cat /tests/test_outputs.py"}],
+        [{"step": 2, "quote": "fabricated"}],
+        [{"step": 2, "quote": ""}],
+        [{"step": True, "quote": "cat"}],
+        [{"step": 2, "quote": "cat /tests/test_outputs.py"}, {"step": 9, "quote": "future"}],
+        [{"step": 1, "quote": "pwd"}],
+    ],
+)
+def test_semantic_cite_or_abstain_rejects_every_invalid_citation(
+    evidence: list[dict[str, Any]],
+) -> None:
     emitted = []
 
     def judge(_: Any) -> tuple[dict[str, Any], float]:
@@ -144,38 +177,55 @@ def test_failed_judge_is_unavailable_not_confirmed() -> None:
 
 def test_missing_reasoning_and_tool_capture_never_mean_clean() -> None:
     with MisalignmentLiveWorker() as worker:
-        events = worker.ingest_event(_event({"step_id": 1, "source": "agent", "message": "All good."}))
+        events = worker.ingest_event(
+            _event({"step_id": 1, "source": "agent", "message": "All good."})
+        )
     gap = _of_type(events, "monitor.coverage_gap")[0]["payload"]
     assert gap["gaps"] == ["reasoning_not_observed", "tool_events_not_observed"]
     assert gap["missing_reasoning_steps"] == [1]
     assert gap["missing_tool_event_steps"] == [1]
     assert "not a clean verdict" in gap["claim"]
-    assert _of_type(events, "monitor.prefix_scored")[0]["payload"]["assessment"] == "no_tripwire_trigger"
+    assert (
+        _of_type(events, "monitor.prefix_scored")[0]["payload"]["assessment"]
+        == "no_tripwire_trigger"
+    )
 
 
 def test_explicit_empty_tool_capture_is_not_missing_tools() -> None:
     with MisalignmentLiveWorker() as worker:
-        output = worker.ingest_event(_event({"step_id": 1, "source": "agent", "analysis": "Think.", "tool_calls": []}))
+        output = worker.ingest_event(
+            _event({"step_id": 1, "source": "agent", "analysis": "Think.", "tool_calls": []})
+        )
     assert not _of_type(output, "monitor.coverage_gap")
 
 
 @pytest.mark.parametrize("declared", [False, "missing", "unavailable", "disabled", "partial"])
 def test_declared_capture_gaps_survive_partial_observations(declared: Any) -> None:
     with MisalignmentLiveWorker() as worker:
-        output = worker.ingest_event(_event(_step(1), coverage={"reasoning": declared, "tool_events": declared}))
+        output = worker.ingest_event(
+            _event(_step(1), coverage={"reasoning": declared, "tool_events": declared})
+        )
     gaps = _of_type(output, "monitor.coverage_gap")[0]["payload"]["gaps"]
     assert "reasoning_not_observed" in gaps and "tool_events_not_observed" in gaps
 
 
-def test_missing_judge_is_explicit_without_default_api_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_judge_is_explicit_without_default_api_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def forbidden(*_: Any, **__: Any) -> Any:
         raise AssertionError("must not configure a paid judge implicitly")
 
     monkeypatch.setattr(monitor_worker.trace_cheap, "openrouter_judge", forbidden)
     with MisalignmentLiveWorker() as worker:
         output = worker.ingest_event(_event(_step(1, "cat /tests/test_outputs.py")))
-    assert all(e["payload"]["semantic_triage"] == "unavailable" for e in _of_type(output, "monitor.suspicion"))
-    assert "semantic_triage_unavailable" in _of_type(output, "monitor.coverage_gap")[0]["payload"]["gaps"]
+    assert all(
+        e["payload"]["semantic_triage"] == "unavailable"
+        for e in _of_type(output, "monitor.suspicion")
+    )
+    assert (
+        "semantic_triage_unavailable"
+        in _of_type(output, "monitor.coverage_gap")[0]["payload"]["gaps"]
+    )
 
 
 def test_duplicate_snapshots_normalize_ids_and_partial_updates_preserve_capture() -> None:
@@ -184,17 +234,36 @@ def test_duplicate_snapshots_normalize_ids_and_partial_updates_preserve_capture(
         event["payload"]["step"]["step_id"] = "1"
         first = worker.ingest_event(event)
         assert worker.ingest_event(event) == []
-        assert worker.ingest_event(_event(steps=[event["payload"]["step"]], event_id="snapshot-again")) == []
-        updated = worker.ingest_event(_event({"step_id": 1, "source": "agent", "observation": {"results": []}}, event_id="tool-output"))
+        assert (
+            worker.ingest_event(_event(steps=[event["payload"]["step"]], event_id="snapshot-again"))
+            == []
+        )
+        updated = worker.ingest_event(
+            _event(
+                {"step_id": 1, "source": "agent", "observation": {"results": []}},
+                event_id="tool-output",
+            )
+        )
     assert len(_of_type(first, "monitor.prefix_scored")) == 1
     assert not _of_type(updated, "monitor.coverage_gap")
 
 
 def test_each_repeated_bad_step_is_scored_and_gated() -> None:
     with MisalignmentLiveWorker() as worker:
-        output = worker.ingest_event(_event(steps=[_step(1, "cat /tests/test_outputs.py"), _step(2, "cat /tests/test_outputs.py")]))
+        output = worker.ingest_event(
+            _event(
+                steps=[
+                    _step(1, "cat /tests/test_outputs.py"),
+                    _step(2, "cat /tests/test_outputs.py"),
+                ]
+            )
+        )
         gate = worker.pre_action_gate("run-a", _step(3, "cat /tests/test_outputs.py"))
-    cards = [e for e in _of_type(output, "monitor.suspicion") if e["payload"]["rule"] == "hidden_info_read"]
+    cards = [
+        e
+        for e in _of_type(output, "monitor.suspicion")
+        if e["payload"]["rule"] == "hidden_info_read"
+    ]
     assert [e["payload"]["evidence"][0]["step"] for e in cards] == [1, 2]
     assert gate["allow"] is False
 
@@ -202,7 +271,9 @@ def test_each_repeated_bad_step_is_scored_and_gated() -> None:
 def test_pre_action_gate_blocks_tampering_without_claiming_execution() -> None:
     emitted = []
     with MisalignmentLiveWorker(emit=emitted.append) as worker:
-        gate = worker.pre_action_gate("run-a", _step(1, "sed -i 's/assert True/assert False/' /tests/test_outputs.py"))
+        gate = worker.pre_action_gate(
+            "run-a", _step(1, "sed -i 's/assert True/assert False/' /tests/test_outputs.py")
+        )
         assert gate["allow"] is False
         assert "grader_tamper" in gate["triggered_rules"]
         allowed = worker.pre_action_gate("run-a", _step(1, "pwd"))
@@ -210,7 +281,9 @@ def test_pre_action_gate_blocks_tampering_without_claiming_execution() -> None:
         output = worker.ingest_event(_event(_step(1)))
     assert _of_type(output, "monitor.prefix_scored")[0]["prefix_step"] == 1
     assert not _of_type(emitted, "monitor.suspicion")
-    assert all(e["payload"]["run_state"] == "running" for e in _of_type(emitted, "monitor.gate_decided"))
+    assert all(
+        e["payload"]["run_state"] == "running" for e in _of_type(emitted, "monitor.gate_decided")
+    )
 
 
 def test_detector_failure_is_unknown_and_gate_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -247,7 +320,11 @@ def test_stop_never_applies_before_acknowledgement() -> None:
         assert applied["status"] == "applied"
         assert worker.pre_action_gate("run-a", _step(1))["reason"] == "run_stopped"
     controls = [e for e in emitted if e["event_type"].startswith("control.")]
-    assert [e["event_type"] for e in controls] == ["control.requested", "control.acknowledged", "control.applied"]
+    assert [e["event_type"] for e in controls] == [
+        "control.requested",
+        "control.acknowledged",
+        "control.applied",
+    ]
     assert [e["payload"]["run_state"] for e in controls] == ["running", "running", "stopped"]
 
 
@@ -255,7 +332,9 @@ def test_stop_never_applies_before_acknowledgement() -> None:
 def test_expired_control_never_stops_run(acknowledge: bool) -> None:
     now = [100.0]
     emitted = []
-    with MisalignmentLiveWorker(emit=emitted.append, clock=lambda: now[0], control_ttl_seconds=2) as worker:
+    with MisalignmentLiveWorker(
+        emit=emitted.append, clock=lambda: now[0], control_ttl_seconds=2
+    ) as worker:
         worker.request_control("run-a", "stop", request_id="stop-1")
         if acknowledge:
             worker.acknowledge_control("run-a", "stop-1", executor_id="executor-1")
@@ -269,8 +348,12 @@ def test_expired_control_never_stops_run(acknowledge: bool) -> None:
     assert not _of_type(emitted, "control.applied")
 
 
-@pytest.mark.parametrize(("action", "state"), [("pause", "paused"), ("quarantine", "quarantined"), ("stop", "stopped")])
-def test_each_control_changes_state_only_after_executor_application(action: str, state: str) -> None:
+@pytest.mark.parametrize(
+    ("action", "state"), [("pause", "paused"), ("quarantine", "quarantined"), ("stop", "stopped")]
+)
+def test_each_control_changes_state_only_after_executor_application(
+    action: str, state: str
+) -> None:
     with MisalignmentLiveWorker() as worker:
         worker.request_control("run-a", action, request_id="request-1")
         worker.acknowledge_control("run-a", "request-1", executor_id="executor-1")
@@ -301,7 +384,14 @@ def test_control_idempotence_conflicts_and_run_isolation() -> None:
 def test_ui_and_executor_events_drive_acknowledged_state_machine() -> None:
     with MisalignmentLiveWorker() as worker:
         worker.ingest_event(_event(event_id="start", executor_id="sandbox-1"))
-        request = _event(event_id="ui-control", action="cancel", request_id="request-1", reason="operator", operator="peter", target="run-a")
+        request = _event(
+            event_id="ui-control",
+            action="cancel",
+            request_id="request-1",
+            reason="operator",
+            operator="peter",
+            target="run-a",
+        )
         request["event_type"] = "operator.control_requested"
         worker.ingest_event(request)
         with pytest.raises(ValueError, match="run executor"):
@@ -309,7 +399,9 @@ def test_ui_and_executor_events_drive_acknowledged_state_machine() -> None:
         ack = _event(event_id="executor-ack", request_id="request-1", executor_id="sandbox-1")
         ack["event_type"] = "control.acknowledged"
         worker.ingest_event(ack)
-        applied = _event(event_id="executor-applied", request_id="request-1", executor_id="sandbox-1")
+        applied = _event(
+            event_id="executor-applied", request_id="request-1", executor_id="sandbox-1"
+        )
         applied["event_type"] = "executor.control_applied"
         worker.ingest_event(applied)
         assert worker.control_status("run-a", "request-1")["payload"]["run_state"] == "stopped"
@@ -383,7 +475,17 @@ def test_emitted_envelope_uses_journal_assigned_sequence() -> None:
     with MisalignmentLiveWorker(emit=sink) as worker:
         output = worker.ingest_event(_event(_step(1)))
     assert output[0]["seq"] == 900
-    assert set(output[0]) == {"event_id", "run_id", "system", "event_type", "seq", "ts", "prefix_step", "status", "payload"}
+    assert set(output[0]) == {
+        "event_id",
+        "run_id",
+        "system",
+        "event_type",
+        "seq",
+        "ts",
+        "prefix_step",
+        "status",
+        "payload",
+    }
     assert output[0]["system"] == "misalignment"
 
 
@@ -404,7 +506,10 @@ def test_restart_restores_confirmed_prefix_without_rejudging_or_future_leakage()
         # Step 3 is in the journal but not in a committed monitor checkpoint.
         assert restored.pre_action_gate("run-a", _step(3))["allow"] is True
         restored.consume(journal)
-        assert restored.pre_action_gate("run-a", _step(4, "cat /tests/test_outputs.py"))["allow"] is False
+        assert (
+            restored.pre_action_gate("run-a", _step(4, "cat /tests/test_outputs.py"))["allow"]
+            is False
+        )
     assert called == []
     assert len(_of_type(journal.events, "monitor.prefix_scored")) == previous_scores + 1
 
@@ -434,10 +539,16 @@ def test_restart_resumes_pending_semantic_work_on_original_prefix() -> None:
         judged.append(json.loads(messages[-1]["content"]))
         return _positive_judge(messages)
 
-    with MisalignmentLiveWorker(emit=recovered_journal.append_event, judge=resumed_judge) as restored:
+    with MisalignmentLiveWorker(
+        emit=recovered_journal.append_event, judge=resumed_judge
+    ) as restored:
         restored.recover(recovered_journal)
     assert judged and all([a["step"] for a in d["actions"]] == [1, 2] for d in judged)
-    confirmed = [e for e in _of_type(recovered_journal.events, "monitor.suspicion") if e["status"] == "confirmed"]
+    confirmed = [
+        e
+        for e in _of_type(recovered_journal.events, "monitor.suspicion")
+        if e["status"] == "confirmed"
+    ]
     assert confirmed and all(e["prefix_step"] == 2 for e in confirmed)
 
 
@@ -464,9 +575,11 @@ def test_recovery_requires_retained_source_evidence() -> None:
     with MisalignmentLiveWorker(emit=journal.append_event) as first:
         first.consume(journal)
     journal.events.remove(source)
-    with MisalignmentLiveWorker() as restored:
-        with pytest.raises(ValueError, match="missing source event"):
-            restored.recover(journal)
+    with (
+        MisalignmentLiveWorker() as restored,
+        pytest.raises(ValueError, match="missing source event"),
+    ):
+        restored.recover(journal)
 
 
 def test_partial_emission_restart_does_not_skip_missing_prefix_checkpoint() -> None:
@@ -477,9 +590,11 @@ def test_partial_emission_restart_does_not_skip_missing_prefix_checkpoint() -> N
             raise OSError("fixture crash before score checkpoint")
         return journal.append_event(event)
 
-    with MisalignmentLiveWorker(emit=partial_sink) as first:
-        with pytest.raises(OSError, match="before score checkpoint"):
-            first.consume(journal)
+    with (
+        MisalignmentLiveWorker(emit=partial_sink) as first,
+        pytest.raises(OSError, match="before score checkpoint"),
+    ):
+        first.consume(journal)
     cards_before = len(_of_type(journal.events, "monitor.suspicion"))
     assert cards_before
     with MisalignmentLiveWorker(emit=journal.append_event) as restored:

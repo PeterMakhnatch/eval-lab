@@ -109,7 +109,9 @@ class LiveProjection:
             worker_id = str(payload.get("worker_id") or run_id)
             if kind.endswith((".started", ".heartbeat")):
                 self.workers[system][worker_id] = {
-                    "worker_id": worker_id, "run_id": run_id, "updated_at": event["ts"]
+                    "worker_id": worker_id,
+                    "run_id": run_id,
+                    "updated_at": event["ts"],
                 }
             elif kind.endswith(_TERMINAL):
                 self.workers[system].pop(worker_id, None)
@@ -122,8 +124,12 @@ class LiveProjection:
             steps = [payload["step"]] if isinstance(payload.get("step"), dict) else []
         if steps or event.get("prefix_step") is not None:
             trace = self.traces.get(trace_key) or {
-                "run_id": run_id, "system": system, "prefix_step": None,
-                "steps": [], "truncated": False, "run_state": "running",
+                "run_id": run_id,
+                "system": system,
+                "prefix_step": None,
+                "steps": [],
+                "truncated": False,
+                "run_state": "running",
             }
             indexed = OrderedDict((step["step_id"], step) for step in trace["steps"])
             for step in steps:
@@ -135,7 +141,7 @@ class LiveProjection:
                 indexed[step_id] = {**step, "step_id": step_id}
             if len(indexed) > self.max_steps:
                 trace["truncated"] = True
-            trace["steps"] = list(indexed.values())[-self.max_steps:]
+            trace["steps"] = list(indexed.values())[-self.max_steps :]
             prefix = event.get("prefix_step")
             if isinstance(prefix, int) and not isinstance(prefix, bool):
                 trace["prefix_step"] = max(prefix, trace["prefix_step"] or 0)
@@ -147,13 +153,22 @@ class LiveProjection:
         finding = payload.get("finding")
         finding = finding if isinstance(finding, dict) else {}
         if finding or any(word in kind for word in ("finding", "suspicion", "exploit_confirmed")):
-            finding_id = str(payload.get("finding_id") or finding.get("finding_id") or f"{run_id}:{kind}")
+            finding_id = str(
+                payload.get("finding_id") or finding.get("finding_id") or f"{run_id}:{kind}"
+            )
             card = {
-                "finding_id": finding_id, "run_id": run_id, "system": system,
-                "summary": payload.get("summary") or finding.get("summary") or payload.get("reason") or kind,
+                "finding_id": finding_id,
+                "run_id": run_id,
+                "system": system,
+                "summary": payload.get("summary")
+                or finding.get("summary")
+                or payload.get("reason")
+                or kind,
                 "severity": payload.get("severity") or finding.get("severity") or "unknown",
-                "status": event["status"], "prefix_step": event.get("prefix_step"),
-                "event_id": event["event_id"], "updated_at": event["ts"],
+                "status": event["status"],
+                "prefix_step": event.get("prefix_step"),
+                "event_id": event["event_id"],
+                "updated_at": event["ts"],
                 "finding": finding,
             }
             _remember(self.cards, f"{system}:{run_id}:{finding_id}", card, self.max_cards)
@@ -161,12 +176,22 @@ class LiveProjection:
         if kind == "operator.control_requested" or kind.startswith("control."):
             request_id = str(payload.get("request_id") or event["event_id"])
             previous = self.controls.get(request_id, {})
-            state = "requested" if kind == "operator.control_requested" else kind.removeprefix("control.")
+            state = (
+                "requested"
+                if kind == "operator.control_requested"
+                else kind.removeprefix("control.")
+            )
             # A delayed delivery must not turn an applied/expired request back into a request.
-            if previous.get("state") not in {"applied", "expired"} or state == previous.get("state"):
+            if previous.get("state") not in {"applied", "expired"} or state == previous.get(
+                "state"
+            ):
                 control = {
-                    **previous, **payload, "request_id": request_id,
-                    "run_id": run_id, "state": state, "event_id": event["event_id"],
+                    **previous,
+                    **payload,
+                    "request_id": request_id,
+                    "run_id": run_id,
+                    "state": state,
+                    "event_id": event["event_id"],
                     "updated_at": event["ts"],
                 }
                 _remember(self.controls, request_id, control, self.max_cards)
@@ -174,7 +199,9 @@ class LiveProjection:
                     for trace in self.traces.values():
                         if trace["run_id"] == run_id:
                             trace["run_state"] = payload.get("run_state") or {
-                                "pause": "paused", "cancel": "stopped", "quarantine": "quarantined",
+                                "pause": "paused",
+                                "cancel": "stopped",
+                                "quarantine": "quarantined",
                             }.get(control.get("action"), "running")
 
         if kind in _ASSET_EVENTS and event["status"] in {"confirmed", "applied"}:
@@ -190,10 +217,19 @@ class LiveProjection:
                         self.asset_counts[old_kind] -= 1
                     self.asset_counts[asset_kind] += 1
                     self.asset_kinds[asset_id] = asset_kind
-                _remember(self.assets, asset_id, {
-                    **asset, "asset_id": asset_id, "kind": asset_kind,
-                    "run_id": run_id, "event_id": event["event_id"], "verified_at": event["ts"],
-                }, self.max_cards)
+                _remember(
+                    self.assets,
+                    asset_id,
+                    {
+                        **asset,
+                        "asset_id": asset_id,
+                        "kind": asset_kind,
+                        "run_id": run_id,
+                        "event_id": event["event_id"],
+                        "verified_at": event["ts"],
+                    },
+                    self.max_cards,
+                )
         self.last_seq, self.cursor = seq, str(event["event_id"])
 
     def state(self, queue: Mapping[str, Any]) -> dict[str, Any]:
@@ -211,14 +247,18 @@ class LiveProjection:
                     count = len(live)
                     workers = [w if isinstance(w, dict) else {"worker_id": w} for w in live]
             systems[system] = {
-                "active_workers": count, "workers": workers,
+                "active_workers": count,
+                "workers": workers,
                 "partial_traces": [t for t in traces if t["system"] == system],
                 "suspicion_cards": [c for c in cards if c["system"] == system],
             }
         return {
-            "cursor": self.cursor, "last_seq": self.last_seq,
+            "cursor": self.cursor,
+            "last_seq": self.last_seq,
             "queue": dict(queue),
-            "systems": systems, "partial_traces": traces, "suspicion_cards": cards,
+            "systems": systems,
+            "partial_traces": traces,
+            "suspicion_cards": cards,
             "interventions": list(self.controls.values()),
             "verified_assets": {
                 "total": len(self.asset_kinds),
@@ -291,10 +331,14 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard():
-        return HTMLResponse(_DASHBOARD, headers={
-            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-        })
+        return HTMLResponse(
+            _DASHBOARD,
+            headers={
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+            },
+        )
 
     @app.get("/api/state")
     def state():
@@ -309,7 +353,9 @@ def create_app(
                 raise HTTPException(400, "Invalid Last-Event-ID")
             previous = await asyncio.to_thread(journal.get_event, cursor)
             if previous is None:
-                raise HTTPException(409, "Unknown Last-Event-ID; reload /api/state before reconnecting")
+                raise HTTPException(
+                    409, "Unknown Last-Event-ID; reload /api/state before reconnecting"
+                )
             after_seq = int(previous["seq"])
         else:
             initial = await asyncio.to_thread(plane.state)
@@ -337,10 +383,15 @@ def create_app(
                     heartbeat_at = time.monotonic()
                 await asyncio.sleep(poll_interval)
 
-        return StreamingResponse(events(), media_type="text/event-stream", headers={
-            "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no",
-            "X-Content-Type-Options": "nosniff",
-        })
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     def operator_identity(request: Request) -> str:
         if not tokens:
@@ -351,7 +402,9 @@ def create_app(
             if hmac.compare_digest(authorization, ("Bearer " + token).encode()):
                 identity = operator
         if identity is None:
-            raise HTTPException(401, "Operator authentication required", headers={"WWW-Authenticate": "Bearer"})
+            raise HTTPException(
+                401, "Operator authentication required", headers={"WWW-Authenticate": "Bearer"}
+            )
         return identity
 
     @app.post("/api/intervene", status_code=202)
@@ -360,13 +413,22 @@ def create_app(
         request_id = body.request_id or str(uuid4())
         event_id = f"operator-control:{request_id}"
         payload = {
-            "request_id": request_id, "action": body.action, "target": body.target or body.run_id,
-            "reason": body.reason, "operator": operator, "state": "requested",
+            "request_id": request_id,
+            "action": body.action,
+            "target": body.target or body.run_id,
+            "reason": body.reason,
+            "operator": operator,
+            "state": "requested",
         }
         event = {
-            "event_id": event_id, "run_id": body.run_id, "system": "queue",
-            "event_type": "operator.control_requested", "seq": 0,
-            "ts": clock().isoformat(), "prefix_step": None, "status": "provisional",
+            "event_id": event_id,
+            "run_id": body.run_id,
+            "system": "queue",
+            "event_type": "operator.control_requested",
+            "seq": 0,
+            "ts": clock().isoformat(),
+            "prefix_step": None,
+            "status": "provisional",
             "payload": payload,
         }
         try:
@@ -381,8 +443,11 @@ def create_app(
                         raise
         except OSError as error:
             raise HTTPException(503, "Intervention could not be durably recorded") from error
-        if (existing["event_type"] != event["event_type"] or existing["run_id"] != body.run_id
-                or existing["payload"] != payload):
+        if (
+            existing["event_type"] != event["event_type"]
+            or existing["run_id"] != body.run_id
+            or existing["payload"] != payload
+        ):
             raise HTTPException(409, "request_id already belongs to a different intervention")
         return {"request_id": request_id, "state": "requested", "event": existing}
 
@@ -398,7 +463,9 @@ def app_from_env() -> FastAPI:
         raise ValueError("EVALLAB_PRODUCTION_DATABASE is required")
     token = os.environ.get("EVALLAB_OPERATOR_TOKEN")
     operator = os.environ.get("EVALLAB_OPERATOR_ID", "operator")
-    return create_app(ContinuousWorkQueue(database), operator_tokens={token: operator} if token else {})
+    return create_app(
+        ContinuousWorkQueue(database), operator_tokens={token: operator} if token else {}
+    )
 
 
 _DASHBOARD = r"""<!doctype html>

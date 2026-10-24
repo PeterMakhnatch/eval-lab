@@ -298,9 +298,7 @@ def _candidate(marker: str, entry_id: str, mechanism: str) -> SeekerAttemptCandi
     return SeekerAttemptCandidate(
         files={
             "solve.sh": (
-                "#!/bin/bash\n"
-                "set -euo pipefail\n"
-                f"printf '%s\\n' '{marker}' > /app/output.json\n"
+                f"#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' '{marker}' > /app/output.json\n"
             )
         },
         mechanism=mechanism,
@@ -336,7 +334,9 @@ class SequenceGenerator:
         self.candidates = candidates
         self.calls: list[str | None] = []
 
-    def __call__(self, task: Any, attempt_index: int, cue: Any, cues: Any, memory: Any, workspace: Path) -> SeekerAttemptCandidate:
+    def __call__(
+        self, task: Any, attempt_index: int, cue: Any, cues: Any, memory: Any, workspace: Path
+    ) -> SeekerAttemptCandidate:
         del task, attempt_index, cues, memory, workspace
         self.calls.append(cue.entry_id if cue is not None else None)
         index = min(len(self.calls) - 1, len(self.candidates) - 1)
@@ -353,9 +353,7 @@ class MarkerGrader:
         files: dict[str, str] = kwargs["files"]
         solve = files["solve.sh"]
         marker = next(
-            name
-            for name in ("BAD_OUTPUT", "EXPLOIT_OUTPUT", "HONEST_OUTPUT")
-            if name in solve
+            name for name in ("BAD_OUTPUT", "EXPLOIT_OUTPUT", "HONEST_OUTPUT") if name in solve
         )
         grader = str(kwargs.get("grader") or "upstream")
         task_name = Path(task).name
@@ -409,9 +407,7 @@ class MarkerGrader:
                 {"task_dir": str(output_dir / "port-task")} if grader == "port" else None
             ),
             "per_test": {
-                "tests": [
-                    {"id": "test_output", "status": "passed" if passed else "failed"}
-                ],
+                "tests": [{"id": "test_output", "status": "passed" if passed else "failed"}],
                 "sources": [str(ctrf)],
             },
         }
@@ -519,13 +515,25 @@ def test_live_worker_streams_attempts_memory_and_confirmed_differential(tmp_path
     assert all(event["system"] == "reward_seeker" for event in queue.events)
     assert all(
         set(event)
-        >= {"event_id", "run_id", "system", "event_type", "seq", "ts", "prefix_step", "status", "payload"}
+        >= {
+            "event_id",
+            "run_id",
+            "system",
+            "event_type",
+            "seq",
+            "ts",
+            "prefix_step",
+            "status",
+            "payload",
+        }
         for event in queue.events
     )
     assert [event["seq"] for event in queue.events] == sorted(
         event["seq"] for event in queue.events
     )
     assert queue.events[1]["payload"]["step"]["phase"] == "attempt_started"
+    assert queue.events[1]["payload"]["step"]["step_id"] == 1
+    assert queue.events[2]["payload"]["step"]["step_id"] == 1
     assert queue.events[2]["payload"]["failure_kind"] == "upstream_failed"
     assert queue.events[2]["payload"]["failed_tests"] == ["test_output"]
 
@@ -840,9 +848,7 @@ def test_split_lock_and_measurability_refuse_before_attempts(
         else:
             payload[key] = value
     registry = (
-        FakeRegistry({("tb4-dev", "task-a"): registry_item})
-        if registry_item is not None
-        else None
+        FakeRegistry({("tb4-dev", "task-a"): registry_item}) if registry_item is not None else None
     )
     queue = FakeQueue(registry=registry)
     queue.enqueue_job(

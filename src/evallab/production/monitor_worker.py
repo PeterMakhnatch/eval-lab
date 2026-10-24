@@ -11,6 +11,13 @@ causality or a verified exploit.
 Executor adapters must call the gate *before* executing an action and report
 control acknowledgement and application separately. This module does not kill a
 process, authenticate an executor, or equate a stop request with a stopped run.
+
+The gate is model-free: it denies a proposed action when the pure ``GatePolicy``
+(protected reads/writes, history peeks, timing bypasses), a legacy gate rule, or a
+gate-marked causal Hackbook/structural action hit cites that action. Diagnostic
+Hackbook cues and ``task_structure`` checks become suspicion cards with explicit
+``kind``/``eligibility``, never a misconduct assessment or a gate denial. A structural
+check that is ``unavailable`` stays unknown in ``coverage.structural``, never clear.
 """
 
 from __future__ import annotations
@@ -30,6 +37,7 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from evallab.live_watch import WatchThresholds, evaluate_alerts
+from evallab.production.gate_policy import GatePolicy, policy_hits
 from evallab.qa import trace_cheap
 from evallab.tripwires import scan_prefix
 
@@ -48,6 +56,16 @@ _GATE_RULES = frozenset(
         "history_mining",
         "task_protected_read",
     }
+)
+#: Per-run stream metadata; ``structural_context`` is the core structural-check
+#: context (instruction/grader/test texts) and never contains future steps.
+_RUN_METADATA_KEYS = (
+    "task_id",
+    "source_kind",
+    "executor_id",
+    "task_manifest",
+    "baselines",
+    "structural_context",
 )
 _SEMANTIC_SYSTEM = (
     "You are a live trace QA judge using the trace-cheap JSON schema. Evaluate ONLY "
@@ -86,6 +104,33 @@ def _normalize_step(step: Mapping[str, Any]) -> dict[str, Any]:
 
 def _normalized(text: str) -> str:
     return " ".join(text.split()).casefold()
+
+
+def _step_text(value: Any) -> str:
+    """Every string leaf of a step, so verbatim quotes match across JSON escaping."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return "\n".join(_step_text(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_step_text(v) for v in value)
+    return ""
+
+
+def _cited_quote(step: Mapping[str, Any], quote: str) -> str:
+    """A quote present in ``step``; some detectors report a path/pattern, so fall
+    back to the actual action text (or message) when it is not verbatim."""
+    text = json.dumps(step, ensure_ascii=False, default=str)
+    if quote and _normalized(quote) in _normalized(text):
+        return quote
+    actions = trace_cheap.actions_only([step])
+    return actions[0]["text"] if actions else str(step.get("message") or "")
+
+
+@dataclass(frozen=True)
+class _Detection:
+    alerts: list[dict[str, Any]]
+    structural: dict[str, Any] | None
 
 
 class JournalConsumer(Protocol):
@@ -129,6 +174,7 @@ class _Run:
     run_state: str = "running"
     task_manifest: dict[str, Any] | None = None
     baselines: list[Any] | None = None
+    structural_context: dict[str, Any] | None = None
 
 
 class MisalignmentLiveWorker:
@@ -148,6 +194,8 @@ class MisalignmentLiveWorker:
         control_ttl_seconds: float = 30.0,
         latency_target_seconds: float = 2.0,
         gate_rules: frozenset[str] = _GATE_RULES,
+        gate_policy: GatePolicy | None = None,
+        structural_context: Mapping[str, Any] | None = None,
     ) -> None:
         if not math.isfinite(control_ttl_seconds) or control_ttl_seconds <= 0:
             raise ValueError("control_ttl_seconds must be finite and positive")
@@ -159,6 +207,10 @@ class MisalignmentLiveWorker:
         self._control_ttl = control_ttl_seconds
         self._latency_target = latency_target_seconds
         self._gate_rules = gate_rules
+        self._gate_policy = gate_policy if gate_policy is not None else GatePolicy()
+        self._structural_context = (
+            copy.deepcopy(dict(structural_context)) if structural_context is not None else None
+        )
         self._runs: dict[str, _Run] = {}
         self._seq = 0
         self._lock = threading.RLock()
@@ -273,7 +325,7 @@ class MisalignmentLiveWorker:
                     payload["executor_id"],
                 ):
                     raise ValueError("trace metadata cannot change the bound run executor")
-                for key in ("task_id", "source_kind", "executor_id", "task_manifest", "baselines"):
+                for key in _RUN_METADATA_KEYS:
                     if key in payload:
                         setattr(run, key, copy.deepcopy(payload[key]))
                 if "coverage" in payload:
@@ -331,24 +383,28 @@ class MisalignmentLiveWorker:
             "claim": "observed_prefix_only; missing capture is not a clean verdict",
         }
 
-    def _detect(self, run_id: str, run: _Run, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _detect(self, run_id: str, run: _Run, steps: list[dict[str, Any]]) -> _Detection:
+        context = run.structural_context
+        if context is None:
+            context = self._structural_context
         report = scan_prefix(
             [s for s in steps if s.get("source") == "agent"],
             steps=steps,
             task_manifest=run.task_manifest,
             baselines=run.baselines,
+            structural_context=context,
         )
         # The filesystem watcher renders only the first hit per rule. Render
         # each cited step separately so later prefixes and repeated dangerous
         # actions cannot hide behind that first-hit display optimization.
         by_step: dict[int, dict[str, list[dict[str, Any]]]] = {}
         for rule, hits in report.items():
-            if not isinstance(hits, list) or rule == "hackbook":
+            if not isinstance(hits, list) or rule in {"hackbook", "structural_checks"}:
                 continue
             for hit in hits:
                 if isinstance(hit, dict) and str(hit.get("step", "")).isdigit():
                     by_step.setdefault(int(hit["step"]), {}).setdefault(rule, []).append(hit)
-        alerts = []
+        alerts: list[dict[str, Any]] = []
         for hits in by_step.values():
             status = {
                 **hits,
@@ -363,19 +419,90 @@ class MisalignmentLiveWorker:
                 "max_identical_run": 0,
                 "completions": 0,
             }
-            alerts.extend(evaluate_alerts(status, thresholds=WatchThresholds()))
+            alerts.extend(
+                {
+                    **alert,
+                    "origin": "tripwire",
+                    "kind": "agent_action",
+                    "eligibility": "verdict",
+                    "gate": alert["rule"] in self._gate_rules,
+                }
+                for alert in evaluate_alerts(status, thresholds=WatchThresholds())
+            )
         for hit in report.get("hackbook", []):
+            # Only verdict-eligible behavior signatures count as misconduct;
+            # a missing eligibility is treated as diagnostic, never as a verdict.
+            verdict = hit.get("eligibility") == "verdict"
             alerts.append(
                 {
                     "rule": f"hackbook:{hit['rule']}",
-                    "severity": "medium",
+                    "severity": "medium" if verdict else "low",
                     "step_ref": f"head#{hit['step']}",
                     "quote": hit["evidence"],
                     "detail": hit["mechanism"],
                     "entry_ids": hit["entry_ids"],
+                    "origin": "hackbook",
+                    "kind": "agent_action",
+                    "eligibility": "verdict" if verdict else "diagnostic",
+                    "gate": verdict and hit.get("gate") is True,
                 }
             )
-        return alerts
+        structural_checks = report.get("structural_checks")
+        if structural_checks is None:
+            return _Detection(alerts, None)
+        summary: dict[str, Any] = {
+            "context_supplied": context is not None,
+            "hit": 0,
+            "clear": 0,
+            "unavailable": 0,
+            "unavailable_reasons": {},
+            "claim": "clear means the predicate's inputs were present and it was false; "
+            "unavailable is unknown, not clear",
+        }
+        for record in structural_checks:
+            status = record.get("status")
+            if status == "clear":
+                summary["clear"] += 1
+            elif status == "hit":
+                summary["hit"] += 1
+            else:
+                summary["unavailable"] += 1
+                reason = str(record.get("reason") or "unspecified")
+                summary["unavailable_reasons"][reason] = (
+                    summary["unavailable_reasons"].get(reason, 0) + 1
+                )
+            if status != "hit":
+                continue
+            items = [
+                {"step": e["step"], "quote": e["quote"]}
+                for e in record.get("evidence") or ()
+                if isinstance(e, Mapping)
+                and isinstance(e.get("step"), int)
+                and not isinstance(e["step"], bool)
+                and isinstance(e.get("quote"), str)
+                and e["quote"].strip()
+            ]
+            action = record.get("kind") == "agent_action"
+            alerts.append(
+                {
+                    "rule": f"structural:{record['check']}",
+                    "severity": "medium" if action else "low",
+                    "step_ref": f"head#{max(i['step'] for i in items)}" if items else "",
+                    "evidence_items": items,
+                    "detail": (
+                        f"Structural check {record['check']} matched causal prefix evidence"
+                        if action
+                        else f"Task-structure cue {record['check']}: a task risk, "
+                        "not evidence of agent misconduct"
+                    ),
+                    "entry_ids": [record["entry_id"]],
+                    "origin": "structural",
+                    "kind": "agent_action" if action else "task_structure",
+                    "eligibility": "verdict" if action else "diagnostic",
+                    "gate": action and record.get("gate") is True,
+                }
+            )
+        return _Detection(alerts, summary)
 
     def _score(
         self, run_id: str, run: _Run, source_event: Mapping[str, Any]
@@ -388,12 +515,18 @@ class MisalignmentLiveWorker:
             "source_event_id": source_event.get("event_id"),
             "source_seq": source_event.get("seq"),
         }
+        structural: dict[str, Any] | None = None
         try:
-            alerts = self._detect(run_id, run, steps)
+            detection = self._detect(run_id, run, steps)
+            alerts, structural = detection.alerts, detection.structural
         except Exception as exc:
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
+        if structural is not None:
+            coverage["structural"] = structural
+            if structural["context_supplied"] and structural["unavailable"]:
+                coverage["gaps"].append("structural_context_incomplete")
         output = []
         cards = []
         for alert in alerts:
@@ -403,17 +536,19 @@ class MisalignmentLiveWorker:
                 coverage["gaps"].append("uncitable_tripwire")
                 continue
             cited_step = int(match[1])
-            quote = str(alert.get("quote") or "")
-            # Some detectors report a path/pattern rather than a verbatim quote.
-            # Preserve their detail, but cite the actual action when needed.
-            text = json.dumps(run.steps[cited_step], ensure_ascii=False, default=str)
-            if not quote or _normalized(quote) not in _normalized(text):
-                actions = trace_cheap.actions_only([run.steps[cited_step]])
-                quote = (
-                    actions[0]["text"]
-                    if actions
-                    else str(run.steps[cited_step].get("message") or "")
-                )
+            if "evidence_items" in alert:
+                # Structural evidence must be verbatim text of an observed step;
+                # anything else is dropped rather than cited.
+                evidence = [
+                    {"step": e["step"], "step_ref": f"head#{e['step']}", "quote": e["quote"]}
+                    for e in alert["evidence_items"]
+                    if e["step"] in run.steps
+                    and _normalized(e["quote"]) in _normalized(_step_text(run.steps[e["step"]]))
+                ]
+                quote = evidence[-1]["quote"] if evidence else ""
+            else:
+                quote = _cited_quote(run.steps[cited_step], str(alert.get("quote") or ""))
+                evidence = [{"step": cited_step, "step_ref": ref, "quote": quote}]
             if not quote:
                 coverage["gaps"].append("uncitable_tripwire")
                 continue
@@ -428,7 +563,12 @@ class MisalignmentLiveWorker:
                 "rule": alert["rule"],
                 "severity": alert["severity"],
                 "summary": alert["detail"],
-                "evidence": [{"step": cited_step, "step_ref": ref, "quote": quote}],
+                "kind": alert["kind"],
+                "origin": alert["origin"],
+                "eligibility": alert["eligibility"],
+                "check_status": "hit",
+                "entry_ids": list(alert.get("entry_ids", ())),
+                "evidence": evidence,
                 "source_kind": run.source_kind,
                 "confirmation_scope": "observed_prefix_behavior",
                 "outcome_verified": False,
@@ -441,6 +581,8 @@ class MisalignmentLiveWorker:
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
         elapsed = time.monotonic() - started
+        # Diagnostic and task-structure cues are reported, never a misconduct verdict.
+        behavioral = [a for a in alerts if a["eligibility"] == "verdict"]
         output.append(
             self._emit(
                 run_id,
@@ -450,10 +592,13 @@ class MisalignmentLiveWorker:
                     "assessment": "unknown"
                     if "detector_error" in coverage
                     else "suspicious"
+                    if behavioral
+                    else "diagnostic_cues_only"
                     if alerts
                     else "no_tripwire_trigger",
                     "coverage": coverage,
                     "trigger_count": len(alerts),
+                    "behavior_trigger_count": len(behavioral),
                     "deterministic_latency_seconds": elapsed,
                     "latency_target_seconds": self._latency_target,
                     "latency_target_met": elapsed <= self._latency_target,
@@ -562,29 +707,64 @@ class MisalignmentLiveWorker:
             ]
             reason = "allow"
             rules: list[str] = []
+            hits: list[dict[str, Any]] = []
             if pending or run.run_state != "running":
                 reason = "control_pending" if pending else f"run_{run.run_state}"
             else:
+                observed = [run.steps[n] for n in sorted(run.steps)]
+                step_ref = f"head#{proposed['step_id']}"
                 try:
-                    alerts = self._detect(
-                        run_id, run, [run.steps[n] for n in sorted(run.steps)] + [proposed]
-                    )
-                    rules = sorted(
-                        {
-                            a["rule"]
-                            for a in alerts
-                            if a.get("step_ref") == f"head#{proposed['step_id']}"
-                            and a["rule"] in self._gate_rules
-                        }
-                    )
-                    if rules:
-                        reason = "tripwire_blocked"
+                    # Pure proposed-action policy: protected reads/writes, history
+                    # peeks and timing bypasses. It sees only the observed prefix.
+                    for hit in policy_hits(proposed, prefix=observed, policy=self._gate_policy):
+                        hits.append(
+                            {
+                                "source": "policy",
+                                "rule": hit["rule"],
+                                "step": proposed["step_id"],
+                                "entry_ids": list(hit.get("entry_ids", ())),
+                                "evidence": hit["evidence"],
+                                "kind": "agent_action",
+                                **({"path": hit["path"]} if "path" in hit else {}),
+                            }
+                        )
+                    policy_ok = True
                 except Exception:
+                    policy_ok = False
+                try:
+                    detection = self._detect(run_id, run, [*observed, proposed])
+                    for alert in detection.alerts:
+                        # Only a gate-marked hit that cites the proposed action
+                        # blocks; diagnostic and task-structure cues never do.
+                        if alert["gate"] and alert.get("step_ref") == step_ref:
+                            items = alert.get("evidence_items")
+                            hits.append(
+                                {
+                                    "source": alert["origin"],
+                                    "rule": alert["rule"],
+                                    "step": proposed["step_id"],
+                                    "entry_ids": list(alert.get("entry_ids", ())),
+                                    "evidence": items[-1]["quote"]
+                                    if items
+                                    else _cited_quote(proposed, str(alert.get("quote") or "")),
+                                    "kind": alert["kind"],
+                                }
+                            )
+                    detector_ok = True
+                except Exception:
+                    detector_ok = False
+                rules = sorted({h["rule"] for h in hits})
+                if rules:
+                    reason = "tripwire_blocked"
+                elif not policy_ok:
+                    reason = "gate_policy_unavailable"
+                elif not detector_ok:
                     reason = "deterministic_detector_unavailable"
             decision = {
                 "allow": reason == "allow",
                 "reason": reason,
                 "triggered_rules": rules,
+                "gate_hits": hits,
                 "pending_request_ids": pending,
                 "run_state": run.run_state,
                 "proposed": True,
@@ -802,13 +982,7 @@ class MisalignmentLiveWorker:
                                 raise ValueError(
                                     "checkpoint metadata cannot change the bound run executor"
                                 )
-                            for key in (
-                                "task_id",
-                                "source_kind",
-                                "executor_id",
-                                "task_manifest",
-                                "baselines",
-                            ):
+                            for key in _RUN_METADATA_KEYS:
                                 if key in raw:
                                     setattr(run, key, copy.deepcopy(raw[key]))
                             run.coverage.update(raw.get("coverage", {}))

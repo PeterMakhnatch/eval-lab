@@ -1254,6 +1254,7 @@ name = "eval-lab"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "boto3" },
     { name = "daytona" },
     { name = "duckdb" },
     { name = "huggingface-hub" },
@@ -1314,6 +1315,7 @@ xplat-verifiers = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.43,<2" },
     { name = "daytona", specifier = ">=0.210.0" },
     { name = "duckdb", specifier = ">=1.5.5,<2" },
     { name = "harbor", extras = ["modal"], marker = "extra == 'laminar'", specifier = "==0.24.0" },

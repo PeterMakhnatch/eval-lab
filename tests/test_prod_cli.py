@@ -88,7 +88,7 @@ def _runtime_seam(monkeypatch: pytest.MonkeyPatch, runtime_type: type) -> None:
 def _relay_seam(monkeypatch: pytest.MonkeyPatch, relay_type: type) -> None:
     from evallab.production import relay
 
-    monkeypatch.setattr(relay, "OutboxRelay", relay_type)
+    monkeypatch.setattr(relay, "ProductionOutboxRelay", relay_type)
 
 
 def _server_seam(monkeypatch: pytest.MonkeyPatch, server_type: type) -> None:

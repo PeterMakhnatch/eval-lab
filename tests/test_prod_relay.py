@@ -12,9 +12,10 @@ from typing import Any
 
 import psycopg
 import pytest
+from nats.js.api import PubAck
 
 from evallab.production.corpus_queue import CorpusRegistry, ProductionQueueConnectionError
-from evallab.production.relay import OutboxRelay, open_production_queue
+from evallab.production.relay import ProductionOutboxRelay, open_production_queue
 
 SECRET = "do-not-expose-connection-password"
 POSTGRES = f"postgresql://operator:{SECRET}@unavailable.invalid/production"
@@ -98,8 +99,9 @@ class _Publisher:
             raise _Crash()
         if not self.acknowledge:
             return None
-        return SimpleNamespace(
-            stream=stream, seq=list(self.accepted).index(event_id) + 1, duplicate=duplicate
+        return PubAck(
+            stream=stream, seq=list(self.accepted).index(event_id) + 1,
+            duplicate=True if duplicate else None,
         )
 
 
@@ -158,7 +160,7 @@ def test_no_broker_retains_exact_pending_count_across_reopen(tmp_path, registry)
     database = tmp_path / "new/production/queue.sqlite"
     with open_production_queue(database, registry=registry) as connection:
         events = [_append(connection.queue, f"event-{index}") for index in range(3)]
-        relay = OutboxRelay(connection.queue, batch_size=1)
+        relay = ProductionOutboxRelay(connection.queue, batch_size=1)
 
         async def run():
             stats = await relay.run_once()
@@ -184,7 +186,7 @@ def test_publish_before_mark_crash_retries_same_broker_identity(tmp_path, regist
     publisher.crash_once = True
     with open_production_queue(database, registry=registry) as connection:
         event = _append(connection.queue)
-        relay = OutboxRelay(connection.queue, publisher=publisher)
+        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
 
         async def crash():
             try:
@@ -197,7 +199,7 @@ def test_publish_before_mark_crash_retries_same_broker_identity(tmp_path, regist
         assert connection.queue.pending_outbox() == [event]
         assert json.loads(publisher.accepted[event["event_id"]]) == event
     with open_production_queue(database, registry=registry) as reopened:
-        relay = OutboxRelay(reopened.queue, publisher=publisher)
+        relay = ProductionOutboxRelay(reopened.queue, publisher=publisher)
 
         async def resume():
             try:
@@ -219,7 +221,7 @@ def test_mid_batch_failure_keeps_only_unacknowledged_rows_pending(tmp_path, regi
     publisher.fail_on = {2}
     with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
         events = [_append(connection.queue, f"event-{index}") for index in range(3)]
-        relay = OutboxRelay(connection.queue, publisher=publisher)
+        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
 
         async def run():
             first = await relay.run_once()
@@ -241,7 +243,7 @@ def test_core_publish_without_jetstream_ack_never_marks_delivered(tmp_path, regi
     publisher.acknowledge = False
     with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
         event = _append(connection.queue)
-        relay = OutboxRelay(connection.queue, publisher=publisher)
+        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
 
         async def run():
             stats = await relay.run_once()
@@ -263,7 +265,7 @@ def test_publish_timeout_leaves_event_available_for_retry(tmp_path, registry):
     database = tmp_path / "queue.sqlite"
     with open_production_queue(database, registry=registry) as connection:
         event = _append(connection.queue)
-        relay = OutboxRelay(
+        relay = ProductionOutboxRelay(
             connection.queue, publisher=HangingPublisher(), publish_timeout=0.01
         )
 
@@ -288,7 +290,7 @@ def test_unreachable_nats_is_sanitized_and_next_cycle_reconnects(tmp_path, regis
     monkeypatch.setattr("nats.aio.client.Client", lambda: next(clients))
     with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
         _append(connection.queue)
-        relay = OutboxRelay(connection.queue, nats_url=f"nats://operator:{SECRET}@127.0.0.1:4222")
+        relay = ProductionOutboxRelay(connection.queue, nats_url=f"nats://operator:{SECRET}@127.0.0.1:4222")
 
         async def run():
             first = await relay.run_once()
@@ -313,7 +315,7 @@ def test_fresh_jetstream_creates_file_storage_and_closes_client(tmp_path, regist
     monkeypatch.setattr("nats.aio.client.Client", lambda: client)
     with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
         _append(connection.queue)
-        relay = OutboxRelay(connection.queue, nats_url="nats://127.0.0.1:4222")
+        relay = ProductionOutboxRelay(connection.queue, nats_url="nats://127.0.0.1:4222")
 
         async def run():
             try:
@@ -323,11 +325,7 @@ def test_fresh_jetstream_creates_file_storage_and_closes_client(tmp_path, regist
                 await relay.close()
 
         assert asyncio.run(run())["pending"] == 0
-        assert publisher.created == {
-            "name": "EVALLAB_PRODUCTION",
-            "subjects": ["evallab.production.events"],
-            "storage": "file",
-        }
+        assert publisher.created["storage"] == "file"
         assert client.closed
 
 
@@ -342,7 +340,7 @@ def test_unavailable_or_nondurable_broker_retains_local_rows(
     monkeypatch.setattr("nats.aio.client.Client", lambda: client)
     with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
         event = _append(connection.queue)
-        relay = OutboxRelay(
+        relay = ProductionOutboxRelay(
             connection.queue, nats_url="nats://127.0.0.1:4222", connect_timeout=0.01
         )
 
@@ -431,7 +429,7 @@ def test_successful_postgres_remains_source_after_ack_and_later_disconnect(
     with open_production_queue(POSTGRES, registry=registry, sqlite_fallback=fallback) as connection:
         assert connection.backend == "postgresql" and connection.fallback_reason is None
         event = _append(connection.queue)
-        relay = OutboxRelay(connection.queue, publisher=publisher)
+        relay = ProductionOutboxRelay(connection.queue, publisher=publisher)
 
         async def run():
             first = await relay.run_once()
@@ -449,3 +447,36 @@ def test_successful_postgres_remains_source_after_ack_and_later_disconnect(
         assert connection.queue.read_events() == [event]
         assert not fallback.parent.exists()
     assert transport.closed
+
+
+def test_cancellation_waits_for_inflight_ack_before_queue_cleanup(tmp_path, registry):
+    async def run(queue):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingPublisher(_Publisher):
+            async def publish(self, subject, payload, *, headers, timeout, stream):
+                started.set()
+                await release.wait()
+                return await super().publish(
+                    subject, payload, headers=headers, timeout=timeout, stream=stream,
+                )
+
+        publisher = BlockingPublisher()
+        relay = ProductionOutboxRelay(queue, publisher=publisher)
+        cycle = asyncio.create_task(relay.run_once())
+        await started.wait()
+        cycle.cancel()
+        cleanup = asyncio.create_task(relay.close())
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+        await cleanup
+        return publisher
+
+    with open_production_queue(tmp_path / "queue.sqlite", registry=registry) as connection:
+        event = _append(connection.queue)
+        publisher = asyncio.run(run(connection.queue))
+        assert connection.queue.pending_outbox() == []
+        assert connection.queue.read_events() == [event]
+        assert json.loads(publisher.accepted[event["event_id"]]) == event

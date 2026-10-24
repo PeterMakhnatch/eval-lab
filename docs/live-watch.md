@@ -727,13 +727,13 @@ existing queue to another backend. Check the JSON backend/fallback receipt:
 separate PostgreSQL and SQLite journals are not an automatic failback or
 cross-backend replication mechanism.
 
-The optional NATS JetStream relay publishes durable outbox envelopes to
-`evallab.production.events` in the file-backed `EVALLAB_PRODUCTION` stream.
-It uses the event ID as `Nats-Msg-Id` and marks an event published only after a
-valid stream acknowledgement. Missing/unavailable NATS leaves events durable and
-unpublished; restarting the consumer retries them. Delivery is at least once:
-JetStream deduplicates crash-window retries only within its configured finite
-duplicate window. The relay does not overwrite an existing stream's settings.
+The optional NATS JetStream coordinator delegates to the shared
+`outbox_relay.OutboxRelay` described below. It provisions file storage only for a
+missing stream and never overwrites existing stream settings. Missing or
+unavailable NATS leaves source events durable and unpublished. Poison quarantine
+uses a durable `<queue-stem>.poison.sqlite` beside the selected SQLite queue or
+PostgreSQL fallback path. Delivery is at least once: consumers must deduplicate by
+event ID beyond JetStream's configured finite duplicate window.
 
 ### HTTP and worker contracts
 

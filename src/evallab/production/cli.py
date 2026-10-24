@@ -165,10 +165,13 @@ def _runtime(args: argparse.Namespace, root: Path, queue: Any) -> Any:
     )
 
 
-def _relay(args: argparse.Namespace, queue: Any) -> Any:
-    from evallab.production.relay import OutboxRelay
+def _relay(args: argparse.Namespace, root: Path, queue: Any) -> Any:
+    from evallab.production.relay import ProductionOutboxRelay
 
-    return OutboxRelay(queue, nats_url=args.nats_url)
+    database = _database(root, args.database)
+    fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
+    quarantine = (database if isinstance(database, Path) else fallback).with_suffix(".poison.sqlite")
+    return ProductionOutboxRelay(queue, nats_url=args.nats_url, quarantine_path=quarantine)
 
 
 def _emit(payload: dict[str, Any], args: argparse.Namespace, *, error: bool = False) -> None:
@@ -227,7 +230,7 @@ async def _run_once(args: argparse.Namespace, root: Path, connection: Any) -> di
     async with AsyncExitStack() as resources:
         runtime = _runtime(args, root, connection.queue)
         resources.push_async_callback(asyncio.to_thread, runtime.close)
-        relay = _relay(args, connection.queue)
+        relay = _relay(args, root, connection.queue)
         resources.push_async_callback(relay.close)
         return await _cycle(runtime, relay, connection)
 
@@ -297,7 +300,7 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
         if args.workers:
             runtime = _runtime(args, root, connection.queue)
             resources.push_async_callback(asyncio.to_thread, runtime.close)
-            relay = _relay(args, connection.queue)
+            relay = _relay(args, root, connection.queue)
             resources.push_async_callback(relay.close)
         _emit({
             "command": "serve", "event": "starting", "host": args.host, "port": args.port,

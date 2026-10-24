@@ -634,6 +634,12 @@ class ContinuousWorkQueue:
             rows = self._execute(sql + " ORDER BY seq LIMIT ?", (*parameters, limit)).fetchall()
             return [json.loads(row[0]) for row in rows]
 
+    def read_run_events(
+        self, run_id: str, *, after_seq: int = 0, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """Read one run in global sequence order using the run/sequence index."""
+        return self.read_events(after_seq=after_seq, limit=limit, run_id=_text(run_id, "run_id"))
+
     def read_consumer(self, consumer_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         _text(consumer_id, "consumer_id")
         self._limit(limit)

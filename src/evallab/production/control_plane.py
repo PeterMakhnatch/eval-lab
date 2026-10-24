@@ -11,11 +11,19 @@ after the last delivered event; an unknown cursor fails closed with HTTP 409.
 GET /api/state rebuilds a bounded live view from journal events and authoritative
 queue counters. POST /api/intervene accepts an authenticated, audited request,
 not an execution acknowledgement: only control.applied changes a run's state.
+
+GET /api/runs/{run_id}/timeline folds one run's journal events into a causal-prefix
+timeline; GET /api/grader-diff compares the original and repaired task packages of a
+DEV run or asset (TEST items are refused). GET /api/assets, GET /api/assets/detail and
+POST /api/assets/export expose the Verified Asset Store; exports are operator-authenticated
+and blocked by the tb4-audit-v1 TEST split-leak guard. Filesystem paths named by events are
+only read inside the roots given to the asset store and inspector.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import json
 import os
@@ -30,6 +38,17 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from evallab.production.asset_store import (
+    AssetNotFound,
+    ExportConflict,
+    ExportDisabled,
+    SplitLeakError,
+    VerifiedAssetStore,
+)
+from evallab.production.dashboard import DASHBOARD
+from evallab.production.inspector import RunInspector
+from evallab.production.safe_paths import PathOutsideRootsError
 
 SYSTEMS = ("task_quality", "reward_seeker", "misalignment")
 _TERMINAL = (".completed", ".finished", ".failed", ".stopped", ".cancelled", ".canceled")
@@ -62,6 +81,22 @@ class InterventionRequest(BaseModel):
     request_id: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("run_id", "target", "reason", "request_id")
+    @classmethod
+    def nonblank(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or any(c in value for c in "\r\n\x00")):
+            raise ValueError("must be nonblank and contain no line breaks or NUL")
+        return value
+
+
+class AssetExportRequest(BaseModel):
+    """One-click Verified Asset Store export; the operator comes from the bearer token."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: str = Field(min_length=1, max_length=512)
+    request_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("asset_id", "request_id")
     @classmethod
     def nonblank(cls, value: str | None) -> str | None:
         if value is not None and (not value.strip() or any(c in value for c in "\r\n\x00")):
@@ -145,6 +180,8 @@ class LiveProjection:
             prefix = event.get("prefix_step")
             if isinstance(prefix, int) and not isinstance(prefix, bool):
                 trace["prefix_step"] = max(prefix, trace["prefix_step"] or 0)
+            # Provenance is shown to operators so recorded replays never pass as live runs.
+            trace["source_kind"] = trace.get("source_kind") or payload.get("source_kind")
             trace["updated_at"] = event["ts"]
             _remember(self.traces, trace_key, trace, self.max_runs)
         if trace_key in self.traces and kind.endswith(_TERMINAL):
@@ -310,6 +347,8 @@ def create_app(
     *,
     operator_tokens: Mapping[str, str] | None = None,
     projection: LiveProjection | None = None,
+    asset_store: VerifiedAssetStore | None = None,
+    inspector: RunInspector | None = None,
     poll_interval: float = 0.5,
     heartbeat_interval: float = 15.0,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -332,7 +371,7 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     def dashboard():
         return HTMLResponse(
-            _DASHBOARD,
+            DASHBOARD,
             headers={
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",
@@ -451,11 +490,138 @@ def create_app(
             raise HTTPException(409, "request_id already belongs to a different intervention")
         return {"request_id": request_id, "state": "requested", "event": existing}
 
+    def inspector_or_503() -> RunInspector:
+        if inspector is None:
+            raise HTTPException(503, "Run inspector is not configured")
+        return inspector
+
+    def store_or_503() -> VerifiedAssetStore:
+        if asset_store is None:
+            raise HTTPException(503, "Verified Asset Store is not configured")
+        return asset_store
+
+    @app.get("/api/runs/{run_id}/timeline")
+    def run_timeline(run_id: str):
+        try:
+            return inspector_or_503().timeline(run_id)
+        except LookupError as error:
+            raise HTTPException(404, "Unknown run") from error
+        except PermissionError as error:
+            raise HTTPException(403, {"code": "split_sealed", "message": str(error)}) from error
+
+    @app.get("/api/grader-diff")
+    def grader_diff(run_id: str | None = None, asset_id: str | None = None):
+        if (run_id is None) == (asset_id is None):
+            raise HTTPException(400, "Pass exactly one of run_id or asset_id")
+        try:
+            return inspector_or_503().grader_diff(run_id=run_id, asset_id=asset_id)
+        except LookupError as error:
+            raise HTTPException(404, "No original/repaired grader pair for this run") from error
+        except PathOutsideRootsError as error:
+            raise HTTPException(
+                403, {"code": "path_outside_roots", "message": "Task path is outside allowed roots"}
+            ) from error
+        except PermissionError as error:
+            raise HTTPException(403, {"code": "split_sealed", "message": str(error)}) from error
+
+    @app.get("/api/assets")
+    def assets():
+        return store_or_503().list_assets()
+
+    @app.get("/api/assets/detail")
+    def asset_detail(asset_id: str):
+        try:
+            return store_or_503().get_asset(asset_id)
+        except AssetNotFound as error:
+            raise HTTPException(404, "Unknown asset") from error
+
+    @app.post("/api/assets/export")
+    def export_asset(body: AssetExportRequest, request: Request):
+        operator = operator_identity(request)
+        store = store_or_503()
+        request_id = body.request_id or str(uuid4())
+        try:
+            asset = store.get_asset(body.asset_id)
+        except AssetNotFound as error:
+            raise HTTPException(404, "Unknown asset") from error
+
+        def audit_blocked(reasons: list[str]) -> None:
+            # A blocked request is client-controlled: ids may themselves be sealed identifiers,
+            # so the append-only journal records only opaque references and reason codes.
+            # The store itself journals successful exports (asset.exported).
+            def ref(value: str) -> str:
+                return hashlib.sha256(value.encode()).hexdigest()[:16]
+
+            event_id = f"asset-export:{ref(request_id)}:{ref(body.asset_id)}:blocked"
+            event = {
+                "event_id": event_id,
+                "run_id": "asset-export",
+                "system": "queue",
+                "event_type": "asset.export_blocked",
+                "seq": 0,
+                "ts": clock().isoformat(),
+                "prefix_step": None,
+                "status": "refuted",
+                "payload": {
+                    "asset_ref": ref(body.asset_id),
+                    "kind": asset["kind"],
+                    "request_ref": ref(request_id),
+                    "operator": operator,
+                    "reasons": reasons,
+                },
+            }
+            try:
+                journal.append_event(event, idempotency_key=event_id)
+            except OSError as error:
+                raise HTTPException(503, "Export could not be durably audited") from error
+            except ValueError as error:
+                raise HTTPException(
+                    409, "request_id already belongs to a different asset export"
+                ) from error
+
+        try:
+            result = store.export(body.asset_id, operator=operator, request_id=request_id)
+        except ExportDisabled as error:
+            raise HTTPException(
+                503, {"code": "export_disabled", "message": "No export root is configured"}
+            ) from error
+        except SplitLeakError as error:
+            audit_blocked(sorted({str(m["reason"]) for m in error.matches}))
+            # Operators see which field tripped the guard and why, never the sealed value.
+            raise HTTPException(
+                409,
+                {
+                    "code": "split_leak",
+                    "message": str(error),
+                    "matches": [
+                        {"field": m["field"], "reason": m["reason"]} for m in error.matches
+                    ],
+                },
+            ) from error
+        except PathOutsideRootsError as error:
+            raise HTTPException(
+                403,
+                {"code": "path_outside_roots", "message": "Asset path is outside allowed roots"},
+            ) from error
+        except ExportConflict as error:
+            raise HTTPException(409, {"code": "request_conflict", "message": str(error)}) from error
+        except ValueError as error:
+            raise HTTPException(422, {"code": "export_invalid", "message": str(error)}) from error
+        return result
+
     return app
 
 
 def app_from_env() -> FastAPI:
-    """ASGI factory: an explicit database is required; no default queue is drained."""
+    """ASGI factory: an explicit database is required; no default queue is drained.
+
+    EVALLAB_ASSET_EXPORT_ROOT enables Verified Asset Store exports (otherwise the store is
+    browse-only). EVALLAB_ALLOWED_ROOTS (os.pathsep-separated) adds directories whose task
+    packages, trial directories and exploit bundles the inspector and store may read; the
+    repository root is always allowed.
+    """
+    from pathlib import Path
+
     from evallab.production.corpus_queue import ContinuousWorkQueue
 
     database = os.environ.get("EVALLAB_PRODUCTION_DATABASE")
@@ -463,45 +629,18 @@ def app_from_env() -> FastAPI:
         raise ValueError("EVALLAB_PRODUCTION_DATABASE is required")
     token = os.environ.get("EVALLAB_OPERATOR_TOKEN")
     operator = os.environ.get("EVALLAB_OPERATOR_ID", "operator")
+    export_root = os.environ.get("EVALLAB_ASSET_EXPORT_ROOT")
+    queue = ContinuousWorkQueue(database)
+    roots = [queue.registry.repo_root]
+    roots += [Path(p) for p in os.environ.get("EVALLAB_ALLOWED_ROOTS", "").split(os.pathsep) if p]
     return create_app(
-        ContinuousWorkQueue(database), operator_tokens={token: operator} if token else {}
+        queue,
+        operator_tokens={token: operator} if token else {},
+        asset_store=VerifiedAssetStore(
+            queue,
+            queue.registry,
+            export_root=Path(export_root) if export_root else None,
+            allowed_roots=roots,
+        ),
+        inspector=RunInspector(queue, queue.registry, allowed_roots=roots),
     )
-
-
-_DASHBOARD = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Eval Lab · Live Production</title>
-<style>
-:root{color-scheme:dark;--bg:#0b1018;--panel:#131c28;--line:#263449;--text:#edf3fa;--muted:#a3b2c6;--accent:#6ce4b8;--warn:#f1c16d}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 system-ui,sans-serif}main{max-width:1480px;margin:auto;padding:32px}header,.row{display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:25px;margin:0}h2{font-size:19px;margin:0 0 16px}h3{font-size:16px;margin:0}p{margin:6px 0;color:var(--muted)}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.12em;font-size:11px;font-weight:700}.status{color:var(--accent)}.disconnected{color:var(--warn)}section{margin-top:24px}.panel,.system{border:1px solid var(--line);border-radius:14px;padding:22px;background:var(--panel)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.metrics{display:flex;gap:32px;flex-wrap:wrap;margin:18px 0}.metric strong{font-size:30px;display:block}.metric span,.muted{color:var(--muted)}.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--line);border-radius:20px;padding:3px 10px;color:var(--muted);font-size:12px}.two{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}.cards{display:grid;gap:10px;margin-top:14px}.card{padding:12px;border-left:2px solid var(--accent);background:#0e1622;overflow-wrap:anywhere}.card.provisional{border-color:var(--warn)}.card.refuted,.card.expired{border-color:var(--muted)}.card strong{font-weight:600}.card small{display:block;color:var(--muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;color:var(--muted);font:12px/1.5 ui-monospace,monospace}label{display:block;color:var(--muted);font-size:12px;margin-top:10px}input,select,textarea,button{font:inherit;border:1px solid var(--line);border-radius:7px;background:#0e1622;color:var(--text);padding:9px 10px;width:100%;margin-top:4px}button{background:var(--accent);color:#072318;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:wait}textarea{resize:vertical;min-height:70px}#result{min-height:22px;color:var(--warn)}details{margin-top:12px}summary{cursor:pointer;color:var(--muted)}#cursor{font:11px ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}footer{margin-top:24px;color:var(--muted);font-size:12px}@media(max-width:950px){.grid,.two{grid-template-columns:1fr}main{padding:18px}header{align-items:flex-start}.metrics{gap:20px}}
-</style></head><body><main>
-<header><div><div class="eyebrow">Always-on production</div><h1>Eval Lab</h1><p>Public data → continuous work → verified assets</p></div><div><div id="connection" class="status" role="status">Connecting to journal…</div><div id="cursor">Waiting for durable cursor</div></div></header>
-<section class="panel"><div class="eyebrow">01 Fuel + 02 Engine</div><h2>Public Corpus Queue</h2><div class="chips"><span class="chip">TB4 DEV</span><span class="chip">MiMo 567</span><span class="chip">Terminal Wrench</span><span class="chip">Goodfire</span><span class="chip">CheatBench</span><span class="chip">DEV work only · TEST sealed</span></div><div class="metrics"><div class="metric"><strong id="queue-depth">—</strong><span>Queue depth (queued + leased)</span></div><div class="metric"><strong id="leased">—</strong><span>Leased jobs</span></div><div class="metric"><strong id="completed">—</strong><span>Completed jobs</span></div><div class="metric"><strong id="events">—</strong><span>Journal sequence</span></div></div><p>Durable journal feeds independent workers. Confirmed exploit → task repair → qualified repair → seeker re-break.</p></section>
-<section><div class="eyebrow">03 Independent consumers</div><h2>Three Real-Time Systems</h2><div class="grid" id="systems"></div></section>
-<section class="two"><div class="panel"><div class="eyebrow">Human control gate</div><h2>Live Interventions</h2><p>Requests are durable. A request is not applied until the executor acknowledges and applies it.</p><form id="intervention"><label for="token">Operator token (kept only in this page)</label><input id="token" type="password" autocomplete="off" required><div class="two"><div><label for="action">Action</label><select id="action"><option value="pause">Pause</option><option value="cancel">Cancel</option><option value="quarantine">Quarantine</option></select></div><div><label for="run-id">Run ID</label><input id="run-id" required maxlength="256"></div></div><label for="reason">Reason</label><textarea id="reason" required maxlength="2000"></textarea><button id="submit" type="submit">Request intervention</button><p id="result" role="status"></p></form><div class="cards" id="controls"></div></div><div class="panel"><div class="eyebrow">04 Output</div><h2>Verified Asset Store</h2><div class="metric"><strong id="asset-total">—</strong><span>Distinct verified assets</span></div><div id="asset-kinds" class="chips"></div><div class="cards" id="assets"></div></div></section>
-<footer>All live views are projections of the durable journal. Provisional suspicion is not a confirmed verdict. No execution or paid model calls are launched by opening this page.</footer>
-</main><script>
-'use strict';
-const $ = id => document.getElementById(id);
-const names = {task_quality:'Task Quality',reward_seeker:'Reward Seeker',misalignment:'Misalignment Monitor'};
-const node = (tag,text,cls) => {const el=document.createElement(tag);if(text!==undefined)el.textContent=String(text);if(cls)el.className=cls;return el;};
-function cards(parent,items,render,empty){parent.replaceChildren();if(!items.length){parent.append(node('p',empty));return;}items.slice().reverse().forEach(item=>parent.append(render(item)));}
-function card(title,detail,status){const el=node('div',undefined,'card '+(status||''));el.append(node('strong',title),node('small',detail));return el;}
-function render(state){
- $('cursor').textContent=state.cursor||'Journal is empty';$('events').textContent=state.last_seq;
- $('queue-depth').textContent=state.queue.depth;$('leased').textContent=state.queue.jobs.leased;$('completed').textContent=state.queue.jobs.completed;
- $('systems').replaceChildren();for(const [key,name] of Object.entries(names)){const data=state.systems[key];const el=node('article',undefined,'system');el.append(node('h3',name),node('p',data.active_workers+' active workers · '+data.partial_traces.length+' live traces'));const findings=node('div',undefined,'cards');cards(findings,data.suspicion_cards.slice(-6),f=>card(f.summary,f.run_id+' · '+f.severity+' · '+f.status,f.status),'No suspicion cards yet.');el.append(findings);for(const trace of data.partial_traces.slice(-4)){const d=node('details');d.append(node('summary',trace.run_id+' · prefix '+(trace.prefix_step??'?')+' · '+trace.run_state));d.append(node('pre',JSON.stringify(trace.steps,null,2)));if(trace.truncated)d.append(node('small','Showing the most recent retained steps.'));el.append(d);}$('systems').append(el);}
- cards($('controls'),state.interventions.slice(-10),c=>card(c.action+' · '+c.state,c.run_id+' · '+(c.operator||'executor')+' · '+(c.reason||''),c.state),'No intervention requests.');
- $('asset-total').textContent=state.verified_assets.total;$('asset-kinds').replaceChildren();for(const [kind,count] of Object.entries(state.verified_assets.by_kind))$('asset-kinds').append(node('span',kind+' · '+count,'chip'));
- cards($('assets'),state.verified_assets.recent.slice(-12),a=>card(a.asset_id,a.kind+' · '+a.run_id,'confirmed'),'Verified assets will appear here as workers qualify them.');
-}
-let refreshing=false,again=false;
-async function refresh(){if(refreshing){again=true;return;}refreshing=true;try{const r=await fetch('/api/state',{cache:'no-store'});if(!r.ok)throw new Error('State unavailable');render(await r.json());}catch(e){$('connection').textContent=e.message;$('connection').className='disconnected';}finally{refreshing=false;if(again){again=false;refresh();}}}
-const stream=new EventSource('/api/stream');
-stream.addEventListener('state',event=>render(JSON.parse(event.data)));
-stream.onmessage=()=>refresh();
-stream.onopen=()=>{$('connection').textContent='Live · connected';$('connection').className='status';};
-stream.onerror=()=>{$('connection').textContent='Reconnecting · journal replay enabled';$('connection').className='disconnected';};
-window.addEventListener('pagehide',()=>stream.close());
-let pending=null;
-$('intervention').addEventListener('submit',async event=>{event.preventDefault();const body={action:$('action').value,run_id:$('run-id').value,reason:$('reason').value};const signature=JSON.stringify(body);if(!pending||pending.signature!==signature)pending={signature,id:crypto.randomUUID()};body.request_id=pending.id;$('submit').disabled=true;try{const response=await fetch('/api/intervene',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+$('token').value},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'Invalid intervention request');$('result').textContent='Requested '+result.request_id+' · awaiting executor acknowledgement';pending=null;refresh();}catch(error){$('result').textContent=error.message;}finally{$('submit').disabled=false;}});
-</script></body></html>"""

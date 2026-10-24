@@ -416,6 +416,84 @@ class _SetupRecipe:
             if str(destination / name) not in self.generated:
                 raise GraderRefusal(f"pinned archive lacks expected member {name}")
 
+    def _fetch_image_files(self, repo: Any, layer: Any, files: Any, registry: Any = "registry-1.docker.io") -> None:
+        """Select exact regular members from a hash-pinned offline OCI blob.
+
+        Like the source helper, this copies bytes into fresh files rather than
+        extracting archive permissions. No image, registry or Docker operation
+        is performed, and every selected member is checked before staging.
+        """
+        if not isinstance(repo, str) or not repo or not isinstance(registry, str) or not registry:
+            raise GraderRefusal("setup image-layer fetch requires an explicit repository and registry")
+        if not isinstance(layer, str) or not layer.startswith("sha256:") or len(layer) != 71 or any(char not in "0123456789abcdef" for char in layer[7:]):
+            raise GraderRefusal("setup image-layer fetch requires an exact sha256 layer identity")
+        if not isinstance(files, dict) or not files:
+            raise GraderRefusal("setup image-layer fetch requires a nonempty pinned member map")
+        selected: dict[str, tuple[PurePosixPath, str]] = {}
+        destinations: set[str] = set()
+        member_paths: set[str] = set()
+        for name, entry in files.items():
+            if not isinstance(name, str) or not isinstance(entry, (tuple, list)) or len(entry) != 2:
+                raise GraderRefusal("setup image-layer member has no safe destination and exact sha256")
+            member = _relative(name)
+            destination, digest = entry
+            if not member.parts or str(member) in member_paths:
+                raise GraderRefusal("setup image-layer member map has ambiguous paths")
+            member_paths.add(str(member))
+            if not isinstance(destination, PurePosixPath):
+                raise GraderRefusal("setup image-layer member has no safe destination and exact sha256")
+            destination = _relative(str(destination))
+            if len(destination.parts) < 2 or destination.parts[0] not in {str(value) for value in self.names["ctx"].values()}:
+                raise GraderRefusal("setup image-layer member writes outside the port data directories")
+            if str(destination) in destinations:
+                raise GraderRefusal("setup image-layer members have ambiguous destinations")
+            destinations.add(str(destination))
+            if not isinstance(digest, str) or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+                raise GraderRefusal("setup image-layer member has no exact sha256 identity")
+            selected[name] = (destination, digest)
+        blob = self._cached_asset(layer)
+        contents: dict[str, bytes] = {}
+        seen: set[str] = set()
+        try:
+            with blob.open("rb") as stream:
+                # Bind the opened blob too: the cache path could have changed
+                # after lookup, before this descriptor was opened.
+                if hashlib.file_digest(stream, "sha256").hexdigest() != layer[7:]:
+                    raise GraderRefusal("setup image-layer blob differs from pinned sha256")
+                stream.seek(0)
+                with tarfile.open(fileobj=stream, mode="r|*") as bundle:
+                    for member in bundle:
+                        relative = _relative(member.name)
+                        if not relative.parts and not member.isdir():
+                            raise GraderRefusal("setup image layer contains an unsafe empty member path")
+                        key = str(relative)
+                        if key in seen:
+                            raise GraderRefusal(f"setup image layer contains duplicate or ambiguous member {member.name!r}")
+                        seen.add(key)
+                        if member.name not in selected:
+                            continue
+                        if not member.isfile():
+                            raise GraderRefusal(f"setup image layer selected member is not a regular file: {member.name}")
+                        source = bundle.extractfile(member)
+                        if source is None:
+                            raise GraderRefusal(f"setup image layer selected member is not readable: {member.name}")
+                        with source:
+                            content = source.read()
+                        if hashlib.sha256(content).hexdigest() != selected[member.name][1]:
+                            raise GraderRefusal(f"setup image-layer member differs from pinned sha256: {member.name}")
+                        contents[member.name] = content
+        except (tarfile.TarError, EOFError, zlib.error) as exc:
+            raise GraderRefusal("setup image-layer blob is not a readable pinned tar archive") from exc
+        missing = selected.keys() - contents.keys()
+        if missing:
+            raise GraderRefusal(f"setup image layer lacks selected member {sorted(missing)[0]}")
+        for name, (destination, digest) in selected.items():
+            self._write_staged(destination, contents[name])
+            self.generated[str(destination)]["provenance"] = {
+                "kind": "oci-layer-member", "registry": registry, "repository": repo,
+                "layer": layer, "member": name, "sha256": digest,
+            }
+
     def _add_asset(self, source: Any, destination: Any, digest: Any) -> None:
         if not isinstance(source, str) or not isinstance(digest, str):
             raise GraderRefusal("setup-data asset has no safe destination and exact sha256")
@@ -835,6 +913,12 @@ class _SetupRecipe:
                 call = statement.value
                 if isinstance(call.func, ast.Attribute) and call.func.attr == "update" and len(call.args) == 1 and not call.keywords:
                     self.expression(call.func.value).update(self.expression(call.args[0]))
+                elif isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id in {"ctx", "context"} and call.func.attr == "fetch_image_files":
+                    if len(call.args) not in {3, 4} or len(call.keywords) > 1 or any(keyword.arg != "registry" for keyword in call.keywords) or len(call.args) == 4 and call.keywords:
+                        raise GraderRefusal("setup image-layer fetch requires repo, layer, files and optional registry")
+                    repo, layer, files = map(self.expression, call.args[:3])
+                    registry = self.expression(call.args[3]) if len(call.args) == 4 else self.expression(call.keywords[0].value) if call.keywords else "registry-1.docker.io"
+                    self._fetch_image_files(repo, layer, files, registry)
                 elif isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id in {"ctx", "context"} and call.func.attr == "fetch_hub" and len(call.args) == 3 and not call.keywords:
                     task, revision, assets = map(self.expression, call.args)
                     if task != self.task_id or revision != "4.0.0" or not isinstance(assets, dict):

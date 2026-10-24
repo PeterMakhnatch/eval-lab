@@ -733,6 +733,29 @@ class MisalignmentLiveWorker:
                     run.control_events[control.request_id] = output[-1]
             return output
 
+    def expire_control(self, run_id: str, request_id: str, *, reason: str) -> dict[str, Any]:
+        """Expire one open control without applying it (for example, its run is no longer active)."""
+        if not reason.strip():
+            raise ValueError("an expiry reason is required")
+        with self._lock:
+            run = self._run(run_id)
+            control = run.controls[request_id]
+            if control.state == "expired":
+                return copy.deepcopy(run.control_events[request_id])
+            if control.state not in {"requested", "acknowledged"}:
+                raise ValueError(f"cannot expire control {control.state}")
+            updated = ControlRequest(**asdict(control))
+            updated.state = "expired"
+            updated.expired_at = _timestamp(self._clock())
+            event = self._emit(
+                run_id,
+                "control.expired",
+                {**asdict(updated), "run_state": run.run_state, "expired_reason": reason},
+            )
+            run.controls[request_id] = updated
+            run.control_events[request_id] = event
+            return event
+
     def control_status(self, run_id: str, request_id: str) -> dict[str, Any]:
         with self._lock:
             run = self._run(run_id)

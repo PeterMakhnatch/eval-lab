@@ -4950,6 +4950,14 @@ def _review_command(
     return 2
 
 
+def _production_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.production.feeder import run_command
+
+    return run_command(args, root)
+
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -4976,6 +4984,45 @@ def parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--port", type=int, default=8501)
     dashboard.add_argument("--database-url")
     dashboard.set_defaults(func=_dashboard_command)
+
+    production = commands.add_parser(
+        "production", help="Local production dashboard and DEV-only recorded public replay ($0)"
+    )
+    production_commands = production.add_subparsers(dest="production_command", required=True)
+    for name in ("demo", "serve", "replay"):
+        command = production_commands.add_parser(
+            name,
+            help={
+                "demo": "Serve a fresh journal and replay real DEV evidence; no model or sandbox",
+                "serve": "Serve an existing SQLite production journal",
+                "replay": "Append recorded DEV evidence and computed prefix scores to a journal",
+            }[name],
+        )
+        command.add_argument("--database", type=Path, required=name != "demo")
+        command.add_argument(
+            "--allowed-root",
+            type=Path,
+            action="append",
+            default=[],
+            help="Additional trusted local evidence root (repeatable)",
+        )
+        if name != "replay":
+            command.add_argument("--export-root", type=Path)
+            command.add_argument("--port", type=int, default=8765)
+            command.add_argument(
+                "--token", help="Operator capability (otherwise generated; terminal only)"
+            )
+        if name != "serve":
+            command.add_argument("--speed", type=float, default=20, help="Replay events/second")
+            command.add_argument("--limit", type=int, help="Recordings per cycle (not trace steps)")
+            command.add_argument("--source", choices=("tb4-dev", "mimo", "both"), default="both")
+            command.add_argument(
+                "--loop", action="store_true", help="Replay with fresh run IDs until Ctrl-C"
+            )
+            command.add_argument(
+                "--tb4-port-root", type=Path, help="Retained pinned Karotte port checkout"
+            )
+        command.set_defaults(func=_production_command)
 
     status = commands.add_parser(
         "status",

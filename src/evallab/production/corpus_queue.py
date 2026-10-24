@@ -162,7 +162,7 @@ class CorpusRegistry:
                     # Only canonical corpus keys seal task names globally; secondary
                     # keys tighten only their own (key_id, item_id) rows.
                     if split == "test" and row.get("task") and row["key_id"] in DATASETS:
-                        self._sealed_names.add(self._task_name(row["task"]))
+                        self._sealed_names.add(self.task_name(row["task"]))
         for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
             for row in _jsonl(keys / dataset / "items.jsonl"):
                 self._add(dataset, row, keys / dataset / "items.jsonl", assignments)
@@ -179,7 +179,7 @@ class CorpusRegistry:
         if inventory.get("dataset_id") != "mimo-defect-map-v1":
             raise ValueError("MiMo inventory dataset_id does not match mimo-defect-map-v1")
         heldout = set(inventory["heldout_task_ids_excluded_from_training_all_versions"])
-        self._sealed_names.update(self._task_name(task) for task in heldout)
+        self._sealed_names.update(self.task_name(task) for task in heldout)
         for row in inventory["tasks"]:
             source_row = row
             row = {
@@ -196,7 +196,8 @@ class CorpusRegistry:
             )
 
     @staticmethod
-    def _task_name(task: str) -> str:
+    def task_name(task: str) -> str:
+        """The canonical task name: version suffixes and namespace prefixes drop."""
         return task.split("@", 1)[0].rsplit("/", 1)[-1]
 
     def _add(
@@ -226,7 +227,7 @@ class CorpusRegistry:
         if split == "test":
             self._sealed_ids.add(item_id)
             if task_id:
-                self._sealed_names.add(self._task_name(task_id))
+                self._sealed_names.add(self.task_name(task_id))
             if digest:
                 self._sealed_digests.add(digest)
 
@@ -234,11 +235,32 @@ class CorpusRegistry:
         if (
             item.split == "test"
             or item.item_id in self._sealed_ids
-            or (item.task_id is not None and self._task_name(item.task_id) in self._sealed_names)
+            or (item.task_id is not None and self.task_name(item.task_id) in self._sealed_names)
             or (item.task_digest is not None and item.task_digest in self._sealed_digests)
         ):
             return "test"
         return "dev"
+
+    def sealed_identity(
+        self,
+        *,
+        item_id: str | None = None,
+        task_id: str | None = None,
+        task_digest: str | None = None,
+    ) -> str | None:
+        """The seal a bare identity hits (``item_id``/``task name``/``task digest``).
+
+        Item ids, canonical task names, and task digests a canonical TEST row
+        sealed stay sealed wherever they reappear, including inside external
+        registrations and nested provenance. ``None`` means unsealed.
+        """
+        if item_id is not None and item_id in self._sealed_ids:
+            return "item_id"
+        if task_id is not None and self.task_name(task_id) in self._sealed_names:
+            return "task name"
+        if task_digest is not None and task_digest in self._sealed_digests:
+            return "task digest"
+        return None
 
     def get(self, dataset_id: str, item_id: str) -> CorpusItem:
         """Resolve native identifiers, raising KeyError for unregistered input."""
@@ -682,6 +704,12 @@ class ContinuousWorkQueue:
                 parameters.append(run_id)
             rows = self._execute(sql + " ORDER BY seq LIMIT ?", (*parameters, limit)).fetchall()
             return [json.loads(row[0]) for row in rows]
+
+    def read_run_events(
+        self, run_id: str, *, after_seq: int = 0, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """Read one run in global sequence order using the run/sequence index."""
+        return self.read_events(after_seq=after_seq, limit=limit, run_id=_text(run_id, "run_id"))
 
     def read_consumer(self, consumer_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         _text(consumer_id, "consumer_id")

@@ -147,7 +147,7 @@ def _verified_evidence(
     artifact reference that was available no later than the observed prefix
     (shape-checked already; never an actor step)."""
     if "artifact_ref" in item:
-        if item["available_before_step"] > max(steps, default=-1) + 1:
+        if item["available_before_step"] > max(steps, default=-1):
             return None
         return {"source": "initial_artifact", **item}
     number = item["step"]
@@ -166,8 +166,9 @@ def _is_int(value: Any, *, minimum: int) -> bool:
 
 def _evidence_items(raw: Any, *, artifacts: bool) -> list[dict[str, Any]]:
     """Shape-checked structural evidence: ``{step, quote}`` for a real ATIF step
-    (optionally with ``source`` path and ``line``), or ``{artifact_ref, quote, line,
-    sha256, available_before_step}`` for an initial task artifact, which has no step."""
+    (optionally with ``source`` path and ``line``), or ``{artifact_ref, quote,
+    sha256|input_digest, available_before_step}`` (optional ``line``) for a hashed
+    task package, replay or control artifact, which has no actor step."""
     items: list[dict[str, Any]] = []
     for e in raw or ():
         if not isinstance(e, Mapping) or not isinstance(e.get("quote"), str):
@@ -184,21 +185,23 @@ def _evidence_items(raw: Any, *, artifacts: bool) -> list[dict[str, Any]]:
                     **({"line": e["line"]} if _is_int(e.get("line"), minimum=1) else {}),
                 }
             )
-        elif (
+            continue
+        digests = {
+            k: e[k] for k in ("sha256", "input_digest") if isinstance(e.get(k), str) and e[k].strip()
+        }
+        if (
             artifacts
             and isinstance(ref, str)
             and ref.strip()
-            and _is_int(e.get("line"), minimum=1)
-            and isinstance(e.get("sha256"), str)
-            and e["sha256"].strip()
+            and digests
             and _is_int(e.get("available_before_step"), minimum=0)
         ):
             items.append(
                 {
                     "artifact_ref": ref,
                     "quote": e["quote"],
-                    "line": e["line"],
-                    "sha256": e["sha256"],
+                    **digests,
+                    **({"line": e["line"]} if _is_int(e.get("line"), minimum=1) else {}),
                     "available_before_step": e["available_before_step"],
                 }
             )

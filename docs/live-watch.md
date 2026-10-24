@@ -679,7 +679,8 @@ and distinct verified assets. Opening the dashboard does not dispatch jobs or ca
 a model.
 
 The public `evallab.production` package exports `CorpusRegistry`,
-`ContinuousWorkQueue`, all three live workers, `create_app`, and `app_from_env`.
+`ContinuousWorkQueue`, all three live workers, `create_app`, `app_from_env`,
+`VerifiedAssetExporter`, and `export_training_bundle`.
 Construct the registry from the committed local corpus indices, then pass one
 dedicated queue to the Task Quality and Reward Seeker workers and
 `emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
@@ -699,6 +700,35 @@ reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 `exploit_witness` and `repaired_task` assets are distinct from provisional monitor
 suspicions. Worker phase updates use the shared `step_id` field; their missing
 reasoning/tool capture is reported as a coverage gap, not a clean trace.
+
+`evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
+evidence gate: it rescans the durable journal, re-verifies every
+`asset.verified` event end to end, and writes `assets.jsonl` with
+`asset_manifest.json`. A `repaired_task` must link to a measured
+`task_quality.repair_qualified` chain whose nine control records all load
+independent measured receipts; an `exploit_witness` must reproduce its bound
+run receipts and the candidate digest. Measured receipts only count when they
+are a recognized producer form — a Harbor trial directory whose `result.json`
+and `verifier/reward.*` agree, a measured candidate result bound to its trial,
+a `qa.env.observation/v1` runtime receipt, a `regrade-receipt/v1`, or an
+experiment matrix receipt — and any identity metadata they declare must match
+the qualification record citing them. A bare `{"reward": ...}` JSON object is
+never measured evidence. A `labeled_trace` requires a verified
+`evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
+labeled trace itself, with citations resolving verbatim; no production worker
+currently emits that receipt, and a completed `monitor.suspicion` card is raw
+suspicion, never a verified label.
+
+`export_training_bundle` applies the same gate to training candidates: every
+candidate's identity is re-resolved against the registry, recognized
+identity/provenance fields nested in rows and linked event payloads are
+inspected for sealed or conflicting identities (prose is never scanned), and
+deduplication keys on the exact `(dataset_id, canonical task name,
+mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
+within one dataset. Writes refuse output directories under a symlink
+ancestor and any same-named file whose existing bytes differ, leave no
+mismatched half-bundle on failure, and a durable consumer cursor acknowledges
+only after the complete bundle is on disk.
 
 Docker capacity probes allow 30 seconds per daemon query while retaining the
 declared-resource and competing-container admission checks. A refused or unavailable

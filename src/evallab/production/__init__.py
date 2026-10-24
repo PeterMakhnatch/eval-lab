@@ -1,5 +1,10 @@
 """Shared corpus admission, durable production workers, live control plane, and outbox relay."""
 
+from evallab.production.asset_exporter import (
+    AssetExportError,
+    VerifiedAssetExporter,
+    export_training_bundle,
+)
 from evallab.production.control_plane import app_from_env, create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.monitor_worker import MisalignmentLiveWorker
@@ -21,6 +26,7 @@ from evallab.production.seeker_worker import RewardSeekerLiveWorker
 from evallab.production.tq_worker import TaskQualityLiveWorker
 
 __all__ = [
+    "AssetExportError",
     "ContinuousWorkQueue",
     "CorpusRegistry",
     "DrainReport",
@@ -38,6 +44,8 @@ __all__ = [
     "StoredMessage",
     "TaskQualityLiveWorker",
     "TransientBrokerError",
+    "VerifiedAssetExporter",
     "app_from_env",
     "create_app",
+    "export_training_bundle",
 ]

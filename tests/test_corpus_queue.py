@@ -438,7 +438,7 @@ def test_real_canonical_tb4_splits_ignore_secondary_key_heldouts(
         sum(
             _admits(registry, DATASET, task_id)
             for task_id in task_ids["dev"]
-            if CorpusRegistry._task_name(task_id) == "cargo-flight-dispatch"
+            if CorpusRegistry.task_name(task_id) == "cargo-flight-dispatch"
         )
         == 1
     )
@@ -458,7 +458,7 @@ def test_real_canonical_tb4_splits_ignore_secondary_key_heldouts(
     cheatbench_rows: list[dict] = []
     hacktrace_rows: list[dict] = []
     for index, task_id in enumerate(task_ids["test"]):
-        name = CorpusRegistry._task_name(task_id)
+        name = CorpusRegistry.task_name(task_id)
         cheatbench_rows.append(_item(f"cb-name-{index}", "dev", f"synthetic-alias/{name}"))
         name_aliases.append(("cheatbench-actions-v1", f"cb-name-{index}"))
         hacktrace_rows.append(_item(f"ht-name-{index}", "dev", f"another-alias/{name}@v9"))
@@ -474,7 +474,7 @@ def test_real_canonical_tb4_splits_ignore_secondary_key_heldouts(
             )
             digest_aliases.append(("hacktrace-act-v1", f"ht-digest-{index}"))
     for index, task_id in enumerate(task_ids["dev"]):
-        name = CorpusRegistry._task_name(task_id)
+        name = CorpusRegistry.task_name(task_id)
         cheatbench_rows.append(_item(f"cb-dev-{index}", "dev", f"synthetic-alias/{name}"))
         dev_aliases.append(("cheatbench-actions-v1", f"cb-dev-{index}"))
     _write_jsonl(keys / "cheatbench-actions-v1/items.jsonl", cheatbench_rows)

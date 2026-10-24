@@ -1020,3 +1020,84 @@ def test_structural_context_survives_restart_for_the_gate(
     assert decision["allow"] is True
     assert calls[-1]["structural_context"] == context
     assert calls[-1]["ids"] == [1, 2]
+
+
+def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or_triage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = {
+        "artifact_ref": "context:tests/test_a.py",
+        "line": 7,
+        "sha256": "ab" * 32,
+        "quote": "assert result == 41",
+        "available_before_step": 1,
+    }
+    _inject_detectors(
+        monkeypatch,
+        hackbook=lambda steps: [
+            _hb_hit(s, eligibility="diagnostic", gate=False) for s in _marked(steps)
+        ],
+        structural=lambda steps: [
+            _structural_record("hit", kind="task_structure", evidence=[artifact]),
+            # No line/hash, or bound to a step after the observed prefix: not citable.
+            _structural_record(
+                "hit",
+                kind="task_structure",
+                check="loose_check",
+                evidence=[{"artifact_ref": "context:x", "quote": "q"}],
+            ),
+            _structural_record(
+                "hit",
+                kind="task_structure",
+                check="future_check",
+                evidence=[{**artifact, "available_before_step": 9}],
+            ),
+            # An agent action needs a real actor step; an artifact cannot stand in.
+            _structural_record("hit", check="action_check", evidence=[artifact]),
+        ],
+    )
+    judged: list[Any] = []
+
+    def judge(messages: list[dict[str, str]]) -> tuple[dict[str, Any], float]:
+        judged.append(json.loads(messages[-1]["content"])["candidate"]["rule"])
+        return _positive_judge(messages)
+
+    emitted: list[dict[str, Any]] = []
+    with MisalignmentLiveWorker(emit=emitted.append, judge=judge) as worker:
+        output = worker.ingest_event(_event(_step(1, "echo MARKER")))
+    cards = {e["payload"]["rule"]: e["payload"] for e in _of_type(emitted, "monitor.suspicion")}
+    assert set(cards) == {"structural:fixture_check", "hackbook:hb_fixture"}
+    cue = cards["structural:fixture_check"]
+    assert cue["evidence"] == [{"source": "initial_artifact", **artifact}]
+    assert all("step" not in e for e in cue["evidence"])
+    assert cue["kind"] == "task_structure" and cue["semantic_triage"] == "not_applicable"
+    assert cue["confirmation_scope"] == "task_structure_cue"
+    assert cue["finding_id"] == cue["card_id"] != cards["hackbook:hb_fixture"]["finding_id"]
+    gaps = _of_type(output, "monitor.coverage_gap")[0]["payload"]["gaps"]
+    assert gaps.count("uncitable_tripwire") == 3
+    score = _of_type(output, "monitor.prefix_scored")[0]["payload"]
+    assert score["assessment"] == "suspicious"  # the action-check hit is a verdict-eligible cue
+    # Only the action-derived card ever reaches the judge; the task cue never does.
+    assert judged == ["hackbook:hb_fixture"]
+    assert not [
+        e
+        for e in _of_type(emitted, "monitor.suspicion")
+        if e["payload"]["rule"] == "structural:fixture_check" and e["status"] == "confirmed"
+    ]
+
+
+def test_structural_gate_denial_must_quote_the_proposed_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_detectors(
+        monkeypatch,
+        structural=lambda steps: [
+            _structural_record(
+                "hit", gate=True, evidence=[{"step": steps[-1]["step_id"], "quote": "fabricated"}]
+            )
+        ],
+    )
+    _inject_policy(monkeypatch)
+    with MisalignmentLiveWorker() as worker:
+        decision = worker.pre_action_gate("run-a", _step(1, "pwd"))
+    assert decision["allow"] is True and decision["gate_hits"] == []

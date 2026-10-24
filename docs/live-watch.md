@@ -683,6 +683,10 @@ before or after the leaf command.
 uv run evallab prod ingest
 uv run evallab prod status
 
+# Observe existing DEV admissions only, using an explicitly selected offline cache.
+uv run evallab prod ingest --dataset tb4-audit-v1 --refresh-preflight \
+  --asset-cache /absolute/path/to/sha256-blobs
+
 # Consume one cycle, with no model driver enabled.
 uv run evallab prod run-once --systems misalignment
 
@@ -711,6 +715,35 @@ candidate is recorded as unavailable—not replaced with a latest-version alias,
 synthetic submission, or invented Task Quality/Seeker job. Re-ingesting changed
 source/preflight under the same native identity fails explicitly rather than
 overwriting the append-only journal.
+
+`ingest --refresh-preflight` does **not** ingest new records or seed jobs. It
+appends versioned `queue.corpus_preflight_updated` observations for already
+admitted, still-eligible canonical DEV records, preserving the original admission
+envelopes and job identities. The existing `--dataset` and `--run-id` flags apply;
+repeating an unchanged observation under another run label adds no event.
+Changed source identity or a newly sealed record fails closed rather than
+rewriting source custody.
+
+Refresh uses exact retained packages and the trusted static-inventory port
+locator. `--asset-cache` is optional, explicit, and immutable; it is rejected
+without `--refresh-preflight`. Relative cache paths resolve against `--repo-root`,
+not the shell's working directory. No ambient cache discovery or downloads occur;
+refresh executes no task, solution, container, model, or provider and incurs no
+paid work. Missing assets and unsupported shapes remain unavailable or blocked.
+A `described` native port means only that the real offline descriptor accepted
+the static inputs:
+`execution_proof=false` and `runtime_qualified=false`, never runtime qualification.
+Before opening the queue, refresh rejects a selected SQLite queue, PostgreSQL
+fallback, or derived poison-quarantine output (including symlink targets and
+SQLite companion files) inside the cache. SQLite `:memory:` remains an in-memory
+store, not a repository-relative filename.
+
+The refresh JSON is under `preflight_refresh`; ordinary ingest keeps its existing
+`ingest` receipt. `prod status` adds a compact, read-only `preflight` summary of
+**last-observed** admitted-item counts, native-port described/blocked/unavailable/
+not-observed counts, and `last_observed_at`. Never-refreshed admissions are
+`not_observed`. Status does not rerun probes, read actor traces, dispatch work, or
+claim that observations are current execution evidence.
 
 `run-once` runs the selected Task Quality, Reward Seeker, and/or Misalignment
 consumers and then one relay cycle. `serve --workers` supervises the same cycle

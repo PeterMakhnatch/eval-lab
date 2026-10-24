@@ -1,7 +1,9 @@
 """Production queue commands, with dashboard-only serving as the safe default.
 
 ``prod ingest`` admits public DEV records through the registry; sealed TEST and
-heldout records remain excluded. ``prod status`` only reads durable queue state.
+heldout records remain excluded. ``--refresh-preflight`` only appends static
+observations for existing admissions. ``prod status`` reads durable queue state
+and last-observed preflight metadata without probing or dispatching.
 ``prod run-once`` explicitly dispatches one selected worker cycle and one relay
 pass. ``prod serve`` dispatches neither unless ``--workers`` is present.
 
@@ -101,6 +103,14 @@ def register_parser(commands: Any) -> None:
         help="Registry dataset ID; repeat to select several (default: all public DEV corpora)",
     )
     ingest.add_argument("--run-id", default="production-seed")
+    ingest.add_argument(
+        "--refresh-preflight", action="store_true",
+        help="Append static observations for existing DEV admissions only; never seed jobs",
+    )
+    ingest.add_argument(
+        "--asset-cache", type=Path,
+        help="Immutable offline SHA-256 blob cache; requires --refresh-preflight (no downloads)",
+    )
     ingest.set_defaults(func=_command)
 
     status = actions.add_parser("status", help="Read persistent queue depth without dispatching")
@@ -137,20 +147,54 @@ def _database(root: Path, value: str | None) -> str | Path:
         return root / "derived/production/prod-queue.sqlite"
     if value.startswith(("postgresql://", "postgres://")):
         return value
-    if value == ":memory:":
-        return value
     if value.startswith("sqlite:///"):
         value = value[len("sqlite:///"):]
+    if value == ":memory:":
+        return value
     return _resolve(root, Path(value))
+
+
+def _queue_paths(args: argparse.Namespace, root: Path) -> tuple[str | Path, Path, Path]:
+    database = _database(root, args.database)
+    fallback_value = args.sqlite_fallback or Path("derived/production/prod-queue.sqlite")
+    fallback = (
+        Path(":memory:") if str(fallback_value) == ":memory:"
+        else _resolve(root, fallback_value)
+    )
+    poison_base = database if isinstance(database, Path) else fallback
+    if str(poison_base) == ":memory:":
+        poison_base = root / "derived/production/prod-queue.sqlite"
+    return database, fallback, poison_base.with_suffix(".poison.sqlite")
+
+
+def _refresh_asset_cache(args: argparse.Namespace, root: Path) -> Path | None:
+    if args.asset_cache is None:
+        return None
+    if not args.refresh_preflight:
+        raise ValueError("--asset-cache requires --refresh-preflight")
+    cache = _resolve(root, args.asset_cache)
+    database, fallback, poison = _queue_paths(args, root)
+    outputs = [("poison quarantine", poison)]
+    if isinstance(database, Path):
+        outputs.append(("queue database", database))
+    elif database != ":memory:" and str(fallback) != ":memory:":
+        outputs.append(("PostgreSQL SQLite fallback", fallback))
+    for kind, path in outputs:
+        # SQLite may write these companions before any application event exists.
+        for suffix in ("", "-journal", "-wal", "-shm"):
+            output = Path(str(path) + suffix).resolve()
+            if output.is_relative_to(cache):
+                raise ValueError(f"{kind} output must stay outside immutable asset cache: {output}")
+    return cache
 
 
 def _open_queue(args: argparse.Namespace, root: Path) -> Any:
     from evallab.production.corpus_queue import CorpusRegistry
     from evallab.production.relay import open_production_queue
 
-    fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
+    database, fallback, _ = _queue_paths(args, root)
     return open_production_queue(
-        _database(root, args.database), registry=CorpusRegistry(root), sqlite_fallback=fallback,
+        database, registry=CorpusRegistry(root), sqlite_fallback=fallback,
     )
 
 
@@ -168,9 +212,7 @@ def _runtime(args: argparse.Namespace, root: Path, queue: Any) -> Any:
 def _relay(args: argparse.Namespace, root: Path, queue: Any) -> Any:
     from evallab.production.relay import ProductionOutboxRelay
 
-    database = _database(root, args.database)
-    fallback = _resolve(root, args.sqlite_fallback or Path("derived/production/prod-queue.sqlite"))
-    quarantine = (database if isinstance(database, Path) else fallback).with_suffix(".poison.sqlite")
+    _, _, quarantine = _queue_paths(args, root)
     return ProductionOutboxRelay(queue, nats_url=args.nats_url, quarantine_path=quarantine)
 
 
@@ -338,17 +380,29 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     """Honor the existing CLI's integer return convention, with redacted JSON errors."""
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
+        asset_cache = _refresh_asset_cache(args, root) if args.prod_command == "ingest" else None
         exit_code = 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
-                from evallab.production.ingest import ingest_corpus
+                if args.refresh_preflight:
+                    from evallab.production.ingest import refresh_corpus_preflight
 
-                result = ingest_corpus(
-                    connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
-                )
-                receipt: dict[str, Any] = {"ingest": result, **_snapshot(connection)}
+                    result = refresh_corpus_preflight(
+                        connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
+                        asset_cache=asset_cache,
+                    )
+                    receipt: dict[str, Any] = {"preflight_refresh": result, **_snapshot(connection)}
+                else:
+                    from evallab.production.ingest import ingest_corpus
+
+                    result = ingest_corpus(
+                        connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
+                    )
+                    receipt = {"ingest": result, **_snapshot(connection)}
             elif args.prod_command == "status":
-                receipt = _snapshot(connection)
+                from evallab.production.ingest import preflight_summary
+
+                receipt = {"preflight": preflight_summary(connection.queue), **_snapshot(connection)}
             elif args.prod_command == "run-once":
                 receipt = asyncio.run(_run_once(args, root, connection))
                 exit_code = 1 if receipt.get("runtime", {}).get("ok") is False else 0

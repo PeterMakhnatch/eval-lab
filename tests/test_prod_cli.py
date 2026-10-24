@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import signal
 import threading
@@ -75,6 +76,20 @@ def _state(root: Path) -> dict[str, Any]:
         return queue.queue_snapshot()
 
 
+def _events(root: Path) -> list[dict[str, Any]]:
+    with ContinuousWorkQueue(_path(root), registry=CorpusRegistry(root)) as queue:
+        return queue.read_events(limit=1000)
+
+
+def _cache_state(cache: Path) -> dict[str, tuple[int, bytes | None]]:
+    return {
+        path.relative_to(cache).as_posix(): (
+            path.stat().st_mode, path.read_bytes() if path.is_file() else None,
+        )
+        for path in cache.rglob("*")
+    }
+
+
 def _forbidden(*_args: Any, **_kwargs: Any) -> None:
     pytest.fail("A read-only command reached dispatch or a broker")
 
@@ -133,6 +148,292 @@ def test_ingest_persists_admission_idempotently_and_reports_sealed_exclusions(
         events = queue.read_events(limit=100)
     assert any(event["event_type"] == "queue.corpus_admitted" for event in events)
     assert SEALED not in json.dumps(events)
+
+
+def test_refresh_preflight_only_observes_existing_admissions_and_never_seeds_jobs(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    refresh = ["prod", "ingest", "--refresh-preflight", "--dataset", DATASET]
+    assert cli.run_cli(refresh, workspace=corpus_root) == 0
+    empty = json.loads(capsys.readouterr().out)
+    assert "ingest" not in empty
+    assert empty["preflight_refresh"]["totals"] == {
+        "inspected": 0, "recorded": 0, "unchanged": 0,
+    }
+    assert _events(corpus_root) == []
+
+    assert cli.run_cli(["prod", "ingest", "--dataset", DATASET], workspace=corpus_root) == 0
+    capsys.readouterr()
+    admitted = _events(corpus_root)
+    assert len(admitted) == 1
+    source = corpus_root / "research/answer-keys" / DATASET / "items.jsonl"
+    with source.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({
+            "item_id": "unadmitted-dev", "split": "dev",
+            "subject": {"task_id": "unadmitted-task"},
+        }) + "\n")
+
+    assert cli.run_cli(refresh + ["--run-id", "observation-a"], workspace=corpus_root) == 0
+    first_text = capsys.readouterr().out
+    first = json.loads(first_text)
+    report = first["preflight_refresh"]
+    assert report["schema"] == "production.corpus-preflight-refresh/v1"
+    assert report["run_id"] == "observation-a"
+    assert report["totals"] == {"inspected": 1, "recorded": 1, "unchanged": 0}
+    assert set(report["datasets"]) == {DATASET}
+    assert [item["item_id"] for item in report["datasets"][DATASET]["items"]] == [DEV]
+    assert first["queue"]["depth"] == 0
+    observed = _events(corpus_root)
+    assert observed[:1] == admitted
+    assert [event["event_type"] for event in observed[1:]] == ["queue.corpus_preflight_updated"]
+    assert SEALED not in first_text
+    assert "unadmitted-dev" not in json.dumps(observed)
+
+    assert cli.run_cli(refresh + ["--run-id", "observation-b"], workspace=corpus_root) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["preflight_refresh"]["totals"] == {
+        "inspected": 1, "recorded": 0, "unchanged": 1,
+    }
+    assert _events(corpus_root) == observed
+    assert _state(corpus_root)["depth"] == 0
+
+
+def test_refresh_uses_explicit_cache_relative_to_repo_root_for_real_offline_port(
+    corpus_root: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from evallab.candidate_port import PM_FIXED_PIN
+    from evallab.registry import task_directory_digest
+    from evallab.upstream_grader import _tree_digest
+
+    original = corpus_root / "fixtures/upstream/native-task"
+    fixed = corpus_root / "fixtures/port/native-task"
+    cache = corpus_root / "immutable-assets"
+    cache.mkdir()
+    asset = b"pinned public fixture bytes\n"
+    digest = hashlib.sha256(asset).hexdigest()
+    (cache / digest).write_bytes(asset)
+    files = {
+        original / "task.toml": (
+            'schema_version = "1.0"\nartifacts = ["/app/result.txt"]\n'
+            '[task]\nname = "terminal-bench/native-task"\n'
+            '[agent]\ntimeout_sec = 60.0\n'
+            '[verifier]\ntimeout_sec = 60.0\nenvironment_mode = "shared"\n'
+            '[environment]\ncpus = 2\nmemory_mb = 4096\nstorage_mb = 10240\n'
+            'gpus = 0\nbuild_timeout_sec = 600.0\n'
+        ),
+        original / "instruction.md": "Write result.txt.\n",
+        original / "environment/Dockerfile": "FROM scratch\n",
+        fixed / "Containerfile": (
+            "FROM scratch\nCOPY shared_data/ /shared_data/\nCOPY root_data/ /root_data/\n"
+        ),
+        fixed / "pyproject.toml": '[project]\nname="environment"\nversion="0.1.0"\n',
+        fixed / "uv.lock": "version = 1\n",
+        fixed / ".manifest.json": "{}\n",
+        fixed / "shared_data/.gitkeep": "",
+        fixed / "root_data/.gitkeep": "",
+        fixed / "setup_data.py": (
+            "def setup(ctx):\n"
+            f"    ctx.fetch('https://example.invalid/pinned', ctx.root_data / 'blob.bin', {digest!r})\n"
+        ),
+        fixed / "src/environment/tasks/native_task/__init__.py": (
+            "class NativeTask(Task):\n"
+            "    id = 'native-task'\n"
+            "    def required_hardware(self):\n"
+            "        return 'cpus=2,memory_mb=4096,storage_mb=10240'\n"
+            "    def judge(self):\n"
+            "        return ExecutableJudge(['python', 'scoring_script.py'])\n"
+        ),
+    }
+    for path, content in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    source = corpus_root / "research/answer-keys" / DATASET / "items.jsonl"
+    source.write_text(json.dumps({
+        "item_id": DEV, "split": "dev",
+        "subject": {
+            "task_id": "terminal-bench/native-task",
+            "task_digest": task_directory_digest(original),
+        },
+        "package": {"path": original.relative_to(corpus_root).as_posix()},
+    }) + "\n", encoding="utf-8")
+    inventory = (
+        corpus_root / "research/experiments/candidate-execution-20261021/static-inventory.json"
+    )
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(json.dumps({
+        "schema": "evallab.candidate_execution_inventory/v1",
+        "source_roots": {"upstream": str(original.parent), "port": str(fixed.parent)},
+        "tasks": [{
+            "id": "native-task", "upstream_task": str(original), "port_task": str(fixed),
+            "upstream_exact_tree_digest": _tree_digest(original),
+            "port_exact_tree_digest": _tree_digest(fixed),
+            "source_pins": {"port_required": PM_FIXED_PIN},
+        }],
+    }), encoding="utf-8")
+    before_cache = _cache_state(cache)
+    workspace = tmp_path / "other-workspace"
+    workspace.mkdir()
+    options = ["--repo-root", str(corpus_root)]
+    assert cli.run_cli(
+        ["prod", *options, "ingest", "--dataset", DATASET], workspace=workspace,
+    ) == 0
+    capsys.readouterr()
+    admission = _events(corpus_root)[0]
+    refresh = ["prod", "ingest", *options, "--refresh-preflight", "--dataset", DATASET]
+    assert cli.run_cli(refresh, workspace=workspace) == 0
+    without_cache = json.loads(capsys.readouterr().out)["preflight_refresh"]
+    without_port = without_cache["datasets"][DATASET]["items"][0]["preflight"]["native_port"]
+    assert without_port["state"] == "blocked"
+
+    assert cli.run_cli(refresh + ["--asset-cache", "immutable-assets"], workspace=workspace) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    report = receipt["preflight_refresh"]
+    assert report["totals"] == {"inspected": 1, "recorded": 1, "unchanged": 0}
+    native_port = report["datasets"][DATASET]["items"][0]["preflight"]["native_port"]
+    assert native_port["state"] == "described"
+    assert receipt["queue"]["depth"] == 0
+    assert _events(corpus_root)[0] == admission
+    assert _cache_state(cache) == before_cache
+    assert not (workspace / "derived").exists()
+    assert not (workspace / "immutable-assets").exists()
+    observed = _events(corpus_root)
+    # Source changes after observation do not turn status into a fresh probe.
+    (fixed / "setup_data.py").write_text("unsupported_new_recipe()\n", encoding="utf-8")
+    assert cli.run_cli(["prod", "status", *options], workspace=workspace) == 0
+    summary = json.loads(capsys.readouterr().out)["preflight"]
+    assert summary["totals"]["native_port"]["described"] == 1
+    assert summary["last_observed_at"]
+    assert summary["execution_proof"] is False
+    assert summary["runtime_qualified"] is False
+    assert _events(corpus_root) == observed
+
+
+def test_status_reports_last_observed_static_preflight_read_only_beyond_first_page(
+    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.run_cli(["prod", "ingest", "--dataset", DATASET], workspace=corpus_root) == 0
+    capsys.readouterr()
+    assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
+    unobserved = json.loads(capsys.readouterr().out)["preflight"]
+    assert unobserved["totals"]["admitted"] == 1
+    assert unobserved["totals"]["observed"] == 0
+    assert unobserved["totals"]["native_port"]["not_observed"] == 1
+    assert unobserved["last_observed_at"] is None
+    with ContinuousWorkQueue(_path(corpus_root), registry=CorpusRegistry(corpus_root)) as queue:
+        for number in range(105):
+            queue.append_event({
+                "event_id": f"cli-padding:{number}", "run_id": "cli-padding",
+                "system": "queue", "event_type": "queue.cli_fixture",
+                "status": "applied", "payload": {},
+            })
+    assert cli.run_cli(
+        ["prod", "ingest", "--refresh-preflight", "--dataset", DATASET],
+        workspace=corpus_root,
+    ) == 0
+    capsys.readouterr()
+    before_events = _events(corpus_root)
+    before_state = _state(corpus_root)
+    monkeypatch.setattr(production_cli, "_runtime", _forbidden)
+    monkeypatch.setattr(production_cli, "_relay", _forbidden)
+    assert cli.run_cli(["prod", "status"], workspace=corpus_root) == 0
+    status_text = capsys.readouterr().out
+    status = json.loads(status_text)
+    summary = status["preflight"]
+    assert summary["schema"] == "production.corpus-preflight-summary/v1"
+    assert summary["totals"]["admitted"] == summary["totals"]["observed"] == 1
+    assert summary["totals"]["native_port"] == {
+        "described": 0, "blocked": 0, "unavailable": 1, "not_observed": 0,
+    }
+    assert summary["last_observed_at"]
+    assert summary["execution_proof"] is False
+    assert summary["runtime_qualified"] is False
+    assert SEALED not in status_text
+    assert "items" not in summary["datasets"][DATASET]
+    assert status["queue"] == before_state
+    assert _events(corpus_root) == before_events
+
+
+def test_asset_cache_requires_explicit_refresh_before_creating_a_queue(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    cache = corpus_root / "cache"
+    cache.mkdir()
+    (cache / "pinned").write_bytes(b"immutable input")
+    before = _cache_state(cache)
+    assert cli.run_cli(
+        ["prod", "ingest", "--asset-cache", "cache", "--database", "cache/queue.sqlite"],
+        workspace=corpus_root,
+    ) == 2
+    error = json.loads(capsys.readouterr().err)
+    assert "--asset-cache requires --refresh-preflight" in error["error"]["message"]
+    assert _cache_state(cache) == before
+    assert not _path(corpus_root).exists()
+
+
+@pytest.mark.parametrize("output", [
+    "database", "sqlite-uri", "postgres-fallback", "postgres-default-fallback",
+    "queue-alias", "poison", "postgres-poison", "sqlite-sidecar",
+])
+def test_refresh_rejects_cache_output_overlap_before_opening_any_database(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], output: str,
+) -> None:
+    cache = corpus_root / ("derived" if output == "postgres-default-fallback" else "cache")
+    cache.mkdir()
+    pinned = cache / "pinned"
+    pinned.write_bytes(b"immutable input")
+    database = corpus_root / "queues/work.sqlite"
+    options = ["--database", "queues/work.sqlite"]
+    postgres = "postgresql://127.0.0.1:1/cli-guard-must-not-connect"
+    if output == "database":
+        options = ["--database", "cache/queue.sqlite"]
+    elif output == "sqlite-uri":
+        options = ["--database", "sqlite:///cache/queue.sqlite"]
+    elif output == "postgres-fallback":
+        options = ["--database", postgres, "--sqlite-fallback", "cache/fallback.sqlite"]
+    elif output == "postgres-default-fallback":
+        options = ["--database", postgres]
+    elif output == "queue-alias":
+        (corpus_root / "cache-alias").symlink_to(cache, target_is_directory=True)
+        options = ["--database", "cache-alias/queue.sqlite"]
+    else:
+        database.parent.mkdir()
+        companion = (
+            Path(str(database) + "-wal") if output == "sqlite-sidecar"
+            else database.with_suffix(".poison.sqlite")
+        )
+        companion.symlink_to(pinned)
+        if output == "postgres-poison":
+            options = ["--database", postgres, "--sqlite-fallback", "queues/work.sqlite"]
+    before = _cache_state(cache)
+    assert cli.run_cli([
+        "prod", "ingest", "--refresh-preflight", "--asset-cache", cache.name, *options,
+    ], workspace=corpus_root) == 2
+    error = json.loads(capsys.readouterr().err)
+    assert "outside immutable asset cache" in error["error"]["message"]
+    assert _cache_state(cache) == before
+    assert not database.exists()
+    assert not _path(corpus_root).exists()
+
+
+@pytest.mark.parametrize("database", [":memory:", "sqlite:///:memory:"])
+def test_refresh_preserves_sqlite_memory_semantics_instead_of_resolving_a_file(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], database: str,
+) -> None:
+    cache = corpus_root / ":memory:"
+    cache.mkdir()
+    (cache / "pinned").write_bytes(b"immutable input")
+    before = _cache_state(cache)
+    assert cli.run_cli([
+        "prod", "ingest", "--refresh-preflight", "--asset-cache", ":memory:",
+        "--database", database, "--dataset", DATASET,
+    ], workspace=corpus_root) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["backend"] == "sqlite"
+    assert receipt["preflight_refresh"]["totals"] == {
+        "inspected": 0, "recorded": 0, "unchanged": 0,
+    }
+    assert _cache_state(cache) == before
+    assert not (corpus_root / "derived").exists()
 
 
 def test_status_reads_persistent_jobs_without_claiming_or_publishing(

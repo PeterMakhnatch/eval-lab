@@ -73,7 +73,7 @@ from evallab.edit_signals import (
     blank_quoted_and_heredocs,
     codex_apply_patches,
     step_bash_commands,
-    tool_bash_commands,
+    tool_bash_invocations,
 )
 from evallab.history_mining import _coerce_arguments, history_mining_signals
 from evallab.step_layers import effective_tool_calls
@@ -1939,6 +1939,13 @@ def _py_flags(shell: _Shell, tree: ast.Module, path: str | None, evidence: str) 
 # ---------------------------------------------------------------------------
 
 
+def _directory(raw: str, policy_cwd: str) -> str | None:
+    """Lexical directory for a per-call value, ``None`` when it cannot be resolved."""
+    if "$" in raw or "`" in raw:
+        return None
+    return _resolve(policy_cwd, raw)
+
+
 def _call_directory(call: Mapping[str, Any], policy_cwd: str) -> tuple[bool, str | None]:
     """``(explicit, directory)`` for a tool call's own working directory.
 
@@ -1949,9 +1956,7 @@ def _call_directory(call: Mapping[str, Any], policy_cwd: str) -> tuple[bool, str
     raw = call.get(_CALL_CWD)
     if not isinstance(raw, str):
         return False, None
-    if "$" in raw or "`" in raw:
-        return True, None
-    return True, _resolve(policy_cwd, raw)
+    return True, _directory(raw, policy_cwd)
 
 
 def _step_findings(
@@ -1962,15 +1967,23 @@ def _step_findings(
     Shell calls without a per-call directory share one shell that starts in
     ``start_cwd`` (so ``cd`` carries between them). A call with an explicit
     directory runs in its own shell there and leaves the persistent cwd alone.
+    Inside a Codex ``exec`` script each ``exec_command`` object with its own
+    literal ``workdir`` does the same, and that directory wins over the call's.
     """
     findings = _Findings()
     shell = _Shell(start_cwd, findings)
+    scripted: set[int] = set()
     calls = [call for call in view["tool_calls"] if call["function_name"] in SHELL_TOOL_NAMES]
     for call in calls:
         explicit, directory = _call_directory(call, policy_cwd)
-        runner = _Shell(directory, findings) if explicit else shell
-        for command in tool_bash_commands(call):
-            runner.run(command)
+        for invocation in tool_bash_invocations(call):
+            if invocation.has_workdir:
+                scripted.add(id(call))
+                inner = invocation.workdir
+                runner = _Shell(None if inner is None else _directory(inner, policy_cwd), findings)
+            else:
+                runner = _Shell(directory, findings) if explicit else shell
+            runner.run(invocation.command)
     tool = _Shell(policy_cwd, findings)
     for mode, recursive, raw, evidence in _tool_accesses(view):
         tool.push(mode, _resolve(policy_cwd, raw), evidence, recursive)
@@ -1978,6 +1991,8 @@ def _step_findings(
         _, base = _call_directory(call, policy_cwd)
         base = base if _CALL_CWD in call else policy_cwd
         for path, text in _tool_call_files({"tool_calls": [call]}):
+            if id(call) in scripted and not path.startswith("/"):
+                continue  # relative heredoc targets were resolved by their own exec_command
             target = None if path.startswith("tool:") else _resolve(base, path)
             findings.contents.append((target, text))
     for path, text in list(findings.contents):

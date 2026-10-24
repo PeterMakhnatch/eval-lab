@@ -30,6 +30,7 @@ from evallab.production.corpus_queue import (
 )
 
 DATASET = "tb4-audit-v1"
+SECONDARY_KEY = "envcheck-tb4-39"  # real secondary assignments key, not a corpus
 FROZEN_TOKEN = "test-only-explicit-frozen-evaluation"
 DEV = {"dataset_id": DATASET, "item_id": "finding-dev"}
 TEST = {"dataset_id": DATASET, "item_id": "finding-test"}
@@ -173,15 +174,16 @@ def database(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[str | P
         yield tmp_path / "production.sqlite"
         return
     import psycopg
+    from psycopg import sql
 
     server = request.getfixturevalue("postgres_server")
     schema = "corpus_queue_" + uuid4().hex
     with psycopg.connect(server, autocommit=True) as connection:
-        connection.execute(f'CREATE SCHEMA "{schema}"')
+        connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         try:
             yield server + "&options=" + quote(f"-csearch_path={schema}", safe="")
         finally:
-            connection.execute(f'DROP SCHEMA "{schema}" CASCADE')
+            connection.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
 
 
 @pytest.fixture
@@ -298,6 +300,223 @@ def test_canonical_assignment_can_only_tighten_a_split(corpus_root: Path) -> Non
     for ref in (DEV, TEST):
         with pytest.raises(SplitLockError):
             registry.admit(**ref)
+
+
+def _assignments(corpus_root: Path, rows: str) -> Path:
+    path = corpus_root / "research/answer-keys/splits/assignments.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("key_id,item_id,task,split\n" + rows, encoding="utf-8")
+    return path
+
+
+def test_secondary_key_heldout_never_seals_canonical_dev_or_cross_dataset_alias(
+    corpus_root: Path,
+) -> None:
+    _assignments(
+        corpus_root,
+        f"{SECONDARY_KEY},terminal-bench/dev-task,terminal-bench/dev-task,heldout\n"
+        f"{SECONDARY_KEY},another-benchmark/dev-task@v9,another-benchmark/dev-task@v9,heldout\n",
+    )
+    _write_jsonl(
+        corpus_root / "research/answer-keys/hacktrace-act-v1/items.jsonl",
+        [
+            _item("hack-dev", "dev", "hacktrace/independent"),
+            _item("name-alias", "dev", "another-benchmark/sealed-task@v2"),
+            _item("secondary-name-alias", "dev", "another-benchmark/dev-task@v9"),
+            _item("mimo-name-alias", "dev", "mirror/mimo-held@v9"),
+        ],
+    )
+    registry = CorpusRegistry(corpus_root)
+    assert registry.admit(**DEV).split == "dev"
+    assert registry.admit("hacktrace-act-v1", "secondary-name-alias").split == "dev"
+    # Canonical and MiMo locks are unchanged by secondary scoping.
+    with pytest.raises(SplitLockError):
+        registry.admit("hacktrace-act-v1", "name-alias")
+    with pytest.raises(SplitLockError):
+        registry.admit("hacktrace-act-v1", "mimo-name-alias")
+    # Secondary keys are not registered corpora; their lookups fail closed.
+    for item_id in ("terminal-bench/dev-task", "another-benchmark/dev-task@v9"):
+        with pytest.raises(KeyError):
+            registry.admit(SECONDARY_KEY, item_id)
+
+
+def test_canonical_key_assignment_still_seals_task_names_globally(
+    corpus_root: Path,
+) -> None:
+    _assignments(
+        corpus_root,
+        "tb4-audit-v1,finding-dev,terminal-bench/dev-task,test\n",
+    )
+    _write_jsonl(
+        corpus_root / "research/answer-keys/hacktrace-act-v1/items.jsonl",
+        [
+            _item("hack-dev", "dev", "hacktrace/independent"),
+            _item("canonical-name-alias", "dev", "another-benchmark/dev-task@v9"),
+        ],
+    )
+    registry = CorpusRegistry(corpus_root)
+    with pytest.raises(SplitLockError):
+        registry.admit(**DEV)
+    with pytest.raises(SplitLockError):
+        registry.admit("hacktrace-act-v1", "canonical-name-alias")
+
+
+def test_assignment_key_scoping_is_order_independent(corpus_root: Path) -> None:
+    secondary = f"{SECONDARY_KEY},terminal-bench/dev-task,terminal-bench/dev-task,heldout\n"
+    canonical = "tb4-audit-v1,finding-test,terminal-bench/sealed-task,test\n"
+    observed = []
+    for rows in ((secondary, canonical), (canonical, secondary)):
+        _assignments(corpus_root, "".join(rows))
+        registry = CorpusRegistry(corpus_root)
+        observed.append((registry.admit(**DEV).split, registry.get(**TEST).split))
+        with pytest.raises(KeyError):
+            registry.admit(SECONDARY_KEY, "terminal-bench/dev-task")
+    assert observed == [("dev", "test"), ("dev", "test")]
+
+
+def test_frozen_token_neither_registers_secondary_keys_nor_unseals_canonical(
+    corpus_root: Path,
+) -> None:
+    _assignments(
+        corpus_root,
+        f"{SECONDARY_KEY},terminal-bench/dev-task,terminal-bench/dev-task,heldout\n",
+    )
+    registry = CorpusRegistry(corpus_root, frozen_eval_token=FROZEN_TOKEN)
+    assert registry.admit(**DEV).split == "dev"
+    with pytest.raises(KeyError):
+        registry.admit(SECONDARY_KEY, "terminal-bench/dev-task", frozen_eval_token=FROZEN_TOKEN)
+    with pytest.raises(SplitLockError):
+        registry.admit(**TEST)
+    assert registry.admit(**TEST, frozen_eval_token=FROZEN_TOKEN).split == "test"
+
+
+def _admits(
+    registry: CorpusRegistry, dataset_id: str, item_id: str, token: str | None = None
+) -> bool:
+    try:
+        registry.admit(dataset_id, item_id, frozen_eval_token=token)
+    except (KeyError, SplitLockError):
+        return False
+    return True
+
+
+def _sealed(registry: CorpusRegistry, dataset_id: str, item_id: str) -> bool:
+    try:
+        registry.admit(dataset_id, item_id)
+    except SplitLockError:
+        return True
+    return False
+
+
+def test_real_canonical_tb4_splits_ignore_secondary_key_heldouts(
+    tmp_path: Path,
+) -> None:
+    # Iterate committed split metadata only; identifiers are never printed.
+    root = Path(__file__).resolve().parents[1]
+    task_index = root / "research/answer-keys/tb4-audit-v1/tasks.jsonl"
+    task_ids: dict[str, list[str]] = {"dev": [], "test": []}
+    digests = {}
+    for line in task_index.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        subject = row.get("subject") or {}
+        task_id = subject.get("task_id")
+        if not task_id:
+            continue
+        task_ids["dev" if row.get("split") == "dev" else "test"].append(task_id)
+        if subject.get("task_digest"):
+            digests[task_id] = subject["task_digest"]
+    registry = CorpusRegistry(root)
+    admitted_dev = sum(_admits(registry, DATASET, task_id) for task_id in task_ids["dev"])
+    sealed_test = sum(_sealed(registry, DATASET, task_id) for task_id in task_ids["test"])
+    assert (len(task_ids["dev"]), admitted_dev) == (25, 25)
+    assert (len(task_ids["test"]), sealed_test) == (41, 41)
+    # cargo-flight-dispatch is held out only under the secondary envcheck key;
+    # its canonical DEV row must still admit.
+    assert (
+        sum(
+            _admits(registry, DATASET, task_id)
+            for task_id in task_ids["dev"]
+            if CorpusRegistry._task_name(task_id) == "cargo-flight-dispatch"
+        )
+        == 1
+    )
+    tokened = CorpusRegistry(root, frozen_eval_token=FROZEN_TOKEN)
+    unlocked = sum(_admits(tokened, DATASET, task_id, FROZEN_TOKEN) for task_id in task_ids["test"])
+    assert unlocked == 41
+    with pytest.raises(KeyError):
+        registry.admit(SECONDARY_KEY, "terminal-bench/dev-task")
+
+    # Synthetic aliases under the other canonical corpora prove the TEST lock is
+    # global by task name, and by digest wherever committed metadata carries one.
+    alias_root = tmp_path / "alias-corpus"
+    keys = alias_root / "research/answer-keys"
+    name_aliases: list[tuple[str, str]] = []
+    digest_aliases: list[tuple[str, str]] = []
+    dev_aliases: list[tuple[str, str]] = []
+    cheatbench_rows: list[dict] = []
+    hacktrace_rows: list[dict] = []
+    for index, task_id in enumerate(task_ids["test"]):
+        name = CorpusRegistry._task_name(task_id)
+        cheatbench_rows.append(_item(f"cb-name-{index}", "dev", f"synthetic-alias/{name}"))
+        name_aliases.append(("cheatbench-actions-v1", f"cb-name-{index}"))
+        hacktrace_rows.append(_item(f"ht-name-{index}", "dev", f"another-alias/{name}@v9"))
+        name_aliases.append(("hacktrace-act-v1", f"ht-name-{index}"))
+        if task_id in digests:
+            hacktrace_rows.append(
+                _item(
+                    f"ht-digest-{index}",
+                    "dev",
+                    f"digest-only/alias-{index}",
+                    digests[task_id],
+                )
+            )
+            digest_aliases.append(("hacktrace-act-v1", f"ht-digest-{index}"))
+    for index, task_id in enumerate(task_ids["dev"]):
+        name = CorpusRegistry._task_name(task_id)
+        cheatbench_rows.append(_item(f"cb-dev-{index}", "dev", f"synthetic-alias/{name}"))
+        dev_aliases.append(("cheatbench-actions-v1", f"cb-dev-{index}"))
+    _write_jsonl(keys / "cheatbench-actions-v1/items.jsonl", cheatbench_rows)
+    _write_jsonl(keys / "hacktrace-act-v1/items.jsonl", hacktrace_rows)
+    for name in ("items.jsonl", "tasks.jsonl"):
+        target = keys / "tb4-audit-v1" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / "research/answer-keys/tb4-audit-v1" / name, target)
+    (keys / "splits").mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(
+        root / "research/answer-keys/splits/assignments.csv",
+        keys / "splits/assignments.csv",
+    )
+    inventory = alias_root / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(root / "research/experiments/mimo-defect-map-v1/inventory.json", inventory)
+    aliased = CorpusRegistry(alias_root)
+    sealed_by_name = sum(_sealed(aliased, dataset, item_id) for dataset, item_id in name_aliases)
+    sealed_by_digest = sum(
+        _sealed(aliased, dataset, item_id) for dataset, item_id in digest_aliases
+    )
+    admitted_aliases = sum(_admits(aliased, dataset, item_id) for dataset, item_id in dev_aliases)
+    assert (len(name_aliases), sealed_by_name) == (82, 82)
+    assert digest_aliases and (len(digest_aliases), sealed_by_digest) == (41, 41)
+    assert (len(dev_aliases), admitted_aliases) == (25, 25)
+
+
+def test_real_mimo_heldout_name_and_digest_seal_is_unchanged() -> None:
+    root = Path(__file__).resolve().parents[1]
+    inventory = json.loads(
+        (root / "research/experiments/mimo-defect-map-v1/inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    heldout = set(inventory["heldout_task_ids_excluded_from_training_all_versions"])
+    registry = CorpusRegistry(root)
+    sealed = sum(
+        _sealed(registry, item.dataset_id, item.item_id)
+        for item in registry.items(dataset_id="mimo-defect-map-v1")
+        if item.task_id in heldout
+    )
+    assert (len(heldout), sealed) == (33, 33)
 
 
 def test_registry_metadata_cannot_be_mutated_to_relabel_later_admission(
@@ -523,6 +742,7 @@ def test_ordered_event_read_resume_filter_and_publication_independence(
     queue.mark_published(first["event_id"])
     assert queue.pending_outbox() == [second]
     claimed = queue.claim("worker", job_types=(REPAIR,))
+    assert claimed is not None
     queue.ack(first["event_id"], lease_token=claimed["lease_token"])
     assert queue.pending_outbox() == [second]
     assert queue.read_events() == [first, second]
@@ -549,6 +769,7 @@ def test_leases_release_renew_expiry_and_stale_worker_fencing(
             operation(job["event_id"], lease_token=first["lease_token"])
     queue.release(job["event_id"], lease_token=second["lease_token"])
     third = queue.claim("worker-three", job_types=(REPAIR,))
+    assert third is not None
     queue.ack(job["event_id"], lease_token=third["lease_token"])
     queue.ack(job["event_id"], lease_token=third["lease_token"])
     assert queue.claim("worker-four", job_types=(REPAIR,)) is None

@@ -684,7 +684,12 @@ Construct the registry from the committed local corpus indices, then pass one
 dedicated queue to the Task Quality and Reward Seeker workers and
 `emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
 registry rather than a caller's split label; TEST remains sealed without the
-explicit per-operation frozen-evaluation token.
+explicit per-operation frozen-evaluation token. The TEST lock is global only
+across the four canonical corpora: a held-out task name or digest seals every
+canonical record that references it. Split-assignment rows under secondary key
+ids are scoped — they tighten only their own `(key_id, item_id)` entries, never
+feed the global lock, and never register a corpus; lookups under an
+unregistered key fail closed with `KeyError`.
 
 The queue transaction that records a confirmed Seeker `1.0 -> 0.0` differential
 also enqueues `task_quality.repair_task`. Task Quality replays the same immutable
@@ -725,7 +730,32 @@ stopped, or quarantined anything. The monitor consumes the request and records
 `control.requested`, `control.acknowledged`, and finally `control.applied` or
 `control.expired`. Only an applied event changes the displayed run state.
 
-Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py`.
+## Outbox relay
+
+`evallab.production.outbox_relay.OutboxRelay(queue, publisher, quarantine=...)`
+drains `ContinuousWorkQueue.pending_outbox` and publishes each complete
+envelope to `evallab.<family>.<token>` with `Nats-Msg-Id` equal to
+`event_id`. It awaits a real JetStream pub-ack before `mark_published`, so a
+crash between ack and mark is repaired by broker deduplication on the next
+drain. Routing is explicit: `trace.*`/`run.*`/monitor capture and seeker
+attempt telemetry go to `evallab.capture.<system>`; `monitor.suspicion`,
+`seeker.exploit_confirmed`/`job_refused`, and `task_quality.*` determinations
+go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
+`worker.*`, and `*_task` job events go to `evallab.control.<system>`;
+`asset.*`/`verified_asset.*` go to `evallab.assets.<kind>` (payload `kind`,
+default `unknown`). Unknown future types fall back to `evallab.capture.<system>`
+and are never auto-promoted. Invalid, TEST/heldout, and permanently rejected
+envelopes are quarantined durably before being marked consumed; transient
+broker errors stay unpublished and retryable.
+
+Publishers: `LocalJetStreamAdapter` (zero-config, memory or SQLite-durable,
+message-id suppression, immutable snapshots, `replay_subject` cursor replay,
+durable poison table), `NatsTcpTransport` (real NATS TCP wire protocol,
+stdlib socket), `HttpGatewayTransport` (explicitly configured HTTP relay
+gateway — plain NATS has no HTTP endpoint). Remote transports need an
+explicit `PoisonQuarantine` store.
+
+Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py tests/test_outbox_relay.py`.
 The end-to-end test executes trusted local fixture submissions and both graders,
 shares the real SQLite journal across all four parts, verifies gap-free SSE
 snapshot/replay and asset recovery, and checks executor-acknowledged interventions.

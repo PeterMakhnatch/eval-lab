@@ -730,6 +730,25 @@ ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
 only after the complete bundle is on disk.
 
+`TaskQualityLiveWorker` also claims `task_quality.annotation_task` jobs — the
+normalized human severity/rationale records that loaders such as
+`load_swebench_annotations` enqueue under `payload.annotation`. Every row
+carrying annotation content routes there regardless of its package locators;
+only evidence rows with no annotation content still enqueue `audit_task`.
+Each job streams
+a provisional `qa.finding/v1` preserving the human assessment and provenance;
+`execution_available` marks whether measured execution evidence backs the
+emitted finding (`False` on every provisional event). A declared `task_dir` or
+`task_package` that resolves to a real directory, together with a
+`repaired_task` directory and retained `failing_runs`/`passing_runs` (or an
+immutable exploit candidate), feeds the standard differential machinery inside
+annotation processing and can upgrade the annotation finding to `confirmed` or `refuted`.
+A `task_dir` alone is not confirmation: missing prerequisites and unusable
+executions remain `provisional` with the missing inputs recorded under
+`missing_prerequisites`. Annotation jobs never run repair qualification, so
+they can never emit `asset.verified`, and they never fabricate packages,
+replay receipts, or rewards.
+
 Docker capacity probes allow 30 seconds per daemon query while retaining the
 declared-resource and competing-container admission checks. A refused or unavailable
 grader is infrastructure evidence, not a failed shortcut: its feedback remains in
@@ -792,7 +811,7 @@ stdlib socket), `HttpGatewayTransport` (explicitly configured HTTP relay
 gateway — plain NATS has no HTTP endpoint). Remote transports need an
 explicit `PoisonQuarantine` store.
 
-Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py tests/test_outbox_relay.py`.
+Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_public_corpus_loader.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py tests/test_outbox_relay.py`.
 The end-to-end test executes trusted local fixture submissions and both graders,
 shares the real SQLite journal across all four parts, verifies gap-free SSE
 snapshot/replay and asset recovery, and checks executor-acknowledged interventions.

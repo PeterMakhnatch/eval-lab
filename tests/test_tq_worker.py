@@ -584,3 +584,259 @@ def test_candidate_plan_is_not_executed_evidence(setup) -> None:
     }
     assert s.worker.process_job(s.envelope)["complete"] is False
     assert finding_events(s.queue)[-1]["status"] == "provisional"
+
+
+# --------------------------------------------------------------- annotations
+
+
+def _annotation_envelope(s, **payload) -> dict[str, Any]:
+    return {
+        **s.envelope,
+        "event_type": "task_quality.annotation_task",
+        "payload": {
+            "dataset_id": "swebench-annotations",
+            "item_id": "django__django-17084",
+            "source_id": "swe-anno-1",
+            "source_kind": "public_annotation",
+            "license": "MIT",
+            "provenance": {"loader": "swebench_annotations", "source_id": "swe-anno-1"},
+            "packaging_state": "annotation_only",
+            "annotation": {
+                "underspecified": "major",
+                "unfair_tests": "minor",
+                "comment": "Instruction never states the required trailing newline.",
+            },
+            **payload,
+        },
+    }
+
+
+def test_annotation_only_job_records_provisional_finding(setup) -> None:
+    s = setup
+    result = s.worker.process_job(_annotation_envelope(s))
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert len(events) == 1
+    event = events[0]
+    assert event["status"] == "provisional"
+    assert event["payload"]["phase"] == "human_annotation"
+    assert event["payload"]["execution_available"] is False
+    assert event["payload"]["annotation"]["underspecified"] == "major"
+    assert event["payload"]["annotation"]["unfair_tests"] == "minor"
+    assert event["payload"]["provenance"]["source_id"] == "swe-anno-1"
+    assert event["payload"]["missing_prerequisites"]
+    finding = Finding.model_validate(event["payload"]["finding"])
+    assert finding.verdict == "unknown"
+    assert finding.measurement == "not_run"
+    assert finding.refutation.status == "unverified"
+    assert finding.severity == "high"
+    assert finding.category == "false_negative"
+    assert finding.root_cause == ["unstated_requirement"]
+    assert "trailing newline" in (finding.summary or "")
+    assert s.queue.events[0]["event_type"] == "task_quality.started"
+    assert s.queue.events[-1]["event_type"] == "task_quality.completed"
+    assert s.queue.events[-1]["status"] == "provisional"
+    assert not s.replay.calls
+    assert not s.backend.calls
+    assert not any(event["event_type"] == "asset.verified" for event in s.queue.events)
+
+
+def test_annotation_job_is_claimed_and_acked_through_run_once(setup) -> None:
+    s = setup
+    s.queue.jobs.append(_annotation_envelope(s))
+    result = s.worker.run_once()
+    assert result is not None and result["complete"] is True
+    assert s.queue.claims[0][1] == JOB_TYPES
+    assert "task_quality.annotation_task" in s.queue.claims[0][1]
+    assert s.queue.acks == ["job-1"]
+    assert not s.queue.releases
+
+
+def test_runnable_annotation_confirms_only_by_real_differential(setup) -> None:
+    s = setup
+    envelope = _annotation_envelope(
+        s, task_dir="original", repaired_task="repaired", failing_runs=["trial"]
+    )
+    s.replay.original_reward, s.replay.repaired_reward = 0.0, 1.0
+    result = s.worker.process_job(envelope)
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert [event["status"] for event in events] == ["provisional", "confirmed"]
+    assert events[0]["payload"]["execution_available"] is False
+    assert events[-1]["payload"]["execution_available"] is True
+    assert events[-1]["payload"]["annotation"]["underspecified"] == "major"
+    assert events[-1]["payload"]["provenance"]["source_id"] == "swe-anno-1"
+    final = Finding.model_validate(events[-1]["payload"]["finding"])
+    assert final.verdict == "fail"
+    assert final.refutation.status == "verified"
+    assert final.severity == "high"
+    assert "trailing newline" in (final.summary or "")
+    assert [call["grader"].package for call in s.replay.calls] == [s.original, s.repaired]
+    assert all(call["trial"] == s.source for call in s.replay.calls)
+    assert s.queue.events[-1]["event_type"] == "task_quality.completed"
+    assert s.queue.events[-1]["status"] == "applied"
+    assert not any(event["event_type"] == "asset.verified" for event in s.queue.events)
+
+
+@pytest.mark.parametrize("rewards", [(1.0, 1.0), (0.0, 0.0), (1.0, 0.0)])
+def test_runnable_annotation_refutes_when_differential_disagrees(setup, rewards) -> None:
+    s = setup
+    envelope = _annotation_envelope(
+        s, task_dir="original", repaired_task="repaired", failing_runs=["trial"]
+    )
+    s.replay.original_reward, s.replay.repaired_reward = rewards
+    result = s.worker.process_job(envelope)
+    assert result["complete"] is True
+    assert [event["status"] for event in finding_events(s.queue)] == [
+        "provisional",
+        "refuted",
+    ]
+    final = Finding.model_validate(finding_events(s.queue)[-1]["payload"]["finding"])
+    assert final.verdict == "pass"
+    assert final.refutation.status == "refuted"
+
+
+def test_task_dir_alone_is_not_confirmation_evidence(setup) -> None:
+    """A resolvable ``task_dir`` without repaired package/runs stays provisional."""
+    s = setup
+    result = s.worker.process_job(_annotation_envelope(s, task_dir="original"))
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert len(events) == 1 and events[0]["status"] == "provisional"
+    assert events[0]["payload"]["execution_available"] is False
+    missing = events[0]["payload"]["missing_prerequisites"]
+    assert any("repaired" in entry for entry in missing)
+    finding = Finding.model_validate(events[0]["payload"]["finding"])
+    assert finding.subject.task_digest == task_directory_digest(s.original)
+    assert events[0]["payload"]["static"]
+    assert not s.replay.calls
+
+
+def test_declared_but_missing_task_dir_is_a_missing_prerequisite(setup) -> None:
+    s = setup
+    result = s.worker.process_job(
+        _annotation_envelope(s, task_dir="absent", repaired_task="repaired")
+    )
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert [event["status"] for event in events] == ["provisional"]
+    assert events[0]["payload"]["execution_available"] is False
+    assert events[0]["payload"]["missing_prerequisites"]
+    assert not s.replay.calls
+
+
+def test_unmeasured_annotation_execution_blocks_releases_and_redelivers(setup) -> None:
+    s = setup
+    envelope = _annotation_envelope(
+        s, task_dir="original", repaired_task="repaired", failing_runs=["trial"]
+    )
+    s.replay.error = "container failed"
+    s.queue.jobs.append(envelope)
+    result = s.worker.run_once()
+    assert result is not None and result["complete"] is False
+    assert s.queue.events[-1]["event_type"] == "task_quality.blocked"
+    assert s.queue.releases == ["job-1"] and not s.queue.acks
+    first_ids = [event["payload"]["finding_id"] for event in finding_events(s.queue)]
+    s.replay.error = None
+    s.replay.original_reward, s.replay.repaired_reward = 0.0, 1.0
+    s.queue.jobs.append(envelope)
+    assert s.worker.run_once()["complete"] is True
+    assert s.queue.acks == ["job-1"]
+    events = finding_events(s.queue)
+    # Redelivery deterministically re-derives the same finding identities.
+    assert [event["payload"]["finding_id"] for event in events[2:]] == first_ids
+    assert events[-1]["status"] == "confirmed"
+
+
+def test_annotation_candidate_input_runs_standard_differential(setup) -> None:
+    s = setup
+    calls = []
+    envelope = _annotation_envelope(
+        s,
+        task_dir="original",
+        repaired_task="repaired",
+        exploit_files={"out.txt": "wrong answer"},
+    )
+
+    def candidate_runner(task, **kwargs):
+        calls.append(task)
+        return {
+            "status": "measured",
+            "executed": True,
+            "reward": float(task == s.original),
+            "error": None,
+            "output_dir": str(kwargs["output_dir"]),
+        }
+
+    s.worker.candidate_runner = candidate_runner
+    result = s.worker.process_job(envelope)
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert [event["status"] for event in events] == [
+        "provisional",
+        "provisional",
+        "confirmed",
+    ]
+    directions = [event["payload"]["direction"] for event in events]
+    assert directions == ["wrong_pass", "unfair_fail", "wrong_pass"]
+    assert [task for task in calls] == [s.original, s.repaired]
+
+
+def test_annotation_summary_uses_rationale_when_comment_absent(setup) -> None:
+    s = setup
+    envelope = _annotation_envelope(
+        s,
+        annotation={
+            "underspecified": "major",
+            "rationale": "The grader rejects answers the instruction never excludes.",
+            "annotator": "human-7",
+        },
+    )
+    result = s.worker.process_job(envelope)
+    assert result["complete"] is True
+    event = finding_events(s.queue)[0]
+    assert event["payload"]["annotation"]["rationale"] == (
+        "The grader rejects answers the instruction never excludes."
+    )
+    assert event["payload"]["annotation"]["annotator"] == "human-7"
+    finding = Finding.model_validate(event["payload"]["finding"])
+    assert finding.summary == "The grader rejects answers the instruction never excludes."
+    assert finding.severity == "high"
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        {"underspecified": "none", "unfair_tests": "none", "severity": "none"},
+        {"underspecified": "no", "unfair_tests": "fair"},
+        {"underspecified": False, "unfair_tests": 0, "severity": "none"},
+    ],
+)
+def test_all_negative_annotation_records_no_defect(setup, annotation) -> None:
+    """Explicitly negative axes never invent a defect, severity, or cause."""
+    s = setup
+    result = s.worker.process_job(_annotation_envelope(s, annotation=annotation))
+    assert result["complete"] is True
+    events = finding_events(s.queue)
+    assert len(events) == 1 and events[0]["status"] == "provisional"
+    finding = Finding.model_validate(events[0]["payload"]["finding"])
+    assert finding.severity == "low"
+    assert finding.root_cause == []
+    assert finding.summary == "Human annotation asserts no task defect"
+    assert "unfair failure" not in (finding.summary or "")
+    assert not s.replay.calls
+
+
+def test_annotation_only_never_resolves_scans_or_reads_a_package(setup) -> None:
+    """Without declared packages the backend and reader stay untouched."""
+    s = setup
+    calls: list[str] = []
+    resolve, static = s.backend.resolve, s.backend.static
+    s.backend.resolve = lambda package: calls.append("resolve") or resolve(package)
+    s.backend.static = lambda task: calls.append("static") or static(task)
+    s.worker.reader = lambda finding, bundle: calls.append("reader") or finding
+    result = s.worker.process_job(_annotation_envelope(s))
+    assert result["complete"] is True
+    assert calls == []
+    assert not s.replay.calls
+    assert not s.backend.calls

@@ -350,8 +350,8 @@ class MarkerGrader:
         self.calls: list[dict[str, Any]] = []
 
     def __call__(self, task: Path, **kwargs: Any) -> dict[str, Any]:
-        files: dict[str, str] = kwargs["files"]
-        solve = files["solve.sh"]
+        bundle = Path(kwargs["solution_bundle"])
+        solve = (bundle / "solve.sh").read_text(encoding="utf-8")
         marker = next(
             name for name in ("BAD_OUTPUT", "EXPLOIT_OUTPUT", "HONEST_OUTPUT") if name in solve
         )

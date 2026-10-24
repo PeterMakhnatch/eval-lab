@@ -742,6 +742,15 @@ def verify_differential_replay(
     """
     submission_files = candidate.ensure_submission_files()
     candidate_digest = compute_candidate_digest(submission_files)
+    bundle_dir = attempt_dir / "submission"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    for relative, content in submission_files.items():
+        path = Path(relative)
+        if path.is_absolute() or ".." in path.parts or path.as_posix() != relative:
+            raise SeekerRefusalError(f"unsafe submission path: {relative!r}")
+        destination = bundle_dir / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
     if task.reference_digest and candidate_digest == task.reference_digest:
         return DifferentialGradeOutcome(
             original_reward=None,
@@ -758,7 +767,7 @@ def verify_differential_replay(
     original_res = dict(
         grader_fn(
             task.original_task,
-            files=submission_files,
+            solution_bundle=bundle_dir,
             grader="upstream",
             backend=backend,
             timeout_seconds=timeout_seconds,
@@ -807,7 +816,7 @@ def verify_differential_replay(
         repaired_res = dict(
             grader_fn(
                 task.original_task,
-                files=submission_files,
+                solution_bundle=bundle_dir,
                 grader="port",
                 port_task=task.repaired_task,
                 backend=backend,
@@ -819,7 +828,7 @@ def verify_differential_replay(
         repaired_res = dict(
             grader_fn(
                 task.repaired_task,
-                files=submission_files,
+                solution_bundle=bundle_dir,
                 grader="upstream",
                 backend=backend,
                 timeout_seconds=timeout_seconds,

@@ -334,4 +334,9 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | hacktrace-act-v1 | 0 | 150 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-fresh-window3 | 0 | 52 |
 | tripwires-v4-gate-replay-20261021 | inspected | Deterministic tripwires (tripwires-v4@*) from 2026-10-21 | mimo-v7-canonical-pass70 | 0 | 70 |
+| qa-env-audit-v2-muse-test-20261021 | inspected | QA Task (qa-env-audit-v2@*) | envcheck-tb4-39 | 6 | 13 |
+| qa-env-audit-v2-muse-test-20261021 | inspected | QA Task (qa-env-audit-v2@*) | tb4-audit-v1 | 0 | 114 |
+| qa-env-audit-v2-muse-test-20261021 | | | tasks in no key | 2 | |
+| cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | envcheck-tb4-39 | 1 | 0 |
+| cm1-qwen-plain-json-v4-test-20261021 | inspected | Cheap models (cheap-models/cm1*) | tb4-audit-v1 | 0 | 2 |
 | hackbook-match-tb4-test-once-20261021 | inspected | Hackbook (hackbook-match@*) from 2026-10-21 | (no key items) | 0 | 0 |

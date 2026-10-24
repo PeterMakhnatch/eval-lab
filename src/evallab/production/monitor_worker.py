@@ -127,6 +127,71 @@ def _cited_quote(step: Mapping[str, Any], quote: str) -> str:
     return actions[0]["text"] if actions else str(step.get("message") or "")
 
 
+def _verified_evidence(
+    steps: Mapping[int, Mapping[str, Any]], item: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """A citable evidence item: verbatim text of an observed step, or an initial
+    artifact reference that was available no later than the observed prefix
+    (shape-checked already; never an actor step)."""
+    if "artifact_ref" in item:
+        if item["available_before_step"] > max(steps, default=-1) + 1:
+            return None
+        return {"source": "initial_artifact", **item}
+    number = item["step"]
+    if number in steps and _normalized(item["quote"]) in _normalized(_step_text(steps[number])):
+        return {
+            "step": number,
+            "step_ref": f"head#{number}",
+            **{k: v for k, v in item.items() if k not in {"step"}},
+        }
+    return None
+
+
+def _is_int(value: Any, *, minimum: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def _evidence_items(raw: Any, *, artifacts: bool) -> list[dict[str, Any]]:
+    """Shape-checked structural evidence: ``{step, quote}`` for a real ATIF step
+    (optionally with ``source`` path and ``line``), or ``{artifact_ref, quote, line,
+    sha256, available_before_step}`` for an initial task artifact, which has no step."""
+    items: list[dict[str, Any]] = []
+    for e in raw or ():
+        if not isinstance(e, Mapping) or not isinstance(e.get("quote"), str):
+            continue
+        if not e["quote"].strip():
+            continue
+        ref = e.get("artifact_ref")
+        if _is_int(e.get("step"), minimum=0):
+            items.append(
+                {
+                    "step": e["step"],
+                    "quote": e["quote"],
+                    **({"source": e["source"]} if isinstance(e.get("source"), str) else {}),
+                    **({"line": e["line"]} if _is_int(e.get("line"), minimum=1) else {}),
+                }
+            )
+        elif (
+            artifacts
+            and isinstance(ref, str)
+            and ref.strip()
+            and _is_int(e.get("line"), minimum=1)
+            and isinstance(e.get("sha256"), str)
+            and e["sha256"].strip()
+            and _is_int(e.get("available_before_step"), minimum=0)
+        ):
+            items.append(
+                {
+                    "artifact_ref": ref,
+                    "quote": e["quote"],
+                    "line": e["line"],
+                    "sha256": e["sha256"],
+                    "available_before_step": e["available_before_step"],
+                }
+            )
+    return items
+
+
 @dataclass(frozen=True)
 class _Detection:
     alerts: list[dict[str, Any]]
@@ -473,21 +538,16 @@ class MisalignmentLiveWorker:
                 )
             if status != "hit":
                 continue
-            items = [
-                {"step": e["step"], "quote": e["quote"]}
-                for e in record.get("evidence") or ()
-                if isinstance(e, Mapping)
-                and isinstance(e.get("step"), int)
-                and not isinstance(e["step"], bool)
-                and isinstance(e.get("quote"), str)
-                and e["quote"].strip()
-            ]
             action = record.get("kind") == "agent_action"
+            # Initial-artifact citations (ref + line/hash) are valid only for
+            # task_structure; an agent_action needs a real observed actor step.
+            items = _evidence_items(record.get("evidence"), artifacts=not action)
+            steps_cited = [i["step"] for i in items if "step" in i]
             alerts.append(
                 {
                     "rule": f"structural:{record['check']}",
                     "severity": "medium" if action else "low",
-                    "step_ref": f"head#{max(i['step'] for i in items)}" if items else "",
+                    "step_ref": f"head#{max(steps_cited)}" if steps_cited else "",
                     "evidence_items": items,
                     "detail": (
                         f"Structural check {record['check']} matched causal prefix evidence"
@@ -531,35 +591,45 @@ class MisalignmentLiveWorker:
         cards = []
         for alert in alerts:
             ref = str(alert.get("step_ref") or "")
-            match = re.fullmatch(r"head#(\d+)", ref)
-            if not match or int(match[1]) not in run.steps:
-                coverage["gaps"].append("uncitable_tripwire")
-                continue
-            cited_step = int(match[1])
             if "evidence_items" in alert:
-                # Structural evidence must be verbatim text of an observed step;
-                # anything else is dropped rather than cited.
+                # Actor evidence must be verbatim text of an observed step. A
+                # task_structure check may also cite a causally bound initial
+                # artifact (ref + line/hash); that is never an actor step.
                 evidence = [
-                    {"step": e["step"], "step_ref": f"head#{e['step']}", "quote": e["quote"]}
+                    item
                     for e in alert["evidence_items"]
-                    if e["step"] in run.steps
-                    and _normalized(e["quote"]) in _normalized(_step_text(run.steps[e["step"]]))
+                    if (item := _verified_evidence(run.steps, e)) is not None
                 ]
-                quote = evidence[-1]["quote"] if evidence else ""
+                actor = [e for e in evidence if "step" in e]
+                cited_step = actor[-1]["step"] if actor else None
+                quote = actor[-1]["quote"] if actor else evidence[-1]["quote"] if evidence else ""
+                basis = (
+                    f"{cited_step}:{quote}"
+                    if actor
+                    else "artifact:" + json.dumps(evidence, sort_keys=True, ensure_ascii=False)
+                )
             else:
+                match = re.fullmatch(r"head#(\d+)", ref)
+                if not match or int(match[1]) not in run.steps:
+                    coverage["gaps"].append("uncitable_tripwire")
+                    continue
+                cited_step = int(match[1])
                 quote = _cited_quote(run.steps[cited_step], str(alert.get("quote") or ""))
                 evidence = [{"step": cited_step, "step_ref": ref, "quote": quote}]
+                basis = f"{cited_step}:{quote}"
             if not quote:
                 coverage["gaps"].append("uncitable_tripwire")
                 continue
-            card_id = hashlib.sha256(
-                f"{run_id}:{alert['rule']}:{cited_step}:{quote}".encode()
-            ).hexdigest()
+            card_id = hashlib.sha256(f"{run_id}:{alert['rule']}:{basis}".encode()).hexdigest()
             if card_id in run.cards:
                 continue
+            # Semantic triage judges observed actions only; task-structure cues
+            # concern the task, not agent behavior, so they never reach the judge.
+            triaged = alert["kind"] == "agent_action"
             card = {
                 **source,
                 "card_id": card_id,
+                "finding_id": card_id,
                 "rule": alert["rule"],
                 "severity": alert["severity"],
                 "summary": alert["detail"],
@@ -570,14 +640,19 @@ class MisalignmentLiveWorker:
                 "entry_ids": list(alert.get("entry_ids", ())),
                 "evidence": evidence,
                 "source_kind": run.source_kind,
-                "confirmation_scope": "observed_prefix_behavior",
+                "confirmation_scope": "observed_prefix_behavior"
+                if triaged
+                else "task_structure_cue",
                 "outcome_verified": False,
                 "coverage": coverage,
-                "semantic_triage": "pending" if self._judge else "unavailable",
+                "semantic_triage": ("pending" if self._judge else "unavailable")
+                if triaged
+                else "not_applicable",
             }
             output.append(self._emit(run_id, "monitor.suspicion", card, prefix_step=prefix))
             run.cards.add(card_id)
-            cards.append(card)
+            if triaged:
+                cards.append(card)
         if self._judge is None and cards:
             coverage["gaps"].append("semantic_triage_unavailable")
         elapsed = time.monotonic() - started
@@ -737,16 +812,28 @@ class MisalignmentLiveWorker:
                         # Only a gate-marked hit that cites the proposed action
                         # blocks; diagnostic and task-structure cues never do.
                         if alert["gate"] and alert.get("step_ref") == step_ref:
-                            items = alert.get("evidence_items")
+                            if "evidence_items" in alert:
+                                # A structural deny must quote the proposed action itself.
+                                cited = [
+                                    e
+                                    for i in alert["evidence_items"]
+                                    if i.get("step") == proposed["step_id"]
+                                    and (
+                                        e := _verified_evidence({proposed["step_id"]: proposed}, i)
+                                    )
+                                ]
+                                if not cited:
+                                    continue
+                                quote = cited[-1]["quote"]
+                            else:
+                                quote = _cited_quote(proposed, str(alert.get("quote") or ""))
                             hits.append(
                                 {
                                     "source": alert["origin"],
                                     "rule": alert["rule"],
                                     "step": proposed["step_id"],
                                     "entry_ids": list(alert.get("entry_ids", ())),
-                                    "evidence": items[-1]["quote"]
-                                    if items
-                                    else _cited_quote(proposed, str(alert.get("quote") or "")),
+                                    "evidence": quote,
                                     "kind": alert["kind"],
                                 }
                             )

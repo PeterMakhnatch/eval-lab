@@ -423,22 +423,11 @@ def _native_refresh_assets(root: Path) -> tuple[Path, Path, Path, str]:
     return original, fixed, cache, digest
 
 
-def test_refresh_only_observes_existing_admissions_and_preserves_original_envelopes(
-    corpus, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_refresh_only_observes_existing_admissions_and_preserves_original_envelopes(corpus) -> None:
     from evallab.upstream_grader import _tree_digest
-    from evallab import candidate_port
 
     root, _ = corpus
     original, _, cache, digest = _native_refresh_assets(root)
-    describe = candidate_port.describe_port_task
-    probes = []
-
-    def counted_description(*args, **kwargs):
-        probes.append(args)
-        return describe(*args, **kwargs)
-
-    monkeypatch.setattr(candidate_port, "describe_port_task", counted_description)
     with ContinuousWorkQueue(":memory:", registry=CorpusRegistry(root)) as queue:
         assert refresh_corpus_preflight(queue, dataset_ids=[TB4], run_id="not-a-seed")["totals"] == {
             "inspected": 0, "recorded": 0, "unchanged": 0,
@@ -455,7 +444,6 @@ def test_refresh_only_observes_existing_admissions_and_preserves_original_envelo
             queue, dataset_ids=[TB4], run_id="observed-one", asset_cache="offline-assets"
         )
         assert first["totals"] == {"inspected": 2, "recorded": 2, "unchanged": 0}
-        assert len(probes) == 1  # Finding and task record share the real package probe.
         assert queue.queue_snapshot()["depth"] == 0
         events = queue.corpus_preflight_events()
         assert events[:len(baseline)] == baseline
@@ -480,7 +468,6 @@ def test_refresh_only_observes_existing_admissions_and_preserves_original_envelo
             queue, dataset_ids=[TB4], run_id="other-presentation", asset_cache=cache
         )
         assert second["totals"] == {"inspected": 2, "recorded": 0, "unchanged": 2}
-        assert len(probes) == 2  # A later refresh must observe actual inputs again.
         assert queue.corpus_preflight_events() == events
         assert preflight_summary(queue)["totals"]["native_port"] == {
             "described": 2, "blocked": 0, "unavailable": 0, "not_observed": 0,

@@ -32,8 +32,8 @@ from uuid import NAMESPACE_URL, uuid5
 from evallab.production.corpus_queue import (
     DATASETS,
     ContinuousWorkQueue,
-    CorpusRegistry,
     CorpusItem,
+    CorpusRegistry,
     IdempotencyConflict,
     source_record_digest,
 )
@@ -882,7 +882,7 @@ def refresh_corpus_preflight(
         raise IdempotencyConflict("canonical split authority changed during preflight refresh")
     for admission in admissions:
         _refresh_item(current, admission)
-    datasets = {
+    datasets: dict[str, dict[str, Any]] = {
         dataset: {"inspected": 0, "recorded": 0, "unchanged": 0, "items": []}
         for dataset in DATASETS if dataset in requested
     }
@@ -962,7 +962,7 @@ def preflight_summary(queue: ContinuousWorkQueue) -> dict[str, Any]:
         if state not in states:
             state = "not_observed"
         report["native_port"][state] += 1
-        if state != "not_observed":
+        if observation is not None and state != "not_observed":
             report["observed"] += 1
             if dataset not in last or observation["seq"] > last[dataset]["seq"]:
                 last[dataset] = observation

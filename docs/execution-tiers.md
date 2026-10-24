@@ -232,36 +232,37 @@ unique basename against the port's submission paths; duplicate artifact
 basenames refuse at describe time, and a missing/ambiguous binding at
 runtime is an infrastructure error, never a synthetic reward.
 
-Port setup-recipe shapes (2026-10-21): the offline recipe interpreter in
-`candidate_port` now also resolves `ctx.fetch(ctx.hub_url(task, rev,
-path), dest, sha)` (the per-file form of `fetch_hub`), the `image_data`
-data dir, recipes with no `setup(ctx)` that declare a hash-pinned
-`{source: (dest, sha)}` map or a flat `{source: sha}` map plus a pure
-`destination()` helper, module-local pure helper functions used for
-destinations/predicates (Assign/If/Return bodies over comparisons,
-boolean logic, string split/join/startswith/removeprefix, path joins and
-slices), dict/list comprehensions with pure filter conditions, and
-taken-branch-only `if` statements in the setup body. Anything that still
-needs the network (external URLs, image-layer fetches), generates or
-transforms data (write_text/rewrite/patch/unpack of fetched files), or a
-non-ExecutableJudge stays an explicit refusal; sha-pinned assets whose
-local bytes differ from the pin (several tasks' `task.toml`) also remain
-refused rather than approximated.
+Offline port setup (2026-10-24): `candidate_port` interprets a closed AST subset;
+it never executes a port's setup program on the host. Supported recipes include
+hash-pinned `fetch_hub` and `fetch(hub_url(...))`, declarative source maps,
+pure destination/predicate helpers, filtered comprehensions, and taken-branch
+conditionals. Main-style recipes retain mandatory digest, package-version,
+npm-lock integrity and pinned-pip checks against read-only `offline_packages`.
+Unknown helpers, unsupported imports and unproved checks remain refusals.
 
-Deterministic local transforms (2026-10-21): the recipe interpreter also
-evaluates `write_text`/`write_bytes` of content computed only from
-hash-pinned staged inputs and literals (including `json.dumps` of
-constants and regex-extractions over fetched verifier files), rewritten
-copies (`read_text` → counted `str.replace` → `write_text`),
-`shutil.copyfile` between staged paths, safe extraction of pinned local
-zip/tar archives (regular files only, no symlinks/escapes, member modes
-recorded), `mkdir`/`touch`/`chmod`, and digest assertions. Input digests
-are verified against their pins before a transform reads them; every
-generated file is hashed, recorded in `setup_data.generated`, bound into
-the grader digest, and written only under the port data directories.
-Recipes that run generator programs/subprocesses, load code
-(`importlib`, RNG-based synthesis), fetch external URLs, or need a
-With-block tempdir workflow stay refused.
+Deterministic transforms include counted text rewrites, literal/input-derived
+`write_text`/`write_bytes`, staged copies, safe ZIP/TAR extraction, and explicit
+directory, marker and mode operations. External archive inputs and selected OCI
+image-data members require exact whole-blob SHA-256 pins; selected members are
+also verified against their declared hashes. Traversal, symlinks, duplicate or
+colliding members and changed pins refuse rather than being skipped. Generated
+files, their modes, empty directories and input provenance are recorded in
+`setup_data` and bound into the grader identity.
+
+Pass `asset_cache=Path("/data/pinned-assets")` explicitly to
+`describe_port_task`, `prepare_port_task`, `run_candidate` or the batch-wide
+`run_candidates` policy; the candidate-runner CLI uses `--asset-cache`.
+Cache filenames are bare lowercase SHA-256 hex digests, and every referenced
+regular file is hash-verified before use. Nothing is downloaded implicitly,
+missing blobs stay blocked, and evidence/output paths cannot overwrite the
+immutable cache. An asset cache is only valid with `grader="port"`, not silently
+ignored by the upstream grader.
+
+Arbitrary generator programs/subprocesses, imported data synthesis, external
+model calls and unmatched source revisions remain refused. Staging pretraining
+data does not train or run a model. Description or materialization establishes
+offline structural support only, never image-build success, execution proof or
+runtime qualification; resource and spend approval requirements are unchanged.
 
 `run_candidates(requests, max_concurrency=2, output_dir=fresh_batch, **policy)`
 returns one ordered outcome per request. Atomic `candidate.json`,

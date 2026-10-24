@@ -23,9 +23,9 @@ import tarfile
 import tomllib
 import zipfile
 import zlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO
+from typing import Any
 
 import tomlkit
 
@@ -217,7 +217,7 @@ def _image_dockerfile(text: str) -> str:
     return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
 
 
-def _gitkeep_only(source: Path, assets: list[dict[str, str]], relative: str) -> bool:
+def _gitkeep_only(source: Path, assets: Sequence[Mapping[str, Any]], relative: str) -> bool:
     """True when a build-context dir would vanish from Modal's context sync.
 
     Modal uploads drop dotfiles, so a directory containing only ``.gitkeep``
@@ -232,7 +232,7 @@ def _gitkeep_only(source: Path, assets: list[dict[str, str]], relative: str) -> 
     return not any(asset["destination"].startswith(relative.rstrip("/") + "/") for asset in assets)
 
 
-def _gitkeep_rewrites(text: str, port: Path, assets: list[dict[str, str]]) -> list[str]:
+def _gitkeep_rewrites(text: str, port: Path, assets: Sequence[Mapping[str, Any]]) -> list[str]:
     """COPY sources (relative dirs) rewritten to their ``.gitkeep`` file."""
     rewritten = []
     for line in text.splitlines():
@@ -249,7 +249,7 @@ def _gitkeep_rewrites(text: str, port: Path, assets: list[dict[str, str]]) -> li
     return rewritten
 
 
-def _copy_gitkeep_form(text: str, port: Path, assets: list[dict[str, str]]) -> str:
+def _copy_gitkeep_form(text: str, port: Path, assets: Sequence[Mapping[str, Any]]) -> str:
     """Replace COPYs of dotfile-only dirs with an mkdir of the destination.
 
     Modal's context sync drops dotfiles entirely (even an explicit
@@ -396,11 +396,11 @@ class _SetupRecipe:
 
     @staticmethod
     @contextlib.contextmanager
-    def _asset_file(source: Path) -> Iterator[BinaryIO]:
+    def _asset_file(source: Path) -> Iterator[io.BufferedReader]:
         """Open only a regular file, without following the final path link."""
         try:
             descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            with os.fdopen(descriptor, "rb") as handle:
+            with open(descriptor, "rb") as handle:
                 if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
                     raise GraderRefusal(f"pinned setup asset is not a regular file: {source}")
                 yield handle

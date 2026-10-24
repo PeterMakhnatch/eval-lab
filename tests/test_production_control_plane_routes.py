@@ -1,4 +1,4 @@
-"""Operator-facing asset export and inspection routes over the real corpus registry."""
+"""Operator-facing exports and task-scoped inspection over isolated real SQLite queues."""
 
 from __future__ import annotations
 
@@ -21,8 +21,39 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
 @pytest.fixture(scope="module")
-def registry() -> CorpusRegistry:
-    return CorpusRegistry()
+def registry(tmp_path_factory: pytest.TempPathFactory) -> CorpusRegistry:
+    root = tmp_path_factory.mktemp("operator-corpus")
+    keys = root / "research/answer-keys"
+    rows = [
+        {"item_id": "route-dev-a", "split": "dev", "subject": {"task_id": "route-task-a"}},
+        {"item_id": "route-dev-b", "split": "dev", "subject": {"task_id": "route-task-b"}},
+        {
+            "item_id": "route-synthetic-sealed",
+            "split": "test",
+            "subject": {"task_id": "route-synthetic-heldout"},
+        },
+    ]
+    for dataset in (DATASET, "cheatbench-actions-v1", "hacktrace-act-v1"):
+        directory = keys / dataset
+        directory.mkdir(parents=True)
+        (directory / "items.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in rows) if dataset == DATASET else "",
+            encoding="utf-8",
+        )
+    (keys / DATASET / "tasks.jsonl").write_text("", encoding="utf-8")
+    inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(
+        json.dumps(
+            {
+                "dataset_id": "mimo-defect-map-v1",
+                "heldout_task_ids_excluded_from_training_all_versions": [],
+                "tasks": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return CorpusRegistry(root)
 
 
 @pytest.fixture
@@ -190,3 +221,126 @@ def test_timeline_and_grader_diff_report_unknown_runs_and_missing_components(
     bare = TestClient(create_app(queue))
     assert bare.get("/api/assets").status_code == 503
     assert bare.get("/api/runs/x/timeline").status_code == 503
+
+
+def test_campaign_items_have_separate_rows_timelines_and_grader_pairs(
+    tmp_path: Path, queue: ContinuousWorkQueue, registry: CorpusRegistry
+) -> None:
+    campaign = "multi-task-campaign"
+    pairs = {}
+    for letter in ("a", "b"):
+        item_id = f"route-dev-{letter}"
+        original = tmp_path / letter / "original"
+        repaired = tmp_path / letter / "repaired"
+        for package, text in (
+            (original, f"original_{letter}\n"),
+            (repaired, f"repaired_{letter}\n"),
+        ):
+            (package / "tests").mkdir(parents=True)
+            (package / "tests/check.py").write_text(text, encoding="utf-8")
+        payload = {
+            "dataset_id": DATASET,
+            "item_id": item_id,
+            "original_task": str(original),
+            "repaired_task": str(repaired),
+            "original_reward": 1.0 if letter == "a" else 0.0,
+            "repaired_reward": 0.0,
+        }
+        queue.enqueue(
+            "task_quality.repair_task",
+            payload,
+            run_id=campaign,
+            idempotency_key=f"repair-{letter}",
+        )
+        queue.append_event(
+            {
+                "event_id": f"worker-complete-{letter}",
+                "run_id": campaign,
+                "system": "reward_seeker",
+                "event_type": "worker.completed",
+                "status": "confirmed",
+                "payload": payload,
+            }
+        )
+        queue.append_event(
+            {
+                "event_id": f"trace-{letter}",
+                "run_id": campaign,
+                "system": "reward_seeker",
+                "event_type": "trace.step",
+                "status": "provisional",
+                "prefix_step": 1,
+                "payload": {
+                    "dataset_id": DATASET,
+                    "item_id": item_id,
+                    "step": {"step_id": 1, "source": "agent", "message": f"inspect-{letter}"},
+                },
+            }
+        )
+        pairs[item_id] = payload
+    queue.append_event(
+        {
+            "event_id": "asset-a",
+            "run_id": campaign,
+            "system": "reward_seeker",
+            "event_type": "asset.verified",
+            "status": "confirmed",
+            "payload": {"asset_id": "witness:a", "kind": "exploit_witness", **pairs["route-dev-a"]},
+        }
+    )
+    with _client(tmp_path, queue, registry) as client:
+        rows = client.get("/api/state").json()["run_items"]["recent"]
+        assert {row["item_id"]: row["original_reward"] for row in rows} == {
+            "route-dev-a": 1.0,
+            "route-dev-b": 0.0,
+        }
+        for path in (f"/api/runs/{campaign}/timeline", f"/api/grader-diff?run_id={campaign}"):
+            response = client.get(path)
+            assert response.status_code == 409
+            assert response.json()["detail"]["code"] == "ambiguous_run"
+        assert (
+            client.get(
+                f"/api/runs/{campaign}/timeline", params={"item_id": "route-dev-a"}
+            ).status_code
+            == 400
+        )
+        for letter in ("a", "b"):
+            selector = {"dataset_id": DATASET, "item_id": f"route-dev-{letter}"}
+            timeline = client.get(f"/api/runs/{campaign}/timeline", params=selector)
+            assert timeline.status_code == 200, timeline.text
+            assert [step["message"] for step in timeline.json()["steps"]] == [f"inspect-{letter}"]
+            diff = client.get("/api/grader-diff", params={"run_id": campaign, **selector})
+            assert diff.status_code == 200, diff.text
+            check = next(file for file in diff.json()["files"] if file["path"] == "tests/check.py")
+            assert check["original"] == f"original_{letter}\n"
+            assert check["repaired"] == f"repaired_{letter}\n"
+        by_asset = client.get("/api/grader-diff", params={"asset_id": "witness:a"})
+        assert by_asset.status_code == 200, by_asset.text
+        assert by_asset.json()["item_id"] == "route-dev-a"
+
+
+def test_seeker_phase_summaries_cannot_become_trace_evidence(
+    tmp_path: Path, queue: ContinuousWorkQueue, registry: CorpusRegistry
+) -> None:
+    for index, kind in enumerate(
+        ("seeker.attempt_started", "seeker.grader_feedback", "seeker.exploit_confirmed")
+    ):
+        payload = {"dataset_id": DATASET, "item_id": "route-dev-a"}
+        if kind != "seeker.exploit_confirmed":
+            payload["step"] = {"step_id": 1, "phase": kind, "summary": "Attempt telemetry"}
+        queue.append_event(
+            {
+                "event_id": f"phase-{index}",
+                "run_id": "phase-only-campaign",
+                "system": "reward_seeker",
+                "event_type": kind,
+                "status": "confirmed" if kind == "seeker.exploit_confirmed" else "provisional",
+                "prefix_step": 1,
+                "payload": payload,
+            }
+        )
+    with _client(tmp_path, queue, registry) as client:
+        state = client.get("/api/state").json()
+        assert state["partial_traces"] == []
+        assert state["run_items"]["recent"][0]["has_trace"] is False
+        assert client.get("/api/assets").json()["assets"] == []

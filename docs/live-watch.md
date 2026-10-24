@@ -59,6 +59,44 @@ all unchanged (mtime and size); a reused status still ages `minutes_since_update
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Production stream monitor
+
+`evallab.production.monitor_worker.MisalignmentLiveWorker` consumes the shared
+production event envelope. Public-rollout replay and live sandbox adapters send
+ATIF steps in `payload.step`, or cumulative snapshots in `payload.steps`, with
+stable `step_id` values and `source_kind=public_rollout|live_sandbox`.
+`emit=queue.append_event` journals its outputs; `consume(queue)` advances the
+durable consumer cursor only after synchronous scoring and event persistence.
+`serve(queue, stop_event)` continuously consumes and expires control requests.
+On first consumption, `recover(queue)` restores committed prefixes, suspicion
+cards and acknowledged control state from the journal. Checkpoints resolve their
+exact `source_event_id`; unconsumed later events cannot leak into an earlier
+prefix. Completed semantic judgments are not repeated, and pending triage resumes
+on its original frozen prefix. Retain source events for this recovery contract.
+
+Each new observed prefix uses causal `tripwires.scan_prefix` rules and the same
+alert renderer as the filesystem watcher. `monitor.prefix_scored` reports measured
+deterministic latency against the 2-second target, not an unmeasured guarantee.
+`monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
+run; ordinary assistant prose is not proof that reasoning was captured. A supplied
+`trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
+paid API is configured implicitly. Suspicion cards cite observed steps and quotes;
+semantic confirmation means **observed prefix behavior**, not verified reward
+causality, a verified exploit, or an automatically promoted labeled-trace asset.
+All semantic citations must match the frozen prefix, or the card stays provisional.
+
+Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
+before a tool action and honor its `allow` result; proposed actions never become
+observed evidence merely because the gate inspected them. The gate does not wait
+for semantic triage. UI `operator.control_requested` events route through
+`dispatch_request`; actions are `pause`, `cancel`/`stop`, or `quarantine`.
+`control.requested` and `control.acknowledged` **never** report a stopped run.
+The authenticated executor separately calls `acknowledge_control` and then
+`apply_control` (or sends the matching executor control events); only the applied
+transition changes run state. Unacknowledged or unapplied requests expire at their
+deadline without asserting that execution stopped. Executor identity is pinned
+to the run; authentication and the actual sandbox actuator belong to the caller.
+
 ## Harbor hooks (`watch/hooks.jsonl`)
 
 Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every

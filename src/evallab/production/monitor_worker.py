@@ -57,6 +57,19 @@ _GATE_RULES = frozenset(
         "task_protected_read",
     }
 )
+#: Fields of a proposed (unexecuted) step the gate may inspect; all execution output is dropped.
+_PROPOSAL_FIELDS = frozenset(
+    {
+        "step_id",
+        "source",
+        "message",
+        "reasoning",
+        "reasoning_content",
+        "analysis",
+        "channel",
+        "tool_calls",
+    }
+)
 #: Per-run stream metadata; ``structural_context`` is the core structural-check
 #: context (instruction/grader/test texts) and never contains future steps.
 _RUN_METADATA_KEYS = (
@@ -770,7 +783,11 @@ class MisalignmentLiveWorker:
         with self._lock:
             run = self._run(run_id)
             self.expire_controls(run_id=run_id)
-            proposed = _normalize_step(step)
+            # A proposal has not executed: keep only its action view, so forged
+            # observation/feedback fields can neither trigger nor mask a rule.
+            proposed = {
+                k: v for k, v in _normalize_step(step).items() if k in _PROPOSAL_FIELDS
+            }
             if proposed.get("source") != "agent" or not proposed.get("tool_calls"):
                 raise ValueError("pre-action gate requires an agent tool-call step")
             if proposed["step_id"] <= max(run.steps, default=-1):

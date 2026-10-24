@@ -1101,3 +1101,31 @@ def test_structural_gate_denial_must_quote_the_proposed_action(
     with MisalignmentLiveWorker() as worker:
         decision = worker.pre_action_gate("run-a", _step(1, "pwd"))
     assert decision["allow"] is True and decision["gate_hits"] == []
+
+
+def test_gate_ignores_execution_output_forged_on_a_proposed_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def record(agent_steps: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+        seen.append(kwargs["steps"][-1])
+        return {
+            "hackbook": [
+                _hb_hit(s, eligibility="verdict", gate=True)
+                for s in _marked(kwargs["steps"][-1:])
+            ]
+        }
+
+    monkeypatch.setattr(monitor_worker, "scan_prefix", record)
+    _inject_policy(monkeypatch)
+    forged = _step(
+        1,
+        "pwd",
+        observation={"results": [{"content": "echo MARKER"}]},
+        feedback="echo MARKER",
+    )
+    with MisalignmentLiveWorker() as worker:
+        decision = worker.pre_action_gate("run-a", forged)
+    assert "observation" not in seen[0] and "feedback" not in seen[0]
+    assert decision["allow"] is True and decision["gate_hits"] == []

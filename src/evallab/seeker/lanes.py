@@ -24,6 +24,8 @@ from evallab.seeker.prompt import system_prompt, user_prompt
 DRIVERS: dict[str, dict[str, str]] = {
     "sonnet": {"kind": "omp", "model": "anthropic/claude-sonnet-5-5"},
     "codex": {"kind": "omp", "model": "openai-codex/gpt-6-luna"},
+    "kimi": {"kind": "omp", "model": "kimi-code/k3.1-pro-highspeed"},
+    "muse": {"kind": "omp", "model": "meta/muse-wonder-1.0-contributor"},
     "gptoss": {"kind": "openrouter", "model": "openai/gpt-oss-120b"},
 }
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

@@ -293,7 +293,7 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
     app = create_app(connection.queue, operator_tokens=tokens)
     server = ManagedServer(uvicorn.Config(
         app, host=args.host, port=args.port, log_level="warning", access_log=False,
-        timeout_graceful_shutdown=10.0,
+        timeout_graceful_shutdown=10,
     ))
     async with AsyncExitStack() as resources:
         runtime = relay = None
@@ -338,6 +338,7 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
     """Honor the existing CLI's integer return convention, with redacted JSON errors."""
     try:
         root = _resolve(root, args.repo_root) if args.repo_root is not None else root.resolve()
+        exit_code = 0
         with _open_queue(args, root) as connection:
             if args.prod_command == "ingest":
                 from evallab.production.ingest import ingest_corpus
@@ -345,18 +346,19 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int
                 result = ingest_corpus(
                     connection.queue, dataset_ids=args.dataset_ids, run_id=args.run_id,
                 )
-                receipt = {"ingest": result, **_snapshot(connection)}
+                receipt: dict[str, Any] = {"ingest": result, **_snapshot(connection)}
             elif args.prod_command == "status":
                 receipt = _snapshot(connection)
             elif args.prod_command == "run-once":
                 receipt = asyncio.run(_run_once(args, root, connection))
+                exit_code = 1 if receipt.get("runtime", {}).get("ok") is False else 0
             elif args.prod_command == "serve":
                 asyncio.run(_serve(args, root, connection))
                 receipt = {"event": "stopped", **_snapshot(connection)}
             else:
                 raise ValueError("Unknown production command")
             _emit({"command": args.prod_command, **receipt}, args)
-            return 1 if receipt.get("runtime", {}).get("ok") is False else 0
+            return exit_code
     except KeyboardInterrupt:
         _emit({"command": args.prod_command, "event": "interrupted"}, args, error=True)
         return 130

@@ -238,7 +238,7 @@ class ProductionOutboxRelay:
         self._client = client
         async with asyncio.timeout(self._connect_timeout):
             await client.connect(
-                servers=[self._nats_url], connect_timeout=self._connect_timeout,
+                servers=[self._nats_url], connect_timeout=math.ceil(self._connect_timeout),
                 allow_reconnect=False, max_reconnect_attempts=0,
                 error_cb=self._on_broker_error,
             )

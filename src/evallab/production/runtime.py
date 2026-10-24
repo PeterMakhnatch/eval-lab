@@ -76,7 +76,7 @@ def _measured_grade(
         result.get("status") != "measured"
         or result.get("executed") is not True
         or result.get("error")
-        or type(reward) not in (int, float)
+        or (type(reward) is not int and type(reward) is not float)
         or not math.isfinite(reward)
     ):
         raise MeasurementUnavailableError("candidate grading did not produce an executed finite reward")

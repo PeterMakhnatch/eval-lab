@@ -59,6 +59,44 @@ all unchanged (mtime and size); a reused status still ages `minutes_since_update
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Production stream monitor
+
+`evallab.production.monitor_worker.MisalignmentLiveWorker` consumes the shared
+production event envelope. Public-rollout replay and live sandbox adapters send
+ATIF steps in `payload.step`, or cumulative snapshots in `payload.steps`, with
+stable `step_id` values and `source_kind=public_rollout|live_sandbox`.
+`emit=queue.append_event` journals its outputs; `consume(queue)` advances the
+durable consumer cursor only after synchronous scoring and event persistence.
+`serve(queue, stop_event)` continuously consumes and expires control requests.
+On first consumption, `recover(queue)` restores committed prefixes, suspicion
+cards and acknowledged control state from the journal. Checkpoints resolve their
+exact `source_event_id`; unconsumed later events cannot leak into an earlier
+prefix. Completed semantic judgments are not repeated, and pending triage resumes
+on its original frozen prefix. Retain source events for this recovery contract.
+
+Each new observed prefix uses causal `tripwires.scan_prefix` rules and the same
+alert renderer as the filesystem watcher. `monitor.prefix_scored` reports measured
+deterministic latency against the 2-second target, not an unmeasured guarantee.
+`monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
+run; ordinary assistant prose is not proof that reasoning was captured. A supplied
+`trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
+paid API is configured implicitly. Suspicion cards cite observed steps and quotes;
+semantic confirmation means **observed prefix behavior**, not verified reward
+causality, a verified exploit, or an automatically promoted labeled-trace asset.
+All semantic citations must match the frozen prefix, or the card stays provisional.
+
+Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
+before a tool action and honor its `allow` result; proposed actions never become
+observed evidence merely because the gate inspected them. The gate does not wait
+for semantic triage. UI `operator.control_requested` events route through
+`dispatch_request`; actions are `pause`, `cancel`/`stop`, or `quarantine`.
+`control.requested` and `control.acknowledged` **never** report a stopped run.
+The authenticated executor separately calls `acknowledge_control` and then
+`apply_control` (or sends the matching executor control events); only the applied
+transition changes run state. Unacknowledged or unapplied requests expire at their
+deadline without asserting that execution stopped. Executor identity is pinned
+to the run; authentication and the actual sandbox actuator belong to the caller.
+
 ## Harbor hooks (`watch/hooks.jsonl`)
 
 Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every
@@ -630,3 +668,66 @@ into `<job_dir>/proxy-live/`:
 The live ledger operates fail-open: logging errors to stderr and never
 disrupting ongoing trials. Request/response bodies, prompts, and credentials
 are strictly excluded. Multi-trial jobs disambiguate records via `attempt_id`.
+
+## Live production control plane
+
+`evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`
+serves one FastAPI application over the same `ContinuousWorkQueue` used by the
+production workers. The dashboard at `/` shows the Public Corpus Queue, independent
+Task Quality / Reward Seeker / Misalignment systems, live intervention requests,
+and distinct verified assets. Opening the dashboard does not dispatch jobs or call
+a model.
+
+The public `evallab.production` package exports `CorpusRegistry`,
+`ContinuousWorkQueue`, all three live workers, `create_app`, and `app_from_env`.
+Construct the registry from the committed local corpus indices, then pass one
+dedicated queue to the Task Quality and Reward Seeker workers and
+`emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
+registry rather than a caller's split label; TEST remains sealed without the
+explicit per-operation frozen-evaluation token.
+
+The queue transaction that records a confirmed Seeker `1.0 -> 0.0` differential
+also enqueues `task_quality.repair_task`. Task Quality replays the same immutable
+submission and qualifies the pinned repair only after nine fresh executions:
+reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
+`reward_seeker.rebreak_task` against the repaired package. Confirmed
+`exploit_witness` and `repaired_task` assets are distinct from provisional monitor
+suspicions. Worker phase updates use the shared `step_id` field; their missing
+reasoning/tool capture is reported as a coverage gap, not a clean trace.
+
+The ASGI factory `evallab.production.control_plane:app_from_env` requires
+`EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).
+`EVALLAB_OPERATOR_TOKEN` enables intervention requests and
+`EVALLAB_OPERATOR_ID` supplies their server-side audit identity. Without a token,
+the dashboard remains readable but interventions fail closed with HTTP 503.
+Keep deployment credentials in the keys store, not in URLs, browser storage, or
+committed configuration.
+
+- `GET /api/state` projects the durable journal to its queue snapshot's global
+  sequence. Queue depth includes queued and leased jobs; current lease state owns
+  active-worker counts. Partial traces and suspicion cards retain bounded recent
+  payloads. Distinct confirmed assets are counted from `asset.verified` events.
+- `GET /api/stream` starts with a `state` SSE snapshot and its event-ID cursor,
+  then streams shared event envelopes as ordinary messages. Browser `EventSource`
+  reconnects with `Last-Event-ID`; replay follows journal sequence, not lexical
+  event-ID order. Unknown cursors return HTTP 409 rather than silently losing
+  events. Idle heartbeats refresh state without advancing the delivered-event
+  cursor, so expired leases are visible even when workers emit no new events.
+- `POST /api/intervene` requires `Authorization: Bearer <operator-token>` and JSON
+  `action` (`pause`, `cancel`, or `quarantine`), `run_id`, and nonblank `reason`.
+  Optional `target` defaults to the run; optional `request_id` makes client
+  retries idempotent. Reusing a request ID for different content returns HTTP 409.
+  The authenticated operator identity cannot be supplied in the body.
+
+An accepted intervention returns HTTP 202 and durably appends
+`operator.control_requested`; it does **not** claim that the executor has paused,
+stopped, or quarantined anything. The monitor consumes the request and records
+`control.requested`, `control.acknowledged`, and finally `control.applied` or
+`control.expired`. Only an applied event changes the displayed run state.
+
+Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py`.
+The end-to-end test executes trusted local fixture submissions and both graders,
+shares the real SQLite journal across all four parts, verifies gap-free SSE
+snapshot/replay and asset recovery, and checks executor-acknowledged interventions.
+It does not run a model, dispatch Docker/cloud jobs, or establish scientific
+qualification for a live corpus.

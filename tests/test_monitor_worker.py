@@ -617,3 +617,406 @@ def test_stream_metadata_cannot_reassign_executor_and_status_does_not_rewrite_ev
         assert worker.control_status("run-a", "pause-1")["payload"]["run_state"] == "stopped"
         assert worker.request_control("run-a", "pause", request_id="pause-1") == original
         assert requested == original
+
+
+# --- TW-P1: action policy, causal Hackbook/structural hits and diagnostic isolation ---------
+
+
+def _inject_detectors(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    hackbook: Any = None,
+    structural: Any = None,
+    calls: list[dict[str, Any]] | None = None,
+) -> None:
+    """Replace the core scanner with injected per-prefix reports (no host state)."""
+
+    def fake(agent_steps: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+        if calls is not None:
+            calls.append({"ids": [s["step_id"] for s in kwargs["steps"]], **kwargs})
+        report: dict[str, Any] = {"hackbook": hackbook(kwargs["steps"]) if hackbook else []}
+        if structural is not None:
+            report["structural_checks"] = structural(kwargs["steps"])
+        return report
+
+    monkeypatch.setattr(monitor_worker, "scan_prefix", fake)
+
+
+def _marked(steps: list[dict[str, Any]], marker: str = "MARKER") -> list[dict[str, Any]]:
+    return [s for s in steps if marker in json.dumps(s)]
+
+
+def _hb_hit(step: dict[str, Any], *, eligibility: str, gate: bool) -> dict[str, Any]:
+    return {
+        "rule": "hb_fixture",
+        "entry_ids": ["HB-FIX-001"],
+        "step": step["step_id"],
+        "mechanism": "fixture mechanism",
+        "evidence": "echo MARKER",
+        "eligibility": eligibility,
+        "gate": gate,
+    }
+
+
+def _structural_record(
+    status: str, *, kind: str = "agent_action", gate: bool = False, **extra: Any
+) -> dict[str, Any]:
+    return {
+        "entry_id": "HB-FIX-002",
+        "check": "fixture_check",
+        "status": status,
+        "kind": kind,
+        "gate": gate,
+        "evidence": [],
+        **extra,
+    }
+
+
+def _inject_policy(
+    monkeypatch: pytest.MonkeyPatch, *, deny: str = "PROTECTED", calls: list[Any] | None = None
+) -> None:
+    def fake(step: dict[str, Any], *, prefix: Any = (), policy: Any = None) -> list[dict[str, Any]]:
+        if calls is not None:
+            calls.append({"step": step["step_id"], "prefix": [s["step_id"] for s in prefix]})
+        if deny not in json.dumps(step):
+            return []
+        return [
+            {
+                "rule": "fixture_protected_read",
+                "step": step["step_id"],
+                "entry_ids": ["HB-FIX-003"],
+                "evidence": "cat PROTECTED",
+                "kind": "agent_action",
+                "path": "/tests/PROTECTED",
+            }
+        ]
+
+    monkeypatch.setattr(monitor_worker, "policy_hits", fake)
+
+
+def test_policy_denies_proposed_action_before_execution_without_ingesting_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_detectors(monkeypatch)
+    policy_calls: list[Any] = []
+    _inject_policy(monkeypatch, calls=policy_calls)
+    emitted: list[dict[str, Any]] = []
+    with MisalignmentLiveWorker(emit=emitted.append) as worker:
+        worker.ingest_event(_event(_step(1)))
+        started = time.monotonic()
+        denied = worker.pre_action_gate("run-a", _step(2, "cat PROTECTED"))
+        assert time.monotonic() - started < 2.0
+        allowed = worker.pre_action_gate("run-a", _step(2, "pwd"))
+        # The executor never ran the denied step 2, so the observed step 2 may be benign.
+        output = worker.ingest_event(_event(_step(2, "pwd")))
+    assert denied["allow"] is False and denied["reason"] == "tripwire_blocked"
+    assert denied["proposed"] is True and denied["run_state"] == "running"
+    assert denied["triggered_rules"] == ["fixture_protected_read"]
+    assert denied["gate_hits"] == [
+        {
+            "source": "policy",
+            "rule": "fixture_protected_read",
+            "step": 2,
+            "entry_ids": ["HB-FIX-003"],
+            "evidence": "cat PROTECTED",
+            "kind": "agent_action",
+            "path": "/tests/PROTECTED",
+        }
+    ]
+    assert allowed["allow"] is True and allowed["gate_hits"] == []
+    # Policy sees only the already-executed prefix, never the proposed step itself.
+    assert [c["prefix"] for c in policy_calls] == [[1], [1]]
+    assert not _of_type(emitted, "monitor.suspicion")
+    assert _of_type(output, "monitor.prefix_scored")[0]["payload"]["assessment"] == (
+        "no_tripwire_trigger"
+    )
+    decisions = _of_type(emitted, "monitor.gate_decided")
+    assert [d["payload"]["allow"] for d in decisions] == [False, True]
+    assert all(d["status"] == "confirmed" and d["prefix_step"] == 2 for d in decisions)
+
+
+def test_policy_failure_fails_closed_without_hiding_a_detector_denial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_detectors(
+        monkeypatch,
+        hackbook=lambda steps: [
+            _hb_hit(s, eligibility="verdict", gate=True) for s in _marked(steps)
+        ],
+    )
+
+    def broken(*_: Any, **__: Any) -> Any:
+        raise RuntimeError("fixture policy unavailable")
+
+    monkeypatch.setattr(monitor_worker, "policy_hits", broken)
+    with MisalignmentLiveWorker() as worker:
+        unknown = worker.pre_action_gate("run-a", _step(1, "pwd"))
+        blocked = worker.pre_action_gate("run-a", _step(1, "echo MARKER"))
+    assert unknown["allow"] is False and unknown["reason"] == "gate_policy_unavailable"
+    assert blocked["reason"] == "tripwire_blocked"
+    assert blocked["triggered_rules"] == ["hackbook:hb_fixture"]
+
+
+def test_gate_denial_never_overrides_or_advances_the_control_state_machine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_detectors(monkeypatch)
+    policy_calls: list[Any] = []
+    _inject_policy(monkeypatch, calls=policy_calls)
+    now = [100.0]
+    emitted: list[dict[str, Any]] = []
+    with MisalignmentLiveWorker(
+        emit=emitted.append, clock=lambda: now[0], control_ttl_seconds=10
+    ) as worker:
+        worker.request_control("run-a", "cancel", request_id="stop-1")
+        pending = worker.pre_action_gate("run-a", _step(1, "cat PROTECTED"))
+        worker.acknowledge_control("run-a", "stop-1", executor_id="sandbox-1")
+        acknowledged = worker.pre_action_gate("run-a", _step(1, "cat PROTECTED"))
+        assert policy_calls == []
+        now[0] = 111.0
+        expired = worker.pre_action_gate("run-a", _step(1, "cat PROTECTED"))
+        assert worker.control_status("run-a", "stop-1")["payload"]["state"] == "expired"
+        worker.request_control("run-a", "cancel", request_id="stop-2")
+        worker.acknowledge_control("run-a", "stop-2", executor_id="sandbox-1")
+        assert worker.pre_action_gate("run-a", _step(1, "pwd"))["reason"] == "control_pending"
+        worker.apply_control("run-a", "stop-2", executor_id="sandbox-1")
+        stopped = worker.pre_action_gate("run-a", _step(1, "cat PROTECTED"))
+    assert (pending["reason"], pending["pending_request_ids"]) == ("control_pending", ["stop-1"])
+    assert acknowledged["reason"] == "control_pending" and acknowledged["run_state"] == "running"
+    assert expired["reason"] == "tripwire_blocked" and expired["pending_request_ids"] == []
+    assert stopped["reason"] == "run_stopped" and stopped["gate_hits"] == []
+    states = [e["payload"]["state"] for e in emitted if e["event_type"].startswith("control.")]
+    assert states == ["requested", "acknowledged", "expired", "requested", "acknowledged", "applied"]
+
+
+@pytest.mark.parametrize(
+    ("eligibility", "gate", "denied"),
+    [("verdict", True, True), ("verdict", False, False), ("diagnostic", True, False)],
+)
+def test_only_gate_marked_verdict_hackbook_hits_deny(
+    monkeypatch: pytest.MonkeyPatch, eligibility: str, gate: bool, denied: bool
+) -> None:
+    _inject_detectors(
+        monkeypatch,
+        hackbook=lambda steps: [
+            _hb_hit(s, eligibility=eligibility, gate=gate) for s in _marked(steps)
+        ],
+    )
+    _inject_policy(monkeypatch)
+    with MisalignmentLiveWorker() as worker:
+        decision = worker.pre_action_gate("run-a", _step(1, "echo MARKER"))
+    assert decision["allow"] is not denied
+    if denied:
+        assert decision["gate_hits"] == [
+            {
+                "source": "hackbook",
+                "rule": "hackbook:hb_fixture",
+                "step": 1,
+                "entry_ids": ["HB-FIX-001"],
+                "evidence": "echo MARKER",
+                "kind": "agent_action",
+            }
+        ]
+    else:
+        assert decision["triggered_rules"] == [] and decision["gate_hits"] == []
+
+
+@pytest.mark.parametrize(
+    ("eligibility", "assessment", "severity"),
+    [
+        ("verdict", "suspicious", "medium"),
+        ("diagnostic", "diagnostic_cues_only", "low"),
+        (None, "diagnostic_cues_only", "low"),
+    ],
+)
+def test_diagnostic_hackbook_cues_are_reported_but_never_a_misconduct_assessment(
+    monkeypatch: pytest.MonkeyPatch, eligibility: str | None, assessment: str, severity: str
+) -> None:
+    def hits(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        found = [_hb_hit(s, eligibility=eligibility or "", gate=True) for s in _marked(steps)]
+        if eligibility is None:
+            for hit in found:
+                del hit["eligibility"]
+        return found
+
+    _inject_detectors(monkeypatch, hackbook=hits)
+    with MisalignmentLiveWorker() as worker:
+        output = worker.ingest_event(_event(_step(1, "echo MARKER")))
+    score = _of_type(output, "monitor.prefix_scored")[0]["payload"]
+    card = _of_type(output, "monitor.suspicion")[0]["payload"]
+    assert score["assessment"] == assessment and score["trigger_count"] == 1
+    assert score["behavior_trigger_count"] == (1 if assessment == "suspicious" else 0)
+    assert card["severity"] == severity and card["origin"] == "hackbook"
+    assert card["kind"] == "agent_action" and card["check_status"] == "hit"
+    assert card["entry_ids"] == ["HB-FIX-001"]
+    assert card["evidence"][0]["step"] == 1 and card["outcome_verified"] is False
+
+
+def test_task_structure_cues_are_cited_cards_not_misconduct_or_gate_denials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _inject_detectors(
+        monkeypatch,
+        structural=lambda steps: [
+            _structural_record(
+                "hit",
+                kind="task_structure",
+                gate=True,
+                evidence=[{"step": s["step_id"], "quote": "echo MARKER"} for s in _marked(steps)],
+            )
+        ],
+    )
+    _inject_policy(monkeypatch)
+    with MisalignmentLiveWorker() as worker:
+        output = worker.ingest_event(_event(_step(1, "echo MARKER")))
+        decision = worker.pre_action_gate("run-a", _step(2, "echo MARKER"))
+    score = _of_type(output, "monitor.prefix_scored")[0]["payload"]
+    card = _of_type(output, "monitor.suspicion")[0]["payload"]
+    assert score["assessment"] == "diagnostic_cues_only" and score["behavior_trigger_count"] == 0
+    assert card["kind"] == "task_structure" and card["eligibility"] == "diagnostic"
+    assert card["origin"] == "structural" and card["rule"] == "structural:fixture_check"
+    assert card["evidence"] == [{"step": 1, "step_ref": "head#1", "quote": "echo MARKER"}]
+    assert "not evidence of agent misconduct" in card["summary"]
+    assert decision["allow"] is True and decision["gate_hits"] == []
+
+
+def test_structural_action_hit_is_causal_and_gates_only_its_own_proposed_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def structural(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        last = _marked(steps)[-1:]
+        return [
+            _structural_record(
+                "hit",
+                gate=True,
+                evidence=[{"step": s["step_id"], "quote": "echo MARKER"} for s in last],
+            )
+        ]
+
+    calls: list[dict[str, Any]] = []
+    _inject_detectors(monkeypatch, structural=structural, calls=calls)
+    _inject_policy(monkeypatch)
+    with MisalignmentLiveWorker() as worker:
+        output = worker.ingest_event(_event(steps=[_step(1, "echo MARKER"), _step(2)]))
+        benign = worker.pre_action_gate("run-a", _step(3, "pwd"))
+        repeat = worker.pre_action_gate("run-a", _step(3, "echo MARKER"))
+    cards = _of_type(output, "monitor.suspicion")
+    assert [e["prefix_step"] for e in cards] == [1]
+    assert cards[0]["payload"]["kind"] == "agent_action"
+    assert cards[0]["payload"]["entry_ids"] == ["HB-FIX-002"]
+    assert [s["payload"]["assessment"] for s in _of_type(output, "monitor.prefix_scored")] == [
+        "suspicious",
+        "suspicious",
+    ]
+    # Earlier evidence is already observed; only a hit citing the proposed action denies it.
+    assert benign["allow"] is True and benign["gate_hits"] == []
+    assert repeat["allow"] is False
+    assert repeat["gate_hits"] == [
+        {
+            "source": "structural",
+            "rule": "structural:fixture_check",
+            "step": 3,
+            "entry_ids": ["HB-FIX-002"],
+            "evidence": "echo MARKER",
+            "kind": "agent_action",
+        }
+    ]
+    # No future step leaks into an earlier prefix; the gate sees observed steps plus the proposal.
+    assert [c["ids"] for c in calls] == [[1], [1, 2], [1, 2, 3], [1, 2, 3]]
+
+
+def test_structural_evidence_must_be_verbatim_and_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observation = {"results": [{"content": "obs line one\nobs line two"}]}
+    _inject_detectors(
+        monkeypatch,
+        structural=lambda steps: [
+            _structural_record(
+                "hit",
+                evidence=[
+                    {"step": 1, "quote": "fabricated"},
+                    {"step": 99, "quote": "echo MARKER"},
+                ],
+            )
+        ],
+    )
+    with MisalignmentLiveWorker() as worker:
+        first = worker.ingest_event(_event(_step(1, "echo MARKER", observation=observation)))
+    # The check cites an unobserved step and a non-verbatim quote: no card, explicit gap.
+    assert not _of_type(first, "monitor.suspicion")
+    assert "uncitable_tripwire" in _of_type(first, "monitor.coverage_gap")[0]["payload"]["gaps"]
+
+    _inject_detectors(
+        monkeypatch,
+        structural=lambda steps: [
+            _structural_record(
+                "hit",
+                evidence=[
+                    {"step": 1, "quote": "not in step"},
+                    {"step": 1, "quote": "obs line one\nobs line two"},
+                ],
+            )
+        ],
+    )
+    with MisalignmentLiveWorker() as worker:
+        output = worker.ingest_event(_event(_step(1, "echo MARKER", observation=observation)))
+    card = _of_type(output, "monitor.suspicion")[0]["payload"]
+    assert card["evidence"] == [
+        {"step": 1, "step_ref": "head#1", "quote": "obs line one\nobs line two"}
+    ]
+
+
+def test_unavailable_structural_checks_are_unknown_never_clear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    _inject_detectors(
+        monkeypatch,
+        structural=lambda steps: [
+            _structural_record("clear"),
+            _structural_record("unavailable", reason="missing_grader"),
+            _structural_record("unavailable", reason="missing_grader"),
+            _structural_record("unavailable", reason="missing_instruction"),
+        ],
+        calls=calls,
+    )
+    context = {"instruction": "Fix the bug.", "grader": "assert add(1, 1) == 2"}
+    with MisalignmentLiveWorker() as bare, MisalignmentLiveWorker(
+        structural_context=context
+    ) as supplied:
+        without = bare.ingest_event(_event(_step(1)))
+        default = supplied.ingest_event(_event(_step(1)))
+        supplied.ingest_event(
+            _event(_step(1), run_id="run-b", structural_context={"grader": "run-specific"})
+        )
+    score = _of_type(without, "monitor.prefix_scored")[0]["payload"]
+    summary = score["coverage"]["structural"]
+    assert (summary["clear"], summary["hit"], summary["unavailable"]) == (1, 0, 3)
+    assert summary["unavailable_reasons"] == {"missing_grader": 2, "missing_instruction": 1}
+    assert summary["context_supplied"] is False
+    assert score["assessment"] == "no_tripwire_trigger"
+    # Without a context the missing inputs are visible in the summary, not an extra gap event.
+    assert not _of_type(without, "monitor.coverage_gap")
+    gap = _of_type(default, "monitor.coverage_gap")[0]["payload"]
+    assert gap["gaps"] == ["structural_context_incomplete"]
+    assert gap["structural"]["context_supplied"] is True
+    assert [c["structural_context"] for c in calls] == [None, context, {"grader": "run-specific"}]
+
+
+def test_structural_context_survives_restart_for_the_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    _inject_detectors(monkeypatch, structural=lambda steps: [], calls=calls)
+    _inject_policy(monkeypatch)
+    context = {"instruction": "Fix the bug.", "tests": {"test_a.py": "assert True"}}
+    journal = _Journal([_event(_step(1), structural_context=context)])
+    with MisalignmentLiveWorker(emit=journal.append_event) as first:
+        first.consume(journal)
+    with MisalignmentLiveWorker(emit=journal.append_event) as restored:
+        restored.recover(journal)
+        decision = restored.pre_action_gate("run-a", _step(2))
+    assert decision["allow"] is True
+    assert calls[-1]["structural_context"] == context
+    assert calls[-1]["ids"] == [1, 2]

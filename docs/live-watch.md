@@ -700,6 +700,13 @@ reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 suspicions. Worker phase updates use the shared `step_id` field; their missing
 reasoning/tool capture is reported as a coverage gap, not a clean trace.
 
+Docker capacity probes allow 30 seconds per daemon query while retaining the
+declared-resource and competing-container admission checks. A refused or unavailable
+grader is infrastructure evidence, not a failed shortcut: its feedback remains in
+the journal, but does not blacklist the candidate or exhaust its Hackbook entry.
+This also applies when rehydrating older unmeasured `upstream_failed` feedback.
+Measured candidate rejections still populate failure memory and prevent duplicates.
+
 The ASGI factory `evallab.production.control_plane:app_from_env` requires
 `EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).
 `EVALLAB_OPERATOR_TOKEN` enables intervention requests and

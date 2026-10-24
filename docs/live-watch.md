@@ -668,3 +668,44 @@ into `<job_dir>/proxy-live/`:
 The live ledger operates fail-open: logging errors to stderr and never
 disrupting ongoing trials. Request/response bodies, prompts, and credentials
 are strictly excluded. Multi-trial jobs disambiguate records via `attempt_id`.
+
+## Live production control plane
+
+`evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`
+serves one FastAPI application over the same `ContinuousWorkQueue` used by the
+production workers. The dashboard at `/` shows the Public Corpus Queue, independent
+Task Quality / Reward Seeker / Misalignment systems, live intervention requests,
+and distinct verified assets. Opening the dashboard does not dispatch jobs or call
+a model.
+
+The ASGI factory `evallab.production.control_plane:app_from_env` requires
+`EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).
+`EVALLAB_OPERATOR_TOKEN` enables intervention requests and
+`EVALLAB_OPERATOR_ID` supplies their server-side audit identity. Without a token,
+the dashboard remains readable but interventions fail closed with HTTP 503.
+Keep deployment credentials in the keys store, not in URLs, browser storage, or
+committed configuration.
+
+- `GET /api/state` projects the durable journal to its queue snapshot's global
+  sequence. Queue depth includes queued and leased jobs; current lease state owns
+  active-worker counts. Partial traces and suspicion cards retain bounded recent
+  payloads. Distinct confirmed assets are counted from `asset.verified` events.
+- `GET /api/stream` starts with a `state` SSE snapshot and its event-ID cursor,
+  then streams shared event envelopes as ordinary messages. Browser `EventSource`
+  reconnects with `Last-Event-ID`; replay follows journal sequence, not lexical
+  event-ID order. Unknown cursors return HTTP 409 rather than silently losing
+  events. Idle heartbeats refresh state without advancing the delivered-event
+  cursor, so expired leases are visible even when workers emit no new events.
+- `POST /api/intervene` requires `Authorization: Bearer <operator-token>` and JSON
+  `action` (`pause`, `cancel`, or `quarantine`), `run_id`, and nonblank `reason`.
+  Optional `target` defaults to the run; optional `request_id` makes client
+  retries idempotent. Reusing a request ID for different content returns HTTP 409.
+  The authenticated operator identity cannot be supplied in the body.
+
+An accepted intervention returns HTTP 202 and durably appends
+`operator.control_requested`; it does **not** claim that the executor has paused,
+stopped, or quarantined anything. The monitor consumes the request and records
+`control.requested`, `control.acknowledged`, and finally `control.applied` or
+`control.expired`. Only an applied event changes the displayed run state.
+
+Focused verification: `uv run pytest tests/test_control_plane.py`.

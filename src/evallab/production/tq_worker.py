@@ -6,6 +6,18 @@ job also names ``exploit_run`` or one passing run; a Seeker's immutable
 ``exploit_files``/``solution_bundle`` can instead supply its replay input.
 Relative paths resolve against the worker's repository, never the process cwd.
 
+``task_quality.annotation_task`` jobs carry normalized human severity/rationale
+(for example the public SWE-bench annotation loader's ``payload.annotation``).
+Each job records a provisional ``qa.finding/v1`` preserving the human
+assessment; ``execution_available`` marks whether measured execution evidence
+backs the emitted finding. A declared ``task_dir`` (or ``task_package``) with a
+``repaired_task`` directory and retained runs or an immutable candidate feeds
+the same differential machinery as an audit job — only measured executions
+upgrade the annotation finding to confirmed/refuted. A ``task_dir`` alone is
+not confirmation: missing prerequisites and unusable executions remain
+provisional. Annotation jobs never run repair qualification, so they never
+emit ``asset.verified``.
+
 The existing QA static scan/bounded reader bundle produce advisory findings.
 Only fresh execution of the *same* submission against both pinned packages can
 confirm or refute a differential hypothesis. Missing/failed execution remains
@@ -27,10 +39,20 @@ from typing import Any, Literal, Protocol
 
 from evallab.qa import counterfactual
 from evallab.qa import task as qa_task
-from evallab.qa.models import Finding, FindingSubject, Refutation, Reproducer, Reviewer
+from evallab.qa.models import (
+    Finding,
+    FindingSubject,
+    Refutation,
+    Reproducer,
+    Reviewer,
+    Severity,
+)
 from evallab.registry import task_directory_digest
 
-JOB_TYPES = ("task_quality.audit_task", "task_quality.repair_task")
+#: Queue job type carrying normalized human task-quality annotations. Kept in
+#: sync with ``evallab.production.public_corpus_loader.ANNOTATION_JOB``.
+ANNOTATION_JOB = "task_quality.annotation_task"
+JOB_TYPES = ("task_quality.audit_task", "task_quality.repair_task", ANNOTATION_JOB)
 Direction = Literal["unfair_fail", "wrong_pass"]
 
 
@@ -54,15 +76,97 @@ class WorkQueue(Protocol):
 
 @dataclass(frozen=True)
 class _Job:
+    """A claimed job's resolved inputs.
+
+    Audit/repair jobs always resolve both pinned packages. Annotation jobs may
+    resolve none (annotation-only), one, or both — ``None`` marks a missing
+    execution prerequisite, never a fabricated package.
+    """
+
     event_id: str
     run_id: str
     payload: dict[str, Any]
-    original: Path
-    repaired: Path
-    original_digest: str
-    repaired_digest: str
+    original: Path | None
+    repaired: Path | None
+    original_digest: str | None
+    repaired_digest: str | None
     task_id: str
     lease_token: str | None = None
+
+
+#: Human-annotation values that assert *no* defect; anything else on a mapped
+#: axis supports the unfair-failure hypothesis.
+_ANNOTATION_NEGATIVE = {"", "none", "no", "fair", "clean", "false", "negative"}
+
+#: Human severity words mapped onto the finding vocabulary; the raw values stay
+#: verbatim under ``payload.annotation``.
+_ANNOTATION_SEVERITY: dict[str, Severity] = {
+    "critical": "critical",
+    "severe": "critical",
+    "major": "high",
+    "high": "high",
+    "moderate": "medium",
+    "medium": "medium",
+    "minor": "medium",
+    "low": "low",
+    "trivial": "low",
+    "none": "low",
+}
+_SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+
+def _annotation_indicates(annotation: Mapping[str, Any], *keys: str) -> bool:
+    """True when any named axis carries a defect-asserting human value."""
+    for key in keys:
+        value = annotation.get(key)
+        if value is None or value is False:
+            continue
+        if isinstance(value, str):
+            if value.strip().lower() in _ANNOTATION_NEGATIVE:
+                continue
+        elif isinstance(value, int | float) and not isinstance(value, bool) and value <= 0:
+            continue
+        return True
+    return False
+
+
+#: Scalar human axes an annotation can assert or explicitly negate.
+_ANNOTATION_AXES = ("underspecified", "unfair_tests", "severity", "max_severity")
+
+
+def _annotation_severity(annotation: Mapping[str, Any]) -> Severity | None:
+    """The highest mapped human severity, or ``None`` when unmappable/absent."""
+    best: Severity | None = None
+    for key in _ANNOTATION_AXES:
+        value = annotation.get(key)
+        if not isinstance(value, str):
+            continue
+        mapped = _ANNOTATION_SEVERITY.get(value.strip().lower())
+        if mapped is not None and (best is None or _SEVERITY_RANK[mapped] > _SEVERITY_RANK[best]):
+            best = mapped
+    return best
+
+
+def _annotation_axes_negative(annotation: Mapping[str, Any]) -> bool:
+    """True when explicit human axes exist and every one denies a defect."""
+    return any(
+        annotation.get(key) is not None for key in _ANNOTATION_AXES
+    ) and not _annotation_indicates(annotation, *_ANNOTATION_AXES)
+
+
+def _annotation_summary(direction: Direction, annotation: Mapping[str, Any]) -> str:
+    """Human words first; an all-negative assessment never reads as a defect."""
+    for key in ("comment", "rationale", "reason", "explanation"):
+        text = annotation.get(key)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    if _annotation_axes_negative(annotation):
+        return "Human annotation asserts no task defect"
+    return (
+        "Human-annotated possible unfair failure"
+        if direction == "unfair_fail"
+        else "Human-annotated possible wrong pass"
+    )
 
 
 class TaskQualityLiveWorker:
@@ -112,6 +216,8 @@ class TaskQualityLiveWorker:
         if envelope["event_type"] not in JOB_TYPES:
             raise ValueError("Task Quality cannot consume another system's job")
         payload = dict(envelope["payload"])
+        if envelope["event_type"] == ANNOTATION_JOB:
+            return self._prepare_annotation(envelope, payload)
         original = self._path(payload["task_package"])
         repaired = self._path(payload["repaired_task"])
         task = self.backend.resolve(original)
@@ -135,10 +241,64 @@ class TaskQualityLiveWorker:
             lease_token=envelope.get("lease_token"),
         )
 
+    def _existing_dir(self, value: Any) -> Path | None:
+        """Resolve a declared package locator only when it names a real directory."""
+        if value is None:
+            return None
+        path = self._path(str(value))
+        return path if path.is_dir() else None
+
+    def _prepare_annotation(
+        self, envelope: Mapping[str, Any], payload: dict[str, Any]
+    ) -> _Job:
+        """Resolve an annotation job's inputs; absent locators stay ``None``.
+
+        ``task_dir`` supplies the runnable package when ``task_package`` is not
+        declared. Declared-but-missing directories are missing prerequisites,
+        not failures and never fabricated packages. Declared digests pin
+        whichever directories do resolve.
+        """
+        original = self._existing_dir(payload.get("task_package") or payload.get("task_dir"))
+        repaired = self._existing_dir(payload.get("repaired_task"))
+        task = self.backend.resolve(original) if original is not None else None
+        original_digest = task_directory_digest(original) if original is not None else None
+        repaired_digest = task_directory_digest(repaired) if repaired is not None else None
+        checks: list[tuple[str, str]] = []
+        if original_digest is not None:
+            checks.append(("task_package_digest", original_digest))
+            checks.append(("task_dir_digest", original_digest))
+        if repaired_digest is not None:
+            checks.append(("repaired_task_digest", repaired_digest))
+        for name, actual in checks:
+            if payload.get(name) is not None and payload[name] != actual:
+                raise ValueError(f"{name} no longer matches the queued package")
+        task_id = str(
+            payload.get("task_id")
+            or (getattr(task, "task_name", None) if task is not None else None)
+            or (task.task_id if task is not None else None)
+            or payload.get("item_id")
+            or payload.get("source_id")
+            or envelope["event_id"]
+        )
+        return _Job(
+            event_id=str(envelope["event_id"]),
+            run_id=str(envelope["run_id"]),
+            payload=payload,
+            original=original,
+            repaired=repaired,
+            original_digest=original_digest,
+            repaired_digest=repaired_digest,
+            task_id=task_id,
+            lease_token=envelope.get("lease_token"),
+        )
+
     def _unchanged(self, job: _Job) -> None:
         if (
-            task_directory_digest(job.original) != job.original_digest
-            or task_directory_digest(job.repaired) != job.repaired_digest
+            job.original is not None
+            and task_directory_digest(job.original) != job.original_digest
+        ) or (
+            job.repaired is not None
+            and task_directory_digest(job.repaired) != job.repaired_digest
         ):
             raise ValueError("task package changed during Task Quality execution")
 
@@ -247,6 +407,8 @@ class TaskQualityLiveWorker:
         self._unchanged(job)
         work = self.repo_root / "runs" / "task-quality-live" / uuid.uuid4().hex / label
         digest = job.original_digest if package == job.original else job.repaired_digest
+        if digest is None:
+            raise ValueError("execution package lost its pinned digest")
         if direction == "wrong_pass" and self._candidate_source(job, source):
             from evallab.candidate_runner import run_candidate
 
@@ -295,9 +457,235 @@ class TaskQualityLiveWorker:
             "execution": raw,
         }
 
+    def _run_differential(
+        self,
+        job: _Job,
+        direction: Direction,
+        source: Path | None,
+        finding: Finding,
+        input_digest: str,
+    ) -> tuple[Finding, str, bool, dict[str, Any]]:
+        """Replay one candidate against both pinned packages.
+
+        Returns the execution-updated finding, its event status, whether both
+        sides measured independently, and the raw execution evidence. Only a
+        measured ``expected`` pair confirms; any other measured pair refutes;
+        anything else stays provisional.
+        """
+        if job.original is None or job.repaired is None:
+            raise ValueError("differential replay needs both resolved packages")
+        original = self._execute(
+            job, source, job.original, direction=direction, label="original"
+        )
+        repaired = self._execute(
+            job, source, job.repaired, direction=direction, label="repaired"
+        )
+        if self._input_digest(job, source, direction) != input_digest:
+            raise ValueError("submission changed during differential replay")
+        measured = bool(
+            original["measured"]
+            and repaired["measured"]
+            and self._path(original["evidence_ref"]) != self._path(repaired["evidence_ref"])
+        )
+        expected = (0.0, 1.0) if direction == "unfair_fail" else (1.0, 0.0)
+        confirmed = measured and (original["reward"], repaired["reward"]) == expected
+        status = "confirmed" if confirmed else "refuted" if measured else "provisional"
+        finding = finding.model_copy(
+            update={
+                "stage": "differential_replay",
+                "verdict": "fail" if confirmed else "pass" if measured else "unknown",
+                "measurement": "measured" if measured else "ran_without_usable_result",
+                "evidence_refs": finding.evidence_refs
+                + [r["evidence_ref"] for r in (original, repaired) if r["evidence_ref"]],
+                "refutation": Refutation(
+                    status="verified" if confirmed else "refuted" if measured else "unverified",
+                    by="task-quality-live/differential",
+                    reason=f"original={original['reward']!r}, repaired={repaired['reward']!r}; expected {expected}"
+                    if measured
+                    else "Differential execution unavailable; hypothesis remains provisional",
+                ),
+            }
+        )
+        self._unchanged(job)
+        return (
+            finding,
+            status,
+            measured,
+            {"direction": direction, "original": original, "repaired": repaired},
+        )
+
+    def _annotation_sources(
+        self, job: _Job, annotation: Mapping[str, Any]
+    ) -> list[tuple[Direction, Path | None]]:
+        """Candidate hypotheses for an annotation job.
+
+        Every supplied replay input keeps its direction. The human assessment
+        itself is an ``unfair_fail`` hypothesis (underspecified/unfair tests)
+        even when it supplies no retained run, so annotation-only jobs still
+        produce one provisional finding.
+        """
+        sources = self._sources(job)
+        if not any(direction == "unfair_fail" for direction, _ in sources) and (
+            not sources or _annotation_indicates(annotation, "underspecified", "unfair_tests")
+        ):
+            sources.append(("unfair_fail", None))
+        return sources
+
+    def _annotation_runnable(
+        self, job: _Job, direction: Direction, source: Path | None
+    ) -> bool:
+        """True when the job's resolved inputs can drive real execution."""
+        if job.original is None or job.repaired is None:
+            return False
+        if source is not None:
+            return True
+        return direction == "wrong_pass" and self._candidate_source(job, source)
+
+    @staticmethod
+    def _missing_prerequisites(
+        job: _Job, runnable: bool
+    ) -> list[str]:
+        missing = []
+        if job.original is None:
+            missing.append("runnable task_dir/task_package directory")
+        if job.repaired is None:
+            missing.append("repaired_task directory")
+        if job.original is not None and job.repaired is not None and not runnable:
+            missing.append(
+                "retained failing_runs/passing_runs or an immutable exploit candidate"
+            )
+        return missing
+
+    def _process_annotation(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
+        """Record normalized human annotations; verify only by real execution.
+
+        Provisional findings stream first with ``execution_available=False``.
+        Only candidates whose resolved packages and replay inputs are complete
+        run the standard differential; their follow-up finding upgrades to
+        confirmed/refuted (``execution_available=True``) or stays provisional
+        with the unusable execution record attached. Missing prerequisites
+        never fabricate locators, rewards, or statuses.
+        """
+        job = self._prepare(envelope)
+        raw_annotation = job.payload.get("annotation")
+        annotation = dict(raw_annotation) if isinstance(raw_annotation, Mapping) else {}
+        provenance = job.payload.get("provenance")
+        self._emit(
+            job,
+            "task_quality.started",
+            "provisional",
+            {"worker_id": self.worker_id, "source_kind": job.payload.get("source_kind")},
+        )
+        self._renew(job)
+        static: dict[str, Any] | None = None
+        bundle: dict[str, Any] | None = None
+        if job.original is not None:
+            task = self.backend.resolve(job.original)
+            static = self.backend.static(task).model_dump(mode="json")
+            bundle = qa_task.bundle_package(job.original)
+            bundle["static"] = static
+        severity: Severity = _annotation_severity(annotation) or (
+            "low" if _annotation_axes_negative(annotation) else "high"
+        )
+        root_cause = (
+            ["unstated_requirement"]
+            if _annotation_indicates(annotation, "underspecified")
+            else []
+        )
+        candidates: list[tuple[Direction, Path | None, Finding, str | None, bool]] = []
+        for direction, source in self._annotation_sources(job, annotation):
+            runnable = self._annotation_runnable(job, direction, source)
+            identity = f"{job.event_id}\0{direction}\0{source or 'annotation'}"
+            finding = Finding(
+                id="tq-" + hashlib.sha256(identity.encode()).hexdigest()[:24],
+                subject=FindingSubject(
+                    kind="trace" if source is not None else "task",
+                    task_id=job.task_id,
+                    task_digest=job.original_digest,
+                    trial_id=str(source) if source is not None else None,
+                ),
+                stage="human_annotation",
+                verdict="unknown",
+                category="false_negative" if direction == "unfair_fail" else "false_positive",
+                summary=_annotation_summary(direction, annotation),
+                severity=severity,
+                fault="eval",
+                evidence_refs=[
+                    str(ref) for ref in (job.original, source) if ref is not None
+                ],
+                reproducer=Reproducer(kind="harbor_trial", path=str(source))
+                if source is not None
+                else None,
+                reviewer=Reviewer(agent="task-quality-live"),
+                measurement="not_run",
+                root_cause=root_cause if direction == "unfair_fail" else [],
+            )
+            if self.reader is not None and bundle is not None:
+                reviewed = self.reader(finding.model_copy(deep=True), bundle)
+                if reviewed.id != finding.id or reviewed.subject != finding.subject:
+                    raise ValueError("reader cannot change the candidate's identity or subject")
+                finding = reviewed.model_copy(
+                    update={
+                        "verdict": "unknown",
+                        "measurement": "not_run",
+                        "refutation": Refutation(),
+                    }
+                )
+            input_digest = self._input_digest(job, source, direction) if runnable else None
+            candidates.append((direction, source, finding, input_digest, runnable))
+            self._finding_event(
+                job,
+                finding,
+                "provisional",
+                "human_annotation",
+                direction=direction,
+                annotation=annotation,
+                provenance=provenance,
+                execution_available=False,
+                static=static,
+                input_digest=input_digest,
+                missing_prerequisites=self._missing_prerequisites(job, runnable),
+            )
+        findings: list[dict[str, Any]] = []
+        executed = False
+        complete = True
+        for direction, source, finding, input_digest, runnable in candidates:
+            if not runnable:
+                findings.append(finding.model_dump(mode="json", by_alias=True))
+                continue
+            if input_digest is None:
+                raise ValueError("runnable annotation candidate lost its input digest")
+            executed = True
+            finding, status, measured, evidence = self._run_differential(
+                job, direction, source, finding, input_digest
+            )
+            complete = complete and measured
+            self._finding_event(
+                job,
+                finding,
+                status,
+                "differential_replay",
+                annotation=annotation,
+                provenance=provenance,
+                execution_available=measured,
+                **evidence,
+            )
+            findings.append(finding.model_dump(mode="json", by_alias=True))
+        self._emit(
+            job,
+            "task_quality.completed" if complete else "task_quality.blocked",
+            "applied" if complete and executed else "provisional",
+            {"worker_id": self.worker_id, "finding_ids": [f["id"] for f in findings]},
+        )
+        return {"complete": complete, "findings": findings}
+
     def process_job(self, envelope: Mapping[str, Any]) -> dict[str, Any]:
         """Stream the static candidates before differential execution starts."""
+        if envelope["event_type"] == ANNOTATION_JOB:
+            return self._process_annotation(envelope)
         job = self._prepare(envelope)
+        if job.original is None or job.repaired is None:
+            raise ValueError("audit job lost its resolved task packages")
         sources = self._sources(job)
         if not sources:
             raise ValueError("Task Quality needs failing/passing runs or an exploit candidate")
@@ -361,48 +749,16 @@ class TaskQualityLiveWorker:
         findings: list[dict[str, Any]] = []
         complete = True
         for direction, source, finding, input_digest in candidates:
-            original = self._execute(
-                job, source, job.original, direction=direction, label="original"
+            finding, status, measured, evidence = self._run_differential(
+                job, direction, source, finding, input_digest
             )
-            repaired = self._execute(
-                job, source, job.repaired, direction=direction, label="repaired"
-            )
-            if self._input_digest(job, source, direction) != input_digest:
-                raise ValueError("submission changed during differential replay")
-            measured = (
-                original["measured"]
-                and repaired["measured"]
-                and self._path(original["evidence_ref"]) != self._path(repaired["evidence_ref"])
-            )
-            expected = (0.0, 1.0) if direction == "unfair_fail" else (1.0, 0.0)
-            confirmed = measured and (original["reward"], repaired["reward"]) == expected
-            status = "confirmed" if confirmed else "refuted" if measured else "provisional"
-            complete = complete and bool(measured)
-            finding = finding.model_copy(
-                update={
-                    "stage": "differential_replay",
-                    "verdict": "fail" if confirmed else "pass" if measured else "unknown",
-                    "measurement": "measured" if measured else "ran_without_usable_result",
-                    "evidence_refs": finding.evidence_refs
-                    + [r["evidence_ref"] for r in (original, repaired) if r["evidence_ref"]],
-                    "refutation": Refutation(
-                        status="verified" if confirmed else "refuted" if measured else "unverified",
-                        by="task-quality-live/differential",
-                        reason=f"original={original['reward']!r}, repaired={repaired['reward']!r}; expected {expected}"
-                        if measured
-                        else "Differential execution unavailable; hypothesis remains provisional",
-                    ),
-                }
-            )
-            self._unchanged(job)
+            complete = complete and measured
             self._finding_event(
                 job,
                 finding,
                 status,
                 "differential_replay",
-                direction=direction,
-                original=original,
-                repaired=repaired,
+                **evidence,
             )
             findings.append(finding.model_dump(mode="json", by_alias=True))
         qualification = None
@@ -430,6 +786,8 @@ class TaskQualityLiveWorker:
         if source is None and not self._has_candidate(job):
             raise ValueError("repair qualification needs one explicit exploit replay input")
         input_digest = self._input_digest(job, source, "wrong_pass")
+        if job.repaired is None or job.repaired_digest is None:
+            raise ValueError("repair job lost its resolved repaired package")
         task = self.backend.resolve(job.repaired)
         blocker = self.backend.resource_blocker(job.repaired)
         if blocker:

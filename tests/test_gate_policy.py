@@ -478,7 +478,9 @@ def test_codex_exec_workdir_does_not_leak_between_commands_or_into_later_steps()
     assert policy_hits(codex(script)) == []
     assert policy_hits(shell("cat fixture.txt"), prefix=[codex(script, step_id=2)]) == []
     persistent = [codex(exec_command({"cmd": "cd /tests"}), step_id=2)]
-    assert rules(policy_hits(shell("cat fixture.txt"), prefix=persistent)) == ["gate_protected_read"]
+    assert rules(policy_hits(shell("cat fixture.txt"), prefix=persistent)) == [
+        "gate_protected_read"
+    ]
     only_workdir = [codex(exec_command({"cmd": "true", "workdir": "/tests"}), step_id=2)]
     assert policy_hits(shell("cat fixture.txt"), prefix=only_workdir) == []
 

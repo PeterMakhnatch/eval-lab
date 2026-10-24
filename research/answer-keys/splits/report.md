@@ -343,3 +343,4 @@ Task items whose `subject.task_digest` appears in more than one key with differe
 | tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | envcheck-tb4-39 | 1 | 1 |
 | tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | executed-outcomes-v1 | 1 | 1 |
 | tw-p1-evaluator-schema-peek-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | tb4-audit-v1 | 16 | 0 |
+| tw-p1-pre-replay-canonical-scope-amendment-20261024 | inspected | Deterministic tripwires (tw-p1-gate@*) from 2026-10-24 | (no key items) | 0 | 0 |

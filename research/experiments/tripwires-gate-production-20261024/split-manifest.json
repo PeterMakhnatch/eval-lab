@@ -8,40 +8,37 @@
   "split"
  ],
  "disclosures": [
-  "census22 vs effective DEV: the production registry seals census tasks that other keys hold out (sealed_by_registry) and adds DEV tasks with no captured trials (uncaptured_dev_tasks: unknown, not clean); both counts are reported, no silent coverage reduction; sealed tasks are never unsealed or measured",
-  "built from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split (task names only) and the v4 task_assignment key; no trajectory, label or outcome was read for TW-P1 to choose or alter the split",
-  "TEST-split tasks are never listed or read; a task with several splits is not DEV",
+  "census22 vs effective DEV: the production registry's canonical-key TEST locks exclude sealed census tasks (sealed_by_registry); registry DEV tasks absent from this census are uncaptured_dev_tasks (unknown, not clean). All counts are reported; no registry-sealed task is unsealed or measured",
+  "built only from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split (task names) and the v4 task_assignment key; no label or outcome chooses the task roles. The evaluator's accidental DEV label schema peek is disclosed in PROTOCOL.md; this is not a claim of strict label blindness",
+  "TB4 TEST trajectories, labels and package contexts never enter scoring; registry metadata alone enforces the canonical TEST locks",
   "TW-P1 holdout means excluded from THIS patch's development and tuning only: the v3/v4 work saw DEV census labels and rule hits for all 22 census tasks and scored the v4 holdout half once, so neither half is untouched or independent in the historical sense"
  ],
- "effective_dev_sha256": "6c5181fa734b2ade0d023e8e36fc1c3a8bc9e00fa64b020c148b4962cebd41d2",
+ "effective_dev_sha256": "0f6b301c0bc640cd9a7cfc859056851e1d4f63b7cd24cf6eb439acee5a11c20b",
  "holdout_tasks": [
   "cad-model",
+  "cargo-flight-dispatch",
   "fin-saccr-rwa",
+  "formal-crypto",
+  "freecad-impeller",
   "freecad-platform-drawing",
   "html-js-filter",
   "layout-config-recreation2",
+  "live-database-cutover",
+  "nextjs-performance",
   "pretrain-shard-corruption",
   "protein-autointerp-disulfide",
+  "sglang-qwen-burst",
   "vpp-loss-divergence"
  ],
  "key_id": "tb4-audit-v1",
- "manifest_sha256": "bef34c5992d76100668986523cc5f89a1d718f60dd9b35c41a44efca6f19750b",
- "n_captured_effective": 14,
+ "manifest_sha256": "f18c12d5d0e329046e98d4b11f8789dc8cfc2f06b94a6ecdb14ab3280ad9bd3d",
+ "n_captured_effective": 22,
  "n_census_tasks": 22,
- "n_dev_tasks": 16,
- "n_holdout_tasks": 8,
- "n_tune_tasks": 8,
+ "n_dev_tasks": 25,
+ "n_holdout_tasks": 14,
+ "n_tune_tasks": 11,
  "schema": "evallab.tw_p1_split_manifest/v1",
- "sealed_by_registry": [
-  "cargo-flight-dispatch",
-  "freecad-impeller",
-  "live-database-cutover",
-  "math-eval-grader",
-  "nextjs-performance",
-  "sglang-qwen-burst",
-  "uefi-bootkit",
-  "vf2-speedup-networkx"
- ],
+ "sealed_by_registry": [],
  "source": "retained tripwires-v4 task halves restricted to the production-registry effective DEV universe",
  "tune_tasks": [
   "distributed-dedup",
@@ -49,11 +46,15 @@
   "gsea-proteomics",
   "heat-pump-warranty",
   "jax-speedrun-gpu",
+  "math-eval-grader",
   "photonic-waveguide-routing",
   "satb-audio-transcription",
-  "vba-userform-port"
+  "uefi-bootkit",
+  "vba-userform-port",
+  "vf2-speedup-networkx"
  ],
  "uncaptured_dev_tasks": [
+  "formal-crypto",
   "pretrain-shard-corruption",
   "protein-autointerp-disulfide"
  ],

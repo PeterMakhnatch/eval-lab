@@ -269,8 +269,8 @@ def manifest_body(
 ) -> dict[str, Any]:
     """Conservative split of the registry-effective DEV universe, retaining the v4 task halves.
 
-    The census covers 22 DEV tasks (v4 halves 11/11); the production registry seals some of them
-    through other keys' heldouts and adds DEV tasks that have no captured trials. Every task the
+    The census covers 22 DEV tasks (v4 halves 11/11). The production registry may seal some
+    through canonical keys' heldouts and adds DEV tasks absent from this census. Every task the
     v4 split put in tune stays in tune (if still effective DEV); the legacy v4 holdout tasks and
     any effective DEV task v4 never saw (no census labels or trajectories: unknown) go to
     holdout, so no previously scored task moves into tune. Sealed census tasks are excluded and
@@ -321,14 +321,16 @@ def manifest_body(
         "uncaptured_dev_tasks": uncaptured,
         "effective_dev_sha256": canonical_sha(effective),
         "disclosures": [
-            "census22 vs effective DEV: the production registry seals census tasks that other keys "
-            "hold out (sealed_by_registry) and adds DEV tasks with no captured trials "
-            "(uncaptured_dev_tasks: unknown, not clean); both counts are reported, no silent "
-            "coverage reduction; sealed tasks are never unsealed or measured",
-            "built from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split "
-            "(task names only) and the v4 task_assignment key; no trajectory, label or outcome "
-            "was read for TW-P1 to choose or alter the split",
-            "TEST-split tasks are never listed or read; a task with several splits is not DEV",
+            "census22 vs effective DEV: the production registry's canonical-key TEST locks "
+            "exclude sealed census tasks (sealed_by_registry); registry DEV tasks absent from "
+            "this census are uncaptured_dev_tasks (unknown, not clean). All counts are reported; "
+            "no registry-sealed task is unsealed or measured",
+            "built only from tb4-audit-v1 assignment task rows, the CorpusRegistry effective "
+            "split (task names) and the v4 task_assignment key; no label or outcome chooses "
+            "the task roles. The evaluator's accidental DEV label schema peek is disclosed "
+            "in PROTOCOL.md; this is not a claim of strict label blindness",
+            "TB4 TEST trajectories, labels and package contexts never enter scoring; "
+            "registry metadata alone enforces the canonical TEST locks",
             "TW-P1 holdout means excluded from THIS patch's development and tuning only: the "
             "v3/v4 work saw DEV census labels and rule hits for all 22 census tasks and scored "
             "the v4 holdout half once, so neither half is untouched or independent in the "

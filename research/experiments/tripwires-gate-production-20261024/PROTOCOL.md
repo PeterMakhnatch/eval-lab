@@ -47,21 +47,30 @@ required inputs were present and the predicate was false; it is not proof of no 
 (columns `key_id, unit, task, split` only; census DEV = tasks whose only split is `dev`, 22
 tasks), the production `CorpusRegistry` effective split (task names only) and the
 `task_assignment` key of the retained tripwires-v4 `results-tune.json` (its file sha256 is
-recorded). The registry seals every task that is test/heldout under *any* key, so the effective
-DEV universe is **16, not 22**: 8 census tasks are sealed (`cargo-flight-dispatch`,
-`freecad-impeller`, `live-database-cutover`, `math-eval-grader`, `nextjs-performance`,
-`sglang-qwen-burst`, `uefi-bootkit`, `vf2-speedup-networkx`) and are excluded and listed, never
-unsealed; two registry-DEV tasks (`pretrain-shard-corruption`, `protein-autointerp-disulfide`)
-are not in the census and have no captured trials (**unknown, not clean**). Of the 16, 14 are
-captured census tasks and 2 are uncaptured. Every v4 *tune* task that is still effective DEV
-stays in tune (8); the legacy v4 holdout tasks that are effective (6) plus the 2 uncaptured go to
-holdout (8). No task whose labels/hits v4 scored moves into tune. Results report census 22 vs
-effective 16, the per-stage captured and uncaptured tasks, and the sealed list. The runner
-refuses a manifest that is edited, stale against the assignments or the registry's effective DEV
-universe, not the deterministic split of the v4 seed, contains a sealed task, or is not a
-disjoint partition. Every trial/membership of a task is in exactly one half (task = group). No
-class balance was used. TB4 TEST tasks are never listed, enumerated, parsed or read;
-label/index lines are selected on raw text by task name before JSON parsing, a line outside the
+recorded).
+
+**Pre-replay scope amendment.** The unused initial manifest is preserved byte-for-byte as
+`split-manifest-initial.json` (manifest identity
+`bef34c5992d76100668986523cc5f89a1d718f60dd9b35c41a44efca6f19750b`).
+Upstream PR #1187 (`21d3d682a`) corrected secondary-key split scoping: only the four canonical
+corpus keys seal task names globally; secondary keys tighten their own rows. The initial
+16-task manifest correctly failed verification against this changed registry **before any
+TW-P1 replay or performance inspection**. Do not weaken verification or silently shrink the
+current DEV population. Regenerate the primary manifest using the corrected canonical
+registry, retaining all original v4 task roles: **25 effective DEV tasks, 11 tune and 14
+holdout**. All 22 census tasks remain in their original 11/11 halves; `formal-crypto`,
+`pretrain-shard-corruption` and `protein-autointerp-disulfide` are registry-DEV tasks absent
+from this census and enter holdout as unknowns, not clean cases. No v4 holdout task moves
+into tune, no class balancing or outcome-dependent reseeding occurs, and no canonical TEST
+task is admitted. This supersedes the earlier conservative 16-task planning population,
+not the canonical TEST lock.
+
+Results report census versus effective DEV counts and per-stage coverage. The runner refuses
+a manifest that is edited, stale against assignments or the current effective DEV universe,
+not the retained deterministic v4 split, includes a registry-sealed task, or is not a disjoint
+partition. Every trial/membership of a task stays in exactly one half (task = group). Registry
+metadata enforces the TEST fence; no TB4 TEST trajectory, package, or label enters scoring.
+Label/index lines are selected on raw text by task name before JSON parsing, a line outside the
 stage's tasks (including sealed tasks) is never parsed, and a line naming no census task
 refuses the whole file.
 
@@ -79,8 +88,8 @@ for the mechanism vocabulary printed DEV export `labels-dev.jsonl` lines 1–20,
 about 512 bytes: five records each for `cad-model`, `cargo-flight-dispatch`,
 `distributed-dedup`, and `fin-saccr-rwa`. This exposed label/mechanism fields, membership/trial
 identifiers, producer/method metadata, confidence/facts, and fragments of verifier-derived
-evidence, not trajectory text. Two tasks are in the retained holdout half; one is now sealed and
-excluded. Public catalog examples and old aggregate v3 statistics were also seen by the
+evidence, not trajectory text. Three tasks are in the retained holdout half; one is in tune.
+Public catalog examples and old aggregate v3 statistics were also seen by the
 measurement engineer. No TW-P1 holdout trajectory or performance was opened, and the separate
 rule/policy authors did not receive these labels. The split preserves the retained v4 roles and
 registry sealing, not label balance. This incident is explicitly disclosed; neither strict

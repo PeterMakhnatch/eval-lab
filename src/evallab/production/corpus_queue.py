@@ -116,6 +116,8 @@ class CorpusRegistry:
     canonical TEST seals still pin the effective split: an external record naming
     a sealed item id, task name, or task digest resolves as TEST regardless of
     any DEV label the export declares.
+    Only the four canonical corpus keys feed that global lock: assignments under
+    secondary key ids tighten solely their own ``(key_id, item_id)`` rows.
     """
 
     def __init__(
@@ -141,7 +143,9 @@ class CorpusRegistry:
                     key = row["key_id"], row["item_id"]
                     split = _split(row["split"])
                     assignments[key] = "test" if "test" in (split, assignments.get(key)) else split
-                    if split == "test" and row.get("task"):
+                    # Only canonical corpus keys seal task names globally; secondary
+                    # keys tighten only their own (key_id, item_id) rows.
+                    if split == "test" and row.get("task") and row["key_id"] in DATASETS:
                         self._sealed_names.add(self._task_name(row["task"]))
         for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
             for row in _jsonl(keys / dataset / "items.jsonl"):

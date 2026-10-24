@@ -503,7 +503,7 @@ class _SetupRecipe:
         directories: set[str] = {str(destination)}
         seen: dict[str, str] = {}
         try:
-            with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as bundle:
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r|*") as bundle:
                 for member in bundle:
                     path = PurePosixPath(member.name)
                     if (
@@ -529,9 +529,10 @@ class _SetupRecipe:
                         continue
                     target = destination if name == "." else destination / path
                     for parent in (target, *target.parents):
-                        if parent == destination or parent.is_relative_to(destination):
-                            if member.isdir() or parent != target:
-                                directories.add(str(parent))
+                        if (parent == destination or parent.is_relative_to(destination)) and (
+                            member.isdir() or parent != target
+                        ):
+                            directories.add(str(parent))
                     if member.isfile():
                         handle = bundle.extractfile(member)
                         if handle is None:
@@ -595,12 +596,6 @@ class _SetupRecipe:
         if mode is not None:
             entry["mode"] = mode
         self.generated[str(relative)] = entry
-
-    def _data_path(self, relative: PurePosixPath) -> PurePosixPath:
-        relative = _relative(str(relative))
-        if relative.parts[0] not in {str(value) for value in self.names["ctx"].values()}:
-            raise GraderRefusal("setup transform writes outside the port data directories")
-        return relative
 
     def _context_path(self, relative: PurePosixPath) -> Path:
         relative = _relative(str(relative))

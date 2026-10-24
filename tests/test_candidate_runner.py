@@ -403,6 +403,45 @@ def test_evidence_and_ledger_never_mutate_immutable_sources(
         assert not ledger.exists()
 
 
+def test_upstream_grader_cannot_silently_ignore_a_port_asset_cache(
+    task: Path, tmp_path: Path,
+) -> None:
+    cache = tmp_path / "asset-cache"
+    cache.mkdir()
+    before = native._tree_digest(task)
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, asset_cache=cache,
+        output_dir=tmp_path / "upstream-with-cache", plan=True,
+    )
+    assert result["status"] == "refused"
+    assert result["executed"] is False
+    assert native._tree_digest(task) == before
+
+
+@pytest.mark.parametrize("location", ["evidence", "ledger"])
+def test_port_cache_cannot_be_overwritten_by_evidence_or_shared_ledger(
+    task: Path, tmp_path: Path, location: str,
+) -> None:
+    cache = tmp_path / "asset-cache"
+    cache.mkdir()
+    (cache / "retained-blob").write_bytes(b"immutable offline source\n")
+    output = cache / "evidence" if location == "evidence" else tmp_path / "evidence"
+    ledger = cache / "spend.json" if location == "ledger" else None
+    before = native._tree_digest(cache)
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, grader="port",
+        port_task=tmp_path / "not-yet-materialized-port", asset_cache=cache,
+        output_dir=output, spend_ledger=ledger,
+    )
+    assert result["status"] == "refused"
+    assert result["output_dir"] is None
+    assert result["executed"] is False
+    assert native._tree_digest(cache) == before
+    assert not output.exists()
+    if ledger is not None:
+        assert not ledger.exists()
+
+
 def test_runtime_destination_symlinks_are_not_followed(
     task: Path, tmp_path: Path, transport: Any
 ) -> None:
@@ -784,7 +823,9 @@ def test_port_interface_prepares_full_native_scorer_and_keeps_both_exact_identit
     script.write_text(script.read_text().replace(" = good", " = fixed"))
     prepared_paths = []
 
-    def describe(upstream_task: Path | str, port_task: Path | str) -> dict[str, Any]:
+    def describe(
+        upstream_task: Path | str, port_task: Path | str, *, asset_cache: Path | str | None = None,
+    ) -> dict[str, Any]:
         original = native.plan_upstream_grader(upstream_task, blank=True)
         return {
             "task_dir": str(upstream_task), "upstream_task": str(upstream_task),
@@ -794,7 +835,10 @@ def test_port_interface_prepares_full_native_scorer_and_keeps_both_exact_identit
             "resources": original["resources"],
         }
 
-    def prepare(upstream_task: Path | str, port_task: Path | str, output_dir: Path | str) -> dict[str, Any]:
+    def prepare(
+        upstream_task: Path | str, port_task: Path | str, output_dir: Path | str, *,
+        asset_cache: Path | str | None = None,
+    ) -> dict[str, Any]:
         destination = Path(output_dir) / "task" / Path(upstream_task).name
         shutil.copytree(upstream_task, destination)
         shutil.rmtree(destination / "tests")

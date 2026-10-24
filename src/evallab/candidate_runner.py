@@ -115,7 +115,7 @@ def _overlaps(left: Path, right: Path) -> bool:
 
 def _input_roots(request: Mapping[str, Any], *, ignore_invalid: bool = False) -> list[Path]:
     roots = []
-    for name in ("task", "port_task", "solution_bundle", "files", "patch"):
+    for name in ("task", "port_task", "asset_cache", "solution_bundle", "files", "patch"):
         value = request.get(name)
         # A patch string is always text, never an implicitly opened host path.
         if isinstance(value, Path) or (name != "patch" and isinstance(value, str)):
@@ -366,6 +366,7 @@ def _prepare(
     patch_strip: int,
     grader: Grader,
     port_task: Path | str | None,
+    asset_cache: Path | str | None,
     backend: native.Backend,
     platform: str | None,
     timeout_seconds: int,
@@ -376,6 +377,8 @@ def _prepare(
         raise native.GraderRefusal(f"unsupported grader: {grader}")
     if (grader == "port") != (port_task is not None):
         raise native.GraderRefusal("grader='port' requires explicit port_task; upstream forbids it")
+    if asset_cache is not None and grader != "port":
+        raise native.GraderRefusal("asset_cache is only valid with grader='port'")
     candidate = _payload(files, patch, solution_bundle, patch_strip)
     target = _target_path(target_dir)
     if candidate.kind == "solution-bundle" and target_dir is not None:
@@ -391,7 +394,7 @@ def _prepare(
         from evallab.candidate_port import describe_port_task
 
         assert port_task is not None
-        adapter = describe_port_task(package, port_task)
+        adapter = describe_port_task(package, port_task, asset_cache=asset_cache)
         port_source = _source_path(port_task)
         sources.append((port_source, _source_digest(port_source)))
         # Check universal native options without allocating a temporary package.
@@ -644,6 +647,7 @@ def run_candidate(
     patch_strip: int = 1,
     grader: Grader = "upstream",
     port_task: Path | str | None = None,
+    asset_cache: Path | str | None = None,
     backend: native.Backend = "auto",
     platform: str | None = None,
     timeout_seconds: int = 600,
@@ -663,13 +667,18 @@ def run_candidate(
     add/change/delete hunks, not renames, binary data, or symlink creation.
     Existing inputs/evidence are never overwritten. Single-input refusals with
     unsafe evidence paths cannot write evidence and return output_dir=None.
+    ``asset_cache`` is an explicit offline hash-keyed blob directory for fixed
+    ports; it never enables network downloads or changes source identities.
     """
     output = (
         Path(output_dir).expanduser().resolve()
         if output_dir is not None
         else (Path.cwd() / "runs" / ("candidate-" + uuid.uuid4().hex)).resolve()
     )
-    request = {"task": task, "files": files, "patch": patch, "solution_bundle": solution_bundle, "port_task": port_task}
+    request = {
+        "task": task, "files": files, "patch": patch, "solution_bundle": solution_bundle,
+        "port_task": port_task, "asset_cache": asset_cache,
+    }
     try:
         if not isinstance(plan, bool):
             raise native.GraderRefusal("plan must be a boolean")
@@ -683,6 +692,7 @@ def run_candidate(
         prepared = _prepare(
             task, files=files, patch=patch, solution_bundle=solution_bundle,
             target_dir=target_dir, patch_strip=patch_strip, grader=grader, port_task=port_task,
+            asset_cache=asset_cache,
             backend=backend, platform=platform, timeout_seconds=timeout_seconds,
         )
         planned = _plan_result(prepared, grader, backend)
@@ -700,7 +710,7 @@ def run_candidate(
             from evallab.candidate_port import prepare_port_task
 
             assert port_task is not None
-            adapter = prepare_port_task(prepared.task, port_task, output / "port-task")
+            adapter = prepare_port_task(prepared.task, port_task, output / "port-task", asset_cache=asset_cache)
             native_task = Path(adapter["task_dir"])
             if prepared.adapter is not None and adapter["grader_digest"] != prepared.adapter["grader_digest"]:
                 raise native.GraderRefusal("fixed grader changed between description and preparation")
@@ -785,6 +795,7 @@ def run_candidates(
     max_concurrency: int = 2,
     backend: native.Backend = "auto",
     platform: str | None = None,
+    asset_cache: Path | str | None = None,
     timeout_seconds: int = 600,
     max_usd: float | None = None,
     approval: str | None = None,
@@ -819,6 +830,8 @@ def run_candidates(
         for request in requests:
             if isinstance(request, Mapping):
                 roots.extend(_input_roots(request, ignore_invalid=True))
+        if asset_cache is not None:
+            roots.append(_source_path(asset_cache))
         _check_locations(output, roots, spend_ledger)
     except (OSError, ValueError, TypeError) as exc:
         return [
@@ -829,6 +842,7 @@ def run_candidates(
         "backend": backend, "platform": platform, "timeout_seconds": timeout_seconds,
         "max_usd": max_usd, "approval": approval, "spend_ledger": spend_ledger,
         "modal_app_name": modal_app_name, "billing_tag": billing_tag, "plan": plan,
+        "asset_cache": asset_cache,
     }
     results = [_empty_result("unstarted", "candidate has not started", planned=plan) for _ in requests]
     if not plan:
@@ -916,6 +930,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--patch-strip", type=int)
     parser.add_argument("--grader", choices=("upstream", "port"))
     parser.add_argument("--port-task")
+    parser.add_argument("--asset-cache", help="Explicit offline SHA-256 blob cache for fixed ports; no downloads")
     parser.add_argument("--backend", choices=("auto", "docker", "modal"))
     parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"))
     parser.add_argument("--timeout-seconds", type=int)
@@ -945,7 +960,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         flags = {
             name: getattr(args, name)
             for name in (
-                "task", "target_dir", "patch_strip", "grader", "port_task", "backend", "platform",
+                "task", "target_dir", "patch_strip", "grader", "port_task", "asset_cache", "backend", "platform",
                 "timeout_seconds", "max_usd", "approval", "spend_ledger", "modal_app_name",
                 "billing_tag", "output_dir", "plan",
             )

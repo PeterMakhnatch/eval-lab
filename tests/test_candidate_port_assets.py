@@ -14,7 +14,6 @@ import pytest
 from evallab import candidate_port as port
 from evallab.upstream_grader import GraderRefusal, _tree_digest
 
-
 URL = "https://example.invalid/pinned-public-data"
 KEEP = "lambda m: not Path(m.name).name.startswith('._')"
 

@@ -14,7 +14,6 @@ import pytest
 from evallab import candidate_port as port
 from evallab.upstream_grader import GraderRefusal
 
-
 _HELPERS = r'''
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()

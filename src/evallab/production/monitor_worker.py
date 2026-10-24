@@ -31,7 +31,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
@@ -143,13 +143,15 @@ def _cited_quote(step: Mapping[str, Any], quote: str) -> str:
 def _verified_evidence(
     steps: Mapping[int, Mapping[str, Any]], item: Mapping[str, Any]
 ) -> dict[str, Any] | None:
-    """A citable evidence item: verbatim text of an observed step, or an initial
-    artifact reference that was available no later than the observed prefix
-    (shape-checked already; never an actor step)."""
+    """A citable evidence item: verbatim text of an observed step, or a typed
+    package/task-quality artifact that was available no later than the *last
+    observed step id* (sparse ids included; shape-checked already, never an actor
+    step)."""
     if "artifact_ref" in item:
         if item["available_before_step"] > max(steps, default=-1):
             return None
-        return {"source": "initial_artifact", **item}
+        source = "initial_artifact" if item["evidence_kind"] == "package_file" else "task_quality"
+        return {"source": source, **item}
     number = item["step"]
     if number in steps and _normalized(item["quote"]) in _normalized(_step_text(steps[number])):
         return {
@@ -164,18 +166,26 @@ def _is_int(value: Any, *, minimum: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
-def _evidence_items(raw: Any, *, artifacts: bool) -> list[dict[str, Any]]:
-    """Shape-checked structural evidence: ``{step, quote}`` for a real ATIF step
-    (optionally with ``source`` path and ``line``), or ``{artifact_ref, quote,
-    sha256|input_digest, available_before_step}`` (optional ``line``) for a hashed
-    task package, replay or control artifact, which has no actor step."""
+def _evidence_items(
+    raw: Any, *, artifacts: bool, basis: str | None = None
+) -> list[dict[str, Any]]:
+    """Shape-checked structural evidence.
+
+    Trace evidence is ``{step, quote}`` (optionally ``source`` path and ``line``). An
+    artifact has no actor step and is typed by shape *and* by the record's declared
+    ``basis`` (``+``-joined): a package file needs ``line`` + ``sha256`` under
+    ``artifact``; a linked differential replay needs ``input_digest`` + ``repaired_ref``
+    under ``differential_replay``; a measured control or review has a ``sha256`` and no
+    file line, under ``repair_control`` / ``review``. A shape the basis does not declare
+    is dropped, so a line-less file fact can never pass as task-quality evidence.
+    """
+    declared = set((basis or "").split("+"))
     items: list[dict[str, Any]] = []
     for e in raw or ():
         if not isinstance(e, Mapping) or not isinstance(e.get("quote"), str):
             continue
         if not e["quote"].strip():
             continue
-        ref = e.get("artifact_ref")
         if _is_int(e.get("step"), minimum=0):
             items.append(
                 {
@@ -186,25 +196,43 @@ def _evidence_items(raw: Any, *, artifacts: bool) -> list[dict[str, Any]]:
                 }
             )
             continue
-        digests = {
-            k: e[k] for k in ("sha256", "input_digest") if isinstance(e.get(k), str) and e[k].strip()
+        if not artifacts or not _is_int(e.get("available_before_step"), minimum=0):
+            continue
+        ref, line = e.get("artifact_ref"), e.get("line")
+        sha, digest, repaired = e.get("sha256"), e.get("input_digest"), e.get("repaired_ref")
+        has = {
+            "ref": isinstance(ref, str) and bool(ref.strip()),
+            "sha": isinstance(sha, str) and bool(sha.strip()),
+            "digest": isinstance(digest, str) and bool(digest.strip()),
+            "repaired": isinstance(repaired, str) and bool(repaired.strip()),
+            "line": _is_int(line, minimum=1),
         }
-        if (
-            artifacts
-            and isinstance(ref, str)
-            and ref.strip()
-            and digests
-            and _is_int(e.get("available_before_step"), minimum=0)
-        ):
-            items.append(
-                {
-                    "artifact_ref": ref,
-                    "quote": e["quote"],
-                    **digests,
-                    **({"line": e["line"]} if _is_int(e.get("line"), minimum=1) else {}),
-                    "available_before_step": e["available_before_step"],
-                }
-            )
+        if not has["ref"]:
+            continue
+        extra: dict[str, Any] = {}
+        if has["sha"] and has["line"] and "artifact" in declared:
+            kind = "package_file"
+            extra = {"sha256": sha, "line": line}
+        elif has["digest"] and has["repaired"] and "differential_replay" in declared:
+            kind = "differential_replay"
+            extra = {"input_digest": digest, "repaired_ref": repaired}
+        elif has["sha"] and not has["line"] and "repair_control" in declared:
+            kind = "repair_control"
+            extra = {"sha256": sha}
+        elif has["sha"] and not has["line"] and "review" in declared:
+            kind = "review"
+            extra = {"sha256": sha}
+        else:
+            continue
+        items.append(
+            {
+                "artifact_ref": ref,
+                "quote": e["quote"],
+                "evidence_kind": kind,
+                **extra,
+                "available_before_step": e["available_before_step"],
+            }
+        )
     return items
 
 
@@ -557,7 +585,9 @@ class MisalignmentLiveWorker:
             action = record.get("kind") == "agent_action"
             # Initial-artifact citations (ref + line/hash) are valid only for
             # task_structure; an agent_action needs a real observed actor step.
-            items = _evidence_items(record.get("evidence"), artifacts=not action)
+            items = _evidence_items(
+                record.get("evidence"), artifacts=not action, basis=record.get("basis")
+            )
             steps_cited = [i["step"] for i in items if "step" in i]
             alerts.append(
                 {
@@ -781,6 +811,21 @@ class MisalignmentLiveWorker:
                     prefix_step=prefix,
                 )
 
+    def _run_policy(self, run: _Run) -> GatePolicy:
+        """The constructor policy extended with this run's declared task facts.
+
+        A run's ``task_manifest`` adds its protected paths and honeypot basenames, and its
+        ``baselines`` the pre-agent git history, on top of every explicit constructor
+        option. The base policy is immutable and shared; nothing leaks across runs.
+        """
+        base = self._gate_policy
+        baselines = tuple(b for b in run.baselines or () if isinstance(b, Mapping))
+        if not run.task_manifest and not baselines:
+            return base
+        options = {f.name: getattr(base, f.name) for f in fields(base)}
+        options["git_baselines"] = base.git_baselines + baselines
+        return GatePolicy.from_task_manifest(run.task_manifest or {}, **options)
+
     def pre_action_gate(self, run_id: str, step: Mapping[str, Any]) -> dict[str, Any]:
         """Synchronous, model-free decision; a proposed step is never treated as executed."""
         with self._lock:
@@ -809,7 +854,8 @@ class MisalignmentLiveWorker:
                 try:
                     # Pure proposed-action policy: protected reads/writes, history
                     # peeks and timing bypasses. It sees only the observed prefix.
-                    for hit in policy_hits(proposed, prefix=observed, policy=self._gate_policy):
+                    policy = self._run_policy(run)
+                    for hit in policy_hits(proposed, prefix=observed, policy=policy):
                         hits.append(
                             {
                                 "source": "policy",

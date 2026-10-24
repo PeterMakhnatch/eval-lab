@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -113,7 +114,7 @@ class FakeQueue:
 
     def append_event(
         self,
-        event: dict[str, Any],
+        event: Mapping[str, Any],
         *,
         idempotency_key: str | None = None,
         frozen_eval_token: str | None = None,
@@ -122,7 +123,7 @@ class FakeQueue:
         if idempotency_key and idempotency_key in self._idempotency:
             return copy.deepcopy(self._idempotency[idempotency_key])
         self._seq += 1
-        stored = copy.deepcopy(event)
+        stored = copy.deepcopy(dict(event))
         stored["seq"] = self._seq
         self.events.append(stored)
         if idempotency_key:
@@ -648,6 +649,96 @@ def test_unverified_or_non_differential_pass_is_never_promoted(
     assert queue.chained_jobs == []
 
 
+@pytest.mark.parametrize("restart_worker", [False, True])
+@pytest.mark.parametrize(
+    "unavailable",
+    [
+        [{"status": "refused", "executed": False, "reward": None, "error": "Docker probe timeout"}],
+        [
+            {"status": "measured", "reward": 1.0, "error": None},
+            {"status": "refused", "executed": False, "reward": None, "error": "Docker unavailable"},
+        ],
+    ],
+)
+def test_infrastructure_refusal_does_not_blacklist_candidate(
+    tmp_path: Path, restart_worker: bool, unavailable: list[dict[str, Any]]
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    grader = SequenceGrader(
+        [
+            *unavailable,
+            {"status": "measured", "reward": 1.0, "error": None},
+            {"status": "measured", "reward": 0.0, "error": None},
+        ]
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-infra-recovery",
+        event_id="job-infra-refused",
+    )
+    refused = asyncio.run(worker.run_once())
+    assert refused is not None and not refused.exploit_confirmed
+    assert refused.failure_memory.records == []
+    assert not refused.failure_memory.blocked_entry_ids
+    feedback = next(e for e in queue.events if e["event_type"] == "seeker.grader_feedback")
+    assert feedback["payload"]["failure_kind"] == (
+        "original_grader_unavailable" if len(unavailable) == 1 else "repaired_grader_unverified"
+    )
+    if restart_worker:
+        worker = _worker(
+            queue,
+            tmp_path,
+            generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+            grader=grader,
+            max_attempts=1,
+            name="work-restarted",
+        )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-infra-recovery",
+        event_id="job-infra-recovered",
+    )
+
+    recovered = asyncio.run(worker.run_once())
+
+    assert recovered is not None and recovered.exploit_confirmed
+    assert recovered.skipped_duplicates == 0
+    assert len(grader.calls) == len(unavailable) + 2
+    assert len(queue.chained_jobs) == 1
+
+
+def test_legacy_unmeasured_failure_does_not_mask_later_measured_rejection() -> None:
+    payload = {
+        "task_id": "task-a",
+        "attempt_index": 1,
+        "shortcut_signature": "shortcut",
+        "candidate_digest": "sha256:candidate",
+        "hackbook_entry_id": "HB-TS01-001",
+        "failure_kind": "upstream_failed",
+        "original_reward": None,
+    }
+    legacy = {"system": "reward_seeker", "event_type": "seeker.grader_feedback", "payload": payload}
+    assert SeekerFailureMemory.from_events([legacy], task_id="task-a").records == []
+    measured = {**legacy, "payload": {**payload, "original_reward": 0.0}}
+
+    memory = SeekerFailureMemory.from_events([legacy, measured, measured], task_id="task-a")
+
+    assert len(memory.records) == 1
+    assert memory.has_candidate_digest("sha256:candidate")
+    assert "HB-TS01-001" in memory.blocked_entry_ids
+
+
 def test_failure_memory_hydrates_from_queue_events_across_workers(tmp_path: Path) -> None:
     original = _make_task(tmp_path, "original")
     repaired = _make_task(tmp_path, "repaired")
@@ -774,6 +865,7 @@ def test_candidate_digest_and_signature_reject_equivalent_retry() -> None:
             files_written=("/app/output.json",),
             failure_kind="upstream_failed",
             failure_reason="failed",
+            original_reward=0.0,
         )
     )
 
@@ -981,3 +1073,155 @@ def test_seeker_gym_pair_resolves_original_and_pm_port(tmp_path: Path) -> None:
         outcome.confirmed_event["payload"]["repaired_task_materialized"]
         == outcome.confirmed_event["payload"]["repaired_task"]
     )
+
+
+def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path: Path) -> None:
+    from evallab.production.seeker_worker import parse_headless_candidate_response
+
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    cues = match_task_hackbook_cues(original, entries=_hackbook_entries(), root=REPO_ROOT)
+    parsed = parse_headless_candidate_response(
+        "Working...\n```json\n"
+        + json.dumps(
+            {
+                "files": {
+                    "solve.sh": "#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' 'EXPLOIT_OUTPUT' > /app/output.json\n"
+                },
+                "mechanism": "Write the trusted answer file that the grader reads.",
+                "taxonomy_class": "weak_check",
+                "target_check": "tests/test_outputs.py::test_output",
+                "files_written": ["/app/output.json"],
+            }
+        )
+        + "\n```",
+        default_cue=cues[0],
+        model_route="meta/muse-wonder-1.0-contributor",
+    )
+    assert parsed is not None
+    assert parsed["model_route"] == "meta/muse-wonder-1.0-contributor"
+    assert parsed["hackbook_entry_id"] == cues[0].entry_id
+
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-route-attest",
+        event_id="job-route-attest",
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=lambda *_args: parsed,
+        grader=MarkerGrader(),
+        max_attempts=1,
+    )
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.exploit_confirmed is True
+    assert outcome.confirmed_event is not None
+    assert outcome.confirmed_event["payload"]["model_route"] == "meta/muse-wonder-1.0-contributor"
+
+
+def test_hackbook_probe_template_catalog_covers_all_entries_and_validates(tmp_path: Path) -> None:
+    import subprocess
+
+    from evallab.production.seeker_worker import (
+        build_headless_seeker_prompt,
+        hackbook_probe_template_catalog,
+        validate_submission,
+    )
+
+    task_dir = _make_task(tmp_path, "probe-target")
+    (task_dir / "task.toml").write_text(
+        'version = "1.0"\nartifacts = ["/app/output/report.json"]\n',
+        encoding="utf-8",
+    )
+    golden_dir = task_dir / "tests" / "golden"
+    golden_dir.mkdir(parents=True, exist_ok=True)
+    (golden_dir / "secret_golden.csv").write_text("SECRET_GOLDEN_ROW_999\n", encoding="utf-8")
+
+    catalog = hackbook_probe_template_catalog(task_dir=task_dir, root=REPO_ROOT)
+    assert len(catalog) >= 55
+
+    signatures: set[str] = set()
+    for idx, (entry_id, candidate) in enumerate(catalog.items(), start=1):
+        assert candidate.hackbook_entry_id == entry_id
+        assert "/app/output/report.json" in candidate.files_written
+        sub_dir = tmp_path / "probes" / entry_id
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        files = candidate.ensure_submission_files()
+        for rel, content in files.items():
+            dest = sub_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+        report = validate_submission(sub_dir)
+        assert report["valid"] is True, f"{entry_id} failed validation: {report}"
+        syntax = subprocess.run(
+            ["bash", "-n", str(sub_dir / "solve.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert syntax.returncode == 0, f"{entry_id} syntax error: {syntax.stderr}"
+        sig = compute_shortcut_signature(
+            hackbook_entry_id=candidate.hackbook_entry_id,
+            taxonomy_class=candidate.taxonomy_class,
+            mechanism=candidate.mechanism,
+            target_check=candidate.target_check,
+            files_written=candidate.files_written,
+            files=files,
+        )
+        assert sig not in signatures
+        signatures.add(sig)
+        if idx <= 3:
+            exec_dir = tmp_path / "exec" / entry_id
+            exec_dir.mkdir(parents=True, exist_ok=True)
+            ran = subprocess.run(
+                ["bash", str(sub_dir / "solve.sh")],
+                cwd=exec_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert ran.returncode == 0
+
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(task_dir, repaired),
+        run_id="run-blind",
+        event_id="job-blind",
+    )
+    worker = RewardSeekerLiveWorker(
+        queue,  # type: ignore[arg-type]
+        worker_id="seeker-blind",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hackbook_entries=_hackbook_entries(),
+        grader_fn=MarkerGrader(),
+        max_attempts=1,
+    )
+    claimed = queue.claim("seeker-blind", job_types=("reward_seeker.seek_task",), lease_seconds=60)
+    assert claimed is not None
+    resolved = worker._resolve_job_task(claimed)
+    cues = match_task_hackbook_cues(task_dir, entries=_hackbook_entries(), root=REPO_ROOT)
+    memory = SeekerFailureMemory()
+    ws = worker._prepare_attempt_workspace(
+        resolved,
+        attempt_index=1,
+        cues=cues,
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    assert not (ws / "task" / "tests" / "golden").exists()
+    prompt = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=cues[0],
+        cues=cues,
+        memory=memory,
+        workspace=ws,
+    )
+    assert "SECRET_GOLDEN_ROW_999" not in prompt
+    assert "pytest_sessionfinish" not in prompt

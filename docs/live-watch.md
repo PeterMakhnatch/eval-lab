@@ -768,3 +768,86 @@ shares the real SQLite journal across all four parts, verifies gap-free SSE
 snapshot/replay and asset recovery, and checks executor-acknowledged interventions.
 It does not run a model, dispatch Docker/cloud jobs, or establish scientific
 qualification for a live corpus.
+
+### Local public replay demo ($0)
+
+```sh
+uv run evallab production demo --source both --speed 20 --limit 3
+# Or attach the dashboard and feeder separately to one dedicated SQLite journal:
+uv run evallab production replay --database /tmp/production.sqlite --source both --limit 3 --speed 1000
+uv run evallab production serve --database /tmp/production.sqlite --export-root /tmp/verified-assets
+```
+
+`demo` creates a fresh journal under a persistent temporary directory and serves
+only `127.0.0.1:8765`; `--database`, `--export-root`, `--port`, and `--token`
+override those defaults. It refuses to overwrite an existing journal. The URL,
+database path and generated operator token are printed to the terminal; paste the
+token into the dashboard, not a URL. The server remains open after replay so its
+recordings and assets can be inspected. Ctrl-C stops the server and feeder without
+deleting the journal or exports. `serve` requires an existing journal; exports are
+disabled unless `--export-root` is supplied.
+
+`--source tb4-dev|mimo|both` admits every recording through `CorpusRegistry` and
+skips effective TEST/heldout identities before opening their trajectories or
+witnesses. Trajectory identity comes from its resolved trial's `result.json`, or
+an admitted inventory row bound to the trajectory SHA256, never a task name in a
+directory. Symlinks are resolved inside trusted roots first; conflicting or
+ambiguous identities and semantic duplicate JSON keys are rejected. Sources are
+retained ATIF trajectories under `research/` or `library/`, the MiMo defect-map's
+`training_original_inventory` source map into retained local result trajectories,
+and TB4 DEV witness differentials already recorded in `items.jsonl`. A witness
+run and a trajectory run are independent: an unrelated historical trace is never
+attached to a witness as if it produced that exploit.
+
+TB4 original packages resolve from the admitted row's `package.root_hint`. The
+pinned fixed-port cache is discovered at
+`derived/public-replay/tb4/karotte-port` or the sibling
+`eval-lab-data/tb4-20261020/karotte-port`; `--tb4-port-root` selects another retained
+checkout. Shared-checkout `derived/`, sibling `eval-lab-results/`, and that public
+TB4 cache are explicit trusted read roots. `--allowed-root DIR` adds another
+trusted root for feeder, inspector and asset export. Missing task packages are
+counted as unavailable rather than replaced with invented files or results.
+Witness files, the actual receipt-named scorer, and both task snapshots must match
+recorded digests before an exploit witness is promoted. Original task digests use
+`evallab.registry.task_directory_digest`. TB4 GT2 port receipts use their actual
+producer's algorithm: SHA256 over sorted `relative_path + NUL + file_sha256 + LF`,
+excluding `__pycache__` and `.pyc`, including staged task data. Receipts themselves
+are authenticated against the admitted row's SHA256.
+
+The retained `fin-saccr-rwa` checkout currently **does not reproduce** its recorded
+materialized port snapshot: recorded digest
+`6283e0a456060d4839a21b319e71120edfa0bb3ef0560968148be5281923062c`
+(75 files), retained digest
+`29540fab4d2d31b6289de91f1539bda9923933ebba656fe6f7c7298fac0e15be`
+(63 files). Its historical 1→0 differential is shown only as a provisional
+`snapshot_unverified` observation, with `recorded_rewards` separated from current
+snapshot rewards; it is **not** a verified exploit asset. Missing digests receive
+the same explicit unverified treatment and count-only summary diagnostics.
+
+All replayed inputs and computed outputs carry `source_kind=public_replay`;
+original ATIF timestamps remain in each step while envelope timestamps reflect
+the replay. `--speed` sets the inter-input replay interval (monitor computation
+adds real wall time), and `--limit` selects recordings per cycle, not an artificial
+trace prefix. Deterministic prefix scores, coverage gaps and tripwire suspicion
+cards are computed by the real `MisalignmentLiveWorker` with no semantic judge.
+Before replaying recorded agent tool calls, the same worker computes
+`pre_action_gate` under today's deterministic policy. Those confirmed decisions
+are **counterfactual policy labels computed now**, not claims that the historical
+executor enforced a gate or that the action was an exploit. Events expose
+`label_source=monitor.pre_action_gate` and
+`decision_scope=counterfactual_recorded_action`; these real confirmed policy
+labels make labeled-trace assets available for guarded export. Historical tool
+calls are never executed, even when a current gate would deny them. No models,
+graders, Docker or cloud jobs run. Historical differentials do **not** qualify a
+repaired task with fresh controls.
+
+The feeder owns execution of its replayed runs: Pause, Cancel and Quarantine
+are acknowledged and applied through the monitor and prevent any subsequent
+replay emission for that run. **Pause is terminal for this demo**; there is no
+resume operation. Late requests for an already inactive run expire with
+`expired_reason=run_not_active`, without acknowledgement or application. An
+interrupted active run ends durably with `run.stopped` and reason
+`feeder_interrupted`; no prefix scores follow that terminal event. `--loop` starts
+new run IDs each cycle, including after a prior run was paused. A count-only replay
+summary is printed at completion or Ctrl-C.
+

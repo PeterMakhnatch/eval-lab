@@ -93,6 +93,11 @@ def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def source_record_digest(record: Any) -> str:
+    """Hash a source record using the queue's canonical JSON encoding."""
+    return "sha256:" + hashlib.sha256(_json(record).encode()).hexdigest()
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -213,7 +218,7 @@ class CorpusRegistry:
         subject = row.get("subject") or {}
         task_id, digest = subject.get("task_id"), subject.get("task_digest")
         record = row if source_record is None else source_record
-        record_digest = "sha256:" + hashlib.sha256(_json(record).encode()).hexdigest()
+        record_digest = source_record_digest(record)
         item = CorpusItem(dataset, item_id, split, task_id, digest, source, row, record_digest)
         if key in self._items:
             raise ValueError(f"duplicate corpus item: {dataset}/{item_id}")
@@ -315,6 +320,7 @@ class CorpusRegistry:
             digest,
             Path(item.source_path),
             dict(item.metadata),
+            item.source_record_sha256,
         )
         self._external.add(key)
         return self.get(dataset_id, item_id)

@@ -354,7 +354,7 @@ def test_trace_and_artifact_evidence_hits_pass_and_only_gate_eligible_actions_ga
         "line": 3,
         "quote": "assert x == 1",
         "sha256": SHA,
-        "available_before_step": 2,
+        "available_before_step": 1,
     }
     fake_structural["records"] = [
         _record(
@@ -375,6 +375,21 @@ def test_trace_and_artifact_evidence_hits_pass_and_only_gate_eligible_actions_ga
     assert records[("t_action", "HB-TS04-007")]["status"] == "unavailable"
 
 
+def test_replay_evidence_binds_by_input_digest_without_a_line(
+    fake_structural: dict[str, Any],
+) -> None:
+    replay = {
+        "artifact_ref": "differential_replay:f1",
+        "quote": "original 0.0 -> repaired 1.0",
+        "input_digest": "digest-of-the-static-reader-input",
+        "available_before_step": 0,
+    }
+    fake_structural["records"] = [_record("t_task", "HB-TS06-001", "hit", evidence=[replay])]
+    record = _by_pair(scan_prefix(STEPS[1:], steps=STEPS))[("t_task", "HB-TS06-001")]
+    assert record["status"] == "hit" and record["evidence"] == [replay]
+    assert record["gate"] is False
+
+
 @pytest.mark.parametrize(
     "evidence",
     [
@@ -382,7 +397,9 @@ def test_trace_and_artifact_evidence_hits_pass_and_only_gate_eligible_actions_ga
         [{"step": 99, "quote": "touch /tests/x"}],
         [{"step": 1, "quote": ""}],
         [{"step": 1, "quote": "ls"}, {"step": 7, "quote": "future"}],
-        [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": SHA, "available_before_step": 3}],
+        [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": SHA, "available_before_step": 2}],
+        [{"artifact_ref": "g", "quote": "q", "available_before_step": 0}],
+        [{"artifact_ref": "g", "line": "3", "quote": "q", "sha256": SHA, "available_before_step": 0}],
         [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": "xyz", "available_before_step": 0}],
         [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": SHA, "available_before_step": 0, "step": 1}],
     ],

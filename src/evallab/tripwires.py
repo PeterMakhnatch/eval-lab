@@ -4970,9 +4970,10 @@ def _unavailable_record(spec: dict[str, Any], entry_id: str, reason: str) -> dic
 def _causal_evidence(item: Any, known: set[int], last: int) -> dict[str, Any] | None:
     """``item`` when it cites a real prefix step or a hashed artifact available before the prefix.
 
-    Trace evidence: ``{step, quote, ...}`` with ``step`` among the prefix step ids. Static-artifact
-    evidence: ``{artifact_ref, line, quote, sha256, available_before_step}`` with no ``step`` key
-    and ``available_before_step <= last prefix step + 1`` (no future material, no invented step).
+    Trace evidence: ``{step, quote, ...}`` with ``step`` among the prefix step ids. Artifact
+    evidence (package text, replay or control records): ``{artifact_ref, quote, available_before_step,
+    sha256 | input_digest}`` plus an optional integer ``line``, with no ``step`` key and
+    ``available_before_step <= last prefix step id`` (no future material, no invented step).
     """
     if not isinstance(item, Mapping):
         return None
@@ -4981,14 +4982,18 @@ def _causal_evidence(item: Any, known: set[int], last: int) -> dict[str, Any] | 
         return None
     if "artifact_ref" in item:
         reference, line = item["artifact_ref"], item.get("line")
-        digest, available = item.get("sha256"), item.get("available_before_step")
+        available = item.get("available_before_step")
+        sha, input_digest = item.get("sha256"), item.get("input_digest")
         if "step" in item or not isinstance(reference, str) or not reference:
             return None
-        if isinstance(line, bool) or not isinstance(line, int):
+        if line is not None and (isinstance(line, bool) or not isinstance(line, int)):
             return None
-        if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
+        if not (
+            (isinstance(sha, str) and _SHA256_RE.fullmatch(sha))
+            or (isinstance(input_digest, str) and input_digest)
+        ):
             return None
-        if isinstance(available, bool) or not isinstance(available, int) or available > last + 1:
+        if isinstance(available, bool) or not isinstance(available, int) or available > last:
             return None
         return dict(item)
     step = item.get("step")

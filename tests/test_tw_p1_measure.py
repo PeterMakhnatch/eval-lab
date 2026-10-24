@@ -48,7 +48,9 @@ ROWS = [(t, "dev") for t in DEV] + [("echo", "test"), ("foxtrot", "dev"), ("foxt
 
 
 _LEGACY = run.split_tasks(DEV, run.V4_SEED)
-SEALED = next(t for t in sorted(DEV) if _LEGACY[t] == "holdout")  # census task sealed by the registry
+SEALED = next(
+    t for t in sorted(DEV) if _LEGACY[t] == "holdout"
+)  # census task sealed by the registry
 EFFECTIVE = [t for t in DEV if t != SEALED] + ["newdev"]  # newdev: effective DEV, never captured
 
 
@@ -70,7 +72,13 @@ def _call(step_id: int, command: str = "ls", observation: str | None = "out") ->
         "step_id": step_id,
         "source": "agent",
         "message": command,
-        "tool_calls": [{"tool_call_id": f"c{step_id}", "function_name": "bash_command", "arguments": {"command": command}}],
+        "tool_calls": [
+            {
+                "tool_call_id": f"c{step_id}",
+                "function_name": "bash_command",
+                "arguments": {"command": command},
+            }
+        ],
     }
     if observation is not None:
         step["observation"] = {"results": [{"content": observation}]}
@@ -96,10 +104,16 @@ def test_manifest_keeps_v4_tune_and_puts_legacy_holdout_and_uncaptured_in_holdou
     legacy = run.v4_assignment(v4)
     assert tune | holdout == set(EFFECTIVE)
     assert not tune & holdout
-    assert tune == {t for t in EFFECTIVE if legacy.get(t) == "tune"}  # no scored task moves into tune
+    assert tune == {
+        t for t in EFFECTIVE if legacy.get(t) == "tune"
+    }  # no scored task moves into tune
     assert "newdev" in holdout and manifest["uncaptured_dev_tasks"] == ["newdev"]
     assert manifest["sealed_by_registry"] == [SEALED] and SEALED not in tune | holdout
-    assert (manifest["n_census_tasks"], manifest["n_dev_tasks"], manifest["n_captured_effective"]) == (4, 4, 3)
+    assert (
+        manifest["n_census_tasks"],
+        manifest["n_dev_tasks"],
+        manifest["n_captured_effective"],
+    ) == (4, 4, 3)
     # a TEST task and a task that also has a test row are never DEV
     assert "echo" not in tune | holdout and "foxtrot" not in tune | holdout
     assert run.verify_manifest(manifest, assignments, v4, EFFECTIVE) == manifest
@@ -112,12 +126,16 @@ def test_manifest_refuses_tampering_leaks_and_stale_sources(tmp_path: Path) -> N
         run.verify_manifest(moved, assignments, v4, EFFECTIVE)
 
     leaked = dict(manifest, holdout_tasks=[*manifest["holdout_tasks"], manifest["tune_tasks"][0]])
-    leaked["manifest_sha256"] = run.canonical_sha({k: v for k, v in leaked.items() if k != "manifest_sha256"})
+    leaked["manifest_sha256"] = run.canonical_sha(
+        {k: v for k, v in leaked.items() if k != "manifest_sha256"}
+    )
     with pytest.raises(ValueError, match="split leak"):
         run.verify_manifest(leaked, assignments, v4, EFFECTIVE)
 
     unsealed = dict(manifest, holdout_tasks=[*manifest["holdout_tasks"], SEALED])
-    unsealed["manifest_sha256"] = run.canonical_sha({k: v for k, v in unsealed.items() if k != "manifest_sha256"})
+    unsealed["manifest_sha256"] = run.canonical_sha(
+        {k: v for k, v in unsealed.items() if k != "manifest_sha256"}
+    )
     with pytest.raises(ValueError, match="registry-sealed"):
         run.verify_manifest(unsealed, assignments, v4, EFFECTIVE)
 
@@ -141,7 +159,9 @@ def test_stage_guard_refuses_a_task_from_the_other_half(tmp_path: Path) -> None:
     manifest, _, _ = _manifest(tmp_path)
     tune = run.stage_tasks(manifest, "tune")
     holdout_task = manifest["holdout_tasks"][0]
-    subject = v3.Subject("m1", "dev", "positive", "pass:known_exploit", {}, source={"task": holdout_task})
+    subject = v3.Subject(
+        "m1", "dev", "positive", "pass:known_exploit", {}, source={"task": holdout_task}
+    )
     with pytest.raises(ValueError, match="refuses non-tune"):
         run.assert_stage_subjects([subject], tune, "tune")
     sealed = v3.Subject("m2", "dev", "positive", "pass:known_exploit", {}, source={"task": SEALED})
@@ -161,8 +181,12 @@ def _label_line(task: str, membership: str) -> str:
 def test_stage_labels_never_parse_lines_of_the_other_half(tmp_path: Path) -> None:
     path = tmp_path / "labels-all.jsonl"
     sealed = '{"task":"bravo", this line is not json'
-    path.write_text("\n".join([_label_line("alpha", "m1"), sealed, _label_line("alpha", "m2")]) + "\n")
-    rows, sha, counts = run.read_stage_labels(path, frozenset({"alpha"}), frozenset({"alpha", "bravo"}))
+    path.write_text(
+        "\n".join([_label_line("alpha", "m1"), sealed, _label_line("alpha", "m2")]) + "\n"
+    )
+    rows, sha, counts = run.read_stage_labels(
+        path, frozenset({"alpha"}), frozenset({"alpha", "bravo"})
+    )
     assert [r["membership_id"] for r in rows] == ["m1", "m2"]
     assert counts == {"parsed_lines": 2, "sealed_lines_unparsed": 1}
     assert sha == hashlib.sha256(path.read_bytes()).hexdigest()
@@ -189,20 +213,39 @@ def test_producer_requires_structural_checks_and_core_sections() -> None:
 def test_structural_unavailable_is_not_clear_and_static_hits_need_no_trace_step() -> None:
     report = _report(grader_tamper=[{"step": 4}])
     report["structural_checks"] = [
-        {"entry_id": "HB-TS05-001", "check": "c1", "status": "unavailable", "kind": "task_structure", "reason": "no grader"},
+        {
+            "entry_id": "HB-TS05-001",
+            "check": "c1",
+            "status": "unavailable",
+            "kind": "task_structure",
+            "reason": "no grader",
+        },
         {
             "entry_id": "HB-TS06-001",
             "check": "c2",
             "status": "hit",
             "kind": "task_structure",
-            "evidence": [{"artifact_ref": "tests/test_x.py", "line": 3, "quote": "q", "sha256": "0" * 64}],
+            "evidence": [
+                {"artifact_ref": "tests/test_x.py", "line": 3, "quote": "q", "sha256": "0" * 64}
+            ],
         },
-        {"entry_id": "HB-RS01-002", "check": "c3", "status": "hit", "kind": "agent_action", "evidence": [], "cited_steps": [7]},
+        {
+            "entry_id": "HB-RS01-002",
+            "check": "c3",
+            "status": "hit",
+            "kind": "agent_action",
+            "evidence": [],
+            "cited_steps": [7],
+        },
     ]
     record = run.producer_record(report)
     by_check = {c["check"]: c for c in record["structural"]}
     assert by_check["c1"]["status"] == "unavailable" and by_check["c1"]["reason"] == "no grader"
-    assert by_check["c2"]["status"] == "hit" and by_check["c2"]["steps"] == [] and by_check["c2"]["static_evidence"] == 1
+    assert (
+        by_check["c2"]["status"] == "hit"
+        and by_check["c2"]["steps"] == []
+        and by_check["c2"]["static_evidence"] == 1
+    )
     assert by_check["c3"]["steps"] == [7]
     assert run.earliest_step(record) == 4
 
@@ -239,7 +282,9 @@ def test_decisions_distinguish_unevaluated_from_clean() -> None:
     assert d["structural_agent_action"] is True and d["producer_cheating_any"] is True
     assert d["gate_flagged_producer"] is True and d["structural_task_structure"] is None
 
-    fail_closed = _record(hit, consumer={"status": "measured", "outcome": "fail_closed", "decision": {"reason": "x"}})
+    fail_closed = _record(
+        hit, consumer={"status": "measured", "outcome": "fail_closed", "decision": {"reason": "x"}}
+    )
     assert run.decisions_of(fail_closed)["consumer_gate_deny"] is None
     errored = _record(hit, consumer={"status": "unavailable", "reason": "boom"})
     assert run.decisions_of(errored)["consumer_gate_deny"] is None
@@ -249,11 +294,22 @@ def test_decisions_distinguish_unevaluated_from_clean() -> None:
 
 def test_decision_cell_counts_unknowns_outside_both_denominators() -> None:
     records = []
-    values = [("positive", True), ("positive", False), ("positive", None), ("negative", True), ("negative", False), ("other", True)]
+    values = [
+        ("positive", True),
+        ("positive", False),
+        ("positive", None),
+        ("negative", True),
+        ("negative", False),
+        ("other", True),
+    ]
     for i, (role, value) in enumerate(values):
-        records.append(_record({"rules": [], "structural": []}, role=role, cluster=f"c{i}", source_label=role))
+        records.append(
+            _record({"rules": [], "structural": []}, role=role, cluster=f"c{i}", source_label=role)
+        )
     decisions = {id(r): {"core_verdict": v} for r, (_, v) in zip(records, values, strict=True)}
-    cell = run.decision_cell(records, "core_verdict", decisions=decisions, label="t", bootstrap=False)
+    cell = run.decision_cell(
+        records, "core_verdict", decisions=decisions, label="t", bootstrap=False
+    )
     assert (cell["true_positives"], cell["positives"]) == (1, 2)
     assert (cell["false_alarms"], cell["negatives"]) == (1, 2)
     assert (cell["other_fired"], cell["other_n"]) == (1, 1)
@@ -273,10 +329,16 @@ def test_cluster_bootstrap_is_deterministic_and_needs_two_clusters() -> None:
 def test_causal_recheck_catches_a_rule_that_needs_future_steps() -> None:
     steps = [_call(i, "bad" if i == 2 else "ok") for i in range(1, 5)]
 
-    def causal(agent: list[dict[str, Any]], _steps: list[dict[str, Any]], _ctx: Any) -> dict[str, Any]:
-        return _report(grader_tamper=[{"step": s["step_id"]} for s in agent if s["message"] == "bad"])
+    def causal(
+        agent: list[dict[str, Any]], _steps: list[dict[str, Any]], _ctx: Any
+    ) -> dict[str, Any]:
+        return _report(
+            grader_tamper=[{"step": s["step_id"]} for s in agent if s["message"] == "bad"]
+        )
 
-    def leaky(agent: list[dict[str, Any]], _steps: list[dict[str, Any]], _ctx: Any) -> dict[str, Any]:
+    def leaky(
+        agent: list[dict[str, Any]], _steps: list[dict[str, Any]], _ctx: Any
+    ) -> dict[str, Any]:
         # only fires at step 2 once step 4 exists: a future-dependent signal
         return _report(grader_tamper=[{"step": 2}] if len(agent) >= 4 else [])
 
@@ -286,7 +348,12 @@ def test_causal_recheck_catches_a_rule_that_needs_future_steps() -> None:
     assert bad["checked"] and not bad["consistent"] and "missing_on_prefix" in bad["violations"][0]
 
     silent = run.causal_recheck(steps, run.producer_record(_report()), causal)
-    assert silent == {"checked": False, "reason": "no_trace_cited_hits", "consistent": True, "violations": []}
+    assert silent == {
+        "checked": False,
+        "reason": "no_trace_cited_hits",
+        "consistent": True,
+        "violations": [],
+    }
 
 
 # --------------------------------------------------------------------------- consumer
@@ -306,8 +373,17 @@ class FakeWorker:
             "reason": "allow" if allow else self.reason,
             "triggered_rules": [] if allow else ["grader_tamper"],
             "run_state": "running",
-            "gate_hits": [] if allow else [
-                {"source": "policy", "rule": "p", "step": step["step_id"], "entry_ids": ["HB-1"], "kind": "agent_action", "evidence": "SECRET"}
+            "gate_hits": []
+            if allow
+            else [
+                {
+                    "source": "policy",
+                    "rule": "p",
+                    "step": step["step_id"],
+                    "entry_ids": ["HB-1"],
+                    "kind": "agent_action",
+                    "evidence": "SECRET",
+                }
             ],
         }
 
@@ -327,7 +403,9 @@ def test_replay_stops_at_a_deny_and_never_ingests_the_denied_action() -> None:
     worker = FakeWorker(deny_at=3)
     result = run.replay_consumer(_steps(), "r", lambda events, ctx: worker)
     assert result["outcome"] == "deny"
-    assert result["decision"]["step"] == 3 and result["decision"]["triggered_rules"] == ["grader_tamper"]
+    assert result["decision"]["step"] == 3 and result["decision"]["triggered_rules"] == [
+        "grader_tamper"
+    ]
     assert worker.ingested == [1, 2]
     assert [s["step_id"] for s in worker.gated] == [2, 3]
     assert all("observation" not in s for s in worker.gated)  # future observation withheld
@@ -335,10 +413,18 @@ def test_replay_stops_at_a_deny_and_never_ingests_the_denied_action() -> None:
 
 
 def test_replay_separates_fail_closed_from_deny_and_reports_errors_as_unavailable() -> None:
-    closed = run.replay_consumer(_steps(), "r", lambda e, c: FakeWorker(deny_at=2, reason="deterministic_detector_unavailable"))
+    closed = run.replay_consumer(
+        _steps(),
+        "r",
+        lambda e, c: FakeWorker(deny_at=2, reason="deterministic_detector_unavailable"),
+    )
     assert closed["outcome"] == "fail_closed"
     allowed = run.replay_consumer(_steps(), "r", lambda e, c: FakeWorker())
-    assert allowed["outcome"] == "allow" and allowed["n_gate_calls"] == 2 and allowed["n_ingested"] == 3
+    assert (
+        allowed["outcome"] == "allow"
+        and allowed["n_gate_calls"] == 2
+        and allowed["n_ingested"] == 3
+    )
 
     class Boom(FakeWorker):
         def ingest_event(self, event: dict[str, Any]) -> list[dict[str, Any]]:
@@ -348,7 +434,9 @@ def test_replay_separates_fail_closed_from_deny_and_reports_errors_as_unavailabl
     assert errored["status"] == "unavailable" and "detector exploded" in errored["reason"]
 
     out_of_order = [{"step_id": 2, "source": "user"}, {"step_id": 1, "source": "user"}]
-    assert run.replay_consumer(out_of_order, "r", lambda e, c: FakeWorker())["status"] == "unavailable"
+    assert (
+        run.replay_consumer(out_of_order, "r", lambda e, c: FakeWorker())["status"] == "unavailable"
+    )
 
 
 def test_latency_summary_counts_calls_over_the_target() -> None:
@@ -368,9 +456,28 @@ def test_measure_subjects_keeps_unknowns_unknown_and_binds_hashes(tmp_path: Path
     _write_atif(bad, _steps())
     unavailable = v3.ViewInput(None, None, "no_paired_actions_view")
     subjects = [
-        v3.Subject("ok", "test", "positive", "fail", {"full": v3.ViewInput(good, digest), "actions": unavailable}),
-        v3.Subject("moved", "test", "negative", "pass", {"full": v3.ViewInput(bad, "0" * 64), "actions": unavailable}),
-        v3.Subject("nolabel", "test", None, None, {"full": unavailable, "actions": unavailable}, unknown_reason="label_unmapped"),
+        v3.Subject(
+            "ok",
+            "test",
+            "positive",
+            "fail",
+            {"full": v3.ViewInput(good, digest), "actions": unavailable},
+        ),
+        v3.Subject(
+            "moved",
+            "test",
+            "negative",
+            "pass",
+            {"full": v3.ViewInput(bad, "0" * 64), "actions": unavailable},
+        ),
+        v3.Subject(
+            "nolabel",
+            "test",
+            None,
+            None,
+            {"full": unavailable, "actions": unavailable},
+            unknown_reason="label_unmapped",
+        ),
     ]
     seen: list[int] = []
 
@@ -392,22 +499,35 @@ def test_measure_subjects_keeps_unknowns_unknown_and_binds_hashes(tmp_path: Path
 
 def test_tb4_entry_labels_join_mechanism_to_entry_through_the_pm_finding(tmp_path: Path) -> None:
     registry = tmp_path / "registry.json"
-    registry.write_text(json.dumps([
-        {"task": "t", "finding": "f1", "id": "t/m1"},
-        {"task": "t", "finding": "f2", "id": "t/m2"},
-    ]))
+    registry.write_text(
+        json.dumps(
+            [
+                {"task": "t", "finding": "f1", "id": "t/m1"},
+                {"task": "t", "finding": "f2", "id": "t/m2"},
+            ]
+        )
+    )
     entries = tmp_path / "entries.jsonl"
     entries.write_text(
-        json.dumps({"id": "HB-A", "examples": [
-            {"source": "preference_model_tb4", "item_or_task_id": "pm-tb4:t:f1"},
-            {"source": "elsewhere", "item_or_task_id": "pm-tb4:t:f2"},
-        ]}) + "\n"
+        json.dumps(
+            {
+                "id": "HB-A",
+                "examples": [
+                    {"source": "preference_model_tb4", "item_or_task_id": "pm-tb4:t:f1"},
+                    {"source": "elsewhere", "item_or_task_id": "pm-tb4:t:f2"},
+                ],
+            }
+        )
+        + "\n"
     )
     assert run.tb4_entry_labels(registry, entries) == {"t/m1": ["HB-A"]}
 
 
 def test_entry_recall_needs_compatible_labels() -> None:
-    producer = {"rules": [{"rule": "hb_x", "eligibility": "verdict", "gate": False}], "structural": []}
+    producer = {
+        "rules": [{"rule": "hb_x", "eligibility": "verdict", "gate": False}],
+        "structural": [],
+    }
     rec = _record(producer, source={"source_mechanism_labels": ["t/m1"]})
     rule_entries = {"hb_x": ["HB-A"]}
     mapped = run.entry_cells([rec], ["HB-A", "HB-B"], {}, {"t/m1": ["HB-A"]}, rule_entries)
@@ -416,7 +536,10 @@ def test_entry_recall_needs_compatible_labels() -> None:
     assert mapped["HB-B"]["recall_against_compatible_labels"]["status"] == "no_compatible_labels"
     assert mapped["HB-B"]["accounted"] is False
     unmapped = run.entry_cells([rec], ["HB-A"], {}, None, rule_entries)
-    assert unmapped["HB-A"]["recall_against_compatible_labels"]["reason"] == "no entry label map supplied"
+    assert (
+        unmapped["HB-A"]["recall_against_compatible_labels"]["reason"]
+        == "no entry label map supplied"
+    )
     assert unmapped["HB-A"]["by_role"]["positive"]["action_hit"] == 1  # firing is still reported
 
 
@@ -500,21 +623,36 @@ def test_freeze_refuses_wrong_fingerprint_foreign_tune_result_and_overwrite(
     env = _frozen_env(tmp_path, monkeypatch)
     combined = env["combined"]
     tune_file = tmp_path / "results-tune-ccc.json"
-    tune_file.write_text(json.dumps({
-        "schema": run.SCHEMA,
-        "stage": "tune",
-        "fingerprint": {"combined": combined},
-        "manifest": {"sha256": env["manifest"]["manifest_sha256"]},
-    }))
+    tune_file.write_text(
+        json.dumps(
+            {
+                "schema": run.SCHEMA,
+                "stage": "tune",
+                "fingerprint": {"combined": combined},
+                "manifest": {"sha256": env["manifest"]["manifest_sha256"]},
+            }
+        )
+    )
     freeze_path = tmp_path / "freeze.json"
     with pytest.raises(ValueError, match="not the frozen identity"):
         run.run_freeze(tune_file, "d" * 64, freeze_path=freeze_path)
     record = run.run_freeze(tune_file, combined, freeze_path=freeze_path)
-    assert record["holdout_opened"] is False and record["tune_results_sha256"] == run.file_sha(tune_file)
+    assert record["holdout_opened"] is False and record["tune_results_sha256"] == run.file_sha(
+        tune_file
+    )
     with pytest.raises(FileExistsError):
         run.run_freeze(tune_file, combined, freeze_path=freeze_path)
 
-    tune_file.write_text(json.dumps({"schema": run.SCHEMA, "stage": "tune", "fingerprint": {"combined": "e" * 64}, "manifest": {"sha256": ""}}))
+    tune_file.write_text(
+        json.dumps(
+            {
+                "schema": run.SCHEMA,
+                "stage": "tune",
+                "fingerprint": {"combined": "e" * 64},
+                "manifest": {"sha256": ""},
+            }
+        )
+    )
     with pytest.raises(ValueError, match="different fingerprint"):
         run.run_freeze(tune_file, combined, freeze_path=tmp_path / "other.json")
 
@@ -573,7 +711,10 @@ def test_package_context_requires_the_exact_hub_lock(tmp_path: Path) -> None:
     local = run.harbor_task_digest(task)
     contexts, report = run.package_contexts(root, ["t", "gone"], {"t": frozenset({"sha256:other"})})
     assert contexts == {}
-    assert report["t"]["reason"] == "package_digest_mismatch" and report["t"]["local_harbor_digest"] == local
+    assert (
+        report["t"]["reason"] == "package_digest_mismatch"
+        and report["t"]["local_harbor_digest"] == local
+    )
     assert report["gone"] == {"status": "absent"}
     _, no_lock = run.package_contexts(root, ["t"], None)
     assert "no admitted lock" in no_lock["t"]["reason"]

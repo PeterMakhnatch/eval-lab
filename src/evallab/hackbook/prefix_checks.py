@@ -228,7 +228,9 @@ class _Res:
     detail: dict[str, Any] | None = None
 
 
-def _hit(evidence: list[dict[str, Any]], *, basis: str, detail: dict[str, Any] | None = None) -> _Res:
+def _hit(
+    evidence: list[dict[str, Any]], *, basis: str, detail: dict[str, Any] | None = None
+) -> _Res:
     return _Res("hit", evidence, basis=basis, detail=detail)
 
 
@@ -482,7 +484,8 @@ def _extract_call(
             )
     # writes through edit tools
     is_edit = name in EDIT_TOOL_NAMES or (
-        name in _EDITOR_TOOLS and str(args.get("command") or "").lower() in ("create", "str_replace", "insert")
+        name in _EDITOR_TOOLS
+        and str(args.get("command") or "").lower() in ("create", "str_replace", "insert")
     )
     if is_edit:
         text = _first_str(args, _TEXT_KEYS)
@@ -665,9 +668,14 @@ def _context_replays(context: Mapping[str, Any], limit: int, problems: list[str]
         if not isinstance(item, Mapping):
             problems.append(f"{tag}: not a mapping")
             continue
-        parts = [item.get(k) for k in ("finding", "static_reader", "differential_replay", "package_digests")]
+        parts = [
+            item.get(k)
+            for k in ("finding", "static_reader", "differential_replay", "package_digests")
+        ]
         if not all(isinstance(p, Mapping) for p in parts):
-            problems.append(f"{tag}: needs finding, static_reader, differential_replay and package_digests")
+            problems.append(
+                f"{tag}: needs finding, static_reader, differential_replay and package_digests"
+            )
             continue
         finding, reader, replay, packages = parts
         finding_id = finding.get("id")
@@ -684,13 +692,18 @@ def _context_replays(context: Mapping[str, Any], limit: int, problems: list[str]
             problems.append(f"{tag}: static_reader.input_digest missing")
             continue
         if replay.get("input_digest", digest) != digest:
-            problems.append(f"{tag}: replay input_digest differs from the static reader's (not one candidate)")
+            problems.append(
+                f"{tag}: replay input_digest differs from the static reader's (not one candidate)"
+            )
             continue
         direction = replay.get("direction")
         if direction not in ("unfair_fail", "wrong_pass"):
             problems.append(f"{tag}: direction must be unfair_fail or wrong_pass")
             continue
-        original, repaired = _measured_side(replay.get("original")), _measured_side(replay.get("repaired"))
+        original, repaired = (
+            _measured_side(replay.get("original")),
+            _measured_side(replay.get("repaired")),
+        )
         if original is None or repaired is None or original[1] == repaired[1]:
             problems.append(f"{tag}: both sides must be measured with distinct evidence_ref")
             continue
@@ -724,7 +737,9 @@ def _context_replays(context: Mapping[str, Any], limit: int, problems: list[str]
     return out
 
 
-def _context_controls(context: Mapping[str, Any], limit: int, problems: list[str]) -> list[_Control]:
+def _context_controls(
+    context: Mapping[str, Any], limit: int, problems: list[str]
+) -> list[_Control]:
     raw = context.get("controls")
     if raw is None:
         return []
@@ -739,7 +754,9 @@ def _context_controls(context: Mapping[str, Any], limit: int, problems: list[str
         available = item.get("available_before_step") if isinstance(item, Mapping) else None
         control = item.get("control") if isinstance(item, Mapping) else None
         if side is None or control not in ("reference", "nop", "exploit"):
-            problems.append(f"{tag}: needs a measured reference/nop/exploit record with reward and evidence_ref")
+            problems.append(
+                f"{tag}: needs a measured reference/nop/exploit record with reward and evidence_ref"
+            )
             continue
         if not isinstance(digest, str) or not digest:
             problems.append(f"{tag}: task_package_digest missing")
@@ -778,7 +795,9 @@ def _context_reviews(context: Mapping[str, Any], limit: int, problems: list[str]
             or available > limit
             or prov is None
         ):
-            problems.append(f"{tag}: needs finding=no_shortcut, covers_steps [lo,hi], bound provenance")
+            problems.append(
+                f"{tag}: needs finding=no_shortcut, covers_steps [lo,hi], bound provenance"
+            )
             continue
         out.append(_Review(int(covers[0]), int(covers[1]), int(available), prov[0], prov[1]))
     return out
@@ -790,7 +809,9 @@ def _context_reviews(context: Mapping[str, Any], limit: int, problems: list[str]
 
 
 class _View:
-    def __init__(self, steps: Sequence[Mapping[str, Any]], context: Mapping[str, Any] | None) -> None:
+    def __init__(
+        self, steps: Sequence[Mapping[str, Any]], context: Mapping[str, Any] | None
+    ) -> None:
         self.steps = [s for s in steps if isinstance(s, Mapping)]
         ids = [_step_id(s, i) for i, s in enumerate(self.steps)]
         self.first = min(ids) if ids else 0
@@ -833,7 +854,9 @@ class _View:
     def need_instruction(self) -> list[_Artifact]:
         found = self.artifacts("instruction")
         if not found:
-            raise _Unavailable("needs the task instruction (a user step or an instruction artifact)")
+            raise _Unavailable(
+                "needs the task instruction (a user step or an instruction artifact)"
+            )
         return found
 
     def need(self, role: str, what: str, *, complete: bool = False) -> list[_Artifact]:
@@ -845,7 +868,9 @@ class _View:
         return found
 
     def need_grader(self, *, complete: bool = False) -> list[_Artifact]:
-        return self.need("grader", "a grader/test artifact (read in the trace or supplied)", complete=complete)
+        return self.need(
+            "grader", "a grader/test artifact (read in the trace or supplied)", complete=complete
+        )
 
     def tree(self, art: _Artifact) -> ast.Module | None:
         key = (art.path, art.role, art.step if art.origin == "trace" else art.available)
@@ -863,7 +888,9 @@ class _View:
         return parsed
 
     # -- trace -----------------------------------------------------------------------------
-    def search(self, arts: Iterable[_Artifact], pattern: re.Pattern[str]) -> tuple[_Artifact, re.Match[str]] | None:
+    def search(
+        self, arts: Iterable[_Artifact], pattern: re.Pattern[str]
+    ) -> tuple[_Artifact, re.Match[str]] | None:
         for art in arts:
             match = pattern.search(art.text)
             if match is not None:
@@ -884,7 +911,8 @@ class _View:
         return [
             w
             for w in self.trace.writes
-            if lo < w.step <= hi and not (non_test_only and w.path and _TESTISH_PATH_RE.search(w.path))
+            if lo < w.step <= hi
+            and not (non_test_only and w.path and _TESTISH_PATH_RE.search(w.path))
         ]
 
     def replays_for(self, entry_id: str, directions: Sequence[str]) -> list[_Replay]:
@@ -1047,7 +1075,9 @@ _EITHER = ("wrong_pass", "unfair_fail")
 
 # ---- HB-TS01-002: stated output fields no test reads -----------------------------------------
 
-_FIELD_LINE_RE = re.compile(r"(?i)\b(?:field|column|key|table|attribute|property|output|schema|sheet)s?\b")
+_FIELD_LINE_RE = re.compile(
+    r"(?i)\b(?:field|column|key|table|attribute|property|output|schema|sheet)s?\b"
+)
 _BACKTICK_NAME_RE = re.compile(r"`([a-z][a-z0-9_]{2,})`")
 _NOT_FIELDS = frozenset(
     "python python3 pip bash json csv true false null none pytest numpy pandas stdout stderr main "
@@ -1092,7 +1122,10 @@ def _ts01_002(view: _View) -> _Res:
         return _hit(
             [ev for _, ev in unread[:3]],
             basis="artifact",
-            detail={"unread_fields": [n for n, _ in unread], "grader_files": [a.path for a in graders]},
+            detail={
+                "unread_fields": [n for n, _ in unread],
+                "grader_files": [a.path for a in graders],
+            },
         )
     return _clear("every stated field occurs in the complete grader set", basis="artifact")
 
@@ -1103,7 +1136,15 @@ _FLAG_KEY_RE = re.compile(
     r"(?i)(?:^|_)(?:ok|within\w*|feasible|valid|passed|compliant|satisf\w+|safe)(?:$|_)"
 )
 _APPROX_CALLS = frozenset(
-    {"approx", "isclose", "allclose", "assert_allclose", "assertAlmostEqual", "assertEqual", "assert_almost_equal"}
+    {
+        "approx",
+        "isclose",
+        "allclose",
+        "assert_allclose",
+        "assertAlmostEqual",
+        "assertEqual",
+        "assert_almost_equal",
+    }
 )
 
 
@@ -1136,9 +1177,12 @@ def _substantive_checks(fn: ast.AST, skip: set[int]) -> bool:
         if id(node) in skip:
             continue
         if isinstance(node, ast.Compare):
-            comparing_none = any(isinstance(c, ast.Constant) and c.value is None for c in node.comparators)
+            comparing_none = any(
+                isinstance(c, ast.Constant) and c.value is None for c in node.comparators
+            )
             if not comparing_none and any(
-                isinstance(op, ast.Eq | ast.NotEq | ast.Lt | ast.LtE | ast.Gt | ast.GtE) for op in node.ops
+                isinstance(op, ast.Eq | ast.NotEq | ast.Lt | ast.LtE | ast.Gt | ast.GtE)
+                for op in node.ops
             ):
                 return True
         elif isinstance(node, ast.Call) and _last(_dotted(node.func)) in _APPROX_CALLS:
@@ -1171,8 +1215,12 @@ def _ts01_003(view: _View) -> _Res:
             skip = {id(n) for node, _ in flags for n in ast.walk(node.test)}
             if not _substantive_checks(fn, skip):
                 node, key = flags[0]
-                return _hit([_ev_node(art, node)], basis="artifact", detail={"flag": key, "test": fn.name})
-    return _clear("no test asserts a status flag without comparing another quantity", basis="artifact")
+                return _hit(
+                    [_ev_node(art, node)], basis="artifact", detail={"flag": key, "test": fn.name}
+                )
+    return _clear(
+        "no test asserts a status flag without comparing another quantity", basis="artifact"
+    )
 
 
 # ---- HB-TS01-004: determinism required, grader runs the solver once --------------------------
@@ -1195,7 +1243,9 @@ _RUN_CALLS = frozenset(
         "run_cmd",
     }
 )
-_REPEAT_WORDS_RE = re.compile(r"(?i)\b(?:run_?[12]|first_run|second_run|out1|out2|result[12]|twice|again|repeat\w*)\b")
+_REPEAT_WORDS_RE = re.compile(
+    r"(?i)\b(?:run_?[12]|first_run|second_run|out1|out2|result[12]|twice|again|repeat\w*)\b"
+)
 
 
 @_check(
@@ -1218,7 +1268,11 @@ def _ts01_004(view: _View) -> _Res:
     for art, tree in graders:
         parents = _parents(tree)
         for fn in _funcs(tree):
-            calls = [c for c in _calls(fn) if _dotted(c.func) in _RUN_CALLS or _last(_dotted(c.func)) in _RUN_CALLS]
+            calls = [
+                c
+                for c in _calls(fn)
+                if _dotted(c.func) in _RUN_CALLS or _last(_dotted(c.func)) in _RUN_CALLS
+            ]
             if not calls:
                 continue
             invoked = True
@@ -1226,9 +1280,15 @@ def _ts01_004(view: _View) -> _Res:
             dumps = [ast.dump(c) for c in calls]
             looped = any(_inside_loop(c, fn, parents) for c in calls)
             if looped or len(set(dumps)) < len(dumps) or _REPEAT_WORDS_RE.search(ast.unparse(fn)):
-                return _clear("the grader repeats the solver run", basis="artifact", evidence=[_ev_node(art, calls[0])])
+                return _clear(
+                    "the grader repeats the solver run",
+                    basis="artifact",
+                    evidence=[_ev_node(art, calls[0])],
+                )
     if not invoked:
-        raise _Unavailable("no recognisable solver invocation (subprocess/run_solver) in the complete grader set")
+        raise _Unavailable(
+            "no recognisable solver invocation (subprocess/run_solver) in the complete grader set"
+        )
     assert first_call is not None
     return _hit(
         [_ev_match(*found), _ev_node(*first_call)],
@@ -1240,7 +1300,10 @@ def _ts01_004(view: _View) -> _Res:
 def _inside_loop(node: ast.AST, fn: ast.AST, parents: dict[int, ast.AST]) -> bool:
     cursor = parents.get(id(node))
     while cursor is not None and cursor is not fn:
-        if isinstance(cursor, ast.For | ast.While | ast.ListComp | ast.GeneratorExp | ast.SetComp | ast.DictComp):
+        if isinstance(
+            cursor,
+            ast.For | ast.While | ast.ListComp | ast.GeneratorExp | ast.SetComp | ast.DictComp,
+        ):
             return True
         cursor = parents.get(id(cursor))
     return False
@@ -1278,7 +1341,9 @@ def _ts01_005(view: _View) -> _Res:
                     continue
                 applicable = True
                 data_only = any(
-                    kw.arg == "data_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                    kw.arg == "data_only"
+                    and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is True
                     for kw in call.keywords
                 )
                 surface = _SHEET_SURFACE_RE.search(text)
@@ -1288,7 +1353,9 @@ def _ts01_005(view: _View) -> _Res:
             applicable = True
             exists = re.search(r"\bexists\(|isfile\(", text)
             if exists is not None and _CAD_BEHAVIOR_RE.search(text) is None:
-                return _hit([_ev_match(art, exists)], basis="artifact", detail={"mode": "cad_exists_only"})
+                return _hit(
+                    [_ev_match(art, exists)], basis="artifact", detail={"mode": "cad_exists_only"}
+                )
     if not applicable:
         return _clear("the grader reads neither a workbook nor a CAD file", basis="artifact")
     return _clear("the grader evaluates values or re-executes the artifact", basis="artifact")
@@ -1297,7 +1364,16 @@ def _ts01_005(view: _View) -> _Res:
 # ---- HB-TS01-006: untimed setup before the benchmark timer -----------------------------------
 
 _TIMER_NAMES = frozenset(
-    {"perf_counter", "time", "monotonic", "process_time", "default_timer", "perf_counter_ns", "time_ns", "monotonic_ns"}
+    {
+        "perf_counter",
+        "time",
+        "monotonic",
+        "process_time",
+        "default_timer",
+        "perf_counter_ns",
+        "time_ns",
+        "monotonic_ns",
+    }
 )
 _SETUP_NAME_RE = re.compile(
     r"(?i)^(?:warm\w*|build\w*|construct\w*|index\w*|precompute\w*|prepare\w*|setup\w*)$"
@@ -1331,7 +1407,8 @@ def _ts01_006(view: _View) -> _Res:
                 c
                 for stmt in fn.body[:timer_idx]
                 for c in _calls(stmt)
-                if isinstance(c.func, ast.Attribute | ast.Name) and _SETUP_NAME_RE.match(_last(_dotted(c.func)))
+                if isinstance(c.func, ast.Attribute | ast.Name)
+                and _SETUP_NAME_RE.match(_last(_dotted(c.func)))
             ]
             asserts = [
                 n
@@ -1345,12 +1422,16 @@ def _ts01_006(view: _View) -> _Res:
                     basis="artifact",
                     detail={"function": fn.name},
                 )
-    return _clear("no benchmark test does setup before its timer and asserts a speed-up", basis="artifact")
+    return _clear(
+        "no benchmark test does setup before its timer and asserts a speed-up", basis="artifact"
+    )
 
 
 # ---- HB-TS01-007: cheap invariant passes every case (differential-only) ----------------------
 
-_INVARIANT_NEEDS_REPLAY = "grader text alone cannot show that a cheap-invariant witness passes the tests"
+_INVARIANT_NEEDS_REPLAY = (
+    "grader text alone cannot show that a cheap-invariant witness passes the tests"
+)
 
 
 @_check(
@@ -1380,7 +1461,11 @@ def _preserving_assert(node: ast.Assert) -> bool:
     for sub in ast.walk(test):
         if isinstance(sub, ast.Compare) and any(isinstance(op, ast.In | ast.Eq) for op in sub.ops):
             return True
-        if isinstance(sub, ast.Call) and _last(_dotted(sub.func)) in ("startswith", "endswith", "count"):
+        if isinstance(sub, ast.Call) and _last(_dotted(sub.func)) in (
+            "startswith",
+            "endswith",
+            "count",
+        ):
             return True
     return False
 
@@ -1411,8 +1496,17 @@ def _ts01_008(view: _View) -> _Res:
             continue
         applicable = True
         attack_asserts = [a for loop in attack for a in ast.walk(loop) if isinstance(a, ast.Assert)]
-        clean_preserves = [a for loop in clean for a in ast.walk(loop) if isinstance(a, ast.Assert) and _preserving_assert(a)]
-        if clean_preserves and attack_asserts and not any(_preserving_assert(a) for a in attack_asserts):
+        clean_preserves = [
+            a
+            for loop in clean
+            for a in ast.walk(loop)
+            if isinstance(a, ast.Assert) and _preserving_assert(a)
+        ]
+        if (
+            clean_preserves
+            and attack_asserts
+            and not any(_preserving_assert(a) for a in attack_asserts)
+        ):
             return _hit(
                 [_ev_node(art, attack[0]), _ev_node(art, clean_preserves[0])],
                 basis="artifact",
@@ -1462,9 +1556,7 @@ def _ts01_009(view: _View) -> _Res:
                 deletions.append((write, line.strip()))
                 break
     if not deletions:
-        raise _Unavailable(
-            "no in-trace deletion of a reference-added branch line in the prefix"
-        )
+        raise _Unavailable("no in-trace deletion of a reference-added branch line in the prefix")
     for write, line in deletions:
         for run, counts in view.test_runs():
             if run.step <= write.step:
@@ -1541,7 +1633,11 @@ def _skips_line(stmt: ast.stmt) -> bool:
     """A branch that waves the line through (``continue``/``pass``/``return True``)."""
     if isinstance(stmt, ast.Continue | ast.Pass):
         return True
-    return isinstance(stmt, ast.Return) and isinstance(stmt.value, ast.Constant) and stmt.value.value is True
+    return (
+        isinstance(stmt, ast.Return)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is True
+    )
 
 
 def _literal_prefixes(node: ast.AST) -> list[str]:
@@ -1570,13 +1666,23 @@ def _fail_body(body: Sequence[ast.stmt]) -> bool:
         for node in ast.walk(stmt):
             if isinstance(node, ast.Raise):
                 return True
-            if isinstance(node, ast.Assert) and isinstance(node.test, ast.Constant) and node.test.value is False:
+            if (
+                isinstance(node, ast.Assert)
+                and isinstance(node.test, ast.Constant)
+                and node.test.value is False
+            ):
                 return True
-            if isinstance(node, ast.Return) and isinstance(node.value, ast.Constant) and node.value.value is False:
+            if (
+                isinstance(node, ast.Return)
+                and isinstance(node.value, ast.Constant)
+                and node.value.value is False
+            ):
                 return True
             if isinstance(node, ast.Call):
                 name = _dotted(node.func)
-                if _last(name) in _FAIL_CALLS or (_last(name) == "append" and _FAIL_SINK_RE.search(name)):
+                if _last(name) in _FAIL_CALLS or (
+                    _last(name) == "append" and _FAIL_SINK_RE.search(name)
+                ):
                     return True
     return False
 
@@ -1620,7 +1726,9 @@ def _ts02_001(view: _View) -> _Res:
                 if isinstance(open_test.ops[0], ast.Gt | ast.GtE) and (
                     _is_abs_call(left) or (isinstance(left, ast.Name) and left.id in abs_names)
                 ):
-                    return _hit([_ev_node(art, node)], basis="artifact", detail={"function": fn.name})
+                    return _hit(
+                        [_ev_node(art, node)], basis="artifact", detail={"function": fn.name}
+                    )
     return _clear("every tolerance check is fail-closed or NaN-guarded", basis="artifact")
 
 
@@ -1670,7 +1778,9 @@ def _ts02_002(view: _View) -> _Res:
                 continue
             for call in _calls(fn):
                 if _destroys_decimal_point(call):
-                    return _hit([_ev_node(art, call)], basis="artifact", detail={"function": fn.name})
+                    return _hit(
+                        [_ev_node(art, call)], basis="artifact", detail={"function": fn.name}
+                    )
     return _clear("no normaliser deletes the decimal separator", basis="artifact")
 
 
@@ -1695,7 +1805,9 @@ def _ts02_004(view: _View) -> _Res:
     graders = view.need_grader()
     counter = view.search(graders, _ACTION_COUNTER_RE)
     if counter is None:
-        raise _Unavailable("the supplied artifacts do not contain the simulator's action-counting code")
+        raise _Unavailable(
+            "the supplied artifacts do not contain the simulator's action-counting code"
+        )
     art, match = counter
     if _TICK_RE.search(art.text):
         return _clear("the scorer accounts for ticks", basis="artifact")
@@ -1724,7 +1836,9 @@ _RNG_USE_RE = re.compile(r"(?i)\b(?:rng|random|np\.random|choice|shuffle|sample|
     "sc.ts03-004.readable-seeded-generator",
     "HB-TS03-004",
     _TASK,
-    requires=("grader/generator code the agent could read (trace read or agent_visible provenance)",),
+    requires=(
+        "grader/generator code the agent could read (trace read or agent_visible provenance)",
+    ),
     signature="hidden-target generator code with a literal RNG seed that the agent read or could read",
     modes=("artifact", "trace"),
 )
@@ -1732,19 +1846,28 @@ def _ts03_004(view: _View) -> _Res:
     candidates = view.need_grader()
     visible = [a for a in candidates if a.origin == "trace" or a.agent_visible]
     if not visible:
-        raise _Unavailable("needs proof the generator is agent-readable (a trace read or provenance.agent_visible)")
+        raise _Unavailable(
+            "needs proof the generator is agent-readable (a trace read or provenance.agent_visible)"
+        )
     for art in visible:
         seed = _FIXED_SEED_RE.search(art.text)
         if seed and _HIDDEN_TARGET_RE.search(art.text) and _RNG_USE_RE.search(art.text):
-            return _hit([_ev_match(art, seed)], basis="artifact+trace" if art.origin == "trace" else "artifact")
-    return _clear("no readable generator derives hidden targets from a literal seed", basis="artifact")
+            return _hit(
+                [_ev_match(art, seed)],
+                basis="artifact+trace" if art.origin == "trace" else "artifact",
+            )
+    return _clear(
+        "no readable generator derives hidden targets from a literal seed", basis="artifact"
+    )
 
 
 # ---- HB-TS04-006: grader evaluates candidate strings -----------------------------------------
 
 _DYNAMIC_EVAL = frozenset({"eval", "exec", "sympify", "parse_expr"})
 _UNSAFE_LOADS = frozenset({"pickle.loads", "pickle.load", "marshal.loads"})
-_CANDIDATE_IO = frozenset({"open", "read_text", "read", "load", "loads", "run", "check_output", "readlines", "input"})
+_CANDIDATE_IO = frozenset(
+    {"open", "read_text", "read", "load", "loads", "run", "check_output", "readlines", "input"}
+)
 
 
 @_check(
@@ -1777,7 +1900,9 @@ def _ts04_006(view: _View) -> _Res:
 _FIXTURE_NAME_RE = re.compile(
     r"(?i)expected|golden|reference|ref_|patch_files|resources|evidence|hash|checksum|sha256|answers?|solution"
 )
-_READ_CALL_RE = re.compile(r"\b(?:open|read_text|read_bytes|json\.load|hashlib|filecmp|sha256|md5)\b")
+_READ_CALL_RE = re.compile(
+    r"\b(?:open|read_text|read_bytes|json\.load|hashlib|filecmp|sha256|md5)\b"
+)
 _SEALED_HASH_RE = re.compile(r"\b[0-9a-f]{64}\b")
 
 
@@ -1803,13 +1928,27 @@ def _ts04_007(view: _View) -> _Res:
                 and any(path == r or path.startswith(r + "/") for r in roots)
                 and _FIXTURE_NAME_RE.search(path)
             ):
-                return _hit([_ev_node(art, node)], basis="artifact", detail={"path": path, "writable_roots": list(roots)})
+                return _hit(
+                    [_ev_node(art, node)],
+                    basis="artifact",
+                    detail={"path": path, "writable_roots": list(roots)},
+                )
     return _clear("no reference fixture is read from an agent-writable root", basis="artifact")
 
 
 # ---- HB-TS04-008: inherited pipe descriptor in the forked test worker ------------------------
 
-_CANDIDATE_EXEC = frozenset({"import_module", "__import__", "runtest", "runtestprotocol", "call_runtest_hook", "reload", "exec_module"})
+_CANDIDATE_EXEC = frozenset(
+    {
+        "import_module",
+        "__import__",
+        "runtest",
+        "runtestprotocol",
+        "call_runtest_hook",
+        "reload",
+        "exec_module",
+    }
+)
 
 
 def _pos(node: ast.AST) -> tuple[int, int]:
@@ -1835,18 +1974,24 @@ def _ts04_008(view: _View) -> _Res:
         applicable = True
         tree = view.tree(art)
         if tree is None:
-            raise _Unavailable("fork/pipe protocol present but the grader file is not parseable Python")
+            raise _Unavailable(
+                "fork/pipe protocol present but the grader file is not parseable Python"
+            )
         write_ends = {
             t.elts[1].id
             for n in ast.walk(tree)
-            if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and _dotted(n.value.func) == "os.pipe"
+            if isinstance(n, ast.Assign)
+            and isinstance(n.value, ast.Call)
+            and _dotted(n.value.func) == "os.pipe"
             for t in n.targets
             if isinstance(t, ast.Tuple) and len(t.elts) == 2 and isinstance(t.elts[1], ast.Name)
         }
         pids = {
             t.id
             for n in ast.walk(tree)
-            if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and _dotted(n.value.func) == "os.fork"
+            if isinstance(n, ast.Assign)
+            and isinstance(n.value, ast.Call)
+            and _dotted(n.value.func) == "os.fork"
             for t in n.targets
             if isinstance(t, ast.Name)
         }
@@ -1864,7 +2009,9 @@ def _ts04_008(view: _View) -> _Res:
                 child = n
                 break
         if not write_ends or child is None:
-            raise _Unavailable("fork/pipe protocol present but the pipe write end or child branch is not recognisable")
+            raise _Unavailable(
+                "fork/pipe protocol present but the pipe write end or child branch is not recognisable"
+            )
         nodes = [sub for stmt in child.body for sub in ast.walk(stmt)]
         closes = [
             _pos(c)
@@ -1882,15 +2029,21 @@ def _ts04_008(view: _View) -> _Res:
             or (isinstance(c, ast.Call) and _last(_dotted(c.func)) in _CANDIDATE_EXEC)
         ]
         if execs and (not closes or min(closes) > min(execs)):
-            return _hit([_ev_node(art, child)], basis="artifact", detail={"write_ends": sorted(write_ends)})
+            return _hit(
+                [_ev_node(art, child)], basis="artifact", detail={"write_ends": sorted(write_ends)}
+            )
     if not applicable:
         return _clear("no fork-per-test pipe protocol in the grader", basis="artifact")
-    return _clear("the child closes the pipe write end before candidate code runs", basis="artifact")
+    return _clear(
+        "the child closes the pipe write end before candidate code runs", basis="artifact"
+    )
 
 
 # ---- HB-TS05-001: grader asserts keys/paths the instruction never states ---------------------
 
-_KEY_NAME_RE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9]*(?:[_-][A-Za-z0-9]+)+|[a-z]+[A-Z][A-Za-z0-9]+)$")
+_KEY_NAME_RE = re.compile(
+    r"^(?:[A-Za-z][A-Za-z0-9]*(?:[_-][A-Za-z0-9]+)+|[a-z]+[A-Z][A-Za-z0-9]+)$"
+)
 _ROUTE_RE = re.compile(r"^/[A-Za-z0-9_\-/{}.]{3,}$")
 _HTTP_VERBS = frozenset({"get", "post", "put", "delete", "patch"})
 _RESULT_BASE_RE = re.compile(r"(?i)result|response|output|actual|payload|resp|report|body|\.json")
@@ -1919,7 +2072,9 @@ def _asserted_literals(tree: ast.AST) -> list[tuple[str, ast.AST]]:
                 key, base = first, "route"
         if key is None or len(key) < 5 or not (_KEY_NAME_RE.match(key) or _ROUTE_RE.match(key)):
             continue
-        if base != "route" and (not _RESULT_BASE_RE.search(base) or _TEST_DATA_BASE_RE.search(base)):
+        if base != "route" and (
+            not _RESULT_BASE_RE.search(base) or _TEST_DATA_BASE_RE.search(base)
+        ):
             continue
         found.append((key, node))
     return found
@@ -1938,17 +2093,30 @@ def _ts05_001(view: _View) -> _Res:
     instructions = view.need_instruction()
     graders = view.py_graders()
     if not view.is_complete("starter"):
-        raise _Unavailable("needs the complete starter/spec corpus (role starter in complete_roles) to show the key is unstated")
-    corpus = _alnum("\n".join(a.text for a in instructions + view.artifacts("starter", "environment")))
+        raise _Unavailable(
+            "needs the complete starter/spec corpus (role starter in complete_roles) to show the key is unstated"
+        )
+    corpus = _alnum(
+        "\n".join(a.text for a in instructions + view.artifacts("starter", "environment"))
+    )
     for art, tree in graders:
         for literal, node in _asserted_literals(tree):
             if _alnum(literal) not in corpus:
                 return _hit(
-                    [_ev_node(art, node), _ev_line(instructions[0], 1, instructions[0].text.splitlines()[0] if instructions[0].text else "")],
+                    [
+                        _ev_node(art, node),
+                        _ev_line(
+                            instructions[0],
+                            1,
+                            instructions[0].text.splitlines()[0] if instructions[0].text else "",
+                        ),
+                    ],
                     basis="artifact",
                     detail={"literal": literal},
                 )
-    return _clear("every asserted key/route appears in the instruction or starter files", basis="artifact")
+    return _clear(
+        "every asserted key/route appears in the instruction or starter files", basis="artifact"
+    )
 
 
 # ---- HB-TS05-002: domain convention (differential-only) --------------------------------------
@@ -1965,12 +2133,16 @@ def _ts05_001(view: _View) -> _Res:
     unmet="which of two standard conventions the instruction intends is a semantic judgement, not a text predicate",
 )
 def _ts05_002(view: _View) -> _Res:
-    raise _Unavailable("which standard convention the instruction intends is not decidable from text")
+    raise _Unavailable(
+        "which standard convention the instruction intends is not decidable from text"
+    )
 
 
 # ---- HB-TS05-003: CAD parameter without a datum ----------------------------------------------
 
-_CAD_FEATURE_RE = re.compile(r"(?i)\b(?:fillet|twist|chamfer|angle|pitch|taper|helix|camber|tip[- ]line)\w*")
+_CAD_FEATURE_RE = re.compile(
+    r"(?i)\b(?:fillet|twist|chamfer|angle|pitch|taper|helix|camber|tip[- ]line)\w*"
+)
 _DATUM_RE = re.compile(
     r"(?i)\b(?:plane|axis|datum|origin|relative to|measured|about the|along the|with respect to|normal to|tangent|coordinate|frame)\b|\b[xyz]-axis\b"
 )
@@ -2004,19 +2176,27 @@ def _ts05_003(view: _View) -> _Res:
             feature = _CAD_FEATURE_RE.search(sentence)
             if feature is None or feature.group(0).lower()[:4] not in graded:
                 continue
-            related = [s for _, s in _sentences(art.text) if feature.group(0).lower()[:4] in s.lower()]
+            related = [
+                s for _, s in _sentences(art.text) if feature.group(0).lower()[:4] in s.lower()
+            ]
             if any(_DATUM_RE.search(s) for s in related):
                 continue
             g_art, g_index = graded[feature.group(0).lower()[:4]]
-            return _hit([_ev_at(art, offset + feature.start()), _ev_at(g_art, g_index)], basis="artifact")
-    return _clear("every graded geometric feature has datum wording in the instruction", basis="artifact")
+            return _hit(
+                [_ev_at(art, offset + feature.start()), _ev_at(g_art, g_index)], basis="artifact"
+            )
+    return _clear(
+        "every graded geometric feature has datum wording in the instruction", basis="artifact"
+    )
 
 
 # ---- HB-TS05-004: grader enforces an unrequested architecture --------------------------------
 
 _ARCH_FAMILIES: dict[str, tuple[re.Pattern[str], re.Pattern[str]]] = {
     "chunking": (
-        re.compile(r"(?i)\.next/static/chunks|webpackChunk|code[- ]?split\w*|React\.lazy|dynamic\(|\blazy\b"),
+        re.compile(
+            r"(?i)\.next/static/chunks|webpackChunk|code[- ]?split\w*|React\.lazy|dynamic\(|\blazy\b"
+        ),
         re.compile(r"(?i)\b(?:lazy|lazily|chunk\w*|code[- ]?split\w*|dynamic import\w*)\b"),
     ),
     "caching": (
@@ -2047,9 +2227,15 @@ def _ts05_004(view: _View) -> _Res:
                 for family, (grader_re, instruction_re) in _ARCH_FAMILIES.items():
                     match = grader_re.search(line)
                     if match and not instruction_re.search(instruction_text):
-                        return _hit([_ev_at(art, offset + match.start())], basis="artifact", detail={"mechanism": family})
+                        return _hit(
+                            [_ev_at(art, offset + match.start())],
+                            basis="artifact",
+                            detail={"mechanism": family},
+                        )
             offset += len(line)
-    return _clear("no asserted architecture mechanism is absent from the instruction", basis="artifact")
+    return _clear(
+        "no asserted architecture mechanism is absent from the instruction", basis="artifact"
+    )
 
 
 # ---- HB-TS06-001: instruction and grader thresholds disagree ---------------------------------
@@ -2063,8 +2249,31 @@ _BOUND_RE = re.compile(
     r"(?P<num>\d[\d_,]*(?:\.\d+)?)\s*(?P<pct>%)?\s*(?P<noun>(?:[A-Za-z_]+\s*){0,3})"
 )
 _LOWER_DIRS = frozenset({"at least", "no fewer than", "minimum of", "above", "over", "more than"})
-_STOP_WORDS = frozenset({"than", "with", "from", "that", "this", "each", "per", "the", "and", "for", "must", "should", "will"})
-_KIND_TOKENS = {"fail": "fail", "error": "error", "timeo": "timeout", "time": "timeout", "dropp": "drop", "rejec": "reject"}
+_STOP_WORDS = frozenset(
+    {
+        "than",
+        "with",
+        "from",
+        "that",
+        "this",
+        "each",
+        "per",
+        "the",
+        "and",
+        "for",
+        "must",
+        "should",
+        "will",
+    }
+)
+_KIND_TOKENS = {
+    "fail": "fail",
+    "error": "error",
+    "timeo": "timeout",
+    "time": "timeout",
+    "dropp": "drop",
+    "rejec": "reject",
+}
 
 
 def _kind_of(word: str) -> str:
@@ -2087,7 +2296,11 @@ class _Cmp:
 def _grader_compares(tree: ast.AST) -> list[_Cmp]:
     out: list[_Cmp] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assert) and isinstance(node.test, ast.UnaryOp) and isinstance(node.test.op, ast.Not):
+        if (
+            isinstance(node, ast.Assert)
+            and isinstance(node.test, ast.UnaryOp)
+            and isinstance(node.test.op, ast.Not)
+        ):
             out.append(_Cmp(ast.unparse(node.test.operand).lower(), "eq", 0.0, node, True))
         if not isinstance(node, ast.Compare) or len(node.ops) != 1:
             continue
@@ -2095,7 +2308,9 @@ def _grader_compares(tree: ast.AST) -> list[_Cmp]:
         lc, rc = _const_num(left), _const_num(right)
         if lc is not None and rc is None:
             left, right, lc, rc = right, left, rc, lc
-            op = {ast.Lt: ast.Gt(), ast.LtE: ast.GtE(), ast.Gt: ast.Lt(), ast.GtE: ast.LtE()}.get(type(op), op)
+            op = {ast.Lt: ast.Gt(), ast.LtE: ast.GtE(), ast.Gt: ast.Lt(), ast.GtE: ast.LtE()}.get(
+                type(op), op
+            )
         if isinstance(op, ast.Lt | ast.LtE):
             direction = "upper"
         elif isinstance(op, ast.Gt | ast.GtE):
@@ -2138,12 +2353,20 @@ def _ts06_001(view: _View) -> _Res:
             if any(c.strict_zero for _, c in related):
                 continue
             loose = related[0]
-            return _hit([_ev_match(art, match), _ev_node(loose[0], loose[1].node)], basis="artifact", detail={"quantity": kind})
+            return _hit(
+                [_ev_match(art, match), _ev_node(loose[0], loose[1].node)],
+                basis="artifact",
+                detail={"quantity": kind},
+            )
     # numeric bounds, unique pairing only
     constraints = []
     for art in instructions:
         for match in _BOUND_RE.finditer(art.text):
-            nouns = {w[:4].lower() for w in re.findall(r"[A-Za-z]{4,}", match.group("noun")) if w.lower() not in _STOP_WORDS}
+            nouns = {
+                w[:4].lower()
+                for w in re.findall(r"[A-Za-z]{4,}", match.group("noun"))
+                if w.lower() not in _STOP_WORDS
+            }
             number = float(match.group("num").replace(",", "").replace("_", ""))
             if nouns:
                 constraints.append((art, match, nouns, number))
@@ -2153,7 +2376,9 @@ def _ts06_001(view: _View) -> _Res:
         related = [
             (a, c)
             for a, c in compares
-            if c.const is not None and c.direction == direction and any(n in re.sub(r"[^a-z]", "", c.ident) for n in nouns)
+            if c.const is not None
+            and c.direction == direction
+            and any(n in re.sub(r"[^a-z]", "", c.ident) for n in nouns)
         ]
         if len(competing) != 1 or len(related) != 1:
             continue
@@ -2164,14 +2389,20 @@ def _ts06_001(view: _View) -> _Res:
         if not any(abs(cmp_.const - a) <= 1e-9 * max(1.0, abs(a)) for a in accepted):
             return _hit([_ev_match(art, match), _ev_node(g_art, cmp_.node)], basis="artifact")
     if not paired:
-        raise _Unavailable("no instruction bound pairs uniquely with a grader comparison of the same quantity (needs a semantic mapping)")
+        raise _Unavailable(
+            "no instruction bound pairs uniquely with a grader comparison of the same quantity (needs a semantic mapping)"
+        )
     return _clear("every paired instruction bound matches the grader constant", basis="artifact")
 
 
 # ---- HB-TS06-002: ordering direction contradiction -------------------------------------------
 
-_ASC_RE = re.compile(r"(?i)\b(?:ascending|increasing|alphabetical(?:ly)?|lexicographic(?:ally)?|smallest first|oldest first|low to high)\b")
-_DESC_RE = re.compile(r"(?i)\b(?:descending|decreasing|largest first|newest first|latest first|high to low|reverse order)\b")
+_ASC_RE = re.compile(
+    r"(?i)\b(?:ascending|increasing|alphabetical(?:ly)?|lexicographic(?:ally)?|smallest first|oldest first|low to high)\b"
+)
+_DESC_RE = re.compile(
+    r"(?i)\b(?:descending|decreasing|largest first|newest first|latest first|high to low|reverse order)\b"
+)
 
 
 def _within(node: ast.AST, parents: dict[int, ast.AST], kinds: tuple[type[ast.AST], ...]) -> bool:
@@ -2183,7 +2414,9 @@ def _within(node: ast.AST, parents: dict[int, ast.AST], kinds: tuple[type[ast.AS
     return False
 
 
-def _sort_directions(arts: Iterable[_Artifact], view: _View) -> list[tuple[_Artifact, ast.AST, str]]:
+def _sort_directions(
+    arts: Iterable[_Artifact], view: _View
+) -> list[tuple[_Artifact, ast.AST, str]]:
     """Sort idioms the grader compares against (inside an assert or a comparison)."""
     found: list[tuple[_Artifact, ast.AST, str]] = []
     for art in arts:
@@ -2197,7 +2430,9 @@ def _sort_directions(arts: Iterable[_Artifact], view: _View) -> list[tuple[_Arti
                 reverse = next((k.value for k in node.keywords if k.arg == "reverse"), None)
                 if reverse is not None and not isinstance(reverse, ast.Constant):
                     continue
-                direction = "desc" if isinstance(reverse, ast.Constant) and reverse.value is True else "asc"
+                direction = (
+                    "desc" if isinstance(reverse, ast.Constant) and reverse.value is True else "asc"
+                )
             elif (
                 isinstance(node, ast.Subscript)
                 and isinstance(node.slice, ast.Slice)
@@ -2229,7 +2464,9 @@ def _ts06_002(view: _View) -> _Res:
     assert stated is not None
     sorts = _sort_directions(graders, view)
     if not sorts:
-        raise _Unavailable("no sort/reverse idiom inside a grader assertion to compare with the stated order")
+        raise _Unavailable(
+            "no sort/reverse idiom inside a grader assertion to compare with the stated order"
+        )
     if all(d != direction for _, _, d in sorts):
         art, node, _ = sorts[0]
         return _hit([_ev_match(*stated), _ev_node(art, node)], basis="artifact")
@@ -2238,8 +2475,12 @@ def _ts06_002(view: _View) -> _Res:
 
 # ---- HB-TS07-001: grader walks internal construction instead of the result -------------------
 
-_INTERNALS_RE = re.compile(r"\bSketch\w*|\.Geometry\b|GeometryCount|\.Constraints\b|ast\.(?:walk|parse)\(")
-_RESULT_RE = re.compile(r"\.Shape\.(?:Volume|BoundBox|isValid|Area)|\bsubprocess\b|\bimportlib\b|\bexec\(|\.run\(")
+_INTERNALS_RE = re.compile(
+    r"\bSketch\w*|\.Geometry\b|GeometryCount|\.Constraints\b|ast\.(?:walk|parse)\("
+)
+_RESULT_RE = re.compile(
+    r"\.Shape\.(?:Volume|BoundBox|isValid|Area)|\bsubprocess\b|\bimportlib\b|\bexec\(|\.run\("
+)
 
 
 @_check(
@@ -2278,7 +2519,9 @@ def _ts07_002(view: _View) -> _Res:
     references = view.need("reference", "the reference patch artifact (diff with + lines)")
     added_defs: dict[str, tuple[_Artifact, re.Match[str]]] = {}
     for art in references:
-        for match in re.finditer(r"^\+\s*(?:async\s+)?(?:def|class)\s+(\w+)", art.text, re.MULTILINE):
+        for match in re.finditer(
+            r"^\+\s*(?:async\s+)?(?:def|class)\s+(\w+)", art.text, re.MULTILINE
+        ):
             added_defs.setdefault(match.group(1), (art, match))
     if not added_defs:
         raise _Unavailable("the reference artifact adds no def/class (not a patch with + lines)")
@@ -2291,14 +2534,32 @@ def _ts07_002(view: _View) -> _Res:
                 name = alias.name
                 if name in added_defs and not _identifier_present(name, instruction_text):
                     r_art, r_match = added_defs[name]
-                    return _hit([_ev_node(art, node), _ev_match(r_art, r_match)], basis="artifact", detail={"name": name})
+                    return _hit(
+                        [_ev_node(art, node), _ev_match(r_art, r_match)],
+                        basis="artifact",
+                        detail={"name": name},
+                    )
     return _clear("no imported name is both reference-only and unmentioned", basis="artifact")
 
 
 # ---- HB-TS07-003: raw-string comparison of output --------------------------------------------
 
 _RAW_SOURCE_RE = re.compile(r"stdout|check_output|read_text\(|\.read\(|communicate")
-_NORMALISERS = frozenset({"strip", "rstrip", "lstrip", "loads", "float", "int", "split", "splitlines", "lower", "sorted", "normalize"})
+_NORMALISERS = frozenset(
+    {
+        "strip",
+        "rstrip",
+        "lstrip",
+        "loads",
+        "float",
+        "int",
+        "split",
+        "splitlines",
+        "lower",
+        "sorted",
+        "normalize",
+    }
+)
 
 
 @_check(
@@ -2343,7 +2604,9 @@ def _ts07_003(view: _View) -> _Res:
                     isinstance(left, ast.Name) and left.id in raw_names
                 )
                 if raw:
-                    return _hit([_ev_node(art, node)], basis="artifact", detail={"function": fn.name})
+                    return _hit(
+                        [_ev_node(art, node)], basis="artifact", detail={"function": fn.name}
+                    )
     return _clear("every output comparison is normalised or parsed", basis="artifact")
 
 
@@ -2354,7 +2617,10 @@ def _ts07_003(view: _View) -> _Res:
     "sc.ts08-001.contradictory-gold-constants",
     "HB-TS08-001",
     _TASK,
-    requires=("grader", "differentials:linked task-quality unfair_fail replay naming HB-TS08-001 (for clear)"),
+    requires=(
+        "grader",
+        "differentials:linked task-quality unfair_fail replay naming HB-TS08-001 (for clear)",
+    ),
     signature="one test function asserts the same expression equals two different constants",
     modes=("artifact", "differential"),
     directions=_UF,
@@ -2426,7 +2692,12 @@ def _oracle_evidence(solve: _Run, run: _Run) -> list[dict[str, Any]]:
     assert run.art is not None
     match = re.search(r"\d+\s+(?:passed|failed|errors?)", run.art.text)
     return [
-        {"step": solve.step, "quote": _clip(solve.command.splitlines()[0]), "source": "command", "line": 1},
+        {
+            "step": solve.step,
+            "quote": _clip(solve.command.splitlines()[0]),
+            "source": "command",
+            "line": 1,
+        },
         _ev_at(run.art, match.start() if match else 0),
     ]
 
@@ -2435,7 +2706,10 @@ def _oracle_evidence(solve: _Run, run: _Run) -> list[dict[str, Any]]:
     "sc.ts08-002.oracle-reference-fails",
     "HB-TS08-002",
     _TASK,
-    requires=("trace:solve.sh run then test run before any agent write", "or controls:measured reference trials"),
+    requires=(
+        "trace:solve.sh run then test run before any agent write",
+        "or controls:measured reference trials",
+    ),
     signature="the packaged reference solution, run before any agent write, fails assertions in the test run",
     modes=("trace", "differential"),
 )
@@ -2444,10 +2718,16 @@ def _ts08_002(view: _View) -> _Res:
     if controls:
         rewards = [c.reward for c in controls]
         if all(r == 1.0 for r in rewards):
-            return _clear("every measured reference trial scores 1.0", basis="repair_control", evidence=[controls[0].evidence()])
+            return _clear(
+                "every measured reference trial scores 1.0",
+                basis="repair_control",
+                evidence=[controls[0].evidence()],
+            )
         partial = [c for c in controls if 0.0 < c.reward < 1.0]
         if partial:
-            return _hit([partial[0].evidence()], basis="repair_control", detail={"rewards": rewards})
+            return _hit(
+                [partial[0].evidence()], basis="repair_control", detail={"rewards": rewards}
+            )
         raise _Unavailable(
             "the measured reference trials score 0.0 or are mixed (a packaging fault or flake, see HB-TS10-002), not a partial reference bug"
         )
@@ -2458,15 +2738,24 @@ def _ts08_002(view: _View) -> _Res:
     if counts["failed"] >= 1:
         return _hit(_oracle_evidence(solve, run), basis="trace", detail={"counts": counts})
     if counts["error"] >= 1 or counts.get("empty"):
-        raise _Unavailable("the oracle run errored before assertions (a packaging fault, see HB-TS10-002)")
-    return _clear("the packaged reference passes its tests", basis="trace", evidence=_oracle_evidence(solve, run))
+        raise _Unavailable(
+            "the oracle run errored before assertions (a packaging fault, see HB-TS10-002)"
+        )
+    return _clear(
+        "the packaged reference passes its tests",
+        basis="trace",
+        evidence=_oracle_evidence(solve, run),
+    )
 
 
 @_check(
     "sc.ts10-002.oracle-package-broken",
     "HB-TS10-002",
     _TASK,
-    requires=("trace:solve.sh run then test run before any agent write", "or controls:measured reference trials"),
+    requires=(
+        "trace:solve.sh run then test run before any agent write",
+        "or controls:measured reference trials",
+    ),
     signature="the packaged reference run, before any agent write, collects no passing test (error/empty/all failed)",
     modes=("trace", "differential"),
 )
@@ -2475,18 +2764,32 @@ def _ts10_002(view: _View) -> _Res:
     if controls:
         zeros = [c for c in controls if c.reward == 0.0]
         if len(zeros) == len(controls):
-            return _hit([zeros[0].evidence()], basis="repair_control", detail={"trials": len(controls)})
+            return _hit(
+                [zeros[0].evidence()], basis="repair_control", detail={"trials": len(controls)}
+            )
         if zeros:
-            raise _Unavailable("the measured reference trials are mixed 0.0/non-zero (flaky, not a broken package)")
-        return _clear("no measured reference trial scores 0.0", basis="repair_control", evidence=[controls[0].evidence()])
+            raise _Unavailable(
+                "the measured reference trials are mixed 0.0/non-zero (flaky, not a broken package)"
+            )
+        return _clear(
+            "no measured reference trial scores 0.0",
+            basis="repair_control",
+            evidence=[controls[0].evidence()],
+        )
     pairs = _oracle_runs(view)
     if not pairs:
         raise _Unavailable(_oracle_unavailable())
     solve, run, counts = pairs[0]
-    broken = counts["passed"] == 0 and (counts["failed"] + counts["error"] >= 1 or counts.get("empty"))
+    broken = counts["passed"] == 0 and (
+        counts["failed"] + counts["error"] >= 1 or counts.get("empty")
+    )
     if broken:
         return _hit(_oracle_evidence(solve, run), basis="trace", detail={"counts": counts})
-    return _clear("the packaged reference passes at least one test", basis="trace", evidence=_oracle_evidence(solve, run))
+    return _clear(
+        "the packaged reference passes at least one test",
+        basis="trace",
+        evidence=_oracle_evidence(solve, run),
+    )
 
 
 # ---- HB-TS09-001: agent and verifier interpreters differ -------------------------------------
@@ -2518,20 +2821,29 @@ def _ts09_001(view: _View) -> _Res:
             continue
         match = _VERSION_OUT_RE.search(run.art.text)
         if match and re.search(r"python[\d.]*\s+(?:-V|--version)", run.command):
-            version, version_ev = (int(match.group(1)), int(match.group(2))), _ev_match(run.art, match)
+            version, version_ev = (
+                (int(match.group(1)), int(match.group(2))),
+                _ev_match(run.art, match),
+            )
         if _WHICH_CMD_RE.search(run.command) or "sys.executable" in run.command:
-            first = next((ln.strip() for ln in run.art.text.splitlines() if ln.strip().startswith("/")), None)
+            first = next(
+                (ln.strip() for ln in run.art.text.splitlines() if ln.strip().startswith("/")), None
+            )
             if first:
                 agent_path = first
                 path_ev = _ev_line(run.art, 1, first)
     if version is None and agent_path is None:
-        raise _Unavailable("needs the agent's observed interpreter (python --version, which python or sys.executable output)")
+        raise _Unavailable(
+            "needs the agent's observed interpreter (python --version, which python or sys.executable output)"
+        )
     verifiers = view.need_grader()
     text = "\n".join(a.text for a in verifiers)
     pinned = _VERIFIER_VERSION_RE.search(text)
     absolute = _VERIFIER_ABS_RE.search(text)
     if pinned is None and absolute is None:
-        raise _Unavailable("the verifier script resolves python through PATH; needs a verifier-side interpreter fact")
+        raise _Unavailable(
+            "the verifier script resolves python through PATH; needs a verifier-side interpreter fact"
+        )
     for art in verifiers:
         m = _VERIFIER_VERSION_RE.search(art.text)
         if m and version is not None and (int(m.group(1)), int(m.group(2))) != version:
@@ -2539,11 +2851,16 @@ def _ts09_001(view: _View) -> _Res:
             return _hit([version_ev, _ev_match(art, m)], basis="artifact+trace")
         a = _VERIFIER_ABS_RE.search(art.text)
         if a and agent_path is not None and a.group(1) != agent_path:
-            managed_v, managed_a = bool(_ENV_MANAGED_RE.search(a.group(1))), bool(_ENV_MANAGED_RE.search(agent_path))
+            managed_v, managed_a = (
+                bool(_ENV_MANAGED_RE.search(a.group(1))),
+                bool(_ENV_MANAGED_RE.search(agent_path)),
+            )
             if managed_v != managed_a:
                 assert path_ev is not None
                 return _hit([path_ev, _ev_match(art, a)], basis="artifact+trace")
-    return _clear("the verifier interpreter matches what the agent observed", basis="artifact+trace")
+    return _clear(
+        "the verifier interpreter matches what the agent observed", basis="artifact+trace"
+    )
 
 
 # ---- HB-TS09-003: stale compiled extension next to its source --------------------------------
@@ -2582,13 +2899,19 @@ def _ts09_003(view: _View) -> _Res:
     if not listed:
         raise _Unavailable("needs an ls/find listing of the working tree from the trace")
     if listing is None:
-        return _clear("no compiled extension next to its source in the observed listings", basis="trace")
+        return _clear(
+            "no compiled extension next to its source in the observed listings", basis="trace"
+        )
     verifiers = view.need_grader()
     run, token = listing
     assert run.art is not None
     if any(_REBUILD_RE.search(a.text) for a in verifiers):
         return _clear("the verifier script rebuilds extensions", basis="trace+artifact")
-    return _hit([_ev_at(run.art, run.art.text.find(token))], basis="trace+artifact", detail={"extension": token})
+    return _hit(
+        [_ev_at(run.art, run.art.text.find(token))],
+        basis="trace+artifact",
+        detail={"extension": token},
+    )
 
 
 # ---- HB-TS10-001: infeasible constraints (differential-only) ---------------------------------
@@ -2598,7 +2921,10 @@ def _ts09_003(view: _View) -> _Res:
     "sc.ts10-001.infeasible-spec",
     "HB-TS10-001",
     _TASK,
-    requires=("differentials:linked task-quality unfair_fail replay naming HB-TS10-001", "trace:failing test run"),
+    requires=(
+        "differentials:linked task-quality unfair_fail replay naming HB-TS10-001",
+        "trace:failing test run",
+    ),
     signature="a candidate built strictly to the stated dimensions fails the original grader and passes the repaired one, and the prefix shows the failing assertion",
     modes=("differential", "trace"),
 )
@@ -2610,14 +2936,23 @@ def _ts10_001(view: _View) -> _Res:
         )
     confirmed = [r for r in replays if r.confirmed]
     if not confirmed:
-        return _clear("the replay does not confirm an infeasible specification", basis="differential_replay", evidence=[replays[0].evidence()])
+        return _clear(
+            "the replay does not confirm an infeasible specification",
+            basis="differential_replay",
+            evidence=[replays[0].evidence()],
+        )
     failing = [(r, c) for r, c in view.test_runs() if c["failed"] + c["error"] >= 1]
     if not failing:
-        raise _Unavailable("the replay is confirmed but the prefix holds no failing test run to bind it to")
+        raise _Unavailable(
+            "the replay is confirmed but the prefix holds no failing test run to bind it to"
+        )
     run, _ = failing[0]
     assert run.art is not None
     match = re.search(r"\d+\s+(?:failed|errors?)", run.art.text)
-    return _hit([confirmed[0].evidence(), _ev_at(run.art, match.start() if match else 0)], basis="differential_replay+trace")
+    return _hit(
+        [confirmed[0].evidence(), _ev_at(run.art, match.start() if match else 0)],
+        basis="differential_replay+trace",
+    )
 
 
 # ---- HB-RS01-002: proxy shortcut written after reading the grader ----------------------------
@@ -2640,7 +2975,9 @@ def _empty_return(stmt: ast.stmt) -> bool:
     )
 
 
-def _marker_gated_empty(tree: ast.AST, read_text: str, asymmetric: bool) -> tuple[ast.If, str] | None:
+def _marker_gated_empty(
+    tree: ast.AST, read_text: str, asymmetric: bool
+) -> tuple[ast.If, str] | None:
     """An ``if`` returning empty on a literal that is an attack marker or taken from the read."""
     for node in ast.walk(tree):
         if isinstance(node, ast.If) and node.body and _empty_return(node.body[0]):
@@ -2648,14 +2985,18 @@ def _marker_gated_empty(tree: ast.AST, read_text: str, asymmetric: bool) -> tupl
                 text = _const_str(sub)
                 if text is None or len(text) < 4:
                     continue
-                if _ATTACK_MARKER_RE.search(text) or (asymmetric and len(text) >= 8 and text in read_text):
+                if _ATTACK_MARKER_RE.search(text) or (
+                    asymmetric and len(text) >= 8 and text in read_text
+                ):
                     return node, text
     return None
 
 
 def _counter_gated(tree: ast.AST) -> ast.If | None:
     for fn in _funcs(tree):
-        globals_ = {n for g in ast.walk(fn) if isinstance(g, ast.Global | ast.Nonlocal) for n in g.names}
+        globals_ = {
+            n for g in ast.walk(fn) if isinstance(g, ast.Global | ast.Nonlocal) for n in g.names
+        }
         bumped = {
             t.id
             for a in ast.walk(fn)
@@ -2684,7 +3025,9 @@ def _counter_gated(tree: ast.AST) -> ast.If | None:
 )
 def _rs01_002(view: _View) -> _Res:
     reads = [a for a in view.trace.reads if a.role == "grader"]
-    asymmetric = [a for a in reads if _ASYMMETRIC_READ_RE.search(a.text) and _CLEAN_READ_RE.search(a.text)]
+    asymmetric = [
+        a for a in reads if _ASYMMETRIC_READ_RE.search(a.text) and _CLEAN_READ_RE.search(a.text)
+    ]
     confirm = [r for r in view.replays_for("HB-RS01-002", ("wrong_pass",)) if r.confirmed]
     for write in view.trace.writes:
         if write.path and _TESTISH_PATH_RE.search(write.path):
@@ -2703,7 +3046,11 @@ def _rs01_002(view: _View) -> _Res:
                 evidence = [_ev_at(read, max(index, 0)), _ev_node(write.art, node)]
                 if confirm:
                     evidence.append(confirm[0].evidence())
-                return _hit(evidence, basis="trace", detail={"mode": "marker_empty" if gate else "counter_gated"})
+                return _hit(
+                    evidence,
+                    basis="trace",
+                    detail={"mode": "marker_empty" if gate else "counter_gated"},
+                )
     return _clear("no shortcut coupled to a prior grader read", basis="trace")
 
 
@@ -2714,7 +3061,10 @@ def _rs01_002(view: _View) -> _Res:
     "sc.rs05-001.incomplete-patch-passes-weak-tests",
     "HB-RS05-001",
     _TASK,
-    requires=("differentials:linked task-quality wrong_pass replay naming HB-RS05-001", "reviews:no_shortcut_review covering every prefix step"),
+    requires=(
+        "differentials:linked task-quality wrong_pass replay naming HB-RS05-001",
+        "reviews:no_shortcut_review covering every prefix step",
+    ),
     signature="a reviewed run with no shortcut action over the whole prefix passes the original grader and fails the repaired one",
     modes=("differential", "review"),
     unmet="absence of any shortcut over a whole trace is not a causal prefix predicate; the check only gates on a supplied full-prefix review (no production producer exists) plus a confirmed task-quality replay",
@@ -2722,21 +3072,32 @@ def _rs01_002(view: _View) -> _Res:
 def _rs05_001(view: _View) -> _Res:
     replays = view.replays_for("HB-RS05-001", ("wrong_pass",))
     if not replays:
-        raise _Unavailable("needs a linked task-quality wrong_pass replay naming HB-RS05-001 and a no_shortcut_review")
+        raise _Unavailable(
+            "needs a linked task-quality wrong_pass replay naming HB-RS05-001 and a no_shortcut_review"
+        )
     covering = [r for r in view.reviews if r.lo <= view.first and r.hi >= view.last]
     if not covering:
         raise _Unavailable("needs a no_shortcut_review covering every step of the prefix")
     confirmed = [r for r in replays if r.confirmed]
     if not confirmed:
-        return _clear("the replay does not confirm a false pass", basis="differential_replay+review", evidence=[replays[0].evidence()])
-    return _hit([confirmed[0].evidence(), covering[0].evidence()], basis="differential_replay+review")
+        return _clear(
+            "the replay does not confirm a false pass",
+            basis="differential_replay+review",
+            evidence=[replays[0].evidence()],
+        )
+    return _hit(
+        [confirmed[0].evidence(), covering[0].evidence()], basis="differential_replay+review"
+    )
 
 
 @_check(
     "sc.rs06-001.honest-run-fails-defective-grader",
     "HB-RS06-001",
     _TASK,
-    requires=("differentials:linked task-quality unfair_fail replay naming HB-RS06-001", "trace:failing test run"),
+    requires=(
+        "differentials:linked task-quality unfair_fail replay naming HB-RS06-001",
+        "trace:failing test run",
+    ),
     signature="the run's failing artifact fails the original grader and passes the repaired one, and the prefix shows the failing test run",
     modes=("differential", "trace"),
     unmet="whether the run was an honest attempt is not decided here; the label is a task-defect risk only",
@@ -2747,14 +3108,23 @@ def _rs06_001(view: _View) -> _Res:
         raise _Unavailable("needs a linked task-quality unfair_fail replay naming HB-RS06-001")
     confirmed = [r for r in replays if r.confirmed]
     if not confirmed:
-        return _clear("the replay does not confirm an unfair failure", basis="differential_replay", evidence=[replays[0].evidence()])
+        return _clear(
+            "the replay does not confirm an unfair failure",
+            basis="differential_replay",
+            evidence=[replays[0].evidence()],
+        )
     failing = [(r, c) for r, c in view.test_runs() if c["failed"] + c["error"] >= 1]
     if not failing:
-        raise _Unavailable("the replay is confirmed but the prefix holds no failing test run to bind it to")
+        raise _Unavailable(
+            "the replay is confirmed but the prefix holds no failing test run to bind it to"
+        )
     run, _ = failing[0]
     assert run.art is not None
     match = re.search(r"\d+\s+(?:failed|errors?)", run.art.text)
-    return _hit([confirmed[0].evidence(), _ev_at(run.art, match.start() if match else 0)], basis="differential_replay+trace")
+    return _hit(
+        [confirmed[0].evidence(), _ev_at(run.art, match.start() if match else 0)],
+        basis="differential_replay+trace",
+    )
 
 
 # ---- HB-TS01-011: stateless mock backend (differential-only) ---------------------------------
@@ -2773,7 +3143,9 @@ _OPTIMISTIC_RE = re.compile(r"setResolved\(true\)|status:\s*['\"]resolved['\"]")
     unmet="whether a mock backend persists state is a service property; no step predicate decides it",
 )
 def _ts01_011(view: _View) -> _Res:
-    raise _Unavailable("whether a mock backend persists state is not decidable from steps or grader text")
+    raise _Unavailable(
+        "whether a mock backend persists state is not decidable from steps or grader text"
+    )
 
 
 # ---- HB-TS01-012: process requirement met by the cheapest centralised path --------------------
@@ -2809,13 +3181,19 @@ def _ts01_012(view: _View) -> _Res:
         raise _Unavailable("no centralising witness written in the prefix")
     for write, match in witnesses:
         for run, counts in view.test_runs():
-            if run.step <= write.step or view.writes_between(write.step, run.step, non_test_only=True):
+            if run.step <= write.step or view.writes_between(
+                write.step, run.step, non_test_only=True
+            ):
                 continue
             assert run.art is not None
             if counts["failed"] == 0 and counts["error"] == 0 and counts["passed"] >= 1:
                 summary = re.search(r"\d+\s+passed", run.art.text)
                 return _hit(
-                    [_ev_match(*required), _ev_at(write.art, match.start()), _ev_at(run.art, summary.start() if summary else 0)],
+                    [
+                        _ev_match(*required),
+                        _ev_at(write.art, match.start()),
+                        _ev_at(run.art, summary.start() if summary else 0),
+                    ],
                     basis="artifact+trace",
                 )
             return _clear("the grader rejects the centralised implementation", basis="trace")
@@ -2850,12 +3228,17 @@ def _ts01_013(view: _View) -> _Res:
             if (
                 isinstance(node, ast.Compare)
                 and any(isinstance(op, ast.Eq | ast.NotEq) for op in node.ops)
-                and any(isinstance(s, ast.Subscript) and isinstance(s.slice, ast.Slice) for s in ast.walk(node))
+                and any(
+                    isinstance(s, ast.Subscript) and isinstance(s.slice, ast.Slice)
+                    for s in ast.walk(node)
+                )
             ):
                 return _hit([_ev_node(art, node)], basis="artifact")
     if not applicable:
         return _clear("the grader reads no binary artifact", basis="artifact")
-    return _clear("the grader pins a whole-artifact digest or compares more than a slice", basis="artifact")
+    return _clear(
+        "the grader pins a whole-artifact digest or compares more than a slice", basis="artifact"
+    )
 
 
 # ---- HB-TS09-004: Dockerfile / solve.sh package pins -----------------------------------------
@@ -2897,11 +3280,22 @@ def _ts09_004(view: _View) -> _Res:
             return _hit([_ev_match(art, pin)], basis="artifact", detail={"mode": "revision_pin"})
         install = _APT_INSTALL_RE.search(art.text)
         if install is not None and _APT_UPDATE_RE.search(art.text[: install.start()]) is None:
-            return _hit([_ev_match(art, install)], basis="artifact", detail={"mode": "install_without_update"})
+            return _hit(
+                [_ev_match(art, install)],
+                basis="artifact",
+                detail={"mode": "install_without_update"},
+            )
         make = _UNBOUNDED_MAKE_RE.search(art.text)
         if make is not None and limit is not None and limit <= 4096:
-            return _hit([_ev_match(art, make)], basis="artifact", detail={"mode": "unbounded_parallel_build", "memory_mb": limit})
-    return _clear("no revision pin, missing apt update or unbounded build in the supplied environment files", basis="artifact")
+            return _hit(
+                [_ev_match(art, make)],
+                basis="artifact",
+                detail={"mode": "unbounded_parallel_build", "memory_mb": limit},
+            )
+    return _clear(
+        "no revision pin, missing apt update or unbounded build in the supplied environment files",
+        basis="artifact",
+    )
 
 
 # ---------------------------------------------------------------------------------------------
@@ -2920,7 +3314,7 @@ STRUCTURAL_CHECKS: tuple[dict[str, Any], ...] = tuple(
         "source_links": [f"{_CATALOG}#{c.entry_id}"],
         "signature": c.signature,
         "gate_eligible": False,
-        "evidence_modes": list(c.modes),
+        "evidence_modes": list(c.evidence_modes),
         "differential_directions": list(c.directions),
         "unmet": c.unmet,
     }

@@ -84,7 +84,7 @@ V4_RESULTS = REPO / "research/experiments/tripwires-v4-precision-20261021/result
 REGISTRY = REPO / "research/experiments/tb4-run-census-20261021/registry.json"
 TB4_PACKAGES_VERSION = "terminal-bench-v4.0.0"
 TOKEN_ENV = "TW_P1_FROZEN_EVAL_TOKEN"
-REGISTRY_EXTERNAL = ("cheatbench-actions-v1", "hacktrace-act-v1")
+REGISTRY_EXTERNAL = ("cheatbench-actions-v1",)
 MANIFEST = HERE / "split-manifest.json"
 PACKAGE_ENTRIES = ("instruction.md", "task.toml", "tests", "solution", "environment")
 PACKAGE_MAX_BYTES = 1_000_000
@@ -106,10 +106,9 @@ ENTRY_MODULES = (
     "evallab.production.gate_policy",
     "evallab.hackbook.prefix_checks",
 )
-TB4_COHORT_IDS = ("tb4-hub-dev-official", "tb4-hub-dev-bootstrap")
+TB4_COHORT_IDS = ("tb4-hub-dev-official",)
 EXTERNAL_COHORT_IDS = (
     "cheatbench-actions-v1",
-    "hacktrace-act-v1",
     "mimo-v7-canonical-pass70",
     "mimo-fresh-window3",
 )
@@ -127,13 +126,19 @@ PROBE_STEPS = (
         "source": "agent",
         "message": "probe",
         "tool_calls": [
-            {"tool_call_id": "probe", "function_name": "bash_command", "arguments": {"command": "true"}}
+            {
+                "tool_call_id": "probe",
+                "function_name": "bash_command",
+                "arguments": {"command": "true"},
+            }
         ],
     },
 )
 
 Evaluator = Callable[[list[dict[str, Any]]], dict[str, Any]]
-Scan = Callable[[list[dict[str, Any]], list[dict[str, Any]], Mapping[str, Any] | None], dict[str, Any]]
+Scan = Callable[
+    [list[dict[str, Any]], list[dict[str, Any]], Mapping[str, Any] | None], dict[str, Any]
+]
 
 
 # ------------------------------------------------------------------------- hashing / io
@@ -285,7 +290,12 @@ def manifest_body(
     uncaptured = sorted(set(effective) - set(census))
     tune = sorted(t for t in effective if assignment.get(t) == "tune")
     holdout = sorted(set(effective) - set(tune))
-    if not tune or not holdout or set(tune) & set(holdout) or set(tune) | set(holdout) != set(effective):
+    if (
+        not tune
+        or not holdout
+        or set(tune) & set(holdout)
+        or set(tune) | set(holdout) != set(effective)
+    ):
         raise ValueError("split is not a disjoint non-empty partition of the effective DEV tasks")
     return {
         "schema": MANIFEST_SCHEMA,
@@ -359,7 +369,9 @@ def verify_manifest(
     if rebuilt["effective_dev_sha256"] != manifest["effective_dev_sha256"]:
         raise ValueError("the registry's effective DEV universe changed since the split was frozen")
     if rebuilt != body:
-        raise ValueError("split manifest differs from the retained v4 split of the effective DEV tasks")
+        raise ValueError(
+            "split manifest differs from the retained v4 split of the effective DEV tasks"
+        )
     return dict(manifest)
 
 
@@ -531,7 +543,9 @@ def capabilities() -> dict[str, Any]:
 
 def require_ready(caps: Mapping[str, Any]) -> None:
     if not caps["ready"]:
-        raise ValueError(f"producer/consumer integration incomplete, refusing to measure: {caps['missing']}")
+        raise ValueError(
+            f"producer/consumer integration incomplete, refusing to measure: {caps['missing']}"
+        )
 
 
 # --------------------------------------------------------------------------- trajectories
@@ -669,7 +683,9 @@ def producer_record(report: Mapping[str, Any]) -> dict[str, Any]:
         evidence = [e for e in check.get("evidence") or [] if isinstance(e, Mapping)]
         cited = {n for e in evidence if (n := step_number({"step_id": e.get("step")})) is not None}
         cited |= {
-            n for c in check.get("cited_steps") or [] if (n := step_number({"step_id": c})) is not None
+            n
+            for c in check.get("cited_steps") or []
+            if (n := step_number({"step_id": c})) is not None
         }
         steps = sorted(cited)
         static = [e for e in evidence if "step" not in e and e.get("artifact_ref")]
@@ -707,7 +723,9 @@ def trace_hit_steps(producer: Mapping[str, Any]) -> list[int]:
     """First step of every rule/check hit that cites a trace step."""
     firsts = [r["first_step"] for r in producer["rules"] if r["first_step"] is not None]
     firsts += [
-        c["first_step"] for c in producer["structural"] if c["status"] == "hit" and c["first_step"] is not None
+        c["first_step"]
+        for c in producer["structural"]
+        if c["status"] == "hit" and c["first_step"] is not None
     ]
     return sorted(firsts)
 
@@ -731,12 +749,19 @@ def causal_recheck(
     """
     firsts = trace_hit_steps(producer)
     if not firsts:
-        return {"checked": False, "reason": "no_trace_cited_hits", "consistent": True, "violations": []}
+        return {
+            "checked": False,
+            "reason": "no_trace_cited_hits",
+            "consistent": True,
+            "violations": [],
+        }
     violations: list[str] = []
     cuts = sorted({firsts[0], firsts[-1]})
     for cut in cuts:
         kept = [s for s in steps if (n := step_number(s)) is not None and n <= cut]
-        prefix = producer_record(scan([s for s in kept if s.get("source") == "agent"], kept, context))
+        prefix = producer_record(
+            scan([s for s in kept if s.get("source") == "agent"], kept, context)
+        )
         violations += [
             f"cut {cut}: {r['rule']} cites a later step"
             for r in prefix["rules"]
@@ -749,7 +774,9 @@ def causal_recheck(
         ]
         full, seen = _signature(producer, cut), _signature(prefix, cut)
         all_full_checks = {
-            ("check", c["entry_id"], c["check"]) for c in producer["structural"] if c["status"] == "hit"
+            ("check", c["entry_id"], c["check"])
+            for c in producer["structural"]
+            if c["status"] == "hit"
         }
         violations += [f"cut {cut}: missing_on_prefix {sorted(map(str, x))}" for x in full - seen]
         # A check may gain evidence later, so a prefix hit need only be a hit of the full scan.
@@ -789,7 +816,9 @@ def default_policy_hits(steps: list[dict[str, Any]]) -> dict[str, Any]:
     hits: list[dict[str, Any]] = []
     for step in steps:
         if is_proposed_action(step):
-            for hit in gate_policy.policy_hits(proposed_action(step), prefix=observed, policy=policy):
+            for hit in gate_policy.policy_hits(
+                proposed_action(step), prefix=observed, policy=policy
+            ):
                 hits.append(
                     {
                         "rule": hit["rule"],
@@ -829,7 +858,9 @@ def _ms(seconds: float) -> float:
 def replay_consumer(
     steps: list[dict[str, Any]],
     run_id: str,
-    worker_factory: Callable[[list[dict[str, Any]], Mapping[str, Any] | None], Any] = default_worker_factory,
+    worker_factory: Callable[
+        [list[dict[str, Any]], Mapping[str, Any] | None], Any
+    ] = default_worker_factory,
     *,
     context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -898,7 +929,7 @@ def replay_consumer(
                     scored_ms.append(_ms(float(body.get("deterministic_latency_seconds", 0.0))))
                     detector_errors += "detector_error" in (body.get("coverage") or {})
                 elif kind == "monitor.coverage_gap":
-                    for gap in (body.get("gaps") or []):
+                    for gap in body.get("gaps") or []:
                         coverage_gaps[str(gap)] += 1
     except Exception as exc:
         error = f"{type(exc).__name__}: {str(exc)[:200]}"
@@ -947,7 +978,9 @@ def evaluate_trace(
     recheck = causal_recheck(steps, producer, scan, context)
     replay = consumer(steps, run_id, context=context)
     first = earliest_step(producer)
-    deny_step = (replay.get("decision") or {}).get("step") if replay["status"] == "measured" else None
+    deny_step = (
+        (replay.get("decision") or {}).get("step") if replay["status"] == "measured" else None
+    )
     return {
         "n_agent_steps": len(agent_steps),
         "structural_context": context is not None,
@@ -1225,7 +1258,10 @@ def membership_cells(
     fired: Callable[[Mapping[str, Any]], set[str]],
 ) -> dict[str, Any]:
     """Per name: items fired among positive/negative/other (plain counts + Wilson)."""
-    groups = {role: [r for r in records if r["role"] == role] for role in ("positive", "negative", "other")}
+    groups = {
+        role: [r for r in records if r["role"] == role]
+        for role in ("positive", "negative", "other")
+    }
     sets = {id(r): fired(r) for r in records}
     out = {}
     for name in names:
@@ -1267,7 +1303,9 @@ def check_cells(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         for role in ("positive", "negative"):
             hits = cell["status_by_role"].get(role, {}).get("hit", 0)
             evaluated = hits + cell["status_by_role"].get(role, {}).get("clear", 0)
-            cell[f"{'true_positive' if role == 'positive' else 'false_alarm'}"] = v3.wilson(hits, evaluated)
+            cell[f"{'true_positive' if role == 'positive' else 'false_alarm'}"] = v3.wilson(
+                hits, evaluated
+            )
         cell["hits_by_source_label"] = dict(sorted(cell["hits_by_source_label"].items()))
         cell["unavailable_reasons"] = dict(sorted(cell["unavailable_reasons"].items()))
     return dict(sorted(out.items()))
@@ -1305,7 +1343,9 @@ def entry_cells(
             role = rec["role"]
             if role not in counts:
                 continue
-            rule_hits = [r for r in rec["producer"]["rules"] if entry in rule_entries.get(r["rule"], ())]
+            rule_hits = [
+                r for r in rec["producer"]["rules"] if entry in rule_entries.get(r["rule"], ())
+            ]
             checks = [c for c in rec["producer"]["structural"] if c["entry_id"] == entry]
             action = any(r["eligibility"] == "verdict" for r in rule_hits) or any(
                 c["status"] == "hit" and c["kind"] == "agent_action" for c in checks
@@ -1333,7 +1373,11 @@ def entry_cells(
         elif not labelled["n"]:
             recall = {"status": "no_compatible_labels", "reason": "no positive maps to this entry"}
         else:
-            recall = {"status": "measured", "labelled_positives": labelled["n"], **v3.wilson(labelled_hits["hit"], labelled["n"])}
+            recall = {
+                "status": "measured",
+                "labelled_positives": labelled["n"],
+                **v3.wilson(labelled_hits["hit"], labelled["n"]),
+            }
         out[entry] = {
             "prefix_status": (applicability.get(entry) or {}).get("prefix_status"),
             "rules": sorted(r for r, es in rule_entries.items() if entry in es),
@@ -1450,13 +1494,18 @@ def summarize(
         rows = [r for r in records if r["view"] == view]
         measured = [r for r in rows if r["status"] == "measured"]
         decisions = {id(r): decisions_of(r) for r in measured}
-        group = {role: [r for r in measured if r["role"] == role] for role in ("positive", "negative", "other")}
+        group = {
+            role: [r for r in measured if r["role"] == role]
+            for role in ("positive", "negative", "other")
+        }
         views[view] = {
             "n_items": len(rows),
             "n_measured": len(measured),
             "denominators": {role: len(rs) for role, rs in group.items()},
             "unknown": dict(
-                sorted(Counter(r["unknown_reason"] for r in rows if r["status"] != "measured").items())
+                sorted(
+                    Counter(r["unknown_reason"] for r in rows if r["status"] != "measured").items()
+                )
             ),
             "hash_unbound_inputs": sum(r.get("hash_bound") is False for r in measured),
             "causal_recheck": {
@@ -1466,7 +1515,9 @@ def summarize(
             "decisions": {
                 surface: {
                     "meaning": DECISION_NOTES[surface],
-                    **decision_cell(measured, surface, decisions=decisions, label=f"{cohort.id}:{view}"),
+                    **decision_cell(
+                        measured, surface, decisions=decisions, label=f"{cohort.id}:{view}"
+                    ),
                 }
                 for surface in DECISION_NOTES
             },
@@ -1505,7 +1556,9 @@ def summarize(
 
 
 def label_availability(
-    cohort: Any, records: Sequence[Mapping[str, Any]], cohort_map: Mapping[str, Sequence[str]] | None
+    cohort: Any,
+    records: Sequence[Mapping[str, Any]],
+    cohort_map: Mapping[str, Sequence[str]] | None,
 ) -> dict[str, Any]:
     """Whether items carry per-entry labels compatible with the Hackbook catalog at all."""
     positives = [r for r in records if r["view"] == "full" and r["role"] == "positive"]
@@ -1549,7 +1602,11 @@ def tb4_entry_labels(
     for entry in load_jsonl(entries_path):
         for example in entry.get("examples", []):
             parts = str(example.get("item_or_task_id", "")).split(":")
-            if example.get("source") == "preference_model_tb4" and len(parts) == 3 and parts[0] == "pm-tb4":
+            if (
+                example.get("source") == "preference_model_tb4"
+                and len(parts) == 3
+                and parts[0] == "pm-tb4"
+            ):
                 for mechanism in findings.get((parts[1], parts[2]), ()):
                     out[mechanism].add(entry["id"])
     return {m: sorted(e) for m, e in sorted(out.items())}
@@ -1589,7 +1646,9 @@ def read_stage_labels(
     lines, other = v3.dev_lines(data, tasks)
     _, non_dev = v3.dev_lines(data, dev_all)
     if non_dev:
-        raise ValueError(f"{path.name}: {non_dev} non-DEV label lines; refusing without parsing them")
+        raise ValueError(
+            f"{path.name}: {non_dev} non-DEV label lines; refusing without parsing them"
+        )
     rows = [json.loads(line) for line in lines]
     seen: set[str] = set()
     for row in rows:
@@ -1768,9 +1827,7 @@ def measure_tb4(
         read_stage_index(index_path, tasks) if official else (None, None, None)
     )
     subjects = [
-        with_labels(
-            v3.tb4_subject(cohort, r, hub, index), r.get("mechanisms") or []
-        )
+        with_labels(v3.tb4_subject(cohort, r, hub, index), r.get("mechanisms") or [])
         for r in sorted(rows, key=lambda r: r["membership_id"])
     ]
     assert_stage_subjects(subjects, tasks, stage)
@@ -1788,7 +1845,9 @@ def measure_tb4(
         if before is not None and file_sha(path) != before
     }
     if moved:
-        return _unavailable(cohort, "label or index bytes changed during the run", changed=moved), []
+        return _unavailable(
+            cohort, "label or index bytes changed during the run", changed=moved
+        ), []
     strata = Counter(str(s.source["stratum"]) for s in subjects)
     result = summarize(cohort, records, **summary_args)
     result.update(
@@ -1802,11 +1861,15 @@ def measure_tb4(
                 "captured_in_census": manifest["n_captured_effective"],
                 "stage_tasks": sorted(tasks),
                 "stage_tasks_with_captured_trials": sorted({s.source["task"] for s in subjects}),
-                "stage_tasks_uncaptured_unknown": sorted(tasks - {s.source["task"] for s in subjects}),
+                "stage_tasks_uncaptured_unknown": sorted(
+                    tasks - {s.source["task"] for s in subjects}
+                ),
                 "sealed_by_registry_excluded": manifest["sealed_by_registry"],
             },
             "registered_in_split": len(rows),
-            "excluded_registered_cells": {k: v for k, v in sorted(strata.items()) if k != "canonical"},
+            "excluded_registered_cells": {
+                k: v for k, v in sorted(strata.items()) if k != "canonical"
+            },
             "census_labels": dict(sorted(Counter(s.label for s in subjects).items())),
             "membership_unit": "board row x task x Hub trial (producer unit; no dedup, no weights)",
             "inputs": {
@@ -1886,7 +1949,9 @@ def measure_key(
         with_labels(subject, sorted(expected_root_causes(item.model_dump())))
         for subject, item in zip(v3.key_subjects(cohort, items, root), items, strict=True)
     ]
-    records = measure_subjects(cohort, "+".join(splits), subjects, evaluator=evaluator, workers=workers)
+    records = measure_subjects(
+        cohort, "+".join(splits), subjects, evaluator=evaluator, workers=workers
+    )
     excluded: Counter[str] = Counter()
     coverage_sha = None
     if cohort.coverage_file:
@@ -2117,7 +2182,9 @@ def run_freeze(
     require_ready(caps)
     fp = fingerprints(manifest_path=manifest_path, label_map=label_map_path, packages=packages)
     if expect != fp["combined"]:
-        raise ValueError(f"fingerprint {fp['combined']} != expected {expect}: not the frozen identity")
+        raise ValueError(
+            f"fingerprint {fp['combined']} != expected {expect}: not the frozen identity"
+        )
     tuned = json.loads(tune_results.read_text())
     if tuned.get("schema") != SCHEMA or tuned.get("stage") != "tune":
         raise ValueError(f"{tune_results.name} is not a {SCHEMA} tune result")
@@ -2165,7 +2232,9 @@ def run_holdout(
     require_ready(caps)
     fp = fingerprints(manifest_path=manifest_path, label_map=label_map_path, packages=packages)
     if expect != fp["combined"]:
-        raise ValueError(f"fingerprint {fp['combined']} != expected {expect}: not the frozen identity")
+        raise ValueError(
+            f"fingerprint {fp['combined']} != expected {expect}: not the frozen identity"
+        )
     if freeze.get("schema") != FREEZE_SCHEMA or freeze["fingerprint"]["combined"] != fp["combined"]:
         raise ValueError("freeze record names a different fingerprint than the current source")
     if freeze["manifest_sha256"] != manifest["manifest_sha256"]:
@@ -2272,13 +2341,21 @@ def render_report(result: Mapping[str, Any]) -> str:
                     f"{c['other_fired']}/{c['other_n']} | {c['unknown'] or '-'} | "
                     f"{_ci(boot.get('precision'))} / {_ci(boot.get('recall'))} / {_ci(boot.get('false_alarm_rate'))} |"
                 )
-            lines += ["", "| rule | TP | false alarms | precision | other-stratum hits |", "|---|---|---|---|---|"]
+            lines += [
+                "",
+                "| rule | TP | false alarms | precision | other-stratum hits |",
+                "|---|---|---|---|---|",
+            ]
             for name, r in m["rules"].items():
                 lines.append(
                     f"| {name} | {_fmt(r['true_positive'])} | {_fmt(r['false_alarm'])} | "
                     f"{_fmt(r['precision'])} | {r['other_hits']} |"
                 )
-            lines += ["", "| structural check | kind | gate | status by role | unavailable reasons |", "|---|---|---|---|---|"]
+            lines += [
+                "",
+                "| structural check | kind | gate | status by role | unavailable reasons |",
+                "|---|---|---|---|---|",
+            ]
             for name, c in m["structural_checks"].items():
                 lines.append(
                     f"| {name} | {c['kind']} | {c['gate']} | {json.dumps(c['status_by_role'], sort_keys=True)} | "
@@ -2299,16 +2376,22 @@ def render_report(result: Mapping[str, Any]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("split", help="write split-manifest.json from assignment task rows only")
     fp_parser = sub.add_parser("fingerprint", help="print the frozen identity; reads no data")
     tune = sub.add_parser("tune", help="measure the TB4 DEV tune half only")
-    tune.add_argument("--expect-manifest", required=True, help="manifest_sha256 of the frozen split")
+    tune.add_argument(
+        "--expect-manifest", required=True, help="manifest_sha256 of the frozen split"
+    )
     freeze = sub.add_parser("freeze", help="record the frozen fingerprint after a tune run")
     freeze.add_argument("--tune-results", type=Path, required=True)
     freeze.add_argument("--expect-fingerprint", required=True)
-    holdout = sub.add_parser("holdout", help="measure the TB4 DEV holdout half and external cohorts once")
+    holdout = sub.add_parser(
+        "holdout", help="measure the TB4 DEV holdout half and external cohorts once"
+    )
     holdout.add_argument("--expect-fingerprint", required=True)
     holdout.add_argument("--external-splits", nargs="+", default=["test"])
     for p in (fp_parser, tune, freeze, holdout):
@@ -2321,22 +2404,50 @@ def main() -> None:
         )
     for p in (tune, holdout):
         p.add_argument("--out", type=Path, default=HERE)
-        p.add_argument("--workers", type=int, default=1, help="process-parallel; decisions are identical")
+        p.add_argument(
+            "--workers", type=int, default=1, help="process-parallel; decisions are identical"
+        )
     args = parser.parse_args()
-    options = {"label_map_path": args.entry_label_map, "packages": args.task_packages} if args.command != "split" else {}
+    options = (
+        {"label_map_path": args.entry_label_map, "packages": args.task_packages}
+        if args.command != "split"
+        else {}
+    )
     if args.command == "split":
         refuse_existing([MANIFEST])
         manifest = build_manifest()
         write_new(MANIFEST, json.dumps(manifest, indent=1, sort_keys=True) + "\n")
-        keys = ("manifest_sha256", "n_census_tasks", "n_dev_tasks", "n_captured_effective", "n_tune_tasks", "n_holdout_tasks", "sealed_by_registry", "uncaptured_dev_tasks")
+        keys = (
+            "manifest_sha256",
+            "n_census_tasks",
+            "n_dev_tasks",
+            "n_captured_effective",
+            "n_tune_tasks",
+            "n_holdout_tasks",
+            "sealed_by_registry",
+            "uncaptured_dev_tasks",
+        )
         print(json.dumps({k: manifest[k] for k in keys}))
     elif args.command == "fingerprint":
         load_manifest()
-        print(json.dumps({"fingerprint": fingerprints(label_map=args.entry_label_map, packages=args.task_packages), "capabilities": capabilities()}, indent=1, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "fingerprint": fingerprints(
+                        label_map=args.entry_label_map, packages=args.task_packages
+                    ),
+                    "capabilities": capabilities(),
+                },
+                indent=1,
+                sort_keys=True,
+            )
+        )
     elif args.command == "tune":
         run_tune(args.expect_manifest, args.out, v3.results_root(), workers=args.workers, **options)
     elif args.command == "freeze":
-        print(json.dumps(run_freeze(args.tune_results, args.expect_fingerprint, **options), indent=1))
+        print(
+            json.dumps(run_freeze(args.tune_results, args.expect_fingerprint, **options), indent=1)
+        )
     else:
         run_holdout(
             args.expect_fingerprint,

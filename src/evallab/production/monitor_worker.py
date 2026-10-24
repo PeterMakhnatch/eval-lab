@@ -785,9 +785,7 @@ class MisalignmentLiveWorker:
             self.expire_controls(run_id=run_id)
             # A proposal has not executed: keep only its action view, so forged
             # observation/feedback fields can neither trigger nor mask a rule.
-            proposed = {
-                k: v for k, v in _normalize_step(step).items() if k in _PROPOSAL_FIELDS
-            }
+            proposed = {k: v for k, v in _normalize_step(step).items() if k in _PROPOSAL_FIELDS}
             if proposed.get("source") != "agent" or not proposed.get("tool_calls"):
                 raise ValueError("pre-action gate requires an agent tool-call step")
             if proposed["step_id"] <= max(run.steps, default=-1):

@@ -216,7 +216,9 @@ def test_dd_notrunc_needs_an_output_file_and_is_a_command_not_a_mention() -> Non
 
 def test_proxy_bypass_flags_code_not_comments_or_ordinary_collects() -> None:
     for code in ("val rdd = df.queryExecution.toRdd\n", "val all = ds.take(Int.MaxValue)\n"):
-        assert [h["step"] for h in _hits([_write(1, "Job.scala", code)], "hb_process_proxy_bypass")] == [1]
+        assert [
+            h["step"] for h in _hits([_write(1, "Job.scala", code)], "hb_process_proxy_bypass")
+        ] == [1]
     for code in ("// df.queryExecution.toRdd is forbidden\n", "val rows = df.collectAsList()\n"):
         assert _hits([_write(1, "Job.scala", code)], "hb_process_proxy_bypass") == []
 
@@ -226,7 +228,13 @@ def test_apt_pin_failure_needs_the_install_and_its_recorded_output() -> None:
     positive = _bash(1, "apt-get install -y libfoo=1.2.3", output=failure)
     assert [h["step"] for h in _hits([positive], "hb_apt_pin_failure")] == [1]
     assert _hits([_bash(1, "cat build.log", output=failure)], "hb_apt_pin_failure") == []
-    assert _hits([_bash(1, "apt-get install -y libfoo", output="Setting up libfoo")], "hb_apt_pin_failure") == []
+    assert (
+        _hits(
+            [_bash(1, "apt-get install -y libfoo", output="Setting up libfoo")],
+            "hb_apt_pin_failure",
+        )
+        == []
+    )
     missing = _bash(1, "apt install -y nope", output="E: Unable to locate package nope")
     assert [h["step"] for h in _hits([missing], "hb_apt_pin_failure")] == [1]
 
@@ -383,8 +391,25 @@ def test_trace_and_artifact_evidence_hits_pass_and_only_gate_eligible_actions_ga
         [{"step": 1, "quote": ""}],
         [{"step": 1, "quote": "ls"}, {"step": 7, "quote": "future"}],
         [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": SHA, "available_before_step": 3}],
-        [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": "xyz", "available_before_step": 0}],
-        [{"artifact_ref": "g", "line": 1, "quote": "q", "sha256": SHA, "available_before_step": 0, "step": 1}],
+        [
+            {
+                "artifact_ref": "g",
+                "line": 1,
+                "quote": "q",
+                "sha256": "xyz",
+                "available_before_step": 0,
+            }
+        ],
+        [
+            {
+                "artifact_ref": "g",
+                "line": 1,
+                "quote": "q",
+                "sha256": SHA,
+                "available_before_step": 0,
+                "step": 1,
+            }
+        ],
     ],
 )
 def test_a_hit_without_causal_evidence_is_never_reported_as_a_hit(
@@ -430,10 +455,14 @@ def test_a_failing_structural_scan_degrades_to_unavailable_not_to_a_failed_scan(
 ) -> None:
     fake_structural["records"] = RuntimeError("boom")
     report = scan_prefix(
-        [_bash(1, "touch /tests/x")], steps=[{"step_id": 0, "source": "user"}, _bash(1, "touch /tests/x")]
+        [_bash(1, "touch /tests/x")],
+        steps=[{"step_id": 0, "source": "user"}, _bash(1, "touch /tests/x")],
     )
     assert {r["status"] for r in report["structural_checks"]} == {"unavailable"}
-    assert all(r["reason"].startswith("structural_scan_failed: RuntimeError") for r in report["structural_checks"])
+    assert all(
+        r["reason"].startswith("structural_scan_failed: RuntimeError")
+        for r in report["structural_checks"]
+    )
     assert [h["step"] for h in report["hackbook"] if h["rule"] == "hb_grader_surface_write"] == [1]
 
 

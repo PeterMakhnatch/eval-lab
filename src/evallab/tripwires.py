@@ -3574,7 +3574,8 @@ def _statement_write_targets(
         operands = _operands(args, _INSTALL_VALUE_FLAGS)
         if directory is not None:
             targets.extend(
-                (posixpath.join(directory, posixpath.basename(path)), "install") for path in operands
+                (posixpath.join(directory, posixpath.basename(path)), "install")
+                for path in operands
             )
         elif len(operands) >= 2 and "-d" not in args:
             targets.append((operands[-1], "install"))
@@ -3671,7 +3672,10 @@ def _const_path(node: ast.AST, env: dict[str, str]) -> str | None:
         return None if base is None else posixpath.dirname(base)
     if isinstance(node, ast.Call):
         dotted = _dotted_name(node.func)
-        if dotted.rsplit(".", 1)[-1] in _PY_PATH_CTORS or dotted in ("os.path.join", "posixpath.join"):
+        if dotted.rsplit(".", 1)[-1] in _PY_PATH_CTORS or dotted in (
+            "os.path.join",
+            "posixpath.join",
+        ):
             joined = [_const_path(arg, env) for arg in node.args]
             if joined and all(part is not None for part in joined):
                 return posixpath.join(*[part for part in joined if part is not None])
@@ -5060,7 +5064,9 @@ def structural_prefix_checks(
     check reported it; it means the predicate was false with all inputs present, not that the
     run is clean. ``dropped`` counts returned records outside the registry or duplicated.
     """
-    pairs = [(spec, entry_id) for spec in HACKBOOK_STRUCTURAL_CHECKS for entry_id in spec["entry_ids"]]
+    pairs = [
+        (spec, entry_id) for spec in HACKBOOK_STRUCTURAL_CHECKS for entry_id in spec["entry_ids"]
+    ]
     try:
         returned = list(scan_structural_prefix(steps, context=context))
     except Exception as exc:  # noqa: BLE001 - a failing structural scan must not hide action rules
@@ -5079,7 +5085,9 @@ def structural_prefix_checks(
             continue
         by_pair[key] = record
     records = [
-        _normalized_structural_record(spec, entry_id, by_pair.get((spec["check"], entry_id)), known, last)
+        _normalized_structural_record(
+            spec, entry_id, by_pair.get((spec["check"], entry_id)), known, last
+        )
         for spec, entry_id in pairs
     ]
     return records, dropped
@@ -5101,7 +5109,9 @@ def prefix_entry_accounting(report: Mapping[str, Any]) -> dict[str, dict[str, An
         hits: list[dict[str, Any]] = []
         for hit in hackbook:
             if entry_id in hit["entry_ids"]:
-                channel = "hackbook_verdict" if hit.get("eligibility") == "verdict" else "hackbook_cue"
+                channel = (
+                    "hackbook_verdict" if hit.get("eligibility") == "verdict" else "hackbook_cue"
+                )
                 hits.append(
                     {
                         "channel": channel,

@@ -313,7 +313,9 @@ class _Judge:
     def protected(self, path: str, mode: str) -> bool:
         policy = self.policy
         reading = mode == "read"
-        deny = _longest(path, policy.protected_read_roots if reading else policy.protected_write_roots)
+        deny = _longest(
+            path, policy.protected_read_roots if reading else policy.protected_write_roots
+        )
         allow = _longest(path, policy.allowed_read_roots if reading else policy.allowed_write_roots)
         if deny is not None:
             return allow is None or len(allow) <= len(deny)
@@ -423,7 +425,9 @@ def _tool_accesses(view: Mapping[str, Any]) -> list[tuple[str, bool, str, str]]:
             continue
         paths = _tool_paths(call)
         if name == "str_replace_based_edit_tool":
-            mode = "read" if str(arguments.get("command") or "").lower() in ("", "view") else "write"
+            mode = (
+                "read" if str(arguments.get("command") or "").lower() in ("", "view") else "write"
+            )
             out.extend((mode, False, path, f"{name} {path}") for path in paths)
         elif name in _EXTRA_WRITE_TOOLS:
             out.extend(("write", False, path, f"{name} {path}") for path in paths)
@@ -437,7 +441,9 @@ def _tool_accesses(view: Mapping[str, Any]) -> list[tuple[str, bool, str, str]]:
             texts.extend(codex_apply_patches(script))
         for text in texts:
             if "Begin Patch" in text:
-                out.extend(("write", False, path, f"apply_patch {path}") for path in _patch_targets(text))
+                out.extend(
+                    ("write", False, path, f"apply_patch {path}") for path in _patch_targets(text)
+                )
     return out
 
 
@@ -815,7 +821,22 @@ class _Findings:
 
 
 _KEYWORDS = frozenset(
-    {"if", "then", "else", "elif", "fi", "do", "done", "while", "until", "!", "{", "}", "time", "esac"}
+    {
+        "if",
+        "then",
+        "else",
+        "elif",
+        "fi",
+        "do",
+        "done",
+        "while",
+        "until",
+        "!",
+        "{",
+        "}",
+        "time",
+        "esac",
+    }
 )
 _WRAPPER_VALUE_OPTS: dict[str, frozenset[str]] = {
     "sudo": frozenset({"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"}),
@@ -845,8 +866,12 @@ _WRITE_ALL = frozenset(
     {"touch", "mkdir", "rmdir", "rm", "unlink", "shred", "truncate", "mkfifo", "mknod", "mount", "umount", "setfacl"}
 )  # fmt: skip
 _WRITE_AFTER_MODE = frozenset({"chmod", "chown", "chgrp", "chattr"})
-_FIND_WRITERS = frozenset({"rm", "mv", "chmod", "chown", "chgrp", "shred", "truncate", "unlink", "rmdir", "tee", "touch"})
-_PATTERN_FIRST = frozenset({"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk", "gawk", "mawk", "jq", "yq"})
+_FIND_WRITERS = frozenset(
+    {"rm", "mv", "chmod", "chown", "chgrp", "shred", "truncate", "unlink", "rmdir", "tee", "touch"}
+)
+_PATTERN_FIRST = frozenset(
+    {"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk", "gawk", "mawk", "jq", "yq"}
+)
 _PATTERN_VALUE_OPTS = frozenset(
     {
         "-e", "--regexp", "--expression", "-f", "--file", "--source", "-m", "--max-count",
@@ -856,14 +881,31 @@ _PATTERN_VALUE_OPTS = frozenset(
 _PATTERN_OPTS = frozenset({"-e", "--regexp", "--expression", "-f", "--file", "--source"})
 _PATTERN_NONPATH = _PATTERN_VALUE_OPTS - {"-f", "--file"}
 _RECURSIVE_SEARCH = frozenset({"rg", "ag", "ack"})
-_INTERPRETERS = frozenset({"perl", "ruby", "node", "nodejs", "php", "lua", "bun", "deno", "Rscript", "julia"})
+_INTERPRETERS = frozenset(
+    {"perl", "ruby", "node", "nodejs", "php", "lua", "bun", "deno", "Rscript", "julia"}
+)
 _INTERPRETER_CODE_OPTS = frozenset({"-e", "-E", "-p", "-r", "--eval", "-c"})
 _PYTEST_VALUE_OPTS = frozenset(
     {"-k", "-m", "-c", "--rootdir", "-p", "-o", "--maxfail", "-n", "--tb", "--junitxml", "--durations", "-W"}
 )  # fmt: skip
-_PYTEST_NONPATH = frozenset({"-k", "-m", "-p", "-o", "--maxfail", "-n", "--tb", "--durations", "-W"})
-_GIT_VALUE_GLOBALS = frozenset({"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--super-prefix", "--config-env"})
-_GIT_CONTENT_SUBS = frozenset({"show", "diff", "cat-file", "grep", "blame", "annotate", "archive", "format-patch", "difftool"})
+_PYTEST_NONPATH = frozenset(
+    {"-k", "-m", "-p", "-o", "--maxfail", "-n", "--tb", "--durations", "-W"}
+)
+_GIT_VALUE_GLOBALS = frozenset(
+    {
+        "-C",
+        "-c",
+        "--git-dir",
+        "--work-tree",
+        "--namespace",
+        "--exec-path",
+        "--super-prefix",
+        "--config-env",
+    }
+)
+_GIT_CONTENT_SUBS = frozenset(
+    {"show", "diff", "cat-file", "grep", "blame", "annotate", "archive", "format-patch", "difftool"}
+)
 _GIT_WRITE_SUBS = frozenset({"restore", "rm", "mv", "clean"})
 _SYSTEM_LIB_PREFIXES = ("/usr/lib/", "/usr/local/lib/", "/lib/", "/lib64/", "/usr/lib64/", "/opt/")
 _SKIP_WORD_PROGRAMS = frozenset({"case", "select"})
@@ -1017,18 +1059,24 @@ class _Shell:
                 self.set_env(name, value, evidence)
             return
         prefix_env = {name: value for name, value in assigns if value is not None}
-        words = self.strip_wrappers(list(zip(cmd.words[index:], values[index:], strict=True)), prefix_env)
+        words = self.strip_wrappers(
+            list(zip(cmd.words[index:], values[index:], strict=True)), prefix_env
+        )
         if "LD_PRELOAD" in prefix_env:
             self.preload(prefix_env["LD_PRELOAD"], evidence)
         if not words or words[0][1] is None:
             return
-        self.dispatch(words[0][1], [value for _, value in words[1:]], stdin, out_targets, evidence, depth)
+        self.dispatch(
+            words[0][1], [value for _, value in words[1:]], stdin, out_targets, evidence, depth
+        )
 
     def render(self, cmd: _Cmd) -> str:
         parts = [word.render() for word in cmd.words]
         for redirect in cmd.redirects:
             target = redirect.word.render() if redirect.word is not None else ""
-            parts.append(redirect.op + target if redirect.op in ("<<", "<<-") else f"{redirect.op} {target}")
+            parts.append(
+                redirect.op + target if redirect.op in ("<<", "<<-") else f"{redirect.op} {target}"
+            )
         return _clip(" ".join(parts))
 
     def redirects(self, cmd: _Cmd, evidence: str) -> tuple[str | None, list[str]]:
@@ -1193,9 +1241,21 @@ class _Shell:
         elif base == "perl" and any(re.fullmatch(r"-[A-Za-z]*i\S*", arg) for arg in _strs(args)):
             self.inplace(args, evidence)
         elif base in ("curl", "wget"):
-            opts, pos = _split(args, frozenset({"-o", "-O", "--output", "--output-document", "-P", "--directory-prefix"}))
+            opts, pos = _split(
+                args,
+                frozenset(
+                    {"-o", "-O", "--output", "--output-document", "-P", "--directory-prefix"}
+                ),
+            )
             for name, value in opts:
-                if value is not None and name in ("-o", "-O", "--output", "--output-document", "-P", "--directory-prefix"):
+                if value is not None and name in (
+                    "-o",
+                    "-O",
+                    "--output",
+                    "--output-document",
+                    "-P",
+                    "--directory-prefix",
+                ):
                     self.write(value, evidence)
         elif base == "patch":
             opts, pos = _split(args, frozenset({"-i", "--input", "-d", "-p"}))
@@ -1310,8 +1370,10 @@ class _Shell:
         recursive_default = base in _RECURSIVE_SEARCH
         if not _has_opt(opts, *_PATTERN_OPTS):
             pos = pos[1:]
-        recursive = recursive_default or _has_opt(opts, "--recursive") or (
-            base in ("grep", "egrep", "fgrep") and _cluster(opts, "rR")
+        recursive = (
+            recursive_default
+            or _has_opt(opts, "--recursive")
+            or (base in ("grep", "egrep", "fgrep") and _cluster(opts, "rR"))
         )
         if recursive and not pos and self.cwd is not None:
             pos = [self.cwd]
@@ -1326,7 +1388,10 @@ class _Shell:
 
     def writers(self, base: str, args: list[str | None], evidence: str) -> None:
         value_opts = frozenset({"-s", "-r", "--size", "--reference", "-m", "--mode", "-d", "-t"})
-        opts, pos = _split(args, value_opts if base in ("truncate", "touch", "mkdir") else frozenset({"-m", "--mode"}))
+        opts, pos = _split(
+            args,
+            value_opts if base in ("truncate", "touch", "mkdir") else frozenset({"-m", "--mode"}),
+        )
         if base == "setfacl":
             opts, pos = _split(args, frozenset({"-m", "-x", "-M", "-X", "--set", "--modify"}))
         for path in pos:
@@ -1381,7 +1446,9 @@ class _Shell:
                 position = end
             elif token == "-delete":
                 writer = True
-            elif token in ("-fprint", "-fprint0", "-fls", "-fprintf") and position + 1 < len(expression):
+            elif token in ("-fprint", "-fprint0", "-fls", "-fprintf") and position + 1 < len(
+                expression
+            ):
                 self.write(expression[position + 1], evidence)
                 position += 1
             position += 1
@@ -1456,11 +1523,24 @@ class _Shell:
 # Python AST analysis
 # ---------------------------------------------------------------------------
 
-_PATH_CTORS = frozenset({"Path", "pathlib.Path", "PurePath", "PurePosixPath", "pathlib.PurePath", "pathlib.PurePosixPath"})
-_PASSTHROUGH = frozenset({"str", "os.fspath", "os.path.abspath", "os.path.normpath", "os.path.realpath"})
+_PATH_CTORS = frozenset(
+    {
+        "Path",
+        "pathlib.Path",
+        "PurePath",
+        "PurePosixPath",
+        "pathlib.PurePath",
+        "pathlib.PurePosixPath",
+    }
+)
+_PASSTHROUGH = frozenset(
+    {"str", "os.fspath", "os.path.abspath", "os.path.normpath", "os.path.realpath"}
+)
 _JOINS = frozenset({"os.path.join", "posixpath.join"})
 _READ_METHODS = frozenset({"read_text", "read_bytes"})
-_WRITE_METHODS = frozenset({"write_text", "write_bytes", "touch", "mkdir", "unlink", "rmdir", "chmod"})
+_WRITE_METHODS = frozenset(
+    {"write_text", "write_bytes", "touch", "mkdir", "unlink", "rmdir", "chmod"}
+)
 _PATHLIKE_WRITE_METHODS = frozenset({"rename", "replace"})
 _OS_WRITE = frozenset(
     {
@@ -1469,7 +1549,9 @@ _OS_WRITE = frozenset(
     }
 )  # fmt: skip
 _OS_MOVE = frozenset({"os.rename", "os.replace", "os.renames", "shutil.move"})
-_OS_COPY = frozenset({"shutil.copy", "shutil.copy2", "shutil.copyfile", "shutil.copytree", "os.symlink", "os.link"})
+_OS_COPY = frozenset(
+    {"shutil.copy", "shutil.copy2", "shutil.copyfile", "shutil.copytree", "os.symlink", "os.link"}
+)
 _OS_LIST = frozenset({"os.listdir", "os.scandir", "os.walk", "glob.glob", "glob.iglob"})
 _PROCESS_CALLS = frozenset(
     {
@@ -1493,7 +1575,11 @@ def _is_path_expr(node: ast.AST, pathvars: set[str]) -> bool:
         name = _dotted_name(node.func)
         if name in _PATH_CTORS or name in ("Path.cwd", "pathlib.Path.cwd"):
             return True
-        if isinstance(node.func, ast.Attribute) and node.func.attr in ("joinpath", "resolve", "absolute"):
+        if isinstance(node.func, ast.Attribute) and node.func.attr in (
+            "joinpath",
+            "resolve",
+            "absolute",
+        ):
             return _is_path_expr(node.func.value, pathvars)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
         return _is_path_expr(node.left, pathvars) or _is_path_expr(node.right, pathvars)
@@ -1531,7 +1617,11 @@ def _fold(node: ast.AST | None, env: Mapping[str, str], cwd: str | None) -> str 
         name = _dotted_name(node.func)
         if name in ("os.getcwd", "Path.cwd", "pathlib.Path.cwd"):
             return cwd
-        if isinstance(node.func, ast.Attribute) and node.func.attr in ("joinpath", "resolve", "absolute"):
+        if isinstance(node.func, ast.Attribute) and node.func.attr in (
+            "joinpath",
+            "resolve",
+            "absolute",
+        ):
             base = _fold(node.func.value, env, cwd)
             if base is None:
                 return None
@@ -1561,7 +1651,9 @@ def _shell_text(node: ast.AST, env: Mapping[str, str], cwd: str | None) -> str |
 
 
 class _PyScan:
-    def __init__(self, shell: _Shell, tree: ast.Module, executed: bool, evidence: str, depth: int) -> None:
+    def __init__(
+        self, shell: _Shell, tree: ast.Module, executed: bool, evidence: str, depth: int
+    ) -> None:
         self.shell = shell
         self.tree = tree
         self.executed = executed
@@ -1610,17 +1702,28 @@ class _PyScan:
     def call(self, node: ast.Call) -> None:
         name = _dotted_name(node.func)
         attr = node.func.attr if isinstance(node.func, ast.Attribute) else ""
-        base = _fold(node.func.value, self.env, self.cwd) if isinstance(node.func, ast.Attribute) else None
-        pathlike = isinstance(node.func, ast.Attribute) and _is_path_expr(node.func.value, self.pathvars)
+        base = (
+            _fold(node.func.value, self.env, self.cwd)
+            if isinstance(node.func, ast.Attribute)
+            else None
+        )
+        pathlike = isinstance(node.func, ast.Attribute) and _is_path_expr(
+            node.func.value, self.pathvars
+        )
         if name == "os.open":
             flags = ast.unparse(node.args[1]) if len(node.args) > 1 else ""
-            mode = "write" if re.search(r"O_WRONLY|O_RDWR|O_CREAT|O_APPEND|O_TRUNC", flags) else "read"
+            mode = (
+                "write" if re.search(r"O_WRONLY|O_RDWR|O_CREAT|O_APPEND|O_TRUNC", flags) else "read"
+            )
             self.push(mode, self.arg(node, 0), node)
         elif name in ("open", "io.open", "codecs.open") or attr == "open":
             if pathlike and base is not None:
                 path, mode_node = base, (node.args[0] if node.args else None)
             else:
-                path, mode_node = self.arg(node, 0, "file"), (node.args[1] if len(node.args) > 1 else None)
+                path, mode_node = (
+                    self.arg(node, 0, "file"),
+                    (node.args[1] if len(node.args) > 1 else None),
+                )
             for item in node.keywords:
                 if item.arg == "mode":
                     mode_node = item.value
@@ -1665,7 +1768,9 @@ class _PyScan:
                 child.run("pytest " + text, self.depth + 1)
 
 
-_TEST_FILE_RE = re.compile(r"(?:^|/)(?:test_[^/]*\.py|[^/]*_test\.py|conftest\.py)$|(?:^|/)tests?/[^/]*\.py$")
+_TEST_FILE_RE = re.compile(
+    r"(?:^|/)(?:test_[^/]*\.py|[^/]*_test\.py|conftest\.py)$|(?:^|/)tests?/[^/]*\.py$"
+)
 _STARTUP_BASENAMES = frozenset({"sitecustomize.py", "usercustomize.py"})
 _TIMER_PATCH_TARGETS = frozenset(f"{module}.{name}" for module, name in _TIMER_ASSIGNMENTS)
 
@@ -1762,7 +1867,10 @@ def _py_flags(shell: _Shell, tree: ast.Module, path: str | None, evidence: str) 
                 shell.flag(_R_EXIT, f"{base}: module-level pytest.exit", path)
                 break
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith("pytest_")):
+        if not (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name.startswith("pytest_")
+        ):
             continue
         for inner in ast.walk(node):
             if (
@@ -1770,7 +1878,11 @@ def _py_flags(shell: _Shell, tree: ast.Module, path: str | None, evidence: str) 
                 and isinstance(inner.value, ast.Constant)
                 and inner.value.value == "passed"
                 and any(
-                    (target.attr if isinstance(target, ast.Attribute) else getattr(target, "id", ""))
+                    (
+                        target.attr
+                        if isinstance(target, ast.Attribute)
+                        else getattr(target, "id", "")
+                    )
                     == "outcome"
                     for target in inner.targets
                 )
@@ -1796,7 +1908,9 @@ def _step_findings(
     for mode, recursive, raw, evidence in _tool_accesses(view):
         tool.push(mode, _resolve(policy_cwd, raw), evidence, recursive)
     for path, text in _tool_call_files(dict(view)):
-        findings.contents.append((None if path.startswith("tool:") else _resolve(policy_cwd, path), text))
+        findings.contents.append(
+            (None if path.startswith("tool:") else _resolve(policy_cwd, path), text)
+        )
     for path, text in list(findings.contents):
         if path is None or path.endswith(".py"):
             tool.python_code(text, executed=False, path=path, evidence=_clip(text, 80))
@@ -1878,11 +1992,17 @@ def _analyze(
     git_hits, git_cues = _git_signals(view, prefix_views, policy)
     hits.extend(git_hits)
     cues.extend(git_cues)
-    return _build(hits, step_no, policy, blocking=True), _build(cues, step_no, policy, blocking=False)
+    return _build(hits, step_no, policy, blocking=True), _build(
+        cues, step_no, policy, blocking=False
+    )
 
 
 def _build(
-    found: Sequence[tuple[str, str, str | None]], step_no: int, policy: GatePolicy, *, blocking: bool
+    found: Sequence[tuple[str, str, str | None]],
+    step_no: int,
+    policy: GatePolicy,
+    *,
+    blocking: bool,
 ) -> list[dict[str, Any]]:
     seen: set[tuple[str, str]] = set()
     kept: list[tuple[str, str, str | None]] = []

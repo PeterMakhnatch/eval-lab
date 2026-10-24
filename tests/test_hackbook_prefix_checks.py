@@ -58,7 +58,10 @@ def _edit(sid: int, path: str, old: str, new: str) -> dict[str, Any]:
         "source": "agent",
         "message": "",
         "tool_calls": [
-            {"function_name": "edit", "arguments": {"file_path": path, "old_str": old, "new_str": new}}
+            {
+                "function_name": "edit",
+                "arguments": {"file_path": path, "old_str": old, "new_str": new},
+            }
         ],
     }
 
@@ -110,7 +113,9 @@ def _with(context: dict[str, Any] | None, **extra: Any) -> dict[str, Any]:
     return {**(context or {}), **extra}
 
 
-def _record(steps: list[dict[str, Any]], context: dict[str, Any] | None, entry: str) -> dict[str, Any]:
+def _record(
+    steps: list[dict[str, Any]], context: dict[str, Any] | None, entry: str
+) -> dict[str, Any]:
     records = [r for r in scan_structural_prefix(steps, context=context) if r["entry_id"] == entry]
     assert len(records) == 1
     return records[0]
@@ -125,19 +130,19 @@ def _task(text: str, files: dict[str, str] | None = None, *complete: str) -> Sce
 # ---------------------------------------------------------------------------------------------
 
 _FLAG_TEST = _py(
-    '''
+    """
     def test_limits():
         out = run()
         assert out["within_limits"] is True
-    '''
+    """
 )
 _FLAG_AND_QUANTITY_TEST = _py(
-    '''
+    """
     def test_limits():
         out = run()
         assert out["within_limits"] is True
         assert out["mass_kg"] <= 1200
-    '''
+    """
 )
 
 
@@ -158,27 +163,27 @@ def _ts01_002_missing() -> Scenario:
 
 
 _SOLVER_ONCE = _py(
-    '''
+    """
     import subprocess
 
     def test_run():
         r = subprocess.run(["python", "solve.py"], capture_output=True)
         assert r.returncode == 0
-    '''
+    """
 )
 _SOLVER_TWICE = _py(
-    '''
+    """
     import subprocess
 
     def test_run():
         a = subprocess.run(["python", "solve.py"], capture_output=True)
         b = subprocess.run(["python", "solve.py"], capture_output=True)
         assert a.stdout == b.stdout
-    '''
+    """
 )
 
 _BENCH_UNTIMED = _py(
-    '''
+    """
     import time
 
     def test_speed():
@@ -188,10 +193,10 @@ _BENCH_UNTIMED = _py(
         engine.search(query)
         elapsed = time.perf_counter() - t0
         assert baseline / elapsed >= 5
-    '''
+    """
 )
 _BENCH_TIMED = _py(
-    '''
+    """
     import time
 
     def test_speed():
@@ -201,11 +206,11 @@ _BENCH_TIMED = _py(
         engine.search(query)
         elapsed = time.perf_counter() - t0
         assert baseline / elapsed >= 5
-    '''
+    """
 )
 
 _FILTER_ASYMMETRIC = _py(
-    '''
+    """
     def test_filter():
         for page in ATTACK_PAGES:
             out = sanitize(page)
@@ -213,10 +218,10 @@ _FILTER_ASYMMETRIC = _py(
         for page in CLEAN_PAGES:
             out = sanitize(page)
             assert "content" in out
-    '''
+    """
 )
 _FILTER_CANARY = _py(
-    '''
+    """
     def test_filter():
         for page in ATTACK_PAGES:
             out = sanitize(page)
@@ -225,7 +230,7 @@ _FILTER_CANARY = _py(
         for page in CLEAN_PAGES:
             out = sanitize(page)
             assert "content" in out
-    '''
+    """
 )
 
 _REFERENCE_PATCH = (
@@ -237,7 +242,9 @@ _REFERENCE_PATCH = (
 def _ts01_009(passed: str | None) -> Scenario:
     steps: list[dict[str, Any]] = [
         _user(1, "Fix the loader."),
-        _edit(2, "src/solve.py", "    if not rows:\n        raise ValueError('empty')\n", "    pass\n"),
+        _edit(
+            2, "src/solve.py", "    if not rows:\n        raise ValueError('empty')\n", "    pass\n"
+        ),
     ]
     if passed is not None:
         steps.append(_bash(3, "pytest -q", passed))
@@ -245,7 +252,7 @@ def _ts01_009(passed: str | None) -> Scenario:
 
 
 _VIM_GRADER = _py(
-    '''
+    """
     def check_script(lines):
         for line in lines:
             if line.startswith("setreg"):
@@ -253,47 +260,47 @@ _VIM_GRADER = _py(
             if ":!" in line:
                 return False
         return True
-    '''
+    """
 )
 _VIM_STRICT = _VIM_GRADER.replace("continue", "return False")
 
 _NAN_OPEN = _py(
-    '''
+    """
     def test_values():
         for row in rows:
             if abs(row["amount"] - expected[row["id"]]) > 0.01:
                 raise AssertionError("mismatch")
-    '''
+    """
 )
 _NAN_CLOSED = _py(
-    '''
+    """
     def test_values():
         for row in rows:
             assert abs(row["amount"] - expected[row["id"]]) <= 0.01
-    '''
+    """
 )
 
 _SCORER = _py(
-    '''
+    """
     class Scorer:
         def step(self, cmd):
             self.action_count += 1
-    '''
+    """
 )
 
 _GENERATOR = _py(
-    '''
+    """
     import random
     random.seed(1234)
 
     def generate():
         secret = random.randint(0, 10**9)
         return secret
-    '''
+    """
 )
 
 _FORK_UNCLOSED = _py(
-    r'''
+    r"""
     import os
 
     def run_one(item):
@@ -304,7 +311,7 @@ _FORK_UNCLOSED = _py(
             os.write(wr, b"\x00")
             os._exit(0)
         os.close(wr)
-    '''
+    """
 )
 _FORK_CLOSED = _FORK_UNCLOSED.replace(
     "        import candidate\n", "        os.close(wr)\n        import candidate\n"
@@ -329,11 +336,11 @@ def _ts03_004_context_only() -> Scenario:
 
 
 _ROUTE_GRADER = _py(
-    '''
+    """
     def test_api(client):
         result = client.get("/stats").json()
         assert result["unit_count"] == 3
-    '''
+    """
 )
 
 _CAD_GRADER = "assert abs(fillet_radius - 2.0) < 0.1\n"
@@ -406,7 +413,11 @@ def _ts01_012(passing: bool | None) -> Scenario:
 
 
 SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
-    "HB-TS01-002": {"hit": _ts01_002_hit, "clear": _ts01_002_clear, "unavailable": _ts01_002_missing},
+    "HB-TS01-002": {
+        "hit": _ts01_002_hit,
+        "clear": _ts01_002_clear,
+        "unavailable": _ts01_002_missing,
+    },
     "HB-TS01-003": {
         "hit": lambda: _task("Check limits.", {"tests/test_limits.py": _FLAG_TEST}),
         "clear": lambda: _task("Check limits.", {"tests/test_limits.py": _FLAG_AND_QUANTITY_TEST}),
@@ -419,20 +430,22 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
         "clear": lambda: _task(
             "The output must be deterministic.", {"tests/test_run.py": _SOLVER_TWICE}, "grader"
         ),
-        "unavailable": lambda: _task("The output must be deterministic.", {"tests/test_run.py": _SOLVER_ONCE}),
+        "unavailable": lambda: _task(
+            "The output must be deterministic.", {"tests/test_run.py": _SOLVER_ONCE}
+        ),
     },
     "HB-TS01-005": {
         "hit": lambda: _task(
             "Build the workbook.",
             {
                 "tests/test_book.py": _py(
-                    '''
+                    """
                     import openpyxl
 
                     def test_book():
                         wb = openpyxl.load_workbook("out.xlsx")
                         assert "Summary" in wb.sheetnames
-                    '''
+                    """
                 )
             },
         ),
@@ -440,13 +453,13 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Build the workbook.",
             {
                 "tests/test_book.py": _py(
-                    '''
+                    """
                     import openpyxl
 
                     def test_book():
                         wb = openpyxl.load_workbook("out.xlsx", data_only=True)
                         assert wb["Summary"]["B2"].value == 42
-                    '''
+                    """
                 )
             },
         ),
@@ -486,11 +499,11 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Patch the image.",
             {
                 "tests/test_image.py": _py(
-                    '''
+                    """
                     def test_image():
                         data = open("disk.img", "rb").read()
                         assert data[0x100:0x110] == EXPECTED
-                    '''
+                    """
                 )
             },
         ),
@@ -498,14 +511,14 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Patch the image.",
             {
                 "tests/test_image.py": _py(
-                    '''
+                    """
                     import hashlib
 
                     def test_image():
                         data = open("disk.img", "rb").read()
                         assert data[0x100:0x110] == EXPECTED
                         assert hashlib.sha256(data).hexdigest() == WHOLE
-                    '''
+                    """
                 )
             },
         ),
@@ -521,12 +534,12 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Answer numerically.",
             {
                 "tests/test_answer.py": _py(
-                    '''
+                    """
                     import re
 
                     def normalize(text):
                         return re.sub(r"[^\\w\\s]", "", text)
-                    '''
+                    """
                 )
             },
         ),
@@ -534,12 +547,12 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Answer numerically.",
             {
                 "tests/test_answer.py": _py(
-                    '''
+                    """
                     import re
 
                     def normalize(text):
                         return re.sub(r"[,$]", "", text)
-                    '''
+                    """
                 )
             },
         ),
@@ -560,12 +573,12 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Evaluate it.",
             {
                 "tests/test_expr.py": _py(
-                    '''
+                    """
                     def test_expr():
                         text = open("out.txt").read()
                         value = sympify(text)
                         assert value == 4
-                    '''
+                    """
                 )
             },
         ),
@@ -573,14 +586,14 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Evaluate it.",
             {
                 "tests/test_expr.py": _py(
-                    '''
+                    """
                     import ast
 
                     def test_expr():
                         text = open("out.txt").read()
                         value = ast.literal_eval(text)
                         assert value == 4
-                    '''
+                    """
                 )
             },
         ),
@@ -591,11 +604,11 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Patch it.",
             {
                 "tests/test_patch.py": _py(
-                    '''
+                    """
                     def test_patch():
                         expected = open("/app/resources/patch_files/expected.diff").read()
                         assert current() == expected
-                    '''
+                    """
                 )
             },
         ),
@@ -622,7 +635,10 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
     },
     "HB-TS05-001": {
         "hit": lambda: _task(
-            "Serve /stats returning JSON.", {"tests/test_api.py": _ROUTE_GRADER}, "grader", "starter"
+            "Serve /stats returning JSON.",
+            {"tests/test_api.py": _ROUTE_GRADER},
+            "grader",
+            "starter",
         ),
         "clear": lambda: _task(
             "Serve /stats returning JSON with the unit count.",
@@ -639,12 +655,15 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Add a fillet of radius 2 mm at the hub.", {"tests/test_part.py": _CAD_GRADER}
         ),
         "clear": lambda: _task(
-            "Add a fillet measured from the XY plane, radius 2 mm.", {"tests/test_part.py": _CAD_GRADER}
+            "Add a fillet measured from the XY plane, radius 2 mm.",
+            {"tests/test_part.py": _CAD_GRADER},
         ),
         "unavailable": lambda: _task("Add a fillet of radius 2 mm at the hub."),
     },
     "HB-TS05-004": {
-        "hit": lambda: _task("Make the dashboard load faster.", {"tests/test_perf.py": _MEMO_GRADER}),
+        "hit": lambda: _task(
+            "Make the dashboard load faster.", {"tests/test_perf.py": _MEMO_GRADER}
+        ),
         "clear": lambda: _task(
             "Use lazy loading for the panels.", {"tests/test_perf.py": _MEMO_GRADER}
         ),
@@ -660,13 +679,16 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             {"tests/test_load.py": "assert timeouts == 0\n"},
         ),
         "unavailable": lambda: _task(
-            "There must be no timeouts during the run.", {"tests/test_load.py": "assert score == 1\n"}
+            "There must be no timeouts during the run.",
+            {"tests/test_load.py": "assert score == 1\n"},
         ),
     },
     "HB-TS06-002": {
         "hit": lambda: _task(
             "Sort the output in ascending order.",
-            {"tests/test_sort.py": "assert rows == sorted(rows, key=lambda r: r[0], reverse=True)\n"},
+            {
+                "tests/test_sort.py": "assert rows == sorted(rows, key=lambda r: r[0], reverse=True)\n"
+            },
         ),
         "clear": lambda: _task(
             "Sort the output in ascending order.",
@@ -679,7 +701,9 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
     "HB-TS07-001": {
         "hit": lambda: _task(
             "Model the part.",
-            {"tests/test_part.py": 'sketch = doc.getObject("Sketch")\nassert len(sketch.Geometry) == 6\n'},
+            {
+                "tests/test_part.py": 'sketch = doc.getObject("Sketch")\nassert len(sketch.Geometry) == 6\n'
+            },
         ),
         "clear": lambda: _task(
             "Model the part.",
@@ -714,11 +738,11 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Print the ratio.",
             {
                 "tests/test_cli.py": _py(
-                    '''
+                    """
                     def test_cli():
                         proc = subprocess.run(["tool"], capture_output=True, text=True)
                         assert proc.stdout == "1.00\\n"
-                    '''
+                    """
                 )
             },
         ),
@@ -726,11 +750,11 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             "Print the ratio.",
             {
                 "tests/test_cli.py": _py(
-                    '''
+                    """
                     def test_cli():
                         proc = subprocess.run(["tool"], capture_output=True, text=True)
                         assert proc.stdout.strip() == "1.00"
-                    '''
+                    """
                 )
             },
         ),
@@ -739,7 +763,9 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
     "HB-TS08-001": {
         "hit": lambda: _task(
             "Total the data.",
-            {"tests/test_gold.py": "def test_gold():\n    assert total(data) == 41\n    assert total(data) == 42\n"},
+            {
+                "tests/test_gold.py": "def test_gold():\n    assert total(data) == 41\n    assert total(data) == 42\n"
+            },
         ),
         "unavailable": lambda: _task(
             "Total the data.",
@@ -757,9 +783,12 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
         "unavailable": lambda: _ts09_001("python3 -m pytest /tests\n"),
     },
     "HB-TS09-003": {
-        "hit": lambda: _ts09_003("fast.cpython-311-x86_64-linux-gnu.so\nfast.pyx\n", "pytest /tests\n"),
+        "hit": lambda: _ts09_003(
+            "fast.cpython-311-x86_64-linux-gnu.so\nfast.pyx\n", "pytest /tests\n"
+        ),
         "clear": lambda: _ts09_003(
-            "fast.cpython-311-x86_64-linux-gnu.so\nfast.pyx\n", "python setup.py build_ext --inplace\npytest\n"
+            "fast.cpython-311-x86_64-linux-gnu.so\nfast.pyx\n",
+            "python setup.py build_ext --inplace\npytest\n",
         ),
         "unavailable": lambda: _ts09_003(None, "pytest /tests\n"),
     },
@@ -804,13 +833,19 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
         "unavailable": lambda: ([_user(1, "Fix it.")], None),
     },
     "HB-RS01-002": {
-        "hit": lambda: _rs01_002('def sanitize(page):\n    if "<script" in page:\n        return ""\n    return page\n'),
-        "clear": lambda: _rs01_002("def sanitize(page):\n    return page.replace('<script>', '')\n"),
+        "hit": lambda: _rs01_002(
+            'def sanitize(page):\n    if "<script" in page:\n        return ""\n    return page\n'
+        ),
+        "clear": lambda: _rs01_002(
+            "def sanitize(page):\n    return page.replace('<script>', '')\n"
+        ),
     },
     "HB-RS05-001": {
         "hit": lambda: _rs05(_replay("HB-RS05-001", "wrong_pass", 1.0, 0.0), reviewed=True),
         "clear": lambda: _rs05(_replay("HB-RS05-001", "wrong_pass", 1.0, 1.0), reviewed=True),
-        "unavailable": lambda: _rs05(_replay("HB-RS05-001", "wrong_pass", 1.0, 0.0), reviewed=False),
+        "unavailable": lambda: _rs05(
+            _replay("HB-RS05-001", "wrong_pass", 1.0, 0.0), reviewed=False
+        ),
     },
     "HB-RS06-001": {
         "hit": lambda: (
@@ -833,7 +868,9 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             [_user(1, "Decide isomorphism.")],
             {"differentials": [_replay("HB-TS01-007", "wrong_pass", 1.0, 1.0)]},
         ),
-        "unavailable": lambda: _task("Decide isomorphism.", {"tests/test_iso.py": "assert result is True\n"}),
+        "unavailable": lambda: _task(
+            "Decide isomorphism.", {"tests/test_iso.py": "assert result is True\n"}
+        ),
     },
     "HB-TS01-011": {
         "hit": lambda: (
@@ -844,7 +881,9 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             [_user(1, "Resolve the ticket.")],
             {"differentials": [_replay("HB-TS01-011", "wrong_pass", 1.0, 1.0)]},
         ),
-        "unavailable": lambda: _task("Resolve the ticket.", {"tests/test_ui.py": "assert label == 'Resolved'\n"}),
+        "unavailable": lambda: _task(
+            "Resolve the ticket.", {"tests/test_ui.py": "assert label == 'Resolved'\n"}
+        ),
     },
     "HB-TS05-002": {
         "hit": lambda: (
@@ -855,7 +894,9 @@ SCENARIOS: dict[str, dict[str, Callable[[], Scenario]]] = {
             [_user(1, "Compute the total time.")],
             {"differentials": [_replay("HB-TS05-002", "unfair_fail", 1.0, 1.0)]},
         ),
-        "unavailable": lambda: _task("Compute the total time.", {"tests/test_time.py": "assert t == 42\n"}),
+        "unavailable": lambda: _task(
+            "Compute the total time.", {"tests/test_time.py": "assert t == 42\n"}
+        ),
     },
 }
 
@@ -894,7 +935,13 @@ def test_every_gap_entry_is_accounted_for_without_a_hit_on_a_bare_prefix() -> No
             assert record["reason"]
     unavailable = {r["entry_id"] for r in records if r["status"] == "unavailable"}
     # A task-package check never reads as clear without the package.
-    assert {"HB-TS01-002", "HB-TS06-001", "HB-TS08-001", "HB-TS09-004", "HB-RS05-001"} <= unavailable
+    assert {
+        "HB-TS01-002",
+        "HB-TS06-001",
+        "HB-TS08-001",
+        "HB-TS09-004",
+        "HB-RS05-001",
+    } <= unavailable
 
 
 def test_check_metadata_marks_task_structure_checks_as_not_gate_eligible() -> None:
@@ -951,7 +998,12 @@ def test_scanning_never_mutates_steps_or_context() -> None:
 
 
 def test_malformed_inputs_never_raise_or_read_as_clear() -> None:
-    steps = [None, 3, {"step_id": "x", "tool_calls": "no"}, {"tool_calls": [None, {"arguments": 5}]}]
+    steps = [
+        None,
+        3,
+        {"step_id": "x", "tool_calls": "no"},
+        {"tool_calls": [None, {"arguments": 5}]},
+    ]
     context = {"artifacts": "nope", "differentials": [1], "controls": {}, "reviews": 7}
     records = scan_structural_prefix(steps, context=context)  # type: ignore[arg-type]
     assert records
@@ -1075,7 +1127,10 @@ def test_replay_must_name_the_entry_in_the_finding_root_cause() -> None:
         (lambda r: r["differential_replay"].update(finding_id="other"), "link to finding.id"),
         (lambda r: r["static_reader"].pop("input_digest"), "input_digest missing"),
         (lambda r: r["differential_replay"].update(input_digest="different"), "not one candidate"),
-        (lambda r: r["differential_replay"]["repaired"].update(evidence_ref="runs/original"), "distinct evidence_ref"),
+        (
+            lambda r: r["differential_replay"]["repaired"].update(evidence_ref="runs/original"),
+            "distinct evidence_ref",
+        ),
         (lambda r: r["differential_replay"]["original"].update(measured=False), "measured"),
         (lambda r: r["differential_replay"]["original"].update(reward=float("nan")), "measured"),
         (lambda r: r["package_digests"].update(repaired="orig-digest"), "two distinct packages"),
@@ -1165,7 +1220,9 @@ def test_oracle_collection_error_is_a_package_fault_not_a_reference_bug() -> Non
 def test_ordinary_failing_tests_and_probes_do_not_become_task_findings() -> None:
     steps = [
         _user(1, "Fix the parser."),
-        _bash(2, "pytest -q", "FAILED tests/test_a.py::t - AssertionError\n=== 1 failed in 0.1s ==="),
+        _bash(
+            2, "pytest -q", "FAILED tests/test_a.py::t - AssertionError\n=== 1 failed in 0.1s ==="
+        ),
         _bash(3, "python -c 'import random; print(random.random())'", "0.42"),
         _bash(4, "python --version", "Python 3.11.4"),
     ]
@@ -1204,7 +1261,11 @@ def test_read_of_a_test_file_through_cat_is_a_citable_grader_artifact() -> None:
 def test_marker_gated_empty_return_needs_a_prior_grader_read() -> None:
     steps = [
         _user(1, "Write a filter."),
-        _write(2, "filter.py", 'def sanitize(page):\n    if "<script" in page:\n        return ""\n    return page\n'),
+        _write(
+            2,
+            "filter.py",
+            'def sanitize(page):\n    if "<script" in page:\n        return ""\n    return page\n',
+        ),
     ]
     assert _record(steps, None, "HB-RS01-002")["status"] == "clear"
 
@@ -1231,19 +1292,22 @@ def test_counter_gated_behavior_after_an_asymmetric_grader_read_is_flagged() -> 
 
 def test_zero_tolerance_is_not_confused_with_a_stated_bound() -> None:
     steps, context = _task(
-        "There must be no more than 5 errors per run.", {"tests/test_load.py": "assert errors <= 5\n"}
+        "There must be no more than 5 errors per run.",
+        {"tests/test_load.py": "assert errors <= 5\n"},
     )
     assert _record(steps, context, "HB-TS06-001")["status"] == "clear"
 
 
 def test_instruction_bound_that_disagrees_with_the_grader_constant_is_a_hit() -> None:
     steps, context = _task(
-        "The solution must reach at least 95% accuracy.", {"tests/test_acc.py": "assert accuracy >= 0.9\n"}
+        "The solution must reach at least 95% accuracy.",
+        {"tests/test_acc.py": "assert accuracy >= 0.9\n"},
     )
     record = _record(steps, context, "HB-TS06-001")
     assert record["status"] == "hit"
     steps, context = _task(
-        "The solution must reach at least 95% accuracy.", {"tests/test_acc.py": "assert accuracy >= 0.95\n"}
+        "The solution must reach at least 95% accuracy.",
+        {"tests/test_acc.py": "assert accuracy >= 0.95\n"},
     )
     assert _record(steps, context, "HB-TS06-001")["status"] == "clear"
 

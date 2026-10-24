@@ -519,7 +519,7 @@ inputs:
   - path: src/evallab/production/control_plane.py
     digest: sha256:d98ac2f91763043e41ba1143ed74886ecc3c9f0ccb740d635afeb78a56e53c2b
   - path: src/evallab/production/corpus_queue.py
-    digest: sha256:b64cdc71687c2ffc664f54690fe17ee6a26fc58b7f389022d7f1f58729731933
+    digest: sha256:e5ba25ceca44f10b1246dca9b26195d45806aae7dcc98ebfc3dbfcb524fe8f17
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:777ac43051ddbc0ede8bdca2402928d93eb9f1bde8b7ff37f9469dfaf96e6df9
   - path: src/evallab/production/outbox_relay.py

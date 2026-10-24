@@ -698,8 +698,9 @@ submission and qualifies the pinned repair only after nine fresh executions:
 reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 `reward_seeker.rebreak_task` against the repaired package. Confirmed
 `exploit_witness` and `repaired_task` assets are distinct from provisional monitor
-suspicions. Worker phase updates use the shared `step_id` field; their missing
-reasoning/tool capture is reported as a coverage gap, not a clean trace.
+suspicions. Seeker attempt/feedback `step` objects are phase telemetry, not agent
+rollouts: they never become partial traces or labeled-trace assets. Missing
+reasoning/tool capture remains a coverage gap, not a clean trace.
 
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
@@ -767,7 +768,12 @@ committed configuration.
 - `GET /api/state` projects the durable journal to its queue snapshot's global
   sequence. Queue depth includes queued and leased jobs; current lease state owns
   active-worker counts. Partial traces and suspicion cards retain bounded recent
-  payloads. Distinct confirmed assets are counted from `asset.verified` events.
+  payloads. `run_items` separately retains bounded DEV task executions keyed by
+  campaign, dataset, and item, including executions without recorded trace steps.
+  It reports per-system lifecycle, distinct attempts, recorded rewards, submitted
+  job counts, current active leases, and verified asset IDs. Submission does not
+  imply a currently queued or completed job; current leases come from the queue.
+  Distinct confirmed assets are counted from `asset.verified` events.
 - `GET /api/stream` starts with a `state` SSE snapshot and its event-ID cursor,
   then streams shared event envelopes as ordinary messages. Browser `EventSource`
   reconnects with `Last-Event-ID`; replay follows journal sequence, not lexical
@@ -779,12 +785,22 @@ committed configuration.
   Optional `target` defaults to the run; optional `request_id` makes client
   retries idempotent. Reusing a request ID for different content returns HTTP 409.
   The authenticated operator identity cannot be supplied in the body.
+- `GET /api/runs/{run_id}/timeline` and `GET /api/grader-diff?run_id=...`
+  accept paired `dataset_id` and `item_id` selectors. A campaign containing more
+  than one DEV task returns HTTP 409 `ambiguous_run` without the pair; incomplete
+  selectors return HTTP 400, and unknown pairs return HTTP 404. The dashboard
+  carries the selected identity through timeline, diff, and SSE refreshes.
+  `GET /api/grader-diff?asset_id=...` pins the asset's own task and cannot be
+  combined with task selectors. Sealed source lineage still refuses the entire
+  inspection before filesystem reads, even when another DEV task is selected.
 
-An accepted intervention returns HTTP 202 and durably appends
-`operator.control_requested`; it does **not** claim that the executor has paused,
-stopped, or quarantined anything. The monitor consumes the request and records
-`control.requested`, `control.acknowledged`, and finally `control.applied` or
-`control.expired`. Only an applied event changes the displayed run state.
+Interventions are **campaign-wide**: every task execution sharing `run_id` is
+affected, not just the selected task row. An accepted intervention returns HTTP
+202 and durably appends `operator.control_requested`; it does **not** claim that
+the executor has paused, stopped, or quarantined anything. The monitor consumes
+the request and records `control.requested`, `control.acknowledged`, and finally
+`control.applied` or `control.expired`. Only an applied event changes the displayed
+execution state.
 
 ## Outbox relay
 
@@ -833,8 +849,11 @@ override those defaults. It refuses to overwrite an existing journal. The URL,
 database path and generated operator token are printed to the terminal; paste the
 token into the dashboard, not a URL. The server remains open after replay so its
 recordings and assets can be inspected. Ctrl-C stops the server and feeder without
-deleting the journal or exports. `serve` requires an existing journal; exports are
-disabled unless `--export-root` is supplied.
+deleting the journal or exports. `serve` attaches to an existing journal without
+starting a feeder or workers; it never drains the queue. Export requires
+`--export-root`. Without an active executor, a control remains a request rather
+than an acknowledgement or applied state. For production inspection, use a
+SQLite online backup when writes to the original journal are not intended.
 
 `--source tb4-dev|mimo|both` admits every recording through `CorpusRegistry` and
 skips effective TEST/heldout identities before opening their trajectories or

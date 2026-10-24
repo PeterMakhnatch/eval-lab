@@ -188,13 +188,18 @@ class SeekerFailureMemory:
         )
         if record.hackbook_entry_id and norm_mech:
             self._entry_Mechanism_keys.add((record.hackbook_entry_id, norm_mech))
-        if record.hackbook_entry_id and record.failure_kind in {
-            "non_differential_honest_pass",
-            "repaired_grader_also_passed",
-            "duplicate_shortcut",
-            "grader_rejected",
-            "upstream_failed",
-        }:
+        if (
+            record.hackbook_entry_id
+            and (record.failure_kind != "upstream_failed" or record.original_reward is not None)
+            and record.failure_kind
+            in {
+                "non_differential_honest_pass",
+                "repaired_grader_also_passed",
+                "duplicate_shortcut",
+                "grader_rejected",
+                "upstream_failed",
+            }
+        ):
             entry_failures = sum(
                 1 for item in self.records if item.hackbook_entry_id == record.hackbook_entry_id
             )

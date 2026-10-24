@@ -725,6 +725,8 @@ def test_hackbook_cue_matching_is_false_pass_only_and_blind(tmp_path: Path) -> N
             files_written=("/app/output.json",),
             failure_kind="upstream_failed",
             failure_reason="original grader rejected it",
+            original_reward=0.0,
+            repaired_reward=0.0,
         )
     )
     page = render_hackbook_cues_markdown(cues, failure_memory=memory)

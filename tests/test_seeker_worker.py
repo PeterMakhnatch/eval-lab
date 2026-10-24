@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import subprocess
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.models import HackbookEntry
 from evallab.production.seeker_worker import (
     FailedShortcutRecord,
@@ -23,9 +25,24 @@ from evallab.production.seeker_worker import (
     compute_shortcut_signature,
     match_task_hackbook_cues,
     render_hackbook_cues_markdown,
+    verify_differential_replay,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def isolated_execution_policy(monkeypatch):
+    """Only nonexecuting shell syntax checks may run; never a container or provider."""
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    original_run = subprocess.run
+
+    def no_process(argv, *args, **kwargs):
+        if isinstance(argv, list) and len(argv) == 3 and argv[:2] == ["bash", "-n"]:
+            return original_run(argv, *args, **kwargs)
+        pytest.fail(f"Unexpected external process in worker unit test: {argv!r}")
+
+    monkeypatch.setattr("subprocess.run", no_process)
 
 
 class SplitLockError(ValueError):
@@ -437,6 +454,7 @@ def _worker(
     grader: Any,
     max_attempts: int = 3,
     name: str = "work",
+    **execution_kwargs: Any,
 ) -> RewardSeekerLiveWorker:
     return RewardSeekerLiveWorker(
         queue,  # type: ignore[arg-type]
@@ -448,6 +466,7 @@ def _worker(
         attempt_generator=generator,
         grader_fn=grader,
         max_attempts=max_attempts,
+        **execution_kwargs,
     )
 
 
@@ -1118,3 +1137,220 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
     assert outcome is not None and outcome.exploit_confirmed is True
     assert outcome.confirmed_event is not None
     assert outcome.confirmed_event["payload"]["model_route"] == "meta/muse-wonder-1.0-contributor"
+
+
+@pytest.mark.parametrize("backend_name", ["modal", "auto"])
+@pytest.mark.parametrize("config_style", ["object", "keywords"])
+@pytest.mark.parametrize("repaired_kind", ["package", "port"])
+def test_cloud_worker_forwards_policy_to_both_grades(
+    tmp_path, monkeypatch, backend_name, config_style, repaired_kind
+) -> None:
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired, repaired_grader_kind=repaired_kind),
+        run_id="cloud-run",
+        event_id="cloud-job",
+    )
+    policy = ExecutionBackendConfig(
+        backend=backend_name,
+        modal_app_name="worker-test-seeker",
+        spend_ledger=tmp_path / "shared-cloud-spend.json",
+        approval="unit-test-only; no provider calls",
+        max_usd=2.0,
+        billing_tag="worker-test",
+    )
+    observed = []
+    marker_grader = MarkerGrader()
+
+    def grader(task, **kwargs):
+        observed.append(kwargs)
+        assert {key: kwargs[key] for key in policy.candidate_kwargs()} == policy.candidate_kwargs()
+        return marker_grader(task, **kwargs)
+
+    options = (
+        {"execution_config": policy}
+        if config_style == "object"
+        else {
+            "backend": backend_name,
+            "modal_app_name": policy.modal_app_name,
+            "spend_ledger": policy.spend_ledger,
+            "approval": policy.approval,
+            "max_usd": policy.max_usd,
+            "billing_tag": policy.billing_tag,
+        }
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+        **options,
+    )
+
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.exploit_confirmed is True
+    assert len(observed) == 2
+    assert all(call["backend"] == "modal" for call in observed)
+    assert all(call["allow_local_docker"] is False for call in observed)
+    assert observed[0]["files"] == observed[1]["files"]
+    assert observed[1]["grader"] == ("port" if repaired_kind == "port" else "upstream")
+    if repaired_kind == "port":
+        assert observed[1]["port_task"] == repaired
+    assert worker.execution_config.allow_local_docker is False
+    assert not policy.spend_ledger.exists()
+
+
+@pytest.mark.parametrize("refusal", ["environment", "explicit", "late_environment"])
+def test_disabled_local_worker_returns_backend_refusal_without_blacklisting(
+    tmp_path, monkeypatch, refusal
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="disabled-run",
+        event_id="disabled-job",
+    )
+    options = {}
+    if refusal == "environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        options["allow_local_docker"] = True
+    elif refusal == "explicit":
+        options["execution_config"] = ExecutionBackendConfig(allow_local_docker=True)
+        options["allow_local_docker"] = False
+    grader = MarkerGrader()
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+        **options,
+    )
+    if refusal == "late_environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.exploit_confirmed is False
+    assert (outcome.original_reward, outcome.repaired_reward) == (None, None)
+    assert not grader.calls
+    assert not outcome.failure_memory.records
+    feedback = next(
+        event for event in queue.events if event["event_type"] == "seeker.grader_feedback"
+    )
+    assert feedback["payload"]["failure_kind"] == "execution_backend_refused"
+    assert "LocalDockerDisabledError" in feedback["payload"]["failure_reason"]
+    assert not queue.chained_jobs
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+
+
+def test_modal_margin_refusal_never_retries_or_falls_back_to_docker(
+    tmp_path, monkeypatch
+) -> None:
+    from evallab.production import seeker_worker
+
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    job = queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="refused-modal",
+        event_id="refused-modal-job",
+    )
+    calls = []
+
+    def native_candidate(task, **kwargs):
+        calls.append(kwargs)
+        assert kwargs["backend"] == "modal"
+        assert kwargs["solution_bundle"].joinpath("solve.sh").is_file()
+        return {
+            "status": "refused",
+            "reward": None,
+            "error": "not admitted after controller margin",
+        }
+
+    def no_fallback(*_args, **_kwargs):
+        pytest.fail("A Modal refusal must not start a Docker fallback or retry")
+
+    monkeypatch.setattr(seeker_worker, "run_candidate", native_candidate)
+    monkeypatch.setattr(seeker_worker.time, "sleep", no_fallback)
+    monkeypatch.setattr("evallab.qa.task.HarborBackend", no_fallback)
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=native_candidate,
+        max_attempts=1,
+        backend="modal",
+        allow_local_docker=False,
+        modal_app_name="worker-test-seeker",
+        spend_ledger=tmp_path / "shared-cloud-spend.json",
+        approval="unit-test-only",
+        max_usd=2.0,
+        billing_tag="worker-test",
+    )
+    resolved = worker._resolve_job_task(job)
+    grade = verify_differential_replay(
+        resolved,
+        EXPLOIT_CANDIDATE,
+        attempt_dir=tmp_path / "direct-replay",
+        grader_fn=native_candidate,
+        execution_config=worker.execution_config,
+    )
+    assert grade.original_status == "refused"
+    assert grade.repaired_status == "not_run"
+    assert grade.differential_confirmed is False
+    assert len(calls) == 1
+
+
+def test_differential_checks_protection_again_before_repaired_grade(
+    tmp_path, monkeypatch
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    job = queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="late-protection",
+        event_id="late-protection-job",
+    )
+    calls = []
+
+    def grader(task, **kwargs):
+        calls.append(task)
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        return {
+            "status": "measured",
+            "reward": 1.0,
+            "output_dir": str(kwargs["output_dir"]),
+        }
+
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+    grade = verify_differential_replay(
+        worker._resolve_job_task(job),
+        EXPLOIT_CANDIDATE,
+        attempt_dir=tmp_path / "direct-replay",
+        grader_fn=grader,
+        execution_config=worker.execution_config,
+    )
+    assert calls == [original]
+    assert grade.original_reward == 1.0
+    assert grade.repaired_reward is None
+    assert grade.failure_kind == "execution_backend_refused"
+    assert not grade.differential_confirmed

@@ -1885,3 +1885,74 @@ def test_resume_revalidates_legacy_completeness_without_losing_s1_or_raw_native_
     assert (
         tmp_path / "new/tasks" / task_slug(subject) / "ref_subset/report.json"
     ).read_bytes() == native
+
+
+@pytest.mark.parametrize(
+    ("allow", "environment_disabled"), [(False, False), (None, True), (True, True)]
+)
+def test_direct_local_qa_seams_refuse_even_with_mocked_slot(
+    tmp_path, monkeypatch, allow, environment_disabled
+):
+    from contextlib import nullcontext
+
+    from evallab.execution_backend import LocalDockerDisabledError
+    from evallab.qa import task as qa
+
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    backend = HarborBackend(repo_root=tmp_path, allow_local_docker=allow)
+    if environment_disabled:
+        # The process opt-out must also protect backends constructed earlier.
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    package = _package(tmp_path)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("disabled local QA reached Docker")
+
+    monkeypatch.setattr(qa.subprocess, "run", forbidden)
+    monkeypatch.setattr(qa, "docker_slot", forbidden)
+    with pytest.raises(LocalDockerDisabledError), backend.slot("disabled"):
+        pytest.fail("disabled QA acquired a Docker slot")
+    backend._slot_depth = 1
+    with pytest.raises(LocalDockerDisabledError), backend.slot("nested-disabled"):
+        pytest.fail("nested Docker slot bypassed the environment opt-out")
+    monkeypatch.setattr(backend, "slot", lambda _: nullcontext())
+    trial_kwargs = {
+        "digest": "sha256:" + "0" * 64,
+        "mode": "nop",
+        "script": None,
+        "trial_dir": tmp_path / "trial",
+        "timeout_seconds": 1,
+        "solve_override": None,
+        "with_solution": False,
+        "capture_logs": False,
+    }
+    seams = [
+        lambda: backend.run_container_trial(package, **trial_kwargs),
+        lambda: backend._run_container_trial(package, **trial_kwargs),
+        lambda: backend._run_compose_trial(package, **trial_kwargs),
+        lambda: backend._ensure_images(package, trial_kwargs["digest"]),
+        lambda: backend._ensure_images_impl(package, trial_kwargs["digest"]),
+        lambda: backend._build_context_image(
+            package / "environment", "image", [], timeout=1, label="test"
+        ),
+        lambda: backend._run_probe(package, "image", "true", timeout=1),
+        lambda: backend._run_healthcheck("container", {}),
+        lambda: backend._run_separate_verifier_container(
+            package=package,
+            verifier_name="verifier",
+            tests_image="tests",
+            env_cfg={},
+            ver_cfg={},
+            copied=[],
+            v_timeout=1,
+            trial_dir=tmp_path / "trial",
+        ),
+        lambda: backend.ref_subset(
+            package, digest=trial_kwargs["digest"], run_dir=tmp_path / "subset"
+        ),
+    ]
+    for seam in seams:
+        with pytest.raises(LocalDockerDisabledError):
+            seam()
+    assert not (tmp_path / "trial").exists()
+    assert not (tmp_path / "subset").exists()

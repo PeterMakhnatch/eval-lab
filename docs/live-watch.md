@@ -704,6 +704,43 @@ suspicions. Seeker attempt/feedback `step` objects are phase telemetry, not agen
 rollouts: they never become partial traces or labeled-trace assets. Missing
 reasoning/tool capture remains a coverage gap, not a clean trace.
 
+Both execution-backed workers accept an
+`evallab.execution_backend.ExecutionBackendConfig` through `execution_config`,
+or the equivalent constructor keywords: `backend`, `modal_app_name`,
+`spend_ledger`, `approval`, `max_usd`, `billing_tag`, and `allow_local_docker`.
+For example, pass the same explicitly approved cloud policy to both consumers:
+
+```python
+from evallab.execution_backend import ExecutionBackendConfig
+
+execution = ExecutionBackendConfig(
+    backend="modal",
+    modal_app_name="owned-campaign-workers",
+    billing_tag="owned-campaign",
+    spend_ledger="/absolute/path/outside-task-inputs/shared-spend.json",
+    approval=recorded_current_approval,
+    max_usd=approved_cap_usd,
+    allow_local_docker=False,
+)
+# TaskQualityLiveWorker(queue, repo_root=repo, execution_config=execution)
+# RewardSeekerLiveWorker(queue, repo_root=repo, execution_config=execution)
+```
+
+The policy belongs to the worker, not a queued task's payload. It covers both
+original/repaired candidate grades, retained-trial replay, and all nine repair
+qualification controls. Modal forwards the dedicated app and billing label and
+retains reservations in the same persisted campaign ledger across restarts;
+these are execution estimates/reservations, not provider invoices or a billing
+kill switch. Existing unconfigured QA callers keep their in-memory gate semantics.
+
+`EVALLAB_DISABLE_LOCAL_DOCKER=1` is a hard runtime opt-out even if a caller passes
+`allow_local_docker=True`, and is checked again before execution. Explicit
+`backend="docker"` raises `LocalDockerDisabledError` or returns an unmeasured
+`execution_backend_refused`; `backend="auto"` resolves to Modal without probing
+the laptop's Docker daemon when local execution is disabled. Selecting Modal
+does not grant spend approval: missing approval/cap/ledger/attribution refuses
+before provider calls, and a Modal refusal never falls back to local Docker.
+
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
 `asset.verified` event end to end, and writes `assets.jsonl` with

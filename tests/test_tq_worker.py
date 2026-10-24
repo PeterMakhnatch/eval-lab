@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from collections.abc import Mapping
 from contextlib import nullcontext
@@ -14,6 +15,7 @@ import pytest
 
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
+from evallab.execution_backend import ExecutionBackendConfig, LocalDockerDisabledError
 from evallab.production.tq_worker import JOB_TYPES, TaskQualityLiveWorker
 from evallab.qa import counterfactual
 from evallab.qa.models import Finding, Refutation
@@ -21,6 +23,17 @@ from evallab.registry import task_directory_digest
 
 NOW = "2026-10-24T15:00:00+00:00"
 PATCH = "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old\n+new\n"
+
+
+@pytest.fixture(autouse=True)
+def isolated_execution_policy(monkeypatch):
+    """Host environment is not a fixture, and unit tests may never start Docker."""
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+
+    def no_process(*args, **kwargs):
+        pytest.fail(f"Unexpected external process in worker unit test: {args!r}")
+
+    monkeypatch.setattr("subprocess.run", no_process)
 
 
 class MemoryQueue:
@@ -69,6 +82,8 @@ class MemoryQueue:
 
 
 class QABackend:
+    environment = "docker"
+
     def __init__(self, root: Path, *, real_static: bool = False) -> None:
         self.root = root
         self.real_static = real_static
@@ -840,3 +855,207 @@ def test_annotation_only_never_resolves_scans_or_reads_a_package(setup) -> None:
     assert calls == []
     assert not s.replay.calls
     assert not s.backend.calls
+
+
+@pytest.mark.parametrize("candidate_kind", ["files", "solution_bundle"])
+@pytest.mark.parametrize("backend_name", ["modal", "auto"])
+def test_cloud_candidates_forward_one_policy_to_both_graders(
+    setup, monkeypatch, candidate_kind, backend_name
+) -> None:
+    s = setup
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    policy = ExecutionBackendConfig(
+        backend=backend_name,
+        modal_app_name="worker-test-tq",
+        spend_ledger=s.root / "cloud-spend.json",
+        approval="unit-test-only; no provider calls",
+        max_usd=2.0,
+        billing_tag="worker-test",
+    )
+    calls = []
+
+    def candidate_runner(task, **kwargs):
+        calls.append((task, kwargs))
+        assert {key: kwargs[key] for key in policy.candidate_kwargs()} == policy.candidate_kwargs()
+        return {
+            "status": "measured",
+            "executed": True,
+            "reward": float(task == s.original),
+            "error": None,
+            "output_dir": str(kwargs["output_dir"]),
+        }
+
+    payload = {"passing_runs": [], "target_dir": "/app"}
+    if candidate_kind == "files":
+        payload["exploit_files"] = {"out.txt": "wrong answer"}
+    else:
+        bundle = s.root / "immutable-solution"
+        bundle.mkdir()
+        (bundle / "solve.sh").write_text("#!/bin/sh\nprintf wrong > /app/out.txt\n")
+        payload["solution_bundle"] = str(bundle)
+    s.envelope["payload"].update(payload)
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend=s.backend,
+        execution_config=policy,
+        candidate_runner=candidate_runner,
+        clock=lambda: NOW,
+    )
+
+    assert worker.process_job(s.envelope)["complete"] is True
+    assert [task for task, _ in calls] == [s.original, s.repaired]
+    assert all(kwargs["backend"] == "modal" for _, kwargs in calls)
+    assert all(kwargs["allow_local_docker"] is False for _, kwargs in calls)
+    assert not s.replay.calls
+    assert not policy.spend_ledger.exists()
+
+
+def test_cloud_retained_replays_share_durable_gate_and_attribution(setup, monkeypatch) -> None:
+    s = setup
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    calls = []
+
+    def replay(source, grader, work, **kwargs):
+        calls.append(kwargs)
+        assert kwargs["environment"] == "modal"
+        gate = kwargs["spend_gate"]
+        assert gate.approval == "unit-test-only"
+        assert gate.cap_usd == 2.0
+        assert gate.spend_ledger == s.root / "shared-cloud-spend.json"
+        assert gate.modal_app_name == "worker-test-tq"
+        assert gate.billing_tag == "worker-test"
+        return {
+            "regraded": float(grader.package == s.original),
+            "outcome": "flips",
+            "job_dir": str(work),
+        }
+
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend="modal",
+        modal_app_name="worker-test-tq",
+        spend_ledger=s.root / "shared-cloud-spend.json",
+        approval="unit-test-only",
+        max_usd=2.0,
+        billing_tag="worker-test",
+        replay_runner=replay,
+        clock=lambda: NOW,
+    )
+    worker.backend = s.backend
+    assert worker.process_job(s.envelope)["complete"] is True
+    assert len(calls) == 2
+    assert calls[0]["spend_gate"] is calls[1]["spend_gate"]
+    assert worker.execution_config.allow_local_docker is False
+    assert not (s.root / "shared-cloud-spend.json").exists()
+
+
+def test_cloud_repair_routes_all_nine_controls_without_docker(setup, monkeypatch) -> None:
+    s = setup
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    made = []
+
+    class ModalBackend(QABackend):
+        environment = "modal"
+
+        def __init__(self, *, repo_root, spend_gate, modal_app_name, billing_tag):
+            super().__init__(repo_root)
+            self.spend_gate = spend_gate
+            self.modal_app_name = modal_app_name
+            self.billing_tag = billing_tag
+            made.append(self)
+
+    monkeypatch.setitem(
+        sys.modules, "evallab.qa.task_modal", SimpleNamespace(ModalBackend=ModalBackend)
+    )
+    candidates = []
+
+    def candidate_runner(task, **kwargs):
+        candidates.append(kwargs)
+        assert kwargs["backend"] == "modal"
+        assert kwargs["allow_local_docker"] is False
+        return {
+            "status": "measured",
+            "executed": True,
+            "reward": 0.0,
+            "output_dir": str(kwargs["output_dir"]),
+        }
+
+    (s.root / "reference.diff").write_text(PATCH)
+    s.envelope["payload"].update(
+        passing_runs=[],
+        exploit_files={"out.txt": "wrong"},
+        reference_patch="reference.diff",
+    )
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend="modal",
+        modal_app_name="worker-test-tq",
+        spend_ledger=s.root / "shared-cloud-spend.json",
+        approval="unit-test-only",
+        max_usd=2.0,
+        billing_tag="worker-test",
+        candidate_runner=candidate_runner,
+        clock=lambda: NOW,
+    )
+    worker.backend = s.backend
+    assert worker.qualify_repair(s.envelope)["qualified"] is True
+    assert len(made) == 1
+    assert len(made[0].calls) == 6
+    assert len(candidates) == 3
+    assert made[0].bound_patches == [(s.repaired, s.root / "reference.diff")]
+    assert made[0].spend_gate.spend_ledger == s.root / "shared-cloud-spend.json"
+    assert made[0].modal_app_name == "worker-test-tq"
+    assert made[0].billing_tag == "worker-test"
+    assert not s.backend.calls
+    assert not s.replay.calls
+
+
+@pytest.mark.parametrize("refusal", ["environment", "explicit", "late_environment"])
+@pytest.mark.parametrize("operation", ["candidate", "retained", "repair"])
+def test_disabled_local_execution_refuses_before_any_collaborator(
+    setup, monkeypatch, refusal, operation
+) -> None:
+    s = setup
+    kwargs = {}
+    if refusal == "environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        kwargs["allow_local_docker"] = True
+    elif refusal == "explicit":
+        kwargs["execution_config"] = ExecutionBackendConfig(allow_local_docker=True)
+        kwargs["allow_local_docker"] = False
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend=s.backend,
+        replay_runner=s.replay,
+        candidate_runner=lambda *_args, **_kwargs: pytest.fail("candidate runner must not start"),
+        **kwargs,
+    )
+    if refusal == "late_environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    if operation == "candidate":
+        s.envelope["payload"].update(exploit_files={"out.txt": "wrong"}, exploit_run="trial")
+    action = worker.qualify_repair if operation == "repair" else worker.process_job
+
+    with pytest.raises(LocalDockerDisabledError, match="Local Docker execution is disabled"):
+        action(s.envelope)
+    assert not s.replay.calls
+    assert not s.backend.calls
+    assert not any(event["event_type"] == "asset.verified" for event in s.queue.events)
+
+
+def test_cloud_retained_replay_requires_persisted_approval_before_execution(setup) -> None:
+    s = setup
+    worker = TaskQualityLiveWorker(
+        s.queue,
+        repo_root=s.root,
+        backend=s.backend,
+        execution_config=ExecutionBackendConfig(backend="modal", allow_local_docker=False),
+        replay_runner=s.replay,
+    )
+    with pytest.raises(ValueError, match="spend_ledger"):
+        worker.process_job(s.envelope)
+    assert not s.replay.calls

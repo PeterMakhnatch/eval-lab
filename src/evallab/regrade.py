@@ -47,6 +47,8 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import math
+import os
+import re
 import shutil
 import subprocess
 import threading
@@ -61,6 +63,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from evallab.benchmark_program_contracts import canonical_json, compute_prefixed_sha256
+from evallab.execution_backend import require_local_docker
 from evallab.schemas import ContractModel
 
 __all__ = [
@@ -208,6 +211,28 @@ def modal_resource_blocker(package: Path) -> str | None:
 #: need an explicit higher estimate. Logical replays have a separate authority.
 MODAL_USD_PER_ALLOCATION_UNIT = 0.0025
 
+#: Passed only to the admitted regrade subprocess; never installed in this process.
+_REGRADE_MODAL_POLICY_ENV = "EVALLAB_REGRADE_MODAL_POLICY"
+
+
+def _modal_environment_kwargs(
+    modal_app_name: str | None, billing_tag: str | None
+) -> dict[str, Any]:
+    """Use the native grader's owned-app identifier rules without importing an SDK."""
+    if modal_app_name is None and billing_tag is None:
+        return {}
+    if not isinstance(billing_tag, str) or not re.fullmatch(
+        r"[a-z0-9][a-z0-9-]{0,62}", billing_tag
+    ):
+        raise ValueError("Modal requires an explicit safe billing_tag")
+    if (
+        not isinstance(modal_app_name, str)
+        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", modal_app_name)
+        or not (modal_app_name == billing_tag or modal_app_name.startswith(billing_tag + "-"))
+    ):
+        raise ValueError("Modal app must be the owned billing tag or a tag-prefixed dedicated app")
+    return {"app_name": modal_app_name, "labels": {"evallab.billing_tag": billing_tag}}
+
 
 class SpendCapReached(RuntimeError):
     """A paid execution would take the run past its approved USD cap."""
@@ -220,7 +245,9 @@ class CloudSpendGate:
     Every paid execution reserves ``usd_per_execution`` before it starts; one
     that would pass ``cap_usd`` raises :class:`SpendCapReached` instead of
     running. Reservations are estimates, not bills: a failed or short execution
-    keeps its reservation. Thread-safe: one gate is shared by a run's workers.
+    keeps its reservation. An optional native spend ledger shares the immutable
+    approval/cap across gates and restarts; its entries remain estimates, not bills.
+    Thread-safe: one gate is shared by a run's workers.
     """
 
     approval: str
@@ -228,14 +255,37 @@ class CloudSpendGate:
     usd_per_execution: float
     executions: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    spend_ledger: Path | str | None = field(default=None, kw_only=True)
+    modal_app_name: str | None = field(default=None, kw_only=True)
+    billing_tag: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
-        if not self.approval.strip():
+        if not isinstance(self.approval, str) or not self.approval.strip():
             raise ValueError("a cloud spend gate needs the recorded approval text")
         for name in ("cap_usd", "usd_per_execution"):
             value = getattr(self, name)
-            if not (math.isfinite(value) and value > 0):
-                raise ValueError(f"{name} must be a positive number, got {value!r}")
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int | float)
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be a positive finite number, got {value!r}")
+        environment_kwargs = _modal_environment_kwargs(self.modal_app_name, self.billing_tag)
+        if self.spend_ledger is not None:
+            if not environment_kwargs:
+                raise ValueError("a persisted cloud spend gate requires modal_app_name and billing_tag")
+            from evallab.upstream_grader import _read_ledger
+
+            self.spend_ledger = Path(self.spend_ledger).expanduser().resolve()
+            _read_ledger(self.spend_ledger, approval=self.approval, cap=self.cap_usd)
+
+    def _check_ledger_location(self, *immutable_or_evidence: Path) -> None:
+        if self.spend_ledger is None:
+            return
+        ledger = Path(self.spend_ledger).expanduser().resolve()
+        if any(ledger.is_relative_to(path.resolve()) for path in immutable_or_evidence):
+            raise ValueError("spend ledger must be outside immutable inputs and execution evidence")
 
     def charge(self) -> None:
         """Reserve one execution, or raise :class:`SpendCapReached`."""
@@ -246,18 +296,56 @@ class CloudSpendGate:
                     f"execution {self.executions + 1} would reserve ${reserved:.2f}, "
                     f"over the approved ${self.cap_usd:.2f}"
                 )
+            if self.spend_ledger is not None:
+                # upstream_grader imports this class for shared arithmetic, so the
+                # durable authority must be imported only at the reservation seam.
+                from evallab.upstream_grader import _reserve_spend
+
+                _reserve_spend(
+                    Path(self.spend_ledger),
+                    approval=self.approval,
+                    cap=self.cap_usd,
+                    reservation={
+                        "reserved_usd": self.usd_per_execution,
+                        "usd_per_execution": self.usd_per_execution,
+                        "estimate_semantics": "fixed QA execution-unit estimate, not a provider bill",
+                    },
+                    identity={
+                        "primitive": "qa-execution",
+                        "modal_app_name": self.modal_app_name,
+                        "billing_tag": self.billing_tag,
+                    },
+                )
             self.executions += 1
 
     def to_json(self) -> dict[str, Any]:
         with self._lock:
             executions = self.executions
-        return {
-            "approval": self.approval,
-            "cap_usd": self.cap_usd,
-            "usd_per_execution": self.usd_per_execution,
-            "executions": executions,
-            "reserved_usd": round(executions * self.usd_per_execution, 4),
-        }
+            reserved = round(executions * self.usd_per_execution, 4)
+            attribution: dict[str, Any] = {}
+            if self.spend_ledger is not None:
+                from evallab.upstream_grader import _read_ledger
+
+                ledger = _read_ledger(
+                    Path(self.spend_ledger), approval=self.approval, cap=self.cap_usd
+                )
+                attribution.update(
+                    spend_ledger=str(self.spend_ledger),
+                    this_gate_reserved_usd=reserved,
+                )
+                reserved = ledger["reserved_usd"]
+            if self.modal_app_name is not None or self.billing_tag is not None:
+                attribution.update(
+                    modal_app_name=self.modal_app_name, billing_tag=self.billing_tag
+                )
+            return {
+                "approval": self.approval,
+                "cap_usd": self.cap_usd,
+                "usd_per_execution": self.usd_per_execution,
+                "executions": executions,
+                "reserved_usd": reserved,
+                **attribution,
+            }
 
 
 _HARBOR_VERSION_TIMEOUT_SECONDS = 60
@@ -385,6 +473,9 @@ class RegradeInvocation(ContractModel):
     command: list[str]
     trials_dir: str
     trial_name: str
+    cloud_spend: dict[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class RegradeExecution(ContractModel):
@@ -663,6 +754,7 @@ def _check_regrade_environment(environment: str) -> None:
     with no bypass flag.
     """
     if environment in LOCAL_REGRADE_ENVIRONMENTS:
+        require_local_docker()
         return
     raise ValueError(
         f"Refusing {environment!r} verifier environment: regrade runs on local Docker only."
@@ -675,6 +767,7 @@ def _check_trial_regrade_environment(environment: str, spend_gate: CloudSpendGat
     Other providers and custom import paths raise before any work starts.
     """
     if environment in LOCAL_REGRADE_ENVIRONMENTS:
+        require_local_docker()
         return
     if environment not in CLOUD_REGRADE_ENVIRONMENTS:
         raise ValueError(
@@ -899,6 +992,8 @@ def regrade_trial(
     trial_dir = Path(trial_dir)
     task_dir = Path(task_dir)
     trials_dir = Path(trials_dir)
+    if spend_gate is not None and environment not in LOCAL_REGRADE_ENVIRONMENTS:
+        spend_gate._check_ledger_location(trial_dir, task_dir, trials_dir)
 
     source = source_trial_identity(trial_dir)
     verifier = verifier_identity(task_dir)
@@ -930,6 +1025,9 @@ def regrade_trial(
         command=command,
         trials_dir=str(trials_dir),
         trial_name=trial_name,
+        cloud_spend=spend_gate.to_json()
+        if spend_gate is not None and environment not in LOCAL_REGRADE_ENVIRONMENTS
+        else None,
     )
     trials_dir.mkdir(parents=True, exist_ok=True)
     if spend_gate is not None and environment not in LOCAL_REGRADE_ENVIRONMENTS:
@@ -945,7 +1043,34 @@ def regrade_trial(
                 refusals=[RegradeRefusalCode.SPEND_CAP_REACHED],
                 invocation=invocation,
             )
-    completed = runner(command, capture_output=True, text=True, check=False)
+        invocation.cloud_spend = spend_gate.to_json()
+    runner_kwargs: dict[str, Any] = {}
+    if environment == "modal" and spend_gate is not None:
+        environment_kwargs = _modal_environment_kwargs(
+            spend_gate.modal_app_name, spend_gate.billing_tag
+        )
+        if environment_kwargs:
+            # Harbor's regrade CLI cannot express environment kwargs. Bind the
+            # validated gate to this one output trial in the child process only.
+            runner_kwargs["env"] = {
+                **os.environ,
+                _REGRADE_MODAL_POLICY_ENV: json.dumps(
+                    {
+                        "trial_dir": str((trials_dir / trial_name).resolve()),
+                        "approval": spend_gate.approval,
+                        "cap_usd": spend_gate.cap_usd,
+                        "usd_per_execution": spend_gate.usd_per_execution,
+                        "spend_ledger": str(spend_gate.spend_ledger)
+                        if spend_gate.spend_ledger is not None
+                        else None,
+                        "modal_app_name": spend_gate.modal_app_name,
+                        "billing_tag": spend_gate.billing_tag,
+                    }
+                ),
+            }
+    else:
+        require_local_docker()
+    completed = runner(command, capture_output=True, text=True, check=False, **runner_kwargs)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""
     stdout = getattr(completed, "stdout", "") or ""
@@ -1615,6 +1740,7 @@ def regrade_job(
         command=plan.command, jobs_dir=plan.jobs_dir, job_name=plan.job_name
     )
     Path(plan.jobs_dir).mkdir(parents=True, exist_ok=True)
+    require_local_docker()
     completed = runner(plan.command, capture_output=True, text=True, check=False)
     exit_code = int(getattr(completed, "returncode", 1))
     stderr = getattr(completed, "stderr", "") or ""

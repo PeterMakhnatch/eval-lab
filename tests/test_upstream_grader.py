@@ -170,6 +170,153 @@ def modal_options(tmp_path: Path) -> dict[str, Any]:
     }
 
 
+@pytest.fixture
+def no_runtime_io(monkeypatch: pytest.MonkeyPatch) -> Any:
+    def forbidden(*_: Any, **__: Any) -> Any:
+        pytest.fail("disabled local execution reached a probe, process, or runtime")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", forbidden)
+    monkeypatch.setattr(grader, "docker_available_resources", forbidden)
+    return forbidden
+
+
+@pytest.mark.parametrize("backend", ["docker", "auto"])
+@pytest.mark.parametrize(
+    "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
+)
+def test_disabled_local_docker_is_unmeasured_without_any_local_admission(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    backend: grader.Backend, allow_local_docker: bool | None, environment_disabled: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    for name in (
+        "docker_slot", "_admit_docker", "_docker_capacity", "_docker_query",
+        "_docker_stats", "_execute_native", "_stage_inputs", "_reserve_spend", "_read_ledger",
+    ):
+        monkeypatch.setattr(grader, name, no_runtime_io)
+    output = tmp_path / "disabled-local"
+    result = grader.run_upstream_grader(
+        task, blank=True, backend=backend, allow_local_docker=allow_local_docker,
+        output_dir=output,
+    )
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert result["reward"] is result["rewards"] is None
+    assert result["executed"] is False
+    assert result["spend"] is result["docker_admission"] is None
+    assert result["task_external_api_calls"] == 0
+    if backend == "docker":
+        assert "LocalDockerDisabledError" in result["error"]
+    else:
+        assert "approval" in result["error"]
+    assert json.loads((output / "upstream-grader.json").read_text())["reason_code"] == (
+        "execution_backend_refused"
+    )
+
+
+@pytest.mark.parametrize("backend", ["auto", "modal"])
+@pytest.mark.parametrize(
+    "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
+)
+def test_disabled_local_docker_keeps_modal_policy_and_never_probes_docker(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    backend: grader.Backend, allow_local_docker: bool | None, environment_disabled: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    for name in ("docker_slot", "_admit_docker", "_docker_capacity", "_docker_query", "_docker_stats"):
+        monkeypatch.setattr(grader, name, no_runtime_io)
+    monkeypatch.setattr(grader, "_read_ledger", lambda *_args, **_kwargs: {"reservations": []})
+    reservations: list[dict[str, Any]] = []
+    calls: list[dict[str, Any]] = []
+
+    def reserve(path: Path, **kwargs: Any) -> dict[str, Any]:
+        reservations.append({"path": path, **kwargs})
+        return {"reservation_id": "inert-reservation"}
+
+    async def execute(config: dict[str, Any], active: grader._Execution) -> dict[str, Any]:
+        calls.append(config)
+        assert active.allow_local_docker is allow_local_docker
+        raise RuntimeError("inert Modal execution boundary")
+
+    monkeypatch.setattr(grader, "_reserve_spend", reserve)
+    monkeypatch.setattr(grader, "_execute_native", execute)
+    options = modal_options(tmp_path) | {"backend": backend}
+    result = grader.run_upstream_grader(
+        task, blank=True, allow_local_docker=allow_local_docker,
+        output_dir=tmp_path / "disabled-cloud-route", **options,
+    )
+    assert result["backend"] == "modal"
+    assert result["status"] == "error"
+    assert "inert Modal execution boundary" in result["error"]
+    assert result["reward"] is None
+    assert len(calls) == len(reservations) == 1
+    assert calls[0]["environment"]["import_path"].endswith(":UpstreamModalEnvironment")
+    assert calls[0]["environment"]["kwargs"]["app_name"] == options["modal_app_name"]
+    assert calls[0]["environment"]["kwargs"]["labels"]["evallab.billing_tag"] == (
+        options["billing_tag"]
+    )
+    assert "allow_local_docker" not in calls[0]["environment"]["kwargs"]
+    reservation = reservations[0]
+    assert reservation["path"] == options["spend_ledger"]
+    assert reservation["approval"] == options["approval"]
+    assert reservation["cap"] == options["max_usd"]
+    assert reservation["identity"]["modal_app_name"] == options["modal_app_name"]
+    assert reservation["identity"]["billing_tag"] == options["billing_tag"]
+    assert not options["spend_ledger"].exists()
+
+
+@pytest.mark.parametrize("backend", ["docker", "auto"])
+def test_disabled_local_docker_plan_is_pure_and_resolves_auto_without_probes(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: grader.Backend,
+) -> None:
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    for name in (
+        "docker_slot", "_admit_docker", "_docker_capacity", "_docker_query",
+        "_docker_stats", "_execute_native", "_stage_inputs", "_reserve_spend",
+    ):
+        monkeypatch.setattr(grader, name, no_runtime_io)
+    monkeypatch.setattr(grader, "_read_ledger", lambda *_args, **_kwargs: {"reservations": []})
+    output = tmp_path / "disabled-plan"
+    modules = set(sys.modules)
+    options = modal_options(tmp_path) | {"backend": backend}
+    result = grader.run_upstream_grader(
+        task, blank=True, allow_local_docker=True, plan=True, output_dir=output, **options
+    )
+    assert result["executed"] is False
+    assert result["reserved_usd"] == 0
+    if backend == "docker":
+        assert result["status"] == "refused"
+        assert result["reason_code"] == "execution_backend_refused"
+        assert result["runnable"] is False
+        assert result["reward"] is None
+    else:
+        assert result["backend"] == "modal"
+        assert result["runnable"] is True
+    assert not output.exists()
+    assert not options["spend_ledger"].exists()
+    assert not any(name.startswith(("harbor.", "modal.")) for name in set(sys.modules) - modules)
+
+
+@pytest.mark.parametrize("boundary", ["_docker_query", "_docker_stats", "_docker_capacity", "_admit_docker"])
+def test_direct_docker_probes_honor_environment_before_any_io(
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any, boundary: str,
+) -> None:
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    arguments = ("info",) if boundary == "_docker_query" else ({},) if boundary == "_admit_docker" else ()
+    with pytest.raises(grader.LocalDockerDisabledError, match="Local Docker execution is disabled"):
+        getattr(grader, boundary)(*arguments)
+
+
 def test_plan_is_read_only_and_does_not_probe_or_import_runtime(
     task: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1416,3 +1563,427 @@ def test_module_cli_grades_real_fixture_through_the_canonical_runtime(
     assert result["status"] == "measured"
     assert result["reward"] == 1
     assert result["per_test"]["tests"][0]["status"] == "passed"
+
+
+@pytest.mark.parametrize(
+    "environment_disabled,worker_permission,request_permission",
+    [(True, True, True), (False, False, True), (False, True, False)],
+)
+def test_native_docker_constructor_refuses_before_native_initialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    environment_disabled: bool, worker_permission: bool, request_permission: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+
+    class Base:
+        def __init__(self, **kwargs: Any) -> None:
+            no_runtime_io(**kwargs)
+
+    _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
+    grader._runtime_type.cache_clear()
+    active = grader._Execution({}, allow_local_docker=worker_permission)
+    token = grader._ACTIVE_EXECUTION.set(active)
+    try:
+        runtime = grader._runtime_type("UpstreamDockerEnvironment")
+        with pytest.raises(grader.LocalDockerDisabledError):
+            runtime(
+                upstream_platform="linux/amd64", session_id="inert",
+                trial_paths=SimpleNamespace(trial_dir=tmp_path),
+                allow_local_docker=request_permission,
+            )
+        assert active.environments == []
+        assert active.claimed == []
+    finally:
+        grader._ACTIVE_EXECUTION.reset(token)
+        grader._runtime_type.cache_clear()
+
+
+@pytest.mark.parametrize("disabled_when", ["environment", "worker", "capacity"])
+def test_native_docker_start_rechecks_policy_before_probe_or_image_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, disabled_when: str,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+
+    class Base:
+        def __init__(self, **_: Any) -> None:
+            self._effective_cpus = 2
+            self._effective_memory_mb = 4096
+
+        async def start(self, **kwargs: Any) -> None:
+            no_runtime_io(**kwargs)
+
+    _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
+    monkeypatch.setattr(grader, "_docker_capacity", no_runtime_io)
+    grader._runtime_type.cache_clear()
+    active = grader._Execution(
+        {"resources": [{"role": "agent", "cpus": 2, "memory_mb": 4096}]},
+        allow_local_docker=True,
+    )
+    token = grader._ACTIVE_EXECUTION.set(active)
+    try:
+        runtime = grader._runtime_type("UpstreamDockerEnvironment")
+        environment = runtime(
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
+        )
+        if disabled_when == "worker":
+            active.allow_local_docker = False
+        elif disabled_when == "environment":
+            monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        else:
+            def capacity() -> tuple[float, int, dict[str, Any]]:
+                monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+                return 8, 16384, {}
+
+            monkeypatch.setattr(grader, "_docker_capacity", capacity)
+        with pytest.raises(grader.LocalDockerDisabledError):
+            asyncio.run(environment.start(force_build=True))
+        assert active.claimed == ([(2, 4096)] if disabled_when == "capacity" else [])
+        assert active.observations == []
+    finally:
+        grader._ACTIVE_EXECUTION.reset(token)
+        grader._runtime_type.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["build"], ["up", "-d"], ["ps", "--all"],
+        ["container", "run", "--rm", "inert-image"],
+        ["create", "--name", "rm", "inert-image"],
+        ["network", "create", "rm"], ["image", "inspect", "rm"],
+    ],
+)
+def test_native_docker_lower_level_commands_cannot_bypass_environment_switch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, command: list[str],
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+
+    class Base:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        @classmethod
+        def _engine_cmd(cls, *args: str) -> list[str]:
+            return no_runtime_io(*args)
+
+        async def _run_docker_compose_command(
+            self, args: list[str], **kwargs: Any
+        ) -> Any:
+            return no_runtime_io(args, **kwargs)
+
+    _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
+    grader._runtime_type.cache_clear()
+    active = grader._Execution({})
+    token = grader._ACTIVE_EXECUTION.set(active)
+    try:
+        runtime = grader._runtime_type("UpstreamDockerEnvironment")
+        environment = runtime(
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
+        )
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        with pytest.raises(grader.LocalDockerDisabledError):
+            runtime._engine_cmd(*command)
+        with pytest.raises(grader.LocalDockerDisabledError):
+            asyncio.run(environment._run_docker_compose_command(command))
+        assert active.claimed == []
+    finally:
+        grader._ACTIVE_EXECUTION.reset(token)
+        grader._runtime_type.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "environment_disabled,worker_permission,request_permission",
+    [(True, True, True), (False, False, True), (False, True, False)],
+)
+def test_direct_native_docker_executor_refuses_before_trial_creation(
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    environment_disabled: bool, worker_permission: bool, request_permission: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    _module(
+        monkeypatch, "harbor.models.trial.config",
+        TrialConfig=SimpleNamespace(model_validate=no_runtime_io),
+    )
+    _module(monkeypatch, "harbor.trial.trial", Trial=SimpleNamespace(create=no_runtime_io))
+    active = grader._Execution({}, allow_local_docker=worker_permission)
+    config = {
+        "environment": {
+            "import_path": "evallab.upstream_grader:UpstreamDockerEnvironment",
+            "kwargs": {"allow_local_docker": request_permission},
+        }
+    }
+    with pytest.raises(grader.LocalDockerDisabledError):
+        asyncio.run(grader._execute_native(config, active))
+    assert active.environments == []
+    assert active.elapsed_seconds is None
+    assert grader._ACTIVE_EXECUTION.get() is None
+
+
+def test_environment_disable_during_staging_refuses_before_native_fifo(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    for name in ("docker_slot", "_admit_docker", "_execute_native", "_reserve_spend"):
+        monkeypatch.setattr(grader, name, no_runtime_io)
+
+    def stage(*_: Any) -> tuple[Path, None]:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        return task, None
+
+    monkeypatch.setattr(grader, "_stage_inputs", stage)
+    result = grader.run_upstream_grader(
+        task, blank=True, backend="docker", allow_local_docker=True,
+        output_dir=tmp_path / "late-disabled",
+    )
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert result["reward"] is None
+    assert result["executed"] is False
+
+
+@pytest.mark.parametrize("backend", ["docker", "auto"])
+def test_environment_disable_during_admission_releases_fifo_and_preserves_refusal(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: grader.Backend,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    events: list[str] = []
+
+    @contextlib.contextmanager
+    def slot(**_: Any) -> Any:
+        events.append("acquired")
+        try:
+            yield
+        finally:
+            events.append("released")
+
+    admit = grader._admit_docker
+
+    def disable(prepared: dict[str, Any]) -> dict[str, Any]:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        return admit(prepared)
+
+    monkeypatch.setattr(grader, "docker_slot", slot)
+    monkeypatch.setattr(grader, "_admit_docker", disable)
+    monkeypatch.setattr(grader, "_execute_native", no_runtime_io)
+    monkeypatch.setattr(grader, "_reserve_spend", no_runtime_io)
+    result = grader.run_upstream_grader(
+        task, blank=True, backend=backend, allow_local_docker=True,
+        output_dir=tmp_path / "disabled-during-admission",
+    )
+    assert events == ["acquired", "released"]
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert result["executed"] is False
+    assert result["reward"] is None
+
+
+def test_native_executor_preserves_refusal_when_native_trial_catches_policy_error(
+    monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+
+    class Trial:
+        @staticmethod
+        async def create(_: Any) -> Trial:
+            return Trial()
+
+        async def run(self) -> Any:
+            monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+            return SimpleNamespace(
+                model_dump=lambda **_: {
+                    "exception_info": {"exception_message": "LocalDockerDisabledError"}
+                }
+            )
+
+    _module(
+        monkeypatch, "harbor.models.trial.config",
+        TrialConfig=SimpleNamespace(model_validate=lambda value: value),
+    )
+    _module(monkeypatch, "harbor.trial.trial", Trial=Trial)
+    config = {
+        "environment": {
+            "import_path": "evallab.upstream_grader:UpstreamDockerEnvironment",
+            "kwargs": {"allow_local_docker": True},
+        }
+    }
+    active = grader._Execution({"timeout_seconds": 5}, allow_local_docker=True)
+    with pytest.raises(grader.LocalDockerDisabledError):
+        asyncio.run(grader._execute_native(config, active))
+    assert active.environments == []
+    assert active.elapsed_seconds is not None
+    assert grader._ACTIVE_EXECUTION.get() is None
+
+
+def test_cli_json_accepts_local_docker_policy_and_returns_canonical_refusal(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    for name in ("docker_slot", "_admit_docker", "_execute_native", "_stage_inputs"):
+        monkeypatch.setattr(grader, name, no_runtime_io)
+    request = tmp_path / "disabled-request.json"
+    request.write_text(
+        json.dumps(
+            {
+                "task": str(task), "blank": True, "backend": "docker",
+                "allow_local_docker": False, "output_dir": str(tmp_path / "disabled-cli"),
+            }
+        )
+    )
+    assert grader.main(["--request", str(request)]) == 2
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert "LocalDockerDisabledError" in result["error"]
+    assert result["executed"] is False
+
+
+@pytest.mark.parametrize(
+    "boundary,command",
+    [
+        ("engine", ["stop", "inert-owned-container"]),
+        ("engine", ["kill", "inert-owned-container"]),
+        ("engine", ["rm", "--force", "inert-owned-container"]),
+        ("engine", ["rmi", "inert-owned-image"]),
+        ("engine", ["container", "stop", "inert-owned-container"]),
+        ("engine", ["container", "kill", "inert-owned-container"]),
+        ("engine", ["container", "rm", "inert-owned-container"]),
+        ("engine", ["image", "rm", "inert-owned-image"]),
+        ("engine", ["network", "rm", "inert-owned-network"]),
+        ("engine", ["volume", "rm", "inert-owned-volume"]),
+        ("compose", ["stop"]),
+        ("compose", ["down", "--rmi", "local", "--volumes", "--remove-orphans"]),
+        ("compose", ["rm", "--force"]),
+        ("compose", ["kill"]),
+    ],
+)
+def test_native_docker_cleanup_commands_remain_allowed_after_environment_disable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, boundary: str, command: list[str],
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    calls: list[tuple[str, tuple[str, ...], dict[str, Any]]] = []
+
+    class Base:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        @classmethod
+        def _engine_cmd(cls, *args: str) -> list[str]:
+            calls.append(("engine", args, {}))
+            return ["inert-engine", *args]
+
+        async def _run_docker_compose_command(
+            self, args: list[str], **kwargs: Any
+        ) -> Any:
+            calls.append(("compose", tuple(args), kwargs))
+            return "inert-compose-result"
+
+    _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
+    grader._runtime_type.cache_clear()
+    active = grader._Execution({})
+    token = grader._ACTIVE_EXECUTION.set(active)
+    try:
+        runtime = grader._runtime_type("UpstreamDockerEnvironment")
+        environment = runtime(
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
+        )
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        environment._upstream_allow_local_docker = False
+        if boundary == "engine":
+            assert runtime._engine_cmd(*command) == ["inert-engine", *command]
+            assert calls == [("engine", tuple(command), {})]
+        else:
+            assert asyncio.run(
+                environment._run_docker_compose_command(command, timeout_sec=3)
+            ) == "inert-compose-result"
+            assert calls == [("compose", tuple(command), {"timeout_sec": 3})]
+        assert active.claimed == []
+    finally:
+        grader._ACTIVE_EXECUTION.reset(token)
+        grader._runtime_type.cache_clear()
+
+
+@pytest.mark.parametrize("delete", [False, True])
+def test_native_docker_stop_remains_available_after_started_environment_is_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any, delete: bool,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    class Base:
+        def __init__(self, *, session_id: str, **_: Any) -> None:
+            self.session_id = session_id
+            self._effective_cpus = 2
+            self._effective_memory_mb = 4096
+            self._container_id: str | None = None
+            self.environment_id = "inert-native-image"
+
+        @classmethod
+        def _engine_cmd(cls, *args: str) -> list[str]:
+            calls.append(("engine", args))
+            return ["inert-engine", *args]
+
+        async def _run_docker_compose_command(self, args: list[str], **_: Any) -> Any:
+            calls.append(("compose", tuple(args)))
+            return SimpleNamespace(return_code=0)
+
+        async def start(self, force_build: bool) -> None:
+            await self._run_docker_compose_command(["up", "-d"])
+            self._container_id = "inert-owned-container"
+
+        async def _daemon_json(self, *_: str) -> Any:
+            return [
+                {
+                    "HostConfig": {"NanoCpus": 2_000_000_000, "Memory": 4096 * 1024 * 1024},
+                    "Image": "inert-image-id", "Config": {"Image": self.environment_id},
+                }
+            ]
+
+        async def stop(self, delete: bool) -> None:
+            await self._run_docker_compose_command(["down"] if delete else ["stop"])
+            if delete:
+                type(self)._engine_cmd("network", "rm", "inert-owned-network")
+            self._container_id = None
+
+    _module(monkeypatch, "evallab.harbor_host_isolation", HostIsolatedDockerEnvironment=Base)
+    monkeypatch.setattr(grader, "_docker_capacity", lambda: (8, 16384, {}))
+    grader._runtime_type.cache_clear()
+    active = grader._Execution(
+        {"resources": [{"role": "agent", "cpus": 2, "memory_mb": 4096}]},
+        allow_local_docker=True,
+    )
+    token = grader._ACTIVE_EXECUTION.set(active)
+    try:
+        runtime = grader._runtime_type("UpstreamDockerEnvironment")
+        environment = runtime(
+            upstream_platform="linux/amd64", session_id="inert",
+            trial_paths=SimpleNamespace(trial_dir=tmp_path), allow_local_docker=True,
+        )
+        asyncio.run(environment.start())
+        assert calls == [("compose", ("up", "-d"))]
+        assert active.observations[0]["limits_verified"] is True
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        environment._upstream_allow_local_docker = False
+        asyncio.run(environment.stop(delete=delete))
+        expected = [("compose", ("up", "-d")), ("compose", ("down" if delete else "stop",))]
+        if delete:
+            expected.append(("engine", ("network", "rm", "inert-owned-network")))
+        assert calls == expected
+        assert environment._upstream_cleaned is True
+        assert environment._container_id is None
+    finally:
+        grader._ACTIVE_EXECUTION.reset(token)
+        grader._runtime_type.cache_clear()

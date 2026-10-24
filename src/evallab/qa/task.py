@@ -44,6 +44,7 @@ from pydantic import Field
 
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.docker_lock import docker_slot
+from evallab.execution_backend import require_local_docker
 from evallab.qa.models import expected_root_causes, root_cause_hit
 from evallab.qa.score import ScoreRow, append_scoreboard
 from evallab.regrade import (
@@ -903,8 +904,9 @@ class HarborBackend:
     environment = "docker"
     spend_gate: CloudSpendGate | None = None
 
-    def __init__(self, *, repo_root: Path) -> None:
+    def __init__(self, *, repo_root: Path, allow_local_docker: bool | None = None) -> None:
         self.repo_root = repo_root.resolve()
+        self.allow_local_docker = allow_local_docker
         self._image_cache: dict[tuple[str, str], tuple[str, str | None]] = {}
         self._compose_built: set[tuple[str, str]] = set()
         self._slot_depth = 0
@@ -918,6 +920,7 @@ class HarborBackend:
         once per task; the per-trial calls nest inside it. ``docker_slot`` itself is not
         reentrant, so a nested acquire would deadlock behind its own ticket.
         """
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         if self._slot_depth:
             self._slot_depth += 1
             try:
@@ -926,6 +929,7 @@ class HarborBackend:
                 self._slot_depth -= 1
             return
         with docker_slot(label=label):
+            require_local_docker(allow_local_docker=self.allow_local_docker)
             self._slot_depth = 1
             try:
                 yield
@@ -1061,6 +1065,7 @@ class HarborBackend:
         raises: a package that never became ready is unmeasured, never a pass. Packages
         without a healthcheck are untouched.
         """
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         spec = self._healthcheck_spec(env_cfg)
         if spec is None:
             return {}
@@ -1098,6 +1103,7 @@ class HarborBackend:
         self, package: Path, env_image: str, script: str, *, timeout: float
     ) -> subprocess.CompletedProcess[str]:
         """Run ``script`` in a throwaway container; a declared healthcheck (setup) runs first."""
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
         env_cfg = config.get("environment") or {}
         plat = self._platform_args(package)
@@ -1159,13 +1165,13 @@ class HarborBackend:
 
         return static_observation(task)
 
-    @staticmethod
     def _build_context_image(
-        context_dir: Path, tag: str, plat: list[str], *, timeout: int, label: str
+        self, context_dir: Path, tag: str, plat: list[str], *, timeout: int, label: str
     ) -> None:
         import os
         import re
 
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         extra_df: list[str] = []
         tmp_df: Path | None = None
         try:
@@ -1209,11 +1215,13 @@ class HarborBackend:
                 tmp_df.unlink(missing_ok=True)
 
     def _ensure_images(self, package: Path, digest: str) -> tuple[str, str | None]:
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         return self._ensure_images_impl(package, digest, build_env_image=True)
 
     def _ensure_images_impl(
         self, package: Path, digest: str, *, build_env_image: bool = True
     ) -> tuple[str, str | None]:
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         key = (f"{package.resolve()}:{int(build_env_image)}", digest)
         if key in self._image_cache:
             return self._image_cache[key]
@@ -1295,6 +1303,7 @@ class HarborBackend:
         capture scripts); ``with_solution`` stages ``/solution`` for a shortcut script
         that wraps the reference; ``capture_logs`` copies the agent's ``/logs/artifacts``.
         """
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         with self.slot(f"qa-task/{package.name}/{mode}"):
             return self._run_container_trial(
                 package,
@@ -1322,6 +1331,7 @@ class HarborBackend:
         capture_logs: bool,
     ) -> AuditObservation:
         """Run one fresh-container trial (separate or shared verifier, 1 container at a time)."""
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         package = package.resolve()
         if self.compose_file(package) is not None:
             return self._run_compose_trial(
@@ -1648,6 +1658,7 @@ class HarborBackend:
     ) -> tuple[str, float | None]:
         import os
 
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         plat = self._platform_args(package)
         v_env_vars: list[str] = []
         for k, v in ((ver_cfg.get("environment") or {}).get("env") or {}).items():
@@ -1799,6 +1810,7 @@ class HarborBackend:
         capture_logs: bool,
     ) -> AuditObservation:
         """Run a multi-service Docker Compose trial with Harbor's phased sidecar collection."""
+        require_local_docker(allow_local_docker=self.allow_local_docker)
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "agent").mkdir(exist_ok=True)
         (trial_dir / "verifier").mkdir(exist_ok=True)
@@ -2638,6 +2650,10 @@ class HarborBackend:
         """
         from evallab.ref_subset import Package, probe_task
 
+        if self.environment == "docker":
+            require_local_docker(allow_local_docker=self.allow_local_docker)
+        elif self.spend_gate is not None:
+            self.spend_gate._check_ledger_location(package, run_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         cached = run_dir / "report.json"
         if cached.is_file():
@@ -2703,6 +2719,8 @@ class HarborBackend:
                 probe_pkg, cleanup_dir = self._prepare_mimo_probe_package(package)
         try:
             with self.slot(f"qa-task/{package.name}/ref-subset"):
+                if self.environment == "docker":
+                    require_local_docker(allow_local_docker=self.allow_local_docker)
                 report = probe_task(
                     probe_pkg,
                     patch,

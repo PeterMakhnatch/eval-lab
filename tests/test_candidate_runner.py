@@ -174,6 +174,162 @@ def modal_options(tmp_path: Path) -> dict[str, Any]:
     }
 
 
+@pytest.fixture
+def no_runtime_io(monkeypatch: pytest.MonkeyPatch) -> Any:
+    def forbidden(*_: Any, **__: Any) -> Any:
+        pytest.fail("disabled local execution reached a probe, process, or runtime")
+
+    for name in (
+        "_admit_docker", "_docker_capacity", "_docker_query", "_docker_stats",
+        "docker_available_resources", "docker_slot", "_execute_native",
+        "_reserve_spend", "_read_ledger",
+    ):
+        monkeypatch.setattr(native, name, forbidden)
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    monkeypatch.setattr(native.asyncio, "create_subprocess_exec", forbidden)
+    monkeypatch.setattr(native.asyncio, "create_subprocess_shell", forbidden)
+    monkeypatch.setattr(runner, "default_state_dir", forbidden)
+    return forbidden
+
+
+@pytest.mark.parametrize(
+    "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
+)
+def test_disabled_local_docker_refuses_before_staging_or_native_admission(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    allow_local_docker: bool | None, environment_disabled: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    monkeypatch.setattr(runner, "_stage_payload", no_runtime_io)
+    monkeypatch.setattr(runner, "_local_lane", no_runtime_io)
+    monkeypatch.setattr(native, "run_upstream_grader", no_runtime_io)
+    options = modal_options(tmp_path) | {"backend": "docker"}
+    output = tmp_path / "disabled-docker"
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, allow_local_docker=allow_local_docker,
+        output_dir=output, **options,
+    )
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert "LocalDockerDisabledError" in result["error"]
+    assert result["reward"] is result["rewards"] is result["passed"] is None
+    assert result["executed"] is False
+    assert result["spend"] is None
+    assert not options["spend_ledger"].exists()
+    assert json.loads((output / "candidate.json").read_text())["reason_code"] == (
+        "execution_backend_refused"
+    )
+
+
+@pytest.mark.parametrize(
+    "allow_local_docker,environment_disabled", [(False, False), (None, True), (True, True)]
+)
+def test_disabled_auto_forwards_unchanged_cloud_policy_without_local_admission(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_runtime_io: Any,
+    allow_local_docker: bool | None, environment_disabled: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    calls: list[dict[str, Any]] = []
+
+    def refuse_cloud(
+        native_task: Path, solution: Path, **kwargs: Any
+    ) -> dict[str, Any]:
+        calls.append({"task": native_task, "solution": solution, **kwargs})
+        return {
+            "schema": "evallab.upstream_grader.result/v1",
+            "task": {"path": str(native_task)},
+            "input": {"path": str(solution)},
+            "trial_dir": str(Path(kwargs["output_dir"]) / "trial"),
+            "output_dir": str(kwargs["output_dir"]),
+            "backend": kwargs["backend"],
+            "status": "refused", "error": "inert cloud admission refusal",
+            "reward": None, "rewards": None, "executed": False,
+        }
+
+    monkeypatch.setattr(native, "run_upstream_grader", refuse_cloud)
+    options = modal_options(tmp_path) | {"backend": "auto"}
+    output = tmp_path / "disabled-auto"
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, allow_local_docker=allow_local_docker,
+        output_dir=output, **options,
+    )
+    assert len(calls) == 1
+    forwarded = calls[0]
+    assert forwarded["backend"] == result["backend"] == "modal"
+    assert forwarded["allow_local_docker"] is allow_local_docker
+    for name in ("approval", "max_usd", "spend_ledger", "modal_app_name", "billing_tag"):
+        assert forwarded[name] == options[name]
+    assert forwarded["timeout_seconds"] == options["timeout_seconds"]
+    assert forwarded["output_dir"] == output / "native"
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert result["reward"] is None
+    assert result["executed"] is False
+    assert not options["spend_ledger"].exists()
+
+
+@pytest.mark.parametrize("backend", ["docker", "auto"])
+def test_disabled_local_docker_planning_remains_pure(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: native.Backend,
+) -> None:
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    monkeypatch.setattr(runner, "_stage_payload", no_runtime_io)
+    monkeypatch.setattr(runner, "_local_lane", no_runtime_io)
+    output = tmp_path / "disabled-plan"
+    modules = set(sys.modules)
+    options = modal_options(tmp_path) | {"backend": backend}
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, allow_local_docker=True,
+        output_dir=output, plan=True, **options,
+    )
+    assert result["schema"] == "evallab.candidate.plan/v1"
+    assert result["executed"] is False
+    if backend == "docker":
+        assert result["status"] == "refused"
+        assert result["reason_code"] == "execution_backend_refused"
+    else:
+        assert result["backend"] == "modal"
+        assert result["runnable"] is True
+        assert result["reserved_usd"] == 0
+    assert not output.exists()
+    assert not options["spend_ledger"].exists()
+    assert not any(name.startswith(("harbor.", "modal.")) for name in set(sys.modules) - modules)
+
+
+@pytest.mark.parametrize("environment_disabled", [False, True])
+def test_batch_local_docker_permission_is_forwarded_and_cannot_be_overridden(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, environment_disabled: bool,
+) -> None:
+    if environment_disabled:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    else:
+        monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    monkeypatch.setattr(runner, "_stage_payload", no_runtime_io)
+    monkeypatch.setattr(runner, "_local_lane", no_runtime_io)
+    monkeypatch.setattr(native, "run_upstream_grader", no_runtime_io)
+    request = {"task": task, "files": {"answer.txt": "good\n"}}
+    results = runner.run_candidates(
+        [request, request | {"allow_local_docker": True}, request | {"backend": "modal"}],
+        backend="docker", allow_local_docker=environment_disabled,
+        output_dir=tmp_path / "disabled-batch",
+    )
+    assert [item["status"] for item in results] == ["refused"] * 3
+    assert results[0]["reason_code"] == "execution_backend_refused"
+    assert "LocalDockerDisabledError" in results[0]["error"]
+    for outcome in results[1:]:
+        assert "batch policy" in outcome["error"]
+    assert all(item["reward"] is None and item["executed"] is False for item in results)
+
+
 def test_mapping_installs_real_bytes_and_returns_native_grade_logs_and_tests(
     task: Path, tmp_path: Path, transport: Any
 ) -> None:
@@ -856,3 +1012,26 @@ def test_cli_batch_json_uses_one_policy_and_keeps_refusal_outcomes(
     assert code == 2
     assert [item["reward"] for item in results] == [1, None]
     assert [item["batch_index"] for item in results] == [0, 1]
+
+
+@pytest.mark.parametrize("backend", ["docker", "auto"])
+def test_environment_disable_during_candidate_staging_refuses_before_local_lane(
+    task: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    no_runtime_io: Any, backend: native.Backend,
+) -> None:
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    monkeypatch.setattr(native, "run_upstream_grader", no_runtime_io)
+
+    def stage(*_: Any) -> Path:
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        return task / "solution"
+
+    monkeypatch.setattr(runner, "_stage_payload", stage)
+    result = runner.run_candidate(
+        task, {"answer.txt": "good\n"}, backend=backend, allow_local_docker=True,
+        output_dir=tmp_path / "late-disabled",
+    )
+    assert result["status"] == "refused"
+    assert result["reason_code"] == "execution_backend_refused"
+    assert result["reward"] is None
+    assert result["executed"] is False

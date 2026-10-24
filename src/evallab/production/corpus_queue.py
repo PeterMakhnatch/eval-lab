@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import hmac
+import io
 import json
 import math
 import sqlite3
@@ -53,6 +54,10 @@ class IdempotencyConflict(ValueError):
     """An event identity or idempotency key was reused for different content."""
 
 
+class ProductionQueueConnectionError(RuntimeError):
+    """The PostgreSQL connection failed before any queue transaction started."""
+
+
 class LeaseLostError(RuntimeError):
     """A job lease expired, completed, or was reclaimed by another worker."""
 
@@ -66,6 +71,7 @@ class CorpusItem:
     task_digest: str | None
     source_path: Path
     metadata: dict[str, Any]
+    source_record_sha256: str
 
 
 def _text(value: Any, field: str) -> str:
@@ -127,8 +133,13 @@ class CorpusRegistry:
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
         assignment_path = keys / "splits/assignments.csv"
+        self.split_assignments_digest: str | None = None
         if assignment_path.is_file():
-            with assignment_path.open(encoding="utf-8", newline="") as stream:
+            raw_assignments = assignment_path.read_bytes()
+            self.split_assignments_digest = (
+                "sha256:" + hashlib.sha256(raw_assignments).hexdigest()
+            )
+            with io.StringIO(raw_assignments.decode("utf-8"), newline="") as stream:
                 for row in csv.DictReader(stream):
                     key = row["key_id"], row["item_id"]
                     split = _split(row["split"])
@@ -140,9 +151,12 @@ class CorpusRegistry:
                 self._add(dataset, row, keys / dataset / "items.jsonl", assignments)
         task_index = keys / "tb4-audit-v1/tasks.jsonl"
         for row in _jsonl(task_index):
+            source_row = row
             subject = row.get("subject") or {}
             row = {**row, "item_id": subject.get("task_id")}
-            self._add("tb4-audit-v1", row, task_index, assignments)
+            self._add(
+                "tb4-audit-v1", row, task_index, assignments, source_record=source_row
+            )
         inventory_path = self.repo_root / "research/experiments/mimo-defect-map-v1/inventory.json"
         inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
         if inventory.get("dataset_id") != "mimo-defect-map-v1":
@@ -150,6 +164,7 @@ class CorpusRegistry:
         heldout = set(inventory["heldout_task_ids_excluded_from_training_all_versions"])
         self._sealed_names.update(self._task_name(task) for task in heldout)
         for row in inventory["tasks"]:
+            source_row = row
             row = {
                 **row,
                 "item_id": row["record_id"],
@@ -159,7 +174,9 @@ class CorpusRegistry:
                 else "dev",
                 "subject": {"task_id": row["task_id"], "task_digest": row.get("package_digest")},
             }
-            self._add("mimo-defect-map-v1", row, inventory_path, assignments)
+            self._add(
+                "mimo-defect-map-v1", row, inventory_path, assignments, source_record=source_row
+            )
 
     @staticmethod
     def _task_name(task: str) -> str:
@@ -171,6 +188,8 @@ class CorpusRegistry:
         row: dict[str, Any],
         source: Path,
         assignments: Mapping[tuple[str, str], str],
+        *,
+        source_record: dict[str, Any] | None = None,
     ) -> None:
         item_id = _text(row.get("item_id"), "item_id")
         if row.get("key_id", dataset) != dataset:
@@ -181,7 +200,9 @@ class CorpusRegistry:
             split = "test"
         subject = row.get("subject") or {}
         task_id, digest = subject.get("task_id"), subject.get("task_digest")
-        item = CorpusItem(dataset, item_id, split, task_id, digest, source, row)
+        record = row if source_record is None else source_record
+        record_digest = "sha256:" + hashlib.sha256(_json(record).encode()).hexdigest()
+        item = CorpusItem(dataset, item_id, split, task_id, digest, source, row, record_digest)
         if key in self._items:
             raise ValueError(f"duplicate corpus item: {dataset}/{item_id}")
         self._items[key] = item
@@ -212,6 +233,7 @@ class CorpusRegistry:
             item.task_digest,
             item.source_path,
             json.loads(_json(item.metadata)),
+            item.source_record_sha256,
         )
 
     def items(
@@ -248,14 +270,35 @@ class ContinuousWorkQueue:
     locks. Closing an instance does not delete or acknowledge persisted work.
     """
 
-    def __init__(self, database: str | Path, *, registry: CorpusRegistry | None = None) -> None:
+    def __init__(
+        self,
+        database: str | Path,
+        *,
+        registry: CorpusRegistry | None = None,
+        connect_timeout: int | None = None,
+    ) -> None:
+        if connect_timeout is not None and (
+            type(connect_timeout) is not int or connect_timeout < 1
+        ):
+            raise ValueError("connect_timeout must be a positive integer or None")
         self.registry = registry if registry is not None else CorpusRegistry()
         self._lock = threading.RLock()
         self._postgres = str(database).startswith(("postgresql://", "postgres://"))
         if self._postgres:
             import psycopg
 
-            self._connection = psycopg.connect(str(database), autocommit=True)
+            try:
+                self._connection = (
+                    psycopg.connect(str(database), autocommit=True)
+                    if connect_timeout is None
+                    else psycopg.connect(
+                        str(database), autocommit=True, connect_timeout=connect_timeout
+                    )
+                )
+            except psycopg.OperationalError:
+                raise ProductionQueueConnectionError(
+                    "PostgreSQL production queue connection unavailable"
+                ) from None
         else:
             path = str(database)
             if path.startswith("sqlite:///"):
@@ -608,6 +651,15 @@ class ContinuousWorkQueue:
                     WHEN excluded.last_seq > consumer_cursors.last_seq THEN excluded.last_seq
                     ELSE consumer_cursors.last_seq END""",
                 (consumer_id, seq),
+            )
+
+    def pending_outbox_count(self) -> int:
+        """Count unpublished durable events without materializing envelopes."""
+        with self._transaction():
+            return int(
+                self._execute(
+                    "SELECT COUNT(*) FROM outbox WHERE published_at IS NULL"
+                ).fetchone()[0]
             )
 
     def pending_outbox(self, *, limit: int = 100) -> list[dict[str, Any]]:

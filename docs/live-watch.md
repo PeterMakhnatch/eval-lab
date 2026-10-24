@@ -750,7 +750,12 @@ Construct the registry from the committed local corpus indices, then pass one
 dedicated queue to the Task Quality and Reward Seeker workers and
 `emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
 registry rather than a caller's split label; TEST remains sealed without the
-explicit per-operation frozen-evaluation token.
+explicit per-operation frozen-evaluation token. The TEST lock is global only
+across the four canonical corpora: a held-out task name or digest seals every
+canonical record that references it. Split-assignment rows under secondary key
+ids are scoped — they tighten only their own `(key_id, item_id)` entries, never
+feed the global lock, and never register a corpus; lookups under an
+unregistered key fail closed with `KeyError`.
 
 The queue transaction that records a confirmed Seeker `1.0 -> 0.0` differential
 also enqueues `task_quality.repair_task`. Task Quality replays the same immutable
@@ -760,6 +765,13 @@ reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 `exploit_witness` and `repaired_task` assets are distinct from provisional monitor
 suspicions. Worker phase updates use the shared `step_id` field; their missing
 reasoning/tool capture is reported as a coverage gap, not a clean trace.
+
+Docker capacity probes allow 30 seconds per daemon query while retaining the
+declared-resource and competing-container admission checks. A refused or unavailable
+grader is infrastructure evidence, not a failed shortcut: its feedback remains in
+the journal, but does not blacklist the candidate or exhaust its Hackbook entry.
+This also applies when rehydrating older unmeasured `upstream_failed` feedback.
+Measured candidate rejections still populate failure memory and prevent duplicates.
 
 The ASGI factory `evallab.production.control_plane:app_from_env` requires
 `EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).

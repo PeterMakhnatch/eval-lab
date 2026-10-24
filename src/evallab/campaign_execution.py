@@ -157,7 +157,7 @@ def docker_available_resources() -> tuple[float, int]:
 
     def query(*args: str) -> str:
         return subprocess.run(
-            ["docker", *args], capture_output=True, text=True, check=True, timeout=10
+            ["docker", *args], capture_output=True, text=True, check=True, timeout=30
         ).stdout
 
     info = json.loads(query("info", "--format", "{{json .}}"))

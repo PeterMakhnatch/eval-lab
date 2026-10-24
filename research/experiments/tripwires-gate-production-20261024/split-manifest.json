@@ -1,0 +1,52 @@
+{
+ "algorithm": "v4: sort DEV tasks by sha256(v4_seed:task); first floor(n/2) are tune, rest holdout",
+ "assignment_rows_sha256": "a1213802756ad27469ef4079ba886c2b5980bafd67e4c52752e19d3fea7632d4",
+ "columns_read": [
+  "key_id",
+  "unit",
+  "task",
+  "split"
+ ],
+ "disclosures": [
+  "task halves are the retained tripwires-v4 assignment; built from tb4-audit-v1 assignment task rows plus the v4 task_assignment key only; no trajectory, label or outcome was read for TW-P1 to choose or alter the split",
+  "TEST-split tasks are never listed or read; a task with several splits is not DEV",
+  "TW-P1 holdout means excluded from THIS patch's development and tuning only: the v3/v4 work saw DEV census labels and rule hits for all 22 tasks and scored the v4 holdout half once, so neither half is untouched or independent in the historical sense"
+ ],
+ "holdout_tasks": [
+  "cad-model",
+  "cargo-flight-dispatch",
+  "fin-saccr-rwa",
+  "freecad-impeller",
+  "freecad-platform-drawing",
+  "html-js-filter",
+  "layout-config-recreation2",
+  "live-database-cutover",
+  "nextjs-performance",
+  "sglang-qwen-burst",
+  "vpp-loss-divergence"
+ ],
+ "key_id": "tb4-audit-v1",
+ "manifest_sha256": "43cc308896c072c6906238f621a2388c9297459c9ae3c68be6830b0910ec1d7e",
+ "n_dev_tasks": 22,
+ "n_holdout_tasks": 11,
+ "n_tune_tasks": 11,
+ "schema": "evallab.tw_p1_split_manifest/v1",
+ "source": "retained tripwires-v4 task_assignment (same by-task halves as the v3/v4 lineage)",
+ "tune_tasks": [
+  "distributed-dedup",
+  "freecad-spring-clip",
+  "gsea-proteomics",
+  "heat-pump-warranty",
+  "jax-speedrun-gpu",
+  "math-eval-grader",
+  "photonic-waveguide-routing",
+  "satb-audio-transcription",
+  "uefi-bootkit",
+  "vba-userform-port",
+  "vf2-speedup-networkx"
+ ],
+ "unit": "task (group); every trial/membership of a task is in one half",
+ "v4_assignment_sha256": "6bd5189c872c2cbf7f490ad79f6c0ecf2502852eaab733bb99ec45b759e696bc",
+ "v4_seed": "tripwires-v4-tune-holdout-20261021",
+ "version": "tw-p1-gate"
+}

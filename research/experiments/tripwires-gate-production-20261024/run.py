@@ -35,6 +35,7 @@ import inspect
 import json
 import math
 import multiprocessing
+import os
 import random
 import re
 import statistics
@@ -70,6 +71,7 @@ def _load_v3() -> Any:
 
 v3 = _load_v3()
 tripwires = v3.tripwires
+from evallab.registry import harbor_task_digest  # noqa: E402
 
 SCHEMA = "evallab.tw_p1_gate_measurement/v1"
 MANIFEST_SCHEMA = "evallab.tw_p1_split_manifest/v1"
@@ -81,6 +83,8 @@ V4_SEED = "tripwires-v4-tune-holdout-20261021"
 V4_RESULTS = REPO / "research/experiments/tripwires-v4-precision-20261021/results-tune.json"
 REGISTRY = REPO / "research/experiments/tb4-run-census-20261021/registry.json"
 TB4_PACKAGES_VERSION = "terminal-bench-v4.0.0"
+TOKEN_ENV = "TW_P1_FROZEN_EVAL_TOKEN"
+REGISTRY_EXTERNAL = ("cheatbench-actions-v1", "hacktrace-act-v1")
 MANIFEST = HERE / "split-manifest.json"
 PACKAGE_ENTRIES = ("instruction.md", "task.toml", "tests", "solution", "environment")
 PACKAGE_MAX_BYTES = 1_000_000
@@ -234,60 +238,101 @@ def v4_assignment(path: Path = V4_RESULTS) -> dict[str, str]:
     return dict(value)
 
 
-def manifest_body(
-    assignments: Path = v3.ASSIGNMENTS, v4_results: Path = V4_RESULTS
-) -> dict[str, Any]:
-    """Retain the existing v4 task-level split: no previously inspected task changes half.
+def registry_effective_dev(repo: Path = REPO) -> list[str]:
+    """TB4 task names the production ``CorpusRegistry`` treats as DEV (sealed names excluded).
 
-    A fresh seed would move tasks whose holdout labels/hits were already scored into tune, so the
-    v4 assignment is copied, checked against the live DEV allowlist and against the v4 seed's
-    own deterministic algorithm, and frozen before any TW-P1 payload or label is opened.
+    The registry seals every task that is test/heldout under ANY key, so a task that is ``dev``
+    in tb4-audit-v1 can still be TEST-locked. Names only; no task or answer bytes are opened and
+    the lock is never bypassed (no frozen-eval token is ever passed here).
+    """
+    from evallab.production.corpus_queue import CorpusRegistry
+
+    registry = CorpusRegistry(repo)
+    return sorted(
+        {
+            item.task_id.removeprefix(v3.TB4_TASK_UNIT).split("@", 1)[0]
+            for item in registry.items(dataset_id=v3.TB4_KEY_ID, split="dev")
+            if item.task_id and item.task_id.startswith(v3.TB4_TASK_UNIT)  # not __benchmark__/...
+        }
+    )
+
+
+def manifest_body(
+    assignments: Path = v3.ASSIGNMENTS,
+    v4_results: Path = V4_RESULTS,
+    effective_dev: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Conservative split of the registry-effective DEV universe, retaining the v4 task halves.
+
+    The census covers 22 DEV tasks (v4 halves 11/11); the production registry seals some of them
+    through other keys' heldouts and adds DEV tasks that have no captured trials. Every task the
+    v4 split put in tune stays in tune (if still effective DEV); the legacy v4 holdout tasks and
+    any effective DEV task v4 never saw (no census labels or trajectories: unknown) go to
+    holdout, so no previously scored task moves into tune. Sealed census tasks are excluded and
+    listed, never unsealed. Frozen before any TW-P1 payload or label is opened.
     """
     rows = tb4_assignment_rows(assignments)
-    dev = dev_tasks_of(rows)
+    census = dev_tasks_of(rows)
     assignment = v4_assignment(v4_results)
-    if set(assignment) != set(dev):
+    if set(assignment) != set(census):
         raise ValueError(
-            f"v4 assignment and tb4-audit-v1 DEV tasks differ: {sorted(set(assignment) ^ set(dev))}"
+            f"v4 assignment and tb4-audit-v1 DEV tasks differ: {sorted(set(assignment) ^ set(census))}"
         )
-    if assignment != split_tasks(dev, V4_SEED):
+    if assignment != split_tasks(census, V4_SEED):
         raise ValueError("v4 assignment is not the deterministic split of its recorded seed")
-    tune = sorted(t for t, side in assignment.items() if side == "tune")
-    holdout = sorted(t for t, side in assignment.items() if side == "holdout")
-    if set(tune) & set(holdout) or set(tune) | set(holdout) != set(dev):
-        raise ValueError("split is not a disjoint partition of the DEV tasks")
+    effective = sorted(set(registry_effective_dev() if effective_dev is None else effective_dev))
+    sealed = sorted(set(census) - set(effective))
+    uncaptured = sorted(set(effective) - set(census))
+    tune = sorted(t for t in effective if assignment.get(t) == "tune")
+    holdout = sorted(set(effective) - set(tune))
+    if not tune or not holdout or set(tune) & set(holdout) or set(tune) | set(holdout) != set(effective):
+        raise ValueError("split is not a disjoint non-empty partition of the effective DEV tasks")
     return {
         "schema": MANIFEST_SCHEMA,
         "version": VERSION_ID,
-        "source": "retained tripwires-v4 task_assignment (same by-task halves as the v3/v4 lineage)",
+        "source": "retained tripwires-v4 task halves restricted to the production-registry effective DEV universe",
         "v4_seed": V4_SEED,
         "v4_assignment_sha256": canonical_sha(sorted(assignment.items())),
-        "algorithm": "v4: sort DEV tasks by sha256(v4_seed:task); first floor(n/2) are tune, rest holdout",
+        "v4_results_file_sha256": file_sha(v4_results),
+        "algorithm": "tune = v4 tune tasks that are effective DEV; holdout = legacy v4 holdout "
+        "effective DEV tasks + effective DEV tasks absent from the census (uncaptured)",
         "unit": "task (group); every trial/membership of a task is in one half",
         "key_id": v3.TB4_KEY_ID,
         "assignment_rows_sha256": canonical_sha([list(r) for r in rows]),
         "columns_read": ["key_id", "unit", "task", "split"],
-        "n_dev_tasks": len(dev),
+        "n_census_tasks": len(census),
+        "n_dev_tasks": len(effective),
+        "n_captured_effective": len(set(effective) & set(census)),
         "n_tune_tasks": len(tune),
         "n_holdout_tasks": len(holdout),
         "tune_tasks": tune,
         "holdout_tasks": holdout,
+        "sealed_by_registry": sealed,
+        "uncaptured_dev_tasks": uncaptured,
+        "effective_dev_sha256": canonical_sha(effective),
         "disclosures": [
-            "task halves are the retained tripwires-v4 assignment; built from tb4-audit-v1 "
-            "assignment task rows plus the v4 task_assignment key only; no trajectory, label or "
-            "outcome was read for TW-P1 to choose or alter the split",
+            "census22 vs effective DEV: the production registry seals census tasks that other keys "
+            "hold out (sealed_by_registry) and adds DEV tasks with no captured trials "
+            "(uncaptured_dev_tasks: unknown, not clean); both counts are reported, no silent "
+            "coverage reduction; sealed tasks are never unsealed or measured",
+            "built from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split "
+            "(task names only) and the v4 task_assignment key; no trajectory, label or outcome "
+            "was read for TW-P1 to choose or alter the split",
             "TEST-split tasks are never listed or read; a task with several splits is not DEV",
             "TW-P1 holdout means excluded from THIS patch's development and tuning only: the "
-            "v3/v4 work saw DEV census labels and rule hits for all 22 tasks and scored the v4 "
-            "holdout half once, so neither half is untouched or independent in the historical sense",
+            "v3/v4 work saw DEV census labels and rule hits for all 22 census tasks and scored "
+            "the v4 holdout half once, so neither half is untouched or independent in the "
+            "historical sense",
         ],
     }
 
 
 def build_manifest(
-    assignments: Path = v3.ASSIGNMENTS, v4_results: Path = V4_RESULTS
+    assignments: Path = v3.ASSIGNMENTS,
+    v4_results: Path = V4_RESULTS,
+    effective_dev: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    body = manifest_body(assignments, v4_results)
+    body = manifest_body(assignments, v4_results, effective_dev)
     return {**body, "manifest_sha256": canonical_sha(body)}
 
 
@@ -295,6 +340,7 @@ def verify_manifest(
     manifest: Mapping[str, Any],
     assignments: Path = v3.ASSIGNMENTS,
     v4_results: Path = V4_RESULTS,
+    effective_dev: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Refuse a manifest that is tampered with, stale against its sources, or leaks a task."""
     if manifest.get("schema") != MANIFEST_SCHEMA:
@@ -305,11 +351,15 @@ def verify_manifest(
     tune, holdout = set(manifest["tune_tasks"]), set(manifest["holdout_tasks"])
     if tune & holdout:
         raise ValueError(f"split leak: tasks in both halves: {sorted(tune & holdout)}")
-    rebuilt = manifest_body(assignments, v4_results)
+    if (tune | holdout) & set(manifest["sealed_by_registry"]):
+        raise ValueError("split leak: a registry-sealed task is in a measured half")
+    rebuilt = manifest_body(assignments, v4_results, effective_dev)
     if rebuilt["assignment_rows_sha256"] != manifest["assignment_rows_sha256"]:
         raise ValueError("tb4-audit-v1 assignments changed since the split was frozen")
+    if rebuilt["effective_dev_sha256"] != manifest["effective_dev_sha256"]:
+        raise ValueError("the registry's effective DEV universe changed since the split was frozen")
     if rebuilt != body:
-        raise ValueError("split manifest differs from the retained v4 split of the assignments")
+        raise ValueError("split manifest differs from the retained v4 split of the effective DEV tasks")
     return dict(manifest)
 
 
@@ -317,8 +367,9 @@ def load_manifest(
     path: Path = MANIFEST,
     assignments: Path = v3.ASSIGNMENTS,
     v4_results: Path = V4_RESULTS,
+    effective_dev: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    return verify_manifest(json.loads(path.read_text()), assignments, v4_results)
+    return verify_manifest(json.loads(path.read_text()), assignments, v4_results, effective_dev)
 
 
 def stage_tasks(manifest: Mapping[str, Any], stage: str) -> frozenset[str]:
@@ -1554,10 +1605,12 @@ def read_stage_labels(
 
 def read_stage_index(
     path: Path, tasks: frozenset[str]
-) -> tuple[dict[str, str | None], str]:
+) -> tuple[dict[str, str | None], str, dict[str, frozenset[str]]]:
+    """Membership -> archive path, file sha256, and per-task admitted ``lock_task`` digests."""
     data = path.read_bytes()
     lines, _ = v3.dev_lines(data, tasks, prefix=v3.TB4_TASK_UNIT)
     out: dict[str, str | None] = {}
+    locks: dict[str, set[str]] = defaultdict(set)
     for line in lines:
         raw = json.loads(line)
         task = str(raw["task"]).removeprefix(v3.TB4_TASK_UNIT)
@@ -1567,7 +1620,14 @@ def read_stage_index(
         if membership in out:
             raise ValueError(f"{path.name}: duplicate membership {membership}")
         out[membership] = raw.get("archive_path")
-    return out, sha256_bytes(data)
+        digest = (raw.get("lock_task") or {}).get("digest")
+        if (
+            digest
+            and raw.get("provenance_admission") == "admitted_exact_source"
+            and raw.get("acquisition_state") == "complete"
+        ):
+            locks[task].add(digest)
+    return out, sha256_bytes(data), {t: frozenset(d) for t, d in locks.items()}
 
 
 def _unavailable(cohort: Any, reason: str, **extra: Any) -> dict[str, Any]:
@@ -1614,21 +1674,27 @@ def read_package(task_dir: Path) -> tuple[dict[str, str], set[str], dict[str, st
 
 
 def package_digests(packages: Path, tasks: Iterable[str]) -> dict[str, str | None]:
-    """Byte digest of each named task package (hash only; nothing is interpreted)."""
+    """Harbor content digest of each named local task package (hash only; nothing interpreted)."""
     out: dict[str, str | None] = {}
     for task in sorted(tasks):
         if not v3._safe_part(task) or not (packages / task).is_dir():
             out[task] = None
             continue
-        out[task] = canonical_sha(read_package(packages / task)[2])
+        out[task] = harbor_task_digest(packages / task)
     return out
 
 
 def package_contexts(
-    packages: Path, tasks: Iterable[str]
+    packages: Path,
+    tasks: Iterable[str],
+    locks: Mapping[str, frozenset[str]] | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """``structural_context`` per task from its package, with provenance, for stage tasks only."""
-    build = importlib.import_module("evallab.hackbook.prefix_checks").package_context
+    """``structural_context`` per stage task, only for a package that matches the Hub lock.
+
+    The local directory's Harbor content digest must equal the (single) admitted ``lock_task``
+    digest of that task's historical trials; anything else is unavailable (version mismatch or no
+    lock evidence), never a guessed context. Only the whitelisted roots are loaded.
+    """
     contexts: dict[str, Any] = {}
     report: dict[str, Any] = {}
     for task in sorted(tasks):
@@ -1636,18 +1702,33 @@ def package_contexts(
         if not v3._safe_part(task) or not task_dir.is_dir():
             report[task] = {"status": "absent"}
             continue
+        lock = (locks or {}).get(task)
+        if not lock:
+            report[task] = {"status": "unavailable", "reason": "no admitted lock digest to bind to"}
+            continue
+        local = harbor_task_digest(task_dir)
+        if lock != {local}:
+            report[task] = {
+                "status": "unavailable",
+                "reason": "package_digest_mismatch",
+                "local_harbor_digest": local,
+                "lock_digests": sorted(lock),
+            }
+            continue
         files, skipped, digests = read_package(task_dir)
         complete = tuple(
             role for role, roots in COMPLETE_ROLE_ROOTS.items() if not set(roots) & skipped
         )
+        build = importlib.import_module("evallab.hackbook.prefix_checks").package_context
         contexts[task] = build(
             files,
-            source=f"{TB4_PACKAGES_VERSION}/tasks/{task}",
+            source=f"harbor-lock:{local}:{TB4_PACKAGES_VERSION}/tasks/{task}",
             available_before_step=0,
             complete_roles=complete,
         )
         report[task] = {
             "status": "present",
+            "harbor_digest": local,
             "sha256": canonical_sha(digests),
             "incomplete_roots": sorted(skipped),
             "complete_roles": list(complete),
@@ -1667,7 +1748,11 @@ def measure_tb4(
     workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     tasks = stage_tasks(manifest, stage)
-    dev_all = frozenset(manifest["tune_tasks"]) | frozenset(manifest["holdout_tasks"])
+    dev_all = (
+        frozenset(manifest["tune_tasks"])
+        | frozenset(manifest["holdout_tasks"])
+        | frozenset(manifest["sealed_by_registry"])
+    )
     labels_path = root / v3.CENSUS_DIR / str(cohort.census) / "labels-all.jsonl"
     hub = root / v3.HUB_DIR
     official = cohort.census == "full"
@@ -1679,7 +1764,9 @@ def measure_tb4(
     rows, labels_sha, line_counts = read_stage_labels(labels_path, tasks, dev_all)
     if not rows:
         return _unavailable(cohort, f"no {stage}-half label records in the census file"), []
-    index, index_sha = read_stage_index(index_path, tasks) if official else (None, None)
+    index, index_sha, locks = (
+        read_stage_index(index_path, tasks) if official else (None, None, None)
+    )
     subjects = [
         with_labels(
             v3.tb4_subject(cohort, r, hub, index), r.get("mechanisms") or []
@@ -1688,7 +1775,9 @@ def measure_tb4(
     ]
     assert_stage_subjects(subjects, tasks, stage)
     contexts, package_report = (
-        package_contexts(packages, tasks) if packages is not None else (None, {"status": "none"})
+        package_contexts(packages, tasks, locks if official else None)
+        if packages is not None
+        else (None, {"status": "none"})
     )
     records = measure_subjects(
         cohort, f"dev-{stage}", subjects, evaluator=evaluator, workers=workers, contexts=contexts
@@ -1707,7 +1796,15 @@ def measure_tb4(
             "population": "official" if official else "supplementary-bootstrap",
             "stage": stage,
             "stage_tasks": len(tasks),
-            "tasks_measured": len({s.source["task"] for s in subjects}),
+            "effective_dev": {
+                "census_tasks": manifest["n_census_tasks"],
+                "effective_dev_tasks": manifest["n_dev_tasks"],
+                "captured_in_census": manifest["n_captured_effective"],
+                "stage_tasks": sorted(tasks),
+                "stage_tasks_with_captured_trials": sorted({s.source["task"] for s in subjects}),
+                "stage_tasks_uncaptured_unknown": sorted(tasks - {s.source["task"] for s in subjects}),
+                "sealed_by_registry_excluded": manifest["sealed_by_registry"],
+            },
             "registered_in_split": len(rows),
             "excluded_registered_cells": {k: v for k, v in sorted(strata.items()) if k != "canonical"},
             "census_labels": dict(sorted(Counter(s.label for s in subjects).items())),
@@ -1726,6 +1823,41 @@ def measure_tb4(
     return result, records
 
 
+def external_admission(
+    cohort_id: str, items: Sequence[Any], token: str | None, repo: Path = REPO
+) -> str | None:
+    """Why a sealed TEST split cannot be read, else ``None``. The registry lock is never bypassed.
+
+    Any TEST item needs the production registry's frozen-eval token; the token is validated by
+    the registry itself (``admit`` on a sealed item), and registered CheatBench/HackTrace items
+    are admitted one by one. DEV splits need no token.
+    """
+    test_items = [i for i in items if i.split in ("test", "heldout")]
+    if not test_items:
+        return None
+    if not token:
+        return (
+            f"TEST split sealed: the production registry needs an explicit frozen-eval token "
+            f"({TOKEN_ENV}); it is never bypassed"
+        )
+    from evallab.production.corpus_queue import CorpusRegistry, SplitLockError
+
+    registry = CorpusRegistry(repo, frozen_eval_token=token)
+    try:
+        sealed = registry.items(split="test")
+        if not sealed:
+            raise SplitLockError("registry holds no sealed item to validate the token against")
+        probe = sealed[0]
+        registry.admit(probe.dataset_id, probe.item_id, frozen_eval_token=token)
+        if cohort_id in REGISTRY_EXTERNAL:
+            for item in test_items:
+                if item.item_id:
+                    registry.admit(cohort_id, item.item_id, frozen_eval_token=token)
+    except (SplitLockError, KeyError) as exc:
+        return f"registry refused frozen-eval admission: {type(exc).__name__}: {str(exc)[:160]}"
+    return None
+
+
 def measure_key(
     cohort: Any,
     splits: Sequence[str],
@@ -1733,6 +1865,7 @@ def measure_key(
     root: Path,
     keys_dir: Path,
     summary_args: dict[str, Any],
+    frozen_eval_token: str | None = None,
     evaluator: Evaluator | None = None,
     workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -1746,6 +1879,9 @@ def measure_key(
     items = [i for i in key.items if i.split in splits]
     if not items:
         return _unavailable(cohort, f"no {list(splits)} items in {directory.name}"), []
+    refusal = external_admission(cohort.id, items, frozen_eval_token)
+    if refusal:
+        return _unavailable(cohort, refusal, splits=list(splits)), []
     subjects = [
         with_labels(subject, sorted(expected_root_causes(item.model_dump())))
         for subject, item in zip(v3.key_subjects(cohort, items, root), items, strict=True)
@@ -1824,6 +1960,7 @@ def measure_stage(
     packages: Path | None = None,
     keys_dir: Path = v3.KEYS_DIR,
     external_splits: Sequence[str] = ("test",),
+    frozen_eval_token: str | None = None,
     evaluator: Evaluator | None = None,
     workers: int = 1,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -1863,6 +2000,7 @@ def measure_stage(
                 root=root,
                 keys_dir=keys_dir,
                 summary_args=summary_args,
+                frozen_eval_token=frozen_eval_token,
                 evaluator=evaluator,
                 workers=workers,
             )
@@ -2013,6 +2151,7 @@ def run_holdout(
     manifest_path: Path = MANIFEST,
     freeze_path: Path = FREEZE,
     keys_dir: Path = v3.KEYS_DIR,
+    frozen_eval_token: str | None = None,
     evaluator: Evaluator | None = None,
 ) -> dict[str, Any]:
     """One-shot holdout: needs the freeze record, an identical fingerprint and an unused holdout."""
@@ -2049,6 +2188,7 @@ def run_holdout(
         packages=packages,
         keys_dir=keys_dir,
         external_splits=external_splits,
+        frozen_eval_token=frozen_eval_token,
         evaluator=evaluator,
         workers=workers,
     )
@@ -2188,7 +2328,8 @@ def main() -> None:
         refuse_existing([MANIFEST])
         manifest = build_manifest()
         write_new(MANIFEST, json.dumps(manifest, indent=1, sort_keys=True) + "\n")
-        print(json.dumps({k: manifest[k] for k in ("manifest_sha256", "n_dev_tasks", "n_tune_tasks", "n_holdout_tasks")}))
+        keys = ("manifest_sha256", "n_census_tasks", "n_dev_tasks", "n_captured_effective", "n_tune_tasks", "n_holdout_tasks", "sealed_by_registry", "uncaptured_dev_tasks")
+        print(json.dumps({k: manifest[k] for k in keys}))
     elif args.command == "fingerprint":
         load_manifest()
         print(json.dumps({"fingerprint": fingerprints(label_map=args.entry_label_map, packages=args.task_packages), "capabilities": capabilities()}, indent=1, sort_keys=True))
@@ -2203,6 +2344,7 @@ def main() -> None:
             v3.results_root(),
             external_splits=args.external_splits,
             workers=args.workers,
+            frozen_eval_token=os.environ.get(TOKEN_ENV),
             **options,
         )
 

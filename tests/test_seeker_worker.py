@@ -648,6 +648,96 @@ def test_unverified_or_non_differential_pass_is_never_promoted(
     assert queue.chained_jobs == []
 
 
+@pytest.mark.parametrize("restart_worker", [False, True])
+@pytest.mark.parametrize(
+    "unavailable",
+    [
+        [{"status": "refused", "executed": False, "reward": None, "error": "Docker probe timeout"}],
+        [
+            {"status": "measured", "reward": 1.0, "error": None},
+            {"status": "refused", "executed": False, "reward": None, "error": "Docker unavailable"},
+        ],
+    ],
+)
+def test_infrastructure_refusal_does_not_blacklist_candidate(
+    tmp_path: Path, restart_worker: bool, unavailable: list[dict[str, Any]]
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    grader = SequenceGrader(
+        [
+            *unavailable,
+            {"status": "measured", "reward": 1.0, "error": None},
+            {"status": "measured", "reward": 0.0, "error": None},
+        ]
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-infra-recovery",
+        event_id="job-infra-refused",
+    )
+    refused = asyncio.run(worker.run_once())
+    assert refused is not None and not refused.exploit_confirmed
+    assert refused.failure_memory.records == []
+    assert not refused.failure_memory.blocked_entry_ids
+    feedback = next(e for e in queue.events if e["event_type"] == "seeker.grader_feedback")
+    assert feedback["payload"]["failure_kind"] == (
+        "original_grader_unavailable" if len(unavailable) == 1 else "repaired_grader_unverified"
+    )
+    if restart_worker:
+        worker = _worker(
+            queue,
+            tmp_path,
+            generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+            grader=grader,
+            max_attempts=1,
+            name="work-restarted",
+        )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-infra-recovery",
+        event_id="job-infra-recovered",
+    )
+
+    recovered = asyncio.run(worker.run_once())
+
+    assert recovered is not None and recovered.exploit_confirmed
+    assert recovered.skipped_duplicates == 0
+    assert len(grader.calls) == len(unavailable) + 2
+    assert len(queue.chained_jobs) == 1
+
+
+def test_legacy_unmeasured_failure_does_not_mask_later_measured_rejection() -> None:
+    payload = {
+        "task_id": "task-a",
+        "attempt_index": 1,
+        "shortcut_signature": "shortcut",
+        "candidate_digest": "sha256:candidate",
+        "hackbook_entry_id": "HB-TS01-001",
+        "failure_kind": "upstream_failed",
+        "original_reward": None,
+    }
+    legacy = {"system": "reward_seeker", "event_type": "seeker.grader_feedback", "payload": payload}
+    assert SeekerFailureMemory.from_events([legacy], task_id="task-a").records == []
+    measured = {**legacy, "payload": {**payload, "original_reward": 0.0}}
+
+    memory = SeekerFailureMemory.from_events([legacy, measured, measured], task_id="task-a")
+
+    assert len(memory.records) == 1
+    assert memory.has_candidate_digest("sha256:candidate")
+    assert "HB-TS01-001" in memory.blocked_entry_ids
+
+
 def test_failure_memory_hydrates_from_queue_events_across_workers(tmp_path: Path) -> None:
     original = _make_task(tmp_path, "original")
     repaired = _make_task(tmp_path, "repaired")
@@ -725,6 +815,7 @@ def test_hackbook_cue_matching_is_false_pass_only_and_blind(tmp_path: Path) -> N
             files_written=("/app/output.json",),
             failure_kind="upstream_failed",
             failure_reason="original grader rejected it",
+            original_reward=0.0,
         )
     )
     page = render_hackbook_cues_markdown(cues, failure_memory=memory)
@@ -772,6 +863,7 @@ def test_candidate_digest_and_signature_reject_equivalent_retry() -> None:
             files_written=("/app/output.json",),
             failure_kind="upstream_failed",
             failure_reason="failed",
+            original_reward=0.0,
         )
     )
 

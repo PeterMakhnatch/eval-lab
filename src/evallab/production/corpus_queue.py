@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import hmac
+import io
 import json
 import math
 import sqlite3
@@ -53,6 +54,10 @@ class IdempotencyConflict(ValueError):
     """An event identity or idempotency key was reused for different content."""
 
 
+class ProductionQueueConnectionError(RuntimeError):
+    """The PostgreSQL connection failed before any queue transaction started."""
+
+
 class LeaseLostError(RuntimeError):
     """A job lease expired, completed, or was reclaimed by another worker."""
 
@@ -66,6 +71,7 @@ class CorpusItem:
     task_digest: str | None
     source_path: Path
     metadata: dict[str, Any]
+    source_record_sha256: str
 
 
 def _text(value: Any, field: str) -> str:
@@ -110,6 +116,14 @@ class CorpusRegistry:
     digest), not a mutable latest-version alias. Canonical split assignments can
     only tighten a local row's split, never turn TEST back into DEV. The TEST lock
     follows task names/digests across corpus records as well as individual ids.
+
+    ``register_external`` admits records from genuinely external public datasets
+    under their own dataset ids. It never writes the canonical dataset ids, and
+    canonical TEST seals still pin the effective split: an external record naming
+    a sealed item id, task name, or task digest resolves as TEST regardless of
+    any DEV label the export declares.
+    Only the four canonical corpus keys feed that global lock: assignments under
+    secondary key ids tighten solely their own ``(key_id, item_id)`` rows.
     """
 
     def __init__(
@@ -124,25 +138,37 @@ class CorpusRegistry:
         self._items: dict[tuple[str, str], CorpusItem] = {}
         self._sealed_names: set[str] = set()
         self._sealed_digests: set[str] = set()
+        self._sealed_ids: set[str] = set()
+        self._external: set[tuple[str, str]] = set()
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
         assignment_path = keys / "splits/assignments.csv"
+        self.split_assignments_digest: str | None = None
         if assignment_path.is_file():
-            with assignment_path.open(encoding="utf-8", newline="") as stream:
+            raw_assignments = assignment_path.read_bytes()
+            self.split_assignments_digest = (
+                "sha256:" + hashlib.sha256(raw_assignments).hexdigest()
+            )
+            with io.StringIO(raw_assignments.decode("utf-8"), newline="") as stream:
                 for row in csv.DictReader(stream):
                     key = row["key_id"], row["item_id"]
                     split = _split(row["split"])
                     assignments[key] = "test" if "test" in (split, assignments.get(key)) else split
-                    if split == "test" and row.get("task"):
+                    # Only canonical corpus keys seal task names globally; secondary
+                    # keys tighten only their own (key_id, item_id) rows.
+                    if split == "test" and row.get("task") and row["key_id"] in DATASETS:
                         self._sealed_names.add(self._task_name(row["task"]))
         for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
             for row in _jsonl(keys / dataset / "items.jsonl"):
                 self._add(dataset, row, keys / dataset / "items.jsonl", assignments)
         task_index = keys / "tb4-audit-v1/tasks.jsonl"
         for row in _jsonl(task_index):
+            source_row = row
             subject = row.get("subject") or {}
             row = {**row, "item_id": subject.get("task_id")}
-            self._add("tb4-audit-v1", row, task_index, assignments)
+            self._add(
+                "tb4-audit-v1", row, task_index, assignments, source_record=source_row
+            )
         inventory_path = self.repo_root / "research/experiments/mimo-defect-map-v1/inventory.json"
         inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
         if inventory.get("dataset_id") != "mimo-defect-map-v1":
@@ -150,6 +176,7 @@ class CorpusRegistry:
         heldout = set(inventory["heldout_task_ids_excluded_from_training_all_versions"])
         self._sealed_names.update(self._task_name(task) for task in heldout)
         for row in inventory["tasks"]:
+            source_row = row
             row = {
                 **row,
                 "item_id": row["record_id"],
@@ -159,7 +186,9 @@ class CorpusRegistry:
                 else "dev",
                 "subject": {"task_id": row["task_id"], "task_digest": row.get("package_digest")},
             }
-            self._add("mimo-defect-map-v1", row, inventory_path, assignments)
+            self._add(
+                "mimo-defect-map-v1", row, inventory_path, assignments, source_record=source_row
+            )
 
     @staticmethod
     def _task_name(task: str) -> str:
@@ -171,6 +200,8 @@ class CorpusRegistry:
         row: dict[str, Any],
         source: Path,
         assignments: Mapping[tuple[str, str], str],
+        *,
+        source_record: dict[str, Any] | None = None,
     ) -> None:
         item_id = _text(row.get("item_id"), "item_id")
         if row.get("key_id", dataset) != dataset:
@@ -181,11 +212,14 @@ class CorpusRegistry:
             split = "test"
         subject = row.get("subject") or {}
         task_id, digest = subject.get("task_id"), subject.get("task_digest")
-        item = CorpusItem(dataset, item_id, split, task_id, digest, source, row)
+        record = row if source_record is None else source_record
+        record_digest = "sha256:" + hashlib.sha256(_json(record).encode()).hexdigest()
+        item = CorpusItem(dataset, item_id, split, task_id, digest, source, row, record_digest)
         if key in self._items:
             raise ValueError(f"duplicate corpus item: {dataset}/{item_id}")
         self._items[key] = item
         if split == "test":
+            self._sealed_ids.add(item_id)
             if task_id:
                 self._sealed_names.add(self._task_name(task_id))
             if digest:
@@ -194,6 +228,7 @@ class CorpusRegistry:
     def _effective_split(self, item: CorpusItem) -> str:
         if (
             item.split == "test"
+            or item.item_id in self._sealed_ids
             or (item.task_id is not None and self._task_name(item.task_id) in self._sealed_names)
             or (item.task_digest is not None and item.task_digest in self._sealed_digests)
         ):
@@ -212,6 +247,7 @@ class CorpusRegistry:
             item.task_digest,
             item.source_path,
             json.loads(_json(item.metadata)),
+            item.source_record_sha256,
         )
 
     def items(
@@ -239,6 +275,50 @@ class CorpusRegistry:
             )
         return item
 
+    def register_external(self, item: CorpusItem) -> CorpusItem:
+        """Register a normalized record from a non-canonical public dataset.
+
+        External datasets keep their own ids; the canonical ``DATASETS`` are
+        immutable here, so this refuses canonical dataset ids and any identity
+        already registered. Re-registering an external id with the same declared
+        identity is idempotent; a conflicting redeclaration raises ``ValueError``.
+        Sealed canonical item ids, task names, and task digests keep the
+        effective split at TEST through :meth:`admit`, so external records can
+        never launder sealed work under a new id.
+        """
+        dataset_id = _text(item.dataset_id, "dataset_id")
+        item_id = _text(item.item_id, "item_id")
+        if dataset_id in DATASETS:
+            raise ValueError(f"external registration cannot write canonical dataset {dataset_id}")
+        split = _split(item.split)
+        task_id = None if item.task_id is None else _text(item.task_id, "task_id")
+        digest = None if item.task_digest is None else _text(item.task_digest, "task_digest")
+        key = dataset_id, item_id
+        existing = self._items.get(key)
+        if existing is not None:
+            if (
+                key in self._external
+                and existing.split == split
+                and existing.task_id == task_id
+                and existing.task_digest == digest
+            ):
+                return self.get(dataset_id, item_id)
+            raise ValueError(
+                f"external corpus id {dataset_id}/{item_id} is already registered "
+                "with a different identity"
+            )
+        self._items[key] = CorpusItem(
+            dataset_id,
+            item_id,
+            split,
+            task_id,
+            digest,
+            Path(item.source_path),
+            dict(item.metadata),
+        )
+        self._external.add(key)
+        return self.get(dataset_id, item_id)
+
 
 class ContinuousWorkQueue:
     """Transactional event journal, relay outbox, and fenced durable job leases.
@@ -248,14 +328,35 @@ class ContinuousWorkQueue:
     locks. Closing an instance does not delete or acknowledge persisted work.
     """
 
-    def __init__(self, database: str | Path, *, registry: CorpusRegistry | None = None) -> None:
+    def __init__(
+        self,
+        database: str | Path,
+        *,
+        registry: CorpusRegistry | None = None,
+        connect_timeout: int | None = None,
+    ) -> None:
+        if connect_timeout is not None and (
+            type(connect_timeout) is not int or connect_timeout < 1
+        ):
+            raise ValueError("connect_timeout must be a positive integer or None")
         self.registry = registry if registry is not None else CorpusRegistry()
         self._lock = threading.RLock()
         self._postgres = str(database).startswith(("postgresql://", "postgres://"))
         if self._postgres:
             import psycopg
 
-            self._connection = psycopg.connect(str(database), autocommit=True)
+            try:
+                self._connection = (
+                    psycopg.connect(str(database), autocommit=True)
+                    if connect_timeout is None
+                    else psycopg.connect(
+                        str(database), autocommit=True, connect_timeout=connect_timeout
+                    )
+                )
+            except psycopg.OperationalError:
+                raise ProductionQueueConnectionError(
+                    "PostgreSQL production queue connection unavailable"
+                ) from None
         else:
             path = str(database)
             if path.startswith("sqlite:///"):
@@ -608,6 +709,15 @@ class ContinuousWorkQueue:
                     WHEN excluded.last_seq > consumer_cursors.last_seq THEN excluded.last_seq
                     ELSE consumer_cursors.last_seq END""",
                 (consumer_id, seq),
+            )
+
+    def pending_outbox_count(self) -> int:
+        """Count unpublished durable events without materializing envelopes."""
+        with self._transaction():
+            return int(
+                self._execute(
+                    "SELECT COUNT(*) FROM outbox WHERE published_at IS NULL"
+                ).fetchone()[0]
             )
 
     def pending_outbox(self, *, limit: int = 100) -> list[dict[str, Any]]:

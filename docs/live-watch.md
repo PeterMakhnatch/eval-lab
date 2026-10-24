@@ -671,6 +671,72 @@ are strictly excluded. Multi-trial jobs disambiguate records via `attempt_id`.
 
 ## Live production control plane
 
+### Production CLI
+
+The CLI uses the committed corpus registry and one durable queue. Paths default
+under the selected workspace; use `--repo-root` for an explicit source root and
+`--database` for a dedicated SQLite path or PostgreSQL DSN. Queue options work
+before or after the leaf command.
+
+```bash
+# Seed all four registered public corpora; repeating this preserves event/job IDs.
+uv run evallab prod ingest
+uv run evallab prod status
+
+# Consume one cycle, with no model driver enabled.
+uv run evallab prod run-once --systems misalignment
+
+# Read-only dashboard, loopback:8765; neither workers nor relay are started.
+uv run evallab prod serve
+
+# Explicitly opt into continuous public-trajectory replay and outbox delivery.
+uv run evallab prod serve --workers --systems misalignment \
+  --nats-url nats://127.0.0.1:4222
+```
+
+`ingest --dataset <registry-id>` can be repeated to select corpora. The defaults
+cover TB4 task and finding records, the historical MiMo 567-package inventory,
+CheatBench, and HackTrace. Only effective DEV records are persisted: canonical
+cross-key TEST locks and permanent MiMo heldout locks override a source-local DEV
+label. JSON receipts distinguish source counts, effective admissions, exclusions,
+and executable jobs; findings and context rows are not additional runnable tasks.
+No frozen-evaluation token is accepted by these production commands.
+
+Each admission includes source-record and split-authority hashes, package
+availability/digest checks, and read-only candidate-runner preflight. Static
+admission is not execution proof or scientific qualification. Only an existing,
+digest-matched public actor trajectory with a valid blinded ATIF projection seeds
+a replay job. A missing exact historical package, differential pair, or owned
+candidate is recorded as unavailable—not replaced with a latest-version alias,
+synthetic submission, or invented Task Quality/Seeker job. Re-ingesting changed
+source/preflight under the same native identity fails explicitly rather than
+overwriting the append-only journal.
+
+`run-once` runs the selected Task Quality, Reward Seeker, and/or Misalignment
+consumers and then one relay cycle. `serve --workers` supervises the same cycle
+alongside HTTP; shutdown waits for in-flight consumers before closing resources.
+Seeker defaults to supplied candidates only. `--seeker-driver sonnet` or `codex`
+explicitly selects an existing OMP subscription driver; local model backends are
+not accepted.
+
+For PostgreSQL, `--sqlite-fallback <path>` selects the local fallback (default:
+`derived/production/prod-queue.sqlite` under the source root). Fallback occurs
+only when the initial PostgreSQL connection is unavailable. Schema,
+transaction, and mid-flight failures propagate; they never silently move an
+existing queue to another backend. Check the JSON backend/fallback receipt:
+separate PostgreSQL and SQLite journals are not an automatic failback or
+cross-backend replication mechanism.
+
+The optional NATS JetStream coordinator delegates to the shared
+`outbox_relay.OutboxRelay` described below. It provisions file storage only for a
+missing stream and never overwrites existing stream settings. Missing or
+unavailable NATS leaves source events durable and unpublished. Poison quarantine
+uses a durable `<queue-stem>.poison.sqlite` beside the selected SQLite queue or
+PostgreSQL fallback path. Delivery is at least once: consumers must deduplicate by
+event ID beyond JetStream's configured finite duplicate window.
+
+### HTTP and worker contracts
+
 `evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`
 serves one FastAPI application over the same `ContinuousWorkQueue` used by the
 production workers. The dashboard at `/` shows the Public Corpus Queue, independent
@@ -684,7 +750,12 @@ Construct the registry from the committed local corpus indices, then pass one
 dedicated queue to the Task Quality and Reward Seeker workers and
 `emit=queue.append_event` to the monitor. Admission resolves DEV/TEST from the
 registry rather than a caller's split label; TEST remains sealed without the
-explicit per-operation frozen-evaluation token.
+explicit per-operation frozen-evaluation token. The TEST lock is global only
+across the four canonical corpora: a held-out task name or digest seals every
+canonical record that references it. Split-assignment rows under secondary key
+ids are scoped — they tighten only their own `(key_id, item_id)` entries, never
+feed the global lock, and never register a corpus; lookups under an
+unregistered key fail closed with `KeyError`.
 
 The queue transaction that records a confirmed Seeker `1.0 -> 0.0` differential
 also enqueues `task_quality.repair_task`. Task Quality replays the same immutable
@@ -694,6 +765,13 @@ reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 `exploit_witness` and `repaired_task` assets are distinct from provisional monitor
 suspicions. Worker phase updates use the shared `step_id` field; their missing
 reasoning/tool capture is reported as a coverage gap, not a clean trace.
+
+Docker capacity probes allow 30 seconds per daemon query while retaining the
+declared-resource and competing-container admission checks. A refused or unavailable
+grader is infrastructure evidence, not a failed shortcut: its feedback remains in
+the journal, but does not blacklist the candidate or exhaust its Hackbook entry.
+This also applies when rehydrating older unmeasured `upstream_failed` feedback.
+Measured candidate rejections still populate failure memory and prevent duplicates.
 
 The ASGI factory `evallab.production.control_plane:app_from_env` requires
 `EVALLAB_PRODUCTION_DATABASE` (a dedicated SQLite path or PostgreSQL DSN).
@@ -725,7 +803,32 @@ stopped, or quarantined anything. The monitor consumes the request and records
 `control.requested`, `control.acknowledged`, and finally `control.applied` or
 `control.expired`. Only an applied event changes the displayed run state.
 
-Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py`.
+## Outbox relay
+
+`evallab.production.outbox_relay.OutboxRelay(queue, publisher, quarantine=...)`
+drains `ContinuousWorkQueue.pending_outbox` and publishes each complete
+envelope to `evallab.<family>.<token>` with `Nats-Msg-Id` equal to
+`event_id`. It awaits a real JetStream pub-ack before `mark_published`, so a
+crash between ack and mark is repaired by broker deduplication on the next
+drain. Routing is explicit: `trace.*`/`run.*`/monitor capture and seeker
+attempt telemetry go to `evallab.capture.<system>`; `monitor.suspicion`,
+`seeker.exploit_confirmed`/`job_refused`, and `task_quality.*` determinations
+go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
+`worker.*`, and `*_task` job events go to `evallab.control.<system>`;
+`asset.*`/`verified_asset.*` go to `evallab.assets.<kind>` (payload `kind`,
+default `unknown`). Unknown future types fall back to `evallab.capture.<system>`
+and are never auto-promoted. Invalid, TEST/heldout, and permanently rejected
+envelopes are quarantined durably before being marked consumed; transient
+broker errors stay unpublished and retryable.
+
+Publishers: `LocalJetStreamAdapter` (zero-config, memory or SQLite-durable,
+message-id suppression, immutable snapshots, `replay_subject` cursor replay,
+durable poison table), `NatsTcpTransport` (real NATS TCP wire protocol,
+stdlib socket), `HttpGatewayTransport` (explicitly configured HTTP relay
+gateway — plain NATS has no HTTP endpoint). Remote transports need an
+explicit `PoisonQuarantine` store.
+
+Focused verification: `uv run pytest tests/test_corpus_queue.py tests/test_tq_worker.py tests/test_seeker_worker.py tests/test_monitor_worker.py tests/test_control_plane.py tests/test_production_e2e.py tests/test_outbox_relay.py`.
 The end-to-end test executes trusted local fixture submissions and both graders,
 shares the real SQLite journal across all four parts, verifies gap-free SSE
 snapshot/replay and asset recovery, and checks executor-acknowledged interventions.

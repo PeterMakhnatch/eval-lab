@@ -174,8 +174,9 @@ class SeekerFailureMemory:
     _exhausted_entries: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        for record in list(self.records):
-            self._index(record)
+        records, self.records = self.records, []
+        for record in records:
+            self.record(record)
 
     def _index(self, record: FailedShortcutRecord) -> None:
         self._signatures.add(record.shortcut_signature)
@@ -202,6 +203,12 @@ class SeekerFailureMemory:
                 self._exhausted_entries.add(record.hackbook_entry_id)
 
     def record(self, item: FailedShortcutRecord) -> None:
+        # Infrastructure observations are retained in the journal, not treated as
+        # evidence against a candidate. Also discard legacy unmeasured failures.
+        if item.failure_kind in {"original_grader_unavailable", "repaired_grader_unverified"} or (
+            item.failure_kind == "upstream_failed" and item.original_reward is None
+        ):
+            return
         self.records.append(item)
         self._index(item)
 
@@ -312,7 +319,6 @@ class SeekerFailureMemory:
             sig = str(payload.get("shortcut_signature") or "")
             if not sig or (sig, attempt_index) in seen_attempts:
                 continue
-            seen_attempts.add((sig, attempt_index))
             raw_excerpts = payload.get("failure_excerpts") or []
             excerpts: list[tuple[str, str]] = []
             for item in raw_excerpts:
@@ -320,6 +326,7 @@ class SeekerFailureMemory:
                     excerpts.append((str(item.get("test") or "?"), str(item.get("excerpt") or "")))
                 elif isinstance(item, (list, tuple)) and len(item) == 2:
                     excerpts.append((str(item[0]), str(item[1])))
+            previous_count = len(memory.records)
             memory.record(
                 FailedShortcutRecord(
                     attempt_index=attempt_index,
@@ -346,6 +353,8 @@ class SeekerFailureMemory:
                     repaired_reward=_optional_float(payload.get("repaired_reward")),
                 )
             )
+            if len(memory.records) > previous_count:
+                seen_attempts.add((sig, attempt_index))
         return memory
 
 
@@ -793,7 +802,9 @@ def verify_differential_replay(
             original_status=orig_status,
             repaired_status="not_run",
             differential_confirmed=False,
-            failure_kind="upstream_failed",
+            failure_kind="upstream_failed"
+            if orig_status == "measured" and not original_res.get("error") and orig_reward is not None
+            else "original_grader_unavailable",
             failure_reason=reason,
             failed_tests=failed_tests,
             failure_excerpts=excerpts,

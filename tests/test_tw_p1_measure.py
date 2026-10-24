@@ -47,10 +47,15 @@ DEV = ["alpha", "bravo", "charlie", "delta"]
 ROWS = [(t, "dev") for t in DEV] + [("echo", "test"), ("foxtrot", "dev"), ("foxtrot", "test")]
 
 
+_LEGACY = run.split_tasks(DEV, run.V4_SEED)
+SEALED = next(t for t in sorted(DEV) if _LEGACY[t] == "holdout")  # census task sealed by the registry
+EFFECTIVE = [t for t in DEV if t != SEALED] + ["newdev"]  # newdev: effective DEV, never captured
+
+
 def _manifest(tmp_path: Path) -> tuple[dict[str, Any], Path, Path]:
     assignments = _assignments(tmp_path, ROWS)
     v4 = _v4(tmp_path, DEV)
-    return run.build_manifest(assignments, v4), assignments, v4
+    return run.build_manifest(assignments, v4, EFFECTIVE), assignments, v4
 
 
 def _write_atif(path: Path, steps: list[dict[str, Any]]) -> str:
@@ -83,40 +88,53 @@ def _report(**rules: list[dict[str, Any]]) -> dict[str, Any]:
 # ------------------------------------------------------------------------------ split
 
 
-def test_manifest_retains_v4_halves_and_excludes_non_dev_tasks(tmp_path: Path) -> None:
+def test_manifest_keeps_v4_tune_and_puts_legacy_holdout_and_uncaptured_in_holdout(
+    tmp_path: Path,
+) -> None:
     manifest, assignments, v4 = _manifest(tmp_path)
     tune, holdout = set(manifest["tune_tasks"]), set(manifest["holdout_tasks"])
-    assert tune | holdout == set(DEV)
+    legacy = run.v4_assignment(v4)
+    assert tune | holdout == set(EFFECTIVE)
     assert not tune & holdout
-    assert {t: ("tune" if t in tune else "holdout") for t in DEV} == run.v4_assignment(v4)
+    assert tune == {t for t in EFFECTIVE if legacy.get(t) == "tune"}  # no scored task moves into tune
+    assert "newdev" in holdout and manifest["uncaptured_dev_tasks"] == ["newdev"]
+    assert manifest["sealed_by_registry"] == [SEALED] and SEALED not in tune | holdout
+    assert (manifest["n_census_tasks"], manifest["n_dev_tasks"], manifest["n_captured_effective"]) == (4, 4, 3)
     # a TEST task and a task that also has a test row are never DEV
     assert "echo" not in tune | holdout and "foxtrot" not in tune | holdout
-    assert run.verify_manifest(manifest, assignments, v4) == manifest
+    assert run.verify_manifest(manifest, assignments, v4, EFFECTIVE) == manifest
 
 
 def test_manifest_refuses_tampering_leaks_and_stale_sources(tmp_path: Path) -> None:
     manifest, assignments, v4 = _manifest(tmp_path)
     moved = dict(manifest, tune_tasks=manifest["tune_tasks"][:-1])
     with pytest.raises(ValueError, match="manifest_sha256"):
-        run.verify_manifest(moved, assignments, v4)
+        run.verify_manifest(moved, assignments, v4, EFFECTIVE)
 
     leaked = dict(manifest, holdout_tasks=[*manifest["holdout_tasks"], manifest["tune_tasks"][0]])
     leaked["manifest_sha256"] = run.canonical_sha({k: v for k, v in leaked.items() if k != "manifest_sha256"})
     with pytest.raises(ValueError, match="split leak"):
-        run.verify_manifest(leaked, assignments, v4)
+        run.verify_manifest(leaked, assignments, v4, EFFECTIVE)
+
+    unsealed = dict(manifest, holdout_tasks=[*manifest["holdout_tasks"], SEALED])
+    unsealed["manifest_sha256"] = run.canonical_sha({k: v for k, v in unsealed.items() if k != "manifest_sha256"})
+    with pytest.raises(ValueError, match="registry-sealed"):
+        run.verify_manifest(unsealed, assignments, v4, EFFECTIVE)
 
     (tmp_path / "g").mkdir()
     changed = _assignments(tmp_path / "g", [*ROWS, ("golf", "dev")])
     with pytest.raises(ValueError, match="assignments changed|differ"):
-        run.verify_manifest(manifest, changed, v4)
+        run.verify_manifest(manifest, changed, v4, EFFECTIVE)
+    with pytest.raises(ValueError, match="effective DEV universe changed"):
+        run.verify_manifest(manifest, assignments, v4, [*EFFECTIVE, "another"])
 
 
 def test_manifest_refuses_a_v4_assignment_that_is_not_the_seeded_split(tmp_path: Path) -> None:
     assignments = _assignments(tmp_path, ROWS)
     with pytest.raises(ValueError, match="deterministic split"):
-        run.build_manifest(assignments, _v4(tmp_path, DEV, flip="alpha"))
+        run.build_manifest(assignments, _v4(tmp_path, DEV, flip="alpha"), EFFECTIVE)
     with pytest.raises(ValueError, match="differ"):
-        run.build_manifest(assignments, _v4(tmp_path, [*DEV, "extra"]))
+        run.build_manifest(assignments, _v4(tmp_path, [*DEV, "extra"]), EFFECTIVE)
 
 
 def test_stage_guard_refuses_a_task_from_the_other_half(tmp_path: Path) -> None:
@@ -126,6 +144,9 @@ def test_stage_guard_refuses_a_task_from_the_other_half(tmp_path: Path) -> None:
     subject = v3.Subject("m1", "dev", "positive", "pass:known_exploit", {}, source={"task": holdout_task})
     with pytest.raises(ValueError, match="refuses non-tune"):
         run.assert_stage_subjects([subject], tune, "tune")
+    sealed = v3.Subject("m2", "dev", "positive", "pass:known_exploit", {}, source={"task": SEALED})
+    with pytest.raises(ValueError, match="refuses non-tune"):
+        run.assert_stage_subjects([sealed], tune, "tune")
     with pytest.raises(ValueError, match="unknown TB4 stage"):
         run.stage_tasks(manifest, "test")
 
@@ -496,3 +517,65 @@ def test_freeze_refuses_wrong_fingerprint_foreign_tune_result_and_overwrite(
     tune_file.write_text(json.dumps({"schema": run.SCHEMA, "stage": "tune", "fingerprint": {"combined": "e" * 64}, "manifest": {"sha256": ""}}))
     with pytest.raises(ValueError, match="different fingerprint"):
         run.run_freeze(tune_file, combined, freeze_path=tmp_path / "other.json")
+
+
+# ----------------------------------------------------- registry lock and package binding
+
+
+class _Item:
+    def __init__(self, split: str, item_id: str | None = "i") -> None:
+        self.split, self.item_id = split, item_id
+
+
+def test_external_test_splits_need_the_frozen_eval_token_and_dev_does_not() -> None:
+    assert run.external_admission("cheatbench-actions-v1", [_Item("dev")], None) is None
+    reason = run.external_admission("cheatbench-actions-v1", [_Item("dev"), _Item("test")], None)
+    assert reason and run.TOKEN_ENV in reason and "never bypassed" in reason
+    assert run.external_admission("mimo-fresh-window3", [_Item("heldout")], "") is not None
+
+
+def test_stage_index_collects_only_admitted_complete_lock_digests(tmp_path: Path) -> None:
+    def row(trial: str, digest: str, admission: str, state: str) -> str:
+        return json.dumps(
+            {
+                "task": "terminal-bench/t",
+                "row_id": "r",
+                "hub_trial_id": trial,
+                "archive_path": f"/a/{trial}",
+                "lock_task": {"source": "p", "digest": digest},
+                "provenance_admission": admission,
+                "acquisition_state": state,
+            }
+        )
+
+    path = tmp_path / "trajectory-index.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                row("a", "sha256:good", "admitted_exact_source", "complete"),
+                row("b", "sha256:stale", "quarantined", "complete"),
+                row("c", "sha256:partial", "admitted_exact_source", "incomplete"),
+                '{"task": "terminal-bench/sealed-task", not json',
+            ]
+        )
+        + "\n"
+    )
+    index, _, locks = run.read_stage_index(path, frozenset({"t"}))
+    assert sorted(index) == ["r:t:a", "r:t:b", "r:t:c"]
+    assert locks == {"t": frozenset({"sha256:good"})}
+
+
+def test_package_context_requires_the_exact_hub_lock(tmp_path: Path) -> None:
+    root = tmp_path / "packages"
+    task = root / "t"
+    task.mkdir(parents=True)
+    (task / "instruction.md").write_text("do the thing")
+    local = run.harbor_task_digest(task)
+    contexts, report = run.package_contexts(root, ["t", "gone"], {"t": frozenset({"sha256:other"})})
+    assert contexts == {}
+    assert report["t"]["reason"] == "package_digest_mismatch" and report["t"]["local_harbor_digest"] == local
+    assert report["gone"] == {"status": "absent"}
+    _, no_lock = run.package_contexts(root, ["t"], None)
+    assert "no admitted lock" in no_lock["t"]["reason"]
+    _, mixed = run.package_contexts(root, ["t"], {"t": frozenset({local, "sha256:other"})})
+    assert mixed["t"]["reason"] == "package_digest_mismatch"  # mixed historical versions never bind

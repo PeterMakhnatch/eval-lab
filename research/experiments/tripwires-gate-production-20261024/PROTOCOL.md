@@ -43,15 +43,26 @@ required inputs were present and the predicate was false; it is not proof of no 
 ## Split (fixed before any payload/label was opened)
 
 `split-manifest.json` is written by `run.py split` from `tb4-audit-v1` assignment rows
-(columns `key_id, unit, task, split` only; DEV = tasks whose only split is `dev`, 22 tasks) and the
-`task_assignment` key of the retained tripwires-v4 `results-tune.json`. The v4 task-level halves
-are **retained**, not re-drawn: a fresh seed would move tasks whose holdout labels and rule hits
-were already scored into the tune half. The runner refuses a manifest that is edited, stale
-against the assignments, not the deterministic split of the v4 seed, or not a disjoint partition.
-Every trial/membership of a task is in exactly one half (task = group). No class balance was used.
-TB4 TEST tasks are never listed, enumerated, parsed or read; label/index lines are selected on
-raw text by task name before JSON parsing, a line outside the stage's tasks is never parsed, and a
-line naming no DEV task refuses the whole file.
+(columns `key_id, unit, task, split` only; census DEV = tasks whose only split is `dev`, 22
+tasks), the production `CorpusRegistry` effective split (task names only) and the
+`task_assignment` key of the retained tripwires-v4 `results-tune.json` (its file sha256 is
+recorded). The registry seals every task that is test/heldout under *any* key, so the effective
+DEV universe is **16, not 22**: 8 census tasks are sealed (`cargo-flight-dispatch`,
+`freecad-impeller`, `live-database-cutover`, `math-eval-grader`, `nextjs-performance`,
+`sglang-qwen-burst`, `uefi-bootkit`, `vf2-speedup-networkx`) and are excluded and listed, never
+unsealed; two registry-DEV tasks (`pretrain-shard-corruption`, `protein-autointerp-disulfide`)
+are not in the census and have no captured trials (**unknown, not clean**). Of the 16, 14 are
+captured census tasks and 2 are uncaptured. Every v4 *tune* task that is still effective DEV
+stays in tune (8); the legacy v4 holdout tasks that are effective (6) plus the 2 uncaptured go to
+holdout (8). No task whose labels/hits v4 scored moves into tune. Results report census 22 vs
+effective 16, the per-stage captured and uncaptured tasks, and the sealed list. The runner
+refuses a manifest that is edited, stale against the assignments or the registry's effective DEV
+universe, not the deterministic split of the v4 seed, contains a sealed task, or is not a
+disjoint partition. Every trial/membership of a task is in exactly one half (task = group). No
+class balance was used. TB4 TEST tasks are never listed, enumerated, parsed or read;
+label/index lines are selected on raw text by task name before JSON parsing, a line outside the
+stage's tasks (including sealed tasks) is never parsed, and a line naming no census task
+refuses the whole file.
 
 **Honest status of "holdout".** It means *excluded from the development and tuning of this
 patch*. The v3/v4 lineage inspected DEV census labels and per-item rule hits for all 22 tasks and
@@ -84,8 +95,11 @@ the code.
 5. `run.py holdout --expect-fingerprint <combined>` requires `freeze.json`, an identical
    fingerprint, the frozen tune result bytes, and no earlier `results-holdout-*.json` (a second
    holdout run would be tuning on it). It measures the TB4 DEV holdout half plus CheatBench,
-   HackTrace and both MiMo cohorts (registered `test` splits by default). No source tuning from
-   holdout results.
+   HackTrace and both MiMo cohorts (registered `test` splits by default). The production
+   `CorpusRegistry` TEST lock is never bypassed: reading any external `test` split needs the
+   registry's frozen-eval token in `TW_P1_FROZEN_EVAL_TOKEN` (validated by the registry's own
+   `admit`; registered CheatBench/HackTrace items are admitted one by one); without it those
+   cohorts are reported `unavailable` with the reason. No source tuning from holdout results.
 
 ## Fingerprint
 
@@ -121,13 +135,23 @@ System id `tw-p1-gate@<combined12>`.
 
 ## Structural context and capture gaps
 
-Structural checks run with `structural_context=None` unless `--task-packages` supplies the TB4
-task packages (`<task>/{instruction.md,task.toml,tests,solution,environment}`; never `cheat/`
-or `README`), built by `prefix_checks.package_context` with the package digest as provenance
-and `available_before_step=0`. Package text is parsed for the stage's tasks only (digests of all
-22 packages are hashed into the fingerprint, bytes never interpreted). Checks that need
-grader/test/instruction/reference/differential evidence report `unavailable` when it is absent;
-`RS05-001` needs a differential/no-shortcut review that no public trajectory carries. Hub trials
+Structural checks run with `structural_context=None` unless `--task-packages` supplies local TB4
+task packages (`<task>/...`). A package is attached to a task's historical trajectories **only**
+if its Harbor content digest (`evallab.registry.harbor_task_digest`, the algorithm Harbor uses
+for `lock.json`) equals the single admitted-and-complete `lock_task.digest` of that task's trial
+rows in the Hub trajectory index; no lock evidence, a digest mismatch, or several historical
+digests means `unavailable` (version mismatch), never a guessed context. This is *not* the
+tb4-audit-v1 `task_directory_digest`, which belongs to the v4.0.0 pin. Only
+`instruction.md`, `task.toml`, `tests/`, `solution/` and `environment/` are loaded (never
+`cheat/`, `README`, witnesses or exploit programs), through `prefix_checks.package_context`
+with the lock digest as provenance and `available_before_step=0`. Package text is parsed for the
+stage's tasks only (Harbor digests of all manifest tasks are hashed into the fingerprint; bytes
+are never interpreted). The bootstrap cohort has no lock index, so it gets no package context.
+Checks that need grader/test/instruction/reference/differential evidence report `unavailable`
+when it is absent. `RS05-001`, `TS08-002` and `TS10-002` need a trusted differential or
+no-shortcut review; none exists for TB4 DEV trajectories (task-quality has 0 confirmed
+differentials; the audit witnesses are scorer-only exploit programs), so they stay unavailable
+and nothing is synthesized. Hub trials
 hold no tests or instruction package; CheatBench/HackTrace/MiMo carry `agent/trajectory.json`
 only, so those checks are unavailable there. Every result lists unknown reasons, hash-unbound
 inputs, per-check unavailable reasons, consumer unavailability and fail-closed reasons.

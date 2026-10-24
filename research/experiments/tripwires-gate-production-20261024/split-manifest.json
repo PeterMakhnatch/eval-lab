@@ -1,5 +1,5 @@
 {
- "algorithm": "v4: sort DEV tasks by sha256(v4_seed:task); first floor(n/2) are tune, rest holdout",
+ "algorithm": "tune = v4 tune tasks that are effective DEV; holdout = legacy v4 holdout effective DEV tasks + effective DEV tasks absent from the census (uncaptured)",
  "assignment_rows_sha256": "a1213802756ad27469ef4079ba886c2b5980bafd67e4c52752e19d3fea7632d4",
  "columns_read": [
   "key_id",
@@ -8,45 +8,58 @@
   "split"
  ],
  "disclosures": [
-  "task halves are the retained tripwires-v4 assignment; built from tb4-audit-v1 assignment task rows plus the v4 task_assignment key only; no trajectory, label or outcome was read for TW-P1 to choose or alter the split",
+  "census22 vs effective DEV: the production registry seals census tasks that other keys hold out (sealed_by_registry) and adds DEV tasks with no captured trials (uncaptured_dev_tasks: unknown, not clean); both counts are reported, no silent coverage reduction; sealed tasks are never unsealed or measured",
+  "built from tb4-audit-v1 assignment task rows, the CorpusRegistry effective split (task names only) and the v4 task_assignment key; no trajectory, label or outcome was read for TW-P1 to choose or alter the split",
   "TEST-split tasks are never listed or read; a task with several splits is not DEV",
-  "TW-P1 holdout means excluded from THIS patch's development and tuning only: the v3/v4 work saw DEV census labels and rule hits for all 22 tasks and scored the v4 holdout half once, so neither half is untouched or independent in the historical sense"
+  "TW-P1 holdout means excluded from THIS patch's development and tuning only: the v3/v4 work saw DEV census labels and rule hits for all 22 census tasks and scored the v4 holdout half once, so neither half is untouched or independent in the historical sense"
  ],
+ "effective_dev_sha256": "6c5181fa734b2ade0d023e8e36fc1c3a8bc9e00fa64b020c148b4962cebd41d2",
  "holdout_tasks": [
   "cad-model",
-  "cargo-flight-dispatch",
   "fin-saccr-rwa",
-  "freecad-impeller",
   "freecad-platform-drawing",
   "html-js-filter",
   "layout-config-recreation2",
-  "live-database-cutover",
-  "nextjs-performance",
-  "sglang-qwen-burst",
+  "pretrain-shard-corruption",
+  "protein-autointerp-disulfide",
   "vpp-loss-divergence"
  ],
  "key_id": "tb4-audit-v1",
- "manifest_sha256": "43cc308896c072c6906238f621a2388c9297459c9ae3c68be6830b0910ec1d7e",
- "n_dev_tasks": 22,
- "n_holdout_tasks": 11,
- "n_tune_tasks": 11,
+ "manifest_sha256": "bef34c5992d76100668986523cc5f89a1d718f60dd9b35c41a44efca6f19750b",
+ "n_captured_effective": 14,
+ "n_census_tasks": 22,
+ "n_dev_tasks": 16,
+ "n_holdout_tasks": 8,
+ "n_tune_tasks": 8,
  "schema": "evallab.tw_p1_split_manifest/v1",
- "source": "retained tripwires-v4 task_assignment (same by-task halves as the v3/v4 lineage)",
+ "sealed_by_registry": [
+  "cargo-flight-dispatch",
+  "freecad-impeller",
+  "live-database-cutover",
+  "math-eval-grader",
+  "nextjs-performance",
+  "sglang-qwen-burst",
+  "uefi-bootkit",
+  "vf2-speedup-networkx"
+ ],
+ "source": "retained tripwires-v4 task halves restricted to the production-registry effective DEV universe",
  "tune_tasks": [
   "distributed-dedup",
   "freecad-spring-clip",
   "gsea-proteomics",
   "heat-pump-warranty",
   "jax-speedrun-gpu",
-  "math-eval-grader",
   "photonic-waveguide-routing",
   "satb-audio-transcription",
-  "uefi-bootkit",
-  "vba-userform-port",
-  "vf2-speedup-networkx"
+  "vba-userform-port"
+ ],
+ "uncaptured_dev_tasks": [
+  "pretrain-shard-corruption",
+  "protein-autointerp-disulfide"
  ],
  "unit": "task (group); every trial/membership of a task is in one half",
  "v4_assignment_sha256": "6bd5189c872c2cbf7f490ad79f6c0ecf2502852eaab733bb99ec45b759e696bc",
+ "v4_results_file_sha256": "64a6c4759fdbf98aa0f6879b264485c59ace0209e89ec2bc105d6f6cd16a3413",
  "v4_seed": "tripwires-v4-tune-holdout-20261021",
  "version": "tw-p1-gate"
 }

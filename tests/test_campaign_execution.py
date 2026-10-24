@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -326,6 +327,31 @@ def test_missing_or_nonfinite_declared_resources_never_receive_defaults(
     (tmp_path / "task.toml").write_text(f"[environment]\n{declaration}\n")
     with pytest.raises(ValueError, match="explicit finite"):
         docker_task_resources(tmp_path)
+
+
+def test_docker_capacity_allows_slow_daemon_probes_without_resizing(monkeypatch):
+    from types import SimpleNamespace
+
+    deadlines = []
+
+    def command(argv, *, timeout, **kwargs):
+        deadlines.append(timeout)
+        assert kwargs["check"] is True
+        if timeout < 20:
+            raise subprocess.TimeoutExpired(argv, timeout)
+        if argv[1] == "info":
+            payload = {"OSType": "linux", "NCPU": 8, "MemTotal": 12 * 1024**3}
+        elif argv[1] == "ps":
+            return SimpleNamespace(stdout="bounded-container\n")
+        else:
+            assert argv[1:] == ["inspect", "bounded-container"]
+            payload = [{"HostConfig": {"NanoCpus": 2_000_000_000, "Memory": 2 * 1024**3}}]
+        return SimpleNamespace(stdout=json.dumps(payload))
+
+    monkeypatch.setattr("evallab.campaign_execution.subprocess.run", command)
+
+    assert docker_available_resources() == (4.0, 8192)
+    assert deadlines == [30, 30, 30]
 
 
 def test_unbounded_existing_container_refuses_host_capacity(monkeypatch):

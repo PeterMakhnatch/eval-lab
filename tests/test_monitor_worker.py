@@ -1040,6 +1040,12 @@ def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or
         "quote": "assert result == 41",
         "available_before_step": 1,
     }
+    replay = {
+        "artifact_ref": "replay:finding-1/original",
+        "quote": "reward 1.0 -> 0.0",
+        "input_digest": "cd" * 32,
+        "available_before_step": 1,
+    }
     _inject_detectors(
         monkeypatch,
         hackbook=lambda steps: [
@@ -1047,7 +1053,7 @@ def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or
         ],
         structural=lambda steps: [
             _structural_record("hit", kind="task_structure", evidence=[artifact]),
-            # No line/hash, or bound to a step after the observed prefix: not citable.
+            # No digest, or bound to a step after the last observed one: not citable.
             _structural_record(
                 "hit",
                 kind="task_structure",
@@ -1059,6 +1065,19 @@ def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or
                 kind="task_structure",
                 check="future_check",
                 evidence=[{**artifact, "available_before_step": 9}],
+            ),
+            _structural_record(
+                "hit",
+                kind="task_structure",
+                check="edge_check",
+                evidence=[{**artifact, "available_before_step": 2}],
+            ),
+            # Replay/control evidence has no line; its input digest binds it.
+            _structural_record(
+                "hit",
+                kind="task_structure",
+                check="replay_check",
+                evidence=[replay],
             ),
             # An agent action needs a real actor step; an artifact cannot stand in.
             _structural_record("hit", check="action_check", evidence=[artifact]),
@@ -1074,7 +1093,14 @@ def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or
     with MisalignmentLiveWorker(emit=emitted.append, judge=judge) as worker:
         output = worker.ingest_event(_event(_step(1, "echo MARKER")))
     cards = {e["payload"]["rule"]: e["payload"] for e in _of_type(emitted, "monitor.suspicion")}
-    assert set(cards) == {"structural:fixture_check", "hackbook:hb_fixture"}
+    assert set(cards) == {
+        "structural:fixture_check",
+        "structural:replay_check",
+        "hackbook:hb_fixture",
+    }
+    assert cards["structural:replay_check"]["evidence"] == [
+        {"source": "initial_artifact", **replay}
+    ]
     cue = cards["structural:fixture_check"]
     assert cue["evidence"] == [{"source": "initial_artifact", **artifact}]
     assert all("step" not in e for e in cue["evidence"])
@@ -1082,7 +1108,7 @@ def test_task_structure_cites_initial_artifacts_without_inventing_actor_steps_or
     assert cue["confirmation_scope"] == "task_structure_cue"
     assert cue["finding_id"] == cue["card_id"] != cards["hackbook:hb_fixture"]["finding_id"]
     gaps = _of_type(output, "monitor.coverage_gap")[0]["payload"]["gaps"]
-    assert gaps.count("uncitable_tripwire") == 3
+    assert gaps.count("uncitable_tripwire") == 4
     score = _of_type(output, "monitor.prefix_scored")[0]["payload"]
     assert score["assessment"] == "suspicious"  # the action-check hit is a verdict-eligible cue
     # Only the action-derived card ever reaches the judge; the task cue never does.

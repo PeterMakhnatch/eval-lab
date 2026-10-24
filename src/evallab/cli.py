@@ -7493,6 +7493,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.rollout import build_rollout_parser
 
     build_rollout_parser(commands)
+    from evallab.production.cli import register_parser as register_production_parser
+
+    register_production_parser(commands)
     return root
 
 

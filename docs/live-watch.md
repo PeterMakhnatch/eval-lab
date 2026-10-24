@@ -84,6 +84,8 @@ paid API is configured implicitly. Suspicion cards cite observed steps and quote
 semantic confirmation means **observed prefix behavior**, not verified reward
 causality, a verified exploit, or an automatically promoted labeled-trace asset.
 All semantic citations must match the frozen prefix, or the card stays provisional.
+An independently evidenced label is promoted only through the explicit
+`verify_and_promote_trace_label` path described below.
 
 Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
 before a tool action and honor its `allow` result; proposed actions never become
@@ -716,9 +718,56 @@ experiment matrix receipt — and any identity metadata they declare must match
 the qualification record citing them. A bare `{"reward": ...}` JSON object is
 never measured evidence. A `labeled_trace` requires a verified
 `evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
-labeled trace itself, with citations resolving verbatim; no production worker
-currently emits that receipt, and a completed `monitor.suspicion` card is raw
-suspicion, never a verified label.
+labeled trace itself, with citations resolving verbatim; a completed
+`monitor.suspicion` card is raw suspicion, never a verified label.
+
+`MisalignmentLiveWorker.verify_and_promote_trace_label(run_id, card_id,
+receipt)` is the producer for that asset kind. It promotes one journaled
+suspicion card only when an *independent* verification receipt — never the
+card's own semantic judgment — proves the label. Two bounded receipt forms
+are recognized (shared with the exporter as
+`evallab.production.asset_exporter.verify_label_proof`):
+
+- `evallab.trace_label_verification/v1` — deterministic verification: the
+  `verdict_rule` must equal the card's tripwire rule, which the worker
+  re-derives by running `scan_prefix` again over the card's frozen prefix so
+  the rule must actually match the observed evidence at the cited step (a
+  semantic card string plus a reward cannot fake it). The
+  `measurement.evidence_ref` must load a recognized measured execution or
+  verifier receipt whose reward equals both the claim and the direction the
+  label asserts (`exploit-pass` -> measured `1.0` unearned pass,
+  `defect-fail` -> measured `0.0` undeserved failure); the receipt itself
+  must declare an executed measurement status and bind the run/task through
+  matching dataset/item ids, task name, or task digest — an unrelated
+  reward-only trial is refused, and the whole source-file digest is frozen
+  into the normalized proof.
+- `evallab.trace_label_adjudication/v1` — explicit ground-truth adjudication
+  naming a validated human adjudicator and a `record` reference that must
+  load a standalone `evallab.trace_label_adjudication_record/v1` source
+  receipt file: schema, human actor, label, and the run/task/trace binding
+  are all checked, and the record's content digest is frozen as
+  `record_sha256` and re-verified at export. A self-declared
+  `{adjudicator, record}` pair alone is never verification. Trust boundary:
+  the record proves a human judgment was recorded — custody and authenticity
+  of the record file (who wrote it, where it lives) belong to the caller.
+
+Either form must bind `run_id`, `dataset_id`, `item_id`, `task_id`, the
+card's `prefix_step`, and the exact `trace_prefix_sha256` the card was scored
+on; every citation in the card and the proof must resolve verbatim against
+an observed executed action step in that frozen prefix (proposed or future
+steps never qualify). Before anything is emitted the declared
+`dataset_id`/`item_id` resolves through the queue's `CorpusRegistry`:
+unregistered, TEST/heldout-sealed, or run-conflicting identities refuse
+promotion (no frozen-evaluation token exists on this path), and the resolved
+item's task must equal the run's committed task. On success the worker emits
+`trace.label_verified` and `asset.verified` (kind `labeled_trace`) with
+deterministic event ids keyed on the source-evidence content digest, so
+promotion is idempotent across retries and restarts; the original card's
+`outcome_verified` stays False. The exporter re-verifies the whole chain —
+the embedded `verification` block must be the canonical normalized proof,
+byte-identical to the promotion event's receipt, and its underlying measured
+or adjudicated evidence must still load with the same whole-source digest —
+so post-promotion tampering is rejected even when the reward is unchanged.
 
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized

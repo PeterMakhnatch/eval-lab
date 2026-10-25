@@ -777,6 +777,59 @@ uses a durable `<queue-stem>.poison.sqlite` beside the selected SQLite queue or
 PostgreSQL fallback path. Delivery is at least once: consumers must deduplicate by
 event ID beyond JetStream's configured finite duplicate window.
 
+### Physically separate actor bundles
+
+`project-actor` prepares a new local SQLite/CAS bundle without opening the
+production queue, starting workers, executing stored content, uploading data, or
+authorizing cloud spend. It consults the canonical registry using identity
+metadata first; missing split authority and unadmitted task IDs fail closed.
+Repeat `--task-id` to narrow the admitted set, or omit it to select all admitted
+rows. The source database is opened read-only, and all seven admission identity
+fields are compared again inside the coherent source snapshot used for copying.
+
+```bash
+uv run evallab prod project-actor \
+  --repo-root /path/to/corpus-workspace \
+  --source-database /path/to/source/cloud-trace-db.sqlite \
+  --source-cas /path/to/source/cas \
+  --cas-allowlist /path/to/operator-approved-cas-uris.json \
+  --output-directory /path/to/new/actor-bundle \
+  --task-id approved-dev-task \
+  --max-bytes 104857600
+```
+
+The CAS allowlist is a JSON array of explicitly approved URI strings, each
+`cas://sha256/` followed by 64 lowercase hexadecimal characters. Approval is an
+operator assertion, not independent rights adjudication. Only direct references
+in the task, issue, trace and step URI columns are followed; embedded references
+are preserved but not traversed. Each copied object is streamed, hash-checked,
+deduplicated, and bounded by `--max-bytes`. That cap covers CAS bytes only; SQLite
+size is reported separately as `projection.database_bytes`.
+
+The bundle contains `cloud-trace-db.sqlite`, `cas/`, and `manifest.json`. SQLite
+is rebuilt into fresh canonical tables and FTS indexes rather than backed up and
+filtered: unrelated tables, deleted source pages and excluded rows are not copied.
+Full admitted step bodies and source labels remain intact. Admission is not
+label verification, training eligibility, semantic decontamination or blinding;
+the manifest explicitly records that this export has not independently verified
+the labels. It includes the selected identity-set digest, database hash/size,
+allowlist digest and each staged object hash/size, without hashing the entire raw
+source database.
+
+The output must not already exist. Paths must have symlink-free, stable ancestry;
+the caller must exclusively own the source projection and staging tree during
+preparation. A destination inside, containing, or physically aliasing the source
+CAS tree—including its `sha256/` directory—is refused before any staging entry is
+created, so a failed run leaves the source tree entry-for-entry unchanged.
+Publication uses atomic no-clobber operations on Linux/macOS, not a replace
+fallback, and re-verifies that the published directory is the staged one.
+Directories are private and database, manifest and CAS files are mode `0600`;
+publication flushes the staged tree and its parent directory.
+Unsupported publication platforms fail closed. A failed preparation removes its
+own private staging tree, never an existing destination or unrelated source data.
+This command does not lift a hold on raw data or authorize a whole-store upload.
+
+
 ### HTTP and worker contracts
 
 `evallab.production.control_plane.create_app(queue, operator_tokens={token: operator})`

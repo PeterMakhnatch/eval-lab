@@ -10,6 +10,7 @@ from evallab.production.cloud_trace_db import (
     RetrievedExample,
     RetrievedTraceExample,
     format_retrieval_prompt_block,
+    protected_task_ids,
 )
 from evallab.production.control_plane import app_from_env, create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
@@ -66,4 +67,5 @@ __all__ = [
     "export_training_bundle",
     "format_retrieval_prompt_block",
     "hackbook_probe_template_catalog",
+    "protected_task_ids",
 ]

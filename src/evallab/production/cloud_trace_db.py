@@ -12,6 +12,7 @@ and held-out cohort, and supports leave-one-out exclusion.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import math
@@ -758,6 +759,34 @@ _EVIDENCE_IDENTITIES = frozenset({
     "task_id", "dataset_id", "issue_id", "witness_digest", "trace_id", "model_id", "run_id",
     "cas_uri", "raw_cas_uri", "observation_cas_uri",
 })
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def protected_task_ids(root: str | Path | None = None) -> frozenset[str]:
+    """Task ids and bare names retrieval must never cite across all split ledgers."""
+    return _protected_task_ids(str(root) if root is not None else str(_repo_root()))
+
+
+@lru_cache(maxsize=4)
+def _protected_task_ids(root: str) -> frozenset[str]:
+    protected = set(_PROTECTED_TASKS_FROZEN)
+    registry_csv = Path(root) / "research/answer-keys/splits/assignments.csv"
+    try:
+        text = registry_csv.read_text(encoding="utf-8")
+    except OSError:
+        return frozenset(protected)
+    for row in csv.DictReader(text.splitlines()):
+        split = str(row.get("split") or "").strip().casefold()
+        if split in {"test", "heldout", "held_out", "eval", "reported"}:
+            for value in (row.get("task"), row.get("unit")):
+                if value and value.strip():
+                    val = value.strip()
+                    protected.add(val)
+                    protected.add(CorpusRegistry.task_name(val))
+    return frozenset(protected)
 
 
 def _literal_alternation(values: Sequence[str]) -> str:

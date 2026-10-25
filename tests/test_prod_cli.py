@@ -577,8 +577,10 @@ def test_project_actor_never_removes_an_entry_recreated_at_the_staging_path(
     original_publish = actor_cas.publish_staged_directory
     recreated: list[Path] = []
 
-    def publish_then_recreate(staging: Path, destination: Path) -> None:
-        original_publish(staging, destination)
+    def publish_then_recreate(
+        staging: Path, destination: Path, **kwargs: object,
+    ) -> None:
+        original_publish(staging, destination, **kwargs)  # type: ignore[arg-type]
         staging.mkdir()
         (staging / "competitor").write_text("retain", encoding="utf-8")
         recreated.append(staging)
@@ -606,8 +608,10 @@ def test_project_actor_keeps_a_bundle_whose_publication_is_uncertain(
     output = source.parent / "actor-bundle"
     real_publish = actor_cas.publish_staged_directory
 
-    def publish_then_fail(staging: Path, destination: Path) -> None:
-        real_publish(staging, destination)
+    def publish_then_fail(
+        staging: Path, destination: Path, **kwargs: object,
+    ) -> None:
+        real_publish(staging, destination, **kwargs)  # type: ignore[arg-type]
         raise actor_cas.PublicationUncertainError("simulated post-rename failure")
 
     monkeypatch.setattr(actor_cas, "publish_staged_directory", publish_then_fail)

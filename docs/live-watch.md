@@ -77,6 +77,20 @@ on its original frozen prefix. Retain source events for this recovery contract.
 Each new observed prefix uses causal `tripwires.scan_prefix` rules and the same
 alert renderer as the filesystem watcher. `monitor.prefix_scored` reports measured
 deterministic latency against the 2-second target, not an unmeasured guarantee.
+Scoring is incremental: `monitor_worker.IncrementalPrefixState` owns one
+`tripwires.PrefixScanner` per run, so a newly observed step is scored once and the
+cross-step rules advance their own carried state instead of rescanning steps 1..k
+(`scan_prefix` remains the offline/batch reference). The run state also maintains
+an incremental SHA-256 prefix digest (`trace_prefix_sha256`), incremental
+capture-coverage tracking, and the rolling identical-command run and completion
+counters the run alarm reads, so `repetition`/`completion_loop` fire once at the
+prefix step that first crossed their threshold and carry a real cited step.
+Digest finalization and immutable card-prefix snapshots are O(1); appending hashes
+only the new step's bytes. Semantic triage and offline promotion materialize the
+snapshot outside the scoring path. Amended or out-of-order steps explicitly replay
+the observed prefix instead of double-counting an action. Whole-worker strict O(1)
+is not guaranteed: emitted coverage lists, cross-step evidence matching, and input
+step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
@@ -86,6 +100,23 @@ causality, a verified exploit, or an automatically promoted labeled-trace asset.
 All semantic citations must match the frozen prefix, or the card stays provisional.
 An independently evidenced label is promoted only through the explicit
 `verify_and_promote_trace_label` path described below.
+
+Scoring an *early* prefix of a finished trace is a different measurement, so it is
+declared, not inferred. `MisalignmentLiveWorker(prefix_fraction=0.25|0.5|0.75)`
+truncates batch `payload.steps` snapshots, ordered by step ID, to
+`ceil(prefix_fraction * n_agent_steps)` and strips structured post-run fields.
+Verifier steps are dropped whole; `outcome`, `passed`, `resolved`, `verifier_result`,
+`verifier_stdout`, `grader_output`, `reward` and `final_reward` are removed
+from steps and payloads (failing closed on over-deep
+nesting), and `monitor.prefix_scored.payload.causal_isolation` counts exactly what
+was withheld. At the default `prefix_fraction=1.0` the trace is finished and
+nothing is withheld. Without this the verifier's verdict — which only exists after
+the agent's last action — leaks into an "early warning" measurement and the result
+is retrospective diagnosis, not causal detection.
+Recovery applies the same isolation and refuses a checkpoint from a different
+`prefix_fraction`. Single-step events are already observed prefixes: replay callers
+must stop feeding them at their chosen cutoff; the worker cannot infer a live run's
+future length.
 
 Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
 before a tool action and honor its `allow` result; proposed actions never become
@@ -848,8 +879,15 @@ experiment matrix receipt — and any identity metadata they declare must match
 the qualification record citing them. A bare `{"reward": ...}` JSON object is
 never measured evidence. A `labeled_trace` requires a verified
 `evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
-labeled trace itself, with citations resolving verbatim; a completed
-`monitor.suspicion` card is raw suspicion, never a verified label.
+labeled trace itself, with citations resolving verbatim. Its `verification`
+block is mandatory: the exporter reloads and checks an independent measured
+execution or source-record-backed human adjudication proof, linked through
+`source_event_id` and `source_event_type` to a confirmed `trace.label_verified`
+promotion carrying the identical receipt. Missing, null, malformed, or forged
+proofs and missing, wrong-type, or unconfirmed promotion sources fail closed
+for both asset export and training backing. Citations and a `verified` status
+alone never prove a label; a completed `monitor.suspicion` card is raw
+suspicion, never a verified label.
 
 `MisalignmentLiveWorker.verify_and_promote_trace_label(run_id, card_id,
 receipt)` is the producer for that asset kind. It promotes one journaled

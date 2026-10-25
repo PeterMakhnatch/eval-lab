@@ -1,0 +1,17 @@
+{
+  "cas_reads": 0,
+  "denied_record_use_pairs": 22104,
+  "manifest_sha256": "005de3ba7423c2846407629a933bca8878962671d23c34dc50c846e590dec5e0",
+  "per_use_allowed": {
+    "actor_retrieval": 0,
+    "derivatives": 0,
+    "operator_raw": 0,
+    "redistribution": 0,
+    "scorer": 0,
+    "training": 0
+  },
+  "protected_registry_reads": 0,
+  "records_loaded": 3684,
+  "schema": "evallab.real_clearance_smoke/v1",
+  "task_body_reads": 0
+}

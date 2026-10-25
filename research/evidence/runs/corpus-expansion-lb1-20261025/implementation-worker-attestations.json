@@ -1,0 +1,74 @@
+{
+  "benchmark_or_solver_executions": 0,
+  "code_review_modifications": "Parent retained publisher aliases as hints rather than authority lookup keys, and allowed the existing 4.98 MB identity manifest within bounded metadata input. Child sessions remain byte-identical; no solver output was produced or rewritten.",
+  "final_integrated_source_sha256": {
+    "src/evallab/production/corpus_clearance.py": "ffa5ffe95abc1e81c900aaaa8b6a23929fba89e6bde331b58c25a57973714837",
+    "src/evallab/production/corpus_expansion.py": "b8c3e209a5f4e447cd10bdb2d8c1d25af66d749fa4c236b76f3cc4528f398b89"
+  },
+  "native_explicit_model_override": "tool rejected non-seance model parameter; explicitly routed ephemeral CLI workers used",
+  "native_wrappers_failed_before_work": {
+    "count": 2,
+    "error": "429 rate limit",
+    "observed_error_provider_model": "anthropic/claude-sonnet-5-5"
+  },
+  "new_paid_comparison_studies": 0,
+  "schema": "evallab.corpus_implementation_workers/v1",
+  "workers": [
+    {
+      "error_records_by_served_route": {
+        "anthropic/claude-sonnet-5-5": 1,
+        "devin/deepseek-v4-1-flash": 1,
+        "meta/muse-wonder-1.0-contributor": 1,
+        "openai-codex/gpt-6.1-sol": 1
+      },
+      "fallback_note": "Automatic CLI route changes occurred; actual served IDs, not the requested route, own every response. This is code implementation, not a model comparison.",
+      "non_error_assistant_records": 0,
+      "non_error_records_not_matching_request": 0,
+      "observed_served_provider_models": {},
+      "requested_model_credit": "none",
+      "requested_route": "openai-codex/gpt-6.1-sol:max",
+      "session_bytes": 13974,
+      "session_path": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb1/implementation-workers/importer-2026-10-25T15-18-15-171Z_01a173a4-1383-71db-8ed9-22edd2c53f28.jsonl",
+      "session_sha256": "4d2550dc062b051d7ca70d1e18190c5c1fe4f8694b97d5cbc776e37ffae44ec3",
+      "slice": "importer"
+    },
+    {
+      "error_records_by_served_route": {
+        "kimi-code/k3.1-pro-highspeed": 1,
+        "meta/muse-wonder-1.0-contributor": 1
+      },
+      "fallback_note": "Automatic CLI route changes occurred; actual served IDs, not the requested route, own every response. This is code implementation, not a model comparison.",
+      "non_error_assistant_records": 12,
+      "non_error_records_not_matching_request": 7,
+      "observed_served_provider_models": {
+        "kimi-code/k3.1-pro-highspeed": 5,
+        "openai-codex/gpt-6.1-sol": 7
+      },
+      "requested_model_credit": "none",
+      "requested_route": "kimi-code/k3.1-pro-highspeed",
+      "session_bytes": 344804,
+      "session_path": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb1/implementation-workers/clearance-2026-10-25T15-18-15-149Z_01a173a4-136d-74e5-8cd3-0450f2b112ab.jsonl",
+      "session_sha256": "cc7d684c27935885611f051d1867e65143dd82462f884d7095713f70a898be1c",
+      "slice": "clearance"
+    },
+    {
+      "error_records_by_served_route": {
+        "kimi-code/k3.1-pro-highspeed": 1,
+        "meta/muse-wonder-1.0-contributor": 1,
+        "openai-codex/gpt-6.1-sol": 1
+      },
+      "fallback_note": "Automatic CLI route changes occurred; actual served IDs, not the requested route, own every response. This is code implementation, not a model comparison.",
+      "non_error_assistant_records": 21,
+      "non_error_records_not_matching_request": 21,
+      "observed_served_provider_models": {
+        "openai-codex/gpt-6-astra": 21
+      },
+      "requested_model_credit": "none",
+      "requested_route": "kimi-code/k3.1-pro-highspeed",
+      "session_bytes": 906200,
+      "session_path": "/Users/petermakhnatch/.local/state/evallab-prod-live/corpus-expansion-lb1/implementation-workers/importer-kimi-2026-10-25T15-19-04-420Z_01a173a4-d3e4-72ac-8cec-80f70974f9c8.jsonl",
+      "session_sha256": "ff213942165c65566ae9a3721f0ff5076e9e2b31c76a7703c48d6c3f5f6537ab",
+      "slice": "importer-kimi"
+    }
+  ]
+}

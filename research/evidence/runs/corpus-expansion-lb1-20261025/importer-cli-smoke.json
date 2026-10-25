@@ -1,0 +1,26 @@
+{
+  "positive": {
+    "actor_training_cloud_admissions": 0,
+    "exact_reopened_steps": 607,
+    "importer_sha256": "b8c3e209a5f4e447cd10bdb2d8c1d25af66d749fa4c236b76f3cc4528f398b89",
+    "long_unicode_content_bytes_preserved": 198020,
+    "row_counts_added": {
+      "agent_traces": 1,
+      "corpus_tasks": 1,
+      "task_issues": 0,
+      "trace_steps": 607
+    },
+    "status": "imported"
+  },
+  "production_database_writes": 0,
+  "protected_registry_reads": 0,
+  "real_wrench_held": {
+    "body_bytes_read": 0,
+    "database_created": false,
+    "denied": 1,
+    "manifest_sha256": "005de3ba7423c2846407629a933bca8878962671d23c34dc50c846e590dec5e0",
+    "status": "denied"
+  },
+  "schema": "evallab.corpus_importer_cli_smoke/v1",
+  "smoke_script_sha256": "d391a2459f6bbf424fc21ab5c14780f169657b0f5db7e1a5b0eff348656cd25c"
+}

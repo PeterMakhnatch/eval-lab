@@ -1018,7 +1018,7 @@ def _example_record(example: RetrievedTraceExample) -> RetrievalRecord:
     return RetrievalRecord(
         kind="issue",
         task_id=example.task_id,
-        record_id=example.issue_id,
+        record_id=example.issue_id or example.trace_id or example.task_id,
         summary="; ".join(parts)[:MAX_RETRIEVAL_SUMMARY_CHARS],
         fields={
             "dataset_id": example.dataset_id,

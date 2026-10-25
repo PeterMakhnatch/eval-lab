@@ -517,7 +517,7 @@ inputs:
   - path: src/evallab/process_job.py
     digest: sha256:f1239e1826783c32776f7de2c1b9b69af25bd14e13d804e065e18baf366d5ac1
   - path: src/evallab/production/__init__.py
-    digest: sha256:e5fab389ae164e7a3d8c12cbf629f3585e21c325c4962029104a3460498d5408
+    digest: sha256:1ffe98f5c869c6bf78f554d74aad7ca2233af0bb18d00889a37dd29b9b22ae1b
   - path: src/evallab/production/asset_exporter.py
     digest: sha256:502a19cd8a853f638be8bd7751b4049fbcbb4e6e2796368763062b9e65e52aa7
   - path: src/evallab/production/asset_store.py
@@ -525,13 +525,13 @@ inputs:
   - path: src/evallab/production/cli.py
     digest: sha256:144a1fa1d75658cc4cae40b48d0011f6d0df3e099a56b3ffa6cad4632e2008d9
   - path: src/evallab/production/cloud_trace_db.py
-    digest: sha256:bb2481847b9980e6d7335eb2445611bf4d7afccc29616a0e2425921a811e768a
+    digest: sha256:679e31737676a5e2a05d5cc55b8229d3b193493667b71ee8ef85bb9d63341e54
   - path: src/evallab/production/cloud_trace_retriever.py
     digest: sha256:c47640d332b49c363399616c1a4fdba67c09e68d99854ef1d8ba307996d265ce
   - path: src/evallab/production/control_plane.py
     digest: sha256:2786e7fe37c793f871282b647fea677e7da212edfafc68ab1714cecf6f6165e8
   - path: src/evallab/production/corpus_queue.py
-    digest: sha256:46634e27e2b24717b531b65be0789ee79c03a86c78f47512a54393ccff0a5f2d
+    digest: sha256:73d6b0d90f8312d6ccdc1cbd4daf0334c1bd1994fe61bd8b2d8bb80172aa6bc7
   - path: src/evallab/production/dashboard.py
     digest: sha256:4f80631a03d404b1c3f205c5bf8f2e9f3c5495222400814c864a1d7cbc5f89ae
   - path: src/evallab/production/feeder.py

@@ -133,7 +133,7 @@ direction and either the same locus (same path, line windows within 25 lines) or
 from evallab.production import CorpusRegistry, ContinuousWorkQueue
 from evallab.production.cloud_trace_db import CloudTraceDatabase
 from evallab.production.swarm_coordinator import (
-    Aggregation, CloudTraceDatabaseRetriever, OmpCliTransport, SwarmCoordinator,
+    Aggregation, CloudTraceExampleRetriever, OmpCliTransport, SwarmCoordinator,
     SwarmMode, WorkKind,
 )
 
@@ -144,7 +144,7 @@ with CloudTraceDatabase() as evidence:
         transport=OmpCliTransport(),
         registry=registry,
         queue=queue,
-        retriever=CloudTraceDatabaseRetriever(evidence),
+        retriever=CloudTraceExampleRetriever(CloudTraceRetriever(evidence)),
     )
     result = coordinator.run(
         mode=SwarmMode.ADAPTIVE_CASCADE,

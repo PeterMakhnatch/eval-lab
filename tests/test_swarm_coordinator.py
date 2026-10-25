@@ -338,7 +338,14 @@ def test_citation_rejects_impossible_ranges() -> None:
     [
         (STRONG, STRONG, True),
         (STRONG, "anthropic/claude-opus-5-5", True),
-        ("openai-codex/gpt-6.1-sol:max", "gpt-6.1-sol:max", True),
+        ("openai-codex/gpt-6.1-sol:max", "openai-codex/gpt-6.1-sol", True),
+        ("openai-codex/gpt-6-astra:max", "openai-codex/gpt-6.1-sol", True),
+        ("openai-codex/gpt-6.1-sol:high", "openai-codex/gpt-6.1-sol", True),
+        ("openai-codex/gpt-6.1-sol:medium", "openai-codex/gpt-6.1-sol", True),
+        ("openai-codex/gpt-6.1-sol:low", "openai-codex/gpt-6.1-sol", True),
+        ("openai-codex/gpt-6.1-sol:max", "gpt-6.1-sol:max", False),
+        ("openai-codex/gpt-6.1-sol:max", "gpt-6.1-sol", False),
+        ("anthropic/claude-opus-5-5", "claude-opus-5-5", False),
         ("anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5", True),
         ("anthropic/claude-opus-5-5", "claude-sonnet-5-5", False),
         ("anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-preview", False),
@@ -348,7 +355,6 @@ def test_citation_rejects_impossible_ranges() -> None:
 )
 def test_model_identity_matches(requested: str, served: str | None, expected: bool) -> None:
     assert swarm.model_identity_matches(requested, served) is expected
-
 
 # --------------------------------------------------------------------------- #
 # Parsing
@@ -907,10 +913,16 @@ def test_hybrid_retrieval_evidence_reaches_the_adjudicator(
         [
             swarm.RetrievalRecord(
                 kind="issue",
-                task_id=SUBJECT,
+                task_id="terminal-bench/other-dev-task",
                 record_id="retained-issue:dev",
-                summary="issue retained-issue:dev on terminal-bench/dev-task: grader_wrong_pass at task/grader.py:6",
+                summary="issue retained-issue:dev on terminal-bench/other-dev-task: grader_wrong_pass at task/grader.py:6",
                 fields={"defect_class": "grader_wrong_pass", "direction": "wrong_pass"},
+            ),
+            swarm.RetrievalRecord(
+                kind="issue",
+                task_id=SUBJECT,
+                record_id="retained-issue:subject",
+                summary="issue retained-issue:subject on terminal-bench/dev-task: self-leak",
             ),
             swarm.RetrievalRecord(
                 kind="issue",
@@ -934,14 +946,21 @@ def test_hybrid_retrieval_evidence_reaches_the_adjudicator(
         mode=swarm.SwarmMode.HYBRID_ADJUDICATOR,
     )
 
-    assert retriever.calls == [(swarm.WorkKind.TASK_QUALITY_AUDIT, SUBJECT, SUBJECT)]
+    assert retriever.calls == [
+        (
+            swarm.WorkKind.TASK_QUALITY_AUDIT,
+            SUBJECT,
+            "Audit this package for grader defects.",
+        )
+    ]
     assert result.retrieval_dropped_sealed == 1
+    assert result.retrieval_dropped_subject == 1
     assert [record.record_id for record in result.retrieval] == ["retained-issue:dev"]
     assert "retained-issue:dev" in transport.prompts[-1]
+    assert "retained-issue:subject" not in transport.prompts[-1]
     assert "retained-issue:sealed" not in transport.prompts[-1]
     for prompt in transport.prompts:
         assert "sealed-task" not in prompt
-
 
 # --------------------------------------------------------------------------- #
 # ADAPTIVE_CASCADE
@@ -1358,98 +1377,68 @@ def test_adjudicator_prompt_stays_within_its_candidate_budget(package: Path) -> 
     assert len(prompt) < swarm.MAX_ADJUDICATOR_CANDIDATE_CHARS + 3_000
 
 
-def test_cloud_trace_database_retriever_reads_real_issues_and_traces(tmp_path: Path) -> None:
+def test_cloud_trace_database_retriever_reads_real_issues_and_traces_with_leave_one_out(
+    registry: CorpusRegistry, tmp_path: Path
+) -> None:
+    other_task = "cheatbench/independent"
     database = CloudTraceDatabase(tmp_path / "cloud-trace-db.sqlite")
     try:
-        database.upsert_task(
-            {
-                "task_id": SUBJECT,
-                "dataset_id": DATASET,
-                "split": "DEV",
-                "instruction_text": "Grade the produced artifact, not the exit code.",
-            }
-        )
-        database.upsert_task_issue(
-            {
-                "issue_id": "retained-issue:dev",
-                "task_id": SUBJECT,
-                "defect_class": "grader_wrong_pass",
-                "direction": "wrong_pass",
-                "status": "confirmed",
-                "citation_file": "task/grader.py",
-                "citation_line": 6,
-                "original_reward": 1.0,
-                "repaired_reward": 0.0,
-            }
-        )
-        database.upsert_trace(
-            {
-                "trace_id": "retained-trace:dev",
-                "run_id": "run-dev",
-                "task_id": SUBJECT,
-                "model_id": KIMI,
-                "outcome": "audit_proposals_not_execution",
-                "step_count": 1,
-            },
-            steps=[
-                {
-                    "trace_id": "retained-trace:dev",
-                    "step_index": 0,
-                    "role": "assistant",
-                    "tool_name": "read",
-                    "content_text": "the grader trusts the exit code",
-                }
-            ],
-        )
-        retriever = swarm.CloudTraceDatabaseRetriever(database)
-        records = retriever.retrieve(
-            work_kind=swarm.WorkKind.TASK_QUALITY_AUDIT, subject_id=SUBJECT, query=SUBJECT
-        )
-    finally:
-        database.close()
-
-    kinds = [record.kind for record in records]
-    assert kinds.count("issue") == 1
-    assert kinds.count("trace") >= 1
-    issue = next(record for record in records if record.kind == "issue")
-    assert issue.record_id == "retained-issue:dev"
-    assert issue.task_id == SUBJECT
-    assert "grader_wrong_pass" in issue.summary
-    assert issue.fields["citation_file"] == "task/grader.py"
-    assert issue.fields["original_reward"] == 1.0
-    assert all(len(record.summary) > 0 for record in records)
-
-
-def test_cloud_trace_database_retriever_drops_records_outside_the_subject(tmp_path: Path) -> None:
-    database = CloudTraceDatabase(tmp_path / "cloud-trace-db.sqlite")
-    try:
-        for task_id in (SUBJECT, "terminal-bench/other-task"):
+        for task_id, ds in ((SUBJECT, DATASET), (other_task, "cheatbench-actions-v1")):
             database.upsert_task(
                 {
                     "task_id": task_id,
-                    "dataset_id": DATASET,
+                    "dataset_id": ds,
                     "split": "DEV",
-                    "instruction_text": "grade the artifact",
+                    "instruction_text": "Grade the produced artifact, not the exit code.",
+                }
+            )
+            database.upsert_task_issue(
+                {
+                    "issue_id": f"retained-issue:{task_id}",
+                    "task_id": task_id,
+                    "defect_class": "grader_wrong_pass",
+                    "direction": "wrong_pass",
+                    "status": "confirmed",
+                    "citation_file": "task/grader.py",
+                    "citation_line": 6,
+                    "original_reward": 1.0,
+                    "repaired_reward": 0.0,
                 }
             )
             database.upsert_trace(
                 {
-                    "trace_id": f"trace:{task_id}",
-                    "run_id": "run-1",
+                    "trace_id": f"retained-trace:{task_id}",
+                    "run_id": "run-dev",
                     "task_id": task_id,
                     "model_id": KIMI,
-                    "outcome": "clean",
-                    "step_count": 0,
-                }
+                    "outcome": "audit_proposals_not_execution",
+                    "step_count": 1,
+                },
+                steps=[
+                    {
+                        "trace_id": f"retained-trace:{task_id}",
+                        "step_index": 0,
+                        "role": "assistant",
+                        "tool_name": "read",
+                        "content_text": "the grader trusts the exit code",
+                    }
+                ],
             )
-        records = swarm.CloudTraceDatabaseRetriever(database).retrieve(
-            work_kind=swarm.WorkKind.TRACE_ADJUDICATION, subject_id=SUBJECT, query=SUBJECT
+        retriever = swarm.CloudTraceDatabaseRetriever(database, registry=registry)
+        records = retriever.retrieve(
+            work_kind=swarm.WorkKind.TASK_QUALITY_AUDIT,
+            subject_id=SUBJECT,
+            query="grader exit code",
         )
     finally:
         database.close()
 
-    assert {record.task_id for record in records} == {SUBJECT}
-
+    assert [record.task_id for record in records] == [other_task]
+    issue = records[0]
+    assert issue.record_id == f"retained-issue:{other_task}"
+    assert "grader_wrong_pass" in issue.summary
+    assert issue.fields["citation"] == "task/grader.py:6"
+    assert issue.fields["trace_id"] == f"retained-trace:{other_task}"
 
 def test_attestation_receipt_is_json_serializable(
     registry: CorpusRegistry, package: Path
@@ -1577,3 +1566,211 @@ def test_work_kinds_are_all_usable(registry: CorpusRegistry, package: Path) -> N
         )
         assert result.round.work_kind is work_kind
         assert swarm.WORK_BRIEF[work_kind] in transport.prompts[0]
+
+
+# --------------------------------------------------------------------------- #
+# Verifier pW-SELF-4 regressions (a)-(e)
+# --------------------------------------------------------------------------- #
+
+
+def test_resolved_model_is_fallback_quarantines_call_even_when_served_matches(
+    registry: CorpusRegistry, package: Path
+) -> None:
+    stream = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "model_change",
+                    "model": STRONG,
+                    "resolvedModelIsFallback": True,
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "provider": "anthropic",
+                        "model": "claude-opus-5-5",
+                        "content": [{"type": "text", "text": _reply(_finding())}],
+                        "usage": {"input": 100, "output": 20, "cacheRead": 0, "cacheWrite": 0},
+                    },
+                }
+            ),
+        ]
+    )
+    transport = swarm.OmpCliTransport(runner=lambda *_: (0, stream, ""))
+    result = _run(
+        _coordinator(transport, registry),
+        package,
+        mode=swarm.SwarmMode.SINGLE_STRONG,
+    )
+    call = result.round.calls[0]
+    assert call.served_model == STRONG
+    assert call.quarantined_fallback is True
+    assert call.attributed_model is None
+    assert result.selected == ()
+
+
+def test_reasoning_suffix_stripped_and_providerless_rejected(
+    registry: CorpusRegistry, package: Path
+) -> None:
+    transport = ScriptedTransport(
+        {
+            "openai-codex/gpt-6-astra:max": [
+                _response(_reply(_finding()), served="openai-codex/gpt-6.1-sol")
+            ]
+        }
+    )
+    coordinator = _coordinator(
+        transport,
+        registry,
+        strong="openai-codex/gpt-6-astra:max",
+    )
+    result = _run(coordinator, package, mode=swarm.SwarmMode.SINGLE_STRONG)
+    assert result.round.calls[0].quarantined_fallback is False
+    assert len(result.selected) == 1
+
+    providerless = ScriptedTransport(
+        {
+            "openai-codex/gpt-6.1-sol:max": [
+                _response(_reply(_finding()), served="gpt-6.1-sol")
+            ]
+        }
+    )
+    quarantined = _run(
+        _coordinator(providerless, registry, strong="openai-codex/gpt-6.1-sol:max"),
+        package,
+        mode=swarm.SwarmMode.SINGLE_STRONG,
+    )
+    assert quarantined.round.calls[0].quarantined_fallback is True
+    assert quarantined.selected == ()
+
+
+def test_subject_task_verified_against_registry_and_assignments_before_spend(
+    corpus_root: Path, package: Path
+) -> None:
+    splits = corpus_root / "research/answer-keys/splits"
+    splits.mkdir(parents=True, exist_ok=True)
+    (splits / "assignments.csv").write_text(
+        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
+        "tb2-to-tb21-v1,tb2-to-tb21-v1:tb21:fix-git,fix-git,tb2/fix-git,test,pass,\n",
+        encoding="utf-8",
+    )
+    reg = CorpusRegistry(corpus_root, frozen_eval_token=FROZEN_TOKEN)
+    transport = ScriptedTransport({STRONG: [_response(_reply(_finding()), served=STRONG)]})
+    coordinator = _coordinator(transport, reg)
+
+    # Sealed subject passed under a DEV item_id must fail before any call.
+    with pytest.raises(SplitLockError):
+        _run(
+            coordinator,
+            package,
+            mode=swarm.SwarmMode.SINGLE_STRONG,
+            subject_id="terminal-bench/sealed-task",
+        )
+    # tb2-to-tb21-v1 TEST ledger task must fail before any call.
+    with pytest.raises(SplitLockError):
+        _run(
+            coordinator,
+            package,
+            mode=swarm.SwarmMode.SINGLE_STRONG,
+            dataset_id="tb2-to-tb21-v1",
+            item_id="tb2-to-tb21-v1:tb21:fix-git",
+            subject_id="fix-git",
+        )
+    assert transport.requests == []
+
+
+def test_retrieval_swarm_mode_injects_evidence_while_cheap_swarm_stays_unaugmented(
+    registry: CorpusRegistry, package: Path
+) -> None:
+    retriever = FakeRetriever(
+        [
+            swarm.RetrievalRecord(
+                kind="issue",
+                task_id="cheatbench/independent",
+                record_id="retained-issue:other",
+                summary="issue retained-issue:other on cheatbench/independent: grader_wrong_pass",
+            )
+        ]
+    )
+    cheap_transport = ScriptedTransport(
+        {
+            KIMI: [_agreed(served=KIMI)],
+            MUSE: [_agreed(served=MUSE)],
+            SONNET: [_agreed(served=SONNET)],
+        }
+    )
+    cheap_res = _run(
+        _coordinator(cheap_transport, registry, retriever=retriever),
+        package,
+        mode=swarm.SwarmMode.CHEAP_SWARM,
+    )
+    assert cheap_res.retrieval == ()
+    assert all("retained-issue:other" not in p for p in cheap_transport.prompts)
+
+    retrieval_transport = ScriptedTransport(
+        {
+            KIMI: [_agreed(served=KIMI)],
+            MUSE: [_agreed(served=MUSE)],
+            SONNET: [_agreed(served=SONNET)],
+        }
+    )
+    ret_res = _run(
+        _coordinator(retrieval_transport, registry, retriever=retriever),
+        package,
+        mode=swarm.SwarmMode.RETRIEVAL_SWARM,
+    )
+    assert len(ret_res.retrieval) == 1
+    assert all("retained-issue:other" in p for p in retrieval_transport.prompts)
+
+
+def test_hybrid_preserves_proposer_payload_and_reruns_keep_idempotent_event_ids(
+    registry: CorpusRegistry, package: Path, tmp_path: Path
+) -> None:
+    queue = ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry)
+    patch_payload = {"patch": "--- a/task/grader.py\n+++ b/task/grader.py\n"}
+    script = {
+        KIMI: [
+            _response(
+                _reply(_finding(payload=patch_payload)),
+                served=KIMI,
+                latency_ms=10,
+            ),
+            _response(
+                _reply(_finding(payload=patch_payload)),
+                served=KIMI,
+                latency_ms=99,
+            ),
+        ],
+        MUSE: [
+            _response(_reply(_finding(payload=patch_payload)), served=MUSE, latency_ms=12),
+            _response(_reply(_finding(payload=patch_payload)), served=MUSE, latency_ms=88),
+        ],
+        SONNET: [
+            _response(_reply(_finding(payload=patch_payload)), served=SONNET, latency_ms=15),
+            _response(_reply(_finding(payload=patch_payload)), served=SONNET, latency_ms=77),
+        ],
+        STRONG: [
+            # Adjudicator final omits payload; proposer payload must be preserved.
+            _response(
+                _adjudication_reply(final=[_finding(confidence=0.95)]),
+                served=STRONG,
+                latency_ms=20,
+            ),
+            _response(
+                _adjudication_reply(final=[_finding(confidence=0.95)]),
+                served=STRONG,
+                latency_ms=120,
+            ),
+        ],
+    }
+    coordinator = _coordinator(ScriptedTransport(script), registry, queue=queue)
+    first = _run(coordinator, package, mode=swarm.SwarmMode.HYBRID_ADJUDICATOR)
+    second = _run(coordinator, package, mode=swarm.SwarmMode.HYBRID_ADJUDICATOR)
+
+    assert dict(first.selected[0].payload) == patch_payload
+    assert dict(second.selected[0].payload) == patch_payload
+    assert first.events == second.events
+    assert len(_swarm_events(queue)) == 2

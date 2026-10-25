@@ -59,12 +59,25 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid5
 
-from evallab.production.cloud_trace_db import CloudTraceDatabase
-from evallab.production.corpus_queue import CorpusItem, CorpusRegistry
+from evallab.production.cloud_trace_db import (
+    CloudTraceDatabase,
+    CloudTraceRetriever,
+    RetrievedTraceExample,
+)
+from evallab.production.corpus_queue import (
+    CorpusItem,
+    CorpusRegistry,
+    IdempotencyConflict,
+    SplitLockError,
+)
 
 #: The frontier models a strong arm may be pinned to. A bare selector is ambiguous,
 #: so every route is fully qualified and the served model is verified per call.
-STRONG_MODELS = ("anthropic/claude-opus-5-5", "openai-codex/gpt-6.1-sol:max")
+STRONG_MODELS = (
+    "anthropic/claude-opus-5-5",
+    "openai-codex/gpt-6.1-sol:max",
+    "openai-codex/gpt-6-astra:max",
+)
 DEFAULT_STRONG_MODEL = "anthropic/claude-opus-5-5"
 
 #: Cheap subscription routes the swarm fans out over, best first.
@@ -84,6 +97,7 @@ MAX_CANDIDATES_PER_MODEL = 5
 MAX_ADJUDICATED_CANDIDATES = 12
 MAX_RETRIEVAL_RECORDS = 8
 MAX_RETRIEVAL_CHARS = 6_000
+MAX_RETRIEVAL_SUMMARY_CHARS = 600
 MAX_INLINE_PAYLOAD_CHARS = 2_000
 MAX_ADJUDICATOR_CANDIDATE_CHARS = 6_000
 
@@ -95,13 +109,13 @@ _JSON_FENCE = re.compile(r"```(?:json)?\s*([\[{].*?[\]}])\s*```", re.S)
 
 
 class SwarmMode(StrEnum):
-    """Who does the work: one frontier pass, a cheap swarm, or a cascade."""
+    """Who does the work: one frontier pass, a cheap swarm, retrieval swarm, or a cascade."""
 
     SINGLE_STRONG = "single_strong"
     CHEAP_SWARM = "cheap_swarm"
+    RETRIEVAL_SWARM = "retrieval_swarm"
     HYBRID_ADJUDICATOR = "hybrid_adjudicator"
     ADAPTIVE_CASCADE = "adaptive_cascade"
-
 
 class Aggregation(StrEnum):
     """How a cheap swarm's proposals become one answer."""
@@ -186,19 +200,46 @@ def jaccard(left: frozenset[str], right: frozenset[str]) -> float:
     return len(left & right) / len(left | right) if left and right else 0.0
 
 
-def model_identity_matches(requested: str, served: str | None) -> bool:
-    """True only when ``served`` names exactly the model that was requested.
+_REASONING_SUFFIXES = frozenset({"max", "xhigh", "high", "medium", "low", "minimal", "off"})
+_MODEL_ALIASES = {
+    "openai-codex/gpt-6-astra": "openai-codex/gpt-6.1-sol",
+}
 
-    A provider that reports a bare model id (no ``provider/`` prefix) still matches
-    when that id is the requested model's own name. Anything else - a different
-    model, a sibling version, or a missing served id - is a silent fallback this
-    harness refuses to attribute.
+
+def _normalize_model_identity(value: str | None) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip().casefold()
+    head, sep, tail = normalized.rpartition(":")
+    if sep and tail in _REASONING_SUFFIXES:
+        normalized = head
+    if normalized.startswith("codex/"):
+        normalized = "openai-codex/" + normalized.removeprefix("codex/")
+    return _MODEL_ALIASES.get(normalized, normalized)
+
+
+def model_identity_matches(
+    requested: str,
+    served: str | None,
+    *,
+    resolved_model_is_fallback: bool = False,
+) -> bool:
+    """True only when ``served`` names the requested provider/model without fallback.
+
+    Reasoning suffixes (``:max``, ``:high``, ``:medium``, ``:low``) are stripped when
+    comparing ``requested`` and ``served``. Provider-less strings without a matching
+    ``provider/`` prefix and any call flagged with ``resolvedModelIsFallback`` are
+    rejected.
     """
-    if not isinstance(served, str) or not served.strip():
+    if resolved_model_is_fallback:
         return False
-    asked, answered = requested.strip().casefold(), served.strip().casefold()
-    return asked == answered or ("/" not in answered and asked.rsplit("/", 1)[-1] == answered)
-
+    if not isinstance(requested, str) or "/" not in requested.strip():
+        return False
+    if not isinstance(served, str) or "/" not in served.strip():
+        return False
+    asked = _normalize_model_identity(requested)
+    answered = _normalize_model_identity(served)
+    return asked is not None and asked == answered
 
 # --------------------------------------------------------------------------- #
 # Citations
@@ -492,7 +533,12 @@ class ModelResponse:
     tokens_out: int | None = None
     latency_ms: int = 0
     error: str | None = None
+    resolved_model_is_fallback: bool = False
+    resolvedModelIsFallback: bool = False
 
+    @property
+    def is_fallback(self) -> bool:
+        return bool(self.resolved_model_is_fallback or self.resolvedModelIsFallback)
 
 class ModelTransport(Protocol):
     """The one method the coordinator needs from a model route."""
@@ -556,15 +602,12 @@ class CallOutcome:
     text: str
 
 
-def parse_omp_stream(stream: str) -> tuple[str | None, str, int | None, int | None]:
-    """Read one ``omp -p --mode json`` stream: served model, text, and token counts.
-
-    ``omp`` prints one JSON object per line. The assistant ``message_end`` (or the
-    last ``agent_end`` message) carries the provider, the model that actually
-    answered, and its usage. A stream that names no model returns ``None``, which
-    the coordinator quarantines rather than attributing.
-    """
+def _parse_omp_stream_with_fallback(
+    stream: str,
+) -> tuple[str | None, str, int | None, int | None, bool]:
     assistants: list[Mapping[str, Any]] = []
+    fallback = False
+    changed_models: list[str] = []
     for raw in stream.splitlines():
         line = raw.strip()
         if not line:
@@ -575,21 +618,29 @@ def parse_omp_stream(stream: str) -> tuple[str | None, str, int | None, int | No
             continue
         if not isinstance(event, Mapping):
             continue
+        if event.get("resolvedModelIsFallback") is True:
+            fallback = True
         kind = event.get("type")
+        if kind == "model_change":
+            changed = event.get("model")
+            if isinstance(changed, str) and changed.strip():
+                changed_models.append(changed.strip())
         if kind == "message_end" and isinstance(event.get("message"), Mapping):
             message = event["message"]
+            if message.get("resolvedModelIsFallback") is True:
+                fallback = True
             if message.get("role") == "assistant":
                 assistants.append(message)
         elif kind == "agent_end" and not assistants:
             messages = event.get("messages")
             if isinstance(messages, list):
-                assistants.extend(
-                    message
-                    for message in messages
-                    if isinstance(message, Mapping) and message.get("role") == "assistant"
-                )
+                for message in messages:
+                    if isinstance(message, Mapping) and message.get("role") == "assistant":
+                        if message.get("resolvedModelIsFallback") is True:
+                            fallback = True
+                        assistants.append(message)
     if not assistants:
-        return None, "", None, None
+        return None, "", None, None, fallback
     message = assistants[-1]
     provider, model = message.get("provider"), message.get("model")
     served = (
@@ -597,8 +648,26 @@ def parse_omp_stream(stream: str) -> tuple[str | None, str, int | None, int | No
         if isinstance(provider, str) and provider and isinstance(model, str) and model
         else (model if isinstance(model, str) and model else None)
     )
-    return served, _message_text(message), *_usage(message)
+    if served is not None and changed_models:
+        served_norm = _normalize_model_identity(served)
+        for changed in changed_models:
+            changed_norm = _normalize_model_identity(changed)
+            if changed_norm is not None and "/" in changed and changed_norm != served_norm:
+                fallback = True
+    tokens_in, tokens_out = _usage(message)
+    return served, _message_text(message), tokens_in, tokens_out, fallback
 
+
+def parse_omp_stream(stream: str) -> tuple[str | None, str, int | None, int | None]:
+    """Read one ``omp -p --mode json`` stream: served model, text, and token counts.
+
+    ``omp`` prints one JSON object per line. The assistant ``message_end`` (or the
+    last ``agent_end`` message) carries the provider, the model that actually
+    answered, and its usage. A stream that names no model returns ``None``, which
+    the coordinator quarantines rather than attributing.
+    """
+    served, text, tokens_in, tokens_out, _ = _parse_omp_stream_with_fallback(stream)
+    return served, text, tokens_in, tokens_out
 
 def _message_text(message: Mapping[str, Any]) -> str:
     content = message.get("content")
@@ -696,7 +765,7 @@ class OmpCliTransport:
                 latency_ms=latency_ms,
                 error=f"omp exited {code}: {stderr.strip()[-300:]}",
             )
-        served, text, tokens_in, tokens_out = parse_omp_stream(stdout)
+        served, text, tokens_in, tokens_out, fallback = _parse_omp_stream_with_fallback(stdout)
         if not text.strip():
             return ModelResponse(
                 text="",
@@ -705,6 +774,8 @@ class OmpCliTransport:
                 tokens_out=tokens_out,
                 latency_ms=latency_ms,
                 error="omp returned no assistant text",
+                resolved_model_is_fallback=fallback,
+                resolvedModelIsFallback=fallback,
             )
         return ModelResponse(
             text=text,
@@ -712,6 +783,8 @@ class OmpCliTransport:
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             latency_ms=latency_ms,
+            resolved_model_is_fallback=fallback,
+            resolvedModelIsFallback=fallback,
         )
 
 
@@ -882,78 +955,77 @@ class RetrievalRecord:
 
 
 class TraceRetriever(Protocol):
-    """Historical evidence lookup; ``CloudTraceDatabaseRetriever`` is the default."""
+    """Historical evidence lookup for a subject under judgment.
+
+    Implementations must not return records about ``subject_id`` itself: the task
+    being judged must never appear in its own prompt. The coordinator enforces this
+    again on whatever an implementation returns, so a leaky retriever costs
+    ``dropped_subject`` records, not a contaminated measurement.
+    """
 
     def retrieve(
         self, *, work_kind: WorkKind, subject_id: str, query: str, limit: int = MAX_RETRIEVAL_RECORDS
     ) -> Sequence[RetrievalRecord]: ...
 
 
-class CloudTraceDatabaseRetriever:
-    """Read the production cloud trace database for matching past issues and traces.
+class CloudTraceExampleRetriever:
+    """Adapt ``CloudTraceRetriever`` to the coordinator's leave-one-out evidence contract.
 
-    Reads are projection-only: the task's own issues join exactly, and traces are
-    matched by text. Sealed identities are filtered by the coordinator, not here,
-    so the drop stays visible in the round event.
+    ``CloudTraceRetriever`` already reads only dev splits and refuses protected
+    ``tb4-audit-v1`` TEST, ``tb2-to-tb21-v1`` TEST, and MiMo heldout tasks; this
+    adapter adds leave-one-out exclusion by passing ``subject_id`` as
+    ``exclude_task_ids``.
     """
 
-    def __init__(self, database: CloudTraceDatabase) -> None:
-        self.database = database
+    def __init__(
+        self,
+        retriever: CloudTraceRetriever | CloudTraceDatabase,
+        *,
+        registry: CorpusRegistry | None = None,
+    ) -> None:
+        if isinstance(retriever, CloudTraceDatabase):
+            self.retriever = CloudTraceRetriever(retriever, registry=registry)
+        else:
+            self.retriever = retriever
 
     def retrieve(
         self, *, work_kind: WorkKind, subject_id: str, query: str, limit: int = MAX_RETRIEVAL_RECORDS
     ) -> Sequence[RetrievalRecord]:
-        records: list[RetrievalRecord] = []
-        for issue in self.database.query_task_issues(subject_id, confirmed_only=False):
-            records.append(_issue_record(issue))
-        terms = query.strip() or subject_id
-        for trace in self.database.search_traces(terms):
-            if trace.get("task_id") != subject_id and not trace.get("issues") and not trace.get("is_exploit"):
-                continue
-            records.append(_trace_record(trace))
-            if len(records) >= limit * 2:
-                break
-        return tuple(records[:limit])
+        examples = self.retriever.retrieve_similar_examples(
+            query, exclude_task_ids={subject_id}, top_k=limit
+        )
+        return tuple(_example_record(example) for example in examples)
 
 
-def _issue_record(issue: Mapping[str, Any]) -> RetrievalRecord:
-    location = f"{issue.get('citation_file')}:{issue.get('citation_line')}"
+CloudTraceDatabaseRetriever = CloudTraceExampleRetriever
+def _example_record(example: RetrievedTraceExample) -> RetrievalRecord:
+    parts = [
+        f"{example.task_id}: {example.defect_class} ({example.direction}, {example.status})"
+    ]
+    for label, value in (
+        ("citation", example.citation),
+        ("differential", example.differential),
+        ("reproducer", example.reproducer),
+    ):
+        if value:
+            parts.append(f"{label} {value}")
+    if example.trace_id:
+        parts.append(f"trace {example.trace_id} (model {example.model_id}, outcome {example.outcome})")
     return RetrievalRecord(
         kind="issue",
-        task_id=str(issue["task_id"]),
-        record_id=str(issue["issue_id"]),
-        summary=(
-            f"issue {issue['issue_id']} on {issue['task_id']}: {issue.get('defect_class')} "
-            f"({issue.get('direction')}, {issue.get('status')}) at {location}"
-        ),
+        task_id=example.task_id,
+        record_id=example.issue_id,
+        summary="; ".join(parts)[:MAX_RETRIEVAL_SUMMARY_CHARS],
         fields={
-            "defect_class": issue.get("defect_class"),
-            "direction": issue.get("direction"),
-            "status": issue.get("status"),
-            "citation_file": issue.get("citation_file"),
-            "citation_line": issue.get("citation_line"),
-            "original_reward": issue.get("original_reward"),
-            "repaired_reward": issue.get("repaired_reward"),
-        },
-    )
-
-
-def _trace_record(trace: Mapping[str, Any]) -> RetrievalRecord:
-    return RetrievalRecord(
-        kind="trace",
-        task_id=str(trace["task_id"]),
-        record_id=str(trace["trace_id"]),
-        summary=(
-            f"trace {trace['trace_id']} on {trace['task_id']} by {trace.get('model_id')}: "
-            f"outcome {trace.get('outcome')}, reward {trace.get('reward')}, "
-            f"steps {trace.get('step_count')}"
-        ),
-        fields={
-            "model_id": trace.get("model_id"),
-            "outcome": trace.get("outcome"),
-            "reward": trace.get("reward"),
-            "step_count": trace.get("step_count"),
-            "is_exploit": trace.get("is_exploit"),
+            "dataset_id": example.dataset_id,
+            "defect_class": example.defect_class,
+            "direction": example.direction,
+            "status": example.status,
+            "score": example.score,
+            "citation": example.citation,
+            "trace_id": example.trace_id,
+            "model_id": example.model_id,
+            "outcome": example.outcome,
         },
     )
 
@@ -1014,11 +1086,12 @@ _ADJUDICATOR_CONTRACT = """Reply with one JSON object and nothing else:
 {"verdicts": [{"candidate_id": "<id from the list>", "decision": "accept" | "reject",
                "reason": "<short specific reason>"}],
  "final": [{"direction": "...", "mechanism": "...", "confidence": <0..1>,
-            "citations": [{"path": "...", "line": <int>, "end_line": <int>, "quote": "..."}]}]}
+            "citations": [{"path": "...", "line": <int>, "end_line": <int>, "quote": "..."}],
+            "payload": {<optional structured artifact>}}]}
 Rules:
 - Accept only a candidate whose citations all read "verified": true.
 - Reject every false alarm and say which check it fails.
-- "final" is your own selection; copy citations exactly from the candidates you accept.
+- "final" is your own selection; copy citations and payload from the candidates you accept.
 - Every final citation is re-checked against the package before it is kept.
 - No prose outside the JSON object."""
 
@@ -1193,6 +1266,7 @@ class SwarmResult:
     escalated: bool
     retrieval: tuple[RetrievalRecord, ...]
     retrieval_dropped_sealed: int
+    retrieval_dropped_subject: int
     events: tuple[str, ...]
 
     @property
@@ -1224,6 +1298,7 @@ class SwarmResult:
             "retrieval": {
                 "records": [record.as_payload() for record in self.retrieval],
                 "dropped_sealed": self.retrieval_dropped_sealed,
+                "dropped_subject": self.retrieval_dropped_subject,
             },
             "tokens_in": self.tokens_in,
             "tokens_out": self.tokens_out,
@@ -1250,7 +1325,7 @@ class SwarmCoordinator:
         transport: ModelTransport,
         registry: CorpusRegistry,
         queue: EventSink | None = None,
-        retriever: TraceRetriever | None = None,
+        retriever: TraceRetriever | CloudTraceRetriever | CloudTraceDatabase | None = None,
         strong_model: str = DEFAULT_STRONG_MODEL,
         cheap_models: Sequence[str] = CHEAP_MODELS,
         confidence_threshold: float = 0.8,
@@ -1273,7 +1348,12 @@ class SwarmCoordinator:
         self.transport = transport
         self.registry = registry
         self.queue = queue
-        self.retriever = retriever
+        if isinstance(retriever, (CloudTraceRetriever, CloudTraceDatabase)):
+            self.retriever: TraceRetriever | None = CloudTraceExampleRetriever(
+                retriever, registry=registry
+            )
+        else:
+            self.retriever = retriever
         self.strong_model = strong_model
         self.cheap_models = tuple(cheap_models)
         self.confidence_threshold = confidence_threshold
@@ -1304,15 +1384,20 @@ class SwarmCoordinator:
         first, so sealed work costs nothing. ``workspace`` is the task package the
         citations are checked against. ``prompt`` is the work-specific brief the
         caller would give a single reviewer; this module wraps it in the mode's
-        harness. ``query`` overrides the retrieval query (defaults to the subject).
+        harness. ``query`` overrides the retrieval query (defaults to ``prompt``).
         ``run_id`` scopes the round and event identities, so re-running the same
         round with the same id is idempotent in the journal.
         """
-        item = self._admit(dataset_id, item_id, frozen_eval_token)
+        item = self._admit(dataset_id, item_id, subject_id, frozen_eval_token)
         run = self.run_id if run_id is None else _text(run_id, "run_id")
         root = self._workspace(workspace)
         verify = self._verifier(root)
-        evidence, dropped = self._evidence(work_kind, subject_id, query)
+        if mode is SwarmMode.CHEAP_SWARM:
+            evidence, dropped, dropped_subject = (), 0, 0
+        else:
+            evidence, dropped, dropped_subject = self._evidence(
+                work_kind, subject_id, prompt if query is None else query
+            )
         round_id = str(
             uuid5(
                 NAMESPACE_URL,
@@ -1331,7 +1416,7 @@ class SwarmCoordinator:
                 self._single_strong(round_id, work_kind, subject_id, prompt, evidence, verify)
             )
             policy: Aggregation | None = None
-        elif mode is SwarmMode.CHEAP_SWARM:
+        elif mode in (SwarmMode.CHEAP_SWARM, SwarmMode.RETRIEVAL_SWARM):
             calls, candidates, clusters, selected, adjudication, escalated, confidence = (
                 self._cheap_swarm(round_id, work_kind, subject_id, proposer_prompt, verify, aggregation)
             )
@@ -1379,6 +1464,7 @@ class SwarmCoordinator:
             escalated=escalated,
             retrieval=evidence,
             retrieval_dropped_sealed=dropped,
+            retrieval_dropped_subject=dropped_subject,
             events=self._emit(
                 run_id=run,
                 round_id=round_id,
@@ -1388,7 +1474,8 @@ class SwarmCoordinator:
                 escalated=escalated,
                 aggregation=policy,
                 retrieval=evidence,
-                dropped=dropped,
+                dropped_sealed=dropped,
+                dropped_subject=dropped_subject,
                 frozen_eval_token=frozen_eval_token,
             ),
         )
@@ -1397,15 +1484,53 @@ class SwarmCoordinator:
     # -- admission and evidence -------------------------------------------- #
 
     def _admit(
-        self, dataset_id: str, item_id: str, frozen_eval_token: str | None
+        self, dataset_id: str, item_id: str, subject_id: str, frozen_eval_token: str | None
     ) -> CorpusItem:
-        """Resolve the corpus item, refusing sealed work before a single token is spent.
-
-        ``CorpusRegistry.admit`` is the only enforcement point: it raises
-        ``SplitLockError`` for a sealed item unless the caller supplied the frozen
-        evaluation token itself. The coordinator never supplies one on its own.
-        """
-        return self.registry.admit(dataset_id, item_id, frozen_eval_token=frozen_eval_token)
+        """Resolve the corpus item and subject, refusing sealed/TEST work before any spend."""
+        _text(subject_id, "subject_id")
+        sealed_subject = (
+            self.registry.sealed_identity(item_id=subject_id, task_id=subject_id) is not None
+        )
+        assigned_test_fn = getattr(self.registry, "assigned_test_anywhere", None)
+        has_assignments_fn = getattr(self.registry, "has_split_assignments", None)
+        assigned_split_fn = getattr(self.registry, "assigned_split", None)
+        assigned_test = bool(
+            callable(assigned_test_fn)
+            and (
+                assigned_test_fn(item_id=item_id, task_id=subject_id)
+                or assigned_test_fn(item_id=subject_id, task_id=subject_id)
+            )
+        )
+        if callable(has_assignments_fn) and has_assignments_fn(dataset_id):
+            split_for_key = (
+                assigned_split_fn(dataset_id, item_id=item_id, task_id=subject_id)
+                if callable(assigned_split_fn)
+                else None
+            )
+            if split_for_key != "dev":
+                assigned_test = True
+        try:
+            item = self.registry.admit(dataset_id, item_id, frozen_eval_token=frozen_eval_token)
+        except KeyError:
+            if sealed_subject or assigned_test:
+                raise SplitLockError(
+                    f"TEST split is sealed for subject {subject_id} in {dataset_id}/{item_id}"
+                ) from None
+            raise
+        if item.split != "test":
+            if sealed_subject or assigned_test:
+                raise SplitLockError(
+                    f"subject {subject_id} is sealed or TEST-assigned and cannot run under DEV item {dataset_id}/{item_id}"
+                )
+            if (
+                item.task_id is not None
+                and CorpusRegistry.task_name(subject_id).casefold()
+                != CorpusRegistry.task_name(item.task_id).casefold()
+            ):
+                raise SplitLockError(
+                    f"subject {subject_id} does not match admitted DEV item task {item.task_id}"
+                )
+        return item
 
     def _workspace(self, workspace: Path | None) -> Path:
         root = workspace if workspace is not None else self.workspace
@@ -1417,31 +1542,54 @@ class SwarmCoordinator:
         return lambda citation: verify_citation(root, citation)
 
     def _evidence(
-        self, work_kind: WorkKind, subject_id: str, query: str | None
-    ) -> tuple[tuple[RetrievalRecord, ...], int]:
-        """Retrieved history with every sealed identity removed."""
+        self, work_kind: WorkKind, subject_id: str, query: str
+    ) -> tuple[tuple[RetrievalRecord, ...], int, int]:
+        """Retrieved history with the subject and every sealed identity removed.
+
+        Returns ``(records, dropped_sealed, dropped_subject)``. A record about the
+        subject task is dropped here whatever the retriever promised, because the
+        task under judgment appearing in its own prompt contaminates every arm of a
+        comparison alike. Sealed identities are dropped the same way.
+        """
         if self.retriever is None:
-            return (), 0
-        records = self.retriever.retrieve(
-            work_kind=work_kind,
-            subject_id=subject_id,
-            query=subject_id if query is None else query,
-        )
+            return (), 0, 0
+        records = self.retriever.retrieve(work_kind=work_kind, subject_id=subject_id, query=query)
+        subject = CorpusRegistry.task_name(subject_id).casefold()
+        assigned_test_fn = getattr(self.registry, "assigned_test_anywhere", None)
+        has_assignments_fn = getattr(self.registry, "has_split_assignments", None)
+        assigned_split_fn = getattr(self.registry, "assigned_split", None)
         kept: list[RetrievalRecord] = []
-        dropped = 0
+        dropped_sealed = dropped_subject = 0
         for record in records:
+            if CorpusRegistry.task_name(record.task_id).casefold() == subject:
+                dropped_subject += 1
+                continue
             digest = record.fields.get("task_digest")
+            dataset_id = record.fields.get("dataset_id")
             seal = self.registry.sealed_identity(
                 item_id=record.record_id,
                 task_id=record.task_id,
                 task_digest=digest if isinstance(digest, str) else None,
             )
-            if seal is not None:
-                dropped += 1
+            is_test_assigned = bool(
+                callable(assigned_test_fn)
+                and assigned_test_fn(item_id=record.record_id, task_id=record.task_id)
+            )
+            if (
+                isinstance(dataset_id, str)
+                and dataset_id
+                and callable(has_assignments_fn)
+                and has_assignments_fn(dataset_id)
+                and callable(assigned_split_fn)
+                and assigned_split_fn(dataset_id, item_id=record.record_id, task_id=record.task_id)
+                != "dev"
+            ):
+                is_test_assigned = True
+            if seal is not None or is_test_assigned:
+                dropped_sealed += 1
                 continue
             kept.append(record)
-        return tuple(kept[:MAX_RETRIEVAL_RECORDS]), dropped
-
+        return tuple(kept[:MAX_RETRIEVAL_RECORDS]), dropped_sealed, dropped_subject
     # -- strategies --------------------------------------------------------- #
 
     def _single_strong(
@@ -1642,7 +1790,11 @@ class SwarmCoordinator:
         except Exception as exc:  # a transport failure is data, not a crash
             response = ModelResponse(text="", error=f"{type(exc).__name__}: {exc}")
         response_sha = _sha256_text(response.text)
-        quarantined = not model_identity_matches(model, response.served_model)
+        quarantined = not model_identity_matches(
+            model,
+            response.served_model,
+            resolved_model_is_fallback=response.is_fallback,
+        )
         call = ModelCall(
             call_id=str(
                 uuid5(
@@ -1741,6 +1893,7 @@ class SwarmCoordinator:
         finals = finals if isinstance(finals, list) else []
         accepted: list[Candidate] = []
         dropped: list[dict[str, Any]] = []
+        accepted_ids_from_verdicts = _accepted_ids(verdicts)
         for index, raw in enumerate(finals[:MAX_ADJUDICATED_CANDIDATES], 1):
             candidate = build_candidate(
                 raw,
@@ -1759,13 +1912,22 @@ class SwarmCoordinator:
                     {"candidate_id": candidate.candidate_id, "reason": "citation_unverified"}
                 )
                 continue
+            if not candidate.payload:
+                inherited_payload = _inherit_proposer_payload(
+                    candidate,
+                    raw=raw,
+                    clusters=clusters,
+                    accepted_ids=accepted_ids_from_verdicts,
+                )
+                if inherited_payload:
+                    candidate = replace(candidate, payload=inherited_payload)
             accepted.append(candidate)
         if not accepted and verdicts:
             accepted = [
                 member
                 for member in (cluster.representative for cluster in clusters)
                 if member.citation_verified
-                and member.candidate_id in _accepted_ids(verdicts)
+                and member.candidate_id in accepted_ids_from_verdicts
             ]
         accepted_ids = {candidate.candidate_id for candidate in accepted}
         return (
@@ -1800,7 +1962,8 @@ class SwarmCoordinator:
         escalated: bool,
         aggregation: Aggregation | None,
         retrieval: Sequence[RetrievalRecord],
-        dropped: int,
+        dropped_sealed: int,
+        dropped_subject: int,
         frozen_eval_token: str | None,
     ) -> tuple[str, ...]:
         """Journal the round, then the adjudication when one happened."""
@@ -1814,7 +1977,8 @@ class SwarmCoordinator:
             "escalated": escalated,
             "retrieval": {
                 "records": [record.as_payload() for record in retrieval],
-                "dropped_sealed": dropped,
+                "dropped_sealed": dropped_sealed,
+                "dropped_subject": dropped_subject,
             },
         }
         events = [
@@ -1877,11 +2041,16 @@ class SwarmCoordinator:
             "status": status,
             "payload": dict(payload),
         }
-        sink.append_event(
-            event,
-            idempotency_key=f"swarm:{round_id}:{event_type}",
-            frozen_eval_token=frozen_eval_token,
-        )
+        try:
+            stored = sink.append_event(
+                event,
+                idempotency_key=f"swarm:{round_id}:{event_type}",
+                frozen_eval_token=frozen_eval_token,
+            )
+            if isinstance(stored, Mapping) and isinstance(stored.get("event_id"), str):
+                return str(stored["event_id"])
+        except IdempotencyConflict:
+            return str(event["event_id"])
         return str(event["event_id"])
 
 
@@ -1934,3 +2103,32 @@ def _rejected_ids(verdicts: Sequence[Mapping[str, Any]]) -> set[str]:
         for verdict in verdicts
         if verdict.get("decision") == "reject"
     }
+
+
+def _inherit_proposer_payload(
+    candidate: Candidate,
+    *,
+    raw: Any,
+    clusters: Sequence[Cluster],
+    accepted_ids: set[str],
+) -> dict[str, Any]:
+    """Preserve a proposer's structured payload when the adjudicator omits ``payload``."""
+    by_id = {
+        member.candidate_id: member
+        for cluster in clusters
+        for member in cluster.members
+    }
+    if isinstance(raw, Mapping):
+        ref_id = raw.get("candidate_id")
+        if isinstance(ref_id, str) and ref_id in by_id and by_id[ref_id].payload:
+            return dict(by_id[ref_id].payload)
+    for cluster in clusters:
+        if any(_same_locus(candidate, member) for member in cluster.members):
+            for member in sorted(cluster.members, key=_representative_key, reverse=True):
+                if member.payload:
+                    return dict(member.payload)
+    for ref_id in sorted(accepted_ids):
+        member = by_id.get(ref_id)
+        if member is not None and member.direction == candidate.direction and member.payload:
+            return dict(member.payload)
+    return {}

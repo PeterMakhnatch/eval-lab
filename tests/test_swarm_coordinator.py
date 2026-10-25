@@ -56,6 +56,17 @@ def _item(item_id: str, split: str, task: str, digest: str | None = None) -> dic
 def corpus_root(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     keys = root / "research/answer-keys"
+    assignments = keys / "splits/assignments.csv"
+    assignments.parent.mkdir(parents=True)
+    assignments.write_text(
+        "key_id,item_id,task,split\n"
+        f"{DATASET},finding-dev,{SUBJECT},dev\n"
+        f"{DATASET},finding-test,terminal-bench/sealed-task,test\n"
+        "cheatbench-actions-v1,cheat-dev,cheatbench/independent,dev\n"
+        "hacktrace-act-v1,hack-dev,hacktrace/independent,dev\n"
+        "mimo-defect-map-v1,mimo-dev@sha256:version1,mimo-dev,dev\n",
+        encoding="utf-8",
+    )
     _write_jsonl(
         keys / DATASET / "items.jsonl",
         [

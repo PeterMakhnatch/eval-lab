@@ -1888,6 +1888,7 @@ class MisalignmentLiveWorker:
                             run.cards.add(card_id)
                             existing = run.suspicions.get(card_id, {})
                             run.suspicions[card_id] = {
+                                **existing,
                                 "card": payload,
                                 "event_id": event.get("event_id"),
                                 "prefix": event.get("prefix_step"),

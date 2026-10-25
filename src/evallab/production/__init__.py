@@ -9,6 +9,7 @@ from evallab.production.cloud_trace_db import (
     CloudTraceRetriever,
     RetrievedExample,
     RetrievedTraceExample,
+    admitted_cloud_task_ids,
     format_retrieval_prompt_block,
     protected_task_ids,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "TaskQualityLiveWorker",
     "TransientBrokerError",
     "VerifiedAssetExporter",
+    "admitted_cloud_task_ids",
     "app_from_env",
     "create_app",
     "build_hackbook_probe_candidate",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Iterator
 from dataclasses import FrozenInstanceError
@@ -17,8 +18,10 @@ from evallab.production.corpus_queue import CorpusRegistry
 
 class SyntheticRegistry(CorpusRegistry):
     def __init__(self) -> None:
-        self._assignment_keys = frozenset()
-        self._assignments = {}
+        authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
+        self.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
+        self._assignment_keys = frozenset({"synthetic-authority"})
+        self._assignments = {("synthetic-authority", "source"): "dev"}
         self._assignment_names = {}
         self._assigned_test_ids = set()
         self._assigned_test_names = set()

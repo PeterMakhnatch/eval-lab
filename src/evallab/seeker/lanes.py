@@ -24,6 +24,8 @@ from evallab.seeker.prompt import system_prompt, user_prompt
 DRIVERS: dict[str, dict[str, str]] = {
     "sonnet": {"kind": "omp", "model": "anthropic/claude-sonnet-5-5"},
     "codex": {"kind": "omp", "model": "openai-codex/gpt-6-luna"},
+    "kimi": {"kind": "omp", "model": "kimi-code/k3.1-pro-highspeed"},
+    "muse": {"kind": "omp", "model": "meta/muse-wonder-1.0-contributor"},
     "gptoss": {"kind": "openrouter", "model": "openai/gpt-oss-120b"},
 }
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -42,7 +44,10 @@ def codex_weekly_used() -> float | None:
     try:
         out = subprocess.run(
             ["omp", "usage", "--json", "--redact", "-p", "openai-codex"],
-            capture_output=True, text=True, timeout=120, check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
         ).stdout
         doc = json.loads(out)
     except (OSError, ValueError, subprocess.TimeoutExpired):
@@ -90,43 +95,80 @@ def _omp_result(stdout: str) -> tuple[str, dict[str, int], float, list[str]]:
                 if isinstance(raw.get(key), int):
                     usage[key] += raw[key]
             cost += float(((raw.get("cost") or {}).get("total")) or 0.0)
-            parts = [p.get("text", "") for p in message.get("content") or [] if p.get("type") == "text"]
+            parts = [
+                p.get("text", "") for p in message.get("content") or [] if p.get("type") == "text"
+            ]
             if any(parts):
                 text = "".join(parts)
     return text, dict(usage), round(cost, 6), commands
 
 
 def run_omp_lane(
-    driver: str, workspace: Path, task: str, *, timeout: float = 900.0, hackbook: bool = False, prompt_variant: str = "base", extra_instruction: str = ""
+    driver: str,
+    workspace: Path,
+    task: str,
+    *,
+    timeout: float = 900.0,
+    hackbook: bool = False,
+    prompt_variant: str = "base",
+    extra_instruction: str = "",
 ) -> dict[str, Any]:
     model = DRIVERS[driver]["model"]
     profile = workspace.parent / f"{workspace.name}.sb"
     profile.write_text(sandbox_profile(workspace))
     argv = [
-        "sandbox-exec", "-f", str(profile),
-        "omp", "-p", "--no-session", "--no-lsp",
-        "--model", model, "--thinking", "medium",
-        "--mode", "json", "--cwd", str(workspace),
-        "--tools", "read,grep,glob,write",
-        "--system-prompt", system_prompt(prompt_variant),
+        "sandbox-exec",
+        "-f",
+        str(profile),
+        "omp",
+        "-p",
+        "--no-session",
+        "--no-lsp",
+        "--model",
+        model,
+        "--thinking",
+        "medium",
+        "--mode",
+        "json",
+        "--cwd",
+        str(workspace),
+        "--tools",
+        "read,grep,glob,write",
+        "--system-prompt",
+        system_prompt(prompt_variant),
         user_prompt(task, hackbook=hackbook) + extra_instruction,
     ]
     started = time.monotonic()
     record: dict[str, Any] = {
-        "driver": driver, "model": model, "task": task, "started_at": _now(),
-        "workspace": str(workspace), "hackbook": hackbook, "prompt_variant": prompt_variant,
+        "driver": driver,
+        "model": model,
+        "task": task,
+        "started_at": _now(),
+        "workspace": str(workspace),
+        "hackbook": hackbook,
+        "prompt_variant": prompt_variant,
     }
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
         text, usage, cost, commands = _omp_result(proc.stdout)
         record.update(
-            text=text[:2000], usage=usage, api_equivalent_usd=cost, paid_usd=0.0,
-            tool_calls=commands, error=None if proc.returncode == 0 else f"omp exit {proc.returncode}",
+            text=text[:2000],
+            usage=usage,
+            api_equivalent_usd=cost,
+            paid_usd=0.0,
+            tool_calls=commands,
+            error=None if proc.returncode == 0 else f"omp exit {proc.returncode}",
         )
         (workspace / "transcript.jsonl").write_text(proc.stdout)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        record.update(text="", usage={}, api_equivalent_usd=0.0, paid_usd=0.0,
-                      tool_calls=[], error=f"{type(exc).__name__}: {exc}")
+        record.update(
+            text="",
+            usage={},
+            api_equivalent_usd=0.0,
+            paid_usd=0.0,
+            tool_calls=[],
+            error=f"{type(exc).__name__}: {exc}",
+        )
     record["seconds"] = round(time.monotonic() - started, 1)
     record["finished_at"] = _now()
     return record
@@ -143,7 +185,9 @@ def _openrouter_post(payload: dict[str, Any], api_key: str) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=300) as response:
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"OpenRouter HTTP {exc.code}: {exc.read().decode(errors='replace')[:300]}") from exc
+        raise RuntimeError(
+            f"OpenRouter HTTP {exc.code}: {exc.read().decode(errors='replace')[:300]}"
+        ) from exc
 
 
 def run_openrouter_lane(
@@ -169,8 +213,13 @@ def run_openrouter_lane(
     calls: list[str] = []
     started = time.monotonic()
     record: dict[str, Any] = {
-        "driver": "gptoss", "model": DRIVERS["gptoss"]["model"], "task": task,
-        "started_at": _now(), "workspace": str(workspace), "hackbook": hackbook, "prompt_variant": prompt_variant,
+        "driver": "gptoss",
+        "model": DRIVERS["gptoss"]["model"],
+        "task": task,
+        "started_at": _now(),
+        "workspace": str(workspace),
+        "hackbook": hackbook,
+        "prompt_variant": prompt_variant,
     }
     error: str | None = None
     finished = False
@@ -227,10 +276,18 @@ def run_openrouter_lane(
                 break
     except (RuntimeError, KeyError, IndexError, TypeError) as exc:
         error = f"{type(exc).__name__}: {exc}"
-    cost = usage["prompt_tokens"] * GPT_OSS_PRICES["prompt"] + usage["completion_tokens"] * GPT_OSS_PRICES["completion"]
+    cost = (
+        usage["prompt_tokens"] * GPT_OSS_PRICES["prompt"]
+        + usage["completion_tokens"] * GPT_OSS_PRICES["completion"]
+    )
     record.update(
-        text="", usage=usage, api_equivalent_usd=round(cost, 6), paid_usd=round(cost, 6),
-        tool_calls=calls, error=error, finished=finished,
+        text="",
+        usage=usage,
+        api_equivalent_usd=round(cost, 6),
+        paid_usd=round(cost, 6),
+        tool_calls=calls,
+        error=error,
+        finished=finished,
     )
     record["seconds"] = round(time.monotonic() - started, 1)
     record["finished_at"] = _now()

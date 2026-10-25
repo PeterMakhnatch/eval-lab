@@ -1695,6 +1695,100 @@ def test_pin_evidence_interrupted_copy_leaves_no_partial_destination(
     assert (destination / "verifier" / "reward.json").is_file()
 
 
+def test_hackbook_probe_template_catalog_covers_all_entries_and_validates(tmp_path: Path) -> None:
+    import subprocess
+
+    from evallab.production.seeker_worker import (
+        build_headless_seeker_prompt,
+        hackbook_probe_template_catalog,
+        validate_submission,
+    )
+
+    task_dir = _make_task(tmp_path, "probe-target")
+    (task_dir / "task.toml").write_text(
+        'version = "1.0"\nartifacts = ["/app/output/report.json"]\n',
+        encoding="utf-8",
+    )
+    golden_dir = task_dir / "tests" / "golden"
+    golden_dir.mkdir(parents=True, exist_ok=True)
+    (golden_dir / "secret_golden.csv").write_text("SECRET_GOLDEN_ROW_999\n", encoding="utf-8")
+
+    catalog = hackbook_probe_template_catalog(task_dir=task_dir, root=REPO_ROOT)
+    assert len(catalog) >= 55
+
+    signatures: set[str] = set()
+    for entry_id, candidate in catalog.items():
+        assert candidate.hackbook_entry_id == entry_id
+        assert "/app/output/report.json" in candidate.files_written
+        sub_dir = tmp_path / "probes" / entry_id
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        files = candidate.ensure_submission_files()
+        for rel, content in files.items():
+            dest = sub_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content, encoding="utf-8")
+        report = validate_submission(sub_dir)
+        assert report["valid"] is True, f"{entry_id} failed validation: {report}"
+        syntax = subprocess.run(
+            ["bash", "-n", str(sub_dir / "solve.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert syntax.returncode == 0, f"{entry_id} syntax error: {syntax.stderr}"
+        sig = compute_shortcut_signature(
+            hackbook_entry_id=candidate.hackbook_entry_id,
+            taxonomy_class=candidate.taxonomy_class,
+            mechanism=candidate.mechanism,
+            target_check=candidate.target_check,
+            files_written=candidate.files_written,
+            files=files,
+        )
+        assert sig not in signatures
+        signatures.add(sig)
+
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(task_dir, repaired),
+        run_id="run-blind",
+        event_id="job-blind",
+    )
+    worker = RewardSeekerLiveWorker(
+        queue,  # type: ignore[arg-type]
+        worker_id="seeker-blind",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hackbook_entries=_hackbook_entries(),
+        grader_fn=MarkerGrader(),
+        max_attempts=1,
+    )
+    claimed = queue.claim("seeker-blind", job_types=("reward_seeker.seek_task",), lease_seconds=60)
+    assert claimed is not None
+    resolved = worker._resolve_job_task(claimed)
+    cues = match_task_hackbook_cues(task_dir, entries=_hackbook_entries(), root=REPO_ROOT)
+    memory = SeekerFailureMemory()
+    ws = worker._prepare_attempt_workspace(
+        resolved,
+        attempt_index=1,
+        cues=cues,
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    assert not (ws / "task" / "tests" / "golden").exists()
+    prompt = build_headless_seeker_prompt(
+        resolved,
+        attempt_index=1,
+        selected_cue=cues[0],
+        cues=cues,
+        memory=memory,
+        workspace=ws,
+    )
+    assert "SECRET_GOLDEN_ROW_999" not in prompt
+    assert "pytest_sessionfinish" not in prompt
+
+
 def test_blind_workspace_and_prompt_exclude_answer_key_directories(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

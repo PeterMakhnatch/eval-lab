@@ -162,7 +162,21 @@ def _package(tmp_path: Path, content: str = "assert output == 42\n") -> Path:
     return package
 
 
+WITNESS_DIGEST = "sha256:" + "a" * 64
+OTHER_DIGEST = "sha256:" + "b" * 64
+
+
 def _witness(queue: ContinuousWorkQueue, *, asset_id: str = "witness:dev", **extra: Any) -> None:
+    """Emit a witness citing a journaled confirmed exploit unless ``source_event_id`` is given."""
+    digest = extra.setdefault("candidate_digest", WITNESS_DIGEST)
+    if "source_event_id" not in extra:
+        extra["source_event_id"] = f"{asset_id}:confirmed"
+        _event(
+            queue,
+            extra["source_event_id"],
+            "seeker.exploit_confirmed",
+            {"dataset_id": DATASET, "item_id": ITEM, "candidate_digest": digest},
+        )
     _event(
         queue,
         asset_id,
@@ -175,6 +189,30 @@ def _witness(queue: ContinuousWorkQueue, *, asset_id: str = "witness:dev", **ext
             "exploit_files": {"solve.sh": "printf 'wrong answer'\n"},
             "original_reward": 1.0,
             "repaired_reward": 0.0,
+            **extra,
+        },
+    )
+
+
+def _repair(queue: ContinuousWorkQueue, *, asset_id: str = "repair", **extra: Any) -> None:
+    """Emit a repaired task citing a journaled confirmed qualification."""
+    qualification = f"{asset_id}:qualified"
+    _event(
+        queue,
+        qualification,
+        "task_quality.repair_qualified",
+        {"dataset_id": DATASET, "item_id": ITEM},
+    )
+    _event(
+        queue,
+        asset_id,
+        "asset.verified",
+        {
+            "kind": "repaired_task",
+            "asset_id": asset_id,
+            "dataset_id": DATASET,
+            "item_id": ITEM,
+            "qualification_event_id": qualification,
             **extra,
         },
     )
@@ -274,6 +312,7 @@ def test_exploit_witness_export_contains_real_files_and_bounded_bundle(
             "item_id": ITEM,
             "mechanism": "accepts any nonempty answer",
             "taxonomy_class": "weak-check",
+            "candidate_digest": WITNESS_DIGEST,
             "passing_runs": ["original-trial"],
             "repaired_runs": ["fixed-trial"],
         },
@@ -283,7 +322,7 @@ def test_exploit_witness_export_contains_real_files_and_bounded_bundle(
         queue,
         source_event_id="differential",
         solution_bundle=str(bundle),
-        candidate_digest="sha256:" + "a" * 64,
+        candidate_digest=WITNESS_DIGEST,
         shortcut_signature="fixture-shortcut",
     )
     store = _store(tmp_path, queue, registry)
@@ -455,18 +494,10 @@ def test_sealed_identifiers_inside_exported_text_block_before_any_writes(
     tmp_path: Path, queue: _ObservedQueue, registry: CorpusRegistry, token: str, reason: str
 ) -> None:
     package = _package(tmp_path, f"# sealed reference: {token}\n")
-    _event(
+    _repair(
         queue,
-        "repair",
-        "asset.verified",
-        {
-            "kind": "repaired_task",
-            "asset_id": "repair",
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package": str(package),
-            "task_package_digest": task_directory_digest(package),
-        },
+        task_package=str(package),
+        task_package_digest=task_directory_digest(package),
     )
     store = _store(tmp_path, queue, registry)
     guarded = store.guard("repair")
@@ -511,6 +542,7 @@ def test_guard_matches_whole_identifier_tokens_not_substrings(
 def test_unresolvable_lineage_fails_closed_even_when_export_is_disabled(
     tmp_path: Path, queue: _ObservedQueue, registry: CorpusRegistry
 ) -> None:
+    _event(queue, "confirmed", "seeker.exploit_confirmed", {"candidate_digest": WITNESS_DIGEST})
     _event(
         queue,
         "unknown",
@@ -518,7 +550,8 @@ def test_unresolvable_lineage_fails_closed_even_when_export_is_disabled(
         {
             "kind": "exploit_witness",
             "asset_id": "unknown",
-            "source_event_id": "missing",
+            "source_event_id": "confirmed",
+            "candidate_digest": WITNESS_DIGEST,
             "exploit_files": {"solve.sh": "printf 0\n"},
         },
     )
@@ -532,6 +565,120 @@ def test_unresolvable_lineage_fails_closed_even_when_export_is_disabled(
     assert not (tmp_path / "exports").exists()
 
 
+@pytest.mark.parametrize(
+    ("prior", "claim"),
+    [
+        pytest.param(
+            [],
+            {
+                "kind": "exploit_witness",
+                "source_event_id": "nowhere",
+                "candidate_digest": WITNESS_DIGEST,
+            },
+            id="witness-source-not-journaled",
+        ),
+        pytest.param(
+            [("seeker.exploit_confirmed", "confirmed", {"candidate_digest": WITNESS_DIGEST})],
+            {"kind": "exploit_witness", "candidate_digest": WITNESS_DIGEST},
+            id="witness-cites-nothing",
+        ),
+        pytest.param(
+            [("seeker.exploit_confirmed", "confirmed", {"candidate_digest": WITNESS_DIGEST})],
+            {"kind": "exploit_witness", "source_event_id": "prior-0", "candidate_digest": None},
+            id="witness-without-candidate-digest",
+        ),
+        pytest.param(
+            [("seeker.exploit_confirmed", "confirmed", {"candidate_digest": "sha256:abc"})],
+            {
+                "kind": "exploit_witness",
+                "source_event_id": "prior-0",
+                "candidate_digest": "sha256:abc",
+            },
+            id="witness-with-truncated-digest",
+        ),
+        pytest.param(
+            [("seeker.exploit_confirmed", "confirmed", {"candidate_digest": OTHER_DIGEST})],
+            {
+                "kind": "exploit_witness",
+                "source_event_id": "prior-0",
+                "candidate_digest": WITNESS_DIGEST,
+            },
+            id="witness-digest-differs-from-confirmed-exploit",
+        ),
+        pytest.param(
+            [("seeker.exploit_confirmed", "provisional", {"candidate_digest": WITNESS_DIGEST})],
+            {
+                "kind": "exploit_witness",
+                "source_event_id": "prior-0",
+                "candidate_digest": WITNESS_DIGEST,
+            },
+            id="witness-source-not-confirmed",
+        ),
+        pytest.param(
+            [("seeker.attempt_started", "confirmed", {"candidate_digest": WITNESS_DIGEST})],
+            {
+                "kind": "exploit_witness",
+                "source_event_id": "prior-0",
+                "candidate_digest": WITNESS_DIGEST,
+            },
+            id="witness-source-is-not-an-exploit-confirmation",
+        ),
+        pytest.param([], {"kind": "repaired_task"}, id="repair-cites-nothing"),
+        pytest.param(
+            [],
+            {"kind": "repaired_task", "qualification_event_id": "nowhere"},
+            id="repair-qualification-not-journaled",
+        ),
+        pytest.param(
+            [("task_quality.repair_rejected", "refuted", {})],
+            {"kind": "repaired_task", "qualification_event_id": "prior-0"},
+            id="repair-qualification-was-rejected",
+        ),
+        pytest.param(
+            [("task_quality.repair_qualified", "provisional", {})],
+            {"kind": "repaired_task", "qualification_event_id": "prior-0"},
+            id="repair-qualification-not-confirmed",
+        ),
+    ],
+)
+def test_assets_without_a_journaled_receipt_are_never_indexed_or_exported(
+    tmp_path: Path,
+    queue: _ObservedQueue,
+    registry: CorpusRegistry,
+    prior: list[tuple[str, str, dict[str, Any]]],
+    claim: dict[str, Any],
+) -> None:
+    for number, (event_type, status, payload) in enumerate(prior):
+        _event(
+            queue,
+            f"prior-{number}",
+            event_type,
+            {"dataset_id": DATASET, "item_id": ITEM, **payload},
+            status=status,
+        )
+    _event(
+        queue,
+        "claimed",
+        "asset.verified",
+        {
+            "asset_id": "claimed",
+            "dataset_id": DATASET,
+            "item_id": ITEM,
+            "exploit_files": {"solve.sh": "printf 0\n"},
+            "original_reward": 1.0,
+            "repaired_reward": 0.0,
+            **claim,
+        },
+    )
+    store = _store(tmp_path, queue, registry)
+    assert store.list_assets()["total"] == 0
+    with pytest.raises(AssetNotFound):
+        store.get_asset("claimed")
+    with pytest.raises(AssetNotFound):
+        store.export("claimed", operator="fixture-operator", request_id="receiptless")
+    assert not (tmp_path / "exports").exists()
+
+
 @pytest.mark.parametrize("kind", ["repaired_task", "exploit_witness"])
 def test_event_paths_outside_allowed_roots_are_refused(
     tmp_path: Path, queue: _ObservedQueue, registry: CorpusRegistry, kind: str
@@ -539,18 +686,10 @@ def test_event_paths_outside_allowed_roots_are_refused(
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "private.txt").write_text("not an allowed source", encoding="utf-8")
-    _event(
-        queue,
-        "outside",
-        "asset.verified",
-        {
-            "asset_id": "outside",
-            "kind": kind,
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package" if kind == "repaired_task" else "solution_bundle": str(outside),
-        },
-    )
+    if kind == "repaired_task":
+        _repair(queue, asset_id="outside", task_package=str(outside))
+    else:
+        _witness(queue, asset_id="outside", solution_bundle=str(outside))
     store = _store(tmp_path, queue, registry)
     with pytest.raises(PermissionError, match="outside the allowed roots"):
         store.guard("outside")
@@ -631,18 +770,7 @@ def test_export_rechecks_files_instead_of_trusting_an_earlier_guard(
     tmp_path: Path, queue: _ObservedQueue, registry: CorpusRegistry
 ) -> None:
     package = _package(tmp_path)
-    _event(
-        queue,
-        "repair",
-        "asset.verified",
-        {
-            "kind": "repaired_task",
-            "asset_id": "repair",
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package": str(package),
-        },
-    )
+    _repair(queue, task_package=str(package))
     store = _store(tmp_path, queue, registry)
     assert store.guard("repair")["result"] == "pass"
     (package / "tests/test_output.py").write_text(f"# {SEALED_TASK}\n", encoding="utf-8")
@@ -658,19 +786,7 @@ def test_package_digest_mismatch_is_refused(
     package = _package(tmp_path)
     digest = task_directory_digest(package)
     (package / "tests/test_output.py").write_text("changed verifier\n", encoding="utf-8")
-    _event(
-        queue,
-        "repair",
-        "asset.verified",
-        {
-            "kind": "repaired_task",
-            "asset_id": "repair",
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package": str(package),
-            "task_package_digest": digest,
-        },
-    )
+    _repair(queue, task_package=str(package), task_package_digest=digest)
     with pytest.raises(ValueError, match="digest does not match"):
         _store(tmp_path, queue, registry).export(
             "repair", operator="fixture-operator", request_id="changed"
@@ -686,18 +802,7 @@ def test_package_size_cap_and_symlink_skipping(
     outside = tmp_path / "outside.txt"
     outside.write_text(f"private {SEALED_TASK}", encoding="utf-8")
     (package / "not-copied.txt").symlink_to(outside)
-    _event(
-        queue,
-        "repair",
-        "asset.verified",
-        {
-            "kind": "repaired_task",
-            "asset_id": "repair",
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package": str(package),
-        },
-    )
+    _repair(queue, task_package=str(package))
     store = _store(tmp_path, queue, registry)
     root = _assert_manifest(
         store.export("repair", operator="fixture-operator", request_id="skip-links")
@@ -745,12 +850,19 @@ def test_missing_cross_run_lineage_is_reindexed_when_its_source_arrives(
 ) -> None:
     _event(
         queue,
+        "confirmed",
+        "seeker.exploit_confirmed",
+        {"candidate_digest": WITNESS_DIGEST, "source_event_id": "late-lineage"},
+    )
+    _event(
+        queue,
         "waiting-asset",
         "asset.verified",
         {
             "asset_id": "waiting-asset",
             "kind": "exploit_witness",
-            "source_event_id": "late-lineage",
+            "source_event_id": "confirmed",
+            "candidate_digest": WITNESS_DIGEST,
             "exploit_files": {"solve.sh": "printf 0\n"},
         },
     )
@@ -827,12 +939,20 @@ def test_only_verified_supported_kinds_are_indexed_with_stable_fallback_ids(
     )
     _event(
         queue,
+        "verified-source",
+        "seeker.exploit_confirmed",
+        {"dataset_id": DATASET, "item_id": ITEM, "candidate_digest": WITNESS_DIGEST},
+    )
+    _event(
+        queue,
         "verified-without-id",
         "asset.verified",
         {
             "kind": "exploit_witness",
             "dataset_id": DATASET,
             "item_id": ITEM,
+            "source_event_id": "verified-source",
+            "candidate_digest": WITNESS_DIGEST,
             "exploit_files": {"solve.sh": "printf 0\n"},
         },
         status=status,
@@ -929,18 +1049,7 @@ def test_blocked_list_and_detail_only_expose_an_opaque_reference(
     else:
         package = _package(tmp_path, f"# {SEALED_TASK}\n")
         asset_id = "file-contaminated"
-        _event(
-            queue,
-            "file-contaminated-event",
-            "asset.verified",
-            {
-                "asset_id": asset_id,
-                "kind": "repaired_task",
-                "dataset_id": DATASET,
-                "item_id": ITEM,
-                "task_package": str(package),
-            },
-        )
+        _repair(queue, asset_id=asset_id, task_package=str(package))
     store = _store(tmp_path, queue, registry)
     listing = store.list_assets()
     descriptor = listing["assets"][0]
@@ -960,17 +1069,12 @@ def test_split_errors_only_return_fixed_categories_and_reason_codes(
     _witness(queue, **{SEALED_ITEM: {"note": SEALED_TASK}})
     package = _package(tmp_path)
     (package / f"{SEALED_ITEM}.txt").write_text("safe content", encoding="utf-8")
+    _repair(queue, asset_id="file-name", task_package=str(package))
     _event(
         queue,
-        "file-name-event",
-        "asset.verified",
-        {
-            "asset_id": "file-name",
-            "kind": "repaired_task",
-            "dataset_id": DATASET,
-            "item_id": ITEM,
-            "task_package": str(package),
-        },
+        "manifest-confirmed",
+        "seeker.exploit_confirmed",
+        {"dataset_id": DATASET, "item_id": ITEM, "candidate_digest": WITNESS_DIGEST},
     )
     _event(
         queue,
@@ -981,6 +1085,8 @@ def test_split_errors_only_return_fixed_categories_and_reason_codes(
             "kind": "exploit_witness",
             "dataset_id": DATASET,
             "item_id": ITEM,
+            "source_event_id": "manifest-confirmed",
+            "candidate_digest": WITNESS_DIGEST,
             "exploit_files": {},
         },
     )
@@ -1080,6 +1186,8 @@ def test_request_bindings_survive_replay_and_retries_return_the_original_content
             "kind": "exploit_witness",
             "dataset_id": DATASET,
             "item_id": ITEM,
+            "source_event_id": "witness:dev:confirmed",
+            "candidate_digest": WITNESS_DIGEST,
             "exploit_files": {"solve.sh": "changed content\n"},
         },
     )

@@ -78,6 +78,7 @@ from evallab.production.corpus_queue import (
     CorpusItem,
     CorpusRegistry,
     SplitLockError,
+    source_record_digest,
 )
 
 #: Queue job type consumed by ``MisalignmentLiveWorker`` as a trace event:
@@ -775,6 +776,7 @@ def _register_external(
             ),
             source_path=Path(source) if isinstance(source, str) else Path(dataset_id),
             metadata=metadata,
+            source_record_sha256=source_record_digest(payload),
         )
     )
 

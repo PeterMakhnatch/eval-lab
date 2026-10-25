@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -250,6 +251,7 @@ def _repair_chain(
     *,
     run_id: str = "run-repair",
     item: dict[str, str] | None = None,
+    task_id: str = TASK_ID,
 ) -> dict[str, Any]:
     """A fully real repaired_task qualification: job, qualification, asset."""
     item = item or DEV
@@ -263,14 +265,14 @@ def _repair_chain(
         )
     job = queue.enqueue(
         "task_quality.repair_task",
-        {**item, "task_id": TASK_ID},
+        {**item, "task_id": task_id},
         run_id=run_id,
         idempotency_key=f"job:{run_id}",
     )
     qualification_payload = {
         "job_id": job["event_id"],
         **item,
-        "task_id": TASK_ID,
+        "task_id": task_id,
         "task_package": str(package),
         "task_package_digest": digest,
         "repaired_task": str(package),
@@ -302,7 +304,7 @@ def _repair_chain(
                 "kind": "repaired_task",
                 "status": "confirmed",
                 **item,
-                "task_id": TASK_ID,
+                "task_id": task_id,
                 "task_package": str(package),
                 "task_package_digest": digest,
                 "qualification_event_id": qualification["event_id"],
@@ -323,6 +325,30 @@ def _repair_chain(
         "evidence": evidence,
         "rewards": rewards,
     }
+
+
+@pytest.fixture
+def training_asset(
+    queue: ContinuousWorkQueue, tmp_path: Path, registry: CorpusRegistry
+) -> Callable[[str, str], dict[str, Any]]:
+    """Build measured repair backing once per synthetic corpus identity."""
+    assets: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def asset_for(dataset_id: str, item_id: str) -> dict[str, Any]:
+        key = (dataset_id, item_id)
+        if key not in assets:
+            item = registry.get(dataset_id, item_id)
+            assert item.task_id is not None
+            assets[key] = _repair_chain(
+                queue,
+                tmp_path,
+                run_id=f"training-{len(assets)}",
+                item={"dataset_id": dataset_id, "item_id": item_id},
+                task_id=item.task_id,
+            )["asset"]
+        return assets[key]
+
+    return asset_for
 
 
 def _exploit_chain(
@@ -1768,13 +1794,212 @@ class TestTrainingGate:
         candidate.update(overrides)
         return candidate
 
-    def test_export_dev_candidates(
+    def test_event_free_candidate_rejected(
         self, exporter: VerifiedAssetExporter, tmp_path: Path
     ) -> None:
         manifest = exporter.export_training_bundle(
+            [self._candidate()], tmp_path / "bundle"
+        )
+        assert manifest["input"] == 1
+        assert manifest["accepted"] == 0
+        assert manifest["deduplicated"] == 0
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert manifest["distinct_tasks"] == 0
+        assert manifest["distinct_mechanisms"] == 0
+        assert manifest["rejections"][0]["reasons"] == [
+            "no verified execution or adjudication receipt backs this row"
+        ]
+        assert (tmp_path / "bundle/training_rows.jsonl").read_text() == ""
+
+    @pytest.mark.parametrize(
+        "event_type",
+        [
+            "task_quality.repair_candidate",
+            "seeker.exploit_confirmed",
+            "trace.label_verified",
+            "qa.finding/v1",
+        ],
+    )
+    def test_unverifiable_event_type_cannot_back_row(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        event_type: str,
+    ) -> None:
+        event = queue.append_event(
+            _event(
+                event_type,
+                {**DEV, "status": "confirmed", "measured": True},
+                event_id="unsupported:reference",
+            )
+        )
+        manifest = exporter.export_training_bundle(
+            [self._candidate(source_event_id=event["event_id"])],
+            tmp_path / "bundle",
+        )
+        assert manifest["accepted"] == 0
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert manifest["rejections"][0]["reasons"] == [
+            "no verified execution or adjudication receipt backs this row"
+        ]
+
+    @pytest.mark.parametrize("status", ["provisional", "suspected", "candidate", " Provisional "])
+    @pytest.mark.parametrize("event_type", ["qa.finding/v1", "task_quality.repair_qualified"])
+    @pytest.mark.parametrize("with_verified_backing", [False, True])
+    def test_provisional_reference_rejected_even_alongside_verified_backing(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        status: str,
+        event_type: str,
+        with_verified_backing: bool,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        payload = (
+            chain["qualification_payload"]
+            if event_type == "task_quality.repair_qualified"
+            else DEV
+        )
+        reference = queue.append_event(
+            _event(
+                event_type,
+                {**payload, "status": status},
+                event_id="provisional:reference",
+                run_id=chain["qualification"]["run_id"],
+            )
+        )
+        candidate = self._candidate(source_event_id=reference["event_id"])
+        if with_verified_backing:
+            candidate["asset_event_id"] = chain["asset"]["event_id"]
+        manifest = exporter.export_training_bundle([candidate], tmp_path / "bundle")
+        assert manifest["accepted"] == 0
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        reasons = manifest["rejections"][0]["reasons"]
+        assert (
+            f"source_event_id: referenced event payload status is {status.strip().lower()}"
+            in reasons
+        )
+        if not with_verified_backing:
+            assert "no verified execution or adjudication receipt backs this row" in reasons
+        assert (tmp_path / "bundle/training_rows.jsonl").read_text() == ""
+
+    def test_provisional_event_envelope_rejected_alongside_verified_backing(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        reference = queue.append_event(
+            _event(
+                "qa.finding/v1",
+                {**DEV, "status": "confirmed"},
+                event_id="provisional:envelope",
+                status="provisional",
+            )
+        )
+        manifest = exporter.export_training_bundle(
             [
-                self._candidate(0, mechanism="sig:one"),
-                self._candidate(1, mechanism="sig:two"),
+                self._candidate(
+                    asset_event_id=chain["asset"]["event_id"],
+                    receipt_event_id=reference["event_id"],
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert manifest["rejections"][0]["reasons"] == [
+            "receipt_event_id: referenced event status is not confirmed"
+        ]
+
+    @pytest.mark.parametrize("reference_key, event_key", [
+        ("asset_event_id", "asset"),
+        ("qualification_event_id", "qualification"),
+    ])
+    def test_tampered_backing_receipt_rejected_at_export(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        reference_key: str,
+        event_key: str,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        candidate = self._candidate(**{reference_key: chain[event_key]["event_id"]})
+        before = exporter.export_training_bundle([candidate], tmp_path / "before")
+        assert before["exported"] == 1
+        trial = Path(chain["evidence"]["reference"][0]["evidence_ref"])
+        (trial / "verifier/reward.json").write_text('{"reward": 0.0}', encoding="utf-8")
+        after = exporter.export_training_bundle([candidate], tmp_path / "after")
+        assert after["accepted"] == 0
+        assert after["exported"] == 0
+        assert after["rejected"] == 1
+        reasons = after["rejections"][0]["reasons"]
+        assert f"{reference_key}: reference[0]: evidence_ref did not load a measured receipt" in reasons
+        assert "no verified execution or adjudication receipt backs this row" in reasons
+
+    def test_unbacked_rejections_do_not_inflate_manifest_counts(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path)
+        unsupported = queue.append_event(
+            _event("qa.finding/v1", DEV, event_id="unsupported:reference")
+        )
+        provisional = queue.append_event(
+            _event(
+                "qa.finding/v1",
+                {**DEV, "status": "provisional"},
+                event_id="provisional:reference",
+            )
+        )
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(0, asset_event_id=chain["asset"]["event_id"]),
+                self._candidate(1, asset_event_id=chain["asset"]["event_id"]),
+                self._candidate(2),
+                self._candidate(3, receipt_event_id=unsupported["event_id"]),
+                self._candidate(4, receipt_event_id=provisional["event_id"]),
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["input"] == 5
+        assert manifest["accepted"] == 2
+        assert manifest["deduplicated"] == 1
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 3
+        assert manifest["distinct_tasks"] == 1
+        assert manifest["distinct_mechanisms"] == 1
+        assert [rejection["index"] for rejection in manifest["rejections"]] == [2, 3, 4]
+
+    @pytest.mark.parametrize(
+        "reference_key, event_key",
+        [
+            ("asset_event_id", "asset"),
+            ("qualification_event_id", "qualification"),
+        ],
+    )
+    def test_export_dev_candidates(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        reference_key: str,
+        event_key: str,
+    ) -> None:
+        backing = _repair_chain(queue, tmp_path)[event_key]
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(0, mechanism="sig:one", **{reference_key: backing["event_id"]}),
+                self._candidate(1, mechanism="sig:two", **{reference_key: backing["event_id"]}),
             ],
             tmp_path / "bundle",
         )
@@ -1787,6 +2012,14 @@ class TestTrainingGate:
         ]
         assert rows[0]["task_id"] == TASK_ID
         assert {row["mechanism_signature"] for row in rows} == {"sig:one", "sig:two"}
+        for row in rows:
+            assert row["provenance"]["verified_by"] == {
+                reference_key: {
+                    "event_id": backing["event_id"],
+                    "event_type": backing["event_type"],
+                    "seq": backing["seq"],
+                }
+            }
 
     @pytest.mark.parametrize(
         "dataset_id, item_id",
@@ -1825,12 +2058,21 @@ class TestTrainingGate:
         assert manifest["rejected"] == 1
 
     def test_secondary_key_scoping_keeps_dev_exportable(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
         # corpus/secondary-only is TEST under a secondary key only; the scoped
         # canonical lock must not seal it for canonical corpora.
+        backing = training_asset(DATASET, "secondary-visible")
         manifest = exporter.export_training_bundle(
-            [self._candidate(item_id="secondary-visible")], tmp_path / "bundle"
+            [
+                self._candidate(
+                    item_id="secondary-visible", asset_event_id=backing["event_id"]
+                )
+            ],
+            tmp_path / "bundle",
         )
         assert manifest["exported"] == 1
         assert manifest["rejected"] == 0
@@ -1892,6 +2134,15 @@ class TestTrainingGate:
         reasons = {r["index"]: r["reasons"] for r in manifest["rejections"]}
         assert any("does not resolve" in reason for reason in reasons[1])
         assert any("dataset_id" in reason or "item_id" in reason for reason in reasons[2])
+        row = json.loads((tmp_path / "bundle/training_rows.jsonl").read_text())
+        assert row["provenance"]["verified_by"] == {
+            key: {
+                "event_id": chain["asset"]["event_id"],
+                "event_type": "asset.verified",
+                "seq": chain["asset"]["seq"],
+            }
+            for key in ("asset_event_id", "asset_id")
+        }
 
     def test_forged_asset_reference_rejected(
         self,
@@ -1922,7 +2173,10 @@ class TestTrainingGate:
         assert manifest["rejected"] == 1
 
     def test_dedup_exact_tuple(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
         candidates = [
             self._candidate(0, mechanism="sig:a"),
@@ -1930,6 +2184,10 @@ class TestTrainingGate:
             self._candidate(2, mechanism="sig:b"),  # different mechanism
             self._candidate(3, mechanism="sig:a", dataset_id="cheatbench-actions-v1", item_id="cheat-dev"),  # different dataset
         ]
+        for candidate in candidates:
+            candidate["asset_event_id"] = training_asset(
+                candidate["dataset_id"], candidate["item_id"]
+            )["event_id"]
         manifest = exporter.export_training_bundle(candidates, tmp_path / "bundle")
         assert manifest["input"] == 4
         assert manifest["accepted"] == 4
@@ -1939,7 +2197,10 @@ class TestTrainingGate:
         assert manifest["distinct_mechanisms"] == 2
 
     def test_distinct_counts_not_inflated(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
         # Resembles the "90 rows vs 39 distinct" regression: 30 candidates over
         # 13 distinct (task, mechanism) tuples must not inflate exported rows
@@ -1955,6 +2216,7 @@ class TestTrainingGate:
                     mechanism=mechanism,
                     dataset_id=dataset,
                     item_id=item,
+                    asset_event_id=training_asset(dataset, item)["event_id"],
                 )
             )
         manifest = exporter.export_training_bundle(candidates, tmp_path / "bundle")
@@ -1976,13 +2238,25 @@ class TestTrainingGate:
         assert manifest["deduplicated"] == 30 - manifest["exported"]
 
     def test_deterministic_repeat_outputs(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
-        candidates = [self._candidate(i, mechanism=f"sig:{i % 3}") for i in range(8)]
+        backing = training_asset(DATASET, "finding-dev")
+        candidates = [
+            self._candidate(
+                i, mechanism=f"sig:{i % 3}", asset_event_id=backing["event_id"]
+            )
+            for i in range(8)
+        ]
         first = tmp_path / "bundle-a"
         second = tmp_path / "bundle-b"
         manifest_a = exporter.export_training_bundle(candidates, first)
         manifest_b = exporter.export_training_bundle(candidates, second)
+        assert manifest_a["accepted"] == 8
+        assert manifest_a["exported"] == 3
+        assert manifest_a["deduplicated"] == 5
         assert manifest_a == manifest_b
         assert (first / "training_rows.jsonl").read_bytes() == (
             second / "training_rows.jsonl"
@@ -2005,11 +2279,15 @@ class TestTrainingGate:
             exporter.export_training_bundle([self._candidate()], file_out)
 
     def test_module_level_helper(
-        self, queue: ContinuousWorkQueue, tmp_path: Path
+        self,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
+        backing = training_asset(DATASET, "finding-dev")
         manifest = export_training_bundle(
             queue,
-            [self._candidate()],
+            [self._candidate(asset_event_id=backing["event_id"])],
             tmp_path / "bundle",
             repo_root=tmp_path,
         )
@@ -2107,11 +2385,16 @@ class TestTrainingGate:
             assert any("scan depth" in reason for reason in rejection["reasons"])
 
     def test_prose_identity_text_not_scanned(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
         # Sealed-looking names inside arbitrary prose are never scanned: only
         # recognized identity keys carry identity claims.
+        backing = training_asset(DATASET, "finding-dev")
         candidate = self._candidate(
+            asset_event_id=backing["event_id"],
             row={
                 "prompt": "discuss terminal-bench/sealed-task and synthetic-held-01",
                 "completion": "the task_id finding-test is suspicious text",
@@ -2145,7 +2428,10 @@ class TestTrainingGate:
         )
 
     def test_dedup_canonical_task_aliases(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        tmp_path: Path,
+        training_asset: Callable[[str, str], dict[str, Any]],
     ) -> None:
         # Same canonical task name deduplicates within a dataset; the dataset
         # scopes the identity, and the signature stays exact and nonempty.
@@ -2160,6 +2446,10 @@ class TestTrainingGate:
             ),
             self._candidate(3, mechanism="sig:a ", item_id="alias-dev"),
         ]
+        for candidate in candidates:
+            candidate["asset_event_id"] = training_asset(
+                candidate["dataset_id"], candidate["item_id"]
+            )["event_id"]
         manifest = exporter.export_training_bundle(candidates, tmp_path / "bundle")
         assert manifest["input"] == 4
         assert manifest["accepted"] == 4

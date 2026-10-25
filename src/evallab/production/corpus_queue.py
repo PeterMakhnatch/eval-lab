@@ -148,6 +148,7 @@ class CorpusRegistry:
         self._sealed_digests: set[str] = set()
         self._sealed_ids: set[str] = set()
         self._external: set[tuple[str, str]] = set()
+        self._assignment_names: dict[tuple[str, str], str] = {}
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
         assignment_path = keys / "splits/assignments.csv"
@@ -162,10 +163,17 @@ class CorpusRegistry:
                     key = row["key_id"], row["item_id"]
                     split = _split(row["split"])
                     assignments[key] = "test" if "test" in (split, assignments.get(key)) else split
+                    if row.get("task"):
+                        name_key = row["key_id"], self.task_name(row["task"])
+                        self._assignment_names[name_key] = (
+                            "test" if "test" in (split, self._assignment_names.get(name_key)) else split
+                        )
                     # Only canonical corpus keys seal task names globally; secondary
                     # keys tighten only their own (key_id, item_id) rows.
                     if split == "test" and row.get("task") and row["key_id"] in DATASETS:
                         self._sealed_names.add(self.task_name(row["task"]))
+        self._assignments = assignments
+        self._assignment_keys = frozenset(dataset for dataset, _ in assignments)
         for dataset in ("tb4-audit-v1", "cheatbench-actions-v1", "hacktrace-act-v1"):
             for row in _jsonl(keys / dataset / "items.jsonl"):
                 self._add(dataset, row, keys / dataset / "items.jsonl", assignments)
@@ -264,6 +272,35 @@ class CorpusRegistry:
         if task_digest is not None and task_digest in self._sealed_digests:
             return "task digest"
         return None
+
+    def sealed_identifiers(self) -> frozenset[str]:
+        """Identity-only seals for detecting references inside untrusted text."""
+        return frozenset(self._sealed_ids | self._sealed_names | self._sealed_digests)
+
+    def has_split_assignments(self, key_id: str) -> bool:
+        """Whether this key has authoritative per-item split assignments."""
+        return key_id in self._assignment_keys
+
+    def assigned_split(
+        self, key_id: str, *, item_id: str | None = None, task_id: str | None = None,
+    ) -> str | None:
+        """Resolve assignment identities without opening task or answer content.
+
+        Secondary keys retain their own split locks, not global seals. TEST wins
+        across item-id/name aliases; ``None`` means no explicit assignment and
+        must not authorize a DEV row for a key with split assignments.
+        """
+        candidates = [
+            self._assignments.get((key_id, item_id)) if item_id is not None else None,
+            self._assignments.get((key_id, task_id)) if task_id is not None else None,
+            self._assignments.get((key_id, self.task_name(task_id)))
+            if task_id is not None else None,
+            self._assignment_names.get((key_id, self.task_name(task_id)))
+            if task_id is not None else None,
+        ]
+        if "test" in candidates:
+            return "test"
+        return "dev" if "dev" in candidates else None
 
     def get(self, dataset_id: str, item_id: str) -> CorpusItem:
         """Resolve native identifiers, raising KeyError for unregistered input."""

@@ -816,6 +816,24 @@ the laptop's Docker daemon when local execution is disabled. Selecting Modal
 does not grant spend approval: missing approval/cap/ledger/attribution refuses
 before provider calls, and a Modal refusal never falls back to local Docker.
 
+Fresh Seeker candidates are bound to the captured OMP JSON event stream by
+`llm_stdout_sha256`; `llm_solve_sha256` binds the extracted `solve.sh` bytes to
+that response. Attempt, feedback, confirmed-witness, and verified-asset records
+also carry the actual `served_provider` and `served_model` from the assistant
+message, separately from the requested `model_route`. The worker rechecks the
+script at staging, native bundle execution, and promotion. Missing attestations,
+unknown served identity, implicit static templates, or any later script rewrite
+refuse execution/promotion instead of acquiring model credit. Direct non-LLM
+controls may still use differential replay without being promoted as LLM assets.
+
+Headless consumers may supply an explicit OMP configuration and a sealed
+`dev_task_allowlist`. The latter rejects non-DEV or unlisted tasks before
+workspace reads and avoids opening mixed-split manifests for prompt admission.
+An optional `CloudTraceRetriever` adds only its bounded evidence block and
+writes `retrieval.json` beside the raw model response. Reuse one retriever
+instance to keep its DEV snapshot fixed across a comparison; see
+[`task-quality.md`](task-quality.md#cloud-task-issue-and-trace-evidence).
+
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
 `asset.verified` event end to end, and writes `assets.jsonl` with
@@ -891,9 +909,16 @@ failed native executions never become measured evidence.
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized
 identity/provenance fields nested in rows and linked event payloads are
-inspected for sealed or conflicting identities (prose is never scanned), and
-deduplication keys on the exact `(dataset_id, canonical task name,
-mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
+inspected for sealed or conflicting identities (prose is never scanned).
+Every row must reference an `asset.verified` or `task_quality.repair_qualified`
+event whose measured execution or ground-truth adjudication receipts re-verify
+at export time; event-free rows and unverified-only references are rejected.
+Any unconfirmed referenced event or payload declaring `provisional`,
+`suspected`, or `candidate` status rejects the row even when another reference
+is verified, so provisional evidence cannot ride along into training.
+`provenance.verified_by` names each backing reference key, event id/type, and
+journal sequence. Deduplication keys on the exact `(dataset_id, canonical task
+name, mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
 within one dataset. Writes refuse output directories under a symlink
 ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
@@ -929,8 +954,18 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
+`tasks`, `issues`, and `traces` serve only DEV tasks: the stored `split` label must
+be DEV, no registry seal may match the task, and a dataset with split-ledger
+assignments must assign the task to DEV (`tb2-to-tb21-v1` rows are labelled DEV in
+the database but are TEST in the ledger, so they are withheld). `split` defaults to
+`dev`; any other value is HTTP 400. `stats` counts every stored row.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
+
+The cloud control plane wires the same `VerifiedAssetStore` and `RunInspector`
+used locally. Asset browsing and replay grader diffs are enabled only within
+the repository and durable `/data` evidence roots. The cloud store is
+browse-only (`export_root=None`): deployment does not authorize asset exports.
 
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained

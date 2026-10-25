@@ -96,6 +96,30 @@ lines rather than cutting a claim, flattens quoted text so retrieved bytes canno
 forge prompt structure, and labels itself untrusted evidence. `lab db --retrieve
 "<query>"` prints the same block from the terminal.
 
+`evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
+projection for consumers that need prior verified evidence. A local SQLite
+path is opened with `mode=ro`; SQL selects DEV tasks and their linked
+issues/traces/steps **before** copying or hydrating content. It does not back up
+an entire mixed-split store. The private snapshot's SHA-256, source path, query
+terms, included IDs, and exclusion counts accompany every result. An existing
+caller-owned database instead requires an explicitly attested, DEV-scoped
+source path and digest; no environment database is selected implicitly.
+
+```python
+from evallab.production import CloudTraceRetriever
+
+with CloudTraceRetriever("/path/to/evidence.sqlite") as retriever:
+    result = retriever.retrieve(task_id="current-dev-task", query="missing validation")
+    evidence_markdown = result.render_prompt_markdown()
+    receipt = result.receipt
+```
+
+Only explicitly verified/confirmed trace receipts with confirmed issues are
+eligible; the current task is excluded. Output contains at most eight compact
+projections and 4500 rendered characters, not full instructions, reproducer
+scripts, or CAS objects. Receipt-status filtering is not independent evidence
+verification, and exact-ID exclusion is not task-family deduplication.
+
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure
 `EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and

@@ -184,7 +184,7 @@ async function searchCloudDb(event){
     target.append(node('p',message,'empty'));messages.push(message);continue;
    }
    const retained=list(result.value?.[key]);
-   const rows=retained.filter(row=>row?.task?.split==='dev');
+   const rows=retained.filter(row=>typeof row?.task?.split==='string'&&row.task.split.trim().toLowerCase()==='dev');
    fillCards(target,rows,render,'No retained DEV '+key+' match these filters.');
    messages.push(rows.length+' DEV '+key+(rows.length<retained.length?' · non-DEV records omitted':''));
   }

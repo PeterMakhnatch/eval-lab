@@ -753,6 +753,20 @@ def test_public_admission_skips_mixed_invalid_rows_without_poisoning_control(
     ) == frozenset({control["task_id"]})
 
 
+def test_public_admission_honors_permanent_seals_without_caller_override(
+    identity_registry: CorpusRegistry, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "evallab.production.cloud_trace_db._PROTECTED_TASKS_FROZEN",
+        frozenset({"permanent-inert-task"}),
+    )
+    control = identity_row("allowed-control")
+    sealed = identity_row(" OTHER/PERMANENT-INERT-TASK@v2 ")
+    assert admitted_cloud_task_ids(
+        [sealed, control], registry=identity_registry,
+    ) == frozenset({control["task_id"]})
+
+
 @pytest.mark.parametrize(("item_id", "item_type"), (
     (None, None), (None, "null"), (" DEV-ITEM ", "text"), ("dev-item", "string"),
 ))

@@ -115,6 +115,8 @@ The trimmed, case-insensitive DB split must be exactly `dev` (not `development`)
 Recorded and queried item ids, dataset assignment keys, canonical task names
 (including namespace/version aliases), and grader/package digests compare with
 trim+casefold normalization; immutable source values and provenance stay raw.
+Permanent TEST seals always apply in this shared gate; `sealed_task_ids` adds
+caller-specific seals rather than being required to preserve the permanent ones.
 Known canonical or assignment keys require an explicit DEV assignment, and
 `assigned_test_anywhere` denies task/item identities marked TEST under **any**
 key, even if the DB row uses another dataset or a task-name DEV alias. This

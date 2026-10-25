@@ -941,6 +941,7 @@ def test_invalid_submission_is_recorded_without_grader_call(tmp_path: Path) -> N
         files={"solve.sh": invalid_solve},
         mechanism="invalid shell syntax",
         hackbook_entry_id="HB-TS01-001",
+        model_route="test/synthetic-model",
         llm_stdout_sha256=hashlib.sha256(invalid_stdout.encode()).hexdigest(),
         llm_solve_sha256=hashlib.sha256(invalid_solve.encode()).hexdigest(),
         served_provider="test",
@@ -1151,13 +1152,38 @@ def test_omp_json_receipt_captures_final_text_and_served_model() -> None:
     assert (provider, model) == ("anthropic", "claude-opus-5-5")
 
 
+def _omp_message(
+    role: str,
+    *content: dict[str, Any],
+    provider: str | None = None,
+    model: str | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    message: dict[str, Any] = {"role": role, "content": list(content), **extra}
+    if provider is not None:
+        message["provider"] = provider
+    if model is not None:
+        message["model"] = model
+    return message
+
+
+def _omp_stream(*messages: dict[str, Any]) -> str:
+    """An inert OMP JSON event stream: the only bytes these tests treat as model output."""
+    return (
+        json.dumps({"type": "agent_start"})
+        + "\n"
+        + json.dumps({"type": "agent_end", "messages": list(messages)})
+        + "\n"
+    )
+
+
 def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path: Path) -> None:
     from evallab.production.seeker_worker import parse_headless_candidate_response
 
     original = _make_task(tmp_path, "original")
     repaired = _make_task(tmp_path, "repaired")
     cues = match_task_hackbook_cues(original, entries=_hackbook_entries(), root=REPO_ROOT)
-    raw_stdout = (
+    response_text = (
         "Working...\n```json\n"
         + json.dumps(
             {
@@ -1172,17 +1198,24 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
         )
         + "\n```"
     )
+    stream = _omp_stream(
+        _omp_message(
+            "assistant",
+            {"type": "text", "text": response_text},
+            provider="meta",
+            model="muse-wonder-1.0-contributor",
+        )
+    )
     parsed = parse_headless_candidate_response(
-        raw_stdout,
+        response_text,
         default_cue=cues[0],
         model_route="meta/muse-wonder-1.0-contributor",
-        served_provider="meta",
-        served_model="muse-wonder-1.0-contributor",
+        llm_stdout_text=stream,
     )
     assert parsed is not None
     assert parsed.model_route == "meta/muse-wonder-1.0-contributor"
     assert parsed.hackbook_entry_id == cues[0].entry_id
-    assert parsed.llm_stdout_sha256 == hashlib.sha256(raw_stdout.encode()).hexdigest()
+    assert parsed.llm_stdout_sha256 == hashlib.sha256(stream.encode()).hexdigest()
     assert parsed.llm_solve_sha256 == hashlib.sha256(
         parsed.files["solve.sh"].encode()
     ).hexdigest()
@@ -1841,3 +1874,227 @@ def test_blind_workspace_and_prompt_exclude_answer_key_directories(
         workspace=workspace,
     )
     assert "PRIVATE_ANSWER_SENTINEL" not in prompt
+
+
+LANE_ROUTE = "kimi-code/k3.1-pro-highspeed"
+LANE_SOLVE = "#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' 'LANE_OUTPUT' > /app/output.json\n"
+
+
+def _lane_candidate(
+    tmp_path: Path,
+    *messages: dict[str, Any],
+    solve: str = LANE_SOLVE,
+    route: str | None = LANE_ROUTE,
+) -> SeekerAttemptCandidate:
+    """The candidate the live worker builds from a hand-written, inert lane workspace."""
+    workspace = tmp_path / "lane"
+    (workspace / "submission").mkdir(parents=True)
+    (workspace / "submission" / "solve.sh").write_text(solve, encoding="utf-8")
+    (workspace / "transcript.jsonl").write_text(_omp_stream(*messages), encoding="utf-8")
+    worker = RewardSeekerLiveWorker(
+        FakeQueue(),  # type: ignore[arg-type]
+        worker_id="lane-worker",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hackbook_entries=[],
+    )
+    return worker._candidate_from_workspace(
+        workspace, lane_record={"model": route} if route else {}, default_cue=None
+    )
+
+
+def _lane_write(call_id: str, content: str, *, path: str = "submission/solve.sh") -> dict[str, Any]:
+    return {
+        "type": "toolCall",
+        "id": call_id,
+        "name": "write",
+        "arguments": {"path": path, "content": content},
+    }
+
+
+def _lane_write_result(call_id: str, *, is_error: bool = False) -> dict[str, Any]:
+    return _omp_message("toolResult", toolCallId=call_id, toolName="write", isError=is_error)
+
+
+def _lane_answer(*content: dict[str, Any], route: str = LANE_ROUTE) -> dict[str, Any]:
+    provider, _, model = route.partition("/")
+    return _omp_message("assistant", *content, provider=provider, model=model)
+
+
+def test_lane_candidate_digest_binds_the_assistant_write_not_the_workspace(tmp_path: Path) -> None:
+    from evallab.production.seeker_worker import _require_llm_attestation
+
+    candidate = _lane_candidate(
+        tmp_path,
+        _omp_message("user", {"type": "text", "text": LANE_SOLVE}),
+        _lane_answer(_lane_write("w1", LANE_SOLVE)),
+        _lane_write_result("w1"),
+    )
+    assert candidate.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    assert (candidate.served_provider, candidate.served_model) == (
+        "kimi-code",
+        "k3.1-pro-highspeed",
+    )
+    _require_llm_attestation(candidate, LANE_SOLVE)
+
+    # The model wrote different bytes; what sits in the workspace afterwards is not
+    # self-attesting, however it got there.
+    rewritten = _lane_candidate(
+        tmp_path / "rewritten",
+        _lane_answer(_lane_write("w1", "#!/bin/bash\nexit 0\n")),
+        _lane_write_result("w1"),
+    )
+    assert rewritten.llm_solve_sha256 == hashlib.sha256(b"#!/bin/bash\nexit 0\n").hexdigest()
+    with pytest.raises(SeekerRefusalError, match="differs from the attested LLM output"):
+        _require_llm_attestation(rewritten, LANE_SOLVE)
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [
+        pytest.param(
+            [
+                _omp_message("user", {"type": "text", "text": LANE_SOLVE}),
+                _lane_answer({"type": "text", "text": "done"}),
+            ],
+            id="solve-text-only-in-the-prompt",
+        ),
+        pytest.param(
+            [_lane_answer({"type": "text", "text": LANE_SOLVE})],
+            id="solve-text-in-assistant-prose-without-a-write",
+        ),
+        pytest.param(
+            [_lane_answer(_lane_write("w1", LANE_SOLVE)), _lane_write_result("w1", is_error=True)],
+            id="write-reported-an-error",
+        ),
+        pytest.param([_lane_answer(_lane_write("w1", LANE_SOLVE))], id="write-has-no-result"),
+        pytest.param(
+            [
+                _lane_answer(_lane_write("w1", LANE_SOLVE, path="notes.json")),
+                _lane_write_result("w1"),
+            ],
+            id="write-to-another-file",
+        ),
+        pytest.param(
+            [
+                _lane_answer(_lane_write("w1", LANE_SOLVE, path="../submission/solve.sh")),
+                _lane_write_result("w1"),
+            ],
+            id="write-escapes-the-workspace",
+        ),
+        pytest.param(
+            [
+                _omp_message("user", _lane_write("w1", LANE_SOLVE)),
+                _lane_write_result("w1"),
+            ],
+            id="tool-call-not-authored-by-the-assistant",
+        ),
+    ],
+)
+def test_lane_candidate_without_an_assistant_write_is_not_attested(
+    tmp_path: Path, messages: list[dict[str, Any]]
+) -> None:
+    from evallab.production.seeker_worker import _require_llm_attestation
+
+    candidate = _lane_candidate(tmp_path, *messages)
+    assert candidate.llm_solve_sha256 is None
+    with pytest.raises(SeekerRefusalError, match="missing cryptographic LLM output attestation"):
+        _require_llm_attestation(candidate, LANE_SOLVE)
+
+
+@pytest.mark.parametrize(
+    ("messages", "route", "match"),
+    [
+        pytest.param(
+            [
+                _lane_answer(),
+                _lane_answer(
+                    _lane_write("w1", LANE_SOLVE), route="openai-codex/gpt-6.1-sol"
+                ),
+                _lane_write_result("w1"),
+            ],
+            LANE_ROUTE,
+            "does not match requested model_route",
+            id="fallback-route-wrote-the-file",
+        ),
+        pytest.param(
+            [
+                _lane_answer(_lane_write("w1", LANE_SOLVE)),
+                _lane_write_result("w1"),
+                _lane_answer({"type": "text", "text": "done"}, route="openai-codex/gpt-6.1-sol"),
+            ],
+            LANE_ROUTE,
+            "does not match requested model_route",
+            id="fallback-route-answered-after-the-write",
+        ),
+        pytest.param(
+            [
+                _omp_message(
+                    "assistant",
+                    _lane_write("w1", LANE_SOLVE),
+                    provider="openrouter",
+                    model="k3.1-pro-highspeed",
+                ),
+                _lane_write_result("w1"),
+            ],
+            LANE_ROUTE,
+            "does not match requested model_route",
+            id="same-model-name-through-another-provider",
+        ),
+        pytest.param(
+            [_lane_answer(_lane_write("w1", LANE_SOLVE)), _lane_write_result("w1")],
+            None,
+            "missing the requested model_route",
+            id="no-requested-route-to-compare",
+        ),
+    ],
+)
+def test_lane_candidate_refuses_a_served_route_that_is_not_the_requested_one(
+    tmp_path: Path, messages: list[dict[str, Any]], route: str | None, match: str
+) -> None:
+    from evallab.production.seeker_worker import _require_llm_attestation
+
+    candidate = _lane_candidate(tmp_path, *messages, route=route)
+    assert candidate.llm_solve_sha256 == hashlib.sha256(LANE_SOLVE.encode()).hexdigest()
+    with pytest.raises(SeekerRefusalError, match=match):
+        _require_llm_attestation(candidate, LANE_SOLVE)
+
+
+def test_requested_thinking_selector_is_not_a_served_route_mismatch(tmp_path: Path) -> None:
+    from evallab.production.seeker_worker import _require_llm_attestation
+
+    candidate = _lane_candidate(
+        tmp_path,
+        _lane_answer(_lane_write("w1", LANE_SOLVE)),
+        _lane_write_result("w1"),
+        route=f"{LANE_ROUTE}:max",
+    )
+    _require_llm_attestation(candidate, LANE_SOLVE)
+
+
+def test_headless_candidate_reads_text_and_served_route_from_the_captured_stream() -> None:
+    from evallab.production.seeker_worker import (
+        _require_llm_attestation,
+        parse_headless_candidate_response,
+    )
+
+    response = json.dumps({"files": {"solve.sh": LANE_SOLVE}})
+    stream = _omp_stream(
+        _lane_answer({"type": "text", "text": response}, route="openai-codex/gpt-6.1-sol")
+    )
+    parsed = parse_headless_candidate_response(
+        response, default_cue=None, model_route=LANE_ROUTE, llm_stdout_text=stream
+    )
+    assert parsed is not None
+    assert (parsed.served_provider, parsed.served_model) == ("openai-codex", "gpt-6.1-sol")
+    with pytest.raises(SeekerRefusalError, match="does not match requested model_route"):
+        _require_llm_attestation(parsed, LANE_SOLVE)
+
+    other = json.dumps({"files": {"solve.sh": "#!/bin/bash\nexit 0\n"}})
+    with pytest.raises(SeekerRefusalError, match="not the final assistant message"):
+        parse_headless_candidate_response(
+            other,
+            default_cue=None,
+            model_route="openai-codex/gpt-6.1-sol",
+            llm_stdout_text=stream,
+        )

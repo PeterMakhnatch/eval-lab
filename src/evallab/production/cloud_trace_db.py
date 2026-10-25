@@ -834,13 +834,14 @@ def admitted_cloud_task_ids(
     This is the shared structured gate for retrieval and actor projection. It
     performs no I/O and never reads task content. All seven projection keys are
     required, including explicit nulls for absent digests and metadata identity.
+    Permanent TEST seals apply even when ``sealed_task_ids`` is omitted.
     SQLite ``Row`` objects are supported through their mapping-like interface.
     """
     if not isinstance(registry, CorpusRegistry) or not registry.has_assignment_authority():
         return frozenset()
     seals = {
         value.strip().casefold()
-        for value in registry.sealed_identifiers()
+        for value in registry.sealed_identifiers() | _PROTECTED_TASKS_FROZEN
         if value.strip()
     }
     for value in sealed_task_ids:

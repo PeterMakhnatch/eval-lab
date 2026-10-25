@@ -525,6 +525,18 @@ class CloudTraceDatabase:
             results.append(row)
         return results
 
+    def row_counts(self) -> dict[str, int]:
+        """Exact live row counts per projection table, with no search/admission filter.
+
+        Receipts compare these before and after an ingestion so a reader can tell
+        what an expansion actually added instead of trusting per-source tallies.
+        """
+        with self._transaction():
+            return {
+                table: self._execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                for table in _SEARCH_COLUMNS
+            }
+
     def get_task(self, task_id: str) -> dict[str, Any] | None:
         with self._transaction():
             rows = self._rows("SELECT * FROM corpus_tasks WHERE task_id = ?", (task_id,))

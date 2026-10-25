@@ -262,6 +262,73 @@ The coordinator executes nothing, scores no reward, and admits nothing to the as
 store. It produces verified candidates and an attested receipt; the live workers
 and `VerifiedAssetExporter` still own measurement and promotion.
 
+## Guarded local corpus intake
+
+`python -m evallab.production.corpus_expansion` imports already normalized,
+per-identity **local** staging objects through `CloudTraceDatabase`. It does not
+download public corpora, load answer keys, scan mixed task-body files to discover
+identity, construct `CorpusRegistry`, launch workers, or synchronize a raw store.
+The original broad downloader design was removed: it was not the implementation
+that produced the retained intake and could read mixed bodies before clearance.
+
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run python -m evallab.production.corpus_expansion \
+  --database /private/operator/staged.sqlite \
+  --pack /private/operator/import-pack.json \
+  --clearance /private/operator/identity-manifest.json \
+  --clearance-sha256 EXACT_TRUSTED_MANIFEST_SHA256 \
+  --output /private/operator/new-receipt.json
+```
+
+Default dry-run reads only the identity pack and pinned identity manifest, not
+task bodies or CAS. Explicit `--execute` enables a local import after every
+selected identity clears. Receipts are immutable. The pack schema is
+`evallab.corpus_import_pack/v1`, with one `objects` entry per task:
+`source_dataset`, immutable `source_revision`, `native_id`, normalized bundle
+`path`, and bundle `sha256`. A bundle contains `task` plus `traces`, each with
+`trace` and complete ordered `steps`. Publisher labels remain provisional,
+source model IDs remain `source-reported:...`, and no issue/confirmation is
+fabricated. Existing records cannot be overwritten; steps are not clipped,
+elided or silently dropped. This local-pack mode rejects every CAS reference
+before insertion; it never silently discards or follows raw attachments.
+
+`evallab.production.corpus_clearance.ClearanceManifest` loads strict
+`evallab.corpus_clearance/v1` identity-only records. Its `require` gate needs a
+canonical `{dataset_id,item_id,task_id}`, established duplicate-family `family_id`,
+effective `dev` split and pinned split authority, plus an explicit independently
+evidenced grant for the requested use. Unknown, missing, conflicting, TEST and
+held decisions deny before body reads. Case/padding cannot distinguish conflicting
+identities. Unexpected body fields are rejected. `operator_raw`,
+`actor_retrieval`, `scorer`, `derivatives`, `training` and `redistribution` are
+separate rights; an inherited database DEV label, a public URL or a code license
+does not grant them. The caller supplies a trusted manifest digest out of band:
+this proves integrity, not an authenticated publisher approval or a signature.
+
+The supported importer asks for `operator_raw` only and still stores tasks as
+`held`. It grants no actor/scorer/training access. An actor projection must
+independently check the canonical assignment authority, exclude the requester's
+entire duplicate family, require `actor_retrieval` rights and reviewed actor-safe
+fields, and enumerate only those fields' exact transitive reachable CAS objects.
+Raw bundles may contain scorer-only material and are not automatically safe.
+Publish that allowlist to a physically separate actor-only store, never copy or
+mount the raw SQLite file, WAL, backup, quarantine or whole CAS. Citation-only
+labels are not verified training backing; source-code merge is not deployment.
+
+The [immutable LB-1 run-evidence archive](../research/evidence/runs/corpus-expansion-lb1-20261025/README.md)
+contains the actual historical importer bytes, hash manifest and frozen database
+dependency. **Do not execute those historical tools:** their Wrench clearance
+was retracted and the removed rows were quarantined. They are evidence, not a
+second supported importer. The archive preserves the earlier mixed-source I/O
+limitation rather than claiming it never occurred.
+
+`scripts/ops/build-corpus-clearance.py` generates a private identity-only held
+inventory from four explicitly selected held datasets' identity columns and
+the pinned Goodfire/Wrench alias manifests. It never reads task bodies, traces,
+CAS or protected registries. The recorded inventory has **3,684 held identities,
+zero established canonical/family grants and zero per-use allowances**.
+Unavailable authority stays unknown; raw inventory counts are not
+production-eligible counts. See the archive's aggregate inventory receipt.
+
 ## One dataset audit command
 
 `evallab audit <dataset-or-path>` joins the existing leak, oracle, no-agent,

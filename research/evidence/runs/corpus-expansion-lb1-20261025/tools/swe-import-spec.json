@@ -1,0 +1,19 @@
+{
+  "production_root": "/Users/petermakhnatch/.local/state/evallab-prod-live",
+  "sources": [{
+    "source": "SWE-bench annotations and Pro-Verified correction metadata",
+    "cas_root": "/private/tmp/lb1-20261025/swe/out/cas",
+    "cas_manifest": "/private/tmp/lb1-20261025/swe/out/handoff/cas-manifest.json",
+    "cas_manifest_sha256": "6130838ff8a86fa1e0dd101240a3b1fd4a4bbd0a4f08371a6005342ceeba639f",
+    "task_jsonl": [
+      {"path": "/private/tmp/lb1-20261025/swe/out/handoff/corpus_tasks.swe-annotations.jsonl", "sha256": "126c82881ab64db88540b510e3d2e3f337b8e8810cf3a016545d88b126ad4c78", "expected_records": 1699},
+      {"path": "/private/tmp/lb1-20261025/swe/out/handoff/corpus_tasks.swebench-pro-verified.jsonl", "sha256": "6b3423d3b13f38b854f3f35ab416e08435d467831720b1903220d8e057689893", "expected_records": 731}
+    ],
+    "retain_artifacts": [
+      {"path": "/private/tmp/lb1-20261025/swe/out/handoff/swe-annotation-ratings.jsonl", "sha256": "c33da21f1a511f919a45a9408353c8ff7865f14dd891b76c02c076db790b3ace"},
+      {"path": "/private/tmp/lb1-20261025/swe/out/stage/pro-verified.stage.jsonl", "sha256": "9c2263c73dddffd06d8b544110677e8249fd4431e5348f9837c41c116344037b"},
+      {"path": "/private/tmp/lb1-20261025/swe/out/stage/swe-ensembled.stage.jsonl", "sha256": "048b30e755ee48d7eebea35864b2d82e0b9fe7a876b760aaef66c3c0780bb8e2"},
+      {"path": "/private/tmp/lb1-20261025/swe/out/stage/swe-individual-aggregated.stage.jsonl", "sha256": "d348307cb26dde41e5baf53e3ca87e50e0e2613606485bc21a37f8fbdb45cc88"}
+    ]
+  }]
+}

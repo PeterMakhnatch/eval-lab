@@ -398,7 +398,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         publish_staged_directory,
         stage_projection_cas,
     )
-    from evallab.production.actor_projection import project_actor_database
+    from evallab.production.actor_projection import project_actor_database, source_read_uri
     from evallab.production.cloud_trace_db import admitted_cloud_task_ids
     from evallab.production.corpus_queue import CorpusRegistry
 
@@ -418,7 +418,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     allowlist = json.loads(allowlist_bytes)
     if not isinstance(allowlist, list) or any(not isinstance(uri, str) for uri in allowlist):
         raise ValueError("CAS allowlist must be a JSON array of URI strings")
-    with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as connection:
+    with closing(sqlite3.connect(source_read_uri(source), uri=True)) as connection:
         connection.row_factory = sqlite3.Row
         identities = [
             dict(row) for row in connection.execute(

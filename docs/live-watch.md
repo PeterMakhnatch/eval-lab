@@ -821,9 +821,17 @@ and the destination parent must be writable only by the operator: publication is
 atomic against ordinary concurrent creators, not against an adversary who can
 replace entries inside that parent. The caller must exclusively own the source
 projection and staging tree during preparation. A destination inside, containing,
-or physically aliasing the source CAS tree—including its `sha256/` directory—is
-refused before any staging entry is created, so a failed run leaves the source
-tree entry-for-entry unchanged.
+or physically aliasing the source CAS tree—including its `sha256/`
+directory—is refused before any staging entry is created, so a failed run leaves
+the source tree entry-for-entry unchanged.
+
+The source database is never written to, and no journal file is created beside
+it: a rollback-journal source is opened read-only, and a WAL-format source is read
+as an immutable image only when it is closed and checkpointed. A source with a
+live `-wal`/`-shm` is refused with an explicit message, because SQLite would
+otherwise create sidecar files in the source directory; close and checkpoint the
+source first.
+
 Publication uses atomic no-clobber operations on Linux/macOS, not a replace
 fallback, and re-verifies that the published directory is the staged one.
 Directories are private and database, manifest and CAS files are mode `0600`;

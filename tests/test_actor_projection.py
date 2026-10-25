@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 from collections.abc import Callable
 from contextlib import closing
@@ -396,35 +397,46 @@ def test_source_attachment_is_read_only(source: Path, tmp_path: Path, monkeypatc
     assert source.read_bytes() == before
 
 
-def test_copy_uses_one_source_snapshot_during_concurrent_writes(
-    source: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+def test_live_wal_source_is_refused_before_copying_or_writing_sidecars(
+    source: Path, tmp_path: Path,
+) -> None:
+    destination = tmp_path / "actor.sqlite"
+    with closing(sqlite3.connect(source)) as writer, writer:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        writer.execute("UPDATE corpus_tasks SET instruction_text = 'live wal text'")
+        assert (source.parent / (source.name + "-wal")).exists()
+        sidecars = sorted(p.name for p in source.parent.glob(source.name + "-*"))
+
+        with pytest.raises(ValueError, match="live WAL"):
+            project_actor_database(source, destination, task_ids=["fixture-alpha"])
+
+        # The source directory is unchanged: the refusal added no journal files.
+        assert sorted(p.name for p in source.parent.glob(source.name + "-*")) == sidecars
+    _assert_no_output(destination)
+
+
+def test_closed_wal_source_is_read_without_creating_sidecars(
+    source: Path, tmp_path: Path,
 ) -> None:
     destination = tmp_path / "actor.sqlite"
     admitted = ("fixture-alpha",)
-    before = {table: _rows(source, table, admitted) for table in _TABLE_KEYS}
-    expected = _identities(source, admitted)
-    copy_rows = actor_projection._copy_rows
-    with closing(sqlite3.connect(source)) as writer:
+    with closing(sqlite3.connect(source)) as writer, writer:
         assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        writer.execute("UPDATE corpus_tasks SET instruction_text = 'closed wal text'")
+    assert (source.parent / (source.name + "-wal")).exists() is False
+    before = source.read_bytes()
+    before_files = sorted(p.name for p in source.parent.glob(source.name + "*"))
+    snapshot = tmp_path / "expect.sqlite"
+    shutil.copy2(source, snapshot)
+    expected_rows = {table: _rows(snapshot, table, admitted) for table in _TABLE_KEYS}
+    expected = _identities(snapshot, admitted)
 
-        def concurrent_copy(connection: sqlite3.Connection, columns: dict[str, tuple[str, ...]]) -> None:
-            assert not destination.exists()
-            with writer:
-                writer.execute(
-                    "UPDATE corpus_tasks SET split = 'test', instruction_text = 'new snapshot' "
-                    "WHERE task_id = 'fixture-alpha'",
-                )
-                writer.execute("DELETE FROM trace_steps WHERE trace_id = 'fixture-alpha-trace' AND step_index = 9")
-                writer.execute("UPDATE agent_traces SET step_count = 2 WHERE task_id = 'fixture-alpha'")
-            copy_rows(connection, columns)
+    project_actor_database(source, destination, task_ids=admitted, expected_identities=expected)
 
-        monkeypatch.setattr(actor_projection, "_copy_rows", concurrent_copy)
-        project_actor_database(source, destination, task_ids=admitted, expected_identities=expected)
-        assert writer.execute(
-            "SELECT split FROM corpus_tasks WHERE task_id = 'fixture-alpha'",
-        ).fetchone() == ("test",)
+    assert sorted(p.name for p in source.parent.glob(source.name + "*")) == before_files
+    assert source.read_bytes() == before
     for table in _TABLE_KEYS:
-        assert _rows(destination, table, admitted) == before[table]
+        assert _rows(destination, table, admitted) == expected_rows[table]
 
 
 @pytest.mark.parametrize("field", ["dataset_id", "split", "original_grader_digest", "repaired_grader_digest", "item_id", "item_type"])

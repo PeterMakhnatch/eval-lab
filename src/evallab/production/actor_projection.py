@@ -63,6 +63,33 @@ def _expected_identities(
     return identities
 
 
+def source_read_uri(source: Path) -> str:
+    """Return a read URI that cannot create sidecar files beside the source.
+
+    SQLite writes ``-shm``/``-wal`` bookkeeping for any read of a WAL-format
+    database, which would mutate the source directory. A closed, checkpointed WAL
+    database can be read as an immutable image with no side effects; a WAL database
+    with a live journal cannot, so that case is refused rather than silently read
+    without its committed tail.
+    """
+    descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        header = os.read(descriptor, 100)
+    finally:
+        os.close(descriptor)
+    if len(header) < 20:
+        raise ValueError("source database is too small to be a SQLite database")
+    if header[18:20] == b"\x01\x01":
+        return source.as_uri() + "?mode=ro"
+    for suffix in ("-wal", "-shm"):
+        if (source.parent / (source.name + suffix)).exists():
+            raise ValueError(
+                "source database has a live WAL; close and checkpoint it before projection "
+                "so no sidecar files are written beside the source",
+            )
+    return source.as_uri() + "?mode=ro&immutable=1"
+
+
 def _paths(source_database: Path, destination_database: Path) -> tuple[Path, Path]:
     source = Path(source_database)
     source_stat = source.lstat()
@@ -226,7 +253,7 @@ def project_actor_database(
         os.chmod(staged, 0o600)
         with closing(sqlite3.connect(staged, isolation_level=None, uri=True)) as connection:
             connection.execute("PRAGMA foreign_keys=ON")
-            connection.execute("ATTACH DATABASE ? AS source", (source.as_uri() + "?mode=ro",))
+            connection.execute("ATTACH DATABASE ? AS source", (source_read_uri(source),))
             connection.execute(
                 "CREATE TEMP TABLE actor_admitted_tasks "
                 "(task_id TEXT PRIMARY KEY) WITHOUT ROWID",

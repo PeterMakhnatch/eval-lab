@@ -521,7 +521,7 @@ inputs:
   - path: src/evallab/production/actor_cas.py
     digest: sha256:db00e98ac9196a6ae445e89ff029411c1cb135b382d23403706208ba4edfca4e
   - path: src/evallab/production/actor_projection.py
-    digest: sha256:5b5fd87bb786a40588fdcf6c91bef7cf18be01f6af56726b38dac751fc772ba5
+    digest: sha256:de354b560e89a323a02835ee1235811425f221c555266b31c8aea81906c09cfe
   - path: src/evallab/production/asset_exporter.py
     digest: sha256:4871e989a420aabd8893ca5cc2fa9938bb8bfaa6cdd3ee1b2c14d3dc9bc81b04
   - path: src/evallab/production/asset_store.py

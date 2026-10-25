@@ -715,6 +715,8 @@ _RETRIEVAL_PROMPT_NOTICE = (
 _MAX_PROMPT_LINE = 400
 _MAX_STEP_CHARS = 200
 _STEP_FIELDS = ("tool_name", "command_or_action", "content_text", "observation_preview")
+#: Prompt evidence preference: what an agent ran and observed outranks journal events.
+_STEP_ROLE_RANK = {"assistant": 0, "tool": 1}
 _VERIFIED_STATUSES = frozenset({"confirmed", "verified"})
 
 
@@ -775,22 +777,60 @@ def _clip(text: str, limit: int) -> str:
     return flat if len(flat) <= limit else flat[: limit - 1].rstrip() + "\u2026"
 
 
-def _trace_preference(trace: Mapping[str, Any]) -> tuple[int, int, int, str]:
-    """Preferred traces first: verified receipt, exploit witness, defect fail, id."""
+def _trace_preference(trace: Mapping[str, Any]) -> tuple[int, int, int, int, str]:
+    """Preferred traces first: verified receipt, exploit witness, defect fail, depth, id."""
     receipt = trace.get("verified_receipt_json")
     status = receipt.get("status") if isinstance(receipt, Mapping) else None
     return (
         0 if status in _VERIFIED_STATUSES else 1,
         0 if trace.get("is_exploit") else 1,
         0 if trace.get("is_task_defect_fail") else 1,
+        -min(int(trace.get("step_count") or 0), 1000),
         str(trace.get("trace_id")),
     )
+
+
+def _evidence_steps(steps: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    """Steps recording what an agent actually ran or observed, not journal events.
+
+    Retained journals label a run (``seeker.attempt_started``); those rows are
+    process telemetry, so they never count as command or observation evidence.
+    """
+    return [step for step in steps if str(step.get("role")) in _STEP_ROLE_RANK]
+
+
+def _selected_traces(
+    traces: Sequence[Mapping[str, Any]], limit: int,
+) -> list[Mapping[str, Any]]:
+    """Cap the traces loaded per task: best receipts plus the deepest recordings.
+
+    Receipt vocabulary differs per ingester (``verified``, ``confirmed``,
+    ``verified_retained_native_measurement``), so half the budget follows
+    preference and half follows recorded depth; neither alone may hide the trace
+    that actually holds commands and observations.
+    """
+    half = max(limit // 2, 1)
+    chosen: dict[str, Mapping[str, Any]] = {}
+    for trace in (
+        *sorted(traces, key=_trace_preference)[:half],
+        *sorted(
+            traces,
+            key=lambda trace: (-int(trace.get("step_count") or 0), str(trace.get("trace_id"))),
+        )[:half],
+    ):
+        chosen.setdefault(str(trace["trace_id"]), trace)
+    return list(chosen.values())
+
+
+def _action_steps(steps: Sequence[Mapping[str, Any]]) -> int:
+    """How many recorded steps are real agent actions rather than journal events."""
+    return len(_evidence_steps(steps))
 
 
 def _step_matches(steps: Sequence[Mapping[str, Any]], terms: Sequence[str]) -> int:
     """How many ``terms`` appear in a trace's recorded commands/observations."""
     vocabulary = _tokens(" ".join(
-        str(step.get(field) or "") for step in steps for field in _STEP_FIELDS
+        str(step.get(field) or "") for step in _evidence_steps(steps) for field in _STEP_FIELDS
     ))
     return sum(1 for term in terms if term in vocabulary)
 
@@ -800,44 +840,63 @@ def _best_trace(
     steps_by_trace: Mapping[str, Sequence[Mapping[str, Any]]],
     terms: Sequence[str],
 ) -> Mapping[str, Any]:
-    """Most relevant recorded trace: step-term overlap, then receipt/flag order."""
+    """Most relevant recorded trace: step-term overlap, real actions, then preference."""
     return min(
         traces,
         key=lambda trace: (
             -_step_matches(steps_by_trace.get(str(trace["trace_id"]), ()), terms),
+            -_action_steps(steps_by_trace.get(str(trace["trace_id"]), ())),
             _trace_preference(trace),
         ),
     )
 
 
+def _step_text(step: Mapping[str, Any]) -> str:
+    """The most specific recorded text of a step: action, observation, then body.
+
+    Native ingesters put the whole agent/verifier artifact in ``content_text`` and
+    leave the action/observation columns empty, so the body is the only evidence.
+    """
+    for field in ("command_or_action", "observation_preview", "content_text"):
+        value = step.get(field)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
 def _retrieved_steps(
     steps: Sequence[Mapping[str, Any]], terms: Sequence[str], limit: int,
 ) -> tuple[RetrievedStep, ...]:
-    """Best recorded steps for a prompt: term matches first, then real actions."""
+    """Best recorded steps for a prompt: term matches, then real agent actions.
+
+    Retained journals also carry ``system`` rows whose "action" is an event name
+    (``seeker.attempt_started``); those are last resort, after assistant and tool
+    steps that show what an agent actually ran and observed.
+    """
     recorded = [
         (_step_matches((step,), terms), step) for step in steps
-        if step.get("command_or_action") or step.get("observation_preview")
+        if str(step.get("role")) != "user" and _step_text(step)
     ]
+    # Matched steps first, then real agent actions, and always fill the budget:
+    # one keyword hit must not crowd out the commands and observations behind it.
     chosen = sorted(
-        [item for item in recorded if item[0]] or recorded,
-        key=lambda item: (-item[0], item[1]["step_index"]),
+        recorded,
+        key=lambda item: (
+            -item[0], _STEP_ROLE_RANK.get(str(item[1]["role"]), 2), item[1]["step_index"],
+        ),
     )[:limit]
-    return tuple(
-        RetrievedStep(
+    rendered = []
+    for _, step in sorted(chosen, key=lambda item: item[1]["step_index"]):
+        action = step.get("command_or_action") or None
+        body = _step_text(step)
+        rendered.append(RetrievedStep(
             step_index=int(step["step_index"]),
             role=str(step["role"]),
-            tool_name=step["tool_name"],
-            command_or_action=(
-                _clip(step["command_or_action"], _MAX_STEP_CHARS)
-                if step.get("command_or_action") else None
-            ),
-            observation=(
-                _clip(step["observation_preview"], _MAX_STEP_CHARS)
-                if step.get("observation_preview") else None
-            ),
-        )
-        for _, step in sorted(chosen, key=lambda item: item[1]["step_index"])
-    )
+            tool_name=step.get("tool_name"),
+            command_or_action=_clip(action, _MAX_STEP_CHARS) if action else None,
+            observation=_clip(body, _MAX_STEP_CHARS) if body and body != action else None,
+        ))
+    return tuple(rendered)
 
 
 @dataclass(frozen=True)
@@ -978,7 +1037,7 @@ class CloudTraceRetriever:
     _CANDIDATE_LIMIT = 500
     _RERANK_POOL = 6
     _MAX_TERMS = 24
-    _MAX_TRACES_PER_TASK = 3
+    _MAX_TRACES_PER_TASK = 6
     _MAX_STEPS = 3
     _MAX_FIELD_CHARS = 240
     _FIELD_WEIGHTS = {"mechanism": 3.0, "citation": 1.5, "reproducer": 1.0, "instruction": 0.5}
@@ -1143,15 +1202,15 @@ class CloudTraceRetriever:
         with database._transaction():
             traces = database._rows(
                 "SELECT trace_id, task_id, model_id, outcome, is_exploit, is_task_defect_fail, "
-                "verified_receipt_json FROM agent_traces WHERE task_id IN ("
+                "step_count, verified_receipt_json FROM agent_traces WHERE task_id IN ("
                 + ", ".join("?" for _ in task_ids) + ") ORDER BY trace_id",
                 list(task_ids),
             )
-            selected: dict[str, list[dict[str, Any]]] = {}
+            selected: dict[str, list[Mapping[str, Any]]] = {}
             for trace in traces:
                 selected.setdefault(trace["task_id"], []).append(trace)
             for task_id, rows in selected.items():
-                selected[task_id] = sorted(rows, key=_trace_preference)[: self._MAX_TRACES_PER_TASK]
+                selected[task_id] = list(_selected_traces(rows, self._MAX_TRACES_PER_TASK))
             identifiers = [str(trace["trace_id"]) for rows in selected.values() for trace in rows]
             steps_by_trace: dict[str, list[dict[str, Any]]] = {}
             if identifiers:

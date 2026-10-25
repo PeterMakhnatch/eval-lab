@@ -250,6 +250,32 @@ def test_trace_step_evidence_is_attached_and_reranks(db: CloudTraceDatabase) -> 
     assert all(step.prompt_line().startswith("  - step ") for step in loud.steps)
 
 
+def test_prompt_steps_prefer_agent_actions_over_journal_events(
+    db: CloudTraceDatabase,
+) -> None:
+    retriever = CloudTraceRetriever(db)
+    db.upsert_task(task("terminal-bench/journal"))
+    db.upsert_task_issue(issue("journal-issue", task_id="terminal-bench/journal"))
+    db.upsert_trace(trace("journal-trace", task_id="terminal-bench/journal"), steps=[
+        {"step_index": 0, "role": "system", "tool_name": "retained-journal",
+         "command_or_action": "seeker.attempt_started", "flags_json": []},
+        {"step_index": 1, "role": "system", "tool_name": "retained-journal",
+         "command_or_action": "seeker.grader_feedback", "flags_json": []},
+        {"step_index": 2, "role": "system", "tool_name": "retained-journal",
+         "command_or_action": "seeker.attempt_finished", "flags_json": []},
+        {"step_index": 3, "role": "tool", "tool_name": "terminal",
+         "observation_preview": "ls: cannot access '/app/out.step'", "flags_json": []},
+        {"step_index": 4, "role": "assistant", "tool_name": "terminal",
+         "command_or_action": "cat /app/out.step", "flags_json": []},
+    ])
+
+    found = retriever.retrieve_similar_examples("grader tamperable check", top_k=1)
+    # Journal events never count as command/observation evidence, so the budget
+    # fills with both real agent actions and only the first journal row.
+    assert [step.step_index for step in found[0].steps] == [0, 3, 4]
+    assert [step.role for step in found[0].steps] == ["system", "tool", "assistant"]
+
+
 def test_one_example_per_task_and_json_round_trip(db: CloudTraceDatabase) -> None:
     retriever = CloudTraceRetriever(db)
     seed(db)

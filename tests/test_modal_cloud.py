@@ -98,7 +98,26 @@ def repo_root(tmp_path: Path) -> Path:
         directory = keys / dataset
         directory.mkdir(parents=True)
         (directory / "items.jsonl").write_text("", encoding="utf-8")
+    (keys / "tb4-audit-v1/items.jsonl").write_text(
+        json.dumps(
+            {
+                "item_id": "sealed-item",
+                "split": "test",
+                "subject": {"task_id": "sealed-task-name"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (keys / "tb4-audit-v1/tasks.jsonl").write_text("", encoding="utf-8")
+    ledger = keys / "splits/assignments.csv"
+    ledger.parent.mkdir()
+    ledger.write_text(
+        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
+        "synthetic-ledger-fixture,ledger-dev,ledger-dev,,dev,fail,\n"
+        "synthetic-ledger-fixture,ledger-test,ledger-test,,test,fail,\n",
+        encoding="utf-8",
+    )
     inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text(
@@ -203,7 +222,7 @@ def records(runtime: CloudRuntime) -> dict[str, Any]:
     issue_uri = runtime.cas.put_bundle({"source_reproducer": reproducer})
     tasks = {
         PRIMARY: {**_task(PRIMARY, instruction), "cas_uri": package_uri},
-        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture", split="test"),
+        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture"),
     }
     issues = {
         "issue-confirmed-primary": {
@@ -602,35 +621,51 @@ def test_database_endpoints_do_not_clip_result_collections(
         }
 
 
-def test_dev_split_filter_omits_sealed_tasks_traces_and_issues_without_changing_defaults(
+def test_cloud_db_serves_only_dev_tasks_admitted_by_label_seal_and_ledger(
     client: TestClient,
+    runtime: CloudRuntime,
     records: dict[str, Any],
 ) -> None:
-    for collection, key, all_ids, dev_ids in (
-        ("tasks", "task_id", {PRIMARY, SECONDARY}, {PRIMARY}),
-        ("traces", "trace_id", {VERIFIED, PROVISIONAL, REFUTED}, {VERIFIED, PROVISIONAL}),
-        (
-            "issues",
-            "issue_id",
-            set(records["issues"]),
-            {"issue-confirmed-primary", "issue-provisional-primary"},
-        ),
+    served = {PRIMARY, SECONDARY, "ledger-dev", "mixed-case"}
+    withheld = {"label-test", "sealed-task-name", "ledger-test", "ledger-unassigned"}
+    for task_id, dataset, split in (
+        ("ledger-dev", "synthetic-ledger-fixture", "dev"),
+        ("mixed-case", "synthetic-cloud-fixture", "DEV"),
+        ("label-test", "synthetic-cloud-fixture", "test"),
+        # Labelled DEV, but a canonical TEST row seals the task name.
+        ("sealed-task-name", "synthetic-cloud-fixture", "dev"),
+        # Labelled DEV in the database, TEST (or absent) in the split ledger.
+        ("ledger-test", "synthetic-ledger-fixture", "dev"),
+        ("ledger-unassigned", "synthetic-ledger-fixture", "dev"),
     ):
-        default = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
-        assert {row[key] for row in default.json()[collection]} == all_ids
-        dev = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params={"split": "dev"})
-        assert dev.status_code == 200
-        assert {row[key] for row in dev.json()[collection]} == dev_ids
-        assert "secondaryinstruction" not in dev.text
-        assert "secondarytrace" not in dev.text
-        assert (
-            client.get(
-                f"/api/cloud-db/{collection}",
-                headers=AUTH,
-                params={"task_id": SECONDARY, "split": "dev"},
-            ).json()[collection]
-            == []
+        runtime.database.upsert_task(
+            {**_task(task_id, f"{task_id} withheldneedle"), "dataset_id": dataset, "split": split}
         )
+        runtime.database.upsert_task_issue(_issue(f"issue-{task_id}", task_id))
+        runtime.database.upsert_trace(
+            _trace(f"trace-{task_id}", task_id, None),
+            steps=[{"step_index": 0, "role": "user", "content_text": f"{task_id} withheldneedle"}],
+        )
+    for collection in ("tasks", "issues", "traces"):
+        for params in ({}, {"split": "dev"}, {"q": "withheldneedle"}):
+            response = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params=params)
+            assert response.status_code == 200
+            owners = {row["task_id"] for row in response.json()[collection]}
+            assert owners <= served
+            assert not owners & withheld
+            if params.get("q"):
+                assert owners == {"ledger-dev", "mixed-case"}
+        for withheld_task in withheld:
+            rows = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"task_id": withheld_task}
+            ).json()[collection]
+            assert rows == []
+        for split in ("test", "heldout", "held", "all", ""):
+            refused = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"split": split}
+            )
+            assert refused.status_code == 400
+            assert "withheldneedle" not in refused.text
 
 
 def _swarm_benchmark_report() -> dict[str, Any]:

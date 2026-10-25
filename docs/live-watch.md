@@ -929,6 +929,11 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
+`tasks`, `issues`, and `traces` serve only DEV tasks: the stored `split` label must
+be DEV, no registry seal may match the task, and a dataset with split-ledger
+assignments must assign the task to DEV (`tb2-to-tb21-v1` rows are labelled DEV in
+the database but are TEST in the ledger, so they are withheld). `split` defaults to
+`dev`; any other value is HTTP 400. `stats` counts every stored row.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 

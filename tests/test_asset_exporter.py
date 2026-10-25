@@ -23,7 +23,6 @@ from evallab.production.asset_exporter import (
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.seeker_worker import compute_candidate_digest
-from evallab.qa import trace_cheap
 from evallab.registry import task_directory_digest
 
 DATASET = "tb4-audit-v1"

@@ -817,6 +817,55 @@ ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
 only after the complete bundle is on disk.
 
+### Authenticated Modal cloud deployment
+
+`src/evallab/production/modal_cloud.py` deploys the `evallab-cloud-production`
+Modal app. Its `evallab-cloud-store` Volume is mounted at `/data` and retains
+`prod.sqlite`, `cloud-trace-db.sqlite`, `cas/`, the relay outbox, execution
+evidence, and one shared `cloud-spend.json` infrastructure ledger. Import
+consistent SQLite backups, not live database files without their WAL:
+
+```bash
+modal volume create evallab-cloud-store
+modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
+modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
+modal volume put evallab-cloud-store /path/to/cas /cas
+modal deploy src/evallab/production/modal_cloud.py
+```
+
+Provision `EVALLAB_CLOUD_TOKEN` in the Modal secret
+`evallab-cloud-production-auth` before deployment. All dashboard and data
+requests require that bearer token or a secure HTTP-only session cookie;
+unauthenticated requests return 401. `/auth` is a data-free login page:
+`lab cloud` supplies the token in a browser fragment (never an HTTP query),
+exchanges it for the cookie, and removes the fragment from browser history.
+The installed launcher reads `cloud-url` and owner-only `cloud-token` under
+`~/.local/state/evallab-prod-live/`; `EVALLAB_CLOUD_URL` and
+`EVALLAB_CLOUD_TOKEN` can override them. Never commit those credentials.
+
+The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
+`/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
+and `/api/cloud-db/tasks`. Searches return complete retained records and
+ordered trace steps, without changing source claims into new verification.
+`lab db --cloud QUERY` searches over authenticated HTTPS without opening a
+local database; `lab db --cloud --stats` reports cloud record counts.
+
+One Modal class instance owns both SQLite stores. The web endpoint and worker
+method share that owner; do not deploy a second independent writer against
+the Volume, overwrite an active Volume, or scale its owner above one container.
+The callable `run_cloud_supervisor_step` forwards one explicit step to the
+owner, commits the Volume afterward, and requires an approval string and
+positive infrastructure budget. Both execution workers receive
+`ExecutionBackendConfig(backend="modal", allow_local_docker=False)` and the
+container sets `EVALLAB_DISABLE_LOCAL_DOCKER=1`: no laptop Docker fallback,
+automatic model call, scheduled queue drain, or new training export is enabled
+by opening the dashboard. For example, only under current operator approval:
+
+```bash
+modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
+  --approval 'Current scoped cloud offload approval' --max-usd 1
+```
+
 ### Production supervisor
 
 `evallab.production.ProductionSupervisor` is the thin orchestration layer that

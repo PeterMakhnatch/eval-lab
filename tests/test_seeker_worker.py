@@ -5,28 +5,46 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import shutil
+import subprocess
 from collections import deque
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.hackbook.models import HackbookEntry
 from evallab.production.seeker_worker import (
     FailedShortcutRecord,
     RewardSeekerLiveWorker,
     SeekerAttemptCandidate,
+    SeekerEvidenceError,
     SeekerFailureMemory,
     SeekerRefusalError,
     compute_candidate_digest,
     compute_shortcut_signature,
     match_task_hackbook_cues,
     render_hackbook_cues_markdown,
+    verify_differential_replay,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def isolated_execution_policy(monkeypatch):
+    """Only nonexecuting shell syntax checks may run; never a container or provider."""
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    original_run = subprocess.run
+
+    def no_process(argv, *args, **kwargs):
+        if isinstance(argv, list) and len(argv) == 3 and argv[:2] == ["bash", "-n"]:
+            return original_run(argv, *args, **kwargs)
+        pytest.fail(f"Unexpected external process in worker unit test: {argv!r}")
+
+    monkeypatch.setattr("subprocess.run", no_process)
 
 
 class SplitLockError(ValueError):
@@ -114,7 +132,7 @@ class FakeQueue:
 
     def append_event(
         self,
-        event: Mapping[str, Any],
+        event: dict[str, Any],
         *,
         idempotency_key: str | None = None,
         frozen_eval_token: str | None = None,
@@ -123,7 +141,7 @@ class FakeQueue:
         if idempotency_key and idempotency_key in self._idempotency:
             return copy.deepcopy(self._idempotency[idempotency_key])
         self._seq += 1
-        stored = copy.deepcopy(dict(event))
+        stored = copy.deepcopy(event)
         stored["seq"] = self._seq
         self.events.append(stored)
         if idempotency_key:
@@ -351,8 +369,8 @@ class MarkerGrader:
         self.calls: list[dict[str, Any]] = []
 
     def __call__(self, task: Path, **kwargs: Any) -> dict[str, Any]:
-        bundle = Path(kwargs["solution_bundle"])
-        solve = (bundle / "solve.sh").read_text(encoding="utf-8")
+        files: dict[str, str] = kwargs["files"]
+        solve = files["solve.sh"]
         marker = next(
             name for name in ("BAD_OUTPUT", "EXPLOIT_OUTPUT", "HONEST_OUTPUT") if name in solve
         )
@@ -381,32 +399,41 @@ class MarkerGrader:
         output_dir = Path(kwargs["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         passed = reward == 1.0
-        ctrf = output_dir / "ctrf.json"
-        ctrf.write_text(
-            json.dumps(
-                {
-                    "results": {
-                        "tests": [
-                            {
-                                "name": "test_output",
-                                "status": "passed" if passed else "failed",
-                                "trace": "" if passed else "AssertionError: wrong output",
-                            }
-                        ]
+        ctrf_payload = {
+            "results": {
+                "tests": [
+                    {
+                        "name": "test_output",
+                        "status": "passed" if passed else "failed",
+                        "trace": "" if passed else "AssertionError: wrong output",
                     }
-                }
-            ),
+                ]
+            }
+        }
+        ctrf = output_dir / "ctrf.json"
+        ctrf.write_text(json.dumps(ctrf_payload), encoding="utf-8")
+        # The declared trial dir must exist: confirmed evidence is pinned
+        # under content custody and a missing receipt fails the promotion.
+        trial = output_dir / "trial"
+        trial.mkdir(parents=True, exist_ok=True)
+        (trial / "result.json").write_text(
+            json.dumps({"verifier_result": {"rewards": {"reward": reward}}}),
             encoding="utf-8",
         )
+        (trial / "ctrf.json").write_text(json.dumps(ctrf_payload), encoding="utf-8")
+        provenance = None
+        if grader == "port":
+            port_task = output_dir / "port-task"
+            port_task.mkdir(parents=True, exist_ok=True)
+            (port_task / "task.toml").write_text('[task]\nname = "port-task"\n', encoding="utf-8")
+            provenance = {"task_dir": str(port_task)}
         return {
             "status": "measured",
             "reward": reward,
             "error": None,
             "output_dir": str(output_dir),
-            "trial_dir": str(output_dir / "trial"),
-            "grader_provenance": (
-                {"task_dir": str(output_dir / "port-task")} if grader == "port" else None
-            ),
+            "trial_dir": str(trial),
+            "grader_provenance": provenance,
             "per_test": {
                 "tests": [{"id": "test_output", "status": "passed" if passed else "failed"}],
                 "sources": [str(ctrf)],
@@ -424,7 +451,18 @@ class SequenceGrader:
         output_dir = Path(kwargs["output_dir"])
         output_dir.mkdir(parents=True, exist_ok=True)
         result.setdefault("output_dir", str(output_dir))
-        result.setdefault("trial_dir", str(output_dir / "trial"))
+        if "trial_dir" not in result:
+            # The declared trial dir must exist: a missing declared receipt
+            # blocks evidence pinning entirely.
+            trial = output_dir / "trial"
+            trial.mkdir(parents=True, exist_ok=True)
+            (trial / "result.json").write_text(
+                json.dumps(
+                    {"verifier_result": {"rewards": {"reward": result.get("reward")}}}
+                ),
+                encoding="utf-8",
+            )
+            result["trial_dir"] = str(trial)
         result.setdefault("per_test", {"tests": [], "sources": []})
         self.calls.append({"task": str(task), **result})
         return result
@@ -438,6 +476,7 @@ def _worker(
     grader: Any,
     max_attempts: int = 3,
     name: str = "work",
+    **execution_kwargs: Any,
 ) -> RewardSeekerLiveWorker:
     return RewardSeekerLiveWorker(
         queue,  # type: ignore[arg-type]
@@ -449,6 +488,7 @@ def _worker(
         attempt_generator=generator,
         grader_fn=grader,
         max_attempts=max_attempts,
+        **execution_kwargs,
     )
 
 
@@ -817,7 +857,6 @@ def test_hackbook_cue_matching_is_false_pass_only_and_blind(tmp_path: Path) -> N
             failure_kind="upstream_failed",
             failure_reason="original grader rejected it",
             original_reward=0.0,
-            repaired_reward=0.0,
         )
     )
     page = render_hackbook_cues_markdown(cues, failure_memory=memory)
@@ -1122,6 +1161,423 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
     assert outcome.confirmed_event["payload"]["model_route"] == "meta/muse-wonder-1.0-contributor"
 
 
+@pytest.mark.parametrize("backend_name", ["modal", "auto"])
+@pytest.mark.parametrize("config_style", ["object", "keywords"])
+@pytest.mark.parametrize("repaired_kind", ["package", "port"])
+def test_cloud_worker_forwards_policy_to_both_grades(
+    tmp_path, monkeypatch, backend_name, config_style, repaired_kind
+) -> None:
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired, repaired_grader_kind=repaired_kind),
+        run_id="cloud-run",
+        event_id="cloud-job",
+    )
+    policy = ExecutionBackendConfig(
+        backend=backend_name,
+        modal_app_name="worker-test-seeker",
+        spend_ledger=tmp_path / "shared-cloud-spend.json",
+        approval="unit-test-only; no provider calls",
+        max_usd=2.0,
+        billing_tag="worker-test",
+    )
+    observed = []
+    marker_grader = MarkerGrader()
+
+    def grader(task, **kwargs):
+        observed.append(kwargs)
+        assert {key: kwargs[key] for key in policy.candidate_kwargs()} == policy.candidate_kwargs()
+        return marker_grader(task, **kwargs)
+
+    options = (
+        {"execution_config": policy}
+        if config_style == "object"
+        else {
+            "backend": backend_name,
+            "modal_app_name": policy.modal_app_name,
+            "spend_ledger": policy.spend_ledger,
+            "approval": policy.approval,
+            "max_usd": policy.max_usd,
+            "billing_tag": policy.billing_tag,
+        }
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+        **options,
+    )
+
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.exploit_confirmed is True
+    assert len(observed) == 2
+    assert all(call["backend"] == "modal" for call in observed)
+    assert all(call["allow_local_docker"] is False for call in observed)
+    assert observed[0]["files"] == observed[1]["files"]
+    assert observed[1]["grader"] == ("port" if repaired_kind == "port" else "upstream")
+    if repaired_kind == "port":
+        assert observed[1]["port_task"] == repaired
+    assert worker.execution_config.allow_local_docker is False
+    assert not policy.spend_ledger.exists()
+
+
+@pytest.mark.parametrize("refusal", ["environment", "explicit", "late_environment"])
+def test_disabled_local_worker_returns_backend_refusal_without_blacklisting(
+    tmp_path, monkeypatch, refusal
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="disabled-run",
+        event_id="disabled-job",
+    )
+    options = {}
+    if refusal == "environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        options["allow_local_docker"] = True
+    elif refusal == "explicit":
+        options["execution_config"] = ExecutionBackendConfig(allow_local_docker=True)
+        options["allow_local_docker"] = False
+    grader = MarkerGrader()
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+        **options,
+    )
+    if refusal == "late_environment":
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+
+    outcome = asyncio.run(worker.run_once())
+    assert outcome is not None and outcome.exploit_confirmed is False
+    assert (outcome.original_reward, outcome.repaired_reward) == (None, None)
+    assert not grader.calls
+    assert not outcome.failure_memory.records
+    feedback = next(
+        event for event in queue.events if event["event_type"] == "seeker.grader_feedback"
+    )
+    assert feedback["payload"]["failure_kind"] == "execution_backend_refused"
+    assert "LocalDockerDisabledError" in feedback["payload"]["failure_reason"]
+    assert not queue.chained_jobs
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+
+
+def test_modal_margin_refusal_never_retries_or_falls_back_to_docker(
+    tmp_path, monkeypatch
+) -> None:
+    from evallab.production import seeker_worker
+
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    job = queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="refused-modal",
+        event_id="refused-modal-job",
+    )
+    calls = []
+
+    def native_candidate(task, **kwargs):
+        calls.append(kwargs)
+        assert kwargs["backend"] == "modal"
+        assert kwargs["solution_bundle"].joinpath("solve.sh").is_file()
+        return {
+            "status": "refused",
+            "reward": None,
+            "error": "not admitted after controller margin",
+        }
+
+    def no_fallback(*_args, **_kwargs):
+        pytest.fail("A Modal refusal must not start a Docker fallback or retry")
+
+    monkeypatch.setattr(seeker_worker, "run_candidate", native_candidate)
+    monkeypatch.setattr(seeker_worker.time, "sleep", no_fallback)
+    monkeypatch.setattr("evallab.qa.task.HarborBackend", no_fallback)
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=native_candidate,
+        max_attempts=1,
+        backend="modal",
+        allow_local_docker=False,
+        modal_app_name="worker-test-seeker",
+        spend_ledger=tmp_path / "shared-cloud-spend.json",
+        approval="unit-test-only",
+        max_usd=2.0,
+        billing_tag="worker-test",
+    )
+    resolved = worker._resolve_job_task(job)
+    grade = verify_differential_replay(
+        resolved,
+        EXPLOIT_CANDIDATE,
+        attempt_dir=tmp_path / "direct-replay",
+        grader_fn=native_candidate,
+        execution_config=worker.execution_config,
+    )
+    assert grade.original_status == "refused"
+    assert grade.repaired_status == "not_run"
+    assert grade.differential_confirmed is False
+    assert len(calls) == 1
+
+
+def test_differential_checks_protection_again_before_repaired_grade(
+    tmp_path, monkeypatch
+) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    job = queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="late-protection",
+        event_id="late-protection-job",
+    )
+    calls = []
+
+    def grader(task, **kwargs):
+        calls.append(task)
+        monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+        return {
+            "status": "measured",
+            "reward": 1.0,
+            "output_dir": str(kwargs["output_dir"]),
+        }
+
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+    grade = verify_differential_replay(
+        worker._resolve_job_task(job),
+        EXPLOIT_CANDIDATE,
+        attempt_dir=tmp_path / "direct-replay",
+        grader_fn=grader,
+        execution_config=worker.execution_config,
+    )
+    assert calls == [original]
+    assert grade.original_reward == 1.0
+    assert grade.repaired_reward is None
+    assert grade.failure_kind == "execution_backend_refused"
+    assert not grade.differential_confirmed
+
+
+# --------------------------------------------------------------------------- evidence custody
+
+
+def _trial_tree(root: Path, name: str, marker: str) -> Path:
+    trial = root / name
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 1.0}}}),
+        encoding="utf-8",
+    )
+    (trial / "verifier" / "reward.json").write_text(
+        json.dumps({"reward": 1.0}), encoding="utf-8"
+    )
+    (trial / "marker.txt").write_text(marker, encoding="utf-8")
+    return trial
+
+
+def test_same_candidate_on_changed_repaired_package_pins_fresh_receipts(
+    tmp_path: Path,
+) -> None:
+    """A repeated candidate digest on a changed package never reuses receipts.
+
+    The witness dir used to be keyed on the truncated candidate digest alone,
+    so the second job's confirmation silently referenced the first job's
+    pinned run receipts. Custody now binds the job and package identities and
+    the full source digests, so each confirmation publishes its own evidence.
+    """
+    original = _make_task(tmp_path, "original")
+    # Both repaired packages are named "repaired" so the marker grader scores
+    # the repaired side; distinct parents and bytes give distinct identities.
+    repaired_a = _make_task(tmp_path / "pkg-a", "repaired")
+    repaired_b = _make_task(tmp_path / "pkg-b", "repaired")
+    (repaired_b / "changed.txt").write_text("changed package bytes\n", encoding="utf-8")
+    queue = FakeQueue()
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=MarkerGrader(),
+        max_attempts=1,
+    )
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired_a),
+        run_id="run-custody",
+        event_id="job-custody-1",
+    )
+    first = asyncio.run(worker.run_once())
+    assert first is not None and first.exploit_confirmed
+
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired_b),
+        run_id="run-custody",
+        event_id="job-custody-2",
+    )
+    second = asyncio.run(worker.run_once())
+    assert second is not None and second.exploit_confirmed
+
+    p1 = first.confirmed_event["payload"]
+    p2 = second.confirmed_event["payload"]
+    assert p1["candidate_digest"] == p2["candidate_digest"]
+    refs1 = (p1["exploit_run"], p1["repaired_runs"][0], p1["solution_bundle"])
+    refs2 = (p2["exploit_run"], p2["repaired_runs"][0], p2["solution_bundle"])
+    for ref_a, ref_b in zip(refs1, refs2, strict=True):
+        assert ref_a != ref_b, f"{ref_a} silently reused the earlier pin"
+        assert Path(ref_a).exists() and Path(ref_b).exists()
+    witnesses = sorted(
+        p.name
+        for p in (tmp_path / "work" / "run-custody" / "task-a").iterdir()
+        if p.name.startswith("witness-")
+    )
+    assert len(witnesses) == 2
+
+
+def test_missing_declared_receipt_keeps_confirmed_evidence_unavailable(
+    tmp_path: Path,
+) -> None:
+    """A declared-but-absent receipt fails the promotion; no confirmed asset."""
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-missing-proof",
+        event_id="job-missing-proof",
+    )
+    grader = SequenceGrader(
+        [
+            {
+                "status": "measured",
+                "reward": 1.0,
+                "error": None,
+                "trial_dir": str(tmp_path / "ghost-original"),
+            },
+            {
+                "status": "measured",
+                "reward": 0.0,
+                "error": None,
+                "trial_dir": str(tmp_path / "ghost-repaired"),
+            },
+        ]
+    )
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([EXPLOIT_CANDIDATE]),
+        grader=grader,
+        max_attempts=1,
+    )
+
+    with pytest.raises(SeekerEvidenceError):
+        asyncio.run(worker.run_once())
+
+    assert not any(
+        event["event_type"] == "seeker.exploit_confirmed" for event in queue.events
+    )
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+    assert any(event["event_type"] == "worker.failed" for event in queue.events)
+    assert queue.released == ["job-missing-proof"]
+    assert queue.acked == []
+
+
+def test_pin_evidence_refuses_symlinks_missing_and_conflicting_bytes(
+    tmp_path: Path,
+) -> None:
+    src = _trial_tree(tmp_path, "trial-src", "first-bytes")
+    destination = tmp_path / "witness" / "exploit_run"
+
+    pinned = RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert pinned == str(destination)
+    # An identical re-pin is an idempotent no-op.
+    assert RewardSeekerLiveWorker._pin_evidence(str(src), destination) == pinned
+
+    # Existing different bytes under the same destination are refused.
+    (destination / "marker.txt").write_text("stale-bytes", encoding="utf-8")
+    with pytest.raises(SeekerEvidenceError, match="conflicts"):
+        RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert (destination / "marker.txt").read_text(encoding="utf-8") == "stale-bytes"
+
+    # A declared source that is absent raises instead of silently falling back.
+    with pytest.raises(SeekerEvidenceError, match="missing"):
+        RewardSeekerLiveWorker._pin_evidence(
+            str(tmp_path / "gone"), tmp_path / "w2" / "exploit_run"
+        )
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(None, tmp_path / "w2" / "exploit_run")
+
+    # Symlink destinations and sources are refused.
+    link = tmp_path / "dest-link"
+    link.symlink_to(src, target_is_directory=True)
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(str(src), link)
+    with pytest.raises(SeekerEvidenceError):
+        RewardSeekerLiveWorker._pin_evidence(str(link), tmp_path / "w3" / "exploit_run")
+
+    # Symlinks inside the source tree are refused too.
+    linked_src = _trial_tree(tmp_path, "trial-linked", "linked")
+    (linked_src / "escape").symlink_to(tmp_path / "original")
+    with pytest.raises(SeekerEvidenceError, match="symlink"):
+        RewardSeekerLiveWorker._pin_evidence(
+            str(linked_src), tmp_path / "w4" / "exploit_run"
+        )
+
+
+def test_pin_evidence_interrupted_copy_leaves_no_partial_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mid-copy failure stages nothing at the destination for the next retry."""
+    src = _trial_tree(tmp_path, "trial-src", "full-bytes")
+    destination = tmp_path / "witness" / "exploit_run"
+    real_copy2 = shutil.copy2
+    calls = {"count": 0}
+
+    def interrupted(source: Any, target: Any) -> Any:
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise OSError("simulated copy interruption")
+        return real_copy2(source, target)
+
+    monkeypatch.setattr(shutil, "copy2", interrupted)
+    with pytest.raises(OSError, match="simulated copy interruption"):
+        RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+
+    assert not destination.exists()
+    leftovers = [
+        path.name
+        for path in destination.parent.iterdir()
+        if path.name.endswith(".tmp")
+    ]
+    assert leftovers == []
+
+    monkeypatch.setattr(shutil, "copy2", real_copy2)
+    pinned = RewardSeekerLiveWorker._pin_evidence(str(src), destination)
+    assert pinned == str(destination)
+    assert (destination / "marker.txt").read_text(encoding="utf-8") == "full-bytes"
+    assert (destination / "verifier" / "reward.json").is_file()
+
+
 def test_hackbook_probe_template_catalog_covers_all_entries_and_validates(tmp_path: Path) -> None:
     import subprocess
 
@@ -1144,7 +1600,7 @@ def test_hackbook_probe_template_catalog_covers_all_entries_and_validates(tmp_pa
     assert len(catalog) >= 55
 
     signatures: set[str] = set()
-    for idx, (entry_id, candidate) in enumerate(catalog.items(), start=1):
+    for entry_id, candidate in catalog.items():
         assert candidate.hackbook_entry_id == entry_id
         assert "/app/output/report.json" in candidate.files_written
         sub_dir = tmp_path / "probes" / entry_id
@@ -1173,17 +1629,6 @@ def test_hackbook_probe_template_catalog_covers_all_entries_and_validates(tmp_pa
         )
         assert sig not in signatures
         signatures.add(sig)
-        if idx <= 3:
-            exec_dir = tmp_path / "exec" / entry_id
-            exec_dir.mkdir(parents=True, exist_ok=True)
-            ran = subprocess.run(
-                ["bash", str(sub_dir / "solve.sh")],
-                cwd=exec_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            assert ran.returncode == 0
 
     repaired = _make_task(tmp_path, "repaired")
     queue = FakeQueue()

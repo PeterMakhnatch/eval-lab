@@ -1157,3 +1157,165 @@ def test_concurrent_replay_publication_never_truncates_an_executing_script(
         finally:
             release_writer.set()
         assert replacing.result(timeout=10)["regraded"] == 1.0
+
+
+@pytest.mark.parametrize("diff", [PATCH, ""])
+def test_configured_cloud_patch_uses_canonical_candidate_policy_without_double_charge(
+    tmp_path, monkeypatch, diff
+):
+    import evallab.candidate_runner
+    import evallab.docker_lock
+    from evallab import regrade
+    from evallab.upstream_grader import _reserve_spend
+
+    monkeypatch.setattr(regrade, "lab_harbor_problem", lambda: None)
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    gate = regrade.CloudSpendGate(
+        "approved native replay fixture",
+        1.0,
+        cf.CLOUD_USD_PER_EXECUTION,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-replay",
+        billing_tag="owned",
+    )
+    grader = _grader(tmp_path)
+    seen = []
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("configured Modal replay used a logical reserve, matrix, or Docker")
+
+    def candidate(task, **kwargs):
+        assert task == grader.package
+        assert kwargs["backend"] == "modal" and kwargs["allow_local_docker"] is False
+        assert kwargs["approval"] == gate.approval and kwargs["max_usd"] == gate.cap_usd
+        assert kwargs["spend_ledger"] == gate.spend_ledger
+        assert kwargs["modal_app_name"] == gate.modal_app_name
+        assert kwargs["billing_tag"] == gate.billing_tag
+        assert kwargs["target_dir"] == "/testbed"
+        if diff:
+            assert kwargs["patch"] == diff and "files" not in kwargs
+        else:
+            assert kwargs["files"] == {} and "patch" not in kwargs
+        seen.append(kwargs)
+        spend = _reserve_spend(
+            gate.spend_ledger,
+            approval=gate.approval,
+            cap=gate.cap_usd,
+            reservation={"reserved_usd": 0.2},
+            identity={"primitive": "inert-native-candidate"},
+        )
+        return {
+            "status": "measured",
+            "executed": True,
+            "reward": 0.0,
+            "spend": spend,
+            "output_dir": str(kwargs["output_dir"]),
+            "native_output_dir": str(kwargs["output_dir"] / "native"),
+        }
+
+    monkeypatch.setattr(gate, "charge", forbidden)
+    monkeypatch.setattr(evallab.docker_lock, "docker_slot", forbidden)
+    monkeypatch.setattr(evallab.candidate_runner, "run_candidate", candidate)
+    result = cf._replay_patch(
+        diff,
+        grader,
+        repo_root=tmp_path,
+        matrix_runner=forbidden,
+        environment="modal",
+        spend_gate=gate,
+    )
+    assert len(seen) == 1
+    assert result["regraded"] == 0.0 and result["refusals"] == []
+    assert result["input_kind"] == "native_patch_replay"
+    assert result["candidate_receipt"].endswith("/candidate.json")
+    assert result["cloud_spend"]["reserved_usd"] == 0.2
+    assert gate.executions == 0  # the native resource reservation is the only charge
+
+
+def test_counterfactual_snapshot_retains_native_regrade_with_same_cloud_gate(
+    tmp_path, monkeypatch
+):
+    import evallab.docker_lock
+    from evallab import regrade
+    from evallab.separate_verifier import SNAP_DIR
+
+    monkeypatch.setattr(regrade, "lab_harbor_problem", lambda: None)
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    trial, grader = _trial(tmp_path, diff=None), _grader(tmp_path)
+    snapshot = trial / "artifacts" / SNAP_DIR.lstrip("/") / cf.SNAPSHOT_ARCHIVE
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_bytes(b"retained snapshot fixture")
+    gate = regrade.CloudSpendGate(
+        "approved snapshot fixture",
+        1.0,
+        cf.CLOUD_USD_PER_EXECUTION,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-snapshot",
+        billing_tag="owned",
+    )
+    seen = []
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("snapshot replay used Docker or a patch matrix")
+
+    def native_regrade(**kwargs):
+        assert kwargs["trial_dir"] == trial and kwargs["task_dir"] == grader.package
+        assert kwargs["environment"] == "modal" and kwargs["spend_gate"] is gate
+        seen.append(kwargs)
+        return SimpleNamespace(
+            regraded=SimpleNamespace(rewards={"reward": 0.0}),
+            refused=False,
+            refusals=[],
+            execution=None,
+            regrade_trial_dir=str(kwargs["trials_dir"] / "native"),
+        )
+
+    monkeypatch.setattr(evallab.docker_lock, "docker_slot", forbidden)
+    monkeypatch.setattr(regrade, "regrade_trial", native_regrade)
+    result = cf.replay(
+        trial,
+        grader,
+        tmp_path / "work",
+        repo_root=tmp_path,
+        matrix_runner=forbidden,
+        environment="modal",
+        spend_gate=gate,
+    )
+    assert len(seen) == 1
+    assert result["input_kind"] == "recorded_snapshot" and result["outcome"] == "flips"
+    assert snapshot.read_bytes() == b"retained snapshot fixture"
+
+
+def test_counterfactual_docker_opt_out_precedes_even_mocked_admission(tmp_path, monkeypatch):
+    from evallab.execution_backend import LocalDockerDisabledError
+
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    with pytest.raises(LocalDockerDisabledError):
+        cf.check_backend("docker", None)
+    with pytest.raises(LocalDockerDisabledError):
+        cf._local_docker_gate("docker", "disabled replay")
+    with pytest.raises(LocalDockerDisabledError):
+        cf._replay_patch(
+            PATCH, _grader(tmp_path), repo_root=tmp_path, matrix_runner=lambda *_: None
+        )
+
+
+def test_configured_modal_policy_cannot_silently_route_to_another_cloud(tmp_path, monkeypatch):
+    from evallab import regrade
+
+    gate = regrade.CloudSpendGate(
+        "approved Modal fixture",
+        1.0,
+        cf.CLOUD_USD_PER_EXECUTION,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-replay",
+        billing_tag="owned",
+    )
+
+    def forbidden():
+        raise AssertionError("incompatible cloud policy reached runtime admission")
+
+    monkeypatch.setattr(regrade, "lab_harbor_problem", forbidden)
+    with pytest.raises(ValueError, match="another cloud backend"):
+        cf.check_backend("daytona", gate)
+    assert not Path(gate.spend_ledger).exists()

@@ -302,6 +302,9 @@ class VerifiedAssetStore:
                     steps = [step] if isinstance(step, dict) else []
                     if not steps and kind == "trace.step" and "step_id" in payload:
                         steps = [payload]
+                # A seeker's attempt/feedback "step" is phase telemetry, not a rollout.
+                if kind in {"seeker.attempt_started", "seeker.grader_feedback"}:
+                    steps = []
                 for step in steps:
                     if not isinstance(step, dict):
                         continue

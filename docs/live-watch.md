@@ -84,6 +84,8 @@ paid API is configured implicitly. Suspicion cards cite observed steps and quote
 semantic confirmation means **observed prefix behavior**, not verified reward
 causality, a verified exploit, or an automatically promoted labeled-trace asset.
 All semantic citations must match the frozen prefix, or the card stays provisional.
+An independently evidenced label is promoted only through the explicit
+`verify_and_promote_trace_label` path described below.
 
 Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
 before a tool action and honor its `allow` result; proposed actions never become
@@ -698,8 +700,46 @@ submission and qualifies the pinned repair only after nine fresh executions:
 reference `3/3`, NOP `0/3`, and exploit `0/3`. Qualification atomically enqueues
 `reward_seeker.rebreak_task` against the repaired package. Confirmed
 `exploit_witness` and `repaired_task` assets are distinct from provisional monitor
-suspicions. Worker phase updates use the shared `step_id` field; their missing
-reasoning/tool capture is reported as a coverage gap, not a clean trace.
+suspicions. Seeker attempt/feedback `step` objects are phase telemetry, not agent
+rollouts: they never become partial traces or labeled-trace assets. Missing
+reasoning/tool capture remains a coverage gap, not a clean trace.
+
+Both execution-backed workers accept an
+`evallab.execution_backend.ExecutionBackendConfig` through `execution_config`,
+or the equivalent constructor keywords: `backend`, `modal_app_name`,
+`spend_ledger`, `approval`, `max_usd`, `billing_tag`, and `allow_local_docker`.
+For example, pass the same explicitly approved cloud policy to both consumers:
+
+```python
+from evallab.execution_backend import ExecutionBackendConfig
+
+execution = ExecutionBackendConfig(
+    backend="modal",
+    modal_app_name="owned-campaign-workers",
+    billing_tag="owned-campaign",
+    spend_ledger="/absolute/path/outside-task-inputs/shared-spend.json",
+    approval=recorded_current_approval,
+    max_usd=approved_cap_usd,
+    allow_local_docker=False,
+)
+# TaskQualityLiveWorker(queue, repo_root=repo, execution_config=execution)
+# RewardSeekerLiveWorker(queue, repo_root=repo, execution_config=execution)
+```
+
+The policy belongs to the worker, not a queued task's payload. It covers both
+original/repaired candidate grades, retained-trial replay, and all nine repair
+qualification controls. Modal forwards the dedicated app and billing label and
+retains reservations in the same persisted campaign ledger across restarts;
+these are execution estimates/reservations, not provider invoices or a billing
+kill switch. Existing unconfigured QA callers keep their in-memory gate semantics.
+
+`EVALLAB_DISABLE_LOCAL_DOCKER=1` is a hard runtime opt-out even if a caller passes
+`allow_local_docker=True`, and is checked again before execution. Explicit
+`backend="docker"` raises `LocalDockerDisabledError` or returns an unmeasured
+`execution_backend_refused`; `backend="auto"` resolves to Modal without probing
+the laptop's Docker daemon when local execution is disabled. Selecting Modal
+does not grant spend approval: missing approval/cap/ledger/attribution refuses
+before provider calls, and a Modal refusal never falls back to local Docker.
 
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
@@ -715,9 +755,63 @@ experiment matrix receipt — and any identity metadata they declare must match
 the qualification record citing them. A bare `{"reward": ...}` JSON object is
 never measured evidence. A `labeled_trace` requires a verified
 `evallab.trace_label/v1` receipt bound to the asset's dataset, item, and the
-labeled trace itself, with citations resolving verbatim; no production worker
-currently emits that receipt, and a completed `monitor.suspicion` card is raw
-suspicion, never a verified label.
+labeled trace itself, with citations resolving verbatim; a completed
+`monitor.suspicion` card is raw suspicion, never a verified label.
+
+`MisalignmentLiveWorker.verify_and_promote_trace_label(run_id, card_id,
+receipt)` is the producer for that asset kind. It promotes one journaled
+suspicion card only when an *independent* verification receipt — never the
+card's own semantic judgment — proves the label. Two bounded receipt forms
+are recognized (shared with the exporter as
+`evallab.production.asset_exporter.verify_label_proof`):
+
+- `evallab.trace_label_verification/v1` — deterministic verification: the
+  `verdict_rule` must equal the card's tripwire rule, which the worker
+  re-derives by running `scan_prefix` again over the card's frozen prefix so
+  the rule must actually match the observed evidence at the cited step (a
+  semantic card string plus a reward cannot fake it). The
+  `measurement.evidence_ref` must load a recognized measured execution or
+  verifier receipt whose reward equals both the claim and the direction the
+  label asserts (`exploit-pass` -> measured `1.0` unearned pass,
+  `defect-fail` -> measured `0.0` undeserved failure); the receipt itself
+  must declare an executed measurement status and bind the run/task through
+  matching dataset/item ids, task name, or task digest — an unrelated
+  reward-only trial is refused, and the whole source-file digest is frozen
+  into the normalized proof.
+- `evallab.trace_label_adjudication/v1` — explicit ground-truth adjudication
+  naming a validated human adjudicator and a `record` reference that must
+  load a standalone `evallab.trace_label_adjudication_record/v1` source
+  receipt file: schema, human actor, label, and the run/task/trace binding
+  are all checked, and the record's content digest is frozen as
+  `record_sha256` and re-verified at export. A self-declared
+  `{adjudicator, record}` pair alone is never verification. Trust boundary:
+  the record proves a human judgment was recorded — custody and authenticity
+  of the record file (who wrote it, where it lives) belong to the caller.
+
+Either form must bind `run_id`, `dataset_id`, `item_id`, `task_id`, the
+card's `prefix_step`, and the exact `trace_prefix_sha256` the card was scored
+on; every citation in the card and the proof must resolve verbatim against
+an observed executed action step in that frozen prefix (proposed or future
+steps never qualify). Before anything is emitted the declared
+`dataset_id`/`item_id` resolves through the queue's `CorpusRegistry`:
+unregistered, TEST/heldout-sealed, or run-conflicting identities refuse
+promotion (no frozen-evaluation token exists on this path), and the resolved
+item's task must equal the run's committed task. On success the worker emits
+`trace.label_verified` and `asset.verified` (kind `labeled_trace`) with
+deterministic event ids keyed on the source-evidence content digest, so
+promotion is idempotent across retries and restarts; the original card's
+`outcome_verified` stays False. The exporter re-verifies the whole chain —
+the embedded `verification` block must be the canonical normalized proof,
+byte-identical to the promotion event's receipt, and its underlying measured
+or adjudicated evidence must still load with the same whole-source digest —
+so post-promotion tampering is rejected even when the reward is unchanged.
+
+Trial `result.json` supports Harbor's nested `verifier_result.rewards.reward`
+and the native `HarborBackend` summary containing `at`, `mode`, `reward`, and
+`exception`. Native summaries require a nonempty timestamp, an `oracle`, `nop`,
+or `shortcut` mode, a finite reward, and `exception: null`. If both result forms
+are present they must agree, as must every accompanying verifier reward file;
+failed native executions never become measured evidence.
 
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized
@@ -729,6 +823,119 @@ within one dataset. Writes refuse output directories under a symlink
 ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
 only after the complete bundle is on disk.
+
+### Authenticated Modal cloud deployment
+
+`src/evallab/production/modal_cloud.py` deploys the `evallab-cloud-production`
+Modal app. Its `evallab-cloud-store` Volume is mounted at `/data` and retains
+`prod.sqlite`, `cloud-trace-db.sqlite`, `cas/`, the relay outbox, execution
+evidence, and one shared `cloud-spend.json` infrastructure ledger. Import
+consistent SQLite backups, not live database files without their WAL:
+
+```bash
+modal volume create evallab-cloud-store
+modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
+modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
+modal volume put evallab-cloud-store /path/to/cas /cas
+modal deploy --strategy recreate src/evallab/production/modal_cloud.py
+```
+
+Provision `EVALLAB_CLOUD_TOKEN` in the Modal secret
+`evallab-cloud-production-auth` before deployment. All dashboard and data
+requests require that bearer token or a secure HTTP-only session cookie;
+unauthenticated requests return 401. `/auth` is a data-free login page:
+`lab cloud` supplies the token in a browser fragment (never an HTTP query),
+exchanges it for the cookie, and removes the fragment from browser history.
+The installed launcher reads `cloud-url` and owner-only `cloud-token` under
+`~/.local/state/evallab-prod-live/`; `EVALLAB_CLOUD_URL` and
+`EVALLAB_CLOUD_TOKEN` can override them. Never commit those credentials.
+
+The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
+`/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
+and `/api/cloud-db/tasks`. Searches return complete retained records and
+ordered trace steps, without changing source claims into new verification.
+`lab db --cloud QUERY` searches over authenticated HTTPS without opening a
+local database; `lab db --cloud --stats` reports cloud record counts.
+
+One Modal class instance owns both SQLite stores. The web endpoint and worker
+method share that owner; do not deploy a second independent writer against
+the Volume, overwrite an active Volume, or scale its owner above one container.
+Use the **recreate** deployment strategy: a rolling deployment can briefly run
+old and new actor containers with independent SQLite snapshots, even though
+each version has `max_containers=1`.
+The callable `run_cloud_supervisor_step` forwards one explicit step to the
+owner, commits the Volume afterward, and requires an approval string and
+positive infrastructure budget. Both execution workers receive
+`ExecutionBackendConfig(backend="modal", allow_local_docker=False)` and the
+container sets `EVALLAB_DISABLE_LOCAL_DOCKER=1`: no laptop Docker fallback,
+automatic model call, scheduled queue drain, or new training export is enabled
+by opening the dashboard. For example, only under current operator approval:
+
+```bash
+modal run src/evallab/production/modal_cloud.py::run_cloud_supervisor_step \
+  --approval 'Current scoped cloud offload approval' --max-usd 1
+```
+
+### Production supervisor
+
+`evallab.production.ProductionSupervisor` is the thin orchestration layer that
+drives all of the above in one deterministic step. Construct it with the shared
+`ContinuousWorkQueue`, the three live workers, an `OutboxRelay`, and optionally
+a `VerifiedAssetExporter` plus `export_root`. `run_step()` processes at most one
+unit of work per stage in fixed priority order — a claimed
+`misalignment.prefix_audit_task` ingested through the monitor worker and one
+monitor consumer batch, then one `TaskQualityLiveWorker.run_once()`, then one
+`RewardSeekerLiveWorker.run_once()` — so higher-priority systems always get
+their turn first, and a lower-priority worker never claims while
+higher-priority work is queued, leased, failed-but-unresolved, or
+unconsumed-backlog measured on consumer-relevant events: the skipped stage
+reports `status="blocked"` with its `blocked_by` systems, which is distinct
+from genuine idle. Job leases stay owned by
+the workers' own claim/ack/release contracts; the supervisor never completes
+work on their behalf. The seeker's asynchronous `run_once()` is driven
+synchronously on a single supervisor-owned event loop living on a private
+daemon thread (`run_coroutine_threadsafe`), so loop-bound worker clients keep
+one live loop across steps; `supervisor.close()` stops the thread.
+`run_until_idle(max_steps=...)` repeats until a step is
+idle — nothing claimed, nothing meaningful consumed, no export, no errors —
+or the bound is reached, so blocked or failing work can never hang the loop.
+
+After every step — productive, idle, or failed — the supervisor refreshes
+liveness from the journal, emits one `worker.heartbeat` per worker system plus
+a `collector.heartbeat`, and drains the relay outbox (transient broker errors
+leave entries pending for the next step). Heartbeats carry real evidence only:
+the newest journal event timestamp for that system, the last work the
+supervisor observed, live leases from `queue_snapshot()` with per-lease
+`held_seconds`, and `expired_leases` — jobs the supervisor saw leased that
+left the leased set past their deadline without completing, resolved per job
+through `ContinuousWorkQueue.job_state` so an unrelated same-type completion
+never hides a lapse. A live lease is held work, not progress: the first
+observed claim and each lease-deadline extension count as activity, but an
+unchanged lease cannot postpone `stale`. A worker is `stale` when it has no
+journal output and no observed work for longer than `stale_after_seconds`
+(default 10), even while holding a lease; `clock` is injectable for
+deterministic tests and must share the journal's epoch domain. The
+supervisor's own heartbeat and `asset.export` events are marked with an
+`emitter` field and never count as worker activity, so they cannot conceal a
+stalled worker or keep the pipeline busy.
+
+When `asset_batch_threshold` confirmed `asset.verified` events are pending on
+the supervisor's dedicated export consumer cursor, the supervisor derives
+training candidates from the verified events — dataset/item identity, the
+producer-declared mechanism signature (never invented; missing means honest
+rejection), the verified evidence row, and the source
+`asset_event_id` — and calls `export_training_bundle`, which re-verifies every
+candidate fail-closed (TEST/heldout and unverifiable assets land in the
+manifest's `rejections`, never in `training_rows.jsonl`). The bundle is written
+to a unique `export_root/<consumer>-bundle-<boundary>` directory whose
+boundary is the newest `asset.verified` sequence in the window — an immutable
+mark that receipts, heartbeats, and unrelated events can never move — an
+`asset.export` journal event records the manifest, and only then is the export
+cursor acknowledged to that boundary, never beyond the processed window —
+a crash before the acknowledgement replays the identical candidate set into a
+byte-identical bundle, and an acknowledged window is never
+re-scanned, so idle cycles cannot repeat an export. `supervisor.status()`
+returns the same liveness projection without dispatching work.
 
 `TaskQualityLiveWorker` also claims `task_quality.annotation_task` jobs — the
 normalized human severity/rationale records that loaders such as
@@ -767,7 +974,12 @@ committed configuration.
 - `GET /api/state` projects the durable journal to its queue snapshot's global
   sequence. Queue depth includes queued and leased jobs; current lease state owns
   active-worker counts. Partial traces and suspicion cards retain bounded recent
-  payloads. Distinct confirmed assets are counted from `asset.verified` events.
+  payloads. `run_items` separately retains bounded DEV task executions keyed by
+  campaign, dataset, and item, including executions without recorded trace steps.
+  It reports per-system lifecycle, distinct attempts, recorded rewards, submitted
+  job counts, current active leases, and verified asset IDs. Submission does not
+  imply a currently queued or completed job; current leases come from the queue.
+  Distinct confirmed assets are counted from `asset.verified` events.
 - `GET /api/stream` starts with a `state` SSE snapshot and its event-ID cursor,
   then streams shared event envelopes as ordinary messages. Browser `EventSource`
   reconnects with `Last-Event-ID`; replay follows journal sequence, not lexical
@@ -779,12 +991,22 @@ committed configuration.
   Optional `target` defaults to the run; optional `request_id` makes client
   retries idempotent. Reusing a request ID for different content returns HTTP 409.
   The authenticated operator identity cannot be supplied in the body.
+- `GET /api/runs/{run_id}/timeline` and `GET /api/grader-diff?run_id=...`
+  accept paired `dataset_id` and `item_id` selectors. A campaign containing more
+  than one DEV task returns HTTP 409 `ambiguous_run` without the pair; incomplete
+  selectors return HTTP 400, and unknown pairs return HTTP 404. The dashboard
+  carries the selected identity through timeline, diff, and SSE refreshes.
+  `GET /api/grader-diff?asset_id=...` pins the asset's own task and cannot be
+  combined with task selectors. Sealed source lineage still refuses the entire
+  inspection before filesystem reads, even when another DEV task is selected.
 
-An accepted intervention returns HTTP 202 and durably appends
-`operator.control_requested`; it does **not** claim that the executor has paused,
-stopped, or quarantined anything. The monitor consumes the request and records
-`control.requested`, `control.acknowledged`, and finally `control.applied` or
-`control.expired`. Only an applied event changes the displayed run state.
+Interventions are **campaign-wide**: every task execution sharing `run_id` is
+affected, not just the selected task row. An accepted intervention returns HTTP
+202 and durably appends `operator.control_requested`; it does **not** claim that
+the executor has paused, stopped, or quarantined anything. The monitor consumes
+the request and records `control.requested`, `control.acknowledged`, and finally
+`control.applied` or `control.expired`. Only an applied event changes the displayed
+execution state.
 
 ## Outbox relay
 
@@ -795,8 +1017,8 @@ envelope to `evallab.<family>.<token>` with `Nats-Msg-Id` equal to
 crash between ack and mark is repaired by broker deduplication on the next
 drain. Routing is explicit: `trace.*`/`run.*`/monitor capture and seeker
 attempt telemetry go to `evallab.capture.<system>`; `monitor.suspicion`,
-`seeker.exploit_confirmed`/`job_refused`, and `task_quality.*` determinations
-go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
+`seeker.exploit_confirmed`/`job_refused`, `qa.finding/v1` records, and
+`task_quality.*` determinations go to `evallab.findings.<system>`; `control.*`, `executor.*`, `operator.*`,
 `worker.*`, and `*_task` job events go to `evallab.control.<system>`;
 `asset.*`/`verified_asset.*` go to `evallab.assets.<kind>` (payload `kind`,
 default `unknown`). Unknown future types fall back to `evallab.capture.<system>`
@@ -833,8 +1055,11 @@ override those defaults. It refuses to overwrite an existing journal. The URL,
 database path and generated operator token are printed to the terminal; paste the
 token into the dashboard, not a URL. The server remains open after replay so its
 recordings and assets can be inspected. Ctrl-C stops the server and feeder without
-deleting the journal or exports. `serve` requires an existing journal; exports are
-disabled unless `--export-root` is supplied.
+deleting the journal or exports. `serve` attaches to an existing journal without
+starting a feeder or workers; it never drains the queue. Export requires
+`--export-root`. Without an active executor, a control remains a request rather
+than an acknowledgement or applied state. For production inspection, use a
+SQLite online backup when writes to the original journal are not intended.
 
 `--source tb4-dev|mimo|both` admits every recording through `CorpusRegistry` and
 skips effective TEST/heldout identities before opening their trajectories or

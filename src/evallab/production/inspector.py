@@ -39,6 +39,10 @@ _TOKEN = re.compile(r"[\w-]+")
 _SEALED_MESSAGE = "split_sealed: inspection contains sealed corpus material"
 
 
+class AmbiguousRunError(ValueError):
+    """A campaign needs a task selector before its evidence can be inspected."""
+
+
 @runtime_checkable
 class _RunEventJournal(Protocol):
     def read_run_events(
@@ -78,6 +82,8 @@ def _step_id(value: Any) -> str | int | None:
 
 
 def _raw_steps(payload: Mapping[str, Any], *, kind: str = "") -> list[Any]:
+    if kind in {"seeker.attempt_started", "seeker.grader_feedback"}:
+        return []
     steps = payload.get("steps")
     if not isinstance(steps, list):
         partial = payload.get("partial_trace")
@@ -222,27 +228,31 @@ class RunInspector:
                 if run_id is None or event["run_id"] == run_id:
                     yield event
 
-    def _lineage(self, events: Sequence[Mapping[str, Any]]) -> CorpusItem:
+    def _lineage(
+        self, events: Sequence[Mapping[str, Any]]
+    ) -> tuple[dict[tuple[str, str], CorpusItem], dict[str, frozenset[tuple[str, str]]]]:
+        """Validate the whole source graph before resolving each event's task."""
         pending = list(reversed(events))
-        roots = {str(event["event_id"]) for event in events}
-        seen: set[str] = set()
+        sources: dict[str, Mapping[str, Any]] = {}
+        references: dict[str, list[str]] = {}
+        identities: dict[str, frozenset[tuple[str, str]]] = {}
         resolved_items: dict[tuple[str, str], CorpusItem] = {}
-        item: CorpusItem | None = None
-        primary_seq = -1
         while pending:
             event = pending.pop()
             event_id = str(event["event_id"])
-            if event_id in seen:
+            if event_id in sources:
                 continue
-            seen.add(event_id)
+            sources[event_id] = event
+            self._seal.check(event.get("payload"))
+            event_items: set[tuple[str, str]] = set()
+            event_references: list[str] = []
             for payload in _objects(event.get("payload")):
                 if "dataset_id" in payload or "item_id" in payload:
                     dataset_id, item_id = payload.get("dataset_id"), payload.get("item_id")
                     if not isinstance(dataset_id, str) or not isinstance(item_id, str):
                         raise PermissionError("split_sealed: corpus lineage is unresolved")
                     key = dataset_id, item_id
-                    resolved = resolved_items.get(key)
-                    if resolved is None:
+                    if key not in resolved_items:
                         try:
                             resolved = self.registry.get(*key)
                         except KeyError:
@@ -252,46 +262,133 @@ class RunInspector:
                         if resolved.split != "dev":
                             raise PermissionError("split_sealed: effective corpus split is not DEV")
                         resolved_items[key] = resolved
-                    seq = int(event["seq"])
-                    if item is None or (event_id in roots and seq >= primary_seq):
-                        item = resolved
-                        if event_id in roots:
-                            primary_seq = seq
-                references = [
+                    event_items.add(key)
+                event_references.extend(
                     payload[key]
                     for key in ("source_event_id", "qualification_event_id", "job_id")
                     if isinstance(payload.get(key), str) and payload[key]
-                ]
+                )
                 for key in ("source_event_ids", "provenance_event_ids"):
                     values = payload.get(key)
                     if isinstance(values, list):
-                        references.extend(
+                        event_references.extend(
                             value for value in values if isinstance(value, str) and value
                         )
-                for reference in references:
-                    if reference in seen:
-                        continue
-                    source = self.journal.get_event(reference)
-                    if source is None:
-                        raise PermissionError("split_sealed: referenced lineage is unresolved")
-                    pending.append(source)
-        if item is None:
+            references[event_id] = list(dict.fromkeys(event_references))
+            for reference in references[event_id]:
+                if reference in sources:
+                    continue
+                source = self.journal.get_event(reference)
+                if source is None:
+                    raise PermissionError("split_sealed: referenced lineage is unresolved")
+                pending.append(source)
+            # A direct task claim is authoritative for attribution, but never
+            # exempts any other nested/source provenance from DEV validation.
+            payload = _mapping(event.get("payload"))
+            primary = {
+                (value["dataset_id"], value["item_id"])
+                for value in (payload, _mapping(payload.get("asset")))
+                if "dataset_id" in value and "item_id" in value
+            }
+            # Without a direct claim, follow the source before treating nested
+            # provenance as the task itself. Ancillary DEV references may differ.
+            identities[event_id] = frozenset(
+                primary or (event_items if not references[event_id] else ())
+            )
+        attributed = {event_id: pairs for event_id, pairs in identities.items() if pairs}
+        for root in events:
+            root_id = str(root["event_id"])
+            if root_id in attributed:
+                continue
+            pending_ids = [root_id]
+            seen: set[str] = set()
+            pairs: set[tuple[str, str]] = set()
+            while pending_ids:
+                event_id = pending_ids.pop()
+                if event_id in seen:
+                    continue
+                seen.add(event_id)
+                if event_id in attributed:
+                    pairs.update(attributed[event_id])
+                else:
+                    pending_ids.extend(references[event_id])
+            attributed[root_id] = frozenset(pairs)
+        return resolved_items, attributed
+
+    def _selector(self, dataset_id: str | None, item_id: str | None) -> tuple[str, str] | None:
+        if (dataset_id is None) != (item_id is None):
+            raise ValueError("dataset_id and item_id must be supplied together")
+        if dataset_id is None:
+            return None
+        if (
+            not isinstance(dataset_id, str)
+            or not dataset_id.strip()
+            or not isinstance(item_id, str)
+            or not item_id.strip()
+        ):
+            raise ValueError("task selectors must be nonblank strings")
+        self._seal.check({"dataset_id": dataset_id, "item_id": item_id})
+        return dataset_id, item_id
+
+    def _select_events(
+        self,
+        events: Sequence[dict[str, Any]],
+        selector: tuple[str, str] | None,
+        *,
+        asset: Mapping[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], CorpusItem]:
+        items, attributed = self._lineage(events)
+        run_items = {pair for event in events for pair in attributed[str(event["event_id"])]}
+        if not run_items:
             raise PermissionError("split_sealed: registered DEV corpus lineage is required")
-        return item
+        if asset is not None:
+            asset_items = attributed[str(asset["event_id"])]
+            if len(asset_items) == 1:
+                selector = next(iter(asset_items))
+            elif asset_items or len(run_items) > 1:
+                raise ValueError("asset task identity is unresolved or ambiguous")
+        if selector is None:
+            if len(run_items) > 1:
+                raise AmbiguousRunError(
+                    "Campaign contains multiple tasks; supply dataset_id and item_id together"
+                )
+            selector = next(iter(run_items))
+        if selector not in run_items:
+            raise LookupError("selected task item does not belong to this run")
+        selected = []
+        for event in events:
+            kind = str(event["event_type"])
+            if kind == "operator.control_requested" or kind.startswith("control."):
+                selected.append(event)
+                continue
+            pairs = attributed[str(event["event_id"])]
+            if len(pairs) > 1 and selector in pairs:
+                raise ValueError("event task identity is ambiguous")
+            if pairs == {selector} or (not pairs and len(run_items) == 1):
+                selected.append(event)
+        return selected, items[selector]
 
     def _response(self, value: dict[str, Any]) -> dict[str, Any]:
         self._seal.check(value)
         return value
 
-    def timeline(self, run_id: str, *, max_steps: int = 500) -> dict[str, Any]:
-        """Fold real ATIF steps, monitor evidence and executor control transitions."""
+    def timeline(
+        self,
+        run_id: str,
+        *,
+        max_steps: int = 500,
+        dataset_id: str | None = None,
+        item_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Fold one DEV item's evidence and the campaign-wide control transitions."""
         if type(max_steps) is not int or max_steps < 1:
             raise ValueError("max_steps must be a positive integer")
+        selector = self._selector(dataset_id, item_id)
         self._seal.check(run_id)
         events = list(self._events(run_id))
         if not events:
             raise LookupError(run_id)
-        item = self._lineage(events)
+        events, item = self._select_events(events, selector)
         steps: dict[str | int, dict[str, Any]] = {}
         prefixes: list[dict[str, Any]] = []
         cards: dict[str, dict[str, Any]] = {}
@@ -302,6 +399,34 @@ class RunInspector:
         source_kind: str | None = None
         for event in events:
             payload, kind = _payload(event), str(event["event_type"])
+            if kind == "operator.control_requested" or kind.startswith("control."):
+                state = (
+                    "requested"
+                    if kind == "operator.control_requested"
+                    else kind.removeprefix("control.")
+                )
+                if state not in _CONTROL_STATES:
+                    continue
+                request_id = str(payload.get("request_id") or event["event_id"])
+                previous = controls.get(request_id, {})
+                if previous.get("state") in {"applied", "expired"} and state != previous["state"]:
+                    continue
+                control = {**previous, **payload}
+                controls[request_id] = {
+                    "request_id": request_id,
+                    "action": _text(control.get("action")) or "unknown",
+                    "state": state,
+                    "operator": _text(control.get("operator")),
+                    "reason": _text(control.get("reason")),
+                    "event_id": event["event_id"],
+                    "seq": event["seq"],
+                }
+                if state == "applied":
+                    run_state = str(
+                        payload.get("run_state")
+                        or _ACTION_STATES.get(control.get("action"), "running")
+                    )
+                continue
             if isinstance(payload.get("source_kind"), str):
                 source_kind = _text(payload["source_kind"])
             meta = {key: event[key] for key in ("seq", "event_id", "ts")}
@@ -397,33 +522,6 @@ class RunInspector:
                 terminal = kind.rsplit(".", 1)[-1]
                 if terminal not in {"stopped", "cancelled", "canceled"}:
                     run_state = terminal
-            if kind == "operator.control_requested" or kind.startswith("control."):
-                state = (
-                    "requested"
-                    if kind == "operator.control_requested"
-                    else kind.removeprefix("control.")
-                )
-                if state not in _CONTROL_STATES:
-                    continue
-                request_id = str(payload.get("request_id") or event["event_id"])
-                previous = controls.get(request_id, {})
-                if previous.get("state") in {"applied", "expired"} and state != previous["state"]:
-                    continue
-                control = {**previous, **payload}
-                controls[request_id] = {
-                    "request_id": request_id,
-                    "action": _text(control.get("action")) or "unknown",
-                    "state": state,
-                    "operator": _text(control.get("operator")),
-                    "reason": _text(control.get("reason")),
-                    "event_id": event["event_id"],
-                    "seq": event["seq"],
-                }
-                if state == "applied":
-                    run_state = str(
-                        payload.get("run_state")
-                        or _ACTION_STATES.get(control.get("action"), "running")
-                    )
         return self._response(
             {
                 "run_id": run_id,
@@ -570,9 +668,17 @@ class RunInspector:
         return has_steps and has_label
 
     def grader_diff(
-        self, *, run_id: str | None = None, asset_id: str | None = None
+        self,
+        *,
+        run_id: str | None = None,
+        asset_id: str | None = None,
+        dataset_id: str | None = None,
+        item_id: str | None = None,
     ) -> dict[str, Any]:
-        """Compare original/repaired task trees only after effective DEV admission."""
+        """Compare one item's task trees after validating all effective DEV lineage."""
+        selector = self._selector(dataset_id, item_id)
+        if selector is not None and (asset_id is not None or run_id is None):
+            raise ValueError("task selectors require run_id and cannot be combined with asset_id")
         self._seal.check({"run_id": run_id, "asset_id": asset_id})
         selected: dict[str, Any] | None = None
         if asset_id is not None:
@@ -602,7 +708,7 @@ class RunInspector:
         events = list(self._events(run_id))
         if not events:
             raise LookupError(run_id)
-        item = self._lineage(events)
+        events, item = self._select_events(events, selector, asset=selected)
         if asset_id is not None and selected is None and not self._has_trace_label(events):
             raise LookupError(asset_id)
         if selected is not None:

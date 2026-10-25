@@ -1254,6 +1254,7 @@ name = "eval-lab"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "boto3" },
     { name = "daytona" },
     { name = "duckdb" },
     { name = "huggingface-hub" },
@@ -1285,6 +1286,7 @@ dev = [
     { name = "harbor-atif2otel" },
     { name = "hypothesis" },
     { name = "lmnr" },
+    { name = "modal" },
     { name = "openai" },
     { name = "pip" },
     { name = "pytest" },
@@ -1314,6 +1316,7 @@ xplat-verifiers = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.43,<2" },
     { name = "daytona", specifier = ">=0.210.0" },
     { name = "duckdb", specifier = ">=1.5.5,<2" },
     { name = "harbor", extras = ["modal"], marker = "extra == 'laminar'", specifier = "==0.24.0" },
@@ -1340,6 +1343,7 @@ dev = [
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "hypothesis", specifier = ">=6.100,<7" },
     { name = "lmnr", specifier = "==0.7.64" },
+    { name = "modal", specifier = "==1.6.2" },
     { name = "openai", specifier = ">=2,<3" },
     { name = "pip", specifier = "==26.1.2" },
     { name = "pytest", specifier = ">=8.4,<10" },

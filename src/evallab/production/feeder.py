@@ -832,10 +832,16 @@ def run_command(args: argparse.Namespace, root: Path) -> int:
         print(f"Live control plane: http://127.0.0.1:{args.port}/", flush=True)
         print(f"Operator token: {token}", flush=True)
         print(f"Journal: {database}", flush=True)
-        print(
-            "Historical public replay; prefix detection and counterfactual policy gates are computed now. Pause is terminal for a replay run.",
-            flush=True,
-        )
+        if feeder is None:
+            print(
+                "Attached journal only; no workers are started. Control requests require an active executor.",
+                flush=True,
+            )
+        else:
+            print(
+                "Historical public replay; prefix detection and counterfactual policy gates are computed now. Pause is terminal for a replay run.",
+                flush=True,
+            )
         if thread is not None:
             thread.start()
         try:

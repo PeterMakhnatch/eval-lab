@@ -47,7 +47,8 @@ from evallab.production.asset_store import (
     VerifiedAssetStore,
 )
 from evallab.production.dashboard import DASHBOARD
-from evallab.production.inspector import RunInspector
+from evallab.production.inspector import AmbiguousRunError, RunInspector
+from evallab.production.run_catalog import RunCatalog
 from evallab.production.safe_paths import PathOutsideRootsError
 
 SYSTEMS = ("task_quality", "reward_seeker", "misalignment")
@@ -132,6 +133,7 @@ class LiveProjection:
         self.assets: OrderedDict[str, dict] = OrderedDict()
         self.asset_kinds: dict[str, str] = {}
         self.asset_counts: Counter[str] = Counter()
+        self.run_catalog = RunCatalog(max_items=max_runs)
 
     def apply(self, event: Mapping[str, Any]) -> None:
         seq = int(event["seq"])
@@ -157,7 +159,12 @@ class LiveProjection:
             steps = partial.get("steps") if isinstance(partial, dict) else partial
         if not isinstance(steps, list):
             steps = [payload["step"]] if isinstance(payload.get("step"), dict) else []
-        if steps or event.get("prefix_step") is not None:
+        if kind in {"seeker.attempt_started", "seeker.grader_feedback"}:
+            steps = []
+        prefix_only = (
+            kind.startswith(("trace.", "monitor.")) and event.get("prefix_step") is not None
+        )
+        if steps or prefix_only:
             trace = self.traces.get(trace_key) or {
                 "run_id": run_id,
                 "system": system,
@@ -267,6 +274,7 @@ class LiveProjection:
                     },
                     self.max_cards,
                 )
+        self.run_catalog.apply(event)
         self.last_seq, self.cursor = seq, str(event["event_id"])
 
     def state(self, queue: Mapping[str, Any]) -> dict[str, Any]:
@@ -294,6 +302,7 @@ class LiveProjection:
             "last_seq": self.last_seq,
             "queue": dict(queue),
             "systems": systems,
+            "run_items": self.run_catalog.state(queue),
             "partial_traces": traces,
             "suspicion_cards": cards,
             "interventions": list(self.controls.values()),
@@ -500,29 +509,70 @@ def create_app(
             raise HTTPException(503, "Verified Asset Store is not configured")
         return asset_store
 
+    def task_selector(dataset_id: str | None, item_id: str | None) -> None:
+        if (dataset_id is None) != (item_id is None):
+            raise HTTPException(400, "Pass dataset_id and item_id together")
+        if dataset_id is not None and (
+            not dataset_id.strip() or not item_id or not item_id.strip()
+        ):
+            raise HTTPException(400, "Task selectors must be nonblank")
+
     @app.get("/api/runs/{run_id}/timeline")
-    def run_timeline(run_id: str):
+    def run_timeline(run_id: str, dataset_id: str | None = None, item_id: str | None = None):
+        task_selector(dataset_id, item_id)
         try:
-            return inspector_or_503().timeline(run_id)
+            return inspector_or_503().timeline(run_id, dataset_id=dataset_id, item_id=item_id)
+        except AmbiguousRunError as error:
+            raise HTTPException(409, {"code": "ambiguous_run", "message": str(error)}) from error
         except LookupError as error:
-            raise HTTPException(404, "Unknown run") from error
+            raise HTTPException(404, "Unknown run or task item") from error
         except PermissionError as error:
             raise HTTPException(403, {"code": "split_sealed", "message": str(error)}) from error
+        except ValueError as error:
+            raise HTTPException(
+                400,
+                {
+                    "code": "invalid_selection",
+                    "message": "Inspection requires an unambiguous task selection",
+                },
+            ) from error
 
     @app.get("/api/grader-diff")
-    def grader_diff(run_id: str | None = None, asset_id: str | None = None):
+    def grader_diff(
+        run_id: str | None = None,
+        asset_id: str | None = None,
+        dataset_id: str | None = None,
+        item_id: str | None = None,
+    ):
         if (run_id is None) == (asset_id is None):
             raise HTTPException(400, "Pass exactly one of run_id or asset_id")
+        task_selector(dataset_id, item_id)
+        if asset_id is not None and dataset_id is not None:
+            raise HTTPException(400, "An asset already identifies its task item")
         try:
-            return inspector_or_503().grader_diff(run_id=run_id, asset_id=asset_id)
+            return inspector_or_503().grader_diff(
+                run_id=run_id, asset_id=asset_id, dataset_id=dataset_id, item_id=item_id
+            )
+        except AmbiguousRunError as error:
+            raise HTTPException(409, {"code": "ambiguous_run", "message": str(error)}) from error
         except LookupError as error:
-            raise HTTPException(404, "No original/repaired grader pair for this run") from error
+            raise HTTPException(
+                404, "No original/repaired grader pair for this task item"
+            ) from error
         except PathOutsideRootsError as error:
             raise HTTPException(
                 403, {"code": "path_outside_roots", "message": "Task path is outside allowed roots"}
             ) from error
         except PermissionError as error:
             raise HTTPException(403, {"code": "split_sealed", "message": str(error)}) from error
+        except ValueError as error:
+            raise HTTPException(
+                400,
+                {
+                    "code": "invalid_selection",
+                    "message": "Inspection requires an unambiguous task selection",
+                },
+            ) from error
 
     @app.get("/api/assets")
     def assets():

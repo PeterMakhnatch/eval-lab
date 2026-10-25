@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from evallab.production.control_plane import create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
-from evallab.production.inspector import RunInspector
+from evallab.production.inspector import AmbiguousRunError, RunInspector
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 
 _DATASET = "tb4-audit-v1"
@@ -26,7 +26,7 @@ _SEALED_TASK = "synthetic-heldout"
 _SEALED_DIGEST = "sha256:" + "ab" * 32
 
 
-def _corpus(root: Path) -> CorpusRegistry:
+def _corpus(root: Path, *, additional_items: tuple[str, ...] = ()) -> CorpusRegistry:
     keys = root / "research/answer-keys"
     for dataset in (_DATASET, "cheatbench-actions-v1", "hacktrace-act-v1"):
         path = keys / dataset / "items.jsonl"
@@ -34,6 +34,10 @@ def _corpus(root: Path) -> CorpusRegistry:
         rows = (
             [
                 {"item_id": _ITEM, "split": "dev", "subject": {"task_id": "inspector-task"}},
+                *(
+                    {"item_id": item_id, "split": "dev", "subject": {"task_id": item_id}}
+                    for item_id in additional_items
+                ),
                 # Synthetic metadata only: effective sealing follows a heldout task name.
                 {
                     "item_id": _SEALED_ITEM,
@@ -824,3 +828,306 @@ def test_sealed_content_matching_respects_identifier_boundaries(tmp_path: Path) 
         inspector = RunInspector(queue, registry, allowed_roots=[tmp_path / "allowed"])
         assert inspector.timeline(_RUN)["steps"][0]["message"] == safe
         assert inspector.grader_diff(run_id=_RUN)["exploit"]["mechanism"] == safe
+
+
+def test_campaign_inspection_selects_task_evidence_and_real_grader_pairs(tmp_path: Path) -> None:
+    other_item = "inspector-second-dev"
+    registry = _corpus(tmp_path, additional_items=(other_item,))
+    packages: dict[str, tuple[Path, Path]] = {}
+    rewards = {_ITEM: (1.0, 0.0), other_item: (0.75, 0.25)}
+    for item_id in (_ITEM, other_item):
+        original = tmp_path / item_id / "original"
+        repaired = tmp_path / item_id / "repaired"
+        for tree, value in ((original, "before"), (repaired, "after")):
+            tree.mkdir(parents=True)
+            (tree / "verifier.py").write_text(f"{item_id}: {value}\n", encoding="utf-8")
+        packages[item_id] = original, repaired
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        sources = {
+            item_id: _event(
+                queue,
+                "trace.step",
+                {
+                    "item_id": item_id,
+                    "source_kind": "public_rollout",
+                    "step": _step(1, message=f"Trace for {item_id}"),
+                },
+                prefix_step=1,
+            )
+            for item_id in (_ITEM, other_item)
+        }
+        for item_id in (_ITEM, other_item):
+            source_id = sources[item_id]["event_id"]
+            suspicion = _event(
+                queue,
+                "monitor.suspicion",
+                {
+                    "source_event_id": source_id,
+                    "card_id": "shared-card-id",
+                    "summary": f"Finding for {item_id}",
+                    "rule": f"rule-{item_id}",
+                    "step_citations": [1],
+                },
+                status="confirmed",
+                prefix_step=1,
+                registered=False,
+            )
+            _event(
+                queue,
+                "monitor.prefix_scored",
+                {
+                    "source_event_ids": [suspicion["event_id"]],
+                    "assessment": f"Assessment for {item_id}",
+                },
+                prefix_step=1,
+                registered=False,
+            )
+            _event(
+                queue,
+                "monitor.gate_decided",
+                {"provenance": [{"source_event_id": source_id}], "allow": item_id == _ITEM},
+                status="confirmed",
+                prefix_step=1,
+                registered=False,
+            )
+            original, repaired = packages[item_id]
+            outcome = _event(
+                queue,
+                "seeker.exploit_confirmed",
+                {
+                    "item_id": item_id,
+                    "original_task": str(original),
+                    "repaired_task": str(repaired),
+                    "original_reward": rewards[item_id][0],
+                    "repaired_reward": rewards[item_id][1],
+                    # Other DEV provenance is validated, not mistaken for this task.
+                    "provenance": [{"source_event_id": sources[other_item]["event_id"]}],
+                },
+                status="confirmed",
+            )
+            qualification = _event(
+                queue,
+                "task_quality.repair_qualified",
+                {
+                    "source_event_id": outcome["event_id"],
+                    "original_task_package": str(original),
+                    "task_package": str(repaired),
+                    "repaired_task": str(repaired),
+                },
+                status="confirmed",
+                registered=False,
+            )
+            asset_payload: dict[str, Any] = {
+                "asset_id": f"repaired:{item_id}",
+                "kind": "repaired_task",
+                "qualification_event_id": qualification["event_id"],
+                "task_package": str(repaired),
+            }
+            if item_id == other_item:
+                asset_payload.update(dataset_id=_DATASET, item_id=item_id)
+            else:
+                asset_payload["provenance"] = [{"dataset_id": _DATASET, "item_id": other_item}]
+            _event(
+                queue,
+                "asset.verified",
+                {"asset": asset_payload},
+                status="confirmed",
+                registered=False,
+            )
+        _event(
+            queue,
+            "trace.step",
+            {"step": _step(99, message="Unattributed campaign evidence")},
+            registered=False,
+        )
+        request = _event(
+            queue,
+            "operator.control_requested",
+            {"request_id": "campaign-pause", "action": "pause", "reason": "Inspect both tasks"},
+            registered=False,
+        )
+        _event(
+            queue,
+            "control.applied",
+            {
+                "source_event_id": request["event_id"],
+                "request_id": "campaign-pause",
+                "action": "pause",
+                "run_state": "paused",
+            },
+            status="applied",
+            registered=False,
+        )
+        for inspect in (
+            lambda: inspector.timeline(_RUN),
+            lambda: inspector.grader_diff(run_id=_RUN),
+            lambda: inspector.grader_diff(asset_id=f"labeled-trace:{_RUN}"),
+        ):
+            with pytest.raises(AmbiguousRunError) as refusal:
+                inspect()
+            assert _RUN not in str(refusal.value)
+            assert _ITEM not in str(refusal.value) and other_item not in str(refusal.value)
+        for item_id in (_ITEM, other_item):
+            timeline = inspector.timeline(_RUN, dataset_id=_DATASET, item_id=item_id)
+            assert (timeline["dataset_id"], timeline["item_id"]) == (_DATASET, item_id)
+            assert [step["message"] for step in timeline["steps"]] == [f"Trace for {item_id}"]
+            assert [card["summary"] for card in timeline["cards"]] == [f"Finding for {item_id}"]
+            assert [prefix["assessment"] for prefix in timeline["prefixes"]] == [
+                f"Assessment for {item_id}"
+            ]
+            assert timeline["prefixes"][0]["tripwires"] == [f"rule-{item_id}"]
+            assert [gate["decision"] for gate in timeline["gates"]] == [
+                "allow" if item_id == _ITEM else "block"
+            ]
+            assert timeline["run_state"] == "paused"
+            controls = [
+                (control["request_id"], control["state"]) for control in timeline["controls"]
+            ]
+            assert controls == [("campaign-pause", "applied")]
+            by_run = inspector.grader_diff(run_id=_RUN, dataset_id=_DATASET, item_id=item_id)
+            by_asset = inspector.grader_diff(asset_id=f"repaired:{item_id}")
+            for result in (by_run, by_asset):
+                assert (result["dataset_id"], result["item_id"]) == (_DATASET, item_id)
+                assert result["original"]["task_package"] == str(packages[item_id][0])
+                assert result["repaired"]["task_package"] == str(packages[item_id][1])
+                assert result["original"]["reward"] == rewards[item_id][0]
+                assert result["repaired"]["reward"] == rewards[item_id][1]
+                assert result["files"][0]["original"] == f"{item_id}: before\n"
+                assert result["files"][0]["repaired"] == f"{item_id}: after\n"
+
+
+@pytest.mark.parametrize(
+    "selectors",
+    [
+        {"dataset_id": _DATASET},
+        {"item_id": _ITEM},
+        {"dataset_id": "", "item_id": _ITEM},
+        {"dataset_id": _DATASET, "item_id": " "},
+    ],
+)
+def test_inspection_refuses_partial_or_blank_task_selectors(
+    tmp_path: Path, selectors: dict[str, str]
+) -> None:
+    registry = _corpus(tmp_path)
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        _event(queue, "trace.step", {"step": _step(1)})
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        with pytest.raises(ValueError):
+            inspector.timeline(_RUN, **selectors)
+        with pytest.raises(ValueError):
+            inspector.grader_diff(run_id=_RUN, **selectors)
+
+
+def test_inspection_refuses_unknown_task_and_asset_selector_combinations(tmp_path: Path) -> None:
+    other_item = "registered-but-not-in-run"
+    registry = _corpus(tmp_path, additional_items=(other_item,))
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        _event(queue, "trace.step", {"step": _step(1)})
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        for dataset_id, item_id in (
+            (_DATASET, other_item),
+            (_DATASET, "not-registered"),
+            ("not-a-dataset", _ITEM),
+        ):
+            with pytest.raises(LookupError, match="selected task item"):
+                inspector.timeline(_RUN, dataset_id=dataset_id, item_id=item_id)
+            with pytest.raises(LookupError, match="selected task item"):
+                inspector.grader_diff(run_id=_RUN, dataset_id=dataset_id, item_id=item_id)
+        with pytest.raises(ValueError, match="cannot be combined with asset_id"):
+            inspector.grader_diff(asset_id="some-asset", dataset_id=_DATASET, item_id=_ITEM)
+        with pytest.raises(ValueError, match="require run_id"):
+            inspector.grader_diff(dataset_id=_DATASET, item_id=_ITEM)
+
+
+def test_task_selectors_do_not_hide_other_items_sealed_source_provenance(tmp_path: Path) -> None:
+    other_item = "inspector-second-dev"
+    registry = _corpus(tmp_path, additional_items=(other_item,))
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        sealed = _event(
+            queue,
+            "run.started",
+            {"item_id": _SEALED_ITEM},
+            run_id="separate-source",
+            frozen_eval_token=_FROZEN_TOKEN,
+        )
+        _event(
+            queue,
+            "asset.verified",
+            {
+                "asset_id": "selected-dev-asset",
+                "kind": "repaired_task",
+                "original_task": "/must-not-open-before-admission",
+                "repaired_task": "/must-not-open-before-admission",
+                "step": _step(1),
+            },
+            status="confirmed",
+        )
+        _event(
+            queue,
+            "worker.failed",
+            {"item_id": other_item, "job_id": sealed["event_id"]},
+            status="refuted",
+        )
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        for inspect in (
+            lambda: inspector.timeline(_RUN, dataset_id=_DATASET, item_id=_ITEM),
+            lambda: inspector.grader_diff(run_id=_RUN, dataset_id=_DATASET, item_id=_ITEM),
+            lambda: inspector.grader_diff(asset_id="selected-dev-asset"),
+        ):
+            with pytest.raises(PermissionError, match="split_sealed") as refusal:
+                inspect()
+            assert _SEALED_ITEM not in str(refusal.value)
+            assert _SEALED_TASK not in str(refusal.value)
+            assert sealed["event_id"] not in str(refusal.value)
+
+
+def test_multi_item_assets_cannot_guess_an_unattributed_or_conflicting_task(tmp_path: Path) -> None:
+    other_item = "inspector-second-dev"
+    registry = _corpus(tmp_path, additional_items=(other_item,))
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        for item_id in (_ITEM, other_item):
+            _event(queue, "trace.step", {"item_id": item_id, "step": _step(1)})
+        _event(
+            queue,
+            "asset.verified",
+            {"asset_id": "unattributed", "kind": "repaired_task"},
+            status="confirmed",
+            registered=False,
+        )
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        with pytest.raises(ValueError, match="asset task identity"):
+            inspector.grader_diff(asset_id="unattributed")
+        _event(
+            queue,
+            "asset.verified",
+            {
+                "asset_id": "conflicting",
+                "kind": "repaired_task",
+                "asset": {"dataset_id": _DATASET, "item_id": other_item},
+            },
+            status="confirmed",
+        )
+        with pytest.raises(ValueError, match="asset task identity"):
+            inspector.grader_diff(asset_id="conflicting")
+        with pytest.raises(ValueError, match="event task identity"):
+            inspector.timeline(_RUN, dataset_id=_DATASET, item_id=_ITEM)
+
+
+def test_seeker_attempt_phases_do_not_become_trace_steps_or_labeled_trace_assets(
+    tmp_path: Path,
+) -> None:
+    registry = _corpus(tmp_path)
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        for kind in ("seeker.attempt_started", "seeker.grader_feedback"):
+            _event(
+                queue,
+                kind,
+                {"step": {"step_id": 1, "phase": kind.removeprefix("seeker.")}},
+                prefix_step=1,
+            )
+        _event(queue, "seeker.exploit_confirmed", {}, status="confirmed")
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path])
+        assert inspector.timeline(_RUN)["steps"] == []
+        with pytest.raises(LookupError):
+            inspector.grader_diff(asset_id=f"labeled-trace:{_RUN}")

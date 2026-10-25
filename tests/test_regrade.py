@@ -1070,3 +1070,218 @@ def test_heldout_staging_resolves_to_native_cpu_offline_uploaded_tests(
         runner=runner,
     )
     assert set(observed) == {"honest", "copied"}
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("approval", None),
+        ("approval", True),
+        ("approval", " "),
+        ("cap_usd", True),
+        ("cap_usd", float("nan")),
+        ("cap_usd", float("inf")),
+        ("cap_usd", 0),
+        ("usd_per_execution", True),
+        ("usd_per_execution", float("nan")),
+        ("usd_per_execution", -1),
+    ],
+)
+def test_cloud_gate_requires_explicit_approval_and_finite_positive_estimates(name, value):
+    settings = {"approval": "approved fixture", "cap_usd": 1.0, "usd_per_execution": 0.01}
+    settings[name] = value
+    with pytest.raises(ValueError):
+        CloudSpendGate(**settings)
+
+
+@pytest.mark.parametrize(
+    ("app", "tag"),
+    [
+        (None, None),
+        ("owned-app", None),
+        (None, "owned"),
+        ("other-app", "owned"),
+        ("Owned-app", "owned"),
+        ("owned-app", "unsafe/tag"),
+        ("owned-" + "x" * 64, "owned"),
+    ],
+)
+def test_persisted_cloud_gate_requires_native_owned_app_identifiers(tmp_path, app, tag):
+    ledger = tmp_path / "spend.json"
+    with pytest.raises(ValueError):
+        CloudSpendGate(
+            "approved fixture",
+            1.0,
+            0.01,
+            spend_ledger=ledger,
+            modal_app_name=app,
+            billing_tag=tag,
+        )
+    assert not ledger.exists()
+
+
+def test_cloud_gate_restarts_share_native_durable_cap_and_attribution(tmp_path):
+    from evallab.regrade import SpendCapReached
+    from evallab.upstream_grader import _reserve_spend
+
+    ledger = tmp_path / "spend.json"
+    settings = {
+        "approval": "approved durable fixture",
+        "cap_usd": 0.03,
+        "usd_per_execution": 0.01,
+        "spend_ledger": ledger,
+        "modal_app_name": "owned-qa",
+        "billing_tag": "owned",
+    }
+    first = CloudSpendGate(**settings)
+    first.charge()
+    # A native candidate and a restarted QA gate use the same authority.
+    _reserve_spend(
+        ledger,
+        approval=settings["approval"],
+        cap=settings["cap_usd"],
+        reservation={"reserved_usd": 0.01},
+        identity={"primitive": "native-fixture"},
+    )
+    restarted = CloudSpendGate(**settings)
+    restarted.charge()
+    with pytest.raises(SpendCapReached):
+        first.charge()
+    with pytest.raises(SpendCapReached):
+        CloudSpendGate(**settings).charge()
+    assert first.executions == restarted.executions == 1
+    receipt = restarted.to_json()
+    assert receipt["reserved_usd"] == 0.03
+    assert receipt["this_gate_reserved_usd"] == 0.01
+    assert receipt["modal_app_name"] == "owned-qa"
+    assert receipt["billing_tag"] == "owned"
+    assert receipt["spend_ledger"] == str(ledger)
+    persisted = json.loads(ledger.read_text())
+    assert len(persisted["reservations"]) == 3
+    estimates = [
+        entry for entry in persisted["reservations"] if entry.get("primitive") == "qa-execution"
+    ]
+    assert len(estimates) == 2
+    assert all(entry["reserved_usd"] == 0.01 for entry in estimates)
+    assert all(entry["billing_tag"] == "owned" for entry in estimates)
+    assert all(entry["modal_app_name"] == "owned-qa" for entry in estimates)
+
+
+@pytest.mark.parametrize("change", ["approval", "cap", "malformed", "total", "reservation"])
+def test_cloud_gate_refuses_changed_or_malformed_native_ledgers(tmp_path, change):
+    ledger = tmp_path / "spend.json"
+    settings = {
+        "approval": "approved fixture",
+        "cap_usd": 1.0,
+        "usd_per_execution": 0.01,
+        "spend_ledger": ledger,
+        "modal_app_name": "owned-qa",
+        "billing_tag": "owned",
+    }
+    CloudSpendGate(**settings).charge()
+    if change == "approval":
+        settings["approval"] = "different approval"
+    elif change == "cap":
+        settings["cap_usd"] = 2.0
+    else:
+        persisted = json.loads(ledger.read_text())
+        if change == "total":
+            persisted["reserved_usd"] = 0.0
+        elif change == "reservation":
+            persisted["reservations"][0]["reserved_usd"] = float("nan")
+        ledger.write_text("not JSON" if change == "malformed" else json.dumps(persisted))
+    before = ledger.read_bytes()
+    with pytest.raises(ValueError):
+        CloudSpendGate(**settings)
+    assert ledger.read_bytes() == before
+
+
+@pytest.mark.parametrize("environment", ["docker", "modal"])
+def test_regrade_hard_docker_opt_out_and_scoped_cloud_policy(
+    tmp_path, monkeypatch, environment
+):
+    from evallab.execution_backend import LocalDockerDisabledError
+
+    monkeypatch.setattr(regrade_module, "lab_harbor_problem", lambda: None)
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    bridge_key = regrade_module._REGRADE_MODAL_POLICY_ENV
+    monkeypatch.setenv(bridge_key, "unrelated ambient value")
+    source = _trial(tmp_path, "source", {"reward": 1.0})
+    task = _task(tmp_path)
+    gate = CloudSpendGate(
+        "approved snapshot fixture",
+        0.02,
+        0.01,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-snapshot",
+        billing_tag="owned",
+    )
+    invocations = []
+
+    def run(command, **kwargs):
+        policy = json.loads(kwargs["env"][bridge_key])
+        assert policy["approval"] == gate.approval
+        assert policy["cap_usd"] == gate.cap_usd
+        assert policy["spend_ledger"] == str(gate.spend_ledger)
+        assert policy["modal_app_name"] == gate.modal_app_name
+        assert policy["billing_tag"] == gate.billing_tag
+        assert policy["trial_dir"] == str(
+            tmp_path / "out" / command[command.index("--trial-name") + 1]
+        )
+        assert json.loads(Path(policy["spend_ledger"]).read_text())["reserved_usd"] == 0.01
+        invocations.append(command)
+        return _runner_writing({"reward": 0.0})(command)
+
+    kwargs = {
+        "trial_dir": source,
+        "task_dir": task,
+        "trials_dir": tmp_path / "out",
+        "environment": environment,
+        "spend_gate": gate,
+        "runner": run,
+    }
+    if environment == "docker":
+        with pytest.raises(LocalDockerDisabledError):
+            regrade_trial(**kwargs)
+        with pytest.raises(LocalDockerDisabledError):
+            regrade_job(job_dir=tmp_path / "source-job", jobs_dir=tmp_path / "jobs", runner=run)
+        assert not invocations and gate.executions == 0
+    else:
+        receipt = regrade_trial(**kwargs)
+        assert receipt.verdict is RegradeVerdict.TIGHTENED
+        assert len(invocations) == gate.executions == 1
+        assert receipt.invocation.cloud_spend == gate.to_json()
+    assert os.environ[bridge_key] == "unrelated ambient value"
+
+
+@pytest.mark.parametrize("where", ["task", "source", "evidence"])
+def test_cloud_regrade_cannot_write_spend_ledger_inside_inputs_or_evidence(
+    tmp_path, monkeypatch, where
+):
+    monkeypatch.setattr(regrade_module, "lab_harbor_problem", lambda: None)
+    task = _task(tmp_path)
+    source = _trial(tmp_path, "source", {"reward": 1.0})
+    output = tmp_path / "out"
+    root = {"task": task, "source": source, "evidence": output}[where]
+    gate = CloudSpendGate(
+        "approved fixture",
+        1,
+        0.01,
+        spend_ledger=root / "spend.json",
+        modal_app_name="owned-snapshot",
+        billing_tag="owned",
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unsafe ledger reached a subprocess")
+
+    with pytest.raises(ValueError, match="outside immutable"):
+        regrade_trial(
+            trial_dir=source,
+            task_dir=task,
+            trials_dir=output,
+            environment="modal",
+            spend_gate=gate,
+            runner=forbidden,
+        )
+    assert not Path(gate.spend_ledger).exists()

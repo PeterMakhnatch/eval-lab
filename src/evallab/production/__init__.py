@@ -27,6 +27,7 @@ from evallab.production.seeker_worker import (
     build_hackbook_probe_candidate,
     hackbook_probe_template_catalog,
 )
+from evallab.production.supervisor import ProductionSupervisor
 from evallab.production.tq_worker import TaskQualityLiveWorker
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "PermanentPublishError",
     "PoisonQuarantine",
     "PoisonRecord",
+    "ProductionSupervisor",
     "PubAck",
     "RewardSeekerLiveWorker",
     "StoredMessage",

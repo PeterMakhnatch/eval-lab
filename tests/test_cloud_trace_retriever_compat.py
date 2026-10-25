@@ -7,6 +7,7 @@ the default registry class is replaced before it can read any index.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Iterator, Sequence
 from dataclasses import FrozenInstanceError, is_dataclass
@@ -37,8 +38,10 @@ EVERYTHING = 100_000
 
 
 def install_synthetic_state(registry: CorpusRegistry) -> None:
-    registry._assignment_keys = frozenset()
-    registry._assignments = {}
+    authority = b"key_id,item_id,split\nsynthetic-authority,source,dev\n"
+    registry.split_assignments_digest = "sha256:" + hashlib.sha256(authority).hexdigest()
+    registry._assignment_keys = frozenset({"synthetic-authority"})
+    registry._assignments = {("synthetic-authority", "source"): "dev"}
     registry._assignment_names = {}
     registry._assigned_test_ids = set()
     registry._assigned_test_names = set()

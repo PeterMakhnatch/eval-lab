@@ -83,8 +83,12 @@ def _text(value: Any, field: str) -> str:
     return value
 
 
+def _identity(value: str) -> str:
+    return value.strip().casefold()
+
+
 def _split(value: Any) -> str:
-    value = _text(value, "split").lower()
+    value = _identity(_text(value, "split"))
     if value in ("test", "heldout"):
         return "test"
     if value == "dev":
@@ -161,22 +165,33 @@ class CorpusRegistry:
                 "sha256:" + hashlib.sha256(raw_assignments).hexdigest()
             )
             with io.StringIO(raw_assignments.decode("utf-8"), newline="") as stream:
-                for row in csv.DictReader(stream):
-                    key_id = row["key_id"].strip().casefold()
-                    key = key_id, row["item_id"]
-                    split = _split(row["split"])
+                reader = csv.DictReader(stream, strict=True)
+                if reader.fieldnames is not None and (
+                    not {"key_id", "item_id", "split"}.issubset(reader.fieldnames)
+                    or len(set(reader.fieldnames)) != len(reader.fieldnames)
+                ):
+                    raise ValueError("split assignments have an invalid header")
+                for row in reader:
+                    if None in row:
+                        raise ValueError("split assignments have extra row fields")
+                    key_id = _identity(_text(row.get("key_id"), "assignment key_id"))
+                    item_id = _identity(_text(row.get("item_id"), "assignment item_id"))
+                    key = key_id, item_id
+                    split = _split(row.get("split"))
                     assignments[key] = "test" if "test" in (split, assignments.get(key)) else split
                     if row.get("task"):
-                        name_key = key_id, self.task_name(row["task"]).casefold()
+                        name = self.task_name(row["task"])
+                        if not name:
+                            raise ValueError("split assignments have an empty task name")
+                        name_key = key_id, name
                         self._assignment_names[name_key] = (
                             "test" if "test" in (split, self._assignment_names.get(name_key)) else split
                         )
                     if split == "test":
-                        self._assigned_test_ids.add(row["item_id"])
+                        self._assigned_test_ids.add(item_id)
                         if row.get("task"):
-                            self._assigned_test_names.add(self.task_name(row["task"]).casefold())
-                    # Only canonical corpus keys seal task names globally; secondary
-                    # keys tighten only their own (key_id, item_id) rows.
+                            self._assigned_test_names.add(self.task_name(row["task"]))
+                    # Secondary assignments do not become global queue seals.
                     if split == "test" and row.get("task") and key_id in DATASETS:
                         self._sealed_names.add(self.task_name(row["task"]))
         self._assignments = assignments
@@ -196,15 +211,18 @@ class CorpusRegistry:
         inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
         if inventory.get("dataset_id") != "mimo-defect-map-v1":
             raise ValueError("MiMo inventory dataset_id does not match mimo-defect-map-v1")
-        heldout = set(inventory["heldout_task_ids_excluded_from_training_all_versions"])
-        self._sealed_names.update(self.task_name(task) for task in heldout)
+        heldout = {
+            self.task_name(task)
+            for task in inventory["heldout_task_ids_excluded_from_training_all_versions"]
+        }
+        self._sealed_names.update(heldout)
         for row in inventory["tasks"]:
             source_row = row
             row = {
                 **row,
                 "item_id": row["record_id"],
                 "split": "test"
-                if row["task_id"] in heldout
+                if self.task_name(row["task_id"]) in heldout
                 or row.get("heldout_excluded_from_training_all_versions")
                 else "dev",
                 "subject": {"task_id": row["task_id"], "task_digest": row.get("package_digest")},
@@ -215,8 +233,8 @@ class CorpusRegistry:
 
     @staticmethod
     def task_name(task: str) -> str:
-        """The canonical task name: version suffixes and namespace prefixes drop."""
-        return task.split("@", 1)[0].rsplit("/", 1)[-1]
+        """The normalized task name, without namespace prefixes or version suffixes."""
+        return _identity(task.rsplit("/", 1)[-1].split("@", 1)[0])
 
     def _add(
         self,
@@ -228,9 +246,9 @@ class CorpusRegistry:
         source_record: dict[str, Any] | None = None,
     ) -> None:
         item_id = _text(row.get("item_id"), "item_id")
-        if row.get("key_id", dataset) != dataset:
+        if _identity(_text(row.get("key_id", dataset), "key_id")) != _identity(dataset):
             raise ValueError(f"corpus key_id does not match {dataset}")
-        key = dataset, item_id
+        key = _identity(dataset), _identity(item_id)
         split = _split(row.get("split", assignments.get(key)))
         if assignments.get(key) == "test":
             split = "test"
@@ -243,18 +261,18 @@ class CorpusRegistry:
             raise ValueError(f"duplicate corpus item: {dataset}/{item_id}")
         self._items[key] = item
         if split == "test":
-            self._sealed_ids.add(item_id)
+            self._sealed_ids.add(_identity(item_id))
             if task_id:
                 self._sealed_names.add(self.task_name(task_id))
             if digest:
-                self._sealed_digests.add(digest)
+                self._sealed_digests.add(_identity(digest))
 
     def _effective_split(self, item: CorpusItem) -> str:
         if (
             item.split == "test"
-            or item.item_id in self._sealed_ids
-            or (item.task_id is not None and self.task_name(item.task_id) in self._sealed_names)
-            or (item.task_digest is not None and item.task_digest in self._sealed_digests)
+            or self.sealed_identity(
+                item_id=item.item_id, task_id=item.task_id, task_digest=item.task_digest,
+            ) is not None
         ):
             return "test"
         return "dev"
@@ -272,11 +290,11 @@ class CorpusRegistry:
         sealed stay sealed wherever they reappear, including inside external
         registrations and nested provenance. ``None`` means unsealed.
         """
-        if item_id is not None and item_id in self._sealed_ids:
+        if item_id is not None and _identity(item_id) in self._sealed_ids:
             return "item_id"
         if task_id is not None and self.task_name(task_id) in self._sealed_names:
             return "task name"
-        if task_digest is not None and task_digest in self._sealed_digests:
+        if task_digest is not None and _identity(task_digest) in self._sealed_digests:
             return "task digest"
         return None
 
@@ -287,9 +305,20 @@ class CorpusRegistry:
             | self._assigned_test_names
         )
 
+    def has_assignment_authority(self) -> bool:
+        """Whether a validated, nonempty split ledger was loaded into this registry."""
+        digest = getattr(self, "split_assignments_digest", None)
+        return (
+            isinstance(digest, str)
+            and digest.startswith("sha256:")
+            and len(digest) == 71
+            and all(char in "0123456789abcdef" for char in digest[7:])
+            and bool(getattr(self, "_assignments", None))
+        )
+
     def has_split_assignments(self, key_id: str) -> bool:
         """Whether this key has authoritative per-item split assignments."""
-        return key_id.strip().casefold() in self._assignment_keys
+        return _identity(key_id) in self._assignment_keys
 
     def assigned_split(
         self, key_id: str, *, item_id: str | None = None, task_id: str | None = None,
@@ -300,13 +329,15 @@ class CorpusRegistry:
         across item-id/name aliases; ``None`` means no explicit assignment and
         must not authorize a DEV row for a key with split assignments.
         """
-        key_id = key_id.strip().casefold()
+        key_id = _identity(key_id)
+        item_id = None if item_id is None else _identity(item_id)
+        task_id = None if task_id is None else _identity(task_id)
         candidates = [
             self._assignments.get((key_id, item_id)) if item_id is not None else None,
             self._assignments.get((key_id, task_id)) if task_id is not None else None,
             self._assignments.get((key_id, self.task_name(task_id)))
             if task_id is not None else None,
-            self._assignment_names.get((key_id, self.task_name(task_id).casefold()))
+            self._assignment_names.get((key_id, self.task_name(task_id)))
             if task_id is not None else None,
         ]
         if "test" in candidates:
@@ -322,19 +353,19 @@ class CorpusRegistry:
         retains a secondary key's local split contract.
         """
         return (
-            item_id is not None and item_id in self._assigned_test_ids
+            item_id is not None and _identity(item_id) in self._assigned_test_ids
         ) or (
             task_id is not None
             and (
-                task_id in self._assigned_test_ids
+                _identity(task_id) in self._assigned_test_ids
                 or self.task_name(task_id) in self._assigned_test_ids
-                or self.task_name(task_id).casefold() in self._assigned_test_names
+                or self.task_name(task_id) in self._assigned_test_names
             )
         )
 
     def get(self, dataset_id: str, item_id: str) -> CorpusItem:
         """Resolve native identifiers, raising KeyError for unregistered input."""
-        item = self._items[dataset_id, item_id]
+        item = self._items[_identity(dataset_id), _identity(item_id)]
         # Defensive copies keep callers from changing future admission metadata.
         return CorpusItem(
             item.dataset_id,
@@ -351,6 +382,7 @@ class CorpusRegistry:
         self, *, dataset_id: str | None = None, split: str | None = None
     ) -> tuple[CorpusItem, ...]:
         split = None if split is None else _split(split)
+        dataset_id = None if dataset_id is None else _identity(dataset_id)
         return tuple(
             self.get(dataset, item_id)
             for (dataset, item_id), item in self._items.items()
@@ -385,12 +417,12 @@ class CorpusRegistry:
         """
         dataset_id = _text(item.dataset_id, "dataset_id")
         item_id = _text(item.item_id, "item_id")
-        if dataset_id in DATASETS:
+        if _identity(dataset_id) in DATASETS:
             raise ValueError(f"external registration cannot write canonical dataset {dataset_id}")
         split = _split(item.split)
         task_id = None if item.task_id is None else _text(item.task_id, "task_id")
         digest = None if item.task_digest is None else _text(item.task_digest, "task_digest")
-        key = dataset_id, item_id
+        key = _identity(dataset_id), _identity(item_id)
         existing = self._items.get(key)
         if existing is not None:
             if (

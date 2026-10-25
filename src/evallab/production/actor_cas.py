@@ -291,13 +291,17 @@ def _verify_published(parent: int, destination_name: str, staging: int) -> None:
         raise ValueError("published directory is not the staged directory")
 
 
-def publish_staged_directory(staging: Path, destination: Path) -> None:
+def publish_staged_directory(
+    staging: Path, destination: Path, *, expected: os.stat_result | None = None,
+) -> None:
     """Publish a complete sibling tree atomically, without replacing any entry.
 
     Both paths must have the same existing, symlink-free parent. The staging
     root must be a real directory. Its contents remain the caller's responsibility.
     The caller must exclusively own the staging tree and keep its ancestry stable.
-    Unsupported atomic no-clobber platforms fail closed; no rename fallback exists.
+    When ``expected`` is given, the staging entry must still be that directory
+    before anything is renamed, so work written into a swapped tree is never
+    published. Unsupported atomic no-clobber platforms fail closed.
     """
     staging_path, destination_path = _path(staging), _path(destination)
     if staging_path.parent != destination_path.parent or staging_path == destination_path:
@@ -305,6 +309,11 @@ def publish_staged_directory(staging: Path, destination: Path) -> None:
     with _directory(staging_path.parent) as parent:
         descriptor = os.open(staging_path.name, _DIRECTORY_FLAGS, dir_fd=parent)
         try:
+            status = os.fstat(descriptor)
+            if expected is not None and (status.st_dev, status.st_ino) != (
+                expected.st_dev, expected.st_ino,
+            ):
+                raise ValueError("staging directory is no longer the one this run created")
             os.fsync(descriptor)
             _publish_no_replace(parent, staging_path.name, destination_path.name)
             try:

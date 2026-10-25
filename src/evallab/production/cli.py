@@ -467,7 +467,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
             stream.flush()
             os.fsync(stream.fileno())
         try:
-            publish_staged_directory(staging, output)
+            publish_staged_directory(staging, output, expected=staging_status)
         except PublicationUncertainError:
             # The rename succeeded, so this bundle may be complete at the output
             # path. Report the uncertainty and never delete what may be published.

@@ -588,6 +588,22 @@ def test_staging_renamed_midflight_never_leaves_a_partial_destination(
     _assert_unpublished(root, destination)
 
 
+def test_publication_refuses_a_staging_tree_that_was_swapped(root: Path) -> None:
+    staging, foreign, destination = root / "private-staging", root / "foreign", root / "published"
+    for directory in (staging, foreign):
+        directory.mkdir(mode=0o700)
+    (staging / "staged").write_bytes(b"validated bytes")
+    (foreign / "unrelated").write_bytes(b"unrelated bytes")
+    expected = actor_cas.directory_status(staging)
+    staging.rename(root / "moved-staging")
+    foreign.rename(staging)
+
+    with pytest.raises(ValueError, match="no longer the one this run created"):
+        publish_staged_directory(staging, destination, expected=expected)
+    assert not destination.exists()
+    assert (staging / "unrelated").read_bytes() == b"unrelated bytes"
+
+
 def test_publication_of_a_substituted_tree_is_reported_not_accepted(
     root: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -932,6 +932,13 @@ ordered trace steps, without changing source claims into new verification.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 
+The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
+**Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained
+DEV-only `evallab.swarm_bench/v1` reports and `evallab.arm_comparison/v1`
+documents (arms A single strong model, B cheap swarm, C swarm plus Opus
+adjudicator) from `/data/benchmarks/*.json` with exact-byte SHA-256 digests;
+invalid or non-DEV files are reported under `rejected`, never rendered.
+
 One Modal class instance owns both SQLite stores. The web endpoint and worker
 method share that owner; do not deploy a second independent writer against
 the Volume, overwrite an active Volume, or scale its owner above one container.

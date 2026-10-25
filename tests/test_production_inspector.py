@@ -491,6 +491,38 @@ def test_grader_diff_compares_real_trees_and_asset_qualification_lineage(tmp_pat
             inspector.grader_diff(run_id="different-run", asset_id="witness:fixture")
 
 
+def test_grader_diff_renders_unverified_replay_observation_without_asset_or_exploit_events(
+    tmp_path: Path,
+) -> None:
+    registry = _corpus(tmp_path)
+    original, repaired = _trees(tmp_path / "allowed")
+    with ContinuousWorkQueue(tmp_path / "queue.sqlite", registry=registry) as queue:
+        inspector = RunInspector(queue, registry, allowed_roots=[tmp_path / "allowed"])
+        _event(
+            queue,
+            "seeker.replay_observation",
+            {
+                "kind": "exploit_witness",
+                "original_task": str(original),
+                "repaired_task": str(repaired),
+                "snapshot_status": "snapshot_unverified",
+                "snapshot_missing": ["scorer"],
+                "recorded_rewards": {"original": 1, "repaired": 0},
+                "finding": {"mechanism": "Recorded shortcut", "taxonomy_class": "weak_check"},
+            },
+        )
+        result = inspector.grader_diff(run_id=_RUN)
+        assert (result["dataset_id"], result["item_id"]) == (_DATASET, _ITEM)
+        assert result["original"]["task_package"] == str(original)
+        assert result["repaired"]["task_package"] == str(repaired)
+        # Recorded rewards are not a measured differential; the diff must not assert one.
+        assert result["original"]["reward"] is None and result["repaired"]["reward"] is None
+        check = next(file for file in result["files"] if file["path"] == "tests/test_output.py")
+        assert check["status"] == "modified" and "+assert output == 42" in check["unified_diff"]
+        with TestClient(create_app(queue, inspector=inspector)) as client:
+            assert client.get("/api/grader-diff", params={"run_id": _RUN}).status_code == 200
+
+
 def test_grader_diff_refuses_effective_sealed_lineage_before_paths(tmp_path: Path) -> None:
     registry = _corpus(tmp_path)
     assert registry.get(_DATASET, "synthetic-alias").split == "test"

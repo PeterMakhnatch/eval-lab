@@ -727,9 +727,11 @@ class RunInspector:
         bundle: Path | None = None
         for event in events:
             kind, payload = str(event["event_type"]), _payload(event)
-            if kind not in {"asset.verified", "seeker.exploit_confirmed"} and not kind.startswith(
-                "task_quality.repair_"
-            ):
+            if kind not in {
+                "asset.verified",
+                "seeker.exploit_confirmed",
+                "seeker.replay_observation",
+            } and not kind.startswith("task_quality.repair_"):
                 continue
             is_repaired = (
                 payload.get("kind") == "repaired_task" or "original_task_package" in payload

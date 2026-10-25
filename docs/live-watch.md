@@ -81,10 +81,16 @@ Scoring is incremental: `monitor_worker.IncrementalPrefixState` owns one
 `tripwires.PrefixScanner` per run, so a newly observed step is scored once and the
 cross-step rules advance their own carried state instead of rescanning steps 1..k
 (`scan_prefix` remains the offline/batch reference). The run state also maintains
-an O(1) rolling SHA-256 prefix digest (`trace_prefix_sha256`), incremental
+an incremental SHA-256 prefix digest (`trace_prefix_sha256`), incremental
 capture-coverage tracking, and the rolling identical-command run and completion
 counters the run alarm reads, so `repetition`/`completion_loop` fire once at the
 prefix step that first crossed their threshold and carry a real cited step.
+Digest finalization and immutable card-prefix snapshots are O(1); appending hashes
+only the new step's bytes. Semantic triage and offline promotion materialize the
+snapshot outside the scoring path. Amended or out-of-order steps explicitly replay
+the observed prefix instead of double-counting an action. Whole-worker strict O(1)
+is not guaranteed: emitted coverage lists, cross-step evidence matching, and input
+step size are variable. The measured latency target is separate from complexity.
 `monitor.coverage_gap` distinguishes missing reasoning/tool capture from a clean
 run; ordinary assistant prose is not proof that reasoning was captured. A supplied
 `trace_cheap.JudgeFn` triages triggered prefixes on a separate thread. No judge or
@@ -97,15 +103,21 @@ An independently evidenced label is promoted only through the explicit
 
 Scoring an *early* prefix of a finished trace is a different measurement, so it is
 declared, not inferred. `MisalignmentLiveWorker(prefix_fraction=0.25|0.5|0.75)`
-truncates batch `payload.steps` snapshots to `ceil(prefix_fraction * n_agent_steps)`
-and withholds every post-run artifact before the monitor sees it: a verifier step is
-dropped whole, `outcome`/`passed`/`resolved`/`verifier_result`/`verifier_stdout`/`grader_output`/`reward`/`final_reward`
-fields are stripped from steps and event payloads (failing closed on over-deep
+truncates batch `payload.steps` snapshots, ordered by step ID, to
+`ceil(prefix_fraction * n_agent_steps)` and strips structured post-run fields.
+Verifier steps are dropped whole; `outcome`, `passed`, `resolved`, `verifier_result`,
+`verifier_stdout`, `grader_output`, `reward` and `final_reward` are removed
+from steps and payloads (failing closed on over-deep
 nesting), and `monitor.prefix_scored.payload.causal_isolation` counts exactly what
 was withheld. At the default `prefix_fraction=1.0` the trace is finished and
 nothing is withheld. Without this the verifier's verdict — which only exists after
 the agent's last action — leaks into an "early warning" measurement and the result
 is retrospective diagnosis, not causal detection.
+Recovery applies the same isolation and refuses a checkpoint from a different
+`prefix_fraction`. Single-step events are already observed prefixes: replay callers
+must stop feeding them at their chosen cutoff; the worker cannot infer a live run's
+future length.
+
 Sandbox executors call `pre_action_gate(run_id, proposed_step)` synchronously
 before a tool action and honor its `allow` result; proposed actions never become
 observed evidence merely because the gate inspected them. The gate does not wait

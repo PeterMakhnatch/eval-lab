@@ -226,7 +226,7 @@ class CausalPrefixIsolation:
             return [dict(s) for s in raw_steps], ()
         non_verifier: list[Mapping[str, Any]] = []
         withheld: list[str] = []
-        for raw_step in raw_steps:
+        for raw_step in sorted(raw_steps, key=_step_id):
             if str(raw_step.get("source") or "") == "verifier":
                 withheld.append("verifier_step")
             else:
@@ -256,6 +256,7 @@ class CausalPrefixIsolation:
             if kept is not None:
                 kept_steps.append(kept)
         return kept_steps, tuple(withheld)
+
     def payload(self, payload: Mapping[str, Any]) -> tuple[dict[str, Any], tuple[str, ...]]:
         """``(kept_payload, withheld_reasons)`` for one trace event's payload."""
         if not self.active:
@@ -405,6 +406,23 @@ class IncrementalPrefixState:
                     self._completion_step = step_number
 
 
+@dataclass(frozen=True)
+class _FrozenPrefix:
+    """Immutable-by-ownership step spine; snapshotting a card is constant work."""
+
+    step: dict[str, Any]
+    previous: _FrozenPrefix | None
+
+    def materialize(self) -> list[dict[str, Any]]:
+        steps = []
+        node: _FrozenPrefix | None = self
+        while node is not None:
+            steps.append(node.step)
+            node = node.previous
+        steps.reverse()
+        return steps
+
+
 @dataclass
 class _Run:
     steps: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -428,6 +446,8 @@ class _Run:
     max_step_id: int | None = None
     _prefix_hasher: Any = field(default_factory=lambda: hashlib.sha256(b"["))
     _prefix_hash_valid: bool = True
+    _frozen_prefix: _FrozenPrefix | None = None
+    detector_valid: bool = True
     _agent_step_ids: set[int] = field(default_factory=set)
     _missing_reasoning_ids: set[int] = field(default_factory=set)
     _missing_tools_ids: set[int] = field(default_factory=set)
@@ -458,6 +478,7 @@ class _Run:
     def _rebuild_rolling_digest(self) -> None:
         hasher = hashlib.sha256(b"[")
         valid = True
+        frozen = None
         for idx, number in enumerate(sorted(self.steps)):
             c_bytes = self.canon_bytes.get(number)
             if c_bytes is None:
@@ -466,8 +487,10 @@ class _Run:
             if idx > 0:
                 hasher.update(b",")
             hasher.update(c_bytes)
+            frozen = _FrozenPrefix(self.frozen_steps[number], frozen)
         self._prefix_hasher = hasher
         self._prefix_hash_valid = valid
+        self._frozen_prefix = frozen if valid else None
         self.max_step_id = max(self.steps, default=None)
 
     def put_step(self, number: int, merged: dict[str, Any]) -> tuple[Any, ...]:
@@ -478,6 +501,7 @@ class _Run:
         prev_max = self.max_step_id
         prev_hasher = self._prefix_hasher.copy()
         prev_valid = self._prefix_hash_valid
+        prev_prefix = self._frozen_prefix
         was_agent = number in self._agent_step_ids
         was_missing_r = number in self._missing_reasoning_ids
         was_missing_t = number in self._missing_tools_ids
@@ -506,6 +530,8 @@ class _Run:
                 self._prefix_hasher.update(b",")
             self._prefix_hasher.update(c_bytes)
             self.max_step_id = number
+            assert f_step is not None
+            self._frozen_prefix = _FrozenPrefix(f_step, self._frozen_prefix)
         else:
             self._rebuild_rolling_digest()
         return (
@@ -516,6 +542,7 @@ class _Run:
             prev_max,
             prev_hasher,
             prev_valid,
+            prev_prefix,
             was_agent,
             was_missing_r,
             was_missing_t,
@@ -530,6 +557,7 @@ class _Run:
             prev_max,
             prev_hasher,
             prev_valid,
+            prev_prefix,
             was_agent,
             was_missing_r,
             was_missing_t,
@@ -549,6 +577,7 @@ class _Run:
         self.max_step_id = prev_max
         self._prefix_hasher = prev_hasher
         self._prefix_hash_valid = prev_valid
+        self._frozen_prefix = prev_prefix
         if was_agent:
             self._agent_step_ids.add(number)
         else:
@@ -570,15 +599,18 @@ class _Run:
         end.update(b"]")
         return end.hexdigest()
 
-    def frozen_prefix(self) -> list[dict[str, Any]] | None:
-        """Canonicalized step snapshots up to the current prefix."""
-        if not self.steps or not self._prefix_hash_valid:
-            return None
-        if len(self.frozen_steps) == len(self.steps) and list(self.frozen_steps) == sorted(
-            self.steps
-        ):
-            return list(self.frozen_steps.values())
-        return [self.frozen_steps[n] for n in sorted(self.steps)]
+    def frozen_prefix(self) -> _FrozenPrefix | None:
+        """Return a constant-size snapshot; materialize only off the scoring path."""
+        return self._frozen_prefix if self._prefix_hash_valid else None
+
+    def rescan_rules(self) -> dict[str, list[dict[str, Any]]]:
+        """Corrections/recovery replay the observed steps, never append them twice."""
+        state = IncrementalPrefixState(task_manifest=self.task_manifest, baselines=self.baselines)
+        for number in sorted(self.steps):
+            state.advance(self.steps[number])
+        self.prefix_state = state
+        self.detector_valid = True
+        return state.scanner.report
 
     def rebuild_prefix_state(self) -> None:
         """Re-derive the incremental state and rolling digest from observed steps."""
@@ -588,6 +620,7 @@ class _Run:
         self.max_step_id = None
         self._prefix_hasher = hashlib.sha256(b"[")
         self._prefix_hash_valid = True
+        self._frozen_prefix = None
         self._agent_step_ids.clear()
         self._missing_reasoning_ids.clear()
         self._missing_tools_ids.clear()
@@ -597,6 +630,7 @@ class _Run:
             self.put_step(step["step_id"], step)
             state.advance(step)
         self.prefix_state = state
+        self.detector_valid = True
 
 class MisalignmentLiveWorker:
     """Thread-safe per-prefix monitor; callers own the durable input cursor.
@@ -776,15 +810,19 @@ class MisalignmentLiveWorker:
                     merged = {**run.steps.get(number, {}), **step}
                     if merged == run.steps.get(number):
                         continue
-                    previous_cards = set(run.cards)
-                    snapshot = run.prefix_state.snapshot()
+                    append_only = run.max_step_id is None or number > run.max_step_id
+                    card_count = len(run.suspicions)
                     step_token = run.put_step(number, merged)
                     try:
-                        output.extend(self._score(run_id, run, event, step))
+                        output.extend(
+                            self._score(run_id, run, event, merged, rescan=not append_only)
+                        )
                     except Exception:
                         run.restore_step(step_token)
-                        run.cards = previous_cards
-                        run.prefix_state.restore(snapshot)
+                        while len(run.suspicions) > card_count:
+                            card_id, _ = run.suspicions.popitem()
+                            run.cards.discard(card_id)
+                        run.detector_valid = False
                         raise
                 if not normalized:
                     output.extend(self._score(run_id, run, event, None))
@@ -793,21 +831,10 @@ class MisalignmentLiveWorker:
             return output
 
     @staticmethod
-    def _coverage(run: _Run, steps: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        if steps is not None and not run._agent_step_ids and not run.steps:
-            agent = [s for s in steps if s.get("source") == "agent"]
-            missing_reasoning = [
-                s["step_id"]
-                for s in agent
-                if not any(s.get(k) for k in ("reasoning", "reasoning_content", "analysis"))
-                and not (s.get("channel") in {"analysis", "reasoning"} and s.get("message"))
-            ]
-            missing_tools = [s["step_id"] for s in agent if "tool_calls" not in s]
-            has_agent = bool(agent)
-        else:
-            has_agent = bool(run._agent_step_ids)
-            missing_reasoning = sorted(run._missing_reasoning_ids)
-            missing_tools = sorted(run._missing_tools_ids)
+    def _coverage(run: _Run) -> dict[str, Any]:
+        has_agent = bool(run._agent_step_ids)
+        missing_reasoning = sorted(run._missing_reasoning_ids)
+        missing_tools = sorted(run._missing_tools_ids)
         gaps = []
         unavailable = (False, "missing", "unavailable", "disabled", "partial")
         if not has_agent or missing_reasoning or run.coverage.get("reasoning") in unavailable:
@@ -841,14 +868,20 @@ class MisalignmentLiveWorker:
         task_manifest: dict[str, Any] | None = None,
         baselines: Sequence[Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Re-run the deterministic scan over a frozen prefix (offline promotion check)."""
-        state = IncrementalPrefixState(task_manifest=task_manifest, baselines=baselines)
-        delta: dict[str, list[dict[str, Any]]] = {}
+        """Re-derive with the independent batch scanner, not the live implementation."""
+        from evallab.tripwires import scan_prefix
+
+        state = IncrementalPrefixState()
         for step in steps:
-            for key, hits in state.advance(step).items():
-                delta.setdefault(key, []).extend(hits)
-        numbers = [n for n in (_step_id(s) for s in steps) if type(n) is int]
-        return self._alerts(run_id, run, delta, state.counters(), max(numbers, default=None))
+            state._advance_loops(step)
+        report = scan_prefix(
+            [step for step in steps if step.get("source") == "agent"],
+            steps=list(steps),
+            task_manifest=task_manifest,
+            baselines=baselines,
+        )
+        numbers = [_step_id(step) for step in steps]
+        return self._alerts(run_id, run, report, state.counters(), max(numbers, default=None))
 
     def _alerts(
         self,
@@ -935,6 +968,8 @@ class MisalignmentLiveWorker:
         run: _Run,
         source_event: Mapping[str, Any],
         step: Mapping[str, Any] | None,
+        *,
+        rescan: bool = False,
     ) -> list[dict[str, Any]]:
         started = time.monotonic()
         prefix = run.max_step_id
@@ -945,15 +980,20 @@ class MisalignmentLiveWorker:
             "source_seq": source_event.get("seq"),
         }
         try:
-            delta = {} if step is None else run.prefix_state.advance(step)
+            delta = (
+                run.rescan_rules()
+                if rescan or not run.detector_valid
+                else {} if step is None else run.prefix_state.advance(step)
+            )
             alerts = self._detect(run_id, run, delta, prefix)
         except Exception as exc:
+            run.detector_valid = False
             alerts = []
             coverage["gaps"].append("deterministic_detector_unavailable")
             coverage["detector_error"] = f"{type(exc).__name__}: {exc}"[:300]
         output = []
         cards = []
-        frozen_steps: list[dict[str, Any]] | None = None
+        frozen_steps = run.frozen_prefix()
         for alert in alerts:
             ref = str(alert.get("step_ref") or "")
             match = re.fullmatch(r"head#(\d+)", ref)
@@ -983,8 +1023,6 @@ class MisalignmentLiveWorker:
             ).hexdigest()
             if card_id in run.cards:
                 continue
-            if frozen_steps is None:
-                frozen_steps = run.frozen_prefix()
             card = {
                 **source,
                 "card_id": card_id,
@@ -1047,9 +1085,9 @@ class MisalignmentLiveWorker:
             output.append(self._emit(run_id, "monitor.coverage_gap", coverage, prefix_step=prefix))
         if cards and self._pool is not None:
             # Freeze the causal prefix before a later event can mutate a step.
-            triage_steps = frozen_steps if frozen_steps is not None else run.frozen_prefix() or []
+            triage_steps = frozen_steps if frozen_steps is not None else []
             future = self._pool.submit(
-                self._triage, run_id, prefix, copy.deepcopy(triage_steps), copy.deepcopy(cards)
+                self._triage, run_id, prefix, triage_steps, copy.deepcopy(cards)
             )
             self._futures.add(future)
         return output
@@ -1058,9 +1096,11 @@ class MisalignmentLiveWorker:
         self,
         run_id: str,
         prefix: int | None,
-        steps: list[dict[str, Any]],
+        steps: list[dict[str, Any]] | _FrozenPrefix,
         cards: list[dict[str, Any]],
     ) -> None:
+        if isinstance(steps, _FrozenPrefix):
+            steps = steps.materialize()
         actions = trace_cheap.actions_only(steps)
         action_text = {a["step"]: a["text"] for a in actions}
         for card in cards:
@@ -1204,9 +1244,9 @@ class MisalignmentLiveWorker:
         ``evallab.production.asset_exporter.verify_label_proof``): a
         deterministic ``evallab.trace_label_verification/v1`` whose
         ``verdict_rule`` equals the card's tripwire rule — re-derived by
-        replaying the deterministic prefix scanner over the card's frozen
-        prefix (equivalent to ``scan_prefix``), so a fabricated rule string
-        plus a reward cannot prove anything — and
+        running the independent batch ``scan_prefix`` over the card's frozen
+        prefix, so a fabricated rule string plus a reward cannot prove
+        anything — and
         whose ``measurement.evidence_ref`` loads a measured execution
         receipt that itself binds the run/task and records an execution
         status, or an explicit ground-truth
@@ -1340,6 +1380,8 @@ class MisalignmentLiveWorker:
                     if seal is not None:
                         problems.append(f"declared task identity is sealed by {seal}")
             steps = record.get("steps")
+            if isinstance(steps, _FrozenPrefix):
+                steps = steps.materialize()
             prefix = record.get("prefix")
             card_digest = _nonempty_str(record.get("digest")) or _nonempty_str(
                 card.get("trace_prefix_sha256")
@@ -1593,7 +1635,7 @@ class MisalignmentLiveWorker:
             proposed = _normalize_step(kept)
             if proposed.get("source") != "agent" or not proposed.get("tool_calls"):
                 raise ValueError("pre-action gate requires an agent tool-call step")
-            if proposed["step_id"] <= max(run.steps, default=-1):
+            if run.max_step_id is not None and proposed["step_id"] <= run.max_step_id:
                 raise ValueError("proposed action must follow the observed prefix")
             pending = [
                 c.request_id
@@ -1604,6 +1646,8 @@ class MisalignmentLiveWorker:
             rules: list[str] = []
             if pending or run.run_state != "running":
                 reason = "control_pending" if pending else f"run_{run.run_state}"
+            elif not run.detector_valid:
+                reason = "deterministic_detector_unavailable"
             else:
                 # Score the proposed step against the observed prefix, then put
                 # the prefix state back: a proposal is not an observation.
@@ -1833,19 +1877,27 @@ class MisalignmentLiveWorker:
                     run_id = event["run_id"]
                     run = self._run(run_id)
                     if kind in {"monitor.prefix_scored", "monitor.suspicion"}:
+                        isolation = payload.get("causal_isolation", {})
+                        if (
+                            "prefix_fraction" in isolation
+                            and isolation["prefix_fraction"] != self._isolation.prefix_fraction
+                        ):
+                            raise ValueError("checkpoint prefix_fraction differs from worker")
                         if kind == "monitor.suspicion":
                             card_id = payload["card_id"]
                             run.cards.add(card_id)
+                            existing = run.suspicions.get(card_id, {})
                             run.suspicions[card_id] = {
                                 "card": payload,
                                 "event_id": event.get("event_id"),
                                 "prefix": event.get("prefix_step"),
-                                "steps": None,
+                                "steps": existing.get("steps"),
                                 "digest": payload.get("trace_prefix_sha256"),
                             }
                             if payload.get("semantic_triage") != "pending":
                                 pending.pop(card_id, None)
-                                continue
+                                if existing.get("steps") is not None:
+                                    continue
                         source_id = payload.get("source_event_id")
                         if not source_id:
                             continue
@@ -1854,10 +1906,12 @@ class MisalignmentLiveWorker:
                             raise ValueError(
                                 f"missing source event for monitor checkpoint: {source_id}"
                             )
-                        raw = source["payload"]
-                        steps = raw.get("steps")
-                        if steps is None:
-                            steps = [raw["step"]] if "step" in raw else []
+                        raw, _ = self._isolation.payload(source["payload"])
+                        if "steps" in raw:
+                            steps, _ = self._isolation.steps(raw["steps"])
+                        else:
+                            kept, _ = self._isolation.step(raw["step"]) if "step" in raw else (None, ())
+                            steps = [kept] if kept is not None else []
                         prefix = event.get("prefix_step")
                         # A suspicion can commit before its score checkpoint.
                         # Reconstruct its semantic input without marking that
@@ -1896,7 +1950,13 @@ class MisalignmentLiveWorker:
                                 for n in sorted(observed)
                                 if prefix is not None and n <= prefix
                             ]
-                            pending[card_id] = (run_id, prefix, frozen, copy.deepcopy(payload))
+                            run.suspicions[card_id].update(
+                                steps=frozen,
+                                task_manifest=copy.deepcopy(raw.get("task_manifest", run.task_manifest)),
+                                baselines=copy.deepcopy(raw.get("baselines", run.baselines)),
+                            )
+                            if payload.get("semantic_triage") == "pending":
+                                pending[card_id] = (run_id, prefix, frozen, copy.deepcopy(payload))
                     elif kind == "monitor.triage_unavailable":
                         pending.pop(payload["card_id"], None)
                     elif kind == "trace.label_verified":

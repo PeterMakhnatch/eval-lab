@@ -4431,27 +4431,18 @@ PREFIX_REPORT_KEYS: tuple[str, ...] = (
     "hackbook",
 )
 
-#: Steps after an open (``unknown``-outcome) upstream-fetch attempt that an
-#: incremental scan keeps re-reading so a later artifact read can still confirm
-#: the acquisition. An extraction more than this many steps after the fetch is
-#: confirmed by the offline ``scan_trace`` pass, not by the live prefix scan.
-UPSTREAM_CONFIRMATION_WINDOW = 64
 
 _UNSEEN = object()
 
 
 class PrefixScanner:
-    """Cumulative prefix report built one step at a time, in O(1) per step.
+    """Cumulative prefix report without repeatedly scanning every prior step.
 
-    :func:`scan_prefix` re-derives every rule over the whole observed prefix,
-    so streaming a k-step trajectory costs O(k^2) rule passes: a 152-step TB4
-    DEV trace took 60.8s (p95 1.34s, max 2.81s per step) against a 2.0s budget.
-    Every causal rule is a forward fold over the steps, so the same report can
-    be built by scoring each new step once and carrying the small lookback
-    state that cross-step rules need (:class:`_RepoHistory`,
-    :class:`~evallab.history_mining.HistoryMiningState`,
-    :class:`~evallab.peer_content.CorroborationState`,
-    :class:`PrefixStreamState`).
+    Step-local rules run once. Cross-step rules retain their evidence state
+    (:class:`_RepoHistory`, :class:`~evallab.history_mining.HistoryMiningState`,
+    :class:`~evallab.peer_content.CorroborationState`, :class:`PrefixStreamState`).
+    Their cost depends on the current step and retained evidence, not a fixed
+    worst-case bound for arbitrarily large inputs.
 
     ``advance`` returns the hits *added by that step*; ``report`` keeps the
     cumulative view. Offline verification (``scan_trace``) stays on the batch
@@ -4514,13 +4505,26 @@ class PrefixScanner:
                 mining = self._mining.advance(step)
                 self.report["history_mining"].extend(mining["hits"])
                 self.report["history_browsing"].extend(mining["browsing"])
+            self.report["hackbook"] = [
+                hit for hit in self.report["hackbook"] if hit["rule"] != "hb_git_history_browse"
+            ]
+            self.report["hackbook"].extend(
+                hit
+                for hit in hackbook_hits(
+                    self._agent_steps,
+                    history_browsing=self._mining.browsing,
+                    whole_trace=False,
+                )
+                if hit["rule"] == "hb_git_history_browse"
+            )
+
     def snapshot(self) -> dict[str, Any]:
         """Save point for speculative scoring (the pre-action gate).
 
         A proposed step must be scored without being observed, so the worker
         advances this scanner, reads the delta, and restores. Everything the
-        scanner mutates is captured here; the sizes are the trace's, not the
-        prefix's, so the save point stays cheap.
+        scanner mutates is captured here. Speculation copies retained state;
+        ordinary append-only ingestion does not take this save point.
         """
         return {
             "history": self._history.snapshot(),
@@ -4594,7 +4598,7 @@ class PrefixScanner:
         later be confirmed, by an artifact read in a *following* step. So
         ``_upstream_chain`` retains only the open, un-superseded fetch attempt
         steps themselves (never intermediate non-fetch steps), confirming later
-        extractions at any step distance in O(1) work per step.
+        extractions at any step distance. Cost depends on outstanding fetches.
         """
         from evallab.upstream_fetch import _acquisition_target
 

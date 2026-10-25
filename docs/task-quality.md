@@ -262,6 +262,36 @@ The coordinator executes nothing, scores no reward, and admits nothing to the as
 store. It produces verified candidates and an attested receipt; the live workers
 and `VerifiedAssetExporter` still own measurement and promotion.
 
+### Expanding the store from pinned public corpora
+
+`evallab.production.corpus_expansion` is the importer the store deliberately
+does not contain: `python -m evallab.production.corpus_expansion --database <path>
+--output <receipt.json>` plus the source flags you want to read. It refuses any
+identity a `CorpusRegistry` seal covers — by task name, so an external dataset id
+never launders a `tb4-audit-v1` TEST task or a MiMo permanent heldout — and it
+asks before opening a byte, so a sealed row costs zero reads.
+
+| Flag | Source and what it contributes |
+| --- | --- |
+| `--tb4-hub-index` | Frozen TB4 Hub `trajectory-index.jsonl`. Reads only `dev_task_allowlist` memberships that are `admitted_exact_source` and `complete`; steps come from each trial's `agent/trajectory.json`, the served `provider/model` and reward from `result.json`. |
+| `--goodfire-run` (repeatable) | `Goodfire/reward-hack-data` at its pinned revision. `traces.jsonl` supplies real rollout nodes, `labels/judge_rollouts.jsonl` the three-vote verdict recorded as `source_label:<verdict>`. |
+| `--wrench-index-dir` | `few-sh/terminal-wrench-trajectories` index parquets plus the `few-sh/terminal-wrench` payload bodies. Publisher `classification`/`exploit_categories`/`key_hack_steps` become issue and step flags. |
+| `--stage-dir` | JSONL already staged by the on-disk library loaders (SimGlot, SWE-bench Pro Verified, CUA-VerifierBench, Ignition). These publish no episode text, so they project to task records and issue evidence only. |
+
+Every written trace carries `verified_receipt_json` with schema
+`evallab.public_trace_provenance/v1` and status `unverified_public_archive`, so
+`only_verified=True` excludes all of them: a publisher label is not our
+confirmation. Public rows use split `DEV` where the source publishes a DEV
+allowlist and `public` elsewhere; `TEST` is never written. Projection is bounded
+and the bounds are reported: step text is clipped with an explicit marker, base64
+payloads are replaced by a length marker, and the counts of clipped, elided, and
+dropped steps land in the trace receipt. Raw rows go to the CAS as deterministic
+gzip bundles when `--cas` is given; TB4 Hub archives are hashed and referenced by
+their immutable path and `tree_sha256` instead of copying multi-megabyte base64
+payloads. The run writes one receipt holding exact before/after row counts per
+table, per-source tallies, and every exclusion reason.
+
+
 ## One dataset audit command
 
 `evallab audit <dataset-or-path>` joins the existing leak, oracle, no-agent,

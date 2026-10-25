@@ -30,6 +30,7 @@ says ``applied: false``. Nothing is fabricated from spec intent.
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -154,6 +155,43 @@ class RegradeModalEnvironment(TaskModalEnvironment):
     """Native setup/task interpreter separation with a bounded regrade lifetime."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # The native regrade CLI has no environment-kwarg option. Only an
+        # explicitly admitted subprocess supplies this trial-bound policy.
+        # Explicit native kwargs always win over unrelated ambient bridge data.
+        if "app_name" not in kwargs and "labels" not in kwargs:
+            from evallab.regrade import (
+                _REGRADE_MODAL_POLICY_ENV,
+                CloudSpendGate,
+                _modal_environment_kwargs,
+            )
+
+            encoded = os.environ.get(_REGRADE_MODAL_POLICY_ENV)
+            if encoded is not None:
+                policy = json.loads(encoded)
+                if not isinstance(policy, dict):
+                    raise ValueError("invalid Modal regrade policy")
+                trial_paths = kwargs.get("trial_paths")
+                if (
+                    trial_paths is None
+                    or Path(policy["trial_dir"]).resolve()
+                    != Path(trial_paths.trial_dir).resolve()
+                ):
+                    raise ValueError("Modal regrade policy belongs to a different output trial")
+                gate = CloudSpendGate(
+                    approval=policy["approval"],
+                    cap_usd=policy["cap_usd"],
+                    usd_per_execution=policy["usd_per_execution"],
+                    spend_ledger=policy["spend_ledger"],
+                    modal_app_name=policy["modal_app_name"],
+                    billing_tag=policy["billing_tag"],
+                )
+                gate._check_ledger_location(Path(trial_paths.trial_dir))
+                environment_kwargs = _modal_environment_kwargs(
+                    gate.modal_app_name, gate.billing_tag
+                )
+                if not environment_kwargs:
+                    raise ValueError("Modal regrade policy requires an owned app and billing tag")
+                kwargs.update(environment_kwargs)
         kwargs["sandbox_timeout_secs"] = min(
             int(kwargs.get("sandbox_timeout_secs", REGRADE_SANDBOX_TIMEOUT_SECS)),
             REGRADE_SANDBOX_TIMEOUT_SECS,

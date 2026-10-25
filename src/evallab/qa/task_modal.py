@@ -38,7 +38,12 @@ from evallab.qa.task import (
     write_json,
 )
 from evallab.registry import task_directory_digest
-from evallab.regrade import CloudSpendGate, lab_harbor_problem, modal_resource_blocker
+from evallab.regrade import (
+    CloudSpendGate,
+    _modal_environment_kwargs,
+    lab_harbor_problem,
+    modal_resource_blocker,
+)
 
 
 @dataclass
@@ -162,10 +167,32 @@ class ModalBackend(HarborBackend):
 
     environment = "modal"
 
-    def __init__(self, *, repo_root: Path, spend_gate: CloudSpendGate) -> None:
-        super().__init__(repo_root=repo_root)
+    def __init__(
+        self,
+        *,
+        repo_root: Path,
+        spend_gate: CloudSpendGate,
+        modal_app_name: str | None = None,
+        billing_tag: str | None = None,
+    ) -> None:
+        # Even inherited local-only helpers must refuse before a Docker subprocess.
+        super().__init__(repo_root=repo_root, allow_local_docker=False)
         if not isinstance(spend_gate, CloudSpendGate):
             raise ValueError("Modal QA requires a CloudSpendGate")
+        with spend_gate._lock:
+            settings = {"modal_app_name": modal_app_name, "billing_tag": billing_tag}
+            for name, value in settings.items():
+                current = getattr(spend_gate, name)
+                if value is not None and current is not None and value != current:
+                    raise ValueError(f"Modal QA {name} differs from its cloud spend gate")
+                settings[name] = current if value is None else value
+            self.environment_kwargs = _modal_environment_kwargs(
+                settings["modal_app_name"], settings["billing_tag"]
+            )
+            # A legacy gate may acquire attribution once, even when shared by
+            # concurrent backends; later constructors cannot rebind its app/tag.
+            spend_gate.modal_app_name = settings["modal_app_name"]
+            spend_gate.billing_tag = settings["billing_tag"]
         self.spend_gate = spend_gate
 
     @contextmanager
@@ -236,6 +263,8 @@ class ModalBackend(HarborBackend):
     ) -> AuditObservation:
         package = package.resolve()
         trial_dir = trial_dir.resolve()
+        assert self.spend_gate is not None
+        self.spend_gate._check_ledger_location(package, trial_dir)
         (trial_dir / "agent").mkdir(parents=True, exist_ok=True)
         (trial_dir / "verifier").mkdir(exist_ok=True)
         facts: dict[str, Any] = {
@@ -299,6 +328,7 @@ class ModalBackend(HarborBackend):
                             "import_path": "evallab.qa.task_modal:QAModalEnvironment",
                             "delete": True,
                             "kwargs": {
+                                **self.environment_kwargs,
                                 "sandbox_timeout_secs": min(
                                     timeout_seconds + 600, REGRADE_SANDBOX_TIMEOUT_SECS
                                 ),

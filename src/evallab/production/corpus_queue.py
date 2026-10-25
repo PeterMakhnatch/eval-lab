@@ -679,6 +679,38 @@ class ContinuousWorkQueue:
             row = self._execute("SELECT seq FROM events WHERE event_id = ?", (event_id,)).fetchone()
             return None if row is None else row[0]
 
+    def job_state(self, event_id: str) -> dict[str, Any] | None:
+        """Current durable state of one job row, by its journal ``event_id``.
+
+        ``state`` is ``completed``/``leased``/``queued`` under the same lease
+        clock and classification ``queue_snapshot`` applies, resolved for this
+        one job — never inferred from aggregate per-type counters. ``None``
+        means the event_id names no queue job.
+        """
+        with self._transaction():
+            row = self._execute(
+                "SELECT job_type, worker_id, lease_until, completed_at FROM outbox WHERE event_id = ? AND job_type IS NOT NULL",
+                (event_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            job_type, worker_id, lease_until, completed_at = row
+            state = (
+                "completed"
+                if completed_at is not None
+                else "leased"
+                if lease_until is not None and lease_until > time.time()
+                else "queued"
+            )
+            return {
+                "event_id": event_id,
+                "job_type": job_type,
+                "state": state,
+                "worker_id": worker_id,
+                "lease_until": lease_until,
+                "completed_at": completed_at,
+            }
+
     def read_events(
         self,
         *,

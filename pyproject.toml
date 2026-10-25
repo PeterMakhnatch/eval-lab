@@ -10,6 +10,7 @@ license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.43,<2",
     "daytona>=0.210.0",
     # 2.0 rewrites the Python API and writes a one-way storage format that the
     # 1.5 checkouts still in use cannot read; migrate deliberately, not via lock refresh.
@@ -70,6 +71,7 @@ dev = [
     "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
+    "modal==1.6.2",
     "openai>=2,<3",
     "hypothesis>=6.100,<7",
     "pytest>=8.4,<10",

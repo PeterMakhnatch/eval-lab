@@ -179,6 +179,16 @@ def test_non_subscription_drivers_are_rejected_before_opening_queue(
     assert stopped.value.code == 2
 
 
+@pytest.mark.parametrize("amount", ["0", "-1", "nan", "inf", "-inf"])
+def test_invalid_cloud_spend_cap_is_rejected_before_opening_queue(
+    corpus_root: Path, monkeypatch: pytest.MonkeyPatch, amount: str,
+) -> None:
+    monkeypatch.setattr(production_cli, "_open_queue", _forbidden)
+    with pytest.raises(SystemExit) as stopped:
+        cli.run_cli(["prod", "run-once", f"--max-usd={amount}"], workspace=corpus_root)
+    assert stopped.value.code == 2
+
+
 def test_worker_failure_is_nonzero_but_relay_still_runs_and_resources_close(
     corpus_root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
 ) -> None:

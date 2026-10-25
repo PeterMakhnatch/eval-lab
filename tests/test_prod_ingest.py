@@ -229,8 +229,11 @@ def _package(path: Path, *, compose: bool = False) -> Path:
 
 
 @pytest.mark.parametrize("compose", [False, True])
-def test_real_read_only_candidate_preflight_is_never_execution_proof(corpus, compose) -> None:
+def test_policy_refused_candidate_preflight_is_never_execution_proof(
+    corpus, compose, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from evallab.registry import task_directory_digest
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
 
     root, _ = corpus
     package = _package(root / "public-package", compose=compose)
@@ -244,14 +247,11 @@ def test_real_read_only_candidate_preflight_is_never_execution_proof(corpus, com
         preflight = item["preflight"]
         assert preflight["task_package"]["identity_verified"] is True
         assert preflight["task_package"]["observed_digest"] == digest
-        assert preflight["docker_local"]["state"] == ("blocked" if compose else "unknown")
+        assert preflight["docker_local"]["state"] == "blocked"
         assert preflight["docker_local"]["executed"] is False
         assert preflight["docker_local"]["execution_proof"] is False
         assert preflight["docker_local"]["runtime_qualified"] is False
-        if compose:
-            assert "Compose" in preflight["docker_local"]["reason"]
-        else:
-            assert "unmeasured" in preflight["docker_local"]["reason"]
+        assert "Local Docker execution is disabled" in preflight["docker_local"]["reason"]
         assert preflight["capabilities"]["task_quality_audit"]["available"] is False
         assert preflight["capabilities"]["reward_seeker"]["available"] is False
         assert queue.queue_snapshot()["depth"] == 0

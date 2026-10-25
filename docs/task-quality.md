@@ -15,6 +15,61 @@ recovered history-oracle evidence must be distinguished from an actual graded co
 This page is the order of checks, cheapest first. Each stage only runs on tasks that survived the earlier ones.
 The commands and tables are described in `docs/mimo-task-catalog.md`.
 
+## Cloud task, issue, and trace evidence
+
+`evallab.production.cloud_trace_db.CloudTraceDatabase` stores four linked
+projections: `corpus_tasks`, `task_issues`, `agent_traces`, and `trace_steps`.
+Instructions, grader digests, defect directions/statuses, reproducer scripts,
+file/line citations, rewards, receipt JSON, full message/action text, and
+observation references remain available together. These are ingestion APIs, not
+an automatic corpus importer or a verifier: callers must supply real evidence.
+
+Pass a PostgreSQL URL or set `EVALLAB_CLOUD_DATABASE_URL` (preferred over
+`DATABASE_URL`). PostgreSQL maintains generated `tsvector` columns and GIN
+indexes for native full-text search. A PostgreSQL vector itself cannot exceed
+1 MiB, even when its source text fits: documents above 64 KiB bypass that
+accelerator and search their **complete native English lexemes** instead.
+All query terms must still match the same complete document; stemming,
+stopwords, and tail matches are preserved without clipping stored or searched
+text. Existing unbounded generated-vector columns/indexes migrate under the
+schema lock, preserving all four source tables. An explicit local path or
+`sqlite:///` URL uses SQLite FTS5; builds without FTS5 use escaped LIKE searches.
+No database URL means a configuration error, not a silent local replacement.
+
+```python
+from evallab.production.cloud_trace_db import CloudTraceDatabase
+
+with CloudTraceDatabase() as evidence:
+    traces = evidence.search_traces(
+        "missing validation",
+        defect_class="insufficient_checking",
+        tool_name="terminal",
+        only_verified=True,
+    )
+    issues = evidence.query_task_issues(direction="unfair_fail")
+```
+
+Search results contain the task, all recorded issue statuses, and every indexed
+step in step-index order. `only_verified` requires the supplied receipt's
+explicit `status` to be `confirmed` or `verified`; a reward, exploit flag, or
+nonempty receipt alone is insufficient. Issue queries default to confirmed
+issues. Neither helper independently verifies receipts or authorizes training
+on TEST/held-out data; existing verification and split/export gates still apply.
+`upsert_task`, `upsert_task_issue`, and `upsert_trace` accept dictionaries named
+after the table columns. Supplying `steps=` to `upsert_trace` replaces the full
+step set atomically; `replace_trace_steps` also updates the stored step count.
+
+`S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
+downloaded or mirrored bytes before returning them. Configure
+`EVALLAB_S3_BUCKET`, `EVALLAB_S3_ENDPOINT_URL` for R2/Tigris/custom S3, and
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`; session credentials additionally
+use `AWS_SESSION_TOKEN`. `AWS_REGION` or `AWS_DEFAULT_REGION` overrides the
+default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
+`get_bytes` preserve raw traces or binary task packages; `put_bundle` /
+`get_bundle` handle deterministic JSON bundles. Pass `local_directory=` for
+an offline CAS, or alongside S3 configuration for an atomic local mirror.
+CAS references do not assert that the corresponding object has been ingested.
+
 ## One dataset audit command
 
 `evallab audit <dataset-or-path>` joins the existing leak, oracle, no-agent,

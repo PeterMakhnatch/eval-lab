@@ -33,7 +33,7 @@ from harbor.models.trial.paths import TrialPaths  # ty: ignore[unresolved-import
 from evallab.execution_contracts import MODAL_PATH_PIN
 from evallab.harbor_modal import LockedModalEnvironment, RegradeModalEnvironment
 from evallab.ref_subset import Grade, Package, _tar
-from evallab.regrade import CloudSpendGate, SpendCapReached
+from evallab.regrade import CloudSpendGate, SpendCapReached, _modal_environment_kwargs
 
 _SNAPSHOT_TTL_SECONDS = 86_400
 _MAX_LIFETIME_SECONDS = 7_200
@@ -128,6 +128,7 @@ class ModalSandbox:
     ) -> None:
         self.package = package
         self.gate = spend_gate
+        self.gate._check_ledger_location(package.path, out_dir)
         self.nonce = uuid.uuid4().hex[:12]
         self.out_dir = out_dir / self.nonce
         self.out_dir.mkdir(parents=True, exist_ok=True)
@@ -185,7 +186,7 @@ class ModalSandbox:
         cpus = min(config.cpus or 2, 2)
         cls = _VerifierEnvironment if verifier else _AgentEnvironment
         timeout = self.grade_timeout if verifier else max(self.oracle_timeout, self.build_timeout)
-        kwargs: dict[str, Any] = {}
+        kwargs = _modal_environment_kwargs(self.gate.modal_app_name, self.gate.billing_tag)
         if not verifier:
             kwargs["evallab_egress_lock"] = policy.network_mode.value != "public"
         environment = cls(

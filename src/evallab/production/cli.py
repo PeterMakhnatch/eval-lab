@@ -64,6 +64,20 @@ def _worker_options(parser: argparse.ArgumentParser, systems: tuple[str, ...]) -
     parser.add_argument(
         "--nats-url", help="JetStream broker URL; omitted/unavailable keeps the outbox unpublished",
     )
+    parser.add_argument(
+        "--approval", help="Explicit approval text for Modal grading (no approval by default)",
+    )
+    parser.add_argument("--max-usd", type=_positive_usd, help="Explicit Modal execution spend cap")
+    parser.add_argument("--spend-ledger", type=Path, help="Durable shared Modal spend ledger")
+    parser.add_argument("--modal-app-name", help="Owned Modal execution application")
+    parser.add_argument("--billing-tag", help="Modal execution cost attribution")
+
+
+def _positive_usd(value: str) -> float:
+    amount = float(value)
+    if not math.isfinite(amount) or amount <= 0:
+        raise argparse.ArgumentTypeError("must be a finite positive USD amount")
+    return amount
 
 
 def _positive_seconds(value: str) -> float:
@@ -155,6 +169,7 @@ def _open_queue(args: argparse.Namespace, root: Path) -> Any:
 
 
 def _runtime(args: argparse.Namespace, root: Path, queue: Any) -> Any:
+    from evallab.execution_backend import ExecutionBackendConfig
     from evallab.production.runtime import ProductionRuntime
 
     return ProductionRuntime(
@@ -162,6 +177,12 @@ def _runtime(args: argparse.Namespace, root: Path, queue: Any) -> Any:
         work_root=_resolve(root, args.work_root or Path("derived/production/work")),
         systems=tuple(dict.fromkeys(args.systems)), worker_id=args.worker_id,
         seeker_driver=args.seeker_driver,
+        execution_config=ExecutionBackendConfig(
+            backend="modal", allow_local_docker=False,
+            approval=args.approval, max_usd=args.max_usd,
+            spend_ledger=_resolve(root, args.spend_ledger) if args.spend_ledger else None,
+            modal_app_name=args.modal_app_name, billing_tag=args.billing_tag,
+        ),
     )
 
 

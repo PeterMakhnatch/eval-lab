@@ -832,3 +832,81 @@ def test_overlapping_trial_leaves_isolate_native_agent_and_separate_verifier_nam
         assert record["session_id"] == allocated[record["sandbox_id"]].kwargs["name"]
         for sandbox in environments:
             assert sandbox.kwargs["tags"]["harbor.session_id"] == sandbox.kwargs["name"]
+
+
+def test_configured_modal_qa_keeps_owned_app_labels_and_durable_spend(
+    tmp_path, monkeypatch, inert_sdk
+):
+    monkeypatch.setenv("EVALLAB_DISABLE_LOCAL_DOCKER", "1")
+    package = _package(tmp_path, separate=True)
+    gate = CloudSpendGate(
+        "approved configured QA fixture",
+        10.0,
+        0.1,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-qa",
+        billing_tag="owned",
+    )
+    backend = modal_qa.ModalBackend(
+        repo_root=tmp_path,
+        spend_gate=gate,
+        modal_app_name="owned-qa",
+        billing_tag="owned",
+    )
+    observation = backend.run_container_trial(
+        package,
+        digest=task_directory_digest(package),
+        mode="oracle",
+        trial_dir=tmp_path / "trial",
+    )
+    assert observation.status == "executed", observation.reason
+    assert observation.facts["reward"] == 1.0
+    assert len(inert_sdk.lookups) == len(inert_sdk.creates) == 2
+    assert all(lookup["name"] == "owned-qa" for lookup in inert_sdk.lookups)
+    assert all(create["tags"]["evallab.billing_tag"] == "owned" for create in inert_sdk.creates)
+    receipt = observation.facts["cloud_spend"]
+    assert receipt["modal_app_name"] == "owned-qa" and receipt["billing_tag"] == "owned"
+    assert receipt["spend_ledger"] == str(gate.spend_ledger)
+    assert receipt["reserved_usd"] == 0.6
+    assert all(sandbox.closed for sandbox in inert_sdk.allocations)
+
+
+@pytest.mark.parametrize("setting", ["modal_app_name", "billing_tag"])
+def test_modal_backend_cannot_rebind_gate_attribution(tmp_path, setting):
+    gate = CloudSpendGate(
+        "approved fixture",
+        1.0,
+        0.01,
+        spend_ledger=tmp_path / "spend.json",
+        modal_app_name="owned-qa",
+        billing_tag="owned",
+    )
+    with pytest.raises(ValueError, match="differs from its cloud spend gate"):
+        modal_qa.ModalBackend(repo_root=tmp_path, spend_gate=gate, **{setting: "other"})
+
+
+@pytest.mark.parametrize("where", ["task", "evidence"])
+def test_modal_qa_rejects_spend_ledger_in_task_or_evidence_before_native_trial(
+    tmp_path, inert_sdk, where
+):
+    package = _package(tmp_path)
+    output = tmp_path / "trial"
+    ledger = (package if where == "task" else output) / "spend.json"
+    gate = CloudSpendGate(
+        "approved fixture",
+        1.0,
+        0.01,
+        spend_ledger=ledger,
+        modal_app_name="owned-qa",
+        billing_tag="owned",
+    )
+    backend = modal_qa.ModalBackend(repo_root=tmp_path, spend_gate=gate)
+    with pytest.raises(ValueError, match="outside immutable"):
+        backend.run_container_trial(
+            package,
+            digest=task_directory_digest(package),
+            mode="nop",
+            trial_dir=output,
+        )
+    assert not ledger.exists()
+    assert not inert_sdk.creates and not inert_sdk.lookups and not inert_sdk.images

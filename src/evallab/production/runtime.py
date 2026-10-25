@@ -13,9 +13,9 @@ Unavailable grading is a released provisional failure, never a measured refutati
 Only an explicit ``sonnet`` or ``codex`` subscription driver permits generation.
 Without one, Seeker executes only supplied ``candidate_attempts`` and leaves jobs
 requiring generation queued, even when legacy model-enabling environment flags are
-set. Local Harbor grading remains the existing workers' execution boundary. Closing
-this runtime drains its monitor and async executor, but does not close its caller's
-queue connection.
+set. Grading uses the shared cloud execution policy with local Docker unconditionally
+disabled; Modal still requires an explicit approval, cap and durable spend ledger.
+Closing this runtime drains its monitor and async executor, but not its caller's queue.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from evallab.cheatbench_fidelity import blind_atif, find_forbidden_json
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production.corpus_queue import (
     WORKER_SYSTEMS,
     ContinuousWorkQueue,
@@ -446,6 +447,7 @@ class ProductionRuntime:
         systems: Sequence[str] = WORKER_SYSTEMS,
         worker_id: str = "production",
         seeker_driver: str | None = None,
+        execution_config: ExecutionBackendConfig | None = None,
     ) -> None:
         if isinstance(systems, str) or not systems or any(s not in WORKER_SYSTEMS for s in systems):
             raise ValueError("systems must name one or more production worker systems")
@@ -459,6 +461,11 @@ class ProductionRuntime:
         self.systems = tuple(s for s in WORKER_SYSTEMS if s in systems)
         self.worker_id = worker_id
         self.seeker_driver = seeker_driver
+        self.execution_config = execution_config or ExecutionBackendConfig(
+            backend="modal", allow_local_docker=False,
+        )
+        if self.execution_config.allow_local_docker:
+            raise ValueError("production runtime requires allow_local_docker=False")
         self._worker_queue = _DevWorkerQueue(
             queue, repo_root=self.repo_root, seeker_driver=seeker_driver
         )
@@ -530,6 +537,7 @@ class ProductionRuntime:
                 self._worker_queue,
                 repo_root=self.repo_root,
                 worker_id=f"{self.worker_id}:task_quality",
+                execution_config=self.execution_config,
             )
         result = self._tq.run_once()
         return {
@@ -546,7 +554,7 @@ class ProductionRuntime:
                 worker_id=f"{self.worker_id}:reward_seeker",
                 attempt_generator=self._generate_candidate,
                 driver=self.seeker_driver or "disabled",
-                backend="docker",
+                execution_config=self.execution_config,
                 allow_paid_lanes=False,
             )
             self._seeker.grader_fn = partial(_measured_grade, self._seeker.grader_fn)
@@ -666,7 +674,9 @@ class ProductionRuntime:
 
     def _run_misalignment(self) -> dict[str, Any]:
         if self._monitor is None:
-            self._monitor = MisalignmentLiveWorker(emit=self.queue.append_event)
+            self._monitor = MisalignmentLiveWorker(
+                emit=self.queue.append_event, registry=self.queue.registry,
+            )
         self._monitor.recover(self.queue)
         replay, replay_error = None, None
         try:

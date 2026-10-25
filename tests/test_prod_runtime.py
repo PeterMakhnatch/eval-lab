@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from evallab import cli
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
 from evallab.production import runtime as runtime_module
@@ -309,6 +310,7 @@ class _LocalGrader:
 
     def __init__(self) -> None:
         self.rewards: list[float] = []
+        self.execution_policies: list[dict[str, Any]] = []
 
     def __call__(
         self,
@@ -317,11 +319,13 @@ class _LocalGrader:
         output_dir: Path,
         files: dict[str, str] | None = None,
         solution_bundle: Path | None = None,
-        **_: Any,
+        **policy: Any,
     ) -> dict[str, Any]:
         if solution_bundle is not None:
             files = {"solve.sh": (solution_bundle / "solve.sh").read_text(encoding="utf-8")}
         assert files is not None
+        if "backend" in policy:
+            self.execution_policies.append(policy)
         output_dir.mkdir(parents=True)
         for name, content in files.items():
             destination = output_dir / name
@@ -401,6 +405,7 @@ def test_supplied_candidates_execute_without_model_or_synthetic_extra_attempts(
 ) -> None:
     root, _ = _repo(tmp_path, monkeypatch)
     monkeypatch.setenv("EVALLAB_SEEKER_LIVE_MODEL", "1")
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
     model_calls = _forbid_models(monkeypatch)
     grader = _LocalGrader()
     monkeypatch.setattr(runtime_module, "RewardSeekerLiveWorker",
@@ -420,6 +425,9 @@ def test_supplied_candidates_execute_without_model_or_synthetic_extra_attempts(
         assert result["workers"]["reward_seeker"]["attempts_run"] == 1
         assert result["workers"]["reward_seeker"]["exploit_confirmed"]
         assert grader.rewards == [1.0, 0.0]
+        assert len(grader.execution_policies) == 2
+        assert all(policy["backend"] == "modal" and policy["allow_local_docker"] is False
+                   for policy in grader.execution_policies)
         assert len(_events(queue, "task_quality.repair_task")) == 1
         assert queue.queue_snapshot()["jobs"]["completed"] == 1
         with ProductionRuntime(queue, repo_root=root, work_root=tmp_path / "work",
@@ -440,6 +448,44 @@ def test_supplied_candidates_execute_without_model_or_synthetic_extra_attempts(
         assert rebreak["workers"]["reward_seeker"]["attempts_run"] == 1
         assert not rebreak["workers"]["reward_seeker"]["exploit_confirmed"]
         assert queue.queue_snapshot()["jobs"] == {"queued": 0, "leased": 0, "completed": 3}
+    assert model_calls == []
+
+
+def test_cli_forwards_explicit_cloud_policy_without_enabling_laptop_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    root, _ = _repo(tmp_path, monkeypatch)
+    monkeypatch.delenv("EVALLAB_DISABLE_LOCAL_DOCKER", raising=False)
+    monkeypatch.setattr(cli, "load_local_env", lambda _: None)
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    model_calls = _forbid_models(monkeypatch)
+    grader = _LocalGrader()
+    monkeypatch.setattr(
+        runtime_module, "RewardSeekerLiveWorker",
+        partial(RewardSeekerLiveWorker, grader_fn=grader),
+    )
+    database = tmp_path / "queue.sqlite"
+    with ContinuousWorkQueue(database, registry=CorpusRegistry(root)) as queue:
+        job = _seek(queue, root, candidates=True)
+    assert cli.run_cli([
+        "prod", "run-once", "--repo-root", str(root), "--database", str(database),
+        "--systems", "reward_seeker", "--approval", "synthetic executor only",
+        "--max-usd", "1", "--spend-ledger", "synthetic-spend.json",
+        "--modal-app-name", "synthetic-only", "--billing-tag", "synthetic-only",
+    ], workspace=tmp_path) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    result = receipt["runtime"]["workers"]["reward_seeker"]
+    assert result["job_id"] == job["event_id"] and result["exploit_confirmed"]
+    assert grader.rewards == [1.0, 0.0]
+    assert len(grader.execution_policies) == 2
+    expected = {
+        "backend": "modal", "allow_local_docker": False,
+        "approval": "synthetic executor only", "max_usd": 1.0,
+        "spend_ledger": root / "synthetic-spend.json",
+        "modal_app_name": "synthetic-only", "billing_tag": "synthetic-only",
+    }
+    assert all(policy[key] == value for policy in grader.execution_policies
+               for key, value in expected.items())
     assert model_calls == []
 
 

@@ -73,7 +73,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.production.cloud_trace_db import CloudTraceDatabase
+from evallab.production.cloud_trace_db import CloudTraceDatabase, protected_task_ids
 
 MAX_INCLUDED_HITS = 8
 MAX_PROMPT_CHARACTERS = 4500
@@ -93,6 +93,20 @@ _CITATION_LIMIT = 200
 _EXCERPT_LIMIT = 240
 _HEADING = "## Related verified DEV evidence"
 
+_EXCLUDED_DATASETS = frozenset({"tb2-to-tb21-v1"})
+
+
+def _bare_name(task_id: str) -> str:
+    return task_id.split("@", 1)[0].rsplit("/", 1)[-1]
+
+
+def _is_admissible_dev_task(task: Mapping[str, Any], protected: frozenset[str]) -> bool:
+    if str(task.get("split") or "").strip().casefold() != _DEV_SPLIT:
+        return False
+    if str(task.get("dataset_id") or "").strip().casefold() in _EXCLUDED_DATASETS:
+        return False
+    raw_id = str(task.get("task_id") or "").strip()
+    return bool(raw_id) and raw_id not in protected and _bare_name(raw_id) not in protected
 
 def _clip(text: Any, limit: int) -> str:
     """Blank control characters, collapse whitespace, and bound to ``limit``."""
@@ -351,9 +365,14 @@ class CloudTraceRetriever:
                 # Filter in SQL before content is hydrated: a whole-file backup
                 # would copy protected splits even when retrieval later hid them.
                 readonly.execute("BEGIN")
-                dev_tasks = "SELECT task_id FROM corpus_tasks WHERE lower(split) = 'dev'"
+                dev_tasks = (
+                    "SELECT task_id FROM corpus_tasks "
+                    "WHERE lower(split) = 'dev' AND lower(dataset_id) != 'tb2-to-tb21-v1'"
+                )
                 predicates = {
-                    "corpus_tasks": "lower(split) = 'dev'",
+                    "corpus_tasks": (
+                        "lower(split) = 'dev' AND lower(dataset_id) != 'tb2-to-tb21-v1'"
+                    ),
                     "task_issues": f"task_id IN ({dev_tasks})",
                     "agent_traces": f"task_id IN ({dev_tasks})",
                     "trace_steps": (
@@ -442,6 +461,7 @@ class CloudTraceRetriever:
         issue_ids: list[str] = []
         seen: set[tuple[str | None, ...]] = set()
         rendered_budget = len(_HEADING)
+        protected = protected_task_ids()
         for trace in candidates:
             if not isinstance(trace, Mapping):
                 counts["task_mismatch"] += 1
@@ -453,7 +473,7 @@ class CloudTraceRetriever:
             if not isinstance(task, Mapping) or task.get("task_id") != trace.get("task_id"):
                 counts["task_mismatch"] += 1
                 continue
-            if str(task.get("split") or "").strip().casefold() != _DEV_SPLIT:
+            if not _is_admissible_dev_task(task, protected):
                 counts["non_dev_split"] += 1
                 continue
             receipt = trace.get("verified_receipt_json")

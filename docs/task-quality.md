@@ -107,6 +107,97 @@ default (`auto` for custom endpoints, `us-east-1` for AWS S3). `put_bytes` /
 an offline CAS, or alongside S3 configuration for an atomic local mirror.
 CAS references do not assert that the corresponding object has been ingested.
 
+## Many cheap agents or one strong model
+
+`evallab.production.swarm_coordinator.SwarmCoordinator` answers the same four
+questions — Task Quality Audit, Repair Proposal, Reward Seeking, Trace
+Adjudication — under four harness strategies, so the strategies can be compared on
+identical subjects instead of argued about:
+
+| Mode | Who answers | Frontier calls |
+| --- | --- | --- |
+| `SINGLE_STRONG` | one `anthropic/claude-opus-5-5` pass with the full harness and retrieved evidence | 1 |
+| `CHEAP_SWARM` | parallel fan-out over `kimi-code/k3.1-pro-highspeed`, `meta/muse-wonder-1.0-contributor`, `anthropic/claude-sonnet-5-5` | 0 |
+| `HYBRID_ADJUDICATOR` | cheap proposals + retrieval, then one compact `anthropic/claude-opus-5-5` adjudicator | 1 |
+| `ADAPTIVE_CASCADE` | cheap proposals; escalate only when they disagree or are unverified | 0 or 1 |
+
+The strong arm may be pinned to `openai-codex/gpt-6.1-sol:max` instead. Cheap
+aggregation is explicit: `union` keeps every cluster, `majority_vote` keeps only
+clusters a strict majority of the answering models support, and
+`citation_verified_union` keeps every cluster whose citations verify. A cluster is
+one finding, not one model's opinion: candidates join it when they name the same
+direction and either the same locus (same path, line windows within 25 lines) or a
+35%-overlapping mechanism.
+
+```python
+from evallab.production import CorpusRegistry, ContinuousWorkQueue
+from evallab.production.cloud_trace_db import CloudTraceDatabase
+from evallab.production.swarm_coordinator import (
+    Aggregation, CloudTraceDatabaseRetriever, OmpCliTransport, SwarmCoordinator,
+    SwarmMode, WorkKind,
+)
+
+registry = CorpusRegistry()
+queue = ContinuousWorkQueue("/var/lib/evallab/production.sqlite", registry=registry)
+with CloudTraceDatabase() as evidence:
+    coordinator = SwarmCoordinator(
+        transport=OmpCliTransport(),
+        registry=registry,
+        queue=queue,
+        retriever=CloudTraceDatabaseRetriever(evidence),
+    )
+    result = coordinator.run(
+        mode=SwarmMode.ADAPTIVE_CASCADE,
+        work_kind=WorkKind.TASK_QUALITY_AUDIT,
+        subject_id="terminal-bench/cad-model",
+        prompt="Audit the grader in this package.",
+        dataset_id="tb4-audit-v1",
+        item_id="<the admitted DEV item>",
+        workspace="/path/to/the/task/package",
+        aggregation=Aggregation.CITATION_VERIFIED_UNION,
+    )
+```
+
+Five rules hold in code for every mode, and none of them depends on the prompt:
+
+- **Attribution.** Every call records `requested_model`, `served_model`,
+  `prompt_sha256`, `response_sha256`, `tokens_in`, `tokens_out`, and `latency_ms`.
+  A response whose served model is not exactly the requested model — including one
+  that names no model — is `quarantined_fallback=True`, contributes no candidates,
+  and is never credited to the requested model. Unknown token counts stay `None`
+  in the receipt; they are never summed as zero.
+- **Split lock.** `CorpusRegistry.admit` runs before the first model call, so a
+  sealed `tb4-audit-v1` TEST item or MiMo heldout raises `SplitLockError` with zero
+  tokens spent. The coordinator never supplies a frozen-eval token of its own, and
+  it forwards the caller's token to the journal unchanged.
+- **Retrieval sealing.** Retrieved issues and traces pass through
+  `CorpusRegistry.sealed_identity`; a record naming a sealed task id, name, or
+  digest is dropped before it can reach a prompt, and the count is recorded as
+  `retrieval.dropped_sealed`.
+- **Citations.** `verify_citation` checks the package itself: relative paths only,
+  no `..`, no symlink leaving the package, a real line window, and — when the model
+  quotes — the quote inside those lines. A finding with no verifiable citation is
+  discarded before aggregation, and an adjudicator's corrected citation is
+  re-checked exactly like a proposer's.
+- **Cascade honesty.** `ADAPTIVE_CASCADE` accepts for free only when every
+  configured cheap route answered attributably, every one of them supports the same
+  cluster, every member's citations verified, and the weakest member's confidence
+  clears the threshold. Anything else escalates. A quarantined route can never make
+  a two-model swarm look unanimous.
+
+`run()` journals `swarm.round_completed` and, when an adjudicator ran,
+`swarm.adjudicated` to the queue. Both carry `dataset_id`/`item_id` (so the
+envelope's `split` is stamped by the registry), every call's attestation, the
+clusters and their support, the quarantined call ids, and the final selection.
+Event and round identities derive from the run id, so re-running a round is
+idempotent in the journal. `result.attestation()` returns the same material as one
+JSON-serializable receipt whose `round.frontier_calls` is the cascade's cost: 0
+means the swarm answered without a frontier pass.
+
+The coordinator executes nothing, scores no reward, and admits nothing to the asset
+store. It produces verified candidates and an attested receipt; the live workers
+and `VerifiedAssetExporter` still own measurement and promotion.
+
 ## One dataset audit command
 
 `evallab audit <dataset-or-path>` joins the existing leak, oracle, no-agent,

@@ -806,6 +806,13 @@ byte-identical to the promotion event's receipt, and its underlying measured
 or adjudicated evidence must still load with the same whole-source digest —
 so post-promotion tampering is rejected even when the reward is unchanged.
 
+Trial `result.json` supports Harbor's nested `verifier_result.rewards.reward`
+and the native `HarborBackend` summary containing `at`, `mode`, `reward`, and
+`exception`. Native summaries require a nonempty timestamp, an `oracle`, `nop`,
+or `shortcut` mode, a finite reward, and `exception: null`. If both result forms
+are present they must agree, as must every accompanying verifier reward file;
+failed native executions never become measured evidence.
+
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized
 identity/provenance fields nested in rows and linked event payloads are

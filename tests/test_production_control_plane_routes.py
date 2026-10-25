@@ -63,10 +63,21 @@ def queue(tmp_path: Path, registry: CorpusRegistry) -> Iterator[ContinuousWorkQu
 
 
 def _witness(queue: ContinuousWorkQueue, item_id: str, asset_id: str, note: str) -> None:
+    run_id, digest = f"run-{asset_id}", "sha256:" + "a" * 64
+    queue.append_event(
+        {
+            "event_id": f"{asset_id}-confirmed",
+            "run_id": run_id,
+            "system": "reward_seeker",
+            "event_type": "seeker.exploit_confirmed",
+            "status": "confirmed",
+            "payload": {"dataset_id": DATASET, "item_id": item_id, "candidate_digest": digest},
+        }
+    )
     queue.append_event(
         {
             "event_id": f"{asset_id}-event",
-            "run_id": f"run-{asset_id}",
+            "run_id": run_id,
             "system": "reward_seeker",
             "event_type": "asset.verified",
             "status": "confirmed",
@@ -75,6 +86,8 @@ def _witness(queue: ContinuousWorkQueue, item_id: str, asset_id: str, note: str)
                 "kind": "exploit_witness",
                 "dataset_id": DATASET,
                 "item_id": item_id,
+                "source_event_id": f"{asset_id}-confirmed",
+                "candidate_digest": digest,
                 "exploit_files": {"solve.sh": note},
                 "original_reward": 1.0,
                 "repaired_reward": 0.0,
@@ -106,6 +119,44 @@ def _dev_and_sealed(registry: CorpusRegistry) -> tuple[str, str]:
     dev = next(item for item in registry.items(dataset_id=DATASET, split="dev"))
     sealed = next(item for item in registry.items(dataset_id=DATASET, split="test"))
     return dev.item_id, sealed.item_id
+
+
+def test_receiptless_witness_is_not_listed_or_exportable_over_http(
+    tmp_path: Path, queue: ContinuousWorkQueue, registry: CorpusRegistry
+) -> None:
+    dev_item, _ = _dev_and_sealed(registry)
+    queue.append_event(
+        {
+            "event_id": "bare-claim",
+            "run_id": "run-bare-claim",
+            "system": "reward_seeker",
+            "event_type": "asset.verified",
+            "status": "confirmed",
+            "payload": {
+                "asset_id": "witness:bare",
+                "kind": "exploit_witness",
+                "dataset_id": DATASET,
+                "item_id": dev_item,
+                "source_event_id": "nonexistent",
+                "candidate_digest": None,
+                "exploit_files": {"solve.sh": "echo claimed\n"},
+                "original_reward": 1.0,
+                "repaired_reward": 0.0,
+            },
+        }
+    )
+    with _client(tmp_path, queue, registry) as client:
+        assert client.get("/api/assets").json()["assets"] == []
+        assert (
+            client.get("/api/assets/detail", params={"asset_id": "witness:bare"}).status_code == 404
+        )
+        exported = client.post(
+            "/api/assets/export",
+            headers=AUTH,
+            json={"asset_id": "witness:bare", "request_id": "export-bare"},
+        )
+        assert exported.status_code == 404
+    assert not (tmp_path / "exports").exists()
 
 
 def test_dev_export_is_written_and_a_sealed_identifier_blocks_without_leaking(

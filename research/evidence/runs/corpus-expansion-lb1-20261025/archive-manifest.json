@@ -1,0 +1,83 @@
+{
+  "execution_authorized": false,
+  "files": [
+    {
+      "bytes": 7232,
+      "path": "tools/import_metadata.py",
+      "sha256": "22b2dff7f588761b8533ea190a70cb3798db08b05be2896d174feed9b52a40b6",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 1543,
+      "path": "tools/swe-import-spec.json",
+      "sha256": "421b58fbb1cd850e26e3ab31907ea13566b4748ee3a882f5109cd1eb6e4a18f5",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 1006,
+      "path": "tools/simglot-import-spec.json",
+      "sha256": "fcba2686cce54e15ad14fb39b203b4b9c1cfc29ba65d27fbddc39a54299afe9e",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 7343,
+      "path": "tools/verify_ingestion.py",
+      "sha256": "7609f31c55e835311a49ee178a167ea04954d0e21e01fae129306ae9ed53144e",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 10447,
+      "path": "tools/import_safe_traces.py",
+      "sha256": "892e75ff197023d877d52d161fc37c5fd204b524d1ea2a8b9ac13b5ae22502ef",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 24799,
+      "path": "tools/goodfire_normalize_v3.py",
+      "sha256": "79538cd27eed1f924608f4477ea31b04e0135d7501716ccaed64aa6652e67616",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 14659,
+      "path": "tools/wrench_normalize_v3.py",
+      "sha256": "814994637c232932306c5d9419a04dc368efd43d6a5b9893551b600fe7d1b47e",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 6874,
+      "path": "tools/verify_final_traces.py",
+      "sha256": "97196c56f271c331dbaa8662b84a6c443741f44bdddecd75690472e5f3dd5a68",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 11099,
+      "path": "tools/quarantine_wrench.py",
+      "sha256": "5f87f2cece16ae919bce0674f7ff7fcbf6c4e4a9a13cd60db2a694de8c2af8cf",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 7741,
+      "path": "tools/goodfire_fetch.py",
+      "sha256": "c41c39ed7ef7028a04282de648fac176fb802233d85e15cde3778a064af321f1",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 5587,
+      "path": "tools/wrench_fetch_v3.py",
+      "sha256": "4ce4fefdff15d46c5d4634e5a2f19a966bfbb38fad9b31592442581741727fc9",
+      "status": "historical_exact_bytes_not_safe_to_rerun"
+    },
+    {
+      "bytes": 31748,
+      "path": "tools/cloud_trace_db-822d9c49e.py",
+      "sha256": "8233cdad2d080059e4d1bfc41d74cb9f89032c0fefa0217847c87d8230e86a59",
+      "status": "historical_frozen_dependency"
+    }
+  ],
+  "frozen_dependencies_verified": 1,
+  "historical_tools_and_specs_verified": 11,
+  "schema": "evallab.corpus_importer_archive/v1",
+  "source_bodies_or_sessions_included": false,
+  "source_commit": "822d9c49e6797cce5f6c3e119bc7d607efb824f3",
+  "wrench_clearance_retracted": true
+}

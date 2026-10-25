@@ -1,0 +1,57 @@
+{
+  "builder_sha256": "bd1e683b1bbd7d49ba5cf044e081e872ea499649a93a5aecabcb760a0e5169d0",
+  "canonical_identity_established": 0,
+  "cas_reads": 0,
+  "database_identity_columns": [
+    "task_id",
+    "dataset_id",
+    "split",
+    "metadata_json.native_identity.task_name",
+    "metadata_json.native_identity.task_key"
+  ],
+  "database_writes": 0,
+  "downloads": 0,
+  "effective_split_counts": {
+    "held": 3684
+  },
+  "existing_held_db_identities": 3240,
+  "family_identity_established": 0,
+  "goodfire_unimported_deepswe_identities": 113,
+  "inputs": {
+    "database_identity_query_sha256": "151ea78209bfd31b81939a12b43464c0f5652b25351b79eb5ca11934e9735350",
+    "goodfire_aliases_sha256": "c46f5af1e20c2101e5a54fcf185683973c2f70899745f2647cc59c749441560b",
+    "wrench_aliases_sha256": "3a73357dacdb9aa2bdccf3c2b51cbdea86416ea7907477bd32a1d4502dbde249"
+  },
+  "limitation": "A complete held inventory, not a positive canonical/split/rights certificate. Unknown identities and the verifier-reported 95+95 secondary-key overlaps are not resolved or promoted. Existing retention is not new-use approval.",
+  "manifest_bytes": 4983404,
+  "manifest_sha256": "005de3ba7423c2846407629a933bca8878962671d23c34dc50c846e590dec5e0",
+  "new_clearance_grants": 0,
+  "per_use_allowed": {
+    "actor_retrieval": 0,
+    "derivatives": 0,
+    "operator_raw": 0,
+    "redistribution": 0,
+    "scorer": 0,
+    "training": 0
+  },
+  "protected_registry_or_inventory_reads": 0,
+  "records": 3684,
+  "schema": "evallab.held_identity_inventory_receipt/v1",
+  "source_counts": {
+    "SimGlot": 1,
+    "goodfire-reward-hack-data": 922,
+    "openai-swe-bench-annotations-2024": 1699,
+    "opencompass-swebench-pro-verified-correction-metadata": 731,
+    "terminal-wrench": 331
+  },
+  "source_pins": {
+    "SimGlot": "sha256:e9cd8a9e609aaba63ae006d768384ddc319881b824680a39b2da587ff87e5351",
+    "goodfire-reward-hack-data": "bd8fb473568b8ef1d12fc2325a5c8af939c15ad9",
+    "openai-swe-bench-annotations-2024": "sha256:b9297c31f6c2ef712218b5bb2830bd47a7f600dedf6b927191d0170177266ab9",
+    "opencompass-swebench-pro-verified-correction-metadata": "ae466f824cdee69d2c010b6c954b7418c411b6e4",
+    "terminal-wrench": "6ab64c43a4c6a4d9aa53c2425f37e715257123a3"
+  },
+  "task_body_reads": 0,
+  "trace_reads": 0,
+  "wrench_source_identities": 331
+}

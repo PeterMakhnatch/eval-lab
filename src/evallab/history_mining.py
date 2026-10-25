@@ -195,6 +195,78 @@ class _State:
         return _first_armed(self.context_steps, keys)
 
 
+class HistoryMiningState:
+    """One trajectory's causal flags, advanced one step at a time.
+
+    :func:`history_mining_signals` rescans the whole observed prefix, so
+    streaming a k-step trajectory through it costs O(k^2) command scans. The
+    flags are already a forward fold (``_State``), so a stream only has to keep
+    that object alive and feed it the new step: identical output, O(1) work per
+    step. Once the first hit is found the batch scan stops looking, and so does
+    this one.
+    """
+
+    def __init__(self, baselines: Sequence[Any] | None = None) -> None:
+        self._state = _State()
+        self._baselines = _baselines(baselines)
+        self.first_hit: dict[str, Any] | None = None
+        self._reported_browsing = 0
+        self._reported_hit = False
+
+    @property
+    def browsing(self) -> list[dict[str, Any]]:
+        """Every informational browsing signal seen so far."""
+        return self._state.browsing
+
+    def snapshot(self) -> tuple[dict[str, Any], dict[str, Any], int, Any, int, bool]:
+        """Save point for speculative scoring (the pre-action gate)."""
+        return (
+            dict(self._state.count_steps),
+            dict(self._state.context_steps),
+            len(self._state.browsing),
+            self.first_hit,
+            self._reported_browsing,
+            self._reported_hit,
+        )
+
+    def restore(self, snapshot: tuple[dict[str, Any], dict[str, Any], int, Any, int, bool]) -> None:
+        counts, contexts, browsing, first_hit, reported_browsing, reported_hit = snapshot
+        self._state.count_steps = dict(counts)
+        self._state.context_steps = dict(contexts)
+        del self._state.browsing[browsing:]
+        self.first_hit = first_hit
+        self._reported_browsing = reported_browsing
+        self._reported_hit = reported_hit
+
+    def advance(self, step: Any) -> dict[str, list[dict[str, Any]]]:
+        """Scan one step; return the ``hits``/``browsing`` entries it newly adds."""
+        if (
+            isinstance(step, Mapping)
+            and str(step.get("source", "")).lower() != "verifier"
+            and self.first_hit is None
+        ):
+            step_id = step.get("step_id")
+            for command in _shell_commands(step):
+                hit = _scan_script(
+                    command,
+                    step_id=step_id,
+                    state=self._state,
+                    origin=command,
+                    cwd=None,
+                    baselines=self._baselines,
+                    depth=0,
+                )
+                if hit:
+                    self.first_hit = hit
+                    break
+        hits = [self.first_hit] if self.first_hit is not None and not self._reported_hit else []
+        if hits:
+            self._reported_hit = True
+        browsing = self._state.browsing[self._reported_browsing :]
+        self._reported_browsing = len(self._state.browsing)
+        return {"hits": hits, "browsing": list(browsing)}
+
+
 def history_mining_signals(
     steps: Sequence[Any] | None,
     *,
@@ -208,27 +280,10 @@ def history_mining_signals(
     """
     if isinstance(steps, (str, bytes)) or not isinstance(steps, Sequence):
         return {"hits": [], "browsing": []}
-    parsed_baselines = _baselines(baselines)
-    state = _State()
+    state = HistoryMiningState(baselines)
     for step in steps:
-        if not isinstance(step, Mapping):
-            continue
-        if str(step.get("source", "")).lower() == "verifier":
-            continue
-        step_id = step.get("step_id")
-        for command in _shell_commands(step):
-            hit = _scan_script(
-                command,
-                step_id=step_id,
-                state=state,
-                origin=command,
-                cwd=None,
-                baselines=parsed_baselines,
-                depth=0,
-            )
-            if hit:
-                return {"hits": [hit], "browsing": state.browsing}
-    return {"hits": [], "browsing": state.browsing}
+        state.advance(step)
+    return {"hits": [state.first_hit] if state.first_hit else [], "browsing": state.browsing}
 
 
 def _baselines(value: Sequence[Any] | None) -> list[dict[str, Any]]:

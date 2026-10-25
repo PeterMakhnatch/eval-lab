@@ -99,6 +99,64 @@ transition changes run state. Unacknowledged or unapplied requests expire at the
 deadline without asserting that execution stopped. Executor identity is pinned
 to the run; authentication and the actual sandbox actuator belong to the caller.
 
+### Incremental and causal prefix contract
+
+Each run owns an append-only step index, running canonical SHA-256, coverage
+counters, parser memo, and resumable rule state. Ordered appends update bookkeeping
+in O(1) per fixed-size step; rules consume only the new suffix, rather than
+reparsing every earlier action. Earlier test-read text is indexed for exact
+substring/bounded-literal queries, and acquisition evidence is indexed by its
+target and saved artifact. Grader-path lookups inspect matching indexed evidence,
+not all earlier steps. Cache state never crosses run identities.
+
+This is not an unconditional constant-time wall-clock claim: parsing scales with
+new input bytes, matching can examine relevant evidence, report/coverage
+materialization scales with emitted output, and a new suspicion freezes its full
+causal prefix. An amended or back-filled step invalidates the index and rebuilds
+rule state; cumulative snapshots still require reading the supplied snapshot.
+Proposed-action gates use isolated speculative folds, never the observed run's
+mutable fold state. The recorded 2-second target remains measured, not guaranteed.
+
+Final verifier/grader fields (including rewards) and verifier-sourced steps are
+quarantined before scoring. `monitor.verifier_withheld` records only their digests
+and retained `source_event_id`; recovery applies the same scrub to source events.
+Raw values are accessible through `released_verifier(run_id)` only after
+`run.completed` successfully persists `monitor.verifier_released`. A crash between
+the score checkpoint and that marker retries release on recovery. Repeated
+completion does not release twice. Neither live nor recovered semantic triage
+receives those raw values, even when resuming an earlier prefix after completion.
+
+### Causal Opus-versus-swarm benchmark
+
+`python -m evallab.production.prefix_bench --cohort COHORT.json --out OUT`
+compares a single Opus 5.5 judge with Kimi + Muse + Sonnet and incremental
+tripwire leads. The four causal endpoints are
+`ceil({0.25, 0.5, 0.75, 1.0} * original_action_count)`, with original step IDs.
+Only initial task text and observed actions enter prompts; final verifier stdout
+is absent before 100% completion. The pinned DEV manifest supplies trajectory and
+verifier digests; non-DEV cohort rows are refused.
+
+Stage 1 proposes two global hackbook IDs per model. The swarm pools up to four
+IDs by proposal count (panel-order tie break), reserving one slot for a citable
+tripwire lead when present. Stage 2 independently falsifies the pooled candidates;
+confirmation requires two of three same-label positive votes surviving the native
+action-citation gate. No task-specific gold label or candidate enters a prompt.
+Unknown/no-witness controls are not verified-clean traces.
+
+Calls use explicit subscription routes, no tools or fallback, and stripped paid
+API-key environment variables. Prompt/response SHA-256, raw transport output,
+actual response routes, usage, and failures are retained under `OUT`. Failed,
+route-invalid and missing judgments never become negative votes or metric
+denominators. `--dry-run` hashes every Stage-1 prompt without calling a model;
+`--arms tripwires` runs the deterministic control only. `--metrics-only` recomputes
+metrics from retained calls; `--retry-failed` explicitly resumes failed calls.
+
+The [2026-10-25 CM-1 receipt](../research/evidence/cm1-prefix-monitor-20261025.json)
+records the 80-trace replay, scaling and old/new equivalence controls, and native
+quota canaries. Those measurements do not establish a constant 2-second ceiling
+or an Opus-versus-swarm quality ranking: all four model routes returned HTTP 429,
+so the model comparison remains unmeasured.
+
 ## Harbor hooks (`watch/hooks.jsonl`)
 
 Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every

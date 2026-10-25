@@ -27,6 +27,7 @@ loosen the separate, opt-in GEPA ``UPSTREAM_FETCH_ZERO`` attempt policy.
 
 from __future__ import annotations
 
+import copy
 import fnmatch
 import hashlib
 import json
@@ -37,7 +38,9 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from evallab import prefix_memo
 from evallab.edit_signals import tool_bash_commands
+from evallab.prefix_memo import memo_call, memo_keyed
 
 __all__ = [
     "KNOWN_SCORE_RULES",
@@ -46,6 +49,7 @@ __all__ = [
     "commands_from_trial",
     "detect_upstream_fetch",
     "assess_upstream_fetch",
+    "assess_upstream_prefix",
     "confirmed_fetch",
     "format_fetch_notice",
 ]
@@ -88,6 +92,10 @@ def _join_continuations(text: str) -> str:
 
 
 def _split_units(text: str) -> list[tuple[str, str]]:
+    return list(memo_call(_split_units_uncached, text))
+
+
+def _split_units_uncached(text: str) -> list[tuple[str, str]]:
     """Split keystrokes into (head, body) units; heredoc bodies stay attached."""
     units: list[tuple[str, str]] = []
     pending: list[str] = []
@@ -120,6 +128,10 @@ def _split_units(text: str) -> list[tuple[str, str]]:
 
 
 def _split_operators(line: str) -> list[str]:
+    return list(memo_call(_split_operators_uncached, line))
+
+
+def _split_operators_uncached(line: str) -> list[str]:
     """Split one command line on && || ; | outside quotes (backslash-aware)."""
     parts: list[str] = []
     buf: list[str] = []
@@ -175,6 +187,11 @@ def _strip_prefix(argv: list[str]) -> list[str]:
 
 
 def _argv(segment: str) -> list[str] | None:
+    argv = memo_call(_argv_uncached, segment)
+    return None if argv is None else list(argv)
+
+
+def _argv_uncached(segment: str) -> list[str] | None:
     try:
         return _strip_prefix(shlex.split(segment, posix=True))
     except ValueError:
@@ -414,6 +431,26 @@ def _excerpt(text: str) -> str:
 
 
 def detect_upstream_fetch(
+    commands: Iterable[str | tuple[int, str]],
+    *,
+    task_repo: str | None = None,
+) -> list[Finding]:
+    """Flag executed remote-content fetches in agent shell commands (see ``_detect``).
+
+    A single command is memoized per prefix scope: live scoring re-asks the same
+    question about every earlier command on each new step.
+    """
+    if isinstance(commands, list) and len(commands) == 1 and isinstance(commands[0], str | tuple):
+        item = commands[0]
+        found = memo_keyed(
+            ("detect_upstream_fetch", item, task_repo),
+            lambda: _detect_upstream_fetch([item], task_repo=task_repo),
+        )
+        return list(found)
+    return _detect_upstream_fetch(commands, task_repo=task_repo)
+
+
+def _detect_upstream_fetch(
     commands: Iterable[str | tuple[int, str]],
     *,
     task_repo: str | None = None,
@@ -1004,6 +1041,156 @@ def assess_upstream_fetch(
                     "outcome_evidence": evidence,
                 })
     return flags
+
+
+@dataclass
+class _PendingFetch:
+    finding: Finding
+    artifact: str
+    flag: dict
+    chain: list[dict]
+
+
+def _wheel_key(artifact: str) -> tuple[str, str] | None:
+    parent, filename = posixpath.split(artifact)
+    match = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", filename)
+    return (parent, f"{match[1]}-{match[2]}-") if match else None
+
+
+class _FetchFold(prefix_memo.Fold):
+    def __init__(self) -> None:
+        super().__init__()
+        self.flags: list[dict] = []
+        self.pending: dict[int, _PendingFetch] = {}
+        self.targets: dict[str, set[int]] = {}
+        self.artifacts: dict[str, set[int]] = {}
+        self.wheels: dict[tuple[str, str], set[str]] = {}
+
+    def supersede(self, target: str) -> None:
+        for episode in tuple(self.targets.get(target, ())):
+            self.remove(episode)
+
+    def remove(self, episode: int) -> None:
+        pending = self.pending.pop(episode)
+        target = _acquisition_target(pending.finding.target)
+        self.targets[target].remove(episode)
+        if not self.targets[target]:
+            del self.targets[target]
+        episodes = self.artifacts[pending.artifact]
+        episodes.remove(episode)
+        if not episodes:
+            del self.artifacts[pending.artifact]
+            key = _wheel_key(pending.artifact)
+            if key is not None:
+                self.wheels[key].remove(pending.artifact)
+                if not self.wheels[key]:
+                    del self.wheels[key]
+
+    def add(self, pending: _PendingFetch) -> None:
+        target = _acquisition_target(pending.finding.target)
+        episode = id(pending.flag)
+        self.pending[episode] = pending
+        self.targets.setdefault(target, set()).add(episode)
+        self.artifacts.setdefault(pending.artifact, set()).add(episode)
+        key = _wheel_key(pending.artifact)
+        if key is not None:
+            self.wheels.setdefault(key, set()).add(pending.artifact)
+
+    def candidates(self, command: str) -> set[str]:
+        """Index only current unpack operands; never search old steps or pending episodes."""
+        artifacts: set[str] = set()
+        for args, cwd in _command_paths(command):
+            if args[0].rsplit("/", 1)[-1] not in {"unzip", "tar"}:
+                continue
+            for operand in args[1:]:
+                resolved = _resolve_path(operand, cwd)
+                if resolved in self.artifacts:
+                    artifacts.add(resolved)
+                parent, pattern = posixpath.split(resolved)
+                parts = pattern.split("-", 2)
+                if len(parts) == 3:
+                    for artifact in self.wheels.get((parent, f"{parts[0]}-{parts[1]}-"), ()):
+                        if _artifact_operand(artifact, operand, cwd):
+                            artifacts.add(artifact)
+        return artifacts
+
+
+def assess_upstream_prefix(agent_steps: Sequence[dict]) -> list[dict]:
+    """Exact causal ``head`` assessment, updating only new calls and indexed acquisitions.
+
+    A new attempt supersedes the earlier episode for the same target. Only an
+    observed unpack/read of that episode's exact artifact can promote its flag.
+    Historical flags are materialized in report order, but historical calls are
+    never rescanned. Retained-file and multi-document scans use the offline API.
+    """
+    from evallab import probe03
+
+    fold, start = prefix_memo.resume_fold("upstream_fetch", None, agent_steps, _FetchFold)
+    fold.broken = True
+    for step in agent_steps[start:]:
+        calls = _executed_calls(step, probe03.layer_status(step))
+        attempts = [
+            (call_id, command, detect_upstream_fetch([(step["step_id"], command)]))
+            for call_id, command in calls
+        ]
+        # The offline lookahead stops before this entire step if it starts a new episode.
+        for _call_id, _command, findings in attempts:
+            for finding in findings:
+                fold.supersede(_acquisition_target(finding.target))
+        for call_id, command, _findings in attempts:
+            artifacts = fold.candidates(command)
+            if not artifacts:
+                continue
+            results = _call_observations(step, call_id, trial_dir=None)
+            observed = [
+                line for result in results
+                for line in _output_lines(str(result.get("content") or ""), command)
+            ]
+            for artifact in artifacts:
+                extraction = _artifact_extraction(artifact, command, observed)
+                if extraction is None:
+                    continue
+                destination, read = extraction
+                for episode in tuple(fold.artifacts.get(artifact, ())):
+                    pending = fold.pending[episode]
+                    pending.flag.update(
+                        outcome="succeeded",
+                        outcome_reason="exact saved/listed artifact observed being unpacked or read",
+                        outcome_evidence=[*pending.chain, {
+                            "document": "head", "step": step["step_id"], "call_id": call_id,
+                            "target": pending.finding.target, "artifact": artifact,
+                            "extracted_to": destination,
+                            "acquisition_proof": "artifact_read" if read else "artifact_unpack",
+                            "excerpt": "\n".join(observed)[:400],
+                            "observation_binding": sorted({r["binding"] for r in results}),
+                            **_retained_evidence(results),
+                        }],
+                    )
+                    fold.remove(episode)
+        new_flags = assess_upstream_fetch([("head", step)], {})
+        cursor = 0
+        for call_id, command, findings in attempts:
+            results = _call_observations(step, call_id, trial_dir=None) if findings else []
+            lines = [
+                line for result in results
+                for line in _output_lines(str(result.get("content") or ""), command)
+            ]
+            for finding in findings:
+                flag = new_flags[cursor]
+                cursor += 1
+                candidate = _pip_artifact(command, finding, lines) if flag["outcome"] == "unknown" else None
+                if candidate is not None:
+                    artifact, excerpt = candidate
+                    fold.add(_PendingFetch(finding, artifact, flag, [{
+                        "document": "head", "step": step["step_id"], "call_id": call_id,
+                        "target": finding.target, "artifact": artifact, "excerpt": excerpt,
+                        "observation_binding": sorted({r["binding"] for r in results}),
+                        **_retained_evidence(results),
+                    }]))
+        fold.flags.extend(new_flags)
+        fold.seen.append(step)
+    fold.broken = False
+    return copy.deepcopy(fold.flags)
 
 
 def format_fetch_notice(findings: Sequence[Finding], *, limit: int = 5) -> str:

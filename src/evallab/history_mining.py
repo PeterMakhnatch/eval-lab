@@ -24,6 +24,7 @@ makes the following repository unknown instead of the task base.
 
 from __future__ import annotations
 
+import copy
 import json
 import posixpath
 import re
@@ -31,6 +32,7 @@ import shlex
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from evallab.prefix_memo import Fold, resume_fold
 from evallab.step_layers import effective_tool_calls
 from evallab.token_flow import _step_calls
 from evallab.upstream_fetch import _argv, _split_operators, _split_units
@@ -195,6 +197,16 @@ class _State:
         return _first_armed(self.context_steps, keys)
 
 
+class _MiningFold(Fold):
+    """Everything ``history_mining_signals`` carries from one step to the next."""
+
+    def __init__(self, baselines: Sequence[Any] | None) -> None:
+        super().__init__(baselines)
+        self.parsed = _baselines(baselines)
+        self.state = _State()
+        self.hit: dict[str, Any] | None = None
+
+
 def history_mining_signals(
     steps: Sequence[Any] | None,
     *,
@@ -205,30 +217,44 @@ def history_mining_signals(
     ``baselines`` is the pre-agent ``git_history`` list. A complete entry
     resolves ancestor membership. Anything missing, partial, capped, shallow,
     or malformed stays unknown and cannot prove a commit is outside the base.
+
+    Inside a :func:`evallab.prefix_memo.scope` the scan resumes after the steps a
+    previous call already consumed: the first hit is final and the state is a left
+    fold over earlier steps, so the result equals a scan from the first step.
     """
     if isinstance(steps, (str, bytes)) or not isinstance(steps, Sequence):
         return {"hits": [], "browsing": []}
-    parsed_baselines = _baselines(baselines)
-    state = _State()
-    for step in steps:
-        if not isinstance(step, Mapping):
-            continue
-        if str(step.get("source", "")).lower() == "verifier":
-            continue
-        step_id = step.get("step_id")
-        for command in _shell_commands(step):
-            hit = _scan_script(
-                command,
-                step_id=step_id,
-                state=state,
-                origin=command,
-                cwd=None,
-                baselines=parsed_baselines,
-                depth=0,
-            )
-            if hit:
-                return {"hits": [hit], "browsing": state.browsing}
-    return {"hits": [], "browsing": state.browsing}
+    fold, start = resume_fold("history_mining", baselines, steps, lambda: _MiningFold(baselines))
+    try:
+        for index in range(start, len(steps)):
+            if fold.hit is not None:
+                break
+            step = steps[index]
+            fold.seen.append(step)
+            if not isinstance(step, Mapping):
+                continue
+            if str(step.get("source", "")).lower() == "verifier":
+                continue
+            step_id = step.get("step_id")
+            for command in _shell_commands(step):
+                hit = _scan_script(
+                    command,
+                    step_id=step_id,
+                    state=fold.state,
+                    origin=command,
+                    cwd=None,
+                    baselines=fold.parsed,
+                    depth=0,
+                )
+                if hit:
+                    fold.hit = hit
+                    break
+    except BaseException:
+        fold.broken = True
+        raise
+    browsing = copy.deepcopy(fold.state.browsing)
+    hits = [copy.deepcopy(fold.hit)] if fold.hit is not None else []
+    return {"hits": hits, "browsing": browsing}
 
 
 def _baselines(value: Sequence[Any] | None) -> list[dict[str, Any]]:

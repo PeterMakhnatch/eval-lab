@@ -28,6 +28,7 @@ import re
 from typing import Any
 
 from evallab.edit_signals import step_bash_commands
+from evallab.prefix_memo import Fold, resume_fold
 from evallab.task_protected import _READ_VERB_RE, task_protected_read_hits
 
 #: ``/objects/xx/rest`` blob path -> full sha.
@@ -435,6 +436,19 @@ def _update_state(seg: str, state: dict[str, Any]) -> None:
     _derive(seg, state["files"], state["dirs"], state["cwd"])
 
 
+class _CorroborationFold(Fold):
+    def __init__(self) -> None:
+        super().__init__()
+        self.state: dict[str, Any] = {
+            "cwd": None,
+            "tree": "own",
+            "files": set(),
+            "dirs": set(),
+            "peer_dirs": set(),
+        }
+        self.hits: list[dict[str, Any]] = []
+
+
 def content_corroboration(
     agent_steps: list[dict[str, Any]],
     watched_shas: list[str],
@@ -445,37 +459,44 @@ def content_corroboration(
     Single ordered pass: a read corroborates only against derivations from
     strictly earlier segments (bytes cannot be consumed before they exist),
     resolved against the tracked working directory, whose tree flips to peer
-    material on non-default checkouts and local peer-branch clones.
+    material on non-default checkouts and local peer-branch clones. Inside a
+    :func:`evallab.prefix_memo.scope` the pass resumes after the steps a previous
+    call already consumed.
     """
-    state: dict[str, Any] = {
-        "cwd": None,
-        "tree": "own",
-        "files": set(),
-        "dirs": set(),
-        "peer_dirs": set(),
-    }
-    hits: list[dict[str, Any]] = []
-    for step in agent_steps:
-        step_id = step.get("step_id")
-        for keys in step_bash_commands(step):
-            for seg in _segments(keys):
-                kind = _content_kind(
-                    seg,
-                    state["files"],
-                    watched_shas,
-                    sorted(state["files"] | state["dirs"] | state["peer_dirs"]),
-                    watched_prefixes,
-                    state["tree"],
-                    state["cwd"],
-                    step_id,
-                )
-                if kind is not None:
-                    hits.append(
-                        {
-                            "step": step_id,
-                            "kind": kind,
-                            "command": seg[:200],
-                        }
+    fold, start = resume_fold(
+        ("content_corroboration", tuple(watched_shas), tuple(watched_prefixes)),
+        None,
+        agent_steps,
+        _CorroborationFold,
+    )
+    state, hits = fold.state, fold.hits
+    try:
+        for index in range(start, len(agent_steps)):
+            step = agent_steps[index]
+            fold.seen.append(step)
+            step_id = step.get("step_id")
+            for keys in step_bash_commands(step):
+                for seg in _segments(keys):
+                    kind = _content_kind(
+                        seg,
+                        state["files"],
+                        watched_shas,
+                        sorted(state["files"] | state["dirs"] | state["peer_dirs"]),
+                        watched_prefixes,
+                        state["tree"],
+                        state["cwd"],
+                        step_id,
                     )
-                _update_state(seg, state)
-    return hits
+                    if kind is not None:
+                        hits.append(
+                            {
+                                "step": step_id,
+                                "kind": kind,
+                                "command": seg[:200],
+                            }
+                        )
+                    _update_state(seg, state)
+    except BaseException:
+        fold.broken = True
+        raise
+    return [dict(hit) for hit in hits]

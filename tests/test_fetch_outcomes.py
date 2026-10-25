@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from evallab import prefix_memo
 from evallab.counts import attach_counts, classify_counts
 from evallab.process_job import _taint_flags
 from evallab.trial_decision import build_decision
-from evallab.upstream_fetch import assess_upstream_fetch, confirmed_fetch
+from evallab.upstream_fetch import assess_upstream_fetch, assess_upstream_prefix, confirmed_fetch
 
 FIXTURES = Path(__file__).parent / "fixtures" / "upstream_fetch"
 
@@ -398,6 +399,11 @@ def test_archive_listing_mode_cannot_substitute_for_successful_unpack(artifact: 
     command = f"{unpack} /tmp/pkg/{artifact} {directory_option} /tmp/pkg/extracted && ls /tmp/pkg/extracted"
     extraction = _step(command, "module.py", sid=2, call_id="unpack")
     flags = assess_upstream_fetch([("head", fetch), ("head", extraction)], {})
+    cache: dict = {}
+    for prefix in ([fetch], [fetch, extraction]):
+        expected = assess_upstream_fetch([("head", step) for step in prefix], {})
+        with prefix_memo.scope(cache, append_only=True):
+            assert assess_upstream_prefix(prefix) == expected
     assert confirmed_fetch(flags[0]) is confirmed
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == ("excluded" if confirmed else "counted_pass")
 
@@ -428,3 +434,42 @@ def test_native_g5_retained_unpack_is_prospective_evidence(tmp_path: Path) -> No
     assert counts["raw_reward"] == 1.0
     assert counts["verdict"] == "excluded"
     assert counts["reasons"] == ["copied_fix", "pass_tainted"]
+
+
+@pytest.mark.parametrize("superseded", [False, True])
+def test_incremental_acquisition_episodes_preserve_call_binding_and_prefix_causality(
+    superseded: bool,
+) -> None:
+    fetch = _step(
+        "pip download example==1.0 -d /tmp/pkg",
+        "Saved /tmp/pkg/example-1.0-py3-none-any.whl",
+    )
+    # Two independently bound calls in one step are both eligible for later proof.
+    second = _step(
+        "pip download example==1.0 -d /tmp/pkg",
+        "Saved /tmp/pkg/example-1.0-py3-none-any.whl",
+        call_id="fetch-second",
+    )
+    fetch["tool_calls"].extend(second["tool_calls"])
+    fetch["observation"]["results"].extend(second["observation"]["results"])
+    steps = [fetch]
+    if superseded:
+        steps.append(_step("pip download example==1.0 -d /tmp/other", sid=2))
+    steps.append(_step(
+        "unzip -o -q /tmp/pkg/example-1.0-*.whl -d /tmp/pkg/extracted && ls /tmp/pkg/extracted",
+        "module.py",
+        sid=3,
+        call_id="unpack",
+    ))
+    cache: dict = {}
+    snapshots = []
+    for count in range(1, len(steps) + 1):
+        expected = assess_upstream_fetch([("head", step) for step in steps[:count]], {})
+        with prefix_memo.scope(cache, append_only=True):
+            actual = assess_upstream_prefix(steps[:count])
+        assert actual == expected
+        snapshots.append(actual)
+    assert [flag["outcome"] for flag in snapshots[0]] == ["unknown", "unknown"]
+    assert [flag["outcome"] for flag in snapshots[-1]][:2] == [
+        "unknown" if superseded else "succeeded"
+    ] * 2

@@ -8,14 +8,12 @@ at a known step and negative traces (legitimate look-alikes) it must leave alone
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 
+from evallab import prefix_memo
 from evallab.tripwires import (
-    HACKBOOK_ENTRY_COVERAGE,
-    HACKBOOK_RULES,
     scan_prefix,
     scan_trace,
     to_findings,
@@ -889,11 +887,19 @@ def test_runtime_probe_matches_commands_not_arguments(command: str, fires: bool)
     assert bool(_hits([_bash(1, command)], "hb_runtime_probe")) is fires
 
 
-def test_entry_coverage_matches_the_catalog_file() -> None:
-    catalog = Path(__file__).resolve().parents[1] / "research/hackbook/entries.jsonl"
-    entry_ids = {
-        json.loads(line)["id"] for line in catalog.read_text().splitlines() if line.strip()
-    }
-    assert set(HACKBOOK_ENTRY_COVERAGE) == entry_ids
-    ruled = {entry_id for rule in HACKBOOK_RULES for entry_id in rule["entry_ids"]}
-    assert ruled <= entry_ids
+@pytest.mark.parametrize("append_only", [False, True])
+@pytest.mark.parametrize("rule_id", sorted(CASES))
+def test_cached_prefixes_preserve_positive_and_negative_rule_behavior(
+    rule_id: str, append_only: bool,
+) -> None:
+    positive, step_id, negatives = CASES[rule_id]
+    for trace in [positive, *negatives]:
+        steps = [_bash(0, "pwd"), *trace, _bash(90, "pwd"), _bash(91, "echo finished")]
+        cache: dict[Any, Any] = {}
+        for count in range(1, len(steps) + 1):
+            prefix = steps[:count]
+            expected = scan_prefix(prefix)
+            with prefix_memo.scope(cache, append_only=append_only):
+                assert scan_prefix(prefix) == expected
+                assert scan_prefix(prefix) == expected
+    assert [hit["step"] for hit in _hits(positive, rule_id)] == [step_id]

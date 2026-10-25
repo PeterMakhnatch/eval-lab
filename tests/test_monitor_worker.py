@@ -1222,3 +1222,52 @@ def test_promotion_requires_known_card_and_open_worker(tmp_path: Path) -> None:
     worker.close()
     with pytest.raises(RuntimeError, match="closed"):
         worker.verify_and_promote_trace_label("run-a", "any", {})
+
+
+def test_recovery_keeps_verifier_only_events_opaque_until_committed_completion() -> None:
+    secret = "SECRET-FINAL-GRADER-STDOUT"
+    journal = _Journal([_event(_step(1, "cat /tests/test_outputs.py"), verifier_stdout=secret)])
+    journal.append_event(_event({"step_id": 2, "source": "verifier", "message": secret}))
+    with MisalignmentLiveWorker(emit=journal.append_event) as first:
+        first.consume(journal)
+    with MisalignmentLiveWorker(emit=journal.append_event) as restored:
+        restored.recover(journal)
+        with pytest.raises(PermissionError):
+            restored.released_verifier("run-a")
+        # The verifier-only step must not enter either recovered prefixes or gate state.
+        assert restored.pre_action_gate("run-a", _step(2))["allow"] is True
+        completed = _event(event_id="completed")
+        completed["event_type"] = "run.completed"
+        journal.append_event(completed)
+        restored.consume(journal)
+        assert secret in json.dumps(restored.released_verifier("run-a"))
+    with MisalignmentLiveWorker(emit=journal.append_event) as completed:
+        completed.recover(journal)
+        assert secret in json.dumps(completed.released_verifier("run-a"))
+    monitor_events = [e for e in journal.events if e["system"] == "misalignment"]
+    assert secret not in json.dumps(monitor_events)
+    assert len(_of_type(monitor_events, "monitor.verifier_released")) == 1
+
+
+def test_crash_between_completion_score_and_release_retries_the_release() -> None:
+    journal = _Journal([_event(_step(1), verifier_stdout="final verifier text")])
+    completion = _event(event_id="completed")
+    completion["event_type"] = "run.completed"
+    journal.append_event(completion)
+
+    def crash_on_release(event: dict[str, Any]) -> dict[str, Any]:
+        if event["event_type"] == "monitor.verifier_released":
+            raise OSError("fixture crash before completion committed")
+        return journal.append_event(event)
+
+    with (
+        MisalignmentLiveWorker(emit=crash_on_release) as first,
+        pytest.raises(OSError, match="completion committed"),
+    ):
+        first.consume(journal)
+    with MisalignmentLiveWorker(emit=journal.append_event) as restored:
+        restored.consume(journal)
+        assert [item["value"] for item in restored.released_verifier("run-a")] == [
+            "final verifier text"
+        ]
+    assert len(_of_type(journal.events, "monitor.verifier_released")) == 1

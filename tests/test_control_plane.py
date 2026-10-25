@@ -8,12 +8,16 @@ import json
 import threading
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
+from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.control_plane import LiveProjection, create_app
+from evallab.production.corpus_queue import DATASETS, CorpusRegistry
+from evallab.production.inspector import RunInspector
 
 NOW = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
 TOKEN = "test-operator-capability"
@@ -566,3 +570,184 @@ def test_factory_requires_explicit_database_before_constructing_queue(monkeypatc
     monkeypatch.delenv("EVALLAB_PRODUCTION_DATABASE", raising=False)
     with pytest.raises(ValueError, match="EVALLAB_PRODUCTION_DATABASE"):
         app_from_env()
+
+
+# -- Verified Asset Store and grader-diff route gates ----------------------------
+
+DATASET = "tb4-audit-v1"
+ITEM = "dev-item"
+TASK = "dev-task"
+REPLAY = "run-observation-replay"
+
+
+@pytest.fixture
+def corpus(tmp_path: Path) -> CorpusRegistry:
+    """One registered DEV item: the minimum a real split lock needs."""
+    keys = tmp_path / "corpus/research/answer-keys"
+    for dataset in DATASETS:
+        (keys / dataset).mkdir(parents=True)
+        rows = (
+            [{"item_id": ITEM, "split": "dev", "subject": {"task_id": TASK}}]
+            if dataset == DATASET
+            else []
+        )
+        (keys / dataset / "items.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+        )
+    (keys / DATASET / "tasks.jsonl").write_text("", encoding="utf-8")
+    inventory = tmp_path / "corpus/research/experiments/mimo-defect-map-v1/inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text(
+        json.dumps(
+            {
+                "dataset_id": "mimo-defect-map-v1",
+                "heldout_task_ids_excluded_from_training_all_versions": [],
+                "tasks": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return CorpusRegistry(tmp_path / "corpus")
+
+
+def _asset_app(journal: Journal, corpus: CorpusRegistry, tmp_path: Path):
+    return create_app(
+        journal,
+        operator_tokens={TOKEN: "peter"},
+        asset_store=VerifiedAssetStore(
+            journal, corpus, export_root=None, allowed_roots=[tmp_path]
+        ),
+        inspector=RunInspector(journal, corpus, allowed_roots=[tmp_path]),
+        clock=lambda: NOW,
+    )
+
+
+def _asset(journal: Journal, event_id: str, *, status: str = "confirmed", **payload):
+    return journal.add(
+        "asset.verified",
+        system="reward_seeker",
+        run_id="run-asset",
+        event_id=event_id,
+        status=status,
+        **payload,
+    )
+
+
+def test_asset_api_lists_only_assets_backed_by_cited_producer_events(journal, corpus, tmp_path):
+    digest = "sha256:" + "a" * 64
+    identity = {"dataset_id": DATASET, "item_id": ITEM}
+    # The producer events a real asset cites, journaled before the assets.
+    journal.add(
+        "seeker.exploit_confirmed",
+        system="reward_seeker",
+        run_id="run-asset",
+        event_id="confirmed",
+        status="confirmed",
+        candidate_digest=digest,
+        original_reward=1.0,
+        repaired_reward=0.0,
+        **identity,
+    )
+    journal.add(
+        "task_quality.repair_qualified",
+        run_id="run-asset",
+        event_id="qualified",
+        status="confirmed",
+        **identity,
+    )
+    witness = {"kind": "exploit_witness", "candidate_digest": digest, **identity}
+    claims = {
+        # A bare confirmation is a claim, not an asset.
+        "bare": {"kind": "exploit_witness", **identity},
+        # So are measured-looking numbers and a receipt path nothing cites.
+        "claimed-rewards": {**witness, "original_reward": 1.0, "repaired_reward": 0.0},
+        "receipt-path": {**witness, "receipt_path": "runs/witness/receipt.json"},
+        # A citation must carry the digest the producer recorded...
+        "wrong-digest": {
+            **witness,
+            "candidate_digest": "sha256:" + "b" * 64,
+            "source_event_id": "confirmed",
+        },
+        # ...and a repair must cite a qualification, not a witness confirmation.
+        "wrong-source": {
+            "kind": "repaired_task",
+            "source_event_id": "confirmed",
+            **identity,
+        },
+    }
+    for asset_id, payload in claims.items():
+        _asset(journal, asset_id, asset_id=asset_id, **payload)
+    # A provisional event never counts, even with a perfect citation.
+    _asset(
+        journal,
+        "provisional",
+        status="provisional",
+        asset_id="provisional",
+        source_event_id="confirmed",
+        **witness,
+    )
+    _asset(journal, "witness", asset_id="witness", source_event_id="confirmed", **witness)
+    _asset(
+        journal,
+        "repair",
+        asset_id="repair",
+        kind="repaired_task",
+        qualification_event_id="qualified",
+        **identity,
+    )
+    with TestClient(_asset_app(journal, corpus, tmp_path)) as client:
+        listed = client.get("/api/assets").json()
+        detail = {
+            asset_id: client.get("/api/assets/detail", params={"asset_id": asset_id}).status_code
+            for asset_id in (*claims, "provisional", "witness", "repair")
+        }
+    assert listed["total"] == 2
+    assert detail == {
+        **dict.fromkeys((*claims, "provisional"), 404),
+        "witness": 200,
+        "repair": 200,
+    }
+
+
+def _trees(root: Path) -> tuple[Path, Path]:
+    original, repaired = root / "original", root / "repaired"
+    for task, body in ((original, "assert reward == 1\n"), (repaired, "assert reward == 0\n")):
+        (task / "tests").mkdir(parents=True)
+        (task / "instruction.md").write_text("synthetic instruction\n", encoding="utf-8")
+        (task / "tests/test_output.py").write_text(body, encoding="utf-8")
+    return original, repaired
+
+
+def test_grader_diff_serves_an_observation_only_replay_instead_of_404(journal, corpus, tmp_path):
+    original, repaired = _trees(tmp_path / "allowed")
+    with TestClient(_asset_app(journal, corpus, tmp_path)) as client:
+        # Without recorded grader trees the route has no pair to compare.
+        journal.add("run.started", run_id=REPLAY, status="confirmed", dataset_id=DATASET, item_id=ITEM)
+        assert client.get("/api/grader-diff", params={"run_id": REPLAY}).status_code == 404
+        # A snapshot-only replay records the original and repaired trees even
+        # though it never measured a fresh reward, so the diff is servable.
+        journal.add(
+            "seeker.replay_observation",
+            system="reward_seeker",
+            run_id=REPLAY,
+            status="provisional",
+            dataset_id=DATASET,
+            item_id=ITEM,
+            task_id=TASK,
+            original_task=str(original),
+            repaired_task=str(repaired),
+            snapshot_status="snapshot_unverified",
+            recorded_rewards={"original": 1.0, "repaired": 0.0},
+        )
+        response = client.get("/api/grader-diff", params={"run_id": REPLAY})
+    assert response.status_code == 200
+    diff = response.json()
+    assert (diff["dataset_id"], diff["item_id"], diff["split"]) == (DATASET, ITEM, "dev")
+    assert diff["original"]["task_package"] == str(original)
+    assert diff["repaired"]["task_package"] == str(repaired)
+    # The recorded rewards are claims, never this route's measured rewards.
+    assert diff["original"]["reward"] is None and diff["repaired"]["reward"] is None
+    modified = [file for file in diff["files"] if file["status"] == "modified"]
+    assert [file["path"] for file in modified] == ["tests/test_output.py"]
+    assert "-assert reward == 1" in modified[0]["unified_diff"]
+    assert "+assert reward == 0" in modified[0]["unified_diff"]

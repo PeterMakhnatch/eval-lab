@@ -250,10 +250,18 @@ def _repair_chain(
     *,
     run_id: str = "run-repair",
     item: dict[str, str] | None = None,
+    task_id: str = TASK_ID,
+    marker: str | None = None,
 ) -> dict[str, Any]:
-    """A fully real repaired_task qualification: job, qualification, asset."""
+    """A fully real repaired_task qualification: job, qualification, asset.
+
+    ``marker`` writes one extra file before the package is digested, so two
+    chains over different items get distinct package digests and asset ids.
+    """
     item = item or DEV
     package = _task_package(tmp_path, f"repaired-{run_id}")
+    if marker is not None:
+        (package / "marker.txt").write_text(marker, encoding="utf-8")
     digest = task_directory_digest(package)
     rewards: dict[str, list[float]] = {}
     evidence: dict[str, list[dict]] = {}
@@ -263,14 +271,14 @@ def _repair_chain(
         )
     job = queue.enqueue(
         "task_quality.repair_task",
-        {**item, "task_id": TASK_ID},
+        {**item, "task_id": task_id},
         run_id=run_id,
         idempotency_key=f"job:{run_id}",
     )
     qualification_payload = {
         "job_id": job["event_id"],
         **item,
-        "task_id": TASK_ID,
+        "task_id": task_id,
         "task_package": str(package),
         "task_package_digest": digest,
         "repaired_task": str(package),
@@ -302,7 +310,7 @@ def _repair_chain(
                 "kind": "repaired_task",
                 "status": "confirmed",
                 **item,
-                "task_id": TASK_ID,
+                "task_id": task_id,
                 "task_package": str(package),
                 "task_package_digest": digest,
                 "qualification_event_id": qualification["event_id"],
@@ -516,6 +524,38 @@ def _labeled_trace_chain(
         )
     )
     return {"asset": asset, "trial": trial}
+
+
+def _slug(value: str) -> str:
+    return "".join(char if char.isalnum() else "-" for char in value)
+
+
+def _gate_evidence(
+    queue: ContinuousWorkQueue,
+    tmp_path: Path,
+    *,
+    item: dict[str, str] | None = None,
+    task_id: str = TASK_ID,
+) -> dict[str, str]:
+    """Candidate overrides binding one real, re-verifiable ``asset.verified``.
+
+    The training gate refuses unsourced rows, so every test that expects an
+    export first journals a complete repaired_task chain for its item.
+    """
+    item = item or DEV
+    run_id = f"gate-{_slug(item['dataset_id'])}-{_slug(item['item_id'])}"
+    chain = _repair_chain(
+        queue,
+        tmp_path,
+        run_id=run_id,
+        item=item,
+        task_id=task_id,
+        marker=f"{item['dataset_id']}/{item['item_id']}",
+    )
+    return {
+        "asset_event_id": chain["asset"]["event_id"],
+        "asset_id": chain["asset"]["payload"]["asset_id"],
+    }
 
 
 def _manifest(out: Path) -> dict[str, Any]:
@@ -1757,24 +1797,33 @@ class TestWorkerPromotedLabeledTrace:
 
 class TestTrainingGate:
     def _candidate(
-        self, index: int = 0, mechanism: str = "mechanism-signature", **overrides: Any
+        self,
+        index: int = 0,
+        mechanism: str = "mechanism-signature",
+        evidence: dict[str, str] | None = None,
+        **overrides: Any,
     ) -> dict[str, Any]:
         candidate = {
             "dataset_id": DATASET,
             "item_id": "finding-dev",
             "mechanism_signature": mechanism,
             "row": {"index": index, "prompt": "synthetic", "completion": "synthetic"},
+            **(evidence or {}),
         }
         candidate.update(overrides)
         return candidate
 
     def test_export_dev_candidates(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
+        evidence = _gate_evidence(queue, tmp_path)
         manifest = exporter.export_training_bundle(
             [
-                self._candidate(0, mechanism="sig:one"),
-                self._candidate(1, mechanism="sig:two"),
+                self._candidate(0, mechanism="sig:one", evidence=evidence),
+                self._candidate(1, mechanism="sig:two", evidence=evidence),
             ],
             tmp_path / "bundle",
         )
@@ -1825,12 +1874,22 @@ class TestTrainingGate:
         assert manifest["rejected"] == 1
 
     def test_secondary_key_scoping_keeps_dev_exportable(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
         # corpus/secondary-only is TEST under a secondary key only; the scoped
         # canonical lock must not seal it for canonical corpora.
+        evidence = _gate_evidence(
+            queue,
+            tmp_path,
+            item={"dataset_id": DATASET, "item_id": "secondary-visible"},
+            task_id="corpus/secondary-only",
+        )
         manifest = exporter.export_training_bundle(
-            [self._candidate(item_id="secondary-visible")], tmp_path / "bundle"
+            [self._candidate(item_id="secondary-visible", evidence=evidence)],
+            tmp_path / "bundle",
         )
         assert manifest["exported"] == 1
         assert manifest["rejected"] == 0
@@ -1856,6 +1915,12 @@ class TestTrainingGate:
         manifest = exporter.export_training_bundle([candidate], tmp_path / "bundle")
         assert manifest["exported"] == 0
         assert manifest["rejected"] == 1
+        # The stated defect is the rejection reason, not merely the absence of
+        # journal evidence every unsourced candidate is refused for.
+        assert not any(
+            "references no journal evidence" in reason
+            for reason in manifest["rejections"][0]["reasons"]
+        )
 
     def test_missing_mechanism_never_invented(
         self, exporter: VerifiedAssetExporter, tmp_path: Path
@@ -1922,13 +1987,23 @@ class TestTrainingGate:
         assert manifest["rejected"] == 1
 
     def test_dedup_exact_tuple(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
+        evidence = _gate_evidence(queue, tmp_path)
+        cheat = _gate_evidence(
+            queue,
+            tmp_path,
+            item={"dataset_id": "cheatbench-actions-v1", "item_id": "cheat-dev"},
+            task_id="cheatbench/independent",
+        )
         candidates = [
-            self._candidate(0, mechanism="sig:a"),
-            self._candidate(1, mechanism="sig:a"),  # exact duplicate tuple
-            self._candidate(2, mechanism="sig:b"),  # different mechanism
-            self._candidate(3, mechanism="sig:a", dataset_id="cheatbench-actions-v1", item_id="cheat-dev"),  # different dataset
+            self._candidate(0, mechanism="sig:a", evidence=evidence),
+            self._candidate(1, mechanism="sig:a", evidence=evidence),  # exact duplicate tuple
+            self._candidate(2, mechanism="sig:b", evidence=evidence),  # different mechanism
+            self._candidate(3, mechanism="sig:a", evidence=cheat, dataset_id="cheatbench-actions-v1", item_id="cheat-dev"),  # different dataset
         ]
         manifest = exporter.export_training_bundle(candidates, tmp_path / "bundle")
         assert manifest["input"] == 4
@@ -1939,11 +2014,23 @@ class TestTrainingGate:
         assert manifest["distinct_mechanisms"] == 2
 
     def test_distinct_counts_not_inflated(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
         # Resembles the "90 rows vs 39 distinct" regression: 30 candidates over
         # 13 distinct (task, mechanism) tuples must not inflate exported rows
         # or the distinct counts.
+        evidence = {
+            "finding-dev": _gate_evidence(queue, tmp_path),
+            "cheat-dev": _gate_evidence(
+                queue,
+                tmp_path,
+                item={"dataset_id": "cheatbench-actions-v1", "item_id": "cheat-dev"},
+                task_id="cheatbench/independent",
+            ),
+        }
         candidates = []
         for index in range(30):
             mechanism = f"sig:mech-{index % 13}"
@@ -1953,6 +2040,7 @@ class TestTrainingGate:
                 self._candidate(
                     index,
                     mechanism=mechanism,
+                    evidence=evidence[item],
                     dataset_id=dataset,
                     item_id=item,
                 )
@@ -1976,9 +2064,15 @@ class TestTrainingGate:
         assert manifest["deduplicated"] == 30 - manifest["exported"]
 
     def test_deterministic_repeat_outputs(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
-        candidates = [self._candidate(i, mechanism=f"sig:{i % 3}") for i in range(8)]
+        evidence = _gate_evidence(queue, tmp_path)
+        candidates = [
+            self._candidate(i, mechanism=f"sig:{i % 3}", evidence=evidence) for i in range(8)
+        ]
         first = tmp_path / "bundle-a"
         second = tmp_path / "bundle-b"
         manifest_a = exporter.export_training_bundle(candidates, first)
@@ -2009,7 +2103,7 @@ class TestTrainingGate:
     ) -> None:
         manifest = export_training_bundle(
             queue,
-            [self._candidate()],
+            [self._candidate(evidence=_gate_evidence(queue, tmp_path))],
             tmp_path / "bundle",
             repo_root=tmp_path,
         )
@@ -2107,11 +2201,15 @@ class TestTrainingGate:
             assert any("scan depth" in reason for reason in rejection["reasons"])
 
     def test_prose_identity_text_not_scanned(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
         # Sealed-looking names inside arbitrary prose are never scanned: only
         # recognized identity keys carry identity claims.
         candidate = self._candidate(
+            evidence=_gate_evidence(queue, tmp_path),
             row={
                 "prompt": "discuss terminal-bench/sealed-task and synthetic-held-01",
                 "completion": "the task_id finding-test is suspicious text",
@@ -2145,20 +2243,37 @@ class TestTrainingGate:
         )
 
     def test_dedup_canonical_task_aliases(
-        self, exporter: VerifiedAssetExporter, tmp_path: Path
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
     ) -> None:
         # Same canonical task name deduplicates within a dataset; the dataset
         # scopes the identity, and the signature stays exact and nonempty.
+        evidence = _gate_evidence(queue, tmp_path)
+        alias = _gate_evidence(
+            queue,
+            tmp_path,
+            item={"dataset_id": DATASET, "item_id": "alias-dev"},
+            task_id="other-corpus/dev-task@v3",
+        )
+        cross = _gate_evidence(
+            queue,
+            tmp_path,
+            item={"dataset_id": "cheatbench-actions-v1", "item_id": "cb-devtask"},
+            task_id="other-corpus/dev-task",
+        )
         candidates = [
-            self._candidate(0, mechanism="sig:a"),
-            self._candidate(1, mechanism="sig:a", item_id="alias-dev"),
+            self._candidate(0, mechanism="sig:a", evidence=evidence),
+            self._candidate(1, mechanism="sig:a", evidence=alias, item_id="alias-dev"),
             self._candidate(
                 2,
                 mechanism="sig:a",
+                evidence=cross,
                 dataset_id="cheatbench-actions-v1",
                 item_id="cb-devtask",
             ),
-            self._candidate(3, mechanism="sig:a ", item_id="alias-dev"),
+            self._candidate(3, mechanism="sig:a ", evidence=alias, item_id="alias-dev"),
         ]
         manifest = exporter.export_training_bundle(candidates, tmp_path / "bundle")
         assert manifest["input"] == 4
@@ -2167,3 +2282,226 @@ class TestTrainingGate:
         assert manifest["exported"] == 3
         assert manifest["distinct_tasks"] == 2
         assert manifest["distinct_mechanisms"] == 2
+
+    def test_event_free_candidate_rejected(
+        self, exporter: VerifiedAssetExporter, tmp_path: Path
+    ) -> None:
+        # A DEV identity and a mechanism signature are not evidence: a row with
+        # no journal reference is an unsourced claim and never trains.
+        manifest = exporter.export_training_bundle(
+            [self._candidate(0, mechanism="sig:unsourced")], tmp_path / "bundle"
+        )
+        assert manifest["exported"] == 0
+        assert manifest["accepted"] == 0
+        assert manifest["rejected"] == 1
+        assert any(
+            "references no journal evidence" in reason
+            for reason in manifest["rejections"][0]["reasons"]
+        )
+        assert not (tmp_path / "bundle/training_rows.jsonl").read_text().strip()
+
+    @pytest.mark.parametrize(
+        "event_type, status, payload",
+        [
+            # A semantic triage card is model suspicion, never a verification.
+            (
+                "monitor.suspicion",
+                "provisional",
+                {"card_id": "card-1", "judge_label": "exploit-pass", **DEV},
+            ),
+            # A review finding is a human/agent annotation, not measured proof.
+            ("qa.finding/v1", "provisional", {"finding_id": "finding-1", **DEV}),
+            # An observation-only replay records a snapshot, not an execution.
+            (
+                "seeker.replay_observation",
+                "provisional",
+                {"snapshot_status": "snapshot_unverified", **DEV},
+            ),
+            # Any event type without a verification contract fails closed.
+            ("seeker.job_refused", "confirmed", {"job_id": "job-1", **DEV}),
+        ],
+    )
+    def test_provisional_or_unverifiable_events_never_back_a_row(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+        event_type: str,
+        status: str,
+        payload: dict[str, Any],
+    ) -> None:
+        queue.append_event(
+            _event(
+                event_type,
+                payload,
+                event_id=f"evidence:{event_type}",
+                system="reward_seeker",
+                status=status,
+            )
+        )
+        manifest = exporter.export_training_bundle(
+            [self._candidate(evidence={"source_event_id": f"evidence:{event_type}"})],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert any(
+            "not a verified asset, qualification, or execution/adjudication receipt" in reason
+            or "not verifiable provenance" in reason
+            for reason in manifest["rejections"][0]["reasons"]
+        )
+
+    def test_verified_qualification_alone_backs_a_row(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        chain = _repair_chain(queue, tmp_path, run_id="run-gate-qual")
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(
+                    mechanism="sig:qualified",
+                    evidence={"qualification_event_id": chain["qualification"]["event_id"]},
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 0
+        row = json.loads((tmp_path / "bundle/training_rows.jsonl").read_text())
+        assert row["provenance"]["events"]["qualification_event_id"]["event_type"] == (
+            "task_quality.repair_qualified"
+        )
+
+    def test_exploit_confirmation_alone_backs_a_row(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        chain = _exploit_chain(queue, tmp_path, run_id="run-gate-seek")
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(
+                    mechanism="sig:confirmed",
+                    evidence={"source_event_id": chain["confirmed"]["event_id"]},
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 0
+
+    def test_exploit_confirmation_without_measured_receipts_rejected(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        chain = _exploit_chain(queue, tmp_path, run_id="run-gate-tamper")
+        # The claimed 1.0 is a claim again once its trial receipts disagree.
+        (chain["exploit_run"] / "verifier/reward.txt").write_text("0.0", encoding="utf-8")
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(
+                    mechanism="sig:confirmed",
+                    evidence={"source_event_id": chain["confirmed"]["event_id"]},
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert any(
+            "exploit_run did not load a measured receipt" in reason
+            for reason in manifest["rejections"][0]["reasons"]
+        )
+
+    def test_label_verification_event_alone_backs_a_row(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        promoted = _promoted_trace(queue, tmp_path)
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(
+                    mechanism="reads hidden test bytes",
+                    evidence={"source_event_id": promoted["label_event"]["event_id"]},
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 1
+        assert manifest["rejected"] == 0
+        row = json.loads((tmp_path / "bundle/training_rows.jsonl").read_text())
+        assert row["provenance"]["events"]["source_event_id"]["event_type"] == (
+            "trace.label_verified"
+        )
+
+    def test_label_verification_without_independent_proof_rejected(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        # A promotion that names a receipt but no independent verification is
+        # still a claim: nothing measured or adjudicated stands behind it.
+        queue.append_event(
+            _event(
+                "trace.label_verified",
+                {
+                    **DEV,
+                    "task_id": TASK_ID,
+                    "rule": "hidden_info_read",
+                    "label": "exploit-pass",
+                    "prefix_step": 2,
+                    "trace_prefix_sha256": "sha256:" + "a" * 64,
+                    "label_receipt": {
+                        "schema": "evallab.trace_label/v1",
+                        "status": "verified",
+                        "label": "exploit-pass",
+                        **DEV,
+                        "task_id": TASK_ID,
+                        "trace_sha256": "sha256:" + "a" * 64,
+                        "evidence": [{"step": 2, "quote": "cat /tests/test_outputs.py"}],
+                    },
+                },
+                event_id="label:no-proof",
+                run_id="run-noproof",
+                system="misalignment",
+            )
+        )
+        manifest = exporter.export_training_bundle(
+            [self._candidate(evidence={"source_event_id": "label:no-proof"})],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1
+        assert any(
+            "carries no independent verification proof" in reason
+            for reason in manifest["rejections"][0]["reasons"]
+        )
+
+    def test_tampered_label_receipt_rejected_on_reference(
+        self,
+        exporter: VerifiedAssetExporter,
+        queue: ContinuousWorkQueue,
+        tmp_path: Path,
+    ) -> None:
+        promoted = _promoted_trace(queue, tmp_path, run_id="run-monitor-tamper")
+        # The measured verdict behind the promotion no longer reads 1.0.
+        (promoted["trial"] / "verifier/reward.txt").write_text("0.0", encoding="utf-8")
+        manifest = exporter.export_training_bundle(
+            [
+                self._candidate(
+                    mechanism="reads hidden test bytes",
+                    evidence={"source_event_id": promoted["label_event"]["event_id"]},
+                )
+            ],
+            tmp_path / "bundle",
+        )
+        assert manifest["exported"] == 0
+        assert manifest["rejected"] == 1

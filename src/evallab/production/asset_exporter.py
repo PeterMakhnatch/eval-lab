@@ -62,9 +62,17 @@ exists on this path. Recognized identity/provenance fields inside candidate
 rows and referenced event payloads are inspected recursively, so a dev
 envelope cannot launder heldout content hidden in a nested ``dataset_id``,
 ``item_id``, ``task_id``, or digest field; arbitrary prose is never scanned.
-Candidates that reference journal events (asset, qualification, or receipt
-identities) have those references resolved and re-verified; broken or
-contradictory links fail closed. Exports are deterministic JSONL plus a
+Every exported row must be backed by verified journal evidence: a candidate
+that references no journal event, or only provisional/unverifiable ones, is
+refused fail-closed. Each reference is re-verified by its event type —
+``asset.verified`` through :meth:`VerifiedAssetExporter.verify_asset_event`,
+``task_quality.repair_qualified`` through the nine-control qualification
+check, ``seeker.exploit_confirmed`` through the measured differential, and
+``trace.label_verified`` through the independent verification or
+adjudication receipt on disk. A ``monitor.suspicion`` card, a provisional
+``qa.finding/v1`` review record, an observation-only replay, or any event type
+without a verification contract is never provenance for a training row.
+Broken or contradictory links fail closed. Exports are deterministic JSONL plus a
 manifest with digests, provenance, and input/accepted/deduplicated/exported
 counts with distinct task/mechanism counts; deduplication keys on the exact
 ``(dataset_id, canonical task name, mechanism_signature)`` tuple where the
@@ -1253,6 +1261,145 @@ class VerifiedAssetExporter:
         }
         return (qualification if not problems else None), problems
 
+    def _check_exploit_confirmation(self, event: Mapping[str, Any]) -> list[str]:
+        """Re-verify one ``seeker.exploit_confirmed`` event end to end.
+
+        The confirmed differential is a qualification in its own right: both
+        measured trial receipts must still load from disk with ``1.0`` upstream
+        and ``0.0`` repaired rewards, and the candidate digest must recompute
+        from the immutable submission bytes.
+        """
+        problems: list[str] = []
+        if event.get("event_type") != "seeker.exploit_confirmed":
+            problems.append("confirmation event is not seeker.exploit_confirmed")
+        if event.get("status") != "confirmed":
+            problems.append("confirmation event is not confirmed")
+        if event.get("system") not in WORKER_SYSTEMS:
+            problems.append("confirmation event does not come from a worker system")
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            return [*problems, "confirmation payload is not an object"]
+        if payload.get("verified_differential") is not True:
+            problems.append("confirmation does not claim a verified differential")
+        for key, expected in (
+            ("original_reward", 1.0),
+            ("upstream_reward", 1.0),
+            ("repaired_reward", 0.0),
+        ):
+            if finite_reward(payload.get(key)) != expected:
+                problems.append(f"{key} is not a measured {expected}")
+        candidate_digest = payload.get("candidate_digest")
+        if not isinstance(candidate_digest, str) or not _DIGEST_RE.fullmatch(candidate_digest):
+            problems.append("candidate_digest is not a full sha256 digest")
+            candidate_digest = None
+        if candidate_digest is not None:
+            submission = payload.get("exploit_files")
+            if not isinstance(submission, Mapping) or not submission:
+                problems.append("exploit_files are missing; the digest cannot recompute")
+            else:
+                try:
+                    recomputed = compute_candidate_digest(submission)
+                except (TypeError, ValueError) as exc:
+                    problems.append(f"exploit_files cannot recompute a digest: {exc}")
+                else:
+                    if recomputed != candidate_digest:
+                        problems.append("exploit_files do not reproduce candidate_digest")
+        repaired_ref = payload.get("repaired_run") or next(
+            iter(payload.get("repaired_runs") or []), None
+        )
+        refs: dict[str, Any] = {}
+        for key, ref, expected in (
+            ("exploit_run", payload.get("exploit_run"), 1.0),
+            ("repaired_run", repaired_ref, 0.0),
+        ):
+            receipt = self._receipt(ref)
+            if receipt is None:
+                problems.append(f"{key} did not load a measured receipt")
+                continue
+            refs[key] = ref
+            problems.extend(
+                self._bind_declared(
+                    receipt.identity,
+                    {
+                        "task_id": payload.get("task_id"),
+                        "task_package": payload.get(
+                            "task_package" if key == "exploit_run" else "repaired_task"
+                        ),
+                        "dataset_id": payload.get("dataset_id"),
+                        "item_id": payload.get("item_id"),
+                    },
+                    tag=key,
+                )
+            )
+            if receipt.value != expected:
+                problems.append(f"{key} receipt reward {receipt.value} != {expected}")
+        if (
+            refs.get("exploit_run") is not None
+            and refs.get("exploit_run") == refs.get("repaired_run")
+        ):
+            problems.append("exploit and repaired runs must be distinct receipts")
+        return problems
+
+    def _check_label_verification(self, event: Mapping[str, Any]) -> list[str]:
+        """Re-verify one ``trace.label_verified`` promotion event end to end.
+
+        The promotion's own ``evallab.trace_label/v1`` receipt must stand on
+        its own: verified status, a real label, identity bound to the event,
+        step citations, and an independent ``verification`` proof whose
+        measured execution or adjudication receipt still loads from disk and
+        still binds this run, task, prefix, and observed trace digest.
+        """
+        problems: list[str] = []
+        if event.get("event_type") != "trace.label_verified":
+            problems.append("label event is not trace.label_verified")
+        if event.get("status") != "confirmed":
+            problems.append("label event is not confirmed")
+        if event.get("system") not in WORKER_SYSTEMS:
+            problems.append("label event does not come from a worker system")
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            return [*problems, "label payload is not an object"]
+        receipt, receipt_problems = self._load_label_receipt(payload)
+        problems.extend(receipt_problems)
+        if receipt is None:
+            return problems
+        declared_label = _nonempty_str(payload.get("label"))
+        if declared_label is not None and declared_label != receipt["label"]:
+            problems.append("label event label contradicts its receipt")
+        proof = receipt.get("verification")
+        verified_proof: dict[str, Any] | None = None
+        if proof is None:
+            problems.append("a promoted label receipt carries no independent verification proof")
+        else:
+            declared_prefix = payload.get("prefix_step")
+            verified_proof, proof_problems = verify_label_proof(
+                proof,
+                expect={
+                    "run_id": event.get("run_id"),
+                    "dataset_id": payload.get("dataset_id"),
+                    "item_id": payload.get("item_id"),
+                    "task_id": payload.get("task_id"),
+                    "task_digest": payload.get("task_digest"),
+                    "label": receipt["label"],
+                    "rule": payload.get("rule"),
+                    "prefix_step": declared_prefix
+                    if type(declared_prefix) is int
+                    else event.get("prefix_step"),
+                    "trace_prefix_sha256": payload.get("trace_prefix_sha256"),
+                },
+                load_measured=self._receipt,
+                load_record=self._adjudication_record,
+            )
+            problems.extend(proof_problems)
+            if verified_proof is not None:
+                try:
+                    normalized = _canon(verified_proof) == _canon(proof)
+                except (TypeError, ValueError):
+                    normalized = False
+                if not normalized:
+                    problems.append("embedded verification is not the normalized proof")
+        return problems
+
     # -- per-kind verification ---------------------------------------------------
 
     def _verify_repaired_task(
@@ -1993,6 +2140,13 @@ class VerifiedAssetExporter:
                 problems.append(f"{key} does not resolve to a journal event")
                 continue
             references[key] = event
+        if not references:
+            # Fail closed: a row with no journal evidence is an unsourced claim.
+            problems.append(
+                "candidate references no journal evidence; a training row must be "
+                "backed by a verified asset, qualification, or execution/adjudication "
+                "receipt"
+            )
         for key, event in references.items():
             resolved[key] = event
             linked_payload = event.get("payload")
@@ -2013,18 +2167,27 @@ class VerifiedAssetExporter:
                         linked_payload, dataset_id=dataset_id, item=item
                     )
                 )
-            if event.get("event_type") == "monitor.suspicion":
-                problems.append(
-                    f"{key}: a raw monitor suspicion card is not verifiable provenance"
-                )
-            elif event.get("event_type") == "asset.verified":
-                _, asset_problems = self.verify_asset_event(event)
-                problems.extend(f"{key}: {problem}" for problem in asset_problems)
-            elif event.get("event_type") == "task_quality.repair_qualified":
-                _, qual_problems = self._check_qualification(
+            event_type = event.get("event_type")
+            if event_type == "asset.verified":
+                _, event_problems = self.verify_asset_event(event)
+            elif event_type == "task_quality.repair_qualified":
+                _, event_problems = self._check_qualification(
                     event, run_id=str(event.get("run_id"))
                 )
-                problems.extend(f"{key}: {problem}" for problem in qual_problems)
+            elif event_type == "seeker.exploit_confirmed":
+                event_problems = self._check_exploit_confirmation(event)
+            elif event_type == "trace.label_verified":
+                event_problems = self._check_label_verification(event)
+            elif event_type == "monitor.suspicion":
+                event_problems = [
+                    "a raw monitor suspicion card is not verifiable provenance"
+                ]
+            else:
+                event_problems = [
+                    f"a {event_type!r} event is not a verified asset, qualification, "
+                    "or execution/adjudication receipt"
+                ]
+            problems.extend(f"{key}: {problem}" for problem in event_problems)
         return (resolved if not problems else None), problems
 
     def _check_candidate(
@@ -2129,7 +2292,10 @@ class VerifiedAssetExporter:
         export time; a passed dict is never trusted. The bundle refuses TEST
         identities, unknown identities, missing mechanism signatures, and
         contradictory provenance — including recognized identity fields nested
-        inside rows or linked event payloads. Dedup keys on the exact
+        inside rows or linked event payloads. A candidate must name journal
+        evidence, and that evidence must re-verify: an event-free row or one
+        resting only on provisional cards or review findings is refused
+        fail-closed. Dedup keys on the exact
         ``(dataset_id, canonical task name, mechanism_signature)`` tuple.
         """
         if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Iterable):

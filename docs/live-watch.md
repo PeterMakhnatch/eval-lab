@@ -894,7 +894,16 @@ identity/provenance fields nested in rows and linked event payloads are
 inspected for sealed or conflicting identities (prose is never scanned), and
 deduplication keys on the exact `(dataset_id, canonical task name,
 mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
-within one dataset. Writes refuse output directories under a symlink
+within one dataset. Every row must also be backed by journal evidence that
+re-verifies at export time: an `asset.verified` event, a
+`task_quality.repair_qualified` qualification, a `seeker.exploit_confirmed`
+differential whose measured trial receipts still load from disk, or a
+`trace.label_verified` promotion whose independent verification or
+adjudication receipt still binds the run, task, and observed prefix. A
+candidate that names no event, or only a `monitor.suspicion` card, a
+provisional `qa.finding/v1` review, an observation-only replay, or any other
+event type without a verification contract, is rejected fail-closed and
+reported in the manifest's `rejections`. Writes refuse output directories under a symlink
 ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges
 only after the complete bundle is on disk.

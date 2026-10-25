@@ -260,6 +260,8 @@ class CorpusRegistry:
         candidates = [
             self._assignments.get((key_id, item_id)) if item_id is not None else None,
             self._assignments.get((key_id, task_id)) if task_id is not None else None,
+            self._assignments.get((key_id, self.task_name(task_id)))
+            if task_id is not None else None,
             self._assignment_names.get((key_id, self.task_name(task_id)))
             if task_id is not None else None,
         ]

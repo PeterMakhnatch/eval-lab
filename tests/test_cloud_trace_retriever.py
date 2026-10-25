@@ -288,6 +288,7 @@ def make_registry(tmp_path: Path) -> CorpusRegistry:
         "mixed-key,dev-item,synthetic-assigned-dev,dev\n"
         "mixed-key,test-item,synthetic-assigned-test,test\n"
         "mixed-key,conflicting-item,synthetic-assigned-dev,test\n"
+        "mixed-key,synthetic-name-only-dev,,dev\n"
     )
     return CorpusRegistry(tmp_path)
 
@@ -303,6 +304,7 @@ def test_authoritative_secondary_key_assignments_override_db_dev_labels(
     assert registry.assigned_split("mixed-key", task_id="namespace/synthetic-assigned-dev@v2") == "test"
     assert registry.assigned_split("mixed-key", item_id="dev-item") == "dev"
     assert registry.assigned_split("mixed-key", item_id="missing") is None
+    assert registry.assigned_split("mixed-key", task_id="namespace/synthetic-name-only-dev@v2") == "dev"
     assert not registry.has_split_assignments("external-fixture")
     rows = [
         ("synthetic-secondary-sealed", "tb2-to-tb21-v1", "secondary-test"),
@@ -311,6 +313,7 @@ def test_authoritative_secondary_key_assignments_override_db_dev_labels(
         ("item-assigned-test", "mixed-key", "test-item"),
         ("namespace/synthetic-assigned-dev@v2", "mixed-key", "dev-item"),
         ("mixed-unlisted", "mixed-key", "missing"),
+        ("namespace/synthetic-name-only-dev@v2", "mixed-key", None),
         ("external-allowed", "external-fixture", None),
     ]
     for task_id, dataset, item_id in rows:
@@ -319,7 +322,9 @@ def test_authoritative_secondary_key_assignments_override_db_dev_labels(
         add_trace(db, task_id, task_id + "/trace")
     retriever = CloudTraceRetriever(db, registry=registry)
     examples = retriever.retrieve_similar_examples("pytest grader", kind, 100)
-    assert {example.task_id for example in examples} == {"item-assigned-dev", "external-allowed"}
+    assert {example.task_id for example in examples} == {
+        "item-assigned-dev", "namespace/synthetic-name-only-dev@v2", "external-allowed",
+    }
     assert all(example.dataset_id != "tb2-to-tb21-v1" for example in examples)
     with pytest.raises(ValueError, match="sealed"):
         retriever.retrieve_similar_examples("inspect synthetic-secondary-sealed", kind)

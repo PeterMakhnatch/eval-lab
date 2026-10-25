@@ -646,6 +646,36 @@ class CloudTraceDatabase:
                 issue["task"] = tasks[issue["task_id"]]
             return issues
 
+    def _retrieval_task_ids(
+        self, task_ids: list[str], query: str, terms: Sequence[str],
+    ) -> list[str]:
+        """Find matching admitted identities before hydrating any large text."""
+        if not terms:
+            return task_ids
+        found = []
+        for start in range(0, len(task_ids), 500):
+            page = task_ids[start:start + 500]
+            parameters: list[Any] = list(page)
+            matches = []
+            for table, alias, relation in (
+                ("corpus_tasks", "t", None),
+                ("task_issues", "i", "i.task_id = t.task_id AND i.status = 'confirmed'"),
+                ("agent_traces", "a", "a.task_id = t.task_id"),
+                ("trace_steps", "s", "s.trace_id IN (SELECT a.trace_id FROM agent_traces a "
+                 "WHERE a.task_id = t.task_id)"),
+            ):
+                match = self._search_match(table, alias, query, terms, parameters)
+                matches.append(
+                    f"EXISTS (SELECT 1 FROM {table} {alias} WHERE {relation} AND ({match}))"
+                    if relation else f"({match})"
+                )
+            found.extend(row["task_id"] for row in self._rows(
+                "SELECT t.task_id FROM corpus_tasks t WHERE t.task_id "
+                f"IN ({', '.join('?' for _ in page)}) AND ({' OR '.join(matches)}) "
+                "ORDER BY t.task_id", parameters,
+            ))
+        return found
+
     def _retrieval_matches(
         self, table: str, alias: str, column: str, values: Sequence[str],
         query: str, terms: Sequence[str], *, confirmed_only: bool = False,
@@ -880,6 +910,7 @@ class CloudTraceRetriever:
                 raise ValueError("query contains a sealed task identity")
             if query.strip() and not terms:
                 return []
+            admitted = database._retrieval_task_ids(admitted, query, terms)
             tasks = database._retrieval_matches(
                 "corpus_tasks", "t", "task_id", admitted, query, terms,
             )

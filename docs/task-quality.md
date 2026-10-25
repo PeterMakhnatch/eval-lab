@@ -262,48 +262,72 @@ The coordinator executes nothing, scores no reward, and admits nothing to the as
 store. It produces verified candidates and an attested receipt; the live workers
 and `VerifiedAssetExporter` still own measurement and promotion.
 
-### Expanding the store from pinned public corpora
+## Guarded local corpus intake
 
-`evallab.production.corpus_expansion` is the importer the store deliberately
-does not contain: `python -m evallab.production.corpus_expansion --database <path>
---output <receipt.json>` plus the source flags you want to read. Run it against a
-staged copy of the database, then publish; the store has other writers.
+`python -m evallab.production.corpus_expansion` imports already normalized,
+per-identity **local** staging objects through `CloudTraceDatabase`. It does not
+download public corpora, load answer keys, scan mixed task-body files to discover
+identity, construct `CorpusRegistry`, launch workers, or synchronize a raw store.
+The original broad downloader design was removed: it was not the implementation
+that produced the retained intake and could read mixed bodies before clearance.
 
-Its `SealGuard` refuses every identity `CorpusRegistry` seals (item id, task name,
-digest) **and** every task name that `research/answer-keys/splits/assignments.csv`
-holds out under *any* key. The second rule matters: eight of the 22 TB4 Hub "DEV"
-tasks are `dev` for `tb4-audit-v1` but `heldout` for `envcheck-tb4-39`, and the
-registry alone calls them DEV. A missing `assignments.csv` fails closed. The
-check is identity-only: it cannot see that a differently named task is
-upstream-equivalent to a sealed one. Adapters ask the guard before opening any
-byte, passing every alias a source gives a task, so a sealed row costs zero reads.
+```bash
+EVALLAB_DISABLE_LOCAL_DOCKER=1 uv run python -m evallab.production.corpus_expansion \
+  --database /private/operator/staged.sqlite \
+  --pack /private/operator/import-pack.json \
+  --clearance /private/operator/identity-manifest.json \
+  --clearance-sha256 EXACT_TRUSTED_MANIFEST_SHA256 \
+  --output /private/operator/new-receipt.json
+```
 
-| Flag | Source and what it contributes |
-| --- | --- |
-| `--tb4-hub-index` | Frozen TB4 Hub `trajectory-index.jsonl`. Reads only `dev_task_allowlist` memberships that are `admitted_exact_source` and `complete` and whose task the guard clears; steps come from each trial's `agent/trajectory.json`, the reported model and reward from `result.json`. Split `DEV`. |
-| `--goodfire-run` (repeatable) | `Goodfire/reward-hack-data` at its pinned revision. `traces.jsonl` supplies real rollout nodes, `labels/judge_rollouts.jsonl` the three-vote verdict recorded as `source_label:<verdict>`. Split `held`. |
-| `--wrench-index-dir` + `--wrench-task-table` | `few-sh/terminal-wrench-trajectories` index parquets plus the `few-sh/terminal-wrench` payload bodies. Wrench numbers its tasks, so the task table's `task_id` and `aliases` columns (and only those) gate every task: some are TB2 originals. A task the table cannot name is excluded, and one another writer already retains is skipped. Split `held`; one provisional `wrong_pass` issue per (task, publisher classification) for rewarded hacks. |
-| `--stage-dir` | JSONL already staged by the on-disk library loaders; reads `cua.jsonl` (CUA-VerifierBench) and `ignition.jsonl`. They publish no episode text and no defect direction, so they register held catalog records only, with no issue rows. |
+Default dry-run reads only the identity pack and pinned identity manifest, not
+task bodies or CAS. Explicit `--execute` enables a local import after every
+selected identity clears. Receipts are immutable. The pack schema is
+`evallab.corpus_import_pack/v1`, with one `objects` entry per task:
+`source_dataset`, immutable `source_revision`, `native_id`, normalized bundle
+`path`, and bundle `sha256`. A bundle contains `task` plus `traces`, each with
+`trace` and complete ordered `steps`. Publisher labels remain provisional,
+source model IDs remain `source-reported:...`, and no issue/confirmation is
+fabricated. Existing records cannot be overwritten; steps are not clipped,
+elided or silently dropped. This local-pack mode rejects every CAS reference
+before insertion; it never silently discards or follows raw attachments.
 
-SimGlot, SWE-bench annotations and SWE-bench Pro Verified corrections have no
-adapter: they are retained elsewhere as held catalog records, and the sources
-state no `wrong_pass`/`unfair_fail` direction to project.
+`evallab.production.corpus_clearance.ClearanceManifest` loads strict
+`evallab.corpus_clearance/v1` identity-only records. Its `require` gate needs a
+canonical `{dataset_id,item_id,task_id}`, established duplicate-family `family_id`,
+effective `dev` split and pinned split authority, plus an explicit independently
+evidenced grant for the requested use. Unknown, missing, conflicting, TEST and
+held decisions deny before body reads. Case/padding cannot distinguish conflicting
+identities. Unexpected body fields are rejected. `operator_raw`,
+`actor_retrieval`, `scorer`, `derivatives`, `training` and `redistribution` are
+separate rights; an inherited database DEV label, a public URL or a code license
+does not grant them. The caller supplies a trusted manifest digest out of band:
+this proves integrity, not an authenticated publisher approval or a signature.
 
-Every written trace carries `verified_receipt_json` with schema
-`evallab.public_trace_provenance/v1` and status `unverified_public_archive`, so
-`only_verified=True` excludes all of them: a publisher label is not our
-confirmation. Reported model ids are stored as `source-reported:<model>`, never as
-a serving attestation. `is_exploit` is set only where the publisher itself labels
-a rewarded hack. Rows are split `held` unless the TB4 Hub allowlist and the guard
-both clear them (`DEV`); `TEST` is never written. Projection is bounded and the
-bounds are reported: step text is clipped with an explicit marker, base64 payloads
-are replaced by a length marker, and the counts of clipped, elided, and dropped
-steps land in the trace receipt. Raw rows go to the CAS as deterministic gzip
-bundles when `--cas` is given; TB4 Hub archives are hashed and referenced by their
-immutable path and `tree_sha256` instead of copying multi-megabyte base64
-payloads. The run writes one receipt holding exact before/after row counts per
-table, per-source tallies, the guard's refusals, and every exclusion reason.
+The supported importer asks for `operator_raw` only and still stores tasks as
+`held`. It grants no actor/scorer/training access. An actor projection must
+independently check the canonical assignment authority, exclude the requester's
+entire duplicate family, require `actor_retrieval` rights and reviewed actor-safe
+fields, and enumerate only those fields' exact transitive reachable CAS objects.
+Raw bundles may contain scorer-only material and are not automatically safe.
+Publish that allowlist to a physically separate actor-only store, never copy or
+mount the raw SQLite file, WAL, backup, quarantine or whole CAS. Citation-only
+labels are not verified training backing; source-code merge is not deployment.
 
+The [immutable LB-1 run-evidence archive](../research/evidence/runs/corpus-expansion-lb1-20261025/README.md)
+contains the actual historical importer bytes, hash manifest and frozen database
+dependency. **Do not execute those historical tools:** their Wrench clearance
+was retracted and the removed rows were quarantined. They are evidence, not a
+second supported importer. The archive preserves the earlier mixed-source I/O
+limitation rather than claiming it never occurred.
+
+`scripts/ops/build-corpus-clearance.py` generates a private identity-only held
+inventory from four explicitly selected held datasets' identity columns and
+the pinned Goodfire/Wrench alias manifests. It never reads task bodies, traces,
+CAS or protected registries. The recorded inventory has **3,684 held identities,
+zero established canonical/family grants and zero per-use allowances**.
+Unavailable authority stays unknown; raw inventory counts are not
+production-eligible counts. See the archive's aggregate inventory receipt.
 
 ## One dataset audit command
 

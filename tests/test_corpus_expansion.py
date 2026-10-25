@@ -1,488 +1,575 @@
-"""Exercise the public-corpus expansion against temporary SQLite stores only.
-
-No network, no live database, no corpus bytes: every adapter reads a fixture that
-mirrors the publisher's own field names, so a failure here is a projection bug
-rather than a source outage.
-"""
+"""Local, inert intake fixtures: no datasets, registry, CAS, network, or solvers."""
 
 from __future__ import annotations
 
-import base64
-import gzip
+import copy
 import hashlib
 import json
-from collections.abc import Iterator
+import os
 from pathlib import Path
 from typing import Any
 
-import pyarrow as pa
-import pyarrow.parquet as parquet
 import pytest
 
 from evallab.production import corpus_expansion as expansion
-from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
-from evallab.production.corpus_expansion import (
-    GOODFIRE_DATASET,
-    HELD_SPLIT,
-    IGNITION_DATASET,
-    TB4_HUB_DATASET,
-    TERMINAL_WRENCH_DATASET,
-    ExpansionWriter,
-    Limits,
-    SealGuard,
-    _raw_bundle,
-    ingest_cua_verifier,
-    ingest_goodfire,
-    ingest_ignition,
-    ingest_tb4_hub,
-    ingest_terminal_wrench,
-    project_goodfire_nodes,
-    project_harbor_trajectory,
-)
-from evallab.production.corpus_queue import CorpusRegistry
+from evallab.production.cloud_trace_db import CloudTraceDatabase
 
-DATASET = "tb4-audit-v1"
+USES = ("operator_raw", "actor_retrieval", "scorer", "derivatives", "training", "redistribution")
 
 
-def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+def _bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
 
 
-def _item(item_id: str, split: str, task: str, digest: str | None = None) -> dict[str, Any]:
-    return {"item_id": item_id, "split": split, "subject": {"task_id": task, "task_digest": digest}}
-
-
-@pytest.fixture
-def corpus_root(tmp_path: Path) -> Path:
-    root = tmp_path / "corpus"
-    keys = root / "research/answer-keys"
-    _write_jsonl(keys / DATASET / "items.jsonl", [_item("finding-test", "test", "terminal-bench/sealed")])
-    _write_jsonl(keys / DATASET / "tasks.jsonl", [_item("ignored", "test", "terminal-bench/sealed")])
-    _write_jsonl(keys / "cheatbench-actions-v1/items.jsonl", [_item("cheat-dev", "dev", "cheatbench/dev")])
-    _write_jsonl(keys / "hacktrace-act-v1/items.jsonl", [_item("hack-dev", "dev", "hacktrace/dev")])
-    inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
-    inventory.parent.mkdir(parents=True)
-    inventory.write_text(
-        json.dumps(
-            {
-                "dataset_id": "mimo-defect-map-v1",
-                "heldout_task_ids_excluded_from_training_all_versions": ["mimo-held"],
-                "tasks": [{"record_id": "mimo-held@v1", "task_id": "mimo-held"}],
-            }
-        ),
-        encoding="utf-8",
-    )
-    # ``straddler`` is dev under the canonical key but held out under a secondary key.
-    assignments = keys / "splits/assignments.csv"
-    assignments.parent.mkdir(parents=True)
-    assignments.write_text(
-        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
-        "tb4-audit-v1,pm:straddler:1,straddler,terminal-bench/straddler,dev,fail,\n"
-        "envcheck-tb4-39,terminal-bench/straddler,straddler,terminal-bench/straddler,heldout,fail,\n"
-        "tb2-to-tb21-v1,x,adaptive-rejection-sampler,u,heldout,fail,\n"
-        "tb4-audit-v1,pm:ordinary:1,ordinary,terminal-bench/ordinary,dev,fail,\n",
-        encoding="utf-8",
-    )
-    return root
-
-
-@pytest.fixture
-def database(tmp_path: Path) -> Iterator[CloudTraceDatabase]:
-    with CloudTraceDatabase(tmp_path / "cloud-trace-db.sqlite") as store:
-        yield store
-
-
-@pytest.fixture
-def guard(corpus_root: Path) -> SealGuard:
-    return SealGuard(CorpusRegistry(corpus_root))
-
-
-@pytest.fixture
-def writer(database: CloudTraceDatabase, guard: SealGuard, tmp_path: Path) -> ExpansionWriter:
-    return ExpansionWriter(
-        database,
-        guard=guard,
-        cas=S3CompatibleCAS(local_directory=tmp_path / "cas"),
-        limits=Limits(content_chars=40, observation_chars=120, action_chars=30, max_steps=4),
-    )
-
-
-def test_seal_guard_refuses_registry_identities_and_any_key_heldout(guard: SealGuard) -> None:
-    assert guard.refusal("terminal-bench/sealed") == "task name"
-    assert guard.refusal("other-benchmark/mimo-held@v3") == "task name"
-    # Dev for the canonical key, held out under a secondary one: still sealed.
-    assert guard.refusal("terminal-bench/straddler") == "assignments heldout"
-    assert guard.refusal("terminal-wrench/1012", "adaptive-rejection-sampler") == "assignments heldout"
-    assert guard.refusal("terminal-bench/ordinary") is None
-    assert guard.refusals == {"task name": 2, "assignments heldout": 2}
-
-
-def test_seal_guard_fails_closed_without_assignments(corpus_root: Path) -> None:
-    (corpus_root / "research/answer-keys/splits/assignments.csv").unlink()
-    with pytest.raises(FileNotFoundError):
-        SealGuard(CorpusRegistry(corpus_root))
-
-
-def test_harbor_projection_bounds_marks_and_flags() -> None:
-    image = "iVBORw0KGgo" * 80
-    steps = [
-        {"source": "user", "message": "install the tool"},
-        {
-            "source": "agent",
-            "message": "x" * 200,
-            "tool_calls": [{"function_name": "bash", "arguments": {"command": "ls /app"}}],
-            "observation": {"results": [{"content": json.dumps({"data": image})}]},
+def _record(number: int = 1) -> dict[str, Any]:
+    authority = {"ref": "synthetic-authority:fixture", "sha256": "a" * 64}
+    return {
+        "source_dataset": "synthetic-source",
+        "source_revision": "fixture-revision-1",
+        "native_id": f"item-{number}",
+        "aliases": [],
+        "canonical_identity": {
+            "dataset_id": "synthetic-canonical", "item_id": f"canonical-item-{number}",
+            "task_id": f"synthetic/task-{number}",
         },
-        {"source": "tool", "message": "done"},
-        {"source": "agent", "message": "extra"},
-        {"source": "agent", "message": "dropped"},
-    ]
-    rows, stats = project_harbor_trajectory(
-        steps,
-        limits=Limits(content_chars=40, observation_chars=120, action_chars=30, max_steps=4),
-        key_steps=[1],
-    )
-    assert [row["step_index"] for row in rows] == [0, 1, 2, 3]
-    assert rows[1]["tool_name"] == "bash"
-    assert rows[1]["flags_json"] == {"publisher_key_hack_step": True}
-    assert "clipped" in rows[1]["content_text"]
-    assert "elided" in rows[1]["observation_preview"]
-    assert stats["clipped_steps"] >= 1
-    assert stats["elided_base64"] == 1
-    assert stats["dropped"] == 1
-
-
-def test_goodfire_projection_separates_agent_action_and_tool_result() -> None:
-    nodes = [
-        {"message": {"role": "system", "content": "sys"}},
-        {
-            "message": {
-                "role": "assistant",
-                "content": "look",
-                "reasoning_content": "because",
-                "tool_calls": [{"name": "bash", "arguments": "{\"command\": \"ls\"}"}],
+        "family_id": f"synthetic-family-{number}",
+        "effective_split": "dev",
+        "split_authority": authority,
+        "rights": {
+            use: {
+                "decision": "allow" if use == "operator_raw" else "deny",
+                "authority": authority if use == "operator_raw" else None,
             }
+            for use in USES
         },
-        {"parent": 1, "message": {"role": "tool", "content": "<output>ok</output>"}},
-    ]
-    rows, _ = project_goodfire_nodes(nodes, limits=Limits())
-    assert rows[1]["tool_name"] == "bash"
-    assert "<reasoning>" in rows[1]["content_text"]
-    assert rows[2]["role"] == "tool"
-    assert rows[2]["content_text"] is None
-    assert rows[2]["observation_preview"] == "<output>ok</output>"
-
-
-def test_raw_bundle_is_deterministic_and_roundtrips() -> None:
-    first = _raw_bundle(b'{"a":1}', locator="run/traces.jsonl#1", content_type="application/json")
-    second = _raw_bundle(b'{"a":1}', locator="run/traces.jsonl#1", content_type="application/json")
-    assert first == second
-    assert first["sha256"] == hashlib.sha256(b'{"a":1}').hexdigest()
-    assert gzip.decompress(base64.b64decode(first["payload"])) == b'{"a":1}'
-
-
-def _hub_archive(root: Path, name: str, *, model: str) -> Path:
-    archive = root / "rows" / "row-1" / "dev22" / "trials" / "job-1" / name
-    (archive / "agent").mkdir(parents=True)
-    (archive / "agent" / "trajectory.json").write_text(
-        json.dumps(
-            {
-                "agent": {"model_name": "claude-opus-5"},
-                "steps": [
-                    {"source": "user", "message": "Build a STEP file."},
-                    {
-                        "source": "agent",
-                        "message": "writing",
-                        "tool_calls": [{"function_name": "bash", "arguments": {"command": "touch out.step"}}],
-                        "observation": {"results": [{"content": "ok"}]},
-                    },
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    (archive / "result.json").write_text(
-        json.dumps({"config": {"agent": {"model_name": model}}}), encoding="utf-8"
-    )
-    return archive
-
-
-def test_tb4_hub_ingest_keeps_dev_only_and_refuses_straddlers_before_reading(
-    writer: ExpansionWriter, database: CloudTraceDatabase, tmp_path: Path
-) -> None:
-    archive = _hub_archive(tmp_path, "trial-1", model="anthropic/claude-opus-5")
-    index = tmp_path / "trajectory-index.jsonl"
-    base = {
-        "provenance_admission": "admitted_exact_source",
-        "acquisition_state": "complete",
-        "evidence_class": "full_trajectory",
-        "model_label": "Opus 5",
-        "reasoning_effort": "low",
-        "row_id": "row-1",
-        "hub_trial_id": "trial-1",
-        "job_id": "job-1",
-        "task": "terminal-bench/cad-model",
-        "reward": 1.0,
-        "trial_outcome": "completed",
-        "archive_path": str(archive),
-        "tree_sha256": "a" * 64,
-        "board_rank": 1,
+        "reasons": ["Inert fixture authority only; no real source is cleared."],
     }
-    # Straddler and sealed archives point at paths that do not exist: a read would
-    # surface as a missing-bytes exclusion, so the absence of one proves none happened.
-    gone = str(tmp_path / "never-opened")
-    _write_jsonl(
-        index,
-        [
-            {**base, "dev_task_allowlist": True},
-            {**base, "dev_task_allowlist": False, "task": "terminal-bench/held-out"},
-            {**base, "dev_task_allowlist": True, "task": "terminal-bench/sealed", "archive_path": gone},
-            {**base, "dev_task_allowlist": True, "task": "terminal-bench/straddler", "archive_path": gone},
-            {**base, "dev_task_allowlist": True, "acquisition_state": "missing_evidence"},
-        ],
-    )
-    database.upsert_task({
-        "task_id": "terminal-bench/cad-model",
-        "dataset_id": DATASET,
-        "split": "DEV",
-        "instruction_text": "canonical instruction",
-        "metadata_json": {"canonical_projection": "kept"},
-    })
-    provenance = ingest_tb4_hub(writer, index)
-    assert provenance["traces_ingested"] == 1
-    assert writer.exclusions["tb4_hub_non_dev_membership"] == 1
-    assert writer.exclusions["tb4_hub_incomplete_archive"] == 1
-    assert "tb4_hub_missing_trajectory_bytes" not in writer.exclusions
-    assert writer.guard.refusals == {"task name": 1, "assignments heldout": 1}
-    assert writer.counts["tb4-hub"]["skipped_sealed_task"] == 2
-    trace = database.get_trace(f"{TB4_HUB_DATASET}:row-1:trial-1")
-    assert trace is not None
-    assert trace["model_id"] == "source-reported:anthropic/claude-opus-5"
-    assert trace["reward"] == 1.0
-    assert trace["step_count"] == 2
-    assert trace["verified_receipt_json"]["status"] == "unverified_public_archive"
-    assert trace["verified_receipt_json"]["source"]["raw_sha256"]
-    assert database.get_task("terminal-bench/cad-model")["instruction_text"] == "canonical instruction"
-    assert writer.counts["tb4-hub"]["corpus_tasks_preserved"] == 1
-    assert database.get_task("terminal-bench/straddler") is None
 
 
-def _wrench_fixture(tmp_path: Path) -> tuple[dict[str, Path], Path]:
-    index_dir = tmp_path / "index"
-    index_dir.mkdir()
-
-    def row(task: str, **extra: Any) -> dict[str, Any]:
-        return {
-            "task_id": task, "model": "claude-opus-4.6", "split": "hack", "variant": "original",
-            "trajectory_label": "v5", "classification": "rewarded_serious_exploit", "is_hack": True,
-            "trajectory_path": f"tasks/{task}/trajectory.json", "trajectory_exists": True,
-            "instruction": f"instruction {task}", "reward": 1.0, "key_hack_steps": [1],
-            "run_name": "run", "task_fair": None, **extra,
-        }
-
-    hack = [
-        row("1012"),
-        row("1012", trajectory_label="v6"),  # same task and class: one issue, two traces
-        row("1013"),  # alias is heldout under tb2-to-tb21-v1
-        row("1014"),  # already retained by another writer
-        row("1015", trajectory_exists=False),
-        row("1016"),  # absent from the task table: cannot be alias-resolved
-        row("1017"),  # fetch fails
-    ]
-    index_paths = {"hack": index_dir / "hack.parquet"}
-    parquet.write_table(pa.Table.from_pylist(hack), index_paths["hack"])
-    for split in ("non_hack", "baseline"):
-        index_paths[split] = index_dir / f"{split}.parquet"
-        parquet.write_table(pa.Table.from_pylist([], schema=pa.Table.from_pylist(hack).schema), index_paths[split])
-    task_table = tmp_path / "tasks.parquet"
-    parquet.write_table(
-        pa.table({
-            "task_id": ["1012", "1013", "1014", "1015", "1017"],
-            "aliases": [["keepassxc-fix"], ["adaptive-rejection-sampler"], ["already-here"], ["x"], ["y"]],
-            "instruction": ["BODY NEVER DECODED"] * 5,
-        }),
-        task_table,
-    )
-    return index_paths, task_table
-
-
-def test_terminal_wrench_gates_every_alias_and_never_duplicates_retained_tasks(
-    writer: ExpansionWriter, database: CloudTraceDatabase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    index_paths, task_table = _wrench_fixture(tmp_path)
-    database.upsert_task({
-        "task_id": "terminal-wrench/already-here@payload-6ab64c43a4c6",
-        "dataset_id": TERMINAL_WRENCH_DATASET,
-        "split": "held",
-        "instruction_text": "retained by another writer",
-        "metadata_json": {},
-    })
-    body = json.dumps({"steps": [
-        {"source": "user", "message": "solve"},
-        {"source": "agent", "message": "bypass", "tool_calls": [{"function_name": "bash"}]},
-    ]}).encode()
-    fetched: list[str] = []
-
-    def fake_fetch(url: str, *, max_bytes: int) -> bytes:
-        fetched.append(url)
-        if "tasks/1012/" in url:
-            return body
-        raise OSError("missing body")
-
-    monkeypatch.setattr(expansion, "_http_bytes", fake_fetch)
-    provenance = ingest_terminal_wrench(
-        writer, index_paths=index_paths, task_table=task_table, workers=1,
-    )
-    # Only the two 1012 trajectories and the unreachable 1017 body were ever requested.
-    assert sorted(fetched) == [
-        f"{expansion.WRENCH_PAYLOAD_BASE}/tasks/1012/trajectory.json",
-        f"{expansion.WRENCH_PAYLOAD_BASE}/tasks/1012/trajectory.json",
-        f"{expansion.WRENCH_PAYLOAD_BASE}/tasks/1017/trajectory.json",
-    ]
-    assert provenance["traces_ingested"] == 2
-    assert provenance["tasks_cleared"] == 2  # 1012 and 1017
-    assert writer.exclusions["wrench_row_without_trajectory"] == 1
-    assert writer.exclusions["wrench_task_without_alias_resolution"] == 1
-    assert writer.exclusions["wrench_task_already_retained"] == 1
-    assert writer.exclusions["wrench_trajectory_fetch_failed"] == 1
-    assert writer.guard.refusals == {"assignments heldout": 1}
-    trace = database.get_trace(f"{TERMINAL_WRENCH_DATASET}:1012:claude-opus-4.6:original:v5")
-    assert trace is not None
-    assert trace["model_id"] == "source-reported:claude-opus-4.6"
-    assert trace["is_exploit"] is True
-    assert trace["raw_cas_uri"] is not None
-    task = database.get_task(f"{TERMINAL_WRENCH_DATASET}/1012")
-    assert task is not None
-    assert task["split"] == HELD_SPLIT
-    assert task["metadata_json"]["aliases"] == ["keepassxc-fix"]
-    issues = database.query_task_issues(f"{TERMINAL_WRENCH_DATASET}/1012", confirmed_only=False)
-    assert [(issue["defect_class"], issue["status"]) for issue in issues] == [
-        ("rewarded_serious_exploit", "provisional")
-    ]
-    assert database.get_task(f"{TERMINAL_WRENCH_DATASET}/1013") is None
-
-
-def test_goodfire_gate_caches_per_task_and_stores_held_source_reported_rows(
-    writer: ExpansionWriter, database: CloudTraceDatabase, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def trace_row(name: str, identifier: str) -> bytes:
-        return (json.dumps({
-            "id": f"row-{identifier}",
-            "env": {"id": "deepswe"},
-            "traces": [{
-                "id": identifier,
-                "task": {"type": "T", "data": {"name": name, "prompt": f"prompt {name}"}},
-                "agent": {"harness": "mini-swe-agent", "model": "moonshotai/Kimi-K3"},
-                "rewards": {"resolved": {"score": 1.0}},
-                "nodes": [
-                    {"message": {"role": "user", "content": "go"}},
-                    {"message": {"role": "assistant", "content": "ok",
-                                 "tool_calls": [{"name": "bash", "arguments": "{}"}]}},
-                ],
-            }],
-        }) + "\n").encode()
-
-    stream = [
-        trace_row("fine-task", "t1"), trace_row("fine-task", "t2"),
-        trace_row("straddler", "t3"), trace_row("straddler", "t4"),
-    ]
-    labels = [
-        json.dumps({"trace_id": "t1", "verdict": "yes", "n_passages": 3}).encode(),
-        json.dumps({"trace_id": "t2", "verdict": "no"}).encode(),
-    ]
-    monkeypatch.setattr(
-        expansion, "_http_lines",
-        lambda url, *, max_bytes: iter(labels if url.endswith("judge_rollouts.jsonl") else stream),
-    )
-    provenance = ingest_goodfire(writer, base="https://example.test", runs=["deepswe-kimi-k3"])
-    assert provenance["runs"]["deepswe-kimi-k3"]["traces_ingested"] == 2
-    # Four rows, two tasks: one refusal per sealed task, not per row.
-    assert writer.guard.refusals == {"assignments heldout": 1}
-    yes = database.get_trace(f"{GOODFIRE_DATASET}/deepswe-kimi-k3/t1")
-    assert yes is not None
-    assert yes["outcome"] == "source_label:yes"
-    assert yes["is_exploit"] is True
-    assert yes["model_id"] == "source-reported:moonshotai/Kimi-K3"
-    assert database.get_trace(f"{GOODFIRE_DATASET}/deepswe-kimi-k3/t2")["is_exploit"] is False
-    assert database.get_task(f"{GOODFIRE_DATASET}/deepswe/fine-task")["split"] == HELD_SPLIT
-    assert database.get_task(f"{GOODFIRE_DATASET}/deepswe/straddler") is None
-
-
-def test_cua_verifier_registers_held_catalog_rows_without_inferring_a_direction(
-    writer: ExpansionWriter, database: CloudTraceDatabase, tmp_path: Path
-) -> None:
-    staged = tmp_path / "cua.jsonl"
-    _write_jsonl(staged, [{
-        "actor_projection": {"task_ref": "sha256:002559708da76c1f3d49a343820fc55e"},
-        "split": "test",
-        "admission": {"status": "held_scorer_only"},
-        "scorer_side": {"reviews": [
-            {"informed": {"outcome_agrees_with_uv": False, "process_agrees_with_uv": False}},
-            {"informed": {"outcome_agrees_with_uv": True, "process_agrees_with_uv": False}},
-        ]},
-    }, {"actor_projection": {}}])
-    provenance = ingest_cua_verifier(writer, staged)
-    assert provenance["tasks_registered"] == 1
-    assert provenance["reviewer_verifier_disagreements_recorded_in_metadata"] == 3
-    assert writer.exclusions["cua_row_without_task_ref"] == 1
-    task = database.get_task("cua-verifierbench/002559708da76c1f")
-    assert task is not None
-    assert task["split"] == HELD_SPLIT
-    assert task["metadata_json"]["reviewer_vs_verifier_process_disagreements"] == 2
-    assert database.row_counts()["task_issues"] == 0
-
-
-def test_ignition_series_projects_ordered_held_steps(
-    writer: ExpansionWriter, database: CloudTraceDatabase, tmp_path: Path
-) -> None:
-    staged = tmp_path / "ignition.jsonl"
-    _write_jsonl(
-        staged,
-        [
-            {
-                "record_type": "telemetry_run",
-                "actor_view": {"trace_ref": "abc"},
-                "scorer_side": {"channels_present": ["kl"], "censoring": {"max_steps_budget": 2}},
+def _bundle(number: int = 1, *, step_count: int = 2) -> dict[str, Any]:
+    task_id = f"synthetic/task-{number}"
+    trace_id = f"synthetic/trace-{number}"
+    return {
+        "task": {
+            "task_id": task_id, "dataset_id": "synthetic-canonical", "split": "held",
+            "instruction_text": "Inert fixture: describe a colored square.",
+            "original_grader_digest": None, "repaired_grader_digest": None, "cas_uri": None,
+            "metadata_json": {
+                "publisher_split": "DEV", "publisher_label": "positive",
+                "source_receipt": {"native_id": f"item-{number}", "notes": ["red", "blue"]},
             },
-            {"record_type": "telemetry_step", "actor_view": {"trace_ref": "abc", "step": 1, "telemetry": {"kl": 0.2}}},
-            {"record_type": "telemetry_step", "actor_view": {"trace_ref": "abc", "step": 0, "telemetry": {"kl": 0.1}}},
-        ],
-    )
-    provenance = ingest_ignition(writer, staged)
-    assert provenance["series_ingested"] == 1
-    trace = database.get_trace(f"{IGNITION_DATASET}:abc")
-    assert trace is not None
-    assert [step["step_index"] for step in trace["steps"]] == [0, 1]
-    assert trace["steps"][0]["content_text"] == '{"kl": 0.1}'
-    assert trace["outcome"] == "telemetry_series"
-    assert trace["task"]["split"] == HELD_SPLIT
-    assert trace["verified_receipt_json"]["labels"]["trace_kind"] == "rl_training_telemetry_not_agent_actions"
-
-
-def test_receipt_reports_exact_before_and_after_counts(
-    writer: ExpansionWriter, database: CloudTraceDatabase, tmp_path: Path
-) -> None:
-    staged = tmp_path / "cua.jsonl"
-    _write_jsonl(staged, [{"actor_projection": {"task_ref": "sha256:abcdef0123456789abcd"}}])
-    ingest_cua_verifier(writer, staged)
-    receipt = writer.receipt(sources={"cua": "staged"})
-    assert receipt["schema"] == expansion.SCHEMA
-    assert receipt["row_counts_before"]["corpus_tasks"] == 0
-    assert receipt["row_counts_after"]["corpus_tasks"] == 1
-    assert receipt["row_counts_added"] == {
-        "agent_traces": 0, "corpus_tasks": 1, "task_issues": 0, "trace_steps": 0,
+        },
+        "traces": [{
+            "trace": {
+                "trace_id": trace_id, "run_id": "synthetic/run", "task_id": task_id,
+                "model_id": "source-reported:synthetic/model", "outcome": "source_label:unreviewed",
+                "reward": 1, "is_exploit": False, "is_task_defect_fail": False,
+                "step_count": step_count, "raw_cas_uri": None,
+                "verified_receipt_json": {
+                    "status": "unverified",
+                    "source": {
+                        "dataset": "synthetic-source", "revision": "fixture-revision-1",
+                        "locator": "https://source.invalid/inert-fixture",
+                    },
+                    "labels": {"publisher_claim": "positive", "votes": [True, False]},
+                },
+            },
+            "steps": [{
+                "trace_id": trace_id, "step_index": index, "role": "assistant",
+                "tool_name": None, "command_or_action": f"describe square {index}",
+                "content_text": f"Inert note {index}: blue square.",
+                "observation_preview": f"Square {index} is blue.", "observation_cas_uri": None,
+                "flags_json": {"publisher_note": {"index": index, "source_only": True}},
+            } for index in range(step_count)],
+        }],
     }
-    assert receipt["counts"]["cua-verifier"]["corpus_tasks"] == 1
-    assert receipt["guard"]["names_held_out_under_any_key"] == 2
-    assert json.loads(json.dumps(receipt))["guard"]["refusals"] == {}
 
 
-def test_task_ids_lists_one_dataset_in_order(database: CloudTraceDatabase) -> None:
-    for task_id, dataset in (("b", "x"), ("a", "x"), ("c", "y")):
-        database.upsert_task({
-            "task_id": task_id, "dataset_id": dataset, "split": "held",
-            "instruction_text": "i", "metadata_json": {},
+def _stage_pack(
+    root: Path, bundles: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Also usable by a parent-owned CLI smoke, without invoking pytest."""
+    if bundles is None:
+        bundles = [_bundle()]
+    root.mkdir(parents=True, exist_ok=True)
+    objects = []
+    records = []
+    for number, bundle in enumerate(bundles, 1):
+        raw = _bytes(bundle)
+        (root / f"bundle-{number}.json").write_bytes(raw)
+        record = _record(number)
+        records.append(record)
+        objects.append({
+            **{field: record[field] for field in ("source_dataset", "source_revision", "native_id")},
+            "path": f"bundle-{number}.json", "sha256": hashlib.sha256(raw).hexdigest(),
         })
-    assert database.task_ids("x") == ["a", "b"]
-    assert database.task_ids("missing") == []
+    pack = root / "pack.json"
+    clearance = root / "clearance.json"
+    pack.write_bytes(_bytes({"schema": expansion.PACK_SCHEMA, "objects": objects}))
+    clearance.write_bytes(_bytes({"schema": "evallab.corpus_clearance/v1", "records": records}))
+    return {
+        "database": root / "staged.sqlite", "pack": pack, "clearance": clearance,
+        "clearance_sha256": hashlib.sha256(clearance.read_bytes()).hexdigest(),
+        "output": root / "receipt.json",
+    }
+
+
+def _replace_clearance(arguments: dict[str, Any], records: list[dict[str, Any]]) -> None:
+    path = arguments["clearance"]
+    raw = _bytes({"schema": "evallab.corpus_clearance/v1", "records": records})
+    path.write_bytes(raw)
+    arguments["clearance_sha256"] = hashlib.sha256(raw).hexdigest()
+
+
+def _assert_no_import(arguments: dict[str, Any], receipt: dict[str, Any]) -> None:
+    assert receipt["status"] in {"denied", "rejected"}
+    assert receipt["row_counts_added"] == {
+        "corpus_tasks": 0, "task_issues": 0, "agent_traces": 0, "trace_steps": 0,
+    }
+    assert receipt["admissions"] == dict.fromkeys((*USES, "cloud"), 0)
+    assert not arguments["database"].exists()
+
+
+def test_dry_run_does_not_read_bundles_or_open_database(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    (tmp_path / "bundle-1.json").unlink()
+    arguments["database"] = tmp_path / "nonexistent-directory" / "staged.sqlite"
+
+    receipt = expansion.import_pack(**arguments)
+
+    assert receipt["status"] == "dry_run"
+    assert (receipt["selected"], receipt["cleared"], receipt["denied"]) == (1, 1, 0)
+    assert receipt["body_validation"] == "not_performed"
+    assert receipt["bundle_bytes_hashed"] == 0
+    assert receipt["row_counts_before"] is None
+    assert receipt["admissions"] == dict.fromkeys((*USES, "cloud"), 0)
+    assert not arguments["database"].parent.exists()
+    for field, path in (
+        ("pack_sha256", arguments["pack"]),
+        ("clearance_sha256", arguments["clearance"]),
+        ("importer_sha256", Path(expansion.__file__)),
+    ):
+        assert receipt[field] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_one_denial_prevents_reads_of_every_selected_object(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path, [_bundle(1), _bundle(2)])
+    records = [_record(1), _record(2)]
+    records[1]["rights"]["operator_raw"] = {"decision": "unknown", "authority": None}
+    _replace_clearance(arguments, records)
+    # The first identity is allowed. Opening it before gating the second would
+    # fail instead of producing the complete, identity-only denial receipt.
+    (tmp_path / "bundle-1.json").unlink()
+    (tmp_path / "bundle-2.json").unlink()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["status"] == "denied"
+    assert (receipt["selected"], receipt["cleared"], receipt["denied"]) == (2, 1, 1)
+    assert [entry["decision"] for entry in receipt["objects"]] == ["allow", "deny"]
+    assert receipt["bundle_bytes_hashed"] == 0
+    assert receipt["body_validation"] == "not_performed"
+
+
+@pytest.mark.parametrize("missing_authority", [
+    "canonical_identity", "family_id", "split_authority", "effective_split", "operator_raw",
+])
+def test_source_identity_and_publisher_dev_are_not_clearance(
+    tmp_path: Path, missing_authority: str,
+) -> None:
+    arguments = _stage_pack(tmp_path)
+    record = _record()
+    if missing_authority == "operator_raw":
+        record["rights"]["operator_raw"] = {"decision": "allow", "authority": None}
+    elif missing_authority == "effective_split":
+        record[missing_authority] = "test"
+    else:
+        record[missing_authority] = None
+    _replace_clearance(arguments, [record])
+    (tmp_path / "bundle-1.json").unlink()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["bundle_bytes_hashed"] == 0
+    assert receipt["body_validation"] == "not_performed"
+
+
+def test_manifest_pin_failure_precedes_bundle_and_database_access(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    arguments["clearance_sha256"] = "0" * 64
+    (tmp_path / "bundle-1.json").unlink()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["clearance_sha256"] is None
+    assert receipt["bundle_bytes_hashed"] == 0
+
+
+def test_clearance_must_be_a_regular_file_not_a_symlink(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    original = tmp_path / "original-clearance.json"
+    arguments["clearance"].rename(original)
+    arguments["clearance"].symlink_to(original)
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["bundle_bytes_hashed"] == 0
+    assert receipt["body_validation"] == "not_performed"
+
+
+def test_aliases_cannot_select_the_same_canonical_task_twice(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    record = _record()
+    record["aliases"] = ["source-alias"]
+    _replace_clearance(arguments, [record])
+    document = json.loads(arguments["pack"].read_bytes())
+    document["objects"].append({
+        **document["objects"][0], "native_id": "source-alias", "path": "absent-alias.json",
+    })
+    arguments["pack"].write_bytes(_bytes(document))
+    (tmp_path / "bundle-1.json").unlink()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["status"] == "denied"
+    assert receipt["denied"] == 1
+    assert receipt["bundle_bytes_hashed"] == 0
+
+
+def test_execute_retains_every_step_source_receipt_and_long_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _bundle(step_count=607)
+    long_text = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=" * 4000
+    bundle["task"]["instruction_text"] += "\n" + long_text
+    bundle["traces"][0]["steps"][0].update(
+        content_text=long_text, command_or_action=long_text, observation_preview=long_text,
+    )
+    bundle["traces"][0]["trace"]["verified_receipt_json"]["source"]["refs"] = [
+        {"path": "/not-opened/synthetic-source.json", "sha256": "b" * 64},
+        {"url": "https://source.invalid/not-fetched", "notes": ["κίτρινο", "青"]},
+    ]
+    arguments = _stage_pack(tmp_path, [bundle])
+    monkeypatch.setenv("EVALLAB_CLOUD_DATABASE_URL", "postgresql://must-not-be-used.invalid/db")
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    assert receipt["status"] == "imported"
+    assert receipt["row_counts_added"] == {
+        "corpus_tasks": 1, "task_issues": 0, "agent_traces": 1, "trace_steps": 607,
+    }
+    assert receipt["admissions"] == {**dict.fromkeys((*USES, "cloud"), 0), "operator_raw": 1}
+    with CloudTraceDatabase(arguments["database"]) as database:
+        assert database.get_task(bundle["task"]["task_id"]) == bundle["task"]
+        trace = database.get_trace(bundle["traces"][0]["trace"]["trace_id"])
+        assert trace is not None
+        assert trace["issues"] == []
+        assert trace["steps"] == bundle["traces"][0]["steps"]
+        assert {field: trace[field] for field in bundle["traces"][0]["trace"]} == bundle["traces"][0]["trace"]
+        assert database.row_counts() == receipt["row_counts_after"]
+
+
+@pytest.mark.parametrize(("section", "field", "value"), [
+    ("task", "task_id", "synthetic/other-task"),
+    ("task", "dataset_id", "synthetic-other-dataset"),
+    ("task", "split", "DEV"),
+    ("task", "extra_source_field", {"must_not_disappear": True}),
+    ("trace", "task_id", "synthetic/other-task"),
+    ("trace", "model_id", "synthetic/unattributed-model"),
+    ("trace", "model_id", "source-reported:unknown"),
+    ("trace", "is_exploit", True),
+    ("trace", "is_exploit", 0),
+    ("trace", "is_task_defect_fail", True),
+    ("trace", "step_count", 1),
+    ("trace", "reward", 2**53 + 1),
+    ("trace", "verified_receipt_json", {"status": "confirmed"}),
+    ("trace", "verified_receipt_json", {"status": "unverified", "verified": True}),
+    ("trace", "verified_receipt_json", {"status": ["unverified"]}),
+    ("step", "trace_id", "synthetic/other-trace"),
+    ("step", "content_text", ["must not become a string"]),
+    ("step", "step_index", True),
+    ("step", "unknown_source_field", "must not disappear"),
+])
+def test_invalid_or_promoting_rows_reject_the_entire_bundle(
+    tmp_path: Path, section: str, field: str, value: Any,
+) -> None:
+    bundle = _bundle()
+    row = {
+        "task": bundle["task"], "trace": bundle["traces"][0]["trace"],
+        "step": bundle["traces"][0]["steps"][0],
+    }[section]
+    row[field] = value
+    arguments = _stage_pack(tmp_path, [bundle])
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["body_validation"] == "failed"
+
+
+@pytest.mark.parametrize("location", [
+    "task", "trace", "step", "nested_metadata", "nested_receipt", "encoded_flags", "text",
+])
+def test_cas_references_are_rejected_not_dropped_or_followed(tmp_path: Path, location: str) -> None:
+    bundle = _bundle()
+    reference = "cas://sha256/" + "c" * 64
+    if location == "task":
+        bundle["task"]["cas_uri"] = "https://source.invalid/not-a-local-cas-object"
+    elif location == "trace":
+        bundle["traces"][0]["trace"]["raw_cas_uri"] = reference
+    elif location == "step":
+        bundle["traces"][0]["steps"][0]["observation_cas_uri"] = reference
+    elif location == "nested_metadata":
+        bundle["task"]["metadata_json"]["source"] = {"raw_cas_uri": "/do-not-open/local-object"}
+    elif location == "nested_receipt":
+        bundle["traces"][0]["trace"]["verified_receipt_json"]["source"]["refs"] = [reference]
+    elif location == "encoded_flags":
+        bundle["traces"][0]["steps"][0]["flags_json"] = json.dumps({"ref": reference})
+    else:
+        bundle["traces"][0]["steps"][0]["content_text"] = "external attachment " + reference
+    arguments = _stage_pack(tmp_path, [bundle])
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["body_validation"] == "failed"
+
+
+@pytest.mark.parametrize("duplicate", ["trace", "step"])
+def test_duplicate_trace_or_step_id_cannot_replace_source_rows(tmp_path: Path, duplicate: str) -> None:
+    bundle = _bundle()
+    if duplicate == "trace":
+        other = copy.deepcopy(bundle["traces"][0])
+        other["steps"][0]["content_text"] = "Different source content for the same trace."
+        bundle["traces"].append(other)
+    else:
+        bundle["traces"][0]["steps"][1]["step_index"] = 0
+    arguments = _stage_pack(tmp_path, [bundle])
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+
+
+def test_issue_payload_cannot_be_smuggled_in_as_source_metadata(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["issues"] = [{"status": "provisional", "publisher_label": "positive"}]
+    arguments = _stage_pack(tmp_path, [bundle])
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+
+
+@pytest.mark.parametrize("bad_pack", [
+    "schema", "extra_field", "url", "absolute", "traversal", "bad_digest", "duplicate_identity",
+])
+def test_pack_metadata_rejected_without_reading_bodies(tmp_path: Path, bad_pack: str) -> None:
+    arguments = _stage_pack(tmp_path)
+    document = json.loads(arguments["pack"].read_bytes())
+    item = document["objects"][0]
+    if bad_pack == "schema":
+        document["schema"] = "unsupported"
+    elif bad_pack == "extra_field":
+        item["publisher_grants"] = "DEV"
+    elif bad_pack in {"url", "absolute", "traversal"}:
+        item["path"] = {
+            "url": "https://source.invalid/bundle.json", "absolute": "/outside/bundle.json",
+            "traversal": "nested/../bundle.json",
+        }[bad_pack]
+    elif bad_pack == "bad_digest":
+        item["sha256"] = "not-a-digest"
+    else:
+        document["objects"].append({**item, "native_id": "ITEM-1", "path": "other.json"})
+    arguments["pack"].write_bytes(_bytes(document))
+    (tmp_path / "bundle-1.json").unlink()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["bundle_bytes_hashed"] == 0
+    assert receipt["body_validation"] == "not_performed"
+
+
+def test_bundle_hash_mismatch_rejects_batch_before_database_creation(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path, [_bundle(1), _bundle(2)])
+    with (tmp_path / "bundle-2.json").open("ab") as handle:
+        handle.write(b" ")
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["body_validation"] == "failed"
+
+
+def test_duplicate_json_members_are_not_silently_collapsed(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    raw = _bytes(_bundle()).replace(b'"is_exploit": false', b'"is_exploit": true, "is_exploit": false')
+    (tmp_path / "bundle-1.json").write_bytes(raw)
+    document = json.loads(arguments["pack"].read_bytes())
+    document["objects"][0]["sha256"] = hashlib.sha256(raw).hexdigest()
+    arguments["pack"].write_bytes(_bytes(document))
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+
+
+@pytest.mark.parametrize("column", ["metadata_json", "verified_receipt_json", "flags_json"])
+def test_encoded_json_columns_cannot_hide_duplicate_source_fields(
+    tmp_path: Path, column: str,
+) -> None:
+    bundle = _bundle()
+    row = {
+        "metadata_json": bundle["task"],
+        "verified_receipt_json": bundle["traces"][0]["trace"],
+        "flags_json": bundle["traces"][0]["steps"][0],
+    }[column]
+    row[column] = '{"status":"verified","status":"unverified"}'
+    arguments = _stage_pack(tmp_path, [bundle])
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+
+
+def test_oversized_bundle_is_rejected_without_clipping(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    os.truncate(tmp_path / "bundle-1.json", expansion.MAX_BUNDLE_BYTES + 1)
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+    assert receipt["bundle_bytes_hashed"] == 0
+
+
+@pytest.mark.parametrize("directory_link", [False, True])
+def test_listed_bundle_cannot_reach_through_a_symlink(tmp_path: Path, directory_link: bool) -> None:
+    arguments = _stage_pack(tmp_path / "pack")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "source.json").write_bytes(_bytes(_bundle()))
+    root = arguments["pack"].parent
+    if directory_link:
+        (root / "linked").symlink_to(outside, target_is_directory=True)
+        relative = "linked/source.json"
+    else:
+        (root / "linked.json").symlink_to(outside / "source.json")
+        relative = "linked.json"
+    document = json.loads(arguments["pack"].read_bytes())
+    document["objects"][0]["path"] = relative
+    arguments["pack"].write_bytes(_bytes(document))
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    _assert_no_import(arguments, receipt)
+
+
+def test_existing_original_task_is_not_modified_or_extended(tmp_path: Path) -> None:
+    bundle = _bundle()
+    arguments = _stage_pack(tmp_path, [bundle])
+    original = {**bundle["task"], "split": "DEV", "instruction_text": "Original local row."}
+    with CloudTraceDatabase(arguments["database"]) as database:
+        database.upsert_task(original)
+        before = database.row_counts()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    assert receipt["status"] == "rejected"
+    with CloudTraceDatabase(arguments["database"]) as database:
+        assert database.get_task(original["task_id"]) == original
+        assert database.row_counts() == before
+        assert database.get_trace(bundle["traces"][0]["trace"]["trace_id"]) is None
+
+
+def test_existing_trace_rejects_all_new_tasks_without_overwrite(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path, [_bundle(1), _bundle(2)])
+    original = _bundle(3)
+    original["traces"][0]["trace"]["trace_id"] = "synthetic/trace-2"
+    for step in original["traces"][0]["steps"]:
+        step["trace_id"] = "synthetic/trace-2"
+    with CloudTraceDatabase(arguments["database"]) as database:
+        database.upsert_task(original["task"])
+        database.upsert_trace(original["traces"][0]["trace"], steps=original["traces"][0]["steps"])
+        before = database.row_counts()
+        original_trace = database.get_trace("synthetic/trace-2")
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    assert receipt["status"] == "rejected"
+    with CloudTraceDatabase(arguments["database"]) as database:
+        assert database.row_counts() == before
+        assert database.get_task("synthetic/task-1") is None
+        assert database.get_task("synthetic/task-2") is None
+        assert database.get_trace("synthetic/trace-2") == original_trace
+
+
+def test_database_write_failure_rolls_back_the_complete_batch(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path, [_bundle(1), _bundle(2)])
+    with CloudTraceDatabase(arguments["database"]) as database:
+        database._execute(
+            "CREATE TRIGGER refuse_fixture BEFORE INSERT ON agent_traces "
+            "WHEN NEW.trace_id = 'synthetic/trace-2' "
+            "BEGIN SELECT RAISE(ABORT, 'inert fixture rejection'); END",
+        )
+        before = database.row_counts()
+
+    receipt = expansion.import_pack(**arguments, execute=True)
+
+    assert receipt["status"] == "rejected"
+    assert receipt["row_counts_added"] == dict.fromkeys(before, 0)
+    with CloudTraceDatabase(arguments["database"]) as database:
+        assert database.row_counts() == before
+
+
+def test_receipt_is_not_overwritten_even_for_an_execute_request(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+    expansion.import_pack(**arguments)
+    original_receipt = arguments["output"].read_bytes()
+    (tmp_path / "bundle-1.json").unlink()
+
+    with pytest.raises(FileExistsError):
+        expansion.import_pack(**arguments, execute=True)
+
+    assert arguments["output"].read_bytes() == original_receipt
+    assert not arguments["database"].exists()
+
+
+@pytest.mark.parametrize("database", ["postgresql://db.invalid/store", "sqlite:///local.sqlite", ":memory:"])
+def test_cli_refuses_remote_or_implicit_database_targets(tmp_path: Path, database: str) -> None:
+    arguments = _stage_pack(tmp_path)
+    arguments["database"] = database
+
+    result = expansion.main(_cli_arguments(arguments))
+
+    assert result == 2
+    assert not arguments["output"].exists()
+
+
+def _cli_arguments(arguments: dict[str, Any]) -> list[str]:
+    return [
+        part for key, value in arguments.items()
+        for part in ("--" + key.replace("_", "-"), str(value))
+    ]
+
+
+def test_cli_defaults_to_metadata_and_requires_execute_for_rows(tmp_path: Path) -> None:
+    arguments = _stage_pack(tmp_path)
+
+    assert expansion.main(_cli_arguments(arguments)) == 0
+    assert not arguments["database"].exists()
+    assert json.loads(arguments["output"].read_bytes())["status"] == "dry_run"
+    arguments["output"] = tmp_path / "executed-receipt.json"
+    assert expansion.main([*_cli_arguments(arguments), "--execute"]) == 0
+
+    with CloudTraceDatabase(arguments["database"]) as database:
+        assert database.get_task("synthetic/task-1") == _bundle()["task"]
+        trace = database.get_trace("synthetic/trace-1")
+        assert trace is not None
+        assert trace["steps"] == _bundle()["traces"][0]["steps"]
+    assert json.loads(arguments["output"].read_bytes())["status"] == "imported"

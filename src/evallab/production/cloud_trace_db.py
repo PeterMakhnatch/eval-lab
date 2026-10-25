@@ -537,19 +537,6 @@ class CloudTraceDatabase:
                 for table in _SEARCH_COLUMNS
             }
 
-    def task_ids(self, dataset_id: str) -> list[str]:
-        """Every task id retained under one dataset id, in id order.
-
-        An ingestion pass uses this to skip what another writer already holds,
-        so a second pass over the same source never duplicates its rows.
-        """
-        with self._transaction():
-            rows = self._execute(
-                "SELECT task_id FROM corpus_tasks WHERE dataset_id = ? ORDER BY task_id",
-                (dataset_id,),
-            ).fetchall()
-        return [row[0] for row in rows]
-
     def get_task(self, task_id: str) -> dict[str, Any] | None:
         with self._transaction():
             rows = self._rows("SELECT * FROM corpus_tasks WHERE task_id = ?", (task_id,))

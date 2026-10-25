@@ -937,6 +937,11 @@ the database but are TEST in the ledger, so they are withheld). `split` defaults
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 
+The cloud control plane wires the same `VerifiedAssetStore` and `RunInspector`
+used locally. Asset browsing and replay grader diffs are enabled only within
+the repository and durable `/data` evidence roots. The cloud store is
+browse-only (`export_root=None`): deployment does not authorize asset exports.
+
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained
 DEV-only `evallab.swarm_bench/v1` reports and `evallab.arm_comparison/v1`

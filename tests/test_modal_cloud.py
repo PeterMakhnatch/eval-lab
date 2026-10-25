@@ -99,14 +99,21 @@ def repo_root(tmp_path: Path) -> Path:
         directory.mkdir(parents=True)
         (directory / "items.jsonl").write_text("", encoding="utf-8")
     (keys / "tb4-audit-v1/items.jsonl").write_text(
-        json.dumps(
-            {
-                "item_id": "sealed-item",
-                "split": "test",
-                "subject": {"task_id": "sealed-task-name"},
-            }
-        )
-        + "\n",
+        "".join(
+            json.dumps(row) + "\n"
+            for row in (
+                {
+                    "item_id": "cloud-dev-item",
+                    "split": "dev",
+                    "subject": {"task_id": "cloud-dev-task"},
+                },
+                {
+                    "item_id": "sealed-item",
+                    "split": "test",
+                    "subject": {"task_id": "sealed-task-name"},
+                },
+            )
+        ),
         encoding="utf-8",
     )
     (keys / "tb4-audit-v1/tasks.jsonl").write_text("", encoding="utf-8")
@@ -919,6 +926,85 @@ def _append_live_event(
             else {"step": {"step_id": 2, "message": event_id}},
         }
     )
+
+
+def test_cloud_runtime_refuses_receiptless_asset_via_the_store(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    _append_live_event(
+        runtime.queue,
+        "bare-asset",
+        event_type="asset.verified",
+        status="confirmed",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "asset_id": "witness:bare",
+            "kind": "exploit_witness",
+            "source_event_id": "not-journaled",
+            "candidate_digest": None,
+            "original_reward": 1.0,
+            "repaired_reward": 0.0,
+        },
+    )
+    response = client.get("/api/assets", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["assets"] == []
+    assert (
+        client.get(
+            "/api/assets/detail", headers=AUTH, params={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/assets/export", headers=AUTH, json={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.parametrize("outside_roots", [False, True])
+def test_cloud_runtime_inspects_replay_diffs_only_inside_evidence_roots(
+    client: TestClient,
+    runtime: CloudRuntime,
+    tmp_path: Path,
+    outside_roots: bool,
+) -> None:
+    snapshots = (tmp_path / "outside" if outside_roots else runtime.data_root) / "snapshots"
+    original, repaired = snapshots / "original", snapshots / "repaired"
+    for directory, body in (
+        (original, "accepts_any = True\n"),
+        (repaired, "accepts_any = False\n"),
+    ):
+        directory.mkdir(parents=True)
+        (directory / "verifier.py").write_text(body, encoding="utf-8")
+    _append_live_event(
+        runtime.queue,
+        "replay-observation",
+        event_type="seeker.replay_observation",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "original_task": str(original),
+            "repaired_task": str(repaired),
+            "snapshot_status": "snapshot_unverified",
+            "recorded_rewards": {"original": 1.0, "repaired": 0.0},
+        },
+    )
+    response = client.get("/api/grader-diff", headers=AUTH, params={"run_id": "cloud-live-run"})
+    if outside_roots:
+        assert response.status_code == 403
+        assert response.json()["detail"]["code"] == "path_outside_roots"
+        return
+    assert response.status_code == 200
+    diff = response.json()
+    assert diff["original"]["reward"] is None and diff["repaired"]["reward"] is None
+    verifier = next(file for file in diff["files"] if file["path"] == "verifier.py")
+    assert verifier["original"] == "accepts_any = True\n"
+    assert verifier["repaired"] == "accepts_any = False\n"
+    assert "+accepts_any = False" in verifier["unified_diff"]
 
 
 def test_state_keeps_existing_control_plane_shape_and_projects_live_events(

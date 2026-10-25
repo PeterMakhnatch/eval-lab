@@ -64,9 +64,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
 from evallab.production.control_plane import create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+from evallab.production.inspector import RunInspector
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.outbox_relay import LocalJetStreamAdapter, OutboxRelay
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
@@ -307,7 +309,18 @@ class CloudRuntime:
             self.database = CloudTraceDatabase(self.data_root / "cloud-trace-db.sqlite")
             cleanup.callback(self.database.close)
             self.cas = S3CompatibleCAS(local_directory=self.cas_root, bucket="")
-            self.app = create_app(self.queue, operator_tokens={token: "Peter"})
+            roots = [self.repo_root, self.data_root]
+            self.app = create_app(
+                self.queue,
+                operator_tokens={token: "Peter"},
+                asset_store=VerifiedAssetStore(
+                    self.queue,
+                    self.registry,
+                    export_root=None,
+                    allowed_roots=roots,
+                ),
+                inspector=RunInspector(self.queue, self.registry, allowed_roots=roots),
+            )
             self._add_routes(token)
             cleanup.pop_all()
 

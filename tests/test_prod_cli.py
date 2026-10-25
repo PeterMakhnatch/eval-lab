@@ -595,6 +595,33 @@ def test_project_actor_never_removes_an_entry_recreated_at_the_staging_path(
     assert (recreated[0] / "competitor").read_text(encoding="utf-8") == "retain"
 
 
+def test_project_actor_keeps_a_bundle_whose_publication_is_uncertain(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab.production import actor_cas
+
+    source, source_cas, uri, body = _actor_source(corpus_root)
+    allowlist = source.parent / "cas-allowlist.json"
+    allowlist.write_text(json.dumps([uri]), encoding="utf-8")
+    output = source.parent / "actor-bundle"
+    real_publish = actor_cas.publish_staged_directory
+
+    def publish_then_fail(staging: Path, destination: Path) -> None:
+        real_publish(staging, destination)
+        raise actor_cas.PublicationUncertainError("simulated post-rename failure")
+
+    monkeypatch.setattr(actor_cas, "publish_staged_directory", publish_then_fail)
+    assert cli.run_cli([
+        "prod", "project-actor", "--source-database", str(source),
+        "--source-cas", str(source_cas), "--cas-allowlist", str(allowlist),
+        "--output-directory", str(output), "--max-bytes", str(len(body)),
+    ], workspace=corpus_root) == 2
+    assert json.loads(capsys.readouterr().err)["error"]["type"] == "PublicationUncertainError"
+    assert (output / "manifest.json").exists()
+    assert (output / "cloud-trace-db.sqlite").exists()
+    assert (output / "cas" / "sha256" / uri.rsplit("/", 1)[-1]).read_bytes() == body
+
+
 @pytest.mark.parametrize("failure", ["unadmitted-task", "unapproved-cas"])
 def test_project_actor_never_publishes_a_partial_or_unadmitted_bundle(
     corpus_root: Path, capsys: pytest.CaptureFixture[str], failure: str,

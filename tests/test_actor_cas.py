@@ -522,6 +522,44 @@ def test_refuses_uncheckpointed_projection_instead_of_ignoring_live_wal(root: Pa
         _assert_unpublished(root, destination)
 
 
+def test_discard_refuses_alias_entries_and_removes_only_owned_trees(root: Path) -> None:
+    owned, foreign = root / "owned", root / "foreign"
+    for directory in (owned, foreign):
+        directory.mkdir()
+        (directory / "payload").write_bytes(b"inert bytes")
+    owned_status = owned.stat()
+    alias = root / "owned-alias"
+    alias.symlink_to(owned)
+
+    assert actor_cas.discard_owned_directory(alias, owned_status) is False
+    assert alias.is_symlink()
+    assert (owned / "payload").exists()
+
+    foreign_status = foreign.stat()
+    substitute = root / "renamed-owned"
+    owned.rename(substitute)
+    foreign_empty = root / "owned"
+    foreign_empty.mkdir()
+    assert actor_cas.discard_owned_directory(foreign_empty, owned_status) is False
+    assert foreign_empty.exists()
+    assert actor_cas.discard_owned_directory(substitute, owned_status) is True
+    assert not substitute.exists()
+    assert actor_cas.discard_owned_directory(foreign, foreign_status) is True
+    assert not foreign.exists()
+
+
+def test_read_owned_file_refuses_symlinked_ancestry(root: Path) -> None:
+    real = root / "real"
+    real.mkdir()
+    (real / "approvals.json").write_text("[]", encoding="utf-8")
+    linked_parent = root / "linked"
+    linked_parent.symlink_to(real)
+
+    assert actor_cas.read_owned_file(real / "approvals.json") == b"[]"
+    with pytest.raises(OSError):
+        actor_cas.read_owned_file(linked_parent / "approvals.json")
+
+
 def test_staging_renamed_midflight_never_leaves_a_partial_destination(
     root: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

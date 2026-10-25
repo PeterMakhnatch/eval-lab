@@ -20,9 +20,7 @@ import json
 import math
 import os
 import re
-import shutil
 import signal
-import stat
 import sys
 import tempfile
 import threading
@@ -382,24 +380,10 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
 
 
 def _read_allowlist(path: Path) -> bytes:
-    """Read the approval document through one descriptor, refusing aliases.
+    """Read the approval document without following any path alias."""
+    from evallab.production.actor_cas import read_owned_file
 
-    The path precheck rejects symlinked components, but only the descriptor binds
-    the exact bytes that are parsed, hashed and recorded in the manifest.
-    """
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    try:
-        status = os.fstat(descriptor)
-        if not stat.S_ISREG(status.st_mode):
-            raise ValueError("CAS allowlist must be a regular file")
-        if status.st_nlink != 1:
-            raise ValueError("CAS allowlist must not be a hard-linked alias")
-        chunks: list[bytes] = []
-        while chunk := os.read(descriptor, 1024 * 1024):
-            chunks.append(chunk)
-        return b"".join(chunks)
-    finally:
-        os.close(descriptor)
+    return read_owned_file(path)
 
 
 def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
@@ -407,6 +391,8 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     import sqlite3
 
     from evallab.production.actor_cas import (
+        PublicationUncertainError,
+        discard_owned_directory,
         preflight_destination,
         publish_staged_directory,
         stage_projection_cas,
@@ -479,23 +465,21 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        publish_staged_directory(staging, output)
+        try:
+            publish_staged_directory(staging, output)
+        except PublicationUncertainError:
+            # The rename succeeded, so this bundle may be complete at the output
+            # path. Report the uncertainty and never delete what may be published.
+            published = True
+            raise
         published = True
         return {"output_directory": str(output), **receipt}
     finally:
-        # After publication this pathname is no longer ours: a competitor could
-        # have created a new entry there, so only pre-publication staging whose
-        # identity still matches the directory we created is ours to remove.
+        # Before publication this pathname is ours, but only while it still
+        # resolves to the directory we created: a competitor's entry is left alone.
         if not published:
             for candidate in (staging, output):
-                try:
-                    current = candidate.stat()
-                except FileNotFoundError:
-                    continue
-                if (current.st_dev, current.st_ino) == (
-                    staging_status.st_dev, staging_status.st_ino,
-                ):
-                    shutil.rmtree(candidate)
+                discard_owned_directory(candidate, staging_status)
 
 
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

@@ -10,7 +10,6 @@ import ctypes
 import hashlib
 import os
 import re
-import shutil
 import sqlite3
 import stat
 import sys
@@ -98,6 +97,77 @@ def preflight_destination(source_cas_directory: Path, destination_directory: Pat
         _directory(destination_path.parent, forbidden=forbidden),
     ):
         return
+
+
+def read_owned_file(path: Path) -> bytes:
+    """Read a file through descriptor-relative opens, refusing every alias.
+
+    Each component is opened with ``O_NOFOLLOW`` beneath the previous directory
+    descriptor, so a swapped ancestor cannot redirect the read. The bytes returned
+    are checked against the same descriptor's identity and size afterwards.
+    """
+    target = _path(path)
+    with _directory(target.parent) as parent:
+        descriptor = os.open(target.name, _READ_FLAGS, dir_fd=parent)
+        try:
+            before = os.fstat(descriptor)
+            _regular(before)
+            with open(descriptor, "rb", closefd=False) as stream:
+                payload = stream.read()
+            after = os.fstat(descriptor)
+            if _identity(after) != _identity(before):
+                raise ValueError("file changed while being read")
+            if len(payload) != before.st_size:
+                raise ValueError("file size does not match the bytes read")
+            return payload
+        finally:
+            os.close(descriptor)
+
+
+def _remove_tree_at(directory: int) -> None:
+    """Delete a directory's contents through its descriptor, never by path."""
+    for entry in os.listdir(directory):
+        try:
+            child = os.open(entry, _DIRECTORY_FLAGS, dir_fd=directory)
+        except OSError:
+            os.unlink(entry, dir_fd=directory)
+        else:
+            try:
+                _remove_tree_at(child)
+            finally:
+                os.close(child)
+            os.rmdir(entry, dir_fd=directory)
+
+
+def discard_owned_directory(directory: Path, expected: os.stat_result) -> bool:
+    """Remove a tree only while the name still resolves to the recorded directory.
+
+    The entry is opened with ``O_NOFOLLOW`` and compared by inode before anything
+    is deleted, contents are removed through that descriptor, and the name is
+    unlinked only if it still resolves to the same directory. A competitor's entry,
+    including a symlink to the same inode, is left untouched.
+    """
+    target = _path(directory)
+    with _directory(target.parent) as parent:
+        try:
+            descriptor = os.open(target.name, _DIRECTORY_FLAGS, dir_fd=parent)
+        except (FileNotFoundError, OSError):
+            return False
+        try:
+            status = os.fstat(descriptor)
+            if (status.st_dev, status.st_ino) != (expected.st_dev, expected.st_ino):
+                return False
+            _remove_tree_at(descriptor)
+        finally:
+            os.close(descriptor)
+        try:
+            current = os.stat(target.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return True
+        if (current.st_dev, current.st_ino) != (expected.st_dev, expected.st_ino):
+            return False
+        os.rmdir(target.name, dir_fd=parent)
+        return True
 
 
 def _regular(status: os.stat_result) -> None:
@@ -287,8 +357,8 @@ def _copy_object(
         os.close(descriptor)
 
 
-def _remove_own_staging(
-    parent: int, staging_name: str, staged_status: os.stat_result,
+def _discard_staging(
+    parent_directory: Path, staging_name: str, staged_status: os.stat_result,
     destination_name: str,
 ) -> None:
     """Remove our staging entry, including if it was renamed to the destination.
@@ -298,12 +368,7 @@ def _remove_own_staging(
     the partially filled tree, never a completed bundle.
     """
     for name in (staging_name, destination_name):
-        try:
-            current = os.stat(name, dir_fd=parent, follow_symlinks=False)
-        except FileNotFoundError:
-            continue
-        if (current.st_dev, current.st_ino) == (staged_status.st_dev, staged_status.st_ino):
-            shutil.rmtree(name, dir_fd=parent)
+        discard_owned_directory(parent_directory / name, staged_status)
 
 
 def stage_projection_cas(
@@ -421,6 +486,7 @@ def stage_projection_cas(
             }
         finally:
             if not published:
-                _remove_own_staging(
-                    parent, staging_name, staged_status, destination_path.name,
+                _discard_staging(
+                    destination_path.parent, staging_name, staged_status,
+                    destination_path.name,
                 )

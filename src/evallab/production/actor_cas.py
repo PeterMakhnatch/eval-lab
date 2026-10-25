@@ -139,6 +139,17 @@ def _remove_tree_at(directory: int) -> None:
             os.rmdir(entry, dir_fd=directory)
 
 
+def directory_status(path: Path) -> os.stat_result:
+    """Return a directory's status from an ``O_NOFOLLOW`` descriptor."""
+    target = _path(path)
+    with _directory(target.parent) as parent:
+        descriptor = os.open(target.name, _DIRECTORY_FLAGS, dir_fd=parent)
+        try:
+            return os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def discard_owned_directory(directory: Path, expected: os.stat_result) -> bool:
     """Remove a tree only while the name still resolves to the recorded directory.
 
@@ -446,12 +457,15 @@ def stage_projection_cas(
 
         staging_name = ".actor-cas-" + uuid4().hex
         os.mkdir(staging_name, 0o700, dir_fd=parent)
-        staged_status = os.stat(staging_name, dir_fd=parent, follow_symlinks=False)
+        staged_status: os.stat_result | None = None
         published = False
         try:
             with ExitStack() as staging_handles:
                 staging = os.open(staging_name, _DIRECTORY_FLAGS, dir_fd=parent)
                 staging_handles.callback(os.close, staging)
+                # Ownership comes from the descriptor that is filled and published,
+                # never from a separate path stat a competitor could have swapped.
+                staged_status = os.fstat(staging)
                 os.fchmod(staging, 0o700)
                 os.mkdir("sha256", 0o700, dir_fd=staging)
                 hashes = os.open("sha256", _DIRECTORY_FLAGS, dir_fd=staging)
@@ -485,7 +499,7 @@ def stage_projection_cas(
                 "total_bytes": total_bytes, "objects": objects,
             }
         finally:
-            if not published:
+            if not published and staged_status is not None:
                 _discard_staging(
                     destination_path.parent, staging_name, staged_status,
                     destination_path.name,

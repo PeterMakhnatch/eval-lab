@@ -392,6 +392,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
 
     from evallab.production.actor_cas import (
         PublicationUncertainError,
+        directory_status,
         discard_owned_directory,
         preflight_destination,
         publish_staged_directory,
@@ -437,7 +438,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     expected = {row["task_id"]: row for row in identities if row["task_id"] in selected}
     preflight_destination(source_cas, output)
     staging = Path(tempfile.mkdtemp(prefix=".actor-bundle-", dir=output.parent))
-    staging_status = staging.stat()
+    staging_status = directory_status(staging)
     published = False
     try:
         projection = project_actor_database(

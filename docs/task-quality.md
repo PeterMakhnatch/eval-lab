@@ -266,30 +266,43 @@ and `VerifiedAssetExporter` still own measurement and promotion.
 
 `evallab.production.corpus_expansion` is the importer the store deliberately
 does not contain: `python -m evallab.production.corpus_expansion --database <path>
---output <receipt.json>` plus the source flags you want to read. It refuses any
-identity a `CorpusRegistry` seal covers — by task name, so an external dataset id
-never launders a `tb4-audit-v1` TEST task or a MiMo permanent heldout — and it
-asks before opening a byte, so a sealed row costs zero reads.
+--output <receipt.json>` plus the source flags you want to read. Run it against a
+staged copy of the database, then publish; the store has other writers.
+
+Its `SealGuard` refuses every identity `CorpusRegistry` seals (item id, task name,
+digest) **and** every task name that `research/answer-keys/splits/assignments.csv`
+holds out under *any* key. The second rule matters: eight of the 22 TB4 Hub "DEV"
+tasks are `dev` for `tb4-audit-v1` but `heldout` for `envcheck-tb4-39`, and the
+registry alone calls them DEV. A missing `assignments.csv` fails closed. The
+check is identity-only: it cannot see that a differently named task is
+upstream-equivalent to a sealed one. Adapters ask the guard before opening any
+byte, passing every alias a source gives a task, so a sealed row costs zero reads.
 
 | Flag | Source and what it contributes |
 | --- | --- |
-| `--tb4-hub-index` | Frozen TB4 Hub `trajectory-index.jsonl`. Reads only `dev_task_allowlist` memberships that are `admitted_exact_source` and `complete`; steps come from each trial's `agent/trajectory.json`, the served `provider/model` and reward from `result.json`. |
-| `--goodfire-run` (repeatable) | `Goodfire/reward-hack-data` at its pinned revision. `traces.jsonl` supplies real rollout nodes, `labels/judge_rollouts.jsonl` the three-vote verdict recorded as `source_label:<verdict>`. |
-| `--wrench-index-dir` | `few-sh/terminal-wrench-trajectories` index parquets plus the `few-sh/terminal-wrench` payload bodies. Publisher `classification`/`exploit_categories`/`key_hack_steps` become issue and step flags. |
-| `--stage-dir` | JSONL already staged by the on-disk library loaders (SimGlot, SWE-bench Pro Verified, CUA-VerifierBench, Ignition). These publish no episode text, so they project to task records and issue evidence only. |
+| `--tb4-hub-index` | Frozen TB4 Hub `trajectory-index.jsonl`. Reads only `dev_task_allowlist` memberships that are `admitted_exact_source` and `complete` and whose task the guard clears; steps come from each trial's `agent/trajectory.json`, the reported model and reward from `result.json`. Split `DEV`. |
+| `--goodfire-run` (repeatable) | `Goodfire/reward-hack-data` at its pinned revision. `traces.jsonl` supplies real rollout nodes, `labels/judge_rollouts.jsonl` the three-vote verdict recorded as `source_label:<verdict>`. Split `held`. |
+| `--wrench-index-dir` + `--wrench-task-table` | `few-sh/terminal-wrench-trajectories` index parquets plus the `few-sh/terminal-wrench` payload bodies. Wrench numbers its tasks, so the task table's `task_id` and `aliases` columns (and only those) gate every task: some are TB2 originals. A task the table cannot name is excluded, and one another writer already retains is skipped. Split `held`; one provisional `wrong_pass` issue per (task, publisher classification) for rewarded hacks. |
+| `--stage-dir` | JSONL already staged by the on-disk library loaders; reads `cua.jsonl` (CUA-VerifierBench) and `ignition.jsonl`. They publish no episode text and no defect direction, so they register held catalog records only, with no issue rows. |
+
+SimGlot, SWE-bench annotations and SWE-bench Pro Verified corrections have no
+adapter: they are retained elsewhere as held catalog records, and the sources
+state no `wrong_pass`/`unfair_fail` direction to project.
 
 Every written trace carries `verified_receipt_json` with schema
 `evallab.public_trace_provenance/v1` and status `unverified_public_archive`, so
 `only_verified=True` excludes all of them: a publisher label is not our
-confirmation. Public rows use split `DEV` where the source publishes a DEV
-allowlist and `public` elsewhere; `TEST` is never written. Projection is bounded
-and the bounds are reported: step text is clipped with an explicit marker, base64
-payloads are replaced by a length marker, and the counts of clipped, elided, and
-dropped steps land in the trace receipt. Raw rows go to the CAS as deterministic
-gzip bundles when `--cas` is given; TB4 Hub archives are hashed and referenced by
-their immutable path and `tree_sha256` instead of copying multi-megabyte base64
+confirmation. Reported model ids are stored as `source-reported:<model>`, never as
+a serving attestation. `is_exploit` is set only where the publisher itself labels
+a rewarded hack. Rows are split `held` unless the TB4 Hub allowlist and the guard
+both clear them (`DEV`); `TEST` is never written. Projection is bounded and the
+bounds are reported: step text is clipped with an explicit marker, base64 payloads
+are replaced by a length marker, and the counts of clipped, elided, and dropped
+steps land in the trace receipt. Raw rows go to the CAS as deterministic gzip
+bundles when `--cas` is given; TB4 Hub archives are hashed and referenced by their
+immutable path and `tree_sha256` instead of copying multi-megabyte base64
 payloads. The run writes one receipt holding exact before/after row counts per
-table, per-source tallies, and every exclusion reason.
+table, per-source tallies, the guard's refusals, and every exclusion reason.
 
 
 ## One dataset audit command

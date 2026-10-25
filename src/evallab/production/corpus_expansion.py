@@ -2,10 +2,11 @@
 
 Every adapter here reads a source that is already pinned by revision or by an
 immutable local archive, projects it into the four live projection tables, and
-refuses anything a :class:`CorpusRegistry` seal covers. Sealed identity is
-checked by task name, so a public row that reuses a ``tb4-audit-v1`` TEST task
-name or a MiMo permanent heldout is skipped under its own label — the external
-dataset id never launders sealed work.
+refuses anything a :class:`SealGuard` seals: the registry's canonical identities
+plus every task name an answer key holds out. Identity is checked by task name
+(and alias), so a public row that reuses a ``tb4-audit-v1`` TEST name or a MiMo
+permanent heldout is skipped under its own label; the external dataset id never
+launders sealed work.
 
 Sources and what each genuinely contributes:
 
@@ -22,11 +23,14 @@ Sources and what each genuinely contributes:
   ``few-sh/terminal-wrench`` payload): the index rows carry the publisher's
   ``classification``/``exploit_categories``/``key_hack_steps`` and the task
   instruction; the payload carries the trajectory body.
-- **Staged metadata** (SimGlot, SWE-bench Pro Verified, CUA-VerifierBench,
-  Ignition): the on-disk library loaders emit ``staged``/``held`` annotation
-  rows. They carry no episode text, so they project to task records and issue
-  evidence only, and each row states in ``metadata_json`` that the publisher
-  withheld the instruction.
+- **Staged metadata** (CUA-VerifierBench, Ignition): the on-disk library loaders
+  emit ``staged``/``held`` annotation rows. They carry no episode text and no
+  stated defect direction, so they register held catalog records only, with no
+  issue rows.
+
+SimGlot, SWE-bench annotations and SWE-bench Pro Verified corrections are not
+adapted here: another writer already retains them as held catalog records, and
+the sources state no ``wrong_pass``/``unfair_fail`` direction to project.
 
 Projection is bounded, never silently: long step text is clipped with an explicit
 marker, base64 payloads (images, audio) are replaced by a length marker, and the
@@ -39,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import gzip
 import hashlib
 import json
@@ -67,16 +72,15 @@ TRACE_PROVENANCE_SCHEMA = "evallab.public_trace_provenance/v1"
 RAW_BUNDLE_SCHEMA = "evallab.public_trace_raw/v1"
 
 TB4_HUB_DATASET = "tb4-hub-dev-v1"
-GOODFIRE_DATASET = "goodfire-rollouts"
+GOODFIRE_DATASET = "goodfire-reward-hack-data"
 TERMINAL_WRENCH_DATASET = "terminal-wrench"
-SIMGLOT_DATASET = "simglot"
-SWEBENCH_PRO_DATASET = "swebench-pro-verified"
 CUA_VERIFIER_DATASET = "cua-verifierbench"
 IGNITION_DATASET = "ignition-backdoor"
 
-#: Public corpora publish no DEV/TEST seal of ours; the hub shards are the only
-#: source that also publishes its own DEV allowlist.
-PUBLIC_SPLIT = "public"
+#: ``held``: effective admission is not established, so retrieval must filter it.
+#: Matches the split the store's other public-corpus rows already carry.
+HELD_SPLIT = "held"
+#: Only the TB4 Hub publishes its own DEV allowlist, and only after the guard clears it.
 DEV_SPLIT = "DEV"
 
 GOODFIRE_REVISION = "bd8fb473568b8ef1d12fc2325a5c8af939c15ad9"
@@ -357,18 +361,56 @@ def project_goodfire_nodes(
     return rows, dict(stats)
 
 
-class SealGuard:
-    """Refuse every identity a :class:`CorpusRegistry` seal covers."""
+#: Split values in ``assignments.csv`` that seal a task name.
+_SEALED_SPLITS = frozenset({"heldout", "test"})
 
-    def __init__(self, registry: CorpusRegistry | None = None) -> None:
+
+class SealGuard:
+    """Refuse every identity the registry seals, and every name any key holds out.
+
+    :class:`CorpusRegistry` seals by canonical item id, task name and digest, but
+    it reads the four canonical corpora only. ``assignments.csv`` also records
+    tasks held out under secondary keys such as ``envcheck-tb4-39``; eight of the
+    22 TB4 Hub "DEV" tasks are ``dev`` for ``tb4-audit-v1`` yet held out there,
+    and the Kimi swarm refused those same names. A name held out under *any* key
+    is therefore treated as sealed: an over-refusal costs a row, an under-refusal
+    leaks a heldout. The file is required; a missing one fails closed.
+
+    The check is identity-only (item id, task name, digest, alias). It cannot see
+    that a differently named task is upstream-equivalent to a sealed one.
+    """
+
+    def __init__(
+        self,
+        registry: CorpusRegistry | None = None,
+        *,
+        assignments: str | Path | None = None,
+    ) -> None:
         self.registry = registry if registry is not None else CorpusRegistry()
+        self.assignments = (
+            Path(assignments)
+            if assignments is not None
+            else self.registry.repo_root / "research/answer-keys/splits/assignments.csv"
+        )
+        held_out: dict[str, set[str]] = {}
+        with self.assignments.open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if row["split"].strip().lower() in _SEALED_SPLITS:
+                    name = CorpusRegistry.task_name(row["task"])
+                    held_out.setdefault(name, set()).add(row["key_id"])
+        self.held_out = held_out
         self.refusals: Counter[str] = Counter()
 
-    def refusal(self, task_id: str) -> str | None:
-        seal = self.registry.sealed_identity(task_id=task_id)
-        if seal is not None:
-            self.refusals[seal] += 1
-        return seal
+    def refusal(self, *identifiers: str) -> str | None:
+        """Why the first sealed identifier is sealed, or ``None`` when all are clear."""
+        for identifier in identifiers:
+            seal = self.registry.sealed_identity(task_id=identifier)
+            if seal is None and CorpusRegistry.task_name(identifier) in self.held_out:
+                seal = "assignments heldout"
+            if seal is not None:
+                self.refusals[seal] += 1
+                return seal
+        return None
 
 
 class ExpansionWriter:
@@ -396,13 +438,14 @@ class ExpansionWriter:
     def _count(self, source: str, field: str, amount: int = 1) -> None:
         self.counts.setdefault(source, Counter())[field] += amount
 
-    def admit(self, source: str, task_id: str) -> bool:
+    def admit(self, source: str, *identifiers: str) -> bool:
         """Seal gate an adapter calls before it opens any byte of a source row.
 
         Adapters that stream or download evidence must ask here first: a sealed
         identity has to cost zero reads, not a read that is discarded afterwards.
+        Pass every name the source gives the task; one sealed alias refuses it.
         """
-        if self.guard.refusal(task_id) is None:
+        if self.guard.refusal(*identifiers) is None:
             return True
         self._count(source, "skipped_sealed_task")
         return False
@@ -465,6 +508,8 @@ class ExpansionWriter:
             "guard": {
                 "sealed_task_names": len(self.guard.registry._sealed_names),
                 "sealed_item_ids": len(self.guard.registry._sealed_ids),
+                "assignments": str(self.guard.assignments),
+                "names_held_out_under_any_key": len(self.guard.held_out),
                 "refusals": dict(sorted(self.guard.refusals.items())),
             },
             "limits": asdict(self.limits),
@@ -609,9 +654,12 @@ def ingest_tb4_hub(
         selected = selected[:limit]
 
     archived = 0
+    cleared: dict[str, bool] = {}
     for row in selected:
         task_id = str(row["task"])
-        if not writer.admit(source, task_id):
+        if task_id not in cleared:
+            cleared[task_id] = writer.admit(source, task_id)
+        if not cleared[task_id]:
             continue
         archive = Path(str(row.get("archive_path") or ""))
         trajectory_path = archive / "agent" / "trajectory.json"
@@ -631,7 +679,7 @@ def ingest_tb4_hub(
             or ((document.get("agent") or {}).get("model_name"))
             or str(row.get("model_label") or "unknown")
         )
-        model_id = str(model_id)
+        model_id = f"source-reported:{model_id}"
         writer.task_if_absent(source, _task_row(
             task_id,
             dataset_id=TB4_HUB_DATASET,
@@ -717,6 +765,7 @@ def ingest_goodfire(
     """Ingest one pinned judge-labelled Goodfire run at a time."""
     source = "goodfire"
     per_run: dict[str, Any] = {}
+    cleared: dict[str, bool] = {}
     for run in runs:
         labels = _goodfire_labels(base, run, max_bytes=labels_bytes)
         url = f"{base}/{run}/traces.jsonl"
@@ -743,8 +792,10 @@ def ingest_goodfire(
             if not name:
                 writer.exclusions["goodfire_row_without_task_identity"] += 1
                 continue
-            task_id = f"{env}/{name}"
-            if not writer.admit(source, task_id):
+            task_id = f"{GOODFIRE_DATASET}/{env}/{name}"
+            if task_id not in cleared:
+                cleared[task_id] = writer.admit(source, task_id, name)
+            if not cleared[task_id]:
                 continue
             label = labels.get(str(trace_doc.get("id"))) or labels.get(str(row.get("id"))) or {}
             verdict = str(label.get("verdict") or "unjudged")
@@ -753,7 +804,7 @@ def ingest_goodfire(
             writer.task_if_absent(source, _task_row(
                 task_id,
                 dataset_id=GOODFIRE_DATASET,
-                split=PUBLIC_SPLIT,
+                split=HELD_SPLIT,
                 instruction=instruction,
                 metadata={
                     "row_kind": "public_rollout_task",
@@ -775,13 +826,13 @@ def ingest_goodfire(
             locator = f"{run}/traces.jsonl#{row.get('id')}"
             cas_uri = writer.store_raw(raw, locator=locator, content_type="application/json")
             trace = {
-                "trace_id": f"{GOODFIRE_DATASET}:{run}:{trace_doc.get('id') or row.get('id')}",
-                "run_id": f"{GOODFIRE_DATASET}:{run}",
+                "trace_id": f"{GOODFIRE_DATASET}/{run}/{trace_doc.get('id') or row.get('id')}",
+                "run_id": f"{GOODFIRE_DATASET}@{GOODFIRE_REVISION}/{run}",
                 "task_id": task_id,
-                "model_id": str(agent.get("model") or "unknown"),
+                "model_id": f"source-reported:{agent.get('model') or 'unknown'}",
                 "outcome": f"source_label:{verdict}",
                 "reward": _number(reward),
-                "is_exploit": verdict == "yes",
+                "is_exploit": verdict == "yes" and (_number(reward) or 0.0) > 0,
                 "is_task_defect_fail": False,
                 "step_count": len(steps),
                 "raw_cas_uri": cas_uri,
@@ -826,17 +877,64 @@ def _wrench_rows(index_paths: Mapping[str, Path]) -> Iterator[tuple[str, dict[st
                 yield split, row
 
 
+def _wrench_aliases(task_table: Path) -> dict[str, tuple[str, ...]]:
+    """Map each native Wrench task id to its published aliases.
+
+    Only ``task_id`` and ``aliases`` are projected from the task table; its
+    instruction and description bodies are never decoded. Wrench numbers its
+    tasks, so the seal check needs these names: several tasks are TB2 originals
+    that a numeric id alone would hide from the registry.
+    """
+    table = pyarrow.parquet.read_table(task_table, columns=["task_id", "aliases"])
+    return {
+        str(row["task_id"]): tuple(str(alias) for alias in (row["aliases"] or ()))
+        for row in table.to_pylist()
+    }
+
+
 def ingest_terminal_wrench(
     writer: ExpansionWriter,
     *,
     index_paths: Mapping[str, Path],
+    task_table: Path,
     payload_base: str = WRENCH_PAYLOAD_BASE,
     limit: int | None = None,
     workers: int = 8,
     max_bytes: int = 64 << 20,
 ) -> dict[str, Any]:
-    """Ingest Terminal Wrench index rows plus their publisher trajectory bodies."""
+    """Ingest Terminal Wrench index rows plus their publisher trajectory bodies.
+
+    A task is read only if its native id and every alias clear the seal guard;
+    a task the table cannot name is excluded rather than guessed. Tasks another
+    writer already retains (by native id or alias) are skipped, so a second pass
+    never duplicates them. Hack issues are one per (task, publisher
+    classification); each hack trace is already reachable as its own witness.
+    """
     source = "terminal-wrench"
+    aliases = _wrench_aliases(task_table)
+    retained: set[str] = {
+        identifier.split("/", 1)[-1].split("@", 1)[0]
+        for identifier in writer.database.task_ids(TERMINAL_WRENCH_DATASET)
+    }
+    cleared: dict[str, bool] = {}
+
+    def clear(native_id: str) -> bool:
+        if native_id in cleared:
+            return cleared[native_id]
+        names = aliases.get(native_id)
+        if names is None:
+            writer.exclusions["wrench_task_without_alias_resolution"] += 1
+            verdict = False
+        elif retained.intersection((native_id, *names)):
+            writer.exclusions["wrench_task_already_retained"] += 1
+            verdict = False
+        else:
+            verdict = writer.admit(
+                source, f"{TERMINAL_WRENCH_DATASET}/{native_id}", native_id, *names,
+            )
+        cleared[native_id] = verdict
+        return verdict
+
     rows = []
     for _split, row in _wrench_rows(index_paths):
         if row.get("trajectory_exists") is not True:
@@ -845,11 +943,8 @@ def ingest_terminal_wrench(
         if not row.get("trajectory_path"):
             writer.exclusions["wrench_row_without_trajectory_path"] += 1
             continue
-        rows.append(row)
-    rows = [
-        row for row in rows
-        if writer.admit(source, f"{TERMINAL_WRENCH_DATASET}/{row['task_id']}")
-    ]
+        if clear(str(row["task_id"])):
+            rows.append(row)
     rows.sort(key=lambda row: (str(row.get("task_id")), str(row.get("model")),
                                str(row.get("variant")), str(row.get("trajectory_label"))))
     if limit is not None:
@@ -863,6 +958,7 @@ def ingest_terminal_wrench(
             return None
 
     classifications: Counter[str] = Counter()
+    issue_keys: set[tuple[str, str]] = set()
     written = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for row, raw in zip(rows, pool.map(fetch, rows), strict=True):
@@ -870,17 +966,19 @@ def ingest_terminal_wrench(
                 writer.exclusions["wrench_trajectory_fetch_failed"] += 1
                 continue
             document = json.loads(raw)
-            task_id = f"{TERMINAL_WRENCH_DATASET}/{row['task_id']}"
+            native_id = str(row["task_id"])
+            task_id = f"{TERMINAL_WRENCH_DATASET}/{native_id}"
             instruction = str(row.get("instruction") or "")
             writer.task_if_absent(source, _task_row(
                 task_id,
                 dataset_id=TERMINAL_WRENCH_DATASET,
-                split=PUBLIC_SPLIT,
+                split=HELD_SPLIT,
                 instruction=instruction,
                 metadata={
                     "row_kind": "public_benchmark_task",
                     "instruction_source": "index.instruction" if instruction else "unavailable",
-                    "native_task_id": str(row.get("task_id")),
+                    "native_task_id": native_id,
+                    "aliases": list(aliases[native_id]),
                     "description": row.get("description"),
                     "category": row.get("category"),
                     "difficulty": row.get("difficulty"),
@@ -897,22 +995,23 @@ def ingest_terminal_wrench(
             )
             classification = str(row.get("classification") or "unclassified")
             classifications[classification] += 1
-            is_hack = bool(row.get("is_hack"))
+            reward = _number(row.get("reward"))
+            # The publisher's own rewarded-hack determination; never our confirmation.
+            rewarded_hack = bool(row.get("is_hack")) and reward is not None and reward > 0
             locator = f"{TERMINAL_WRENCH_DATASET}@{WRENCH_PAYLOAD_REVISION}/{row['trajectory_path']}"
             cas_uri = writer.store_raw(raw, locator=locator, content_type="application/json")
-            reward = row.get("reward")
             trace = {
                 "trace_id": (
-                    f"{TERMINAL_WRENCH_DATASET}:{row['task_id']}:{row.get('model')}:"
+                    f"{TERMINAL_WRENCH_DATASET}:{native_id}:{row.get('model')}:"
                     f"{row.get('variant')}:{row.get('trajectory_label')}"
                 ),
                 "run_id": f"{TERMINAL_WRENCH_DATASET}:{row.get('run_name') or row.get('job_name')}",
                 "task_id": task_id,
-                "model_id": str(row.get("model") or "unknown"),
+                "model_id": f"source-reported:{row.get('model') or 'unknown'}",
                 "outcome": f"source_label:{classification}",
-                "reward": _number(reward),
-                "is_exploit": is_hack,
-                "is_task_defect_fail": bool(row.get("task_fair") is False),
+                "reward": reward,
+                "is_exploit": rewarded_hack,
+                "is_task_defect_fail": False,
                 "step_count": len(steps),
                 "raw_cas_uri": cas_uri,
                 "verified_receipt_json": _provenance(
@@ -940,17 +1039,16 @@ def ingest_terminal_wrench(
             if not writer.trace(source, trace, steps):
                 continue
             written += 1
-            if is_hack:
+            if rewarded_hack and (task_id, classification) not in issue_keys:
+                issue_keys.add((task_id, classification))
                 writer.issue(source, {
-                    "issue_id": f"{TERMINAL_WRENCH_DATASET}:{_key_digest(task_id, str(row.get('model')),
-                                                                       str(row.get('variant')),
-                                                                       str(row.get('trajectory_label')))}",
+                    "issue_id": f"{TERMINAL_WRENCH_DATASET}:{_key_digest(task_id, classification)}",
                     "task_id": task_id,
                     "defect_class": classification,
                     "direction": "wrong_pass",
                     "status": "provisional",
                     "witness_digest": f"sha256:{_digest(raw)}",
-                    "original_reward": _number(reward),
+                    "original_reward": reward,
                     "repaired_reward": None,
                     "citation_file": locator,
                     "citation_line": 1,
@@ -960,7 +1058,10 @@ def ingest_terminal_wrench(
     writer.provenance[source] = {
         "index_files": {split: str(path) for split, path in index_paths.items()},
         "index_revision": WRENCH_INDEX_REVISION,
+        "task_table": str(task_table),
         "payload_base": payload_base,
+        "tasks_cleared": sum(1 for verdict in cleared.values() if verdict),
+        "tasks_not_cleared": sum(1 for verdict in cleared.values() if not verdict),
         "rows_selected": len(rows),
         "traces_ingested": written,
         "classifications": dict(sorted(classifications.items())),
@@ -970,161 +1071,13 @@ def ingest_terminal_wrench(
     return writer.provenance[source]
 
 
-def ingest_simglot(writer: ExpansionWriter, path: Path) -> dict[str, Any]:
-    """Ingest staged SimGlot detector/validity annotations as task-variant evidence."""
-    source = "simglot"
-    records = list(_jsonl(path))
-    kinds: Counter[str] = Counter()
-    variants: dict[tuple[str, str], dict[str, Any]] = {}
-    # The publisher keeps the 192 original-matrix cells and their 528 extended
-    # counterparts as separate rows sharing one opaque duplicate_group_id; the
-    # six compared fields are identical, so a cell is counted once per group.
-    cells: dict[str, dict[str, Any]] = {}
-    for record in records:
-        kind = str(record.get("record_kind") or "unknown")
-        kinds[kind] += 1
-        scorer = record.get("scorer_only") or {}
-        native = scorer.get("native_key") or {}
-        target = str(native.get("target") or "")
-        # Both record shapes carry the display label ("C3 actions_not_restored");
-        # only its leading code ("C3") is the stable variant join across files.
-        variant = str(native.get("variant") or native.get("defect") or "").split(" ", 1)[0]
-        if not target or not variant:
-            continue
-        key = (target, variant)
-        entry = variants.setdefault(key, {"record": record, "defect_class": None, "alarms": {}})
-        derived = scorer.get("derived_from_source_annotations") or {}
-        canonical = derived.get("canonical_defect_class")
-        if canonical and entry["defect_class"] is None:
-            entry["defect_class"] = str(canonical)
-        observations = scorer.get("source_observations") or {}
-        detector = str(native.get("detector") or "unknown")
-        if kind.endswith("detector_observation"):
-            group = str(scorer.get("duplicate_group_id") or f"{target}|{variant}|{detector}")
-            cells[group] = record
-        if observations.get("violated") is True and kind.endswith("detector_observation"):
-            entry["alarms"][group] = (detector, record)
-
-    written_tasks = 0
-    for (target, variant), entry in sorted(variants.items()):
-        task_id = f"{SIMGLOT_DATASET}/{target}/{variant}"
-        record = entry["record"]
-        defect_class = entry["defect_class"] or "unknown"
-        provenance = record.get("provenance") or {}
-        if not writer.task_if_absent(source, _task_row(
-            task_id,
-            dataset_id=SIMGLOT_DATASET,
-            split=PUBLIC_SPLIT,
-            instruction=f"{target} mutant variant {variant} (canonical class {defect_class})",
-            metadata={
-                "row_kind": "mutant_variant_annotation_not_task_instruction",
-                "instruction_source": "publisher withheld the original instruction; label is source-native",
-                "native_target": target,
-                "native_variant": variant,
-                "canonical_defect_class": defect_class,
-                "repository": provenance.get("repository"),
-                "release_commit": provenance.get("release_commit"),
-                "release_tag": provenance.get("release_tag"),
-                "admission": record.get("admission"),
-            },
-        )):
-            continue
-        written_tasks += 1
-        for detector, alarm in sorted(entry["alarms"].values(), key=lambda pair: pair[0]):
-            scorer = alarm.get("scorer_only") or {}
-            native = scorer.get("native_key") or {}
-            writer.issue(source, {
-                "issue_id": f"{SIMGLOT_DATASET}:{_key_digest(task_id, detector)}",
-                "task_id": task_id,
-                "defect_class": defect_class,
-                "direction": "wrong_pass",
-                "status": "provisional",
-                "witness_digest": (
-                    str(scorer["duplicate_group_id"]) if scorer.get("duplicate_group_id") else None
-                ),
-                "original_reward": None,
-                "repaired_reward": None,
-                "citation_file": str((alarm.get("provenance") or {}).get("artifact") or ""),
-                "citation_line": int((alarm.get("provenance") or {}).get("locator", {}).get(
-                    "data_row_1based") or 1),
-                "reproducer_script": None,
-                "cas_uri": None,
-            })
-    writer.provenance[source] = {
-        "staged": str(path),
-        "records_read": len(records),
-        "record_kinds": dict(sorted(kinds.items())),
-        "variants_registered": written_tasks,
-        "detector_alarm_issues": sum(len(entry["alarms"]) for entry in variants.values()),
-        "detector_observation_cells": len(cells),
-        "trace_ingestion": "none: publisher withholds episode and causal-trace rows",
-    }
-    return writer.provenance[source]
-
-
-def ingest_swebench_pro(writer: ExpansionWriter, path: Path) -> dict[str, Any]:
-    """Ingest staged SWE-bench Pro Verified correction annotations."""
-    source = "swebench-pro"
-    records = [row for row in _jsonl(path) if row.get("record_type") == "task_correction_observation"]
-    labels: Counter[str] = Counter()
-    written = 0
-    for record in records:
-        scorer = record.get("scorer_only") or {}
-        native = scorer.get("native_ref") or {}
-        instance = str(native.get("instance_id") or "")
-        if not instance:
-            writer.exclusions["swebench_pro_row_without_instance"] += 1
-            continue
-        correction = scorer.get("correction_label") or {}
-        label = correction.get("readme_category") or (
-            "revised" if correction.get("label_present") else "unlabelled"
-        )
-        labels[str(label)] += 1
-        task_id = f"{SWEBENCH_PRO_DATASET}/{instance}"
-        if not writer.task_if_absent(source, _task_row(
-            task_id,
-            dataset_id=SWEBENCH_PRO_DATASET,
-            split=PUBLIC_SPLIT,
-            instruction=f"SWE-bench Pro Verified instance {instance}",
-            metadata={
-                "row_kind": "public_benchmark_task_annotation",
-                "instruction_source": "publisher row not inspected for instruction text",
-                "dataset": native.get("dataset"),
-                "jsonl_file": native.get("jsonl_file"),
-                "projection_row_index": native.get("projection_row_index"),
-                "correction_label": correction,
-                "admission": record.get("admission"),
-            },
-        )):
-            continue
-        written += 1
-        if correction.get("label_present"):
-            writer.issue(source, {
-                "issue_id": f"{SWEBENCH_PRO_DATASET}:{_key_digest(task_id, str(label))}",
-                "task_id": task_id,
-                "defect_class": f"source_correction:{label}",
-                "direction": "wrong_pass",
-                "status": "provisional",
-                "witness_digest": None,
-                "original_reward": None,
-                "repaired_reward": None,
-                "citation_file": str(native.get("jsonl_file") or ""),
-                "citation_line": int(native.get("projection_row_index") or 1) + 1,
-                "reproducer_script": None,
-                "cas_uri": None,
-            })
-    writer.provenance[source] = {
-        "staged": str(path),
-        "records_read": len(records),
-        "tasks_registered": written,
-        "correction_labels": dict(sorted(labels.items())),
-        "trace_ingestion": "none: no episode or causal-trace rows are published",
-    }
-    return writer.provenance[source]
-
-
 def ingest_cua_verifier(writer: ExpansionWriter, path: Path) -> dict[str, Any]:
-    """Ingest staged CUA-VerifierBench reviewer/verifier disagreement annotations."""
+    """Ingest staged CUA-VerifierBench rows as held catalog records.
+
+    The publisher states reviewer-versus-verifier agreement, not which side was
+    right, so no ``wrong_pass``/``unfair_fail`` direction is derivable: these rows
+    register the task reference and review counts only, with no issue rows.
+    """
     source = "cua-verifier"
     records = list(_jsonl(path))
     written = 0
@@ -1137,62 +1090,41 @@ def ingest_cua_verifier(writer: ExpansionWriter, path: Path) -> dict[str, Any]:
             continue
         task_id = f"{CUA_VERIFIER_DATASET}/{reference.removeprefix('sha256:')[:16]}"
         reviews = ((record.get("scorer_side") or {}).get("reviews")) or []
-        if not writer.task_if_absent(source, _task_row(
+        outcome_disagreements = sum(
+            1 for review in reviews
+            if (review.get("informed") or {}).get("outcome_agrees_with_uv") is False
+        )
+        process_disagreements = sum(
+            1 for review in reviews
+            if (review.get("informed") or {}).get("process_agrees_with_uv") is False
+        )
+        disagreements += outcome_disagreements + process_disagreements
+        if writer.task_if_absent(source, _task_row(
             task_id,
             dataset_id=CUA_VERIFIER_DATASET,
-            split=PUBLIC_SPLIT,
-            instruction=f"CUA-VerifierBench trajectory {reference}",
+            split=HELD_SPLIT,
+            instruction=(
+                f"CUA-VerifierBench annotated trajectory {reference}: the publisher emits "
+                "an opaque task reference, not an instruction"
+            ),
             metadata={
-                "row_kind": "public_benchmark_trajectory_annotation",
-                "instruction_source": "publisher emits an opaque task reference only",
+                "row_kind": "annotation_catalog_record_not_a_runnable_task",
+                "instruction_source": "unavailable: publisher emits an opaque task reference only",
                 "task_ref": reference,
-                "split": record.get("split"),
+                "source_split": record.get("split"),
                 "admission": record.get("admission"),
                 "reviews": len(reviews),
+                "reviewer_vs_verifier_outcome_disagreements": outcome_disagreements,
+                "reviewer_vs_verifier_process_disagreements": process_disagreements,
             },
         )):
-            continue
-        written += 1
-        for index, review in enumerate(reviews):
-            informed = review.get("informed") or {}
-            blind = review.get("blind") or {}
-            if informed.get("outcome_agrees_with_uv") is False:
-                disagreements += 1
-                writer.issue(source, {
-                    "issue_id": f"{CUA_VERIFIER_DATASET}:{_key_digest(task_id, str(index), 'outcome')}",
-                    "task_id": task_id,
-                    "defect_class": "verifier_outcome_disagreement",
-                    "direction": "wrong_pass",
-                    "status": "provisional",
-                    "witness_digest": f"sha256:{str(review.get('reviewer_ref') or '').removeprefix('sha256:')}",
-                    "original_reward": _number(blind.get("outcome_norm")),
-                    "repaired_reward": None,
-                    "citation_file": str(path.name),
-                    "citation_line": 1,
-                    "reproducer_script": None,
-                    "cas_uri": None,
-                })
-            if informed.get("process_agrees_with_uv") is False:
-                disagreements += 1
-                writer.issue(source, {
-                    "issue_id": f"{CUA_VERIFIER_DATASET}:{_key_digest(task_id, str(index), 'process')}",
-                    "task_id": task_id,
-                    "defect_class": "verifier_process_disagreement",
-                    "direction": "unfair_fail",
-                    "status": "provisional",
-                    "witness_digest": None,
-                    "original_reward": _number(blind.get("process_score")),
-                    "repaired_reward": None,
-                    "citation_file": str(path.name),
-                    "citation_line": 1,
-                    "reproducer_script": None,
-                    "cas_uri": None,
-                })
+            written += 1
     writer.provenance[source] = {
         "staged": str(path),
         "records_read": len(records),
         "tasks_registered": written,
-        "disagreement_issues": disagreements,
+        "reviewer_verifier_disagreements_recorded_in_metadata": disagreements,
+        "issue_rows": "none: the source states disagreement, not which side was wrong",
         "trace_ingestion": "none: reviews are static verdicts on fixed trajectories",
     }
     return writer.provenance[source]
@@ -1230,7 +1162,7 @@ def ingest_ignition(writer: ExpansionWriter, path: Path) -> dict[str, Any]:
         if not writer.task_if_absent(source, _task_row(
             task_id,
             dataset_id=IGNITION_DATASET,
-            split=PUBLIC_SPLIT,
+            split=HELD_SPLIT,
             instruction=(
                 f"Ignition backdoor RL training telemetry series {reference} "
                 f"({len(series)} logged steps)"
@@ -1301,6 +1233,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--database", required=True, help="live SQLite path or PostgreSQL URL")
     parser.add_argument("--cas", help="local CAS directory for raw public rows")
+    parser.add_argument(
+        "--assignments",
+        help="assignments.csv holding every key's split rows (default: the registry's repo)",
+    )
     parser.add_argument("--output", required=True, help="receipt JSON path")
     parser.add_argument("--tb4-hub-index", help="tb4-hub trajectory-index.jsonl")
     parser.add_argument("--tb4-hub-limit", type=int)
@@ -1317,6 +1253,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--wrench-index-dir",
         help="directory holding one index file per split, named for the split",
+    )
+    parser.add_argument(
+        "--wrench-task-table",
+        help="pinned few-sh/terminal-wrench data/tasks parquet; only task_id and aliases are read",
     )
     parser.add_argument("--wrench-limit", type=int)
     parser.add_argument("--wrench-workers", type=int, default=8)
@@ -1352,7 +1292,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     cas = S3CompatibleCAS(local_directory=arguments.cas) if arguments.cas else None
     with CloudTraceDatabase(arguments.database) as database:
         writer = ExpansionWriter(
-            database, guard=SealGuard(), cas=cas, limits=limits, label=arguments.database,
+            database, guard=SealGuard(assignments=arguments.assignments), cas=cas, limits=limits,
+            label=arguments.database,
         )
         sources: dict[str, Any] = {}
         if arguments.tb4_hub_index:
@@ -1367,19 +1308,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 limit=arguments.goodfire_limit,
             )
         if arguments.wrench_index or arguments.wrench_index_dir:
+            if not arguments.wrench_task_table:
+                raise SystemExit("--wrench-task-table is required: alias resolution gates every task")
             sources["terminal-wrench"] = ingest_terminal_wrench(
                 writer,
                 index_paths=_index_arguments(
                     arguments.wrench_index, arguments.wrench_index_dir,
                 ),
+                task_table=Path(arguments.wrench_task_table),
                 limit=arguments.wrench_limit,
                 workers=arguments.wrench_workers,
             )
         if arguments.stage_dir:
             stage = Path(arguments.stage_dir)
             for name, function in (
-                ("simglot", ingest_simglot),
-                ("pro", ingest_swebench_pro),
                 ("cua", ingest_cua_verifier),
                 ("ignition", ingest_ignition),
             ):

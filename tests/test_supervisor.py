@@ -24,6 +24,7 @@ import pytest
 
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production import (
     ContinuousWorkQueue,
     CorpusRegistry,
@@ -255,6 +256,9 @@ def _supervisor(
     clock = clock or time.time
     grader = LocalGrader()
     backend = LocalControls(root / "controls", grader)
+    # The injected collaborators replace every real executor, so an explicit
+    # cloud policy satisfies the router while local Docker stays forbidden.
+    execution = ExecutionBackendConfig(backend="modal")
     original = _package(root / "original", repaired=False)
     repaired = _package(root / "repaired", repaired=True)
     if monitor is None:
@@ -264,6 +268,7 @@ def _supervisor(
             queue,
             repo_root=root,
             backend=backend,
+            execution_config=execution,
             candidate_runner=grader,
             replay_runner=lambda *_a, **_k: (_ for _ in ()).throw(
                 AssertionError("fixture jobs never replay retained trials")
@@ -278,6 +283,7 @@ def _supervisor(
             hackbook_entries=[],
             attempt_generator=lambda *_: _candidate(),
             grader_fn=grader,
+            execution_config=execution,
             max_attempts=1,
         )
     broker = publisher if publisher is not None else LocalJetStreamAdapter()

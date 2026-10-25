@@ -542,7 +542,7 @@ class ProductionSupervisor:
 
     def _pending_export_intent(
         self, events: Sequence[Mapping[str, Any]]
-    ) -> dict[str, Any] | None:
+    ) -> Mapping[str, Any] | None:
         """The oldest journaled export intent this consumer never completed.
 
         ``asset.export`` intent/receipt events pair by ``export_id`` in journal
@@ -551,7 +551,7 @@ class ProductionSupervisor:
         always follow their intent in sequence, so both stay inside the
         consumer's unacked window together.
         """
-        pending: dict[str, dict[str, Any]] = {}
+        pending: dict[str, Mapping[str, Any]] = {}
         order: list[str] = []
         for event in events:
             if event.get("event_type") != "asset.export":

@@ -9,13 +9,15 @@ those trees (or made to fail) by patching ``CorpusRegistry.__init__``.
 from __future__ import annotations
 
 import json
+import sqlite3
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.production import CloudTraceRetriever, RetrievedExample
+from evallab.production import CloudTraceRetriever, RetrievedExample, admitted_cloud_task_ids
 from evallab.production.cloud_trace_db import CloudTraceDatabase
 from evallab.production.corpus_queue import CorpusRegistry
 
@@ -36,6 +38,8 @@ ASSIGNMENTS = (
 FAILURES = (
     "init-file-not-found", "init-value-error", "missing-index", "corrupt-items",
     "corrupt-assignments", "corrupt-inventory", "mismatched-inventory", "incomplete-inventory",
+    "missing-assignments", "empty-assignments", "header-only-assignments",
+    "missing-field-assignments", "malformed-csv-assignments",
 )
 
 
@@ -91,11 +95,23 @@ def install_default_index(
             "corrupt-assignments": (
                 keys / "splits/assignments.csv", "key_id,item_id,task,split\nk,i,t,maybe\n",
             ),
+            "empty-assignments": (keys / "splits/assignments.csv", ""),
+            "header-only-assignments": (
+                keys / "splits/assignments.csv", "key_id,item_id,task,split\n",
+            ),
+            "missing-field-assignments": (
+                keys / "splits/assignments.csv", "key_id,item_id,task,split\nk,i,t\n",
+            ),
+            "malformed-csv-assignments": (
+                keys / "splits/assignments.csv", 'key_id,item_id,task,split\n"k,i,t,dev\n',
+            ),
             "corrupt-inventory": (inventory, "{not json"),
             "mismatched-inventory": (inventory, json.dumps({"dataset_id": "other"})),
             "incomplete-inventory": (inventory, json.dumps({"dataset_id": "mimo-defect-map-v1"})),
         }
-        if failure is not None:
+        if failure == "missing-assignments":
+            (keys / "splits/assignments.csv").unlink()
+        elif failure is not None:
             path, text = corruption[failure]
             path.write_text(text)
     load = CorpusRegistry.__init__
@@ -569,3 +585,237 @@ def test_secondary_short_item_label_is_structured_only_but_task_name_is_text_sea
         assert secret not in rendered(examples)
     with pytest.raises(ValueError, match="sealed"):
         retriever.retrieve_similar_examples("pytest " + secret)
+
+
+@contextmanager
+def identity_reads_only(db: CloudTraceDatabase) -> Iterator[None]:
+    """Have SQLite itself reject content reads, rather than trusting a filtered result."""
+    identity_columns = {
+        "task_id", "dataset_id", "split", "original_grader_digest",
+        "repaired_grader_digest", "metadata_json",
+    }
+    denied = []
+
+    def authorize(
+        action: int, table: str | None, column: str | None,
+        database: str | None, trigger: str | None,
+    ) -> int:
+        if action == sqlite3.SQLITE_READ and not (
+            table == "corpus_tasks" and column in identity_columns
+        ):
+            denied.append((table, column))
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    db._connection.set_authorizer(authorize)
+    try:
+        yield
+    finally:
+        db._connection.set_authorizer(None)
+    assert denied == []
+
+
+@pytest.mark.parametrize("failure", FAILURES)
+def test_missing_or_invalid_authority_refuses_before_content_reads(
+    db: CloudTraceDatabase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    install_default_index(monkeypatch, tmp_path, failure)
+    seed(db, "authority-control")
+    retriever = CloudTraceRetriever(db)
+    with identity_reads_only(db):
+        for call in ENTRYPOINTS.values():
+            assert call(retriever, "pytest grader") == []
+
+
+@pytest.mark.parametrize("source_padded", (False, True))
+@pytest.mark.parametrize("query_padded", (False, True))
+def test_normalized_test_identities_refuse_before_content_reads(
+    db: CloudTraceDatabase, tmp_path: Path, source_padded: bool, query_padded: bool,
+) -> None:
+    def recorded(value: str) -> str:
+        return f" {value.upper()} " if source_padded else value
+
+    def queried(value: str) -> str:
+        return f" {value.upper()} " if query_padded else value
+
+    root = write_index(tmp_path / "registry")
+    keys = root / "research/answer-keys"
+    (keys / "tb4-audit-v1/items.jsonl").write_text(json.dumps({
+        "item_id": recorded(SEALED_ITEM), "split": "test",
+        "subject": {
+            "task_id": recorded(f"namespace/{SEALED_NAME}@v1"),
+            "task_digest": recorded(SEALED_DIGEST),
+        },
+    }) + "\n", encoding="utf-8")
+    with (keys / "splits/assignments.csv").open("a", encoding="utf-8") as stream:
+        for key, item, task_name, split in (
+            ("normalized-secondary", "normalized-test-item", "normalized-test-task", "test"),
+            ("normalized-conflict", "normalized-dev-item", "normalized-dev-task", "dev"),
+            ("normalized-conflict", "normalized-conflict-item", "normalized-other-task", "test"),
+        ):
+            stream.write(",".join(recorded(value) for value in (key, item, task_name, split)) + "\n")
+    (root / "research/experiments/mimo-defect-map-v1/inventory.json").write_text(json.dumps({
+        "dataset_id": "mimo-defect-map-v1",
+        "heldout_task_ids_excluded_from_training_all_versions": [recorded("package-sealed")],
+        "tasks": [{
+            "record_id": recorded("package-record"),
+            "task_id": recorded("namespace/package-sealed@v1"),
+            "package_digest": recorded("synthetic-package-digest"),
+        }],
+    }), encoding="utf-8")
+    registry = CorpusRegistry(root)
+    rows = (
+        ("canonical-item-row", {"metadata_json": {"item_id": queried(SEALED_ITEM)}}),
+        ("secondary-item-row", {"metadata_json": {"item_id": queried("normalized-test-item")}}),
+        (queried("mirror/normalized-dev-task@v8"), {
+            "dataset_id": queried("normalized-conflict"),
+            "metadata_json": {"item_id": queried("normalized-conflict-item")},
+        }),
+        (queried(f"namespace@release/{SEALED_NAME}@v9"), {}),
+        (queried(SEALED_ITEM), {}),
+        ("original-seal-row", {"original_grader_digest": queried(SEALED_DIGEST)}),
+        ("repaired-seal-row", {"repaired_grader_digest": queried(SEALED_DIGEST)}),
+        ("package-seal-row", {"original_grader_digest": queried("synthetic-package-digest")}),
+        ("known-key-missing-row", {"dataset_id": queried("normalized-conflict")}),
+        ("canonical-key-missing-row", {"dataset_id": queried("tb4-audit-v1")}),
+    )
+    for task_id, extra in rows:
+        seed(db, task_id, **extra)
+    retriever = CloudTraceRetriever(db, registry=registry)
+    with identity_reads_only(db):
+        for call in ENTRYPOINTS.values():
+            assert call(retriever, "pytest grader") == []
+
+
+@pytest.fixture
+def identity_registry(tmp_path: Path) -> CorpusRegistry:
+    root = write_index(tmp_path / "identity-registry")
+    with (root / "research/answer-keys/splits/assignments.csv").open(
+        "a", encoding="utf-8",
+    ) as stream:
+        stream.write(" IDENTITY-KEY , DEV-ITEM , Namespace/POSITIVE-DEV@v1 , DEV \n")
+    return CorpusRegistry(root)
+
+
+def identity_row(raw_task_id: str, **extra: Any) -> dict[str, Any]:
+    return {
+        "task_id": raw_task_id, "dataset_id": "synthetic-corpus", "split": "dev",
+        "original_grader_digest": None, "repaired_grader_digest": None,
+        "item_id": None, "item_type": None, **extra,
+    }
+
+
+def test_normalized_dev_keeps_real_provenance_and_both_retrieval_forms(
+    db: CloudTraceDatabase, identity_registry: CorpusRegistry,
+) -> None:
+    task_id = " Namespace/Positive-DEV@v3 "
+    dataset_id = " identity-KEY "
+    seed(db, task_id, dataset_id=dataset_id, split=" Dev ", metadata_json={"item_id": " DEV-ITEM "})
+    retriever = CloudTraceRetriever(db, registry=identity_registry)
+    for call in ENTRYPOINTS.values():
+        examples = call(retriever, "pytest grader")
+        assert ids(examples) == {task_id}
+        assert examples[0].dataset_id == dataset_id
+        assert examples[0].issue["issue_id"] == task_id + "/issue"
+        assert examples[0].provenance["task_id"] == task_id
+        assert examples[0].provenance["trace_ids"] == [task_id + "/trace"]
+        assert examples[0].provenance["model_id"] == "synthetic-model"
+    assert db.get_task(task_id)["metadata_json"] == {"item_id": " DEV-ITEM "}
+
+
+def test_public_admission_skips_mixed_invalid_rows_without_poisoning_control(
+    identity_registry: CorpusRegistry,
+) -> None:
+    control = identity_row(" Mixed/Raw-Control@v2 ")
+    invalid = [
+        identity_row("invalid-metadata", item_type="invalid"),
+        identity_row("invalid-task-null", task_id=None),
+        identity_row("invalid-task-number", task_id=123),
+        identity_row("invalid-dataset-null", dataset_id=None),
+        identity_row("invalid-dataset-number", dataset_id=123),
+        identity_row("invalid-split-null", split=None),
+        identity_row("invalid-split-number", split=123),
+        identity_row("invalid-split-unknown", split="eval_sealed"),
+        identity_row("invalid-split-empty", split=""),
+        identity_row("invalid-item-number", item_type="text", item_id=123),
+        identity_row("invalid-item-array", item_type="array", item_id=["dev-item"]),
+        identity_row("invalid-null-kind", item_type="null", item_id="dev-item"),
+        identity_row("invalid-text-kind", item_type="text", item_id=None),
+        identity_row("invalid-original-digest", original_grader_digest=123),
+        identity_row("invalid-repaired-digest", repaired_grader_digest={}),
+    ]
+    for key in control:
+        row = identity_row("missing-" + key)
+        row.pop(key)
+        invalid.append(row)
+    assert admitted_cloud_task_ids(
+        [*invalid, control], registry=identity_registry,
+    ) == frozenset({control["task_id"]})
+
+
+@pytest.mark.parametrize(("item_id", "item_type"), (
+    (None, None), (None, "null"), (" DEV-ITEM ", "text"), ("dev-item", "string"),
+))
+def test_public_admission_accepts_explicit_null_and_backend_text_kinds(
+    identity_registry: CorpusRegistry, item_id: str | None, item_type: str | None,
+) -> None:
+    row = identity_row(
+        " Namespace/Positive-DEV@v9 ", dataset_id=" IDENTITY-KEY ",
+        item_id=item_id, item_type=item_type,
+    )
+    assert admitted_cloud_task_ids([row], registry=identity_registry) == frozenset({row["task_id"]})
+    assert admitted_cloud_task_ids(
+        [row], registry=identity_registry, sealed_task_ids=(" other/POSITIVE-DEV@v2 ",),
+    ) == frozenset()
+
+
+@pytest.mark.parametrize("corruption", ("missing-digest", "invalid-digest", "empty-assignments"))
+def test_public_admission_requires_authority_before_consuming_rows(
+    identity_registry: CorpusRegistry, corruption: str,
+) -> None:
+    if corruption == "missing-digest":
+        identity_registry.split_assignments_digest = None
+    elif corruption == "invalid-digest":
+        identity_registry.split_assignments_digest = "sha256:not-a-valid-digest"
+    else:
+        identity_registry._assignments = {}
+
+    def unread_rows() -> Iterator[dict[str, Any]]:
+        pytest.fail("missing assignment authority must not consume the row stream")
+        yield identity_row("unread")
+
+    assert admitted_cloud_task_ids(unread_rows(), registry=identity_registry) == frozenset()
+
+
+def test_public_admission_matches_class_on_readonly_sqlite_metadata_rows(
+    db: CloudTraceDatabase, identity_registry: CorpusRegistry, tmp_path: Path,
+) -> None:
+    raw_id = " Namespace/Positive-DEV@v3 "
+    seed(db, raw_id, dataset_id=" IDENTITY-KEY ", metadata_json={"item_id": " DEV-ITEM "})
+    seed(db, "invalid-json")
+    seed(db, "sealed-metadata", metadata_json={"item_id": " SYNTHETIC-SEALED-ITEM "})
+    seed(db, "known-key-unassigned", dataset_id=" identity-key ")
+    db._connection.execute(
+        "UPDATE corpus_tasks SET metadata_json = ? WHERE task_id = ?", ("{invalid", "invalid-json"),
+    )
+    source = sqlite3.connect((tmp_path / "evidence.sqlite").as_uri() + "?mode=ro", uri=True)
+    try:
+        source.row_factory = sqlite3.Row
+        source.execute("PRAGMA query_only = ON")
+        rows = source.execute(
+            "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest, "
+            "CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.item_id') END "
+            "AS item_id, CASE WHEN json_valid(metadata_json) "
+            "THEN json_type(metadata_json, '$.item_id') ELSE 'invalid' END AS item_type "
+            "FROM corpus_tasks ORDER BY task_id",
+        ).fetchall()
+        admitted = admitted_cloud_task_ids(rows, registry=identity_registry)
+        assert isinstance(admitted, frozenset)
+        assert admitted == frozenset({raw_id})
+        assert source.total_changes == 0
+    finally:
+        source.close()
+    retriever = CloudTraceRetriever(db, registry=identity_registry)
+    assert frozenset(retriever._admitted_ids()[0]) == admitted
+    for call in ENTRYPOINTS.values():
+        assert ids(call(retriever, "pytest grader")) == set(admitted)

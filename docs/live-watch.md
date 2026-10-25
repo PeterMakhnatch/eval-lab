@@ -929,14 +929,17 @@ only after the complete bundle is on disk.
 `src/evallab/production/modal_cloud.py` deploys the `evallab-cloud-production`
 Modal app. Its `evallab-cloud-store` Volume is mounted at `/data` and retains
 `prod.sqlite`, `cloud-trace-db.sqlite`, `cas/`, the relay outbox, execution
-evidence, and one shared `cloud-spend.json` infrastructure ledger. Import
-consistent SQLite backups, not live database files without their WAL:
+evidence, and one shared `cloud-spend.json` infrastructure ledger. Cloud adoption
+requires an allowlisted actor projection and its reachable CAS objects, plus
+integrated admission/comparison contract proof. Never copy an entire raw
+database/CAS tree to unblock deployment or treat retained metadata counts as
+production eligibility. Preserve existing evidence and reports; data transfer
+remains stopped until its exact allowlisted object scope is proven.
+
+Once those prerequisites and the protected merge are complete, deploy the
+merged code with the single-owner recreation strategy:
 
 ```bash
-modal volume create evallab-cloud-store
-modal volume put evallab-cloud-store /path/to/backup/prod.sqlite /prod.sqlite
-modal volume put evallab-cloud-store /path/to/backup/cloud-trace-db.sqlite /cloud-trace-db.sqlite
-modal volume put evallab-cloud-store /path/to/cas /cas
 modal deploy --strategy recreate src/evallab/production/modal_cloud.py
 ```
 
@@ -954,11 +957,17 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
-`tasks`, `issues`, and `traces` serve only DEV tasks: the stored `split` label must
-be DEV, no registry seal may match the task, and a dataset with split-ledger
-assignments must assign the task to DEV (`tb2-to-tb21-v1` rows are labelled DEV in
-the database but are TEST in the ledger, so they are withheld). `split` defaults to
-`dev`; any other value is HTTP 400. `stats` counts every stored row.
+`tasks`, `issues`, and `traces` use the same identity-only
+`admitted_cloud_task_ids` gate as retrieval and actor projection. Keys, item IDs,
+task-name aliases, and digest seals are compared after whitespace/case
+normalization; returned source IDs and metadata are not rewritten. Canonical or
+ledger-known keys require explicit DEV assignments, and TEST identities remain
+excluded across dataset aliases. Missing/invalid assignment authority admits
+nothing; malformed/non-object metadata or non-string item identities exclude
+only their own rows, without poisoning valid siblings. The admitted raw-ID
+allowlist is applied before instruction/issue/trace/step hydration, not after
+fetching denied bodies. `split` defaults to `dev`; any other value is HTTP 400.
+`stats` counts retained rows, not production-eligible rows.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
 

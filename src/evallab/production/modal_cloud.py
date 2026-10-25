@@ -1,9 +1,10 @@
 """Authenticated Modal production control plane, durable stores, and CPU workers.
 
 Deploy with ``modal deploy --strategy recreate src/evallab/production/modal_cloud.py``
-after importing SQLite backups and CAS objects into ``evallab-cloud-store``. One cloud actor owns
-all SQLite connections: independent Modal containers must never write snapshots
-of the same Volume-backed SQLite database. The remote worker entrypoint forwards
+only after integrated contract proof and an allowlisted actor projection plus
+its reachable CAS scope are established. Never bulk-copy a raw database.
+One cloud actor owns all SQLite connections: independent Modal containers must
+never write snapshots of the same Volume-backed SQLite database. The remote worker entrypoint forwards
 to that actor; visiting the dashboard never dispatches work or calls a model.
 Recreate deployments quiesce the old actor before its replacement opens SQLite.
 
@@ -41,7 +42,7 @@ Model identifiers record what was actually served, not requested model aliases.
 Counts are nonnegative integers, hits cannot exceed totals, metric fractions
 are finite in [0, 1], and spend is finite and nonnegative. Each listing entry
 includes the SHA-256 of the exact document bytes, separate from arm artifacts.
-Reports describe DEV-only key agreement, never held-out performance.
+Reports retain DEV-intended evidence and coverage, never held-out capability.
 """
 
 from __future__ import annotations

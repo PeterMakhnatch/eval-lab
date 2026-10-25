@@ -111,6 +111,11 @@ another dataset. This stricter retrieval guard is separate from secondary keys'
 local queue-admission semantics. The registry's `assigned_split`,
 `has_split_assignments`, and identity-only `sealed_identifiers` accessors are the
 authority; the retriever does not reparse split files.
+Secondary item labels are checked **only as structured identities**, not as
+arbitrary prose substrings: a TEST item label `qa` rejects a row whose item id is
+`qa`, but does not ban an unrelated trace discussing QA. Secondary TEST **task
+names** do join unstructured text seals. Canonical registry sealed item ids and
+grader digests remain text-sealed.
 
 `registry=None` attempts the default `CorpusRegistry()`. If its indices cannot
 load, the frozen permanent tb4/MiMo name guard still rejects sealed queries, but

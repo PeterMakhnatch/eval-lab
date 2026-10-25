@@ -531,9 +531,9 @@ inputs:
   - path: src/evallab/production/control_plane.py
     digest: sha256:2786e7fe37c793f871282b647fea677e7da212edfafc68ab1714cecf6f6165e8
   - path: src/evallab/production/corpus_queue.py
-    digest: sha256:f1fd3b7be3d5f5d71aa5ea773ff5108bc9dea93430628e053386624423205905
+    digest: sha256:73d6b0d90f8312d6ccdc1cbd4daf0334c1bd1994fe61bd8b2d8bb80172aa6bc7
   - path: src/evallab/production/dashboard.py
-    digest: sha256:d2cde8e0ec6dd204fa5ce7bf08223ba27870fbc0be096c093de75ce4aaf6e615
+    digest: sha256:4f80631a03d404b1c3f205c5bf8f2e9f3c5495222400814c864a1d7cbc5f89ae
   - path: src/evallab/production/feeder.py
     digest: sha256:596c0ecfa4001bc5f937c365b6e158e3123c5cceda4af3793442b10d0b9bd03e
   - path: src/evallab/production/ingest.py
@@ -541,7 +541,7 @@ inputs:
   - path: src/evallab/production/inspector.py
     digest: sha256:5c0f81d453e402c96cc870bbdf53a47fa7a220609556a379220a3b878cd28fbf
   - path: src/evallab/production/modal_cloud.py
-    digest: sha256:a6312574ebf81bfd432e0ec3a6f6bc1173c75469b9bbf83f69322042f622e60d
+    digest: sha256:4829a84aa32d3dbfa5d9de531996b4cdccbdbcfb674b3d2bed539b1d06c1bcf9
   - path: src/evallab/production/monitor_worker.py
     digest: sha256:460f3bf444c294eac97d563ed3d916a23e5bfac499f77e4970c44afbc2859081
   - path: src/evallab/production/outbox_relay.py

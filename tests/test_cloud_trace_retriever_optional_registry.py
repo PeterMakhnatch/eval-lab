@@ -537,3 +537,35 @@ def test_worker_kind_issue_kind_and_exclusion_compose(
         "reward_seeker", issue_kind="missing_output_check",
         exclude_task_ids={"combo-keep", "ns-a/combo-target@v1"},
     ) == set()
+
+
+def test_secondary_short_item_label_is_structured_only_but_task_name_is_text_sealed(
+    db: CloudTraceDatabase, tmp_path: Path,
+) -> None:
+    root = write_index(tmp_path / "registry")
+    secret = "synthetic-secondary-secret"
+    with (root / "research/answer-keys/splits/assignments.csv").open("a") as stream:
+        stream.write(f"secondary-short,qa,{secret},test\n")
+    registry = CorpusRegistry(root)
+    seed(db, "blocked-by-short-item", metadata_json={"item_id": "qa"})
+    seed(db, "namespace/" + secret + "@v7")
+    seed(db, "qa-prose-control", instruction_text="pytest grader qa checks")
+    db.replace_trace_steps("qa-prose-control/trace", [
+        {
+            "step_index": 1, "role": "assistant", "command_or_action": secret + " pytest grader qa",
+            "flags_json": ["synthetic"],
+        },
+        {
+            "step_index": 7, "role": "assistant", "command_or_action": "pytest grader qa checks",
+            "flags_json": ["synthetic"],
+        },
+    ])
+    retriever = CloudTraceRetriever(db, registry=registry)
+    for kind in (*KINDS, None):
+        examples = retriever.retrieve_similar_examples("pytest grader qa", kind, top_k=20)
+        assert ids(examples) == {"qa-prose-control"}
+        assert examples[0].provenance["step_indices"] == [7]
+        assert "qa" in examples[0].trace_steps[0]["command_or_action"]
+        assert secret not in rendered(examples)
+    with pytest.raises(ValueError, match="sealed"):
+        retriever.retrieve_similar_examples("pytest " + secret)

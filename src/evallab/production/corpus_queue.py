@@ -278,10 +278,10 @@ class CorpusRegistry:
         return None
 
     def sealed_identifiers(self) -> frozenset[str]:
-        """Identity-only seals for detecting references inside untrusted text."""
+        """Text seals: canonical identities and secondary TEST task names, not item labels."""
         return frozenset(
             self._sealed_ids | self._sealed_names | self._sealed_digests
-            | self._assigned_test_ids | self._assigned_test_names
+            | self._assigned_test_names
         )
 
     def has_split_assignments(self, key_id: str) -> bool:

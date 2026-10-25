@@ -98,7 +98,33 @@ def repo_root(tmp_path: Path) -> Path:
         directory = keys / dataset
         directory.mkdir(parents=True)
         (directory / "items.jsonl").write_text("", encoding="utf-8")
+    (keys / "tb4-audit-v1/items.jsonl").write_text(
+        "".join(
+            json.dumps(row) + "\n"
+            for row in (
+                {
+                    "item_id": "cloud-dev-item",
+                    "split": "dev",
+                    "subject": {"task_id": "cloud-dev-task"},
+                },
+                {
+                    "item_id": "sealed-item",
+                    "split": "test",
+                    "subject": {"task_id": "sealed-task-name"},
+                },
+            )
+        ),
+        encoding="utf-8",
+    )
     (keys / "tb4-audit-v1/tasks.jsonl").write_text("", encoding="utf-8")
+    ledger = keys / "splits/assignments.csv"
+    ledger.parent.mkdir()
+    ledger.write_text(
+        "key_id,item_id,task,unit,split,expected_verdict,exposures\n"
+        "synthetic-ledger-fixture,ledger-dev,ledger-dev,,dev,fail,\n"
+        "synthetic-ledger-fixture,ledger-test,ledger-test,,test,fail,\n",
+        encoding="utf-8",
+    )
     inventory = root / "research/experiments/mimo-defect-map-v1/inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text(
@@ -203,7 +229,7 @@ def records(runtime: CloudRuntime) -> dict[str, Any]:
     issue_uri = runtime.cas.put_bundle({"source_reproducer": reproducer})
     tasks = {
         PRIMARY: {**_task(PRIMARY, instruction), "cas_uri": package_uri},
-        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture", split="test"),
+        SECONDARY: _task(SECONDARY, "secondaryinstruction retained fixture"),
     }
     issues = {
         "issue-confirmed-primary": {
@@ -602,35 +628,51 @@ def test_database_endpoints_do_not_clip_result_collections(
         }
 
 
-def test_dev_split_filter_omits_sealed_tasks_traces_and_issues_without_changing_defaults(
+def test_cloud_db_serves_only_dev_tasks_admitted_by_label_seal_and_ledger(
     client: TestClient,
+    runtime: CloudRuntime,
     records: dict[str, Any],
 ) -> None:
-    for collection, key, all_ids, dev_ids in (
-        ("tasks", "task_id", {PRIMARY, SECONDARY}, {PRIMARY}),
-        ("traces", "trace_id", {VERIFIED, PROVISIONAL, REFUTED}, {VERIFIED, PROVISIONAL}),
-        (
-            "issues",
-            "issue_id",
-            set(records["issues"]),
-            {"issue-confirmed-primary", "issue-provisional-primary"},
-        ),
+    served = {PRIMARY, SECONDARY, "ledger-dev", "mixed-case"}
+    withheld = {"label-test", "sealed-task-name", "ledger-test", "ledger-unassigned"}
+    for task_id, dataset, split in (
+        ("ledger-dev", "synthetic-ledger-fixture", "dev"),
+        ("mixed-case", "synthetic-cloud-fixture", "DEV"),
+        ("label-test", "synthetic-cloud-fixture", "test"),
+        # Labelled DEV, but a canonical TEST row seals the task name.
+        ("sealed-task-name", "synthetic-cloud-fixture", "dev"),
+        # Labelled DEV in the database, TEST (or absent) in the split ledger.
+        ("ledger-test", "synthetic-ledger-fixture", "dev"),
+        ("ledger-unassigned", "synthetic-ledger-fixture", "dev"),
     ):
-        default = client.get(f"/api/cloud-db/{collection}", headers=AUTH)
-        assert {row[key] for row in default.json()[collection]} == all_ids
-        dev = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params={"split": "dev"})
-        assert dev.status_code == 200
-        assert {row[key] for row in dev.json()[collection]} == dev_ids
-        assert "secondaryinstruction" not in dev.text
-        assert "secondarytrace" not in dev.text
-        assert (
-            client.get(
-                f"/api/cloud-db/{collection}",
-                headers=AUTH,
-                params={"task_id": SECONDARY, "split": "dev"},
-            ).json()[collection]
-            == []
+        runtime.database.upsert_task(
+            {**_task(task_id, f"{task_id} withheldneedle"), "dataset_id": dataset, "split": split}
         )
+        runtime.database.upsert_task_issue(_issue(f"issue-{task_id}", task_id))
+        runtime.database.upsert_trace(
+            _trace(f"trace-{task_id}", task_id, None),
+            steps=[{"step_index": 0, "role": "user", "content_text": f"{task_id} withheldneedle"}],
+        )
+    for collection in ("tasks", "issues", "traces"):
+        for params in ({}, {"split": "dev"}, {"q": "withheldneedle"}):
+            response = client.get(f"/api/cloud-db/{collection}", headers=AUTH, params=params)
+            assert response.status_code == 200
+            owners = {row["task_id"] for row in response.json()[collection]}
+            assert owners <= served
+            assert not owners & withheld
+            if params.get("q"):
+                assert owners == {"ledger-dev", "mixed-case"}
+        for withheld_task in withheld:
+            rows = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"task_id": withheld_task}
+            ).json()[collection]
+            assert rows == []
+        for split in ("test", "heldout", "held", "all", ""):
+            refused = client.get(
+                f"/api/cloud-db/{collection}", headers=AUTH, params={"split": split}
+            )
+            assert refused.status_code == 400
+            assert "withheldneedle" not in refused.text
 
 
 def _swarm_benchmark_report() -> dict[str, Any]:
@@ -884,6 +926,85 @@ def _append_live_event(
             else {"step": {"step_id": 2, "message": event_id}},
         }
     )
+
+
+def test_cloud_runtime_refuses_receiptless_asset_via_the_store(
+    client: TestClient,
+    runtime: CloudRuntime,
+) -> None:
+    _append_live_event(
+        runtime.queue,
+        "bare-asset",
+        event_type="asset.verified",
+        status="confirmed",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "asset_id": "witness:bare",
+            "kind": "exploit_witness",
+            "source_event_id": "not-journaled",
+            "candidate_digest": None,
+            "original_reward": 1.0,
+            "repaired_reward": 0.0,
+        },
+    )
+    response = client.get("/api/assets", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json()["assets"] == []
+    assert (
+        client.get(
+            "/api/assets/detail", headers=AUTH, params={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/assets/export", headers=AUTH, json={"asset_id": "witness:bare"}
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.parametrize("outside_roots", [False, True])
+def test_cloud_runtime_inspects_replay_diffs_only_inside_evidence_roots(
+    client: TestClient,
+    runtime: CloudRuntime,
+    tmp_path: Path,
+    outside_roots: bool,
+) -> None:
+    snapshots = (tmp_path / "outside" if outside_roots else runtime.data_root) / "snapshots"
+    original, repaired = snapshots / "original", snapshots / "repaired"
+    for directory, body in (
+        (original, "accepts_any = True\n"),
+        (repaired, "accepts_any = False\n"),
+    ):
+        directory.mkdir(parents=True)
+        (directory / "verifier.py").write_text(body, encoding="utf-8")
+    _append_live_event(
+        runtime.queue,
+        "replay-observation",
+        event_type="seeker.replay_observation",
+        payload={
+            "dataset_id": "tb4-audit-v1",
+            "item_id": "cloud-dev-item",
+            "original_task": str(original),
+            "repaired_task": str(repaired),
+            "snapshot_status": "snapshot_unverified",
+            "recorded_rewards": {"original": 1.0, "repaired": 0.0},
+        },
+    )
+    response = client.get("/api/grader-diff", headers=AUTH, params={"run_id": "cloud-live-run"})
+    if outside_roots:
+        assert response.status_code == 403
+        assert response.json()["detail"]["code"] == "path_outside_roots"
+        return
+    assert response.status_code == 200
+    diff = response.json()
+    assert diff["original"]["reward"] is None and diff["repaired"]["reward"] is None
+    verifier = next(file for file in diff["files"] if file["path"] == "verifier.py")
+    assert verifier["original"] == "accepts_any = True\n"
+    assert verifier["repaired"] == "accepts_any = False\n"
+    assert "+accepts_any = False" in verifier["unified_diff"]
 
 
 def test_state_keeps_existing_control_plane_shape_and_projects_live_events(

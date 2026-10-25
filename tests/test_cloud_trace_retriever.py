@@ -414,3 +414,25 @@ def test_seal_prefix_factoring_preserves_literal_embedded_identifiers(db: CloudT
             retriever.retrieve_similar_examples("pytest prefix-" + identity.upper() + "-suffix")
     assert retriever.retrieve_similar_examples("synthetic-overlap-alps", "task_quality") == []
     assert retriever.retrieve_similar_examples("syntheticXliteral", "task_quality") == []
+
+
+def test_json_quoting_cannot_hide_sealed_evidence_or_task_provenance(db: CloudTraceDatabase) -> None:
+    marker = 'synthetic-"quoted"'
+    add_task(db)
+    add_issue(db, issue_id="a-unsafe", reproducer_script=marker + " pytest grader")
+    add_issue(db, issue_id="z-safe")
+    add_trace(db, trace_id="a-unsafe", raw_cas_uri="cas://" + marker)
+    add_trace(db, trace_id="z-safe", steps=[
+        {"step_index": 1, "role": "assistant", "command_or_action": marker + " pytest grader"},
+        {"step_index": 7, "role": "assistant", "command_or_action": "pytest grader"},
+    ])
+    retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=(marker,))
+    found = retriever.retrieve_similar_examples("pytest grader", "task_quality")
+    assert found and found[0].issue is not None
+    assert found[0].issue_id == "z-safe"
+    assert found[0].trace_id == "z-safe"
+    assert found[0].provenance["step_indices"] == [7]
+    assert all(marker not in (step["command_or_action"] or "") for step in found[0].trace_steps)
+    for field in ("dataset_id", "cas_uri"):
+        add_task(db, **{field: "cas://" + marker})
+        assert retriever.retrieve_similar_examples("pytest grader", "task_quality") == []

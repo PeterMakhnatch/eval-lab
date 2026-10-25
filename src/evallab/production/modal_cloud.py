@@ -64,9 +64,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from evallab.execution_backend import ExecutionBackendConfig
+from evallab.production.asset_store import VerifiedAssetStore
 from evallab.production.cloud_trace_db import CloudTraceDatabase, S3CompatibleCAS
 from evallab.production.control_plane import create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
+from evallab.production.inspector import RunInspector
 from evallab.production.monitor_worker import MisalignmentLiveWorker
 from evallab.production.outbox_relay import LocalJetStreamAdapter, OutboxRelay
 from evallab.production.seeker_worker import RewardSeekerLiveWorker
@@ -252,6 +254,11 @@ class _LoginRequest(BaseModel):
     token: str
 
 
+def _require_dev(split: str) -> None:
+    if split != "dev":
+        raise HTTPException(400, "Only split=dev is served; sealed and held-out splits are refused")
+
+
 def _matches(query: str, record: Mapping[str, Any]) -> bool:
     if not query.strip():
         return True
@@ -302,7 +309,18 @@ class CloudRuntime:
             self.database = CloudTraceDatabase(self.data_root / "cloud-trace-db.sqlite")
             cleanup.callback(self.database.close)
             self.cas = S3CompatibleCAS(local_directory=self.cas_root, bucket="")
-            self.app = create_app(self.queue, operator_tokens={token: "Peter"})
+            roots = [self.repo_root, self.data_root]
+            self.app = create_app(
+                self.queue,
+                operator_tokens={token: "Peter"},
+                asset_store=VerifiedAssetStore(
+                    self.queue,
+                    self.registry,
+                    export_root=None,
+                    allowed_roots=roots,
+                ),
+                inspector=RunInspector(self.queue, self.registry, allowed_roots=roots),
+            )
             self._add_routes(token)
             cleanup.pop_all()
 
@@ -312,22 +330,52 @@ class CloudRuntime:
             connection.row_factory = sqlite3.Row
             return [dict(row) for row in connection.execute(sql, parameters)]
 
-    def _tasks(
-        self,
-        task_id: str | None,
-        query: str,
-        *,
-        split: str | None = None,
-    ) -> list[dict[str, Any]]:
-        conditions, parameters = [], []
-        for field, value in (("task_id", task_id), ("split", split)):
-            if value is not None:
-                conditions.append(f"{field} = ?")
-                parameters.append(value)
-        where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        rows = self._query(
-            "SELECT * FROM corpus_tasks" + where + " ORDER BY task_id", tuple(parameters)
-        )
+    def _admitted_task_ids(self) -> frozenset[str]:
+        """Tasks the API may serve: labelled DEV, unsealed, and ledger-assigned DEV.
+
+        The stored ``split`` column is a source claim. The registry's seal and the
+        split ledger decide, and a dataset with ledger assignments must assign a
+        task to DEV explicitly (``tb2-to-tb21-v1`` rows are labelled DEV in the
+        database but are TEST in the ledger).
+        """
+        admitted: set[str] = set()
+        for row in self._query(
+            "SELECT task_id, dataset_id, split, original_grader_digest, repaired_grader_digest,"
+            " metadata_json FROM corpus_tasks"
+        ):
+            if row["split"].strip().lower() != "dev":
+                continue
+            metadata = json.loads(row["metadata_json"])
+            item_id = metadata.get("item_id") if isinstance(metadata, dict) else None
+            item_id = item_id if isinstance(item_id, str) else None
+            task_id, dataset_id = row["task_id"], row["dataset_id"]
+            if any(
+                self.registry.sealed_identity(task_id=task_id, item_id=item_id, task_digest=digest)
+                is not None
+                for digest in (row["original_grader_digest"], row["repaired_grader_digest"])
+            ):
+                continue
+            if (
+                self.registry.has_split_assignments(dataset_id)
+                and self.registry.assigned_split(dataset_id, task_id=task_id, item_id=item_id)
+                != "dev"
+            ):
+                continue
+            admitted.add(task_id)
+        return frozenset(admitted)
+
+    def _tasks(self, task_id: str | None, query: str) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM corpus_tasks"
+        parameters: tuple[Any, ...] = ()
+        if task_id is not None:
+            sql += " WHERE task_id = ?"
+            parameters = (task_id,)
+        admitted = self._admitted_task_ids()
+        rows = [
+            row
+            for row in self._query(sql + " ORDER BY task_id", parameters)
+            if row["task_id"] in admitted
+        ]
         for row in rows:
             row["metadata_json"] = json.loads(row["metadata_json"])
         return [row for row in rows if _matches(query, row)]
@@ -453,8 +501,9 @@ class CloudRuntime:
             }
 
         @self.app.get("/api/cloud-db/tasks")
-        def tasks(q: str = "", task_id: str | None = None, split: str | None = None):
-            return {"tasks": self._tasks(task_id, q, split=split)}
+        def tasks(q: str = "", task_id: str | None = None, split: str = "dev"):
+            _require_dev(split)
+            return {"tasks": self._tasks(task_id, q)}
 
         @self.app.get("/api/cloud-db/issues")
         def issues(
@@ -463,8 +512,10 @@ class CloudRuntime:
             direction: Literal["wrong_pass", "unfair_fail"] | None = None,
             defect_class: str | None = None,
             only_verified: bool = False,
-            split: str | None = None,
+            split: str = "dev",
         ):
+            _require_dev(split)
+            admitted = self._admitted_task_ids()
             rows = self.database.query_task_issues(
                 task_id,
                 direction=direction,
@@ -475,7 +526,7 @@ class CloudRuntime:
                     row
                     for row in rows
                     if (
-                        (split is None or row["task"]["split"] == split)
+                        row["task_id"] in admitted
                         and (defect_class is None or row["defect_class"] == defect_class)
                         and _matches(q, row)
                     )
@@ -490,8 +541,10 @@ class CloudRuntime:
             tool_name: str | None = None,
             only_verified: bool = False,
             direction: Literal["wrong_pass", "unfair_fail"] | None = None,
-            split: str | None = None,
+            split: str = "dev",
         ):
+            _require_dev(split)
+            admitted = self._admitted_task_ids()
             rows = self.database.search_traces(
                 q,
                 defect_class=defect_class,
@@ -503,8 +556,8 @@ class CloudRuntime:
                     row
                     for row in rows
                     if (
-                        (task_id is None or row["task_id"] == task_id)
-                        and (split is None or row["task"]["split"] == split)
+                        row["task_id"] in admitted
+                        and (task_id is None or row["task_id"] == task_id)
                         and (
                             not (direction or defect_class)
                             or any(

@@ -1002,13 +1002,17 @@ class CloudTraceRetriever:
                 projected[name] = self._snippet(value)
             else:
                 projected[name] = value
-        return _json_text(projected)
+        return "\n".join(value for value in projected.values() if isinstance(value, str))
 
     def _example(
         self, kind: str | None, task: dict[str, Any], issues: list[dict[str, Any]],
         traces: list[dict[str, Any]], steps: Mapping[str, list[dict[str, Any]]],
         sealed_ids: set[str], terms: Sequence[str], issue_kind: str | None,
     ) -> tuple[int, RetrievedExample] | None:
+        if self._sealed_text("\n".join(
+            str(task[name] or "") for name in ("task_id", "dataset_id", "cas_uri")
+        ), sealed_ids):
+            return None
         relevant_issues = [
             issue for issue in issues
             if issue["status"] == "confirmed"
@@ -1147,7 +1151,9 @@ class CloudTraceRetriever:
             outcome=None if trace is None else self._snippet(trace["outcome"]),
             steps=tuple(legacy_steps),
         )
-        if self._sealed_text(_json_text(example.to_dict()), sealed_ids):
+        if self._sealed_text(example.prompt_text, sealed_ids) or self._sealed_text(
+            _json_text(example.to_dict()), sealed_ids,
+        ):
             return None
         return strength, example
 

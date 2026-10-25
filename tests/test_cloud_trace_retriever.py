@@ -398,3 +398,19 @@ def test_long_identifiers_use_stable_hash_references_and_bounded_prompt(db: Clou
     assert len(found[0].prompt_text) <= 2400
     assert all(value not in found[0].prompt_text for value in (issue_id, trace_id, witness))
     assert found == retriever.retrieve_similar_examples("pytest grader", "task_quality")
+
+
+def test_seal_prefix_factoring_preserves_literal_embedded_identifiers(db: CloudTraceDatabase) -> None:
+    add_task(db)
+    add_issue(db)
+    identities = (
+        "synthetic-overlap-alpha", "synthetic-overlap-alpine", "synthetic.[literal]",
+        "synthetic-short", "synthetic-short-long",
+    )
+    retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), sealed_task_ids=identities)
+    assert retriever.retrieve_similar_examples("pytest grader", "task_quality")
+    for identity in identities:
+        with pytest.raises(ValueError, match="sealed"):
+            retriever.retrieve_similar_examples("pytest prefix-" + identity.upper() + "-suffix")
+    assert retriever.retrieve_similar_examples("synthetic-overlap-alps", "task_quality") == []
+    assert retriever.retrieve_similar_examples("syntheticXliteral", "task_quality") == []

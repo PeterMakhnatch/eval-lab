@@ -760,9 +760,24 @@ _EVIDENCE_IDENTITIES = frozenset({
 })
 
 
+def _literal_alternation(values: Sequence[str]) -> str:
+    """Factor shared literal prefixes, avoiding a scan of every seal per character."""
+    if not values:
+        return r"(?!)"
+    prefix = os.path.commonprefix((values[0], values[-1]))
+    tails = [value[len(prefix):] for value in values]
+    if not tails[0]:
+        return re.escape(prefix)
+    groups: dict[str, list[str]] = {}
+    for tail in tails:
+        groups.setdefault(tail[0], []).append(tail)
+    branches = "|".join(_literal_alternation(group) for group in groups.values())
+    return re.escape(prefix) + "(?:" + branches + ")"
+
+
 @lru_cache(maxsize=8)
 def _sealed_pattern(identities: frozenset[str]) -> re.Pattern[str]:
-    return re.compile("|".join(re.escape(value) for value in sorted(identities) if value) or r"(?!)")
+    return re.compile(_literal_alternation(sorted(value for value in identities if value)))
 
 
 def _clip(text: str, limit: int) -> str:

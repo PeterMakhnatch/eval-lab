@@ -891,9 +891,16 @@ failed native executions never become measured evidence.
 `export_training_bundle` applies the same gate to training candidates: every
 candidate's identity is re-resolved against the registry, recognized
 identity/provenance fields nested in rows and linked event payloads are
-inspected for sealed or conflicting identities (prose is never scanned), and
-deduplication keys on the exact `(dataset_id, canonical task name,
-mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
+inspected for sealed or conflicting identities (prose is never scanned).
+Every row must reference an `asset.verified` or `task_quality.repair_qualified`
+event whose measured execution or ground-truth adjudication receipts re-verify
+at export time; event-free rows and unverified-only references are rejected.
+Any unconfirmed referenced event or payload declaring `provisional`,
+`suspected`, or `candidate` status rejects the row even when another reference
+is verified, so provisional evidence cannot ride along into training.
+`provenance.verified_by` names each backing reference key, event id/type, and
+journal sequence. Deduplication keys on the exact `(dataset_id, canonical task
+name, mechanism_signature)` tuple so `benchmark/name@version` aliases collapse
 within one dataset. Writes refuse output directories under a symlink
 ancestor and any same-named file whose existing bytes differ, leave no
 mismatched half-bundle on failure, and a durable consumer cursor acknowledges

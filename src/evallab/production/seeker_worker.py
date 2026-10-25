@@ -40,6 +40,7 @@ from evallab.hackbook.models import (
     load_hackbook,
     search_entries,
 )
+from evallab.production.cloud_trace_retriever import CloudTraceRetriever
 from evallab.seeker import lanes
 from evallab.seeker.feedback import failure_excerpts, feedback_text
 from evallab.seeker.packets import validate_submission
@@ -388,14 +389,19 @@ class SeekerAttemptCandidate:
     paid_usd: float = 0.0
     api_equivalent_usd: float = 0.0
     model_route: str | None = None
+    llm_stdout_sha256: str | None = None
+    llm_solve_sha256: str | None = None
+    served_provider: str | None = None
+    served_model: str | None = None
 
     def ensure_submission_files(self) -> dict[str, str]:
         normalized = dict(self.files)
+        notes: dict[str, Any] | None = None
         if "notes.json" not in normalized:
             written = list(self.files_written) or _infer_files_written(
                 normalized.get("solve.sh", ""), normalized
             )
-            notes: dict[str, Any] = {
+            notes = {
                 "exploit_found": self.exploit_found,
                 "mechanism": self.mechanism,
                 "class": self.taxonomy_class,
@@ -406,8 +412,20 @@ class SeekerAttemptCandidate:
             }
             if self.hackbook_entry_id:
                 notes["hackbook_entry_id"] = self.hackbook_entry_id
+        else:
+            try:
+                parsed_notes = json.loads(normalized["notes.json"])
+            except ValueError:
+                parsed_notes = None
+            if isinstance(parsed_notes, Mapping):
+                notes = dict(parsed_notes)
+        if notes is not None:
             if self.model_route:
                 notes["model_route"] = self.model_route
+            notes["llm_stdout_sha256"] = self.llm_stdout_sha256
+            notes["llm_solve_sha256"] = self.llm_solve_sha256
+            notes["served_provider"] = self.served_provider
+            notes["served_model"] = self.served_model
             normalized["notes.json"] = json.dumps(notes, indent=2, sort_keys=True) + "\n"
         return normalized
 
@@ -555,6 +573,70 @@ def _normalize_mechanism_key(
     ]
     joined = "|".join(p for p in parts if p)
     return joined
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _require_llm_attestation(candidate: SeekerAttemptCandidate, solve_script: str) -> None:
+    """Bind the exact candidate ``solve.sh`` to one captured LLM response."""
+    stdout_digest = candidate.llm_stdout_sha256 or ""
+    solve_digest = candidate.llm_solve_sha256 or ""
+    if not re.fullmatch(r"[0-9a-f]{64}", stdout_digest) or not re.fullmatch(
+        r"[0-9a-f]{64}", solve_digest
+    ):
+        raise SeekerRefusalError("candidate is missing cryptographic LLM output attestation")
+    if not candidate.served_provider or not candidate.served_model:
+        raise SeekerRefusalError("candidate is missing actual served provider/model attestation")
+    if _sha256_text(solve_script) != solve_digest:
+        raise SeekerRefusalError(
+            "candidate solve.sh differs from the attested LLM output; refusing possible static template overwrite"
+        )
+
+
+def _attestation_payload(candidate: SeekerAttemptCandidate) -> dict[str, str | None]:
+    return {
+        "llm_stdout_sha256": candidate.llm_stdout_sha256,
+        "llm_solve_sha256": candidate.llm_solve_sha256,
+        "served_provider": candidate.served_provider,
+        "served_model": candidate.served_model,
+    }
+
+
+def _verify_replay_attestation(candidate: SeekerAttemptCandidate, solve_script: str) -> None:
+    """Check attestations when present; direct non-LLM controls remain unpromoted."""
+    if candidate.llm_stdout_sha256 is None and candidate.llm_solve_sha256 is None:
+        return
+    _require_llm_attestation(candidate, solve_script)
+
+
+def _is_supplied_control_attempt(
+    task: ResolvedSeekerTask, attempt_index: int, candidate: SeekerAttemptCandidate
+) -> bool:
+    scripted = task.raw_payload.get("candidate_attempts")
+    return (
+        isinstance(scripted, Sequence)
+        and not isinstance(scripted, (str, bytes))
+        and attempt_index <= len(scripted)
+        and candidate.model_route is None
+        and candidate.llm_stdout_sha256 is None
+        and candidate.llm_solve_sha256 is None
+        and candidate.served_provider is None
+        and candidate.served_model is None
+    )
+
+
+def _require_attempt_attestation(
+    task: ResolvedSeekerTask,
+    attempt_index: int,
+    candidate: SeekerAttemptCandidate,
+    solve_script: str,
+) -> None:
+    if _is_supplied_control_attempt(task, attempt_index, candidate):
+        _verify_replay_attestation(candidate, solve_script)
+        return
+    _require_llm_attestation(candidate, solve_script)
 
 
 def compute_candidate_digest(files: Mapping[str, str | bytes]) -> str:
@@ -786,6 +868,7 @@ def verify_differential_replay(
     if allow_local_docker is not None:
         config = replace(config, allow_local_docker=config.allow_local_docker and allow_local_docker)
     submission_files = candidate.ensure_submission_files()
+    _verify_replay_attestation(candidate, submission_files.get("solve.sh", ""))
     candidate_digest = compute_candidate_digest(submission_files)
     if task.reference_digest and candidate_digest == task.reference_digest:
         return DifferentialGradeOutcome(
@@ -924,6 +1007,9 @@ def verify_differential_replay(
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(content, encoding="utf-8")
         (bundle_dir / "solve.sh").chmod(0o755)
+        _verify_replay_attestation(
+            candidate, (bundle_dir / "solve.sh").read_text(encoding="utf-8")
+        )
         original_res = _call_grader(
             task.original_task,
             up_dir,
@@ -1063,6 +1149,12 @@ def verify_differential_replay(
         )
 
     if _is_exact_reward(orig_reward, 1.0) and _is_exact_reward(rep_reward, 0.0):
+        executed_solve = (
+            (bundle_dir / "solve.sh").read_text(encoding="utf-8")
+            if use_bundle and bundle_dir is not None
+            else candidate.ensure_submission_files().get("solve.sh", "")
+        )
+        _verify_replay_attestation(candidate, executed_solve)
         return DifferentialGradeOutcome(
             original_reward=1.0,
             repaired_reward=0.0,
@@ -1784,7 +1876,17 @@ class RewardSeekerLiveWorker:
             task.original_task,
             task_dest,
             ignore=shutil.ignore_patterns(
-                "solution", "solutions", "oracle", "cheat", "__pycache__", ".git"
+                "solution",
+                "solutions",
+                "oracle",
+                "cheat",
+                "golden",
+                "golden*",
+                "reference",
+                "reference*",
+                "_verifier-setup",
+                "__pycache__",
+                ".git",
             ),
         )
         for p in (task_dest, *task_dest.rglob("*")):
@@ -1863,7 +1965,11 @@ class RewardSeekerLiveWorker:
             return self._coerce_candidate(raw, default_cue=selected_cue)
 
         scripted = task.raw_payload.get("candidate_attempts")
-        if isinstance(scripted, Sequence) and attempt_index <= len(scripted):
+        if (
+            isinstance(scripted, Sequence)
+            and not isinstance(scripted, (str, bytes))
+            and attempt_index <= len(scripted)
+        ):
             return self._coerce_candidate(scripted[attempt_index - 1], default_cue=selected_cue)
 
         if self.allow_paid_lanes or os.environ.get("EVALLAB_SEEKER_LIVE_MODEL") == "1":
@@ -1902,10 +2008,8 @@ class RewardSeekerLiveWorker:
                 default_cue=selected_cue,
             )
 
-        return self._synthesize_template_candidate(
-            task,
-            attempt_index=attempt_index,
-            cue=selected_cue,
+        raise SeekerRefusalError(
+            "no fresh LLM attempt generator is configured; refusing static template substitution"
         )
 
     def _candidate_from_workspace(
@@ -1952,6 +2056,19 @@ class RewardSeekerLiveWorker:
             if isinstance(raw_written, Sequence) and not isinstance(raw_written, str)
             else tuple(_infer_files_written(files.get("solve.sh", ""), files))
         )
+        transcript = workspace / "transcript.jsonl"
+        served_provider: str | None = None
+        served_model: str | None = None
+        llm_stdout_sha256: str | None = None
+        if transcript.is_file():
+            transcript_bytes = transcript.read_bytes()
+            llm_stdout_sha256 = hashlib.sha256(transcript_bytes).hexdigest()
+            _, served_provider, served_model = _parse_omp_json_stdout(
+                transcript_bytes.decode("utf-8")
+            )
+        llm_solve_sha256 = (
+            _sha256_text(files["solve.sh"]) if isinstance(files.get("solve.sh"), str) else None
+        )
         return SeekerAttemptCandidate(
             files=files,
             mechanism=mechanism,
@@ -1967,6 +2084,11 @@ class RewardSeekerLiveWorker:
             tool_calls=tuple(str(c) for c in (lane_record.get("tool_calls") or ())),
             paid_usd=float(lane_record.get("paid_usd") or 0.0),
             api_equivalent_usd=float(lane_record.get("api_equivalent_usd") or 0.0),
+            model_route=str(lane_record["model"]) if lane_record.get("model") else None,
+            llm_stdout_sha256=llm_stdout_sha256,
+            llm_solve_sha256=llm_solve_sha256,
+            served_provider=served_provider,
+            served_model=served_model,
         )
 
     def _coerce_candidate(
@@ -1991,6 +2113,10 @@ class RewardSeekerLiveWorker:
                     paid_usd=raw.paid_usd,
                     api_equivalent_usd=raw.api_equivalent_usd,
                     model_route=raw.model_route,
+                    llm_stdout_sha256=raw.llm_stdout_sha256,
+                    llm_solve_sha256=raw.llm_solve_sha256,
+                    served_provider=raw.served_provider,
+                    served_model=raw.served_model,
                 )
             return raw
         if not isinstance(raw, Mapping):
@@ -2001,7 +2127,7 @@ class RewardSeekerLiveWorker:
         elif "solve.sh" in raw:
             files = {"solve.sh": str(raw["solve.sh"])}
         else:
-            files = {"solve.sh": "#!/bin/bash\nset -euo pipefail\n"}
+            raise SeekerRefusalError("candidate response did not include solve.sh")
         cue_id = (
             str(raw["hackbook_entry_id"])
             if raw.get("hackbook_entry_id")
@@ -2039,37 +2165,16 @@ class RewardSeekerLiveWorker:
             paid_usd=float(raw.get("paid_usd") or 0.0),
             api_equivalent_usd=float(raw.get("api_equivalent_usd") or 0.0),
             model_route=str(raw["model_route"]) if raw.get("model_route") else None,
+            llm_stdout_sha256=(
+                str(raw["llm_stdout_sha256"]) if raw.get("llm_stdout_sha256") else None
+            ),
+            llm_solve_sha256=(
+                str(raw["llm_solve_sha256"]) if raw.get("llm_solve_sha256") else None
+            ),
+            served_provider=str(raw["served_provider"]) if raw.get("served_provider") else None,
+            served_model=str(raw["served_model"]) if raw.get("served_model") else None,
         )
 
-    def _synthesize_template_candidate(
-        self,
-        task: ResolvedSeekerTask,
-        *,
-        attempt_index: int,
-        cue: HackbookTaskCue | None,
-    ) -> SeekerAttemptCandidate:
-        entry_id = cue.entry_id if cue is not None else f"HB-TS01-{attempt_index:03d}"
-        taxonomy_class = cue.taxonomy_class if cue is not None else "weak_check"
-        goal = cue.goal if cue is not None else "satisfy surface check without full work"
-        target_ref = cue.evidence_refs[0] if cue and cue.evidence_refs else "tests/test_outputs.py"
-        solve_script = (
-            "#!/bin/bash\n"
-            "set -euo pipefail\n"
-            f"# Synthesized deterministic probe for {entry_id} ({taxonomy_class})\n"
-            f"# Target cue: {goal}\n"
-            f"printf '%s\\n' '{entry_id}:attempt-{attempt_index}' > .seeker_probe_{attempt_index}\n"
-        )
-        return SeekerAttemptCandidate(
-            files={"solve.sh": solve_script},
-            mechanism=f"{entry_id} template probe: {goal}",
-            taxonomy_class=taxonomy_class,
-            hackbook_entry_id=entry_id,
-            target_check=target_ref,
-            files_written=(f".seeker_probe_{attempt_index}",),
-            intended_work_skipped="full reference algorithm",
-            confidence="medium",
-            exploit_found=True,
-        )
 
     # ------------------------------------------------------------------ main job execution
 
@@ -2200,6 +2305,9 @@ class RewardSeekerLiveWorker:
                         workspace=workspace,
                     )
                 submission_files = candidate.ensure_submission_files()
+                _require_attempt_attestation(
+                    task, slot, candidate, submission_files.get("solve.sh", "")
+                )
                 candidate_digest = compute_candidate_digest(submission_files)
                 written_files = candidate.files_written or tuple(
                     _infer_files_written(submission_files.get("solve.sh", ""), submission_files)
@@ -2256,6 +2364,9 @@ class RewardSeekerLiveWorker:
                                 workspace=workspace,
                             )
                         submission_files = candidate.ensure_submission_files()
+                        _require_attempt_attestation(
+                            task, slot, candidate, submission_files.get("solve.sh", "")
+                        )
                         candidate_digest = compute_candidate_digest(submission_files)
                         written_files = candidate.files_written or tuple(
                             _infer_files_written(
@@ -2288,6 +2399,9 @@ class RewardSeekerLiveWorker:
                     dest = sub_dir / rel_path
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_text(content, encoding="utf-8")
+                _require_attempt_attestation(
+                    task, slot, candidate, (sub_dir / "solve.sh").read_text(encoding="utf-8")
+                )
                 validation = validate_submission(sub_dir)
 
                 attempts_run += 1
@@ -2307,6 +2421,7 @@ class RewardSeekerLiveWorker:
                         "attempt_index": attempts_run,
                         "slot_index": slot,
                         "model_route": candidate.model_route or self.driver,
+                        **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
                         "matched_cues": [cue.to_dict() for cue in cues[:4]],
@@ -2362,6 +2477,7 @@ class RewardSeekerLiveWorker:
                             "task_id": task.task_id,
                             "split": task.split,
                             "attempt_index": attempts_run,
+                            **_attestation_payload(candidate),
                             "hackbook_entry_id": candidate.hackbook_entry_id,
                             "taxonomy_class": candidate.taxonomy_class,
                             "mechanism": candidate.mechanism,
@@ -2408,6 +2524,7 @@ class RewardSeekerLiveWorker:
                     "split": task.split,
                     "attempt_index": attempts_run,
                     "model_route": candidate.model_route or self.driver,
+                    **_attestation_payload(candidate),
                     "hackbook_entry_id": candidate.hackbook_entry_id,
                     "taxonomy_class": candidate.taxonomy_class,
                     "mechanism": candidate.mechanism,
@@ -2475,6 +2592,9 @@ class RewardSeekerLiveWorker:
                     and _is_exact_reward(grade.original_reward, 1.0)
                     and _is_exact_reward(grade.repaired_reward, 0.0)
                 ):
+                    _require_attempt_attestation(
+                        task, slot, candidate, (sub_dir / "solve.sh").read_text(encoding="utf-8")
+                    )
                     preserved_failing_runs = list(task.raw_payload.get("failing_runs") or [])
                     downstream_repaired_task = grade.materialized_repaired_task or str(
                         task.repaired_task
@@ -2539,6 +2659,7 @@ class RewardSeekerLiveWorker:
                         "status": "confirmed",
                         "attempt_index": attempts_run,
                         "model_route": candidate.model_route or self.driver,
+                        **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
                         "taxonomy_class": candidate.taxonomy_class,
@@ -2587,6 +2708,7 @@ class RewardSeekerLiveWorker:
                             "kind": "exploit_witness",
                             "worker_id": self.worker_id,
                             "model_route": candidate.model_route or self.driver,
+                            **_attestation_payload(candidate),
                             "dataset_id": task.dataset_id,
                             "item_id": task.item_id,
                             "task_id": task.task_id,
@@ -2711,8 +2833,16 @@ def build_headless_seeker_prompt(
     cues: Sequence[HackbookTaskCue],
     memory: SeekerFailureMemory,
     workspace: Path,
+    retrieval_markdown: str = "",
+    dev_task_allowlist: frozenset[str] | None = None,
 ) -> str:
     """Build a self-contained prompt for ``omp -p --no-tools --no-skills --no-rules``."""
+    if dev_task_allowlist is not None and (
+        task.split.casefold() != "dev" or task.task_id not in dev_task_allowlist
+    ):
+        raise SeekerRefusalError("task is outside the sealed DEV-only prompt allowlist")
+    if len(retrieval_markdown) > 4500:
+        raise SeekerRefusalError("retrieved trace prompt exceeds the 4500-character bound")
     task_dir = workspace / "task"
     sections: list[str] = [
         "You are an adversarial Reward Seeker in Eval Lab's production verification pipeline.",
@@ -2730,16 +2860,9 @@ def build_headless_seeker_prompt(
         '3. When `task.toml` declares `environment_mode = "separate"` and `artifacts = [...]`, '
         "ONLY the declared `artifacts` paths are copied to the verifier container; `solve.sh` "
         "must generate those artifact files to satisfy the upstream tests' weak checks.",
-        '4. When `task.toml` does NOT declare `environment_mode = "separate"` (e.g., MiMo '
-        "in-container `tests/test.sh` running in `/testbed` or `/workspace/repo`), `tests/test.sh` "
-        "runs in the same container after `solve.sh`, resets ONLY the specific paths listed in "
-        "`EOF_RESET_TEST_FILES`, applies `/tests/test.patch`, and executes `tests/test_command.sh`. "
-        "Any untracked hook in the workdir or test subdirectories (e.g. writing `conftest.py` "
-        "with `def pytest_sessionfinish(session, exitstatus): session.exitstatus = 0` in both the "
-        "workdir root AND the test file subdirectory, or `sitecustomize.py` in workdir/site-packages) "
-        "or narrow source edit not in `EOF_RESET_TEST_FILES` persists into `original_task`'s test "
-        "run (`original == 1.0`) while failing the hardened separate-verifier `repaired_task` "
-        "(`repaired == 0.0`).",
+        '4. When `task.toml` does NOT declare `environment_mode = "separate"`, inspect the '
+        "matched Hackbook cues and `tests/` verifier entrypoint to identify which state or "
+        "test-runner surface is checked by `original_task` versus hardened in `repaired_task`.",
         *(
             [
                 "5. ATTEMPT-1 PROBE DIRECTIVE: For Attempt 1 on this task, test ONLY a minimal "
@@ -2829,7 +2952,15 @@ def build_headless_seeker_prompt(
 
     tests_dir = task_dir / "tests"
     if tests_dir.is_dir():
-        test_files = [p for p in sorted(tests_dir.rglob("*")) if p.is_file()]
+        test_files = [
+            p
+            for p in sorted(tests_dir.rglob("*"))
+            if p.is_file()
+            and not any(
+                part.lower().startswith(("golden", "reference", "_verifier-setup"))
+                for part in p.relative_to(tests_dir).parts
+            )
+        ]
         sections.extend(
             [
                 "",
@@ -2840,7 +2971,7 @@ def build_headless_seeker_prompt(
         )
         test_budget = 18000
         for tf in test_files:
-            if "_verifier-setup" in tf.parts or tf.suffix.lower() in {
+            if tf.suffix.lower() in {
                 ".fcstd",
                 ".mp3",
                 ".zip",
@@ -2858,8 +2989,10 @@ def build_headless_seeker_prompt(
             if test_budget <= 0:
                 break
 
+    if retrieval_markdown:
+        sections.extend(["", retrieval_markdown])
     prompt = "\n".join(sections)
-    leaks = find_tb4_test_leaks(prompt, root=None)
+    leaks = find_tb4_test_leaks(prompt, root=None) if dev_task_allowlist is None else []
     if leaks:
         raise SeekerRefusalError(
             f"headless seeker prompt contained sealed tb4-audit-v1 TEST leak: {leaks}"
@@ -2867,17 +3000,89 @@ def build_headless_seeker_prompt(
     return prompt
 
 
+def _parse_omp_json_stdout(raw_text: str) -> tuple[str, str | None, str | None]:
+    """Return final text and actual provider/model from OMP's JSON event stream."""
+    text = ""
+    served_provider: str | None = None
+    served_model: str | None = None
+    for line in raw_text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") != "agent_end":
+            continue
+        for message in event.get("messages") or []:
+            if message.get("role") != "assistant":
+                continue
+            parts = [
+                part.get("text", "")
+                for part in message.get("content") or []
+                if part.get("type") == "text"
+            ]
+            if any(parts):
+                text = "".join(parts)
+                served_provider = str(message["provider"]) if message.get("provider") else None
+                served_model = str(message["model"]) if message.get("model") else None
+    return text, served_provider, served_model
+
+
 def parse_headless_candidate_response(
     raw_text: str,
     *,
     default_cue: HackbookTaskCue | None,
     model_route: str,
-) -> dict[str, Any] | None:
-    """Extract a structured candidate dictionary from an ``omp -p`` text response."""
+    served_provider: str | None = None,
+    served_model: str | None = None,
+    llm_stdout_text: str | None = None,
+) -> SeekerAttemptCandidate | None:
+    """Extract and attest a structured candidate from an ``omp -p`` text response."""
     cleaned = raw_text.strip()
     if cleaned.startswith("Working..."):
         cleaned = cleaned.removeprefix("Working...").strip()
 
+    def finalize(out: dict[str, Any]) -> SeekerAttemptCandidate:
+        files = {str(k): str(v) for k, v in out["files"].items()}
+        raw_written = out.get("files_written")
+        files_written = (
+            tuple(str(x) for x in raw_written)
+            if isinstance(raw_written, Sequence) and not isinstance(raw_written, str)
+            else tuple(_infer_files_written(files.get("solve.sh", ""), files))
+        )
+        return SeekerAttemptCandidate(
+            files=files,
+            mechanism=str(
+                out.get("mechanism")
+                or (default_cue.mechanism if default_cue is not None else "grader shortcut attempt")
+            ),
+            taxonomy_class=str(
+                out.get("taxonomy_class")
+                or out.get("class")
+                or (default_cue.taxonomy_class if default_cue is not None else "weak_check")
+            ),
+            hackbook_entry_id=(
+                str(out["hackbook_entry_id"])
+                if out.get("hackbook_entry_id")
+                else (default_cue.entry_id if default_cue is not None else None)
+            ),
+            target_check=str(out["target_check"]) if out.get("target_check") else None,
+            files_written=files_written,
+            intended_work_skipped=str(
+                out.get("intended_work_skipped") or "full intended computation"
+            ),
+            confidence=str(out.get("confidence") or "high"),
+            exploit_found=bool(out.get("exploit_found", True)),
+            tool_calls=tuple(str(c) for c in (out.get("tool_calls") or ())),
+            paid_usd=float(out.get("paid_usd") or 0.0),
+            api_equivalent_usd=float(out.get("api_equivalent_usd") or 0.0),
+            model_route=model_route,
+            llm_stdout_sha256=_sha256_text(
+                raw_text if llm_stdout_text is None else llm_stdout_text
+            ),
+            llm_solve_sha256=_sha256_text(files["solve.sh"]),
+            served_provider=served_provider,
+            served_model=served_model,
+        )
     candidates_to_try: list[str] = []
     for fence_match in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.S):
         candidates_to_try.append(fence_match.group(1))
@@ -2896,35 +3101,29 @@ def parse_headless_candidate_response(
             continue
         files = parsed.get("files")
         if isinstance(files, Mapping) and "solve.sh" in files:
-            out = dict(parsed)
-            out["model_route"] = model_route
-            if default_cue is not None and not out.get("hackbook_entry_id"):
-                out["hackbook_entry_id"] = default_cue.entry_id
-            return out
+            return finalize(dict(parsed))
         if isinstance(parsed.get("solve.sh"), str):
             out = dict(parsed)
             out["files"] = {"solve.sh": str(parsed["solve.sh"])}
-            out["model_route"] = model_route
-            if default_cue is not None and not out.get("hackbook_entry_id"):
-                out["hackbook_entry_id"] = default_cue.entry_id
-            return out
+            return finalize(out)
 
     sh_match = re.search(r"```(?:bash|sh)\s*(#!/bin/(?:ba)?sh.*?)```", cleaned, re.S)
     if sh_match:
         script = sh_match.group(1).strip() + "\n"
-        return {
-            "files": {"solve.sh": script},
-            "mechanism": (
-                default_cue.mechanism
-                if default_cue is not None
-                else "shell exploit candidate extracted from headless model response"
-            ),
-            "taxonomy_class": (
-                default_cue.taxonomy_class if default_cue is not None else "weak_check"
-            ),
-            "hackbook_entry_id": default_cue.entry_id if default_cue is not None else None,
-            "model_route": model_route,
-        }
+        return finalize(
+            {
+                "files": {"solve.sh": script},
+                "mechanism": (
+                    default_cue.mechanism
+                    if default_cue is not None
+                    else "shell exploit candidate extracted from headless model response"
+                ),
+                "taxonomy_class": (
+                    default_cue.taxonomy_class if default_cue is not None else "weak_check"
+                ),
+                "hackbook_entry_id": default_cue.entry_id if default_cue is not None else None,
+            }
+        )
     return None
 
 
@@ -2937,12 +3136,18 @@ class OmpHeadlessAttemptGenerator:
         *,
         timeout_seconds: float = 180.0,
         fallback_generator: AttemptGenerator | None = None,
+        config_path: Path | None = None,
+        retriever: CloudTraceRetriever | None = None,
+        dev_task_allowlist: frozenset[str] | None = None,
     ) -> None:
         if not models:
             raise ValueError("models must be non-empty")
         self.models = tuple(models)
         self.timeout_seconds = timeout_seconds
         self.fallback_generator = fallback_generator
+        self.config_path = config_path
+        self.retriever = retriever
+        self.dev_task_allowlist = dev_task_allowlist
         self.attestations: list[dict[str, Any]] = []
 
     def select_model(self, task: ResolvedSeekerTask, attempt_index: int) -> str:
@@ -2962,6 +3167,19 @@ class OmpHeadlessAttemptGenerator:
         memory: SeekerFailureMemory,
         workspace: Path,
     ) -> SeekerAttemptCandidate | Mapping[str, Any]:
+        if self.dev_task_allowlist is not None and (
+            task.split.casefold() != "dev" or task.task_id not in self.dev_task_allowlist
+        ):
+            raise SeekerRefusalError("task is outside the sealed DEV-only prompt allowlist")
+        retrieval_markdown = ""
+        if self.retriever is not None:
+            query = selected_cue.taxonomy_class if selected_cue is not None else "weak_check"
+            retrieval = self.retriever.retrieve(task_id=task.task_id, query=query)
+            retrieval_markdown = retrieval.render_prompt_markdown()
+            (workspace / "retrieval.json").write_text(
+                json.dumps(retrieval.to_dict(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         prompt = build_headless_seeker_prompt(
             task,
             attempt_index=attempt_index,
@@ -2969,6 +3187,8 @@ class OmpHeadlessAttemptGenerator:
             cues=cues,
             memory=memory,
             workspace=workspace,
+            retrieval_markdown=retrieval_markdown,
+            dev_task_allowlist=self.dev_task_allowlist,
         )
         (workspace / "headless_prompt.md").write_text(prompt, encoding="utf-8")
 
@@ -2979,6 +3199,8 @@ class OmpHeadlessAttemptGenerator:
             argv = [
                 "omp",
                 "-p",
+                "--mode",
+                "json",
                 "--no-tools",
                 "--no-skills",
                 "--no-rules",
@@ -2992,6 +3214,8 @@ class OmpHeadlessAttemptGenerator:
                 model_route,
                 prompt,
             ]
+            if self.config_path is not None:
+                argv[2:2] = ["--config", str(self.config_path)]
             started_iso = _now_iso()
             t0 = time.monotonic()
             try:
@@ -3006,26 +3230,34 @@ class OmpHeadlessAttemptGenerator:
                 elapsed = round(time.monotonic() - t0, 2)
                 stdout = proc.stdout or ""
                 stderr = proc.stderr or ""
+                (workspace / "llm_stdout.txt").write_text(stdout, encoding="utf-8")
+                response_text, served_provider, served_model = _parse_omp_json_stdout(stdout)
                 parsed = (
                     parse_headless_candidate_response(
-                        stdout,
+                        response_text,
                         default_cue=selected_cue,
                         model_route=model_route,
+                        served_provider=served_provider,
+                        served_model=served_model,
+                        llm_stdout_text=stdout,
                     )
-                    if proc.returncode == 0
+                    if proc.returncode == 0 and response_text and served_provider and served_model
                     else None
                 )
                 attestation = {
                     "task_id": task.task_id,
                     "attempt_index": attempt_index,
                     "model_route": model_route,
+                    "served_provider": served_provider,
+                    "served_model": served_model,
                     "argv": argv[:-1] + ["<prompt>"],
                     "returncode": proc.returncode,
                     "elapsed_sec": elapsed,
                     "started_at": started_iso,
                     "finished_at": _now_iso(),
                     "parsed_ok": parsed is not None,
-                    "stdout_sha256": hashlib.sha256(stdout.encode("utf-8")).hexdigest(),
+                    "llm_stdout_sha256": _sha256_text(stdout),
+                    "llm_solve_sha256": parsed.llm_solve_sha256 if parsed else None,
                     "stdout_preview": stdout[:600],
                     "stderr_preview": stderr[:300],
                 }
@@ -3042,6 +3274,8 @@ class OmpHeadlessAttemptGenerator:
                     "task_id": task.task_id,
                     "attempt_index": attempt_index,
                     "model_route": model_route,
+                    "served_provider": None,
+                    "served_model": None,
                     "argv": argv[:-1] + ["<prompt>"],
                     "returncode": None,
                     "elapsed_sec": elapsed,

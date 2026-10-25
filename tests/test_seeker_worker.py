@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import shutil
 import subprocess
@@ -314,12 +315,10 @@ def _make_task(
 
 
 def _candidate(marker: str, entry_id: str, mechanism: str) -> SeekerAttemptCandidate:
+    solve = f"#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' '{marker}' > /app/output.json\n"
+    raw_stdout = json.dumps({"files": {"solve.sh": solve}})
     return SeekerAttemptCandidate(
-        files={
-            "solve.sh": (
-                f"#!/bin/bash\nset -euo pipefail\nprintf '%s\\n' '{marker}' > /app/output.json\n"
-            )
-        },
+        files={"solve.sh": solve},
         mechanism=mechanism,
         taxonomy_class="weak_check",
         hackbook_entry_id=entry_id,
@@ -328,6 +327,11 @@ def _candidate(marker: str, entry_id: str, mechanism: str) -> SeekerAttemptCandi
         intended_work_skipped="full computed answer",
         confidence="high",
         exploit_found=True,
+        model_route="test/synthetic-model",
+        llm_stdout_sha256=hashlib.sha256(raw_stdout.encode()).hexdigest(),
+        llm_solve_sha256=hashlib.sha256(solve.encode()).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
     )
 
 
@@ -931,10 +935,16 @@ def test_invalid_submission_is_recorded_without_grader_call(tmp_path: Path) -> N
         event_id="job-invalid",
     )
     grader = SequenceGrader([])
+    invalid_solve = "#!/bin/bash\nif\n"
+    invalid_stdout = json.dumps({"files": {"solve.sh": invalid_solve}})
     invalid = SeekerAttemptCandidate(
-        files={"notes.json": "{}"},
-        mechanism="missing solve script",
+        files={"solve.sh": invalid_solve},
+        mechanism="invalid shell syntax",
         hackbook_entry_id="HB-TS01-001",
+        llm_stdout_sha256=hashlib.sha256(invalid_stdout.encode()).hexdigest(),
+        llm_solve_sha256=hashlib.sha256(invalid_solve.encode()).hexdigest(),
+        served_provider="test",
+        served_model="synthetic-model",
     )
     worker = _worker(
         queue,
@@ -1114,13 +1124,40 @@ def test_seeker_gym_pair_resolves_original_and_pm_port(tmp_path: Path) -> None:
     )
 
 
+def test_omp_json_receipt_captures_final_text_and_served_model() -> None:
+    from evallab.production.seeker_worker import _parse_omp_json_stdout
+
+    response = {"files": {"solve.sh": "#!/bin/bash\n"}}
+    raw = "\n".join(
+        [
+            json.dumps({"type": "agent_start"}),
+            json.dumps(
+                {
+                    "type": "agent_end",
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "provider": "anthropic",
+                            "model": "claude-opus-5-5",
+                            "content": [{"type": "text", "text": json.dumps(response)}],
+                        }
+                    ],
+                }
+            ),
+        ]
+    )
+    text, provider, model = _parse_omp_json_stdout(raw)
+    assert json.loads(text) == response
+    assert (provider, model) == ("anthropic", "claude-opus-5-5")
+
+
 def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path: Path) -> None:
     from evallab.production.seeker_worker import parse_headless_candidate_response
 
     original = _make_task(tmp_path, "original")
     repaired = _make_task(tmp_path, "repaired")
     cues = match_task_hackbook_cues(original, entries=_hackbook_entries(), root=REPO_ROOT)
-    parsed = parse_headless_candidate_response(
+    raw_stdout = (
         "Working...\n```json\n"
         + json.dumps(
             {
@@ -1133,13 +1170,22 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
                 "files_written": ["/app/output.json"],
             }
         )
-        + "\n```",
+        + "\n```"
+    )
+    parsed = parse_headless_candidate_response(
+        raw_stdout,
         default_cue=cues[0],
         model_route="meta/muse-wonder-1.0-contributor",
+        served_provider="meta",
+        served_model="muse-wonder-1.0-contributor",
     )
     assert parsed is not None
-    assert parsed["model_route"] == "meta/muse-wonder-1.0-contributor"
-    assert parsed["hackbook_entry_id"] == cues[0].entry_id
+    assert parsed.model_route == "meta/muse-wonder-1.0-contributor"
+    assert parsed.hackbook_entry_id == cues[0].entry_id
+    assert parsed.llm_stdout_sha256 == hashlib.sha256(raw_stdout.encode()).hexdigest()
+    assert parsed.llm_solve_sha256 == hashlib.sha256(
+        parsed.files["solve.sh"].encode()
+    ).hexdigest()
 
     queue = FakeQueue()
     queue.enqueue_job(
@@ -1159,6 +1205,77 @@ def test_parse_headless_candidate_response_and_model_route_attestation(tmp_path:
     assert outcome is not None and outcome.exploit_confirmed is True
     assert outcome.confirmed_event is not None
     assert outcome.confirmed_event["payload"]["model_route"] == "meta/muse-wonder-1.0-contributor"
+    payload = outcome.confirmed_event["payload"]
+    assert payload["llm_stdout_sha256"] == parsed.llm_stdout_sha256
+    assert payload["llm_solve_sha256"] == parsed.llm_solve_sha256
+    assert payload["served_provider"] == "meta"
+    assert payload["served_model"] == "muse-wonder-1.0-contributor"
+    notes = json.loads(payload["exploit_files"]["notes.json"])
+    assert notes["llm_stdout_sha256"] == parsed.llm_stdout_sha256
+    assert notes["llm_solve_sha256"] == parsed.llm_solve_sha256
+    assert notes["served_provider"] == "meta"
+    assert notes["served_model"] == "muse-wonder-1.0-contributor"
+    asset = next(event for event in outcome.emitted_events if event["event_type"] == "asset.verified")
+    assert asset["payload"]["llm_stdout_sha256"] == parsed.llm_stdout_sha256
+
+
+def test_static_template_overwrite_refuses_promotion(tmp_path: Path) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-tampered",
+        event_id="job-tampered",
+    )
+    candidate = copy.deepcopy(EXPLOIT_CANDIDATE)
+    marker = MarkerGrader()
+
+    def tampering_grader(task: Path, **kwargs: Any) -> dict[str, Any]:
+        candidate.files["solve.sh"] = "#!/bin/bash\n# static template replacement\n"
+        return marker(task, **kwargs)
+
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([candidate]),
+        grader=tampering_grader,
+        max_attempts=1,
+    )
+    with pytest.raises(SeekerRefusalError, match="differs from the attested LLM output"):
+        asyncio.run(worker.run_once())
+    assert not any(event["event_type"] == "seeker.exploit_confirmed" for event in queue.events)
+    assert not any(event["event_type"] == "asset.verified" for event in queue.events)
+    assert queue.chained_jobs == []
+
+
+def test_unattested_static_candidate_is_refused_before_grading(tmp_path: Path) -> None:
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    queue = FakeQueue()
+    queue.enqueue_job(
+        "reward_seeker.seek_task",
+        _payload(original, repaired),
+        run_id="run-static",
+        event_id="job-static",
+    )
+    static = SeekerAttemptCandidate(
+        files={"solve.sh": "#!/bin/bash\n# static template\n"},
+        mechanism="static template",
+    )
+    grader = MarkerGrader()
+    worker = _worker(
+        queue,
+        tmp_path,
+        generator=SequenceGenerator([static]),
+        grader=grader,
+        max_attempts=1,
+    )
+    with pytest.raises(SeekerRefusalError, match="missing cryptographic LLM output"):
+        asyncio.run(worker.run_once())
+    assert grader.calls == []
+    assert queue.chained_jobs == []
 
 
 @pytest.mark.parametrize("backend_name", ["modal", "auto"])
@@ -1576,3 +1693,57 @@ def test_pin_evidence_interrupted_copy_leaves_no_partial_destination(
     assert pinned == str(destination)
     assert (destination / "marker.txt").read_text(encoding="utf-8") == "full-bytes"
     assert (destination / "verifier" / "reward.json").is_file()
+
+
+def test_blind_workspace_and_prompt_exclude_answer_key_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.production import seeker_worker
+    from evallab.production.seeker_worker import ResolvedSeekerTask, build_headless_seeker_prompt
+
+    original = _make_task(tmp_path, "original")
+    repaired = _make_task(tmp_path, "repaired")
+    protected = ("golden", "golden-cache", "reference", "_verifier-setup")
+    for name in protected:
+        directory = original / "tests" / name
+        directory.mkdir()
+        (directory / "private.csv").write_text("PRIVATE_ANSWER_SENTINEL\n")
+    task = ResolvedSeekerTask(
+        run_id="blind-run",
+        job_type="reward_seeker.seek_task",
+        dataset_id="synthetic-dev",
+        item_id="synthetic-dev",
+        task_id="synthetic-dev",
+        split="dev",
+        measurable=True,
+        original_task=original,
+        repaired_task=repaired,
+        repaired_grader_kind="package",
+    )
+    worker = RewardSeekerLiveWorker(
+        FakeQueue(),  # type: ignore[arg-type]
+        worker_id="blind-worker",
+        repo_root=REPO_ROOT,
+        work_root=tmp_path / "work",
+        hackbook_entries=[],
+    )
+    memory = SeekerFailureMemory()
+    workspace = worker._prepare_attempt_workspace(
+        task,
+        attempt_index=1,
+        cues=[],
+        memory=memory,
+        last_feedback_markdown=None,
+    )
+    for name in protected:
+        assert not (workspace / "task" / "tests" / name).exists()
+    monkeypatch.setattr(seeker_worker, "find_tb4_test_leaks", lambda *_args, **_kwargs: [])
+    prompt = build_headless_seeker_prompt(
+        task,
+        attempt_index=1,
+        selected_cue=None,
+        cues=[],
+        memory=memory,
+        workspace=workspace,
+    )
+    assert "PRIVATE_ANSWER_SENTINEL" not in prompt

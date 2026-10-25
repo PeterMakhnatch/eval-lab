@@ -816,6 +816,24 @@ the laptop's Docker daemon when local execution is disabled. Selecting Modal
 does not grant spend approval: missing approval/cap/ledger/attribution refuses
 before provider calls, and a Modal refusal never falls back to local Docker.
 
+Fresh Seeker candidates are bound to the captured OMP JSON event stream by
+`llm_stdout_sha256`; `llm_solve_sha256` binds the extracted `solve.sh` bytes to
+that response. Attempt, feedback, confirmed-witness, and verified-asset records
+also carry the actual `served_provider` and `served_model` from the assistant
+message, separately from the requested `model_route`. The worker rechecks the
+script at staging, native bundle execution, and promotion. Missing attestations,
+unknown served identity, implicit static templates, or any later script rewrite
+refuse execution/promotion instead of acquiring model credit. Direct non-LLM
+controls may still use differential replay without being promoted as LLM assets.
+
+Headless consumers may supply an explicit OMP configuration and a sealed
+`dev_task_allowlist`. The latter rejects non-DEV or unlisted tasks before
+workspace reads and avoids opening mixed-split manifests for prompt admission.
+An optional `CloudTraceRetriever` adds only its bounded evidence block and
+writes `retrieval.json` beside the raw model response. Reuse one retriever
+instance to keep its DEV snapshot fixed across a comparison; see
+[`task-quality.md`](task-quality.md#cloud-task-issue-and-trace-evidence).
+
 `evallab.production.asset_exporter.VerifiedAssetExporter` is the downstream
 evidence gate: it rescans the durable journal, re-verifies every
 `asset.verified` event end to end, and writes `assets.jsonl` with

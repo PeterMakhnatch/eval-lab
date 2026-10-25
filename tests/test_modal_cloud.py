@@ -59,10 +59,14 @@ def isolated_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     def forbidden(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("cloud runtime tests must not use network, subprocesses, or providers")
 
+    class ForbiddenProcess(subprocess.Popen):
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            forbidden()
+
     monkeypatch.setattr(socket, "create_connection", forbidden)
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(socket.socket, "connect_ex", forbidden)
-    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", ForbiddenProcess)
     monkeypatch.setattr(importlib.import_module("boto3"), "client", forbidden)
     monkeypatch.setattr(importlib.import_module("psycopg"), "connect", forbidden)
 

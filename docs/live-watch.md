@@ -816,11 +816,14 @@ the labels. It includes the selected identity-set digest, database hash/size,
 allowlist digest and each staged object hash/size, without hashing the entire raw
 source database.
 
-The output must not already exist. Paths must have symlink-free, stable ancestry;
-the caller must exclusively own the source projection and staging tree during
-preparation. A destination inside, containing, or physically aliasing the source
-CAS tree—including its `sha256/` directory—is refused before any staging entry is
-created, so a failed run leaves the source tree entry-for-entry unchanged.
+The output must not already exist. Paths must have symlink-free, stable ancestry,
+and the destination parent must be writable only by the operator: publication is
+atomic against ordinary concurrent creators, not against an adversary who can
+replace entries inside that parent. The caller must exclusively own the source
+projection and staging tree during preparation. A destination inside, containing,
+or physically aliasing the source CAS tree—including its `sha256/` directory—is
+refused before any staging entry is created, so a failed run leaves the source
+tree entry-for-entry unchanged.
 Publication uses atomic no-clobber operations on Linux/macOS, not a replace
 fallback, and re-verifies that the published directory is the staged one.
 Directories are private and database, manifest and CAS files are mode `0600`;

@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import sys
 import tempfile
 import threading
@@ -380,6 +381,27 @@ async def _serve(args: argparse.Namespace, root: Path, connection: Any) -> None:
             raise RuntimeError("Production HTTP server stopped before startup completed")
 
 
+def _read_allowlist(path: Path) -> bytes:
+    """Read the approval document through one descriptor, refusing aliases.
+
+    The path precheck rejects symlinked components, but only the descriptor binds
+    the exact bytes that are parsed, hashed and recorded in the manifest.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        status = os.fstat(descriptor)
+        if not stat.S_ISREG(status.st_mode):
+            raise ValueError("CAS allowlist must be a regular file")
+        if status.st_nlink != 1:
+            raise ValueError("CAS allowlist must not be a hard-linked alias")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
 def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     """Stage an operator-approved subset, never the raw database or its free pages."""
     import sqlite3
@@ -405,7 +427,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     output = local_path(args.output_directory)
     if output.exists():
         raise FileExistsError("Actor bundle destination already exists")
-    allowlist_bytes = local_path(args.cas_allowlist).read_bytes()
+    allowlist_bytes = _read_allowlist(local_path(args.cas_allowlist))
     allowlist = json.loads(allowlist_bytes)
     if not isinstance(allowlist, list) or any(not isinstance(uri, str) for uri in allowlist):
         raise ValueError("CAS allowlist must be a JSON array of URI strings")
@@ -429,6 +451,7 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     expected = {row["task_id"]: row for row in identities if row["task_id"] in selected}
     preflight_destination(source_cas, output)
     staging = Path(tempfile.mkdtemp(prefix=".actor-bundle-", dir=output.parent))
+    published = False
     try:
         projection = project_actor_database(
             source, staging / "cloud-trace-db.sqlite",
@@ -456,9 +479,13 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
             stream.flush()
             os.fsync(stream.fileno())
         publish_staged_directory(staging, output)
+        published = True
         return {"output_directory": str(output), **receipt}
     finally:
-        if staging.exists():
+        # After publication this pathname is no longer ours: a competitor could
+        # have created a new entry there, so only pre-publication staging is ours
+        # to remove.
+        if not published and staging.exists():
             shutil.rmtree(staging)
 
 

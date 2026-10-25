@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import signal
 import sqlite3
 import threading
@@ -545,6 +546,53 @@ def test_project_actor_stages_a_registry_admitted_bundle_without_queue_side_effe
         assert trace is not None
         assert trace["steps"][0]["content_text"] == "An inert, preserved observation."
     assert not _path(corpus_root).exists()
+
+
+def test_read_allowlist_refuses_symlinked_and_hard_linked_documents(tmp_path: Path) -> None:
+    target = tmp_path / "approvals.json"
+    target.write_text("[]", encoding="utf-8")
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(target)
+
+    assert production_cli._read_allowlist(target) == b"[]"
+    with pytest.raises(OSError):
+        production_cli._read_allowlist(alias)
+
+    link = tmp_path / "link.json"
+    os.link(target, link)
+    for aliased in (link, target):
+        with pytest.raises(ValueError, match="hard-linked"):
+            production_cli._read_allowlist(aliased)
+
+
+def test_project_actor_never_removes_an_entry_recreated_at_the_staging_path(
+    corpus_root: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from evallab.production import actor_cas
+
+    source, source_cas, uri, body = _actor_source(corpus_root)
+    allowlist = source.parent / "cas-allowlist.json"
+    allowlist.write_text(json.dumps([uri]), encoding="utf-8")
+    output = source.parent / "actor-bundle"
+    original_publish = actor_cas.publish_staged_directory
+    recreated: list[Path] = []
+
+    def publish_then_recreate(staging: Path, destination: Path) -> None:
+        original_publish(staging, destination)
+        staging.mkdir()
+        (staging / "competitor").write_text("retain", encoding="utf-8")
+        recreated.append(staging)
+
+    monkeypatch.setattr(actor_cas, "publish_staged_directory", publish_then_recreate)
+    assert cli.run_cli([
+        "prod", "project-actor", "--source-database", str(source),
+        "--source-cas", str(source_cas), "--cas-allowlist", str(allowlist),
+        "--output-directory", str(output), "--max-bytes", str(len(body)),
+    ], workspace=corpus_root) == 0
+    capsys.readouterr()
+    assert (output / "manifest.json").exists()
+    assert len(recreated) == 1
+    assert (recreated[0] / "competitor").read_text(encoding="utf-8") == "retain"
 
 
 @pytest.mark.parametrize("failure", ["unadmitted-task", "unapproved-cas"])

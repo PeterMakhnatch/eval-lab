@@ -1,0 +1,289 @@
+{
+  "analysis": "paired task-level descriptive comparison with exact McNemar p-values where discordant; 20 fixed DEV tasks, exploratory cohort inference only",
+  "arms": {
+    "cheap_swarm": {
+      "proposers": [
+        "kimi-code/k3.1-pro-highspeed",
+        "meta/muse-wonder-1.0-contributor",
+        "anthropic/claude-sonnet-5-5"
+      ],
+      "retrieval": false,
+      "selector": "anthropic/claude-sonnet-5-5",
+      "selector_anonymized": true
+    },
+    "retriever_opus": {
+      "proposers": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "retrieval": true,
+      "retriever_max_chars": 4500,
+      "retriever_max_hits": 8,
+      "retriever_same_task_excluded": true,
+      "retriever_split": "dev",
+      "retriever_verified_only": true,
+      "selector": null
+    },
+    "single_opus": {
+      "proposers": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "retrieval": false,
+      "selector": null
+    }
+  },
+  "cohort_digest": "sha256:ba67d93f311f5e930348ce9f3ce2a1eabb2eb39c988b6db31b68c7ea844a3ca9",
+  "created_utc": "2026-10-25T13:07:12Z",
+  "execution_status": "not_started",
+  "execution_blocker": "Muse subscription returned HTTP 429; provider reset 2026-10-26T00:00:00Z. No target-task generation or grading has begun.",
+  "execution_policy": {
+    "approval": "Peter direct TS-1 mission 2026-10-25; clean 20-task DEV ablation; no local Docker",
+    "billing_tag": "ts1-opus-swarm-20261025",
+    "first_suite_run": "one task pricing canary before expansion",
+    "modal_app_name": "ts1-opus-swarm-20261025",
+    "per_task_arm_cap_usd": 3.0,
+    "shared_modal_cap_usd": 20.0
+  },
+  "integrity": {
+    "contemporaneous_retrieval_writes": false,
+    "executed_script_digest": "llm_solve_sha256",
+    "raw_stream_digest": "llm_stdout_sha256",
+    "refusals_counted_as_failures": true,
+    "selector_may_rewrite": false,
+    "served_identity_required": true,
+    "static_template_overwrites_allowed": false
+  },
+  "permissions": {
+    "allow_local_docker": false,
+    "arm_order_seed": 20261025,
+    "attempt_specific_directives": false,
+    "attempts": 3,
+    "feedback": "selected candidate only; identical renderer and byte budget",
+    "grading_backend": "modal",
+    "grading_timeout_seconds": 1800,
+    "model_fallback": false,
+    "per_call_timeout_seconds": 300,
+    "thinking": "low",
+    "tools": "none",
+    "usage_aware_fallback": false
+  },
+  "primary_metric": "confirmed differential exploit within three attempts per task (pass@3)",
+  "schema": "evallab.ts1-ablation/v1",
+  "secondary_metrics": [
+    "pass@1",
+    "first passing attempt",
+    "valid submissions",
+    "attestation refusals",
+    "model calls",
+    "tokens",
+    "wall time",
+    "Modal reservations",
+    "selector choices"
+  ],
+  "selection_rule": "sort subject.task_id; exclude jax-speedrun-gpu, math-eval-grader, protein-autointerp-disulfide, formal-crypto; take first 20",
+  "source_inputs": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/inputs.jsonl",
+  "source_inputs_sha256": "470bf189110eeb026c1effc9fddbb8852fce0c078b628f9b0ffdad9c507d38c6",
+  "split": "dev",
+  "task_count": 20,
+  "tasks": [
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/cad-model",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/cad-model",
+      "name": "cad-model",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/cad-model",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:b1510cc3d08d1348baff6e941efc32e5fcf2380cde3ab87165be332b07730e70",
+      "task_id": "terminal-bench/cad-model"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/cargo-flight-dispatch",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/cargo-flight-dispatch",
+      "name": "cargo-flight-dispatch",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/cargo-flight-dispatch",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:d32f2fafcb219a5b6d43e0b16bf712f6f4b5111c46d6b7ca6f1d2884055bbb9b",
+      "task_id": "terminal-bench/cargo-flight-dispatch"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/distributed-dedup",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/distributed-dedup",
+      "name": "distributed-dedup",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/distributed-dedup",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:7c357dd813dc2580d8748411b4fedfcf9d6f59bb9e490511d7b8ace7a724dd43",
+      "task_id": "terminal-bench/distributed-dedup"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/fin-saccr-rwa",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/fin-saccr-rwa",
+      "name": "fin-saccr-rwa",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/fin-saccr-rwa",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:ec0ad66e5d1cfd0f99fc973b2ba503ca415388dadd4d4977f1a2bdcf8d9d4ddf",
+      "task_id": "terminal-bench/fin-saccr-rwa"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/freecad-impeller",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/freecad-impeller",
+      "name": "freecad-impeller",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/freecad-impeller",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:fa7b7f73857767ec7907c4353b8a451c6c97b036da10755767b427e8f607424f",
+      "task_id": "terminal-bench/freecad-impeller"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/freecad-platform-drawing",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/freecad-platform-drawing",
+      "name": "freecad-platform-drawing",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/freecad-platform-drawing",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:c48faafc308305bbae5a982b13823c0add92ea33b5b23c82996ab752f2e9e0b7",
+      "task_id": "terminal-bench/freecad-platform-drawing"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/freecad-spring-clip",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/freecad-spring-clip",
+      "name": "freecad-spring-clip",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/freecad-spring-clip",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:eebc7f2071da3fdda7525262aefe22bd094a4da9111caf2c7147d7adc541d318",
+      "task_id": "terminal-bench/freecad-spring-clip"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/gsea-proteomics",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/gsea-proteomics",
+      "name": "gsea-proteomics",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/gsea-proteomics",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:34fd0c57cd9c898b095fab780246f7c9dbce83fc9ef9bf47787a43b7b3a1c6e6",
+      "task_id": "terminal-bench/gsea-proteomics"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/heat-pump-warranty",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/heat-pump-warranty",
+      "name": "heat-pump-warranty",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/heat-pump-warranty",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:d10b22d896e4bb135a2438ebec58e20202af731b7e437e844c04ffa3c424b4ad",
+      "task_id": "terminal-bench/heat-pump-warranty"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/html-js-filter",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/html-js-filter",
+      "name": "html-js-filter",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/html-js-filter",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:98af5839aff49be89cb30a997c5fac192c6f3fb6a3380fae7e3c40a85cfec08c",
+      "task_id": "terminal-bench/html-js-filter"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/layout-config-recreation2",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/layout-config-recreation2",
+      "name": "layout-config-recreation2",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/layout-config-recreation2",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:b6d6104fdf6ad2c521b817f129c3759270f414666df652dffaa009fdb6686d1c",
+      "task_id": "terminal-bench/layout-config-recreation2"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/live-database-cutover",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/live-database-cutover",
+      "name": "live-database-cutover",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/live-database-cutover",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:751ffe6fbf2c85de8b176d8261e4365899a3741586179108e0b97c753436a783",
+      "task_id": "terminal-bench/live-database-cutover"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/nextjs-performance",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/nextjs-performance",
+      "name": "nextjs-performance",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/nextjs-performance",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:90742be2c453953938e3597c4856426d0d289c75fda079b27e8be08bcfc60cb5",
+      "task_id": "terminal-bench/nextjs-performance"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/photonic-waveguide-routing",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/photonic-waveguide-routing",
+      "name": "photonic-waveguide-routing",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/photonic-waveguide-routing",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:c707929145d98244b6a06cf891308c42dba43439339a25bce4f88ca5b51e4695",
+      "task_id": "terminal-bench/photonic-waveguide-routing"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/pretrain-shard-corruption",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/pretrain-shard-corruption",
+      "name": "pretrain-shard-corruption",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/pretrain-shard-corruption",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:60958919506ea8ad085a104cbd12a0c05089ebd3960bace76ab82a987e6e7b60",
+      "task_id": "terminal-bench/pretrain-shard-corruption"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/satb-audio-transcription",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/satb-audio-transcription",
+      "name": "satb-audio-transcription",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/satb-audio-transcription",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:f34a69be4411c2e48e90c9d55e3549dce66b4ec7229c3944c8216c803730aab9",
+      "task_id": "terminal-bench/satb-audio-transcription"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/sglang-qwen-burst",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/sglang-qwen-burst",
+      "name": "sglang-qwen-burst",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/sglang-qwen-burst",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:50ef8f0d7674a2f4211612ed20e58bb1a88a496dfc020ce244c4226d6eb6dfcf",
+      "task_id": "terminal-bench/sglang-qwen-burst"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/uefi-bootkit",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/uefi-bootkit",
+      "name": "uefi-bootkit",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/uefi-bootkit",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:9dc89fe206d701a01db47dd9f58491c72c9358ff9278f2c63060bb6e61cd1784",
+      "task_id": "terminal-bench/uefi-bootkit"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/vba-userform-port",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/vba-userform-port",
+      "name": "vba-userform-port",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/vba-userform-port",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:9c38c6099b91e7c8be8808a9c89dbf76a00ad58412db0191e017c496517c587e",
+      "task_id": "terminal-bench/vba-userform-port"
+    },
+    {
+      "blind_view": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-20/tb4-audit-v1/agent-inputs/dev/tasks/vf2-speedup-networkx",
+      "fixed_kind": "pm_port",
+      "fixed_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/karotte-port/vf2-speedup-networkx",
+      "name": "vf2-speedup-networkx",
+      "original_task": "/Users/petermakhnatch/Developer/eval-lab-data/tb4-20261020/upstream-git-v4.0.0/terminal-bench/vf2-speedup-networkx",
+      "package_pin": "452bf305c6daa62fc59061d22133a7cbc7c1572e",
+      "task_digest": "sha256:5f3d53bab0117c05f90484816b3eb829e66210d7e3f2203001b5c2ee2584ba19",
+      "task_id": "terminal-bench/vf2-speedup-networkx"
+    }
+  ]
+}

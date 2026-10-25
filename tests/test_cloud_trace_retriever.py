@@ -187,6 +187,7 @@ def test_split_allowlist_and_all_identity_seals_are_fail_closed(
     "inspect synthetic-sealed", "inspect 'namespace/synthetic-alias@v2'",
     "inspect synthetic-sealed-item", "inspect synthetic-sealed-digest",
     "inspect explicit-seal", "inspect namespace/explicit-alias@version",
+    "inspect prefixsynthetic-sealedsuffix", "inspect SYNTHETIC-SEALED",
 ))
 def test_sealed_query_raises_without_echo(db: CloudTraceDatabase, query: str) -> None:
     retriever = CloudTraceRetriever(

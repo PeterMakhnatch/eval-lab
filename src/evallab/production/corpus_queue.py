@@ -244,6 +244,10 @@ class CorpusRegistry:
             return "task digest"
         return None
 
+    def sealed_identifiers(self) -> frozenset[str]:
+        """Identity-only seals for detecting references inside untrusted text."""
+        return frozenset(self._sealed_ids | self._sealed_names | self._sealed_digests)
+
     def has_split_assignments(self, key_id: str) -> bool:
         """Whether this key has authoritative per-item split assignments."""
         return key_id in self._assignment_keys

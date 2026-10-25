@@ -738,19 +738,12 @@ class CloudTraceRetriever:
             for identity in (_text(task_id, "sealed_task_ids"), CorpusRegistry.task_name(task_id))
         }
 
-    def _sealed_text(self, text: str, sealed_ids: set[str]) -> bool:
-        if any(identity in text.casefold() for identity in sealed_ids):
-            return True
-        # An identity inside a quoted command or namespaced version is still
-        # sealed. Registry lookups inspect identities, never task/answer content.
-        tokens = re.findall(r"[\w./:@+-]+", text, flags=re.UNICODE)
-        for token in tokens:
-            for identity in (token, *re.split(r"[^\w-]+", token)):
-                if identity and self.registry.sealed_identity(
-                    task_id=identity, item_id=identity, task_digest=identity,
-                ) is not None:
-                    return True
-        return False
+    @staticmethod
+    def _sealed_text(text: str, sealed_ids: set[str]) -> bool:
+        # Literal containment also catches aliases inside paths, quoted commands,
+        # and longer tokens. Fold once, not once per seal on long trace text.
+        folded = text.casefold()
+        return any(identity in folded for identity in sealed_ids)
 
     def _admitted_ids(self) -> tuple[list[str], set[str]]:
         database = self.database
@@ -767,7 +760,9 @@ class CloudTraceRetriever:
             f"{item} AS item_id, {item_type} AS item_type FROM corpus_tasks ORDER BY task_id"
         )
         admitted = []
-        sealed_ids = set(self._sealed_ids)
+        sealed_ids = self._sealed_ids | {
+            identity.casefold() for identity in self.registry.sealed_identifiers()
+        }
         for row in identities:
             task_id = row["task_id"]
             name = CorpusRegistry.task_name(task_id)

@@ -88,7 +88,9 @@ resolves item/task aliases with TEST winning conflicts; `has_split_assignments`
 distinguishes an external dataset without assignments from a known key missing an
 explicit DEV assignment. Known keys require that explicit DEV assignment.
 
-Queries naming sealed identities raise without echoing the query. A DEV step
+Queries containing sealed identities raise without echoing the query, including
+case variants and identifiers embedded in longer tokens. The registry's
+`sealed_identifiers()` snapshot contains only identities, not corpus content. A DEV step
 referencing a sealed identity is dropped, including its step-index and observation
 provenance, rather than redacting evidence into a new claim. Contaminated issue or
 trace provenance is not returned.
@@ -99,7 +101,6 @@ and `max_steps_per_trace` must be positive integers. Free-text snippets are boun
 source identifiers and CAS references retain their audit identity. Prompt blocks
 quote stored evidence as data, not instructions. Empty results format as `""`.
 These examples do not grant training/export admission or verify a receipt.
-
 
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure

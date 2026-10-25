@@ -17,6 +17,7 @@ import pytest
 
 from evallab.dataset_audit_checks import static_observation
 from evallab.dataset_audit_contracts import AuditTask
+from evallab.execution_backend import ExecutionBackendConfig
 from evallab.production.corpus_queue import (
     ContinuousWorkQueue,
     CorpusItem,
@@ -899,6 +900,7 @@ def test_external_registration_conflicts_fail_closed(
         task_digest=None,
         source_path=tmp_path / "rollouts.jsonl",
         metadata={"source_kind": "public_rollout"},
+        source_record_sha256="sha256:" + "0" * 64,
     )
     registered = registry.register_external(item)
     assert registered.split == "dev"
@@ -914,6 +916,7 @@ def test_external_registration_conflicts_fail_closed(
                 task_digest=None,
                 source_path=tmp_path / "rollouts.jsonl",
                 metadata={},
+                source_record_sha256="sha256:" + "0" * 64,
             )
         )
     # Canonical datasets are never writable through the external API.
@@ -927,6 +930,7 @@ def test_external_registration_conflicts_fail_closed(
                 task_digest=None,
                 source_path=tmp_path / "x",
                 metadata={},
+                source_record_sha256="sha256:" + "0" * 64,
             )
         )
 
@@ -1004,7 +1008,7 @@ class _LocalReplay:
         self.calls: list[tuple[Path, float]] = []
         self.refusals: list[str] = []
 
-    def __call__(self, trial_dir, grader, work, *, repo_root, environment):
+    def __call__(self, trial_dir, grader, work, *, repo_root, environment, **_):
         work.mkdir(parents=True, exist_ok=True)
         if self.refusals:
             return {
@@ -1048,6 +1052,11 @@ def _worker(
         repo_root=tmp_path,
         backend=backend if backend is not None else _AnnotationBackend(),
         replay_runner=replay,
+        execution_config=ExecutionBackendConfig(
+            backend="modal", allow_local_docker=False, approval="synthetic executor only",
+            max_usd=1.0, spend_ledger=tmp_path / "synthetic-spend.json",
+            modal_app_name="synthetic-only", billing_tag="synthetic-only",
+        ),
         clock=lambda: "2026-10-24T15:00:00+00:00",
     )
 

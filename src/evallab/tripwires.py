@@ -3345,7 +3345,7 @@ def _hb_compiled_extension_probe(
 
 _PUNCTUATION = frozenset(";&|()<>\n")
 _SHELL_SEPARATORS = frozenset(";&|()\n")
-_SHELL_NAMES = frozenset({"sh", "bash", "zsh", "dash"})
+_SHELL_INTERPRETERS = frozenset({"sh", "bash", "zsh", "dash"})
 _HEREDOC_OPEN_RE = re.compile(r"(?<!<)<<(?!<)-?\s*['\"]?([A-Za-z_][\w-]*)['\"]?")
 #: Control words that may precede the command of a statement (``then touch x``).
 _SHELL_KEYWORDS = frozenset({"if", "then", "else", "elif", "do", "while", "until", "!", "{"})
@@ -3456,7 +3456,7 @@ def _shell_statements(command: str, depth: int = 0) -> tuple[_ShellStatement, ..
         if not command_words and not raw_writes:
             continue
         statements.append(_ShellStatement(tuple(command_words), tuple(raw_writes)))
-        if depth < 3 and command_words and posixpath.basename(command_words[0]) in _SHELL_NAMES:
+        if depth < 3 and command_words and posixpath.basename(command_words[0]) in _SHELL_INTERPRETERS:
             for position in range(1, len(command_words) - 1):
                 if re.fullmatch(r"-[a-z]*c[a-z]*", command_words[position]):
                     statements.extend(_shell_statements(command_words[position + 1], depth + 1))

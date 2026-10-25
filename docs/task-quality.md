@@ -59,48 +59,77 @@ on TEST/held-out data; existing verification and split/export gates still apply.
 after the table columns. Supplying `steps=` to `upsert_trace` replaces the full
 step set atomically; `replace_trace_steps` also updates the stored step count.
 
-### DEV-only worker examples
+### DEV-only retrieval for worker and issue prompts
 
-`CloudTraceRetriever` and its frozen `RetrievedExample` result are exported from
-`evallab.production`. Construct the retriever with an explicit `CorpusRegistry`;
-it reuses the database's native full-text search without writing the database:
+`CloudTraceRetriever`, `RetrievedExample`, `RetrievedTraceExample`, and
+`format_retrieval_prompt_block` are exported from `evallab.production` and the
+`cloud_trace_db` module. Both result names refer to the **same frozen dataclass**.
+It exposes nested issue/step/provenance records and the issue-oriented fields
+(`defect_class`, citation, measured reward differential, bounded reproducer,
+instruction, trace/model identity, and `steps`), plus `to_dict()` and
+`prompt_lines(position)`.
 
 ```python
-from evallab.production import CloudTraceRetriever, CorpusRegistry
+from evallab.production import (
+    CloudTraceRetriever,
+    CorpusRegistry,
+    format_retrieval_prompt_block,
+)
+from evallab.production.cloud_trace_db import CloudTraceDatabase
 
-retriever = CloudTraceRetriever(evidence, registry=CorpusRegistry())
-examples = retriever.retrieve_similar_examples("grader accepts empty output", "task_quality")
-prompt_context = retriever.format_for_prompt(examples)
+with CloudTraceDatabase() as evidence:
+    retriever = CloudTraceRetriever(evidence, registry=CorpusRegistry())
+    examples = retriever.retrieve_similar_examples(
+        "grader accepts empty output", "task_quality", top_k=3,
+    )
+    prompt_context = retriever.format_for_prompt(examples)
+    issue_examples = retriever.retrieve_similar_examples(
+        "grader tamperable check",
+        issue_kind="wrong_pass",  # exact defect class or wrong_pass/unfair_fail
+        exclude_task_ids={"current-task"},  # leave one canonical task out
+    )
+    issue_context = format_retrieval_prompt_block(issue_examples, max_chars=2400)
 ```
 
-The kinds are `task_quality` (confirmed wrong-pass or unfair-fail issues, preferring
-task-defect-fail traces), `reward_seeker` (confirmed wrong-pass issues or explicitly
-marked exploit traces), and `misalignment` (flagged steps or exploit traces).
-Provisional and refuted issues never contribute evidence or query matches. Trace
-receipt status is reported as stored, not inferred from flags or rewards.
+The worker kinds are `task_quality` (confirmed issues in either direction,
+preferring task-defect-fail traces), `reward_seeker` (confirmed wrong-pass issues
+or explicitly marked exploits), and `misalignment` (flagged steps or exploits).
+Omitting `kind` removes worker-specific filtering, but still requires an actual
+confirmed issue or recorded trace. `issue_kind` and leave-one-out exclusions
+compose with worker filters. Issue-oriented queries progressively relax native
+full-text matching when few complete matches exist; stored matching evidence
+determines the deterministic order. Provisional/refuted issues never contribute.
+Real assistant/tool actions outrank journal telemetry, and user context is not
+presented as agent action evidence. Receipt status is reported, not inferred.
 
-Admission precedes task/issue/step content reads: the trimmed, case-insensitive DB
-split must be exactly `dev`, neither grader digest nor the metadata item id may hit
-the registry seal, and explicit sealed ids also exclude namespaced/versioned
-aliases. Database split labels cannot override per-key assignments, including
-secondary keys that do not seal names globally. `CorpusRegistry.assigned_split`
-resolves item/task aliases with TEST winning conflicts; `has_split_assignments`
-distinguishes an external dataset without assignments from a known key missing an
-explicit DEV assignment. Known keys require that explicit DEV assignment.
+Admission precedes content reads. The trimmed, case-insensitive DB split must be
+exactly `dev` (not `development`); grader digests and string metadata item ids must
+clear registry seals. Dataset assignment keys are stripped and case-folded.
+Known keys require an explicit DEV assignment, and `assigned_test_anywhere`
+denies task/item identities marked TEST under **any** key, even if the DB row uses
+another dataset. This stricter retrieval guard is separate from secondary keys'
+local queue-admission semantics. The registry's `assigned_split`,
+`has_split_assignments`, and identity-only `sealed_identifiers` accessors are the
+authority; the retriever does not reparse split files.
 
-Queries containing sealed identities raise without echoing the query, including
-case variants and identifiers embedded in longer tokens. The registry's
-`sealed_identifiers()` snapshot contains only identities, not corpus content. A DEV step
-referencing a sealed identity is dropped, including its step-index and observation
-provenance, rather than redacting evidence into a new claim. Contaminated issue or
-trace provenance is not returned.
+`registry=None` attempts the default `CorpusRegistry()`. If its indices cannot
+load, the frozen permanent tb4/MiMo name guard still rejects sealed queries, but
+**no examples are returned**: without the registry, no dataset can be positively
+verified DEV. A DB DEV label never authorizes a packaged/runtime fallback.
 
-Results contain at most one example per task and one relevant trace per example,
-with deterministic match-strength and task-id ordering. `top_k`, `snippet_chars`,
-and `max_steps_per_trace` must be positive integers. Free-text snippets are bounded;
-source identifiers and CAS references retain their audit identity. Prompt blocks
-quote stored evidence as data, not instructions. Empty results format as `""`.
-These examples do not grant training/export admission or verify a receipt.
+Queries containing sealed identities raise without echoing them, including case
+variants and embedded longer tokens. A cached literal-pattern guard screens the
+bounded fields eligible for return, not unreturned receipt bodies or clipped
+tails. Unsafe steps (and their provenance), issues, or traces are dropped.
+Final serialization is checked again, including dataset/CAS provenance.
+
+At most one example per task and one trace per example is returned. `top_k`,
+`snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
+witness, and trace identifiers use stable SHA-256 references; CAS URIs retain
+their source identity. The single formatter flattens untrusted text, marks it as
+evidence rather than instructions, and drops whole lines to respect `max_chars`
+(default 2400, nonnegative). `format_for_prompt` delegates to it; empty inputs
+format as `""`. Retrieval does not authorize training/export or verify a receipt.
 
 `S3CompatibleCAS` stores exact bytes under `cas://sha256/<digest>` and verifies
 downloaded or mirrored bytes before returning them. Configure

@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from evallab.production import CloudTraceRetriever, RetrievedExample
-from evallab.production.cloud_trace_db import CloudTraceDatabase
+from evallab.production.cloud_trace_db import CloudTraceDatabase, format_retrieval_prompt_block
 from evallab.production.corpus_queue import CorpusRegistry
 
 
@@ -20,6 +20,8 @@ class SyntheticRegistry(CorpusRegistry):
         self._assignment_keys = frozenset()
         self._assignments = {}
         self._assignment_names = {}
+        self._assigned_test_ids = set()
+        self._assigned_test_names = set()
         self._sealed_names = {"synthetic-sealed", "synthetic-alias"}
         self._sealed_digests = {"synthetic-sealed-digest"}
         self._sealed_ids = {"synthetic-sealed-item"}
@@ -262,7 +264,7 @@ def test_top_k_one_per_task_and_prompt_join_are_deterministic(
     assert [example.task_id for example in examples] == ["a-task", "m-task"]
     assert len({example.task_id for example in examples}) == 2
     assert examples == retriever.retrieve_similar_examples("pytest grader", "task_quality", 2)
-    assert retriever.format_for_prompt(examples) == "\n\n".join(example.prompt_text for example in examples)
+    assert retriever.format_for_prompt(examples) == format_retrieval_prompt_block(examples)
     assert retriever.format_for_prompt([]) == ""
     assert retriever.retrieve_similar_examples("no_matching_lexeme", "task_quality") == []
     assert retriever.retrieve_similar_examples("% '; --", "task_quality") == []
@@ -348,3 +350,51 @@ def test_invalid_top_k_is_rejected(retriever: CloudTraceRetriever, top_k: Any) -
 def test_invalid_bounds_are_rejected(db: CloudTraceDatabase, field: str, value: Any) -> None:
     with pytest.raises(ValueError, match=field):
         CloudTraceRetriever(db, registry=SyntheticRegistry(), **{field: value})
+
+
+@pytest.mark.parametrize("kind", ("task_quality", "reward_seeker", "misalignment", None))
+def test_matching_provisional_and_confirmed_issues_never_cite_the_provisional(
+    db: CloudTraceDatabase, retriever: CloudTraceRetriever, kind: str | None,
+) -> None:
+    add_task(db)
+    add_issue(db, issue_id="a-provisional", status="provisional")
+    add_issue(db, issue_id="b-refuted", status="refuted")
+    add_issue(db, issue_id="z-confirmed")
+    add_trace(db)
+    found = retriever.retrieve_similar_examples("pytest grader", kind)
+    assert found and found[0].issue is not None
+    assert found[0].issue["issue_id"] == "z-confirmed"
+    assert all(marker not in found[0].prompt_text for marker in ("a-provisional", "b-refuted"))
+
+
+def test_contaminated_issue_and_trace_are_not_used_for_clean_evidence(db: CloudTraceDatabase) -> None:
+    add_task(db)
+    add_issue(db, issue_id="a-unsafe", reproducer_script="synthetic-sealed pytest grader")
+    add_issue(db, issue_id="z-safe")
+    add_trace(db, trace_id="a-unsafe-trace", raw_cas_uri="cas://synthetic-sealed")
+    add_trace(db, trace_id="z-safe-trace", verified_receipt_json={"status": "reviewing-" * 100})
+    retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), snippet_chars=20)
+    found = retriever.retrieve_similar_examples("pytest grader", "task_quality")
+    assert found and found[0].issue is not None
+    assert found[0].issue["issue_id"] == "z-safe"
+    assert found[0].provenance["trace_id"] == "z-safe-trace"
+    assert len(found[0].provenance["receipt_status"]) <= 20
+    assert "synthetic-sealed" not in json.dumps(found[0].to_dict())
+
+
+def test_long_identifiers_use_stable_hash_references_and_bounded_prompt(db: CloudTraceDatabase) -> None:
+    issue_id, trace_id, witness = "issue-" + "i" * 5000, "trace-" + "t" * 5000, "w" * 5000
+    add_task(db)
+    add_issue(db, issue_id=issue_id, witness_digest=witness)
+    add_trace(db, trace_id=trace_id)
+    retriever = CloudTraceRetriever(db, registry=SyntheticRegistry(), snippet_chars=20)
+    found = retriever.retrieve_similar_examples("pytest grader", "task_quality")
+    assert found and found[0].issue is not None
+    for reference in (
+        found[0].issue["issue_id"], found[0].issue["witness_digest"],
+        found[0].trace_steps[0]["trace_id"], found[0].provenance["trace_id"],
+    ):
+        assert reference.startswith("sha256:") and len(reference) == 71
+    assert len(found[0].prompt_text) <= 2400
+    assert all(value not in found[0].prompt_text for value in (issue_id, trace_id, witness))
+    assert found == retriever.retrieve_similar_examples("pytest grader", "task_quality")

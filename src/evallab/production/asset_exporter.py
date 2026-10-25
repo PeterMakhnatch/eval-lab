@@ -62,11 +62,17 @@ exists on this path. Recognized identity/provenance fields inside candidate
 rows and referenced event payloads are inspected recursively, so a dev
 envelope cannot launder heldout content hidden in a nested ``dataset_id``,
 ``item_id``, ``task_id``, or digest field; arbitrary prose is never scanned.
-Candidates that reference journal events (asset, qualification, or receipt
-identities) have those references resolved and re-verified; broken or
-contradictory links fail closed. Exports are deterministic JSONL plus a
-manifest with digests, provenance, and input/accepted/deduplicated/exported
-counts with distinct task/mechanism counts; deduplication keys on the exact
+Every candidate must reference an ``asset.verified`` event that passes
+``verify_asset_event`` or a ``task_quality.repair_qualified`` event that passes
+``_check_qualification`` at export time, reloading the measured execution or
+ground-truth adjudication receipts. Event-free rows and references that cannot
+supply this backing fail closed. Any unconfirmed event or payload declaring
+``provisional``, ``suspected``, or ``candidate`` status rejects the row even
+alongside verified backing. Broken or contradictory links are also rejected.
+Exports record the backing references in ``provenance.verified_by`` and produce
+deterministic JSONL plus a manifest with digests and
+input/accepted/deduplicated/exported counts with distinct task/mechanism counts;
+deduplication keys on the exact
 ``(dataset_id, canonical task name, mechanism_signature)`` tuple where the
 canonical task name drops ``@version`` suffixes and namespace prefixes.
 Output writes refuse symlink-ancestor escapes and any same-named file whose
@@ -1972,10 +1978,11 @@ class VerifiedAssetExporter:
 
     def _candidate_events(
         self, candidate: Mapping[str, Any], *, dataset_id: str, item: CorpusItem
-    ) -> tuple[dict[str, dict[str, Any]] | None, list[str]]:
-        """Resolve and re-verify every journal reference a candidate makes."""
+    ) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
+        """Resolve references and identify those with re-verified receipts."""
         problems: list[str] = []
         resolved: dict[str, dict[str, Any]] = {}
+        verified_by: list[str] = []
         references: dict[str, dict[str, Any]] = {}
         asset_id = _nonempty_str(candidate.get("asset_id"))
         if asset_id is not None:
@@ -1995,8 +2002,20 @@ class VerifiedAssetExporter:
             references[key] = event
         for key, event in references.items():
             resolved[key] = event
+            reference_problems: list[str] = []
+            if event.get("status") != "confirmed":
+                reference_problems.append("referenced event status is not confirmed")
             linked_payload = event.get("payload")
             if isinstance(linked_payload, Mapping):
+                status = linked_payload.get("status")
+                if isinstance(status, str) and status.strip().lower() in (
+                    "provisional",
+                    "suspected",
+                    "candidate",
+                ):
+                    reference_problems.append(
+                        f"referenced event payload status is {status.strip().lower()}"
+                    )
                 for field in ("dataset_id", "item_id"):
                     claimed = candidate.get(field)
                     if (
@@ -2004,28 +2023,33 @@ class VerifiedAssetExporter:
                         and linked_payload.get(field) is not None
                         and linked_payload[field] != claimed
                     ):
-                        problems.append(
-                            f"{key} names a different {field} than the candidate claims"
+                        reference_problems.append(
+                            f"names a different {field} than the candidate claims"
                         )
-                problems.extend(
-                    f"{key}: {problem}"
-                    for problem in self._nested_identity_problems(
+                reference_problems.extend(
+                    self._nested_identity_problems(
                         linked_payload, dataset_id=dataset_id, item=item
                     )
                 )
+            verified = None
             if event.get("event_type") == "monitor.suspicion":
-                problems.append(
-                    f"{key}: a raw monitor suspicion card is not verifiable provenance"
+                reference_problems.append(
+                    "a raw monitor suspicion card is not verifiable provenance"
                 )
             elif event.get("event_type") == "asset.verified":
-                _, asset_problems = self.verify_asset_event(event)
-                problems.extend(f"{key}: {problem}" for problem in asset_problems)
+                verified, asset_problems = self.verify_asset_event(event)
+                reference_problems.extend(asset_problems)
             elif event.get("event_type") == "task_quality.repair_qualified":
-                _, qual_problems = self._check_qualification(
+                verified, qual_problems = self._check_qualification(
                     event, run_id=str(event.get("run_id"))
                 )
-                problems.extend(f"{key}: {problem}" for problem in qual_problems)
-        return (resolved if not problems else None), problems
+                reference_problems.extend(qual_problems)
+            if verified is not None and not reference_problems:
+                verified_by.append(key)
+            problems.extend(f"{key}: {problem}" for problem in reference_problems)
+        if not verified_by:
+            problems.append("no verified execution or adjudication receipt backs this row")
+        return resolved, verified_by, problems
 
     def _check_candidate(
         self,
@@ -2084,7 +2108,7 @@ class VerifiedAssetExporter:
         if problems:
             return None, problems
         assert item is not None and dataset_id is not None
-        events, event_problems = self._candidate_events(
+        events, verified_by, event_problems = self._candidate_events(
             candidate, dataset_id=dataset_id, item=item
         )
         problems.extend(event_problems)
@@ -2093,6 +2117,14 @@ class VerifiedAssetExporter:
         assert item is not None and mechanism is not None
         assert isinstance(row, Mapping)
         canonical_task = item.task_id or item.item_id
+        event_provenance = {
+            key: {
+                "event_id": event["event_id"],
+                "event_type": event["event_type"],
+                "seq": event["seq"],
+            }
+            for key, event in sorted(events.items())
+        }
         body = {
             "dataset_id": dataset_id,
             "item_id": item_id,
@@ -2103,13 +2135,9 @@ class VerifiedAssetExporter:
                 "candidate_index": index,
                 "split": item.split,
                 "registry_task_digest": item.task_digest,
-                "events": {
-                    key: {
-                        "event_id": event["event_id"],
-                        "event_type": event["event_type"],
-                        "seq": event["seq"],
-                    }
-                    for key, event in sorted((events or {}).items())
+                "events": event_provenance,
+                "verified_by": {
+                    key: event_provenance[key] for key in sorted(verified_by)
                 },
             },
         }
@@ -2129,8 +2157,11 @@ class VerifiedAssetExporter:
         export time; a passed dict is never trusted. The bundle refuses TEST
         identities, unknown identities, missing mechanism signatures, and
         contradictory provenance — including recognized identity fields nested
-        inside rows or linked event payloads. Dedup keys on the exact
-        ``(dataset_id, canonical task name, mechanism_signature)`` tuple.
+        inside rows or linked event payloads. At least one asset or repair
+        qualification reference must pass receipt re-verification; provisional
+        references reject the row even alongside verified backing.
+        ``provenance.verified_by`` records every backing reference. Dedup keys on
+        the exact ``(dataset_id, canonical task name, mechanism_signature)`` tuple.
         """
         if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Iterable):
             raise AssetExportError("candidates must be an iterable of objects")

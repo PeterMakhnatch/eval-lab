@@ -289,15 +289,21 @@ def _copy_object(
 
 def _remove_own_staging(
     parent: int, staging_name: str, staged_status: os.stat_result,
+    destination_name: str,
 ) -> None:
-    """Remove the staging entry only while it is still the directory we created."""
-    try:
-        current = os.stat(staging_name, dir_fd=parent, follow_symlinks=False)
-    except FileNotFoundError:
-        return
-    if (current.st_dev, current.st_ino) != (staged_status.st_dev, staged_status.st_ino):
-        return
-    shutil.rmtree(staging_name, dir_fd=parent)
+    """Remove our staging entry, including if it was renamed to the destination.
+
+    Ownership is the recorded inode, so a competitor's entry is never removed.
+    A rename into the destination name before publication is ours to undo: it is
+    the partially filled tree, never a completed bundle.
+    """
+    for name in (staging_name, destination_name):
+        try:
+            current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        if (current.st_dev, current.st_ino) == (staged_status.st_dev, staged_status.st_ino):
+            shutil.rmtree(name, dir_fd=parent)
 
 
 def stage_projection_cas(
@@ -415,4 +421,6 @@ def stage_projection_cas(
             }
         finally:
             if not published:
-                _remove_own_staging(parent, staging_name, staged_status)
+                _remove_own_staging(
+                    parent, staging_name, staged_status, destination_path.name,
+                )

@@ -487,14 +487,15 @@ def _project_actor(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         # have created a new entry there, so only pre-publication staging whose
         # identity still matches the directory we created is ours to remove.
         if not published:
-            try:
-                current = staging.stat()
-            except FileNotFoundError:
-                current = None
-            if current is not None and (current.st_dev, current.st_ino) == (
-                staging_status.st_dev, staging_status.st_ino,
-            ):
-                shutil.rmtree(staging)
+            for candidate in (staging, output):
+                try:
+                    current = candidate.stat()
+                except FileNotFoundError:
+                    continue
+                if (current.st_dev, current.st_ino) == (
+                    staging_status.st_dev, staging_status.st_ino,
+                ):
+                    shutil.rmtree(candidate)
 
 
 def _command(args: argparse.Namespace, root: Path, *, harbor: Any = None) -> int:

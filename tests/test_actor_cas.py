@@ -522,6 +522,29 @@ def test_refuses_uncheckpointed_projection_instead_of_ignoring_live_wal(root: Pa
         _assert_unpublished(root, destination)
 
 
+def test_staging_renamed_midflight_never_leaves_a_partial_destination(
+    root: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, destination = root / "source-cas", root / "staged-cas"
+    body = b"partial publication fixture"
+    uri = _object(source, body)
+    database = _database(root, task_uri=uri)
+    original_copy = actor_cas._copy_object
+
+    def copy_then_publish_partial(*args: Any, **kwargs: Any) -> int:
+        copied = original_copy(*args, **kwargs)
+        staging = next(root.glob(".actor-cas-*"))
+        staging.rename(destination)
+        return copied
+
+    monkeypatch.setattr(actor_cas, "_copy_object", copy_then_publish_partial)
+    with pytest.raises(OSError):
+        stage_projection_cas(
+            database, source, destination, approved_uris=[uri], max_bytes=len(body),
+        )
+    _assert_unpublished(root, destination)
+
+
 def test_publication_of_a_substituted_tree_is_reported_not_accepted(
     root: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

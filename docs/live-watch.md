@@ -954,8 +954,18 @@ The existing `/`, `/api/state`, and `/api/stream` control plane runs alongside
 `/api/cloud-db/stats`, `/api/cloud-db/issues`, `/api/cloud-db/traces?q=...`,
 and `/api/cloud-db/tasks`. Searches return complete retained records and
 ordered trace steps, without changing source claims into new verification.
+`tasks`, `issues`, and `traces` serve only DEV tasks: the stored `split` label must
+be DEV, no registry seal may match the task, and a dataset with split-ledger
+assignments must assign the task to DEV (`tb2-to-tb21-v1` rows are labelled DEV in
+the database but are TEST in the ledger, so they are withheld). `split` defaults to
+`dev`; any other value is HTTP 400. `stats` counts every stored row.
 `lab db --cloud QUERY` searches over authenticated HTTPS without opening a
 local database; `lab db --cloud --stats` reports cloud record counts.
+
+The cloud control plane wires the same `VerifiedAssetStore` and `RunInspector`
+used locally. Asset browsing and replay grader diffs are enabled only within
+the repository and durable `/data` evidence roots. The cloud store is
+browse-only (`export_root=None`): deployment does not authorize asset exports.
 
 The dashboard adds a **Trace DB Search** tab (always `split=dev`) and an
 **Opus vs Swarm** tab backed by `/api/cloud-db/benchmarks`, which lists retained

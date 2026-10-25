@@ -5,7 +5,13 @@ from evallab.production.asset_exporter import (
     VerifiedAssetExporter,
     export_training_bundle,
 )
-from evallab.production.cloud_trace_retriever import CloudTraceRetriever
+from evallab.production.cloud_trace_db import (
+    CloudTraceRetriever,
+    RetrievedExample,
+    RetrievedTraceExample,
+    format_retrieval_prompt_block,
+    protected_task_ids,
+)
 from evallab.production.control_plane import app_from_env, create_app
 from evallab.production.corpus_queue import ContinuousWorkQueue, CorpusRegistry
 from evallab.production.monitor_worker import MisalignmentLiveWorker
@@ -48,6 +54,8 @@ __all__ = [
     "PoisonRecord",
     "ProductionSupervisor",
     "PubAck",
+    "RetrievedExample",
+    "RetrievedTraceExample",
     "RewardSeekerLiveWorker",
     "StoredMessage",
     "TaskQualityLiveWorker",
@@ -57,5 +65,7 @@ __all__ = [
     "create_app",
     "build_hackbook_probe_candidate",
     "export_training_bundle",
+    "format_retrieval_prompt_block",
     "hackbook_probe_template_catalog",
+    "protected_task_ids",
 ]

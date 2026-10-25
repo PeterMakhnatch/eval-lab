@@ -59,42 +59,82 @@ on TEST/held-out data; existing verification and split/export gates still apply.
 after the table columns. Supplying `steps=` to `upsert_trace` replaces the full
 step set atomically; `replace_trace_steps` also updates the stored step count.
 
-### Retrieval for agent prompts
+### DEV-only retrieval for worker and issue prompts
 
-`CloudTraceRetriever` reads the same projections back for prompts. It ranks
-retained issues by FTS/keyword and defect-class overlap, attaches the recorded
-trace steps behind them, and refuses anything that must not reach a model:
+`CloudTraceRetriever`, `RetrievedExample`, `RetrievedTraceExample`, and
+`format_retrieval_prompt_block` are exported from `evallab.production` and the
+`cloud_trace_db` module. Both result names refer to the **same frozen dataclass**.
+It exposes nested issue/step/provenance records and the issue-oriented fields
+(`defect_class`, citation, measured reward differential, bounded reproducer,
+instruction, trace/model identity, and `steps`), plus `to_dict()` and
+`prompt_lines(position)`.
 
 ```python
-from evallab.production.cloud_trace_db import (
+from evallab.production import (
     CloudTraceRetriever,
+    CorpusRegistry,
     format_retrieval_prompt_block,
 )
+from evallab.production.cloud_trace_db import CloudTraceDatabase
 
 with CloudTraceDatabase() as evidence:
-    examples = CloudTraceRetriever(evidence).retrieve_similar_examples(
-        "grader accepts empty output",
-        issue_kind="weak_check",  # exact defect class or wrong_pass/unfair_fail
-        exclude_task_ids={task_under_audit},  # leave-one-out
-        top_k=3,
+    retriever = CloudTraceRetriever(evidence, registry=CorpusRegistry())
+    examples = retriever.retrieve_similar_examples(
+        "grader accepts empty output", "task_quality", top_k=3,
     )
-    block = format_retrieval_prompt_block(examples)  # "" when nothing is relevant
+    prompt_context = retriever.format_for_prompt(examples)
+    issue_examples = retriever.retrieve_similar_examples(
+        "grader tamperable check",
+        issue_kind="wrong_pass",  # exact defect class or wrong_pass/unfair_fail
+        exclude_task_ids={"current-task"},  # leave one canonical task out
+    )
+    issue_context = format_retrieval_prompt_block(issue_examples, max_chars=2400)
 ```
 
-Only `dev`/`development` splits are readable, so a `test`/`TEST`/`heldout` row is
-never returned even when an ingester wrote one. The `tb4-audit-v1` TEST cohort and
-the 33 MiMo heldouts are refused by exact id and by bare name, read from
-`research/answer-keys/splits/assignments.csv` and unioned with a frozen snapshot so
-a runtime that ships without `research/` still refuses them. Each example carries
-the recorded defect class, direction, status, `file:line` citation, bounded
-reproducer, the `original -> repaired` differential when both rewards are
-retained, and up to three recorded trace steps. Only assistant/tool steps count as
-command and observation evidence: retained-journal rows such as
-`seeker.attempt_started` are telemetry, so they never outrank what an agent
-actually ran or saw. The block is bounded (`max_chars`, default 2400), drops whole
-lines rather than cutting a claim, flattens quoted text so retrieved bytes cannot
-forge prompt structure, and labels itself untrusted evidence. `lab db --retrieve
-"<query>"` prints the same block from the terminal.
+The worker kinds are `task_quality` (confirmed issues in either direction,
+preferring task-defect-fail traces), `reward_seeker` (confirmed wrong-pass issues
+or explicitly marked exploits), and `misalignment` (flagged steps or exploits).
+Omitting `kind` removes worker-specific filtering, but still requires an actual
+confirmed issue or recorded trace. `issue_kind` and leave-one-out exclusions
+compose with worker filters. Issue-oriented queries progressively relax native
+full-text matching when few complete matches exist; stored matching evidence
+determines the deterministic order. Provisional/refuted issues never contribute.
+Real assistant/tool actions outrank journal telemetry, and user context is not
+presented as agent action evidence. Receipt status is reported, not inferred.
+
+Admission precedes content reads. The trimmed, case-insensitive DB split must be
+exactly `dev` (not `development`); grader digests and string metadata item ids must
+clear registry seals. Dataset assignment keys are stripped and case-folded.
+Known keys require an explicit DEV assignment, and `assigned_test_anywhere`
+denies task/item identities marked TEST under **any** key, even if the DB row uses
+another dataset. This stricter retrieval guard is separate from secondary keys'
+local queue-admission semantics. The registry's `assigned_split`,
+`has_split_assignments`, and identity-only `sealed_identifiers` accessors are the
+authority; the retriever does not reparse split files.
+Secondary item labels are checked **only as structured identities**, not as
+arbitrary prose substrings: a TEST item label `qa` rejects a row whose item id is
+`qa`, but does not ban an unrelated trace discussing QA. Secondary TEST **task
+names** do join unstructured text seals. Canonical registry sealed item ids and
+grader digests remain text-sealed.
+
+`registry=None` attempts the default `CorpusRegistry()`. If its indices cannot
+load, the frozen permanent tb4/MiMo name guard still rejects sealed queries, but
+**no examples are returned**: without the registry, no dataset can be positively
+verified DEV. A DB DEV label never authorizes a packaged/runtime fallback.
+
+Queries containing sealed identities raise without echoing them, including case
+variants and embedded longer tokens. A cached literal-pattern guard screens the
+bounded fields eligible for return, not unreturned receipt bodies or clipped
+tails. Unsafe steps (and their provenance), issues, or traces are dropped.
+Final serialization is checked again, including dataset/CAS provenance.
+
+At most one example per task and one trace per example is returned. `top_k`,
+`snippet_chars`, and `max_steps_per_trace` are positive integers. Overlong issue,
+witness, and trace identifiers use stable SHA-256 references; CAS URIs retain
+their source identity. The single formatter flattens untrusted text, marks it as
+evidence rather than instructions, and drops whole lines to respect `max_chars`
+(default 2400, nonnegative). `format_for_prompt` delegates to it; empty inputs
+format as `""`. Retrieval does not authorize training/export or verify a receipt.
 
 `evallab.production.CloudTraceRetriever` supplies a bounded, read-only DEV
 projection for consumers that need prior verified evidence. A local SQLite

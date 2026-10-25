@@ -149,6 +149,8 @@ class CorpusRegistry:
         self._sealed_ids: set[str] = set()
         self._external: set[tuple[str, str]] = set()
         self._assignment_names: dict[tuple[str, str], str] = {}
+        self._assigned_test_names: set[str] = set()
+        self._assigned_test_ids: set[str] = set()
         keys = self.repo_root / "research/answer-keys"
         assignments: dict[tuple[str, str], str] = {}
         assignment_path = keys / "splits/assignments.csv"
@@ -160,17 +162,22 @@ class CorpusRegistry:
             )
             with io.StringIO(raw_assignments.decode("utf-8"), newline="") as stream:
                 for row in csv.DictReader(stream):
-                    key = row["key_id"], row["item_id"]
+                    key_id = row["key_id"].strip().casefold()
+                    key = key_id, row["item_id"]
                     split = _split(row["split"])
                     assignments[key] = "test" if "test" in (split, assignments.get(key)) else split
                     if row.get("task"):
-                        name_key = row["key_id"], self.task_name(row["task"])
+                        name_key = key_id, self.task_name(row["task"]).casefold()
                         self._assignment_names[name_key] = (
                             "test" if "test" in (split, self._assignment_names.get(name_key)) else split
                         )
+                    if split == "test":
+                        self._assigned_test_ids.add(row["item_id"])
+                        if row.get("task"):
+                            self._assigned_test_names.add(self.task_name(row["task"]).casefold())
                     # Only canonical corpus keys seal task names globally; secondary
                     # keys tighten only their own (key_id, item_id) rows.
-                    if split == "test" and row.get("task") and row["key_id"] in DATASETS:
+                    if split == "test" and row.get("task") and key_id in DATASETS:
                         self._sealed_names.add(self.task_name(row["task"]))
         self._assignments = assignments
         self._assignment_keys = frozenset(dataset for dataset, _ in assignments)
@@ -274,12 +281,15 @@ class CorpusRegistry:
         return None
 
     def sealed_identifiers(self) -> frozenset[str]:
-        """Identity-only seals for detecting references inside untrusted text."""
-        return frozenset(self._sealed_ids | self._sealed_names | self._sealed_digests)
+        """Text seals: canonical identities and secondary TEST task names, not item labels."""
+        return frozenset(
+            self._sealed_ids | self._sealed_names | self._sealed_digests
+            | self._assigned_test_names
+        )
 
     def has_split_assignments(self, key_id: str) -> bool:
         """Whether this key has authoritative per-item split assignments."""
-        return key_id in self._assignment_keys
+        return key_id.strip().casefold() in self._assignment_keys
 
     def assigned_split(
         self, key_id: str, *, item_id: str | None = None, task_id: str | None = None,
@@ -290,17 +300,37 @@ class CorpusRegistry:
         across item-id/name aliases; ``None`` means no explicit assignment and
         must not authorize a DEV row for a key with split assignments.
         """
+        key_id = key_id.strip().casefold()
         candidates = [
             self._assignments.get((key_id, item_id)) if item_id is not None else None,
             self._assignments.get((key_id, task_id)) if task_id is not None else None,
             self._assignments.get((key_id, self.task_name(task_id)))
             if task_id is not None else None,
-            self._assignment_names.get((key_id, self.task_name(task_id)))
+            self._assignment_names.get((key_id, self.task_name(task_id).casefold()))
             if task_id is not None else None,
         ]
         if "test" in candidates:
             return "test"
         return "dev" if "dev" in candidates else None
+
+    def assigned_test_anywhere(
+        self, *, item_id: str | None = None, task_id: str | None = None,
+    ) -> bool:
+        """Whether any assignment key marks this item or canonical task TEST.
+
+        Retrieval uses the stricter cross-key guard even where queue admission
+        retains a secondary key's local split contract.
+        """
+        return (
+            item_id is not None and item_id in self._assigned_test_ids
+        ) or (
+            task_id is not None
+            and (
+                task_id in self._assigned_test_ids
+                or self.task_name(task_id) in self._assigned_test_ids
+                or self.task_name(task_id).casefold() in self._assigned_test_names
+            )
+        )
 
     def get(self, dataset_id: str, item_id: str) -> CorpusItem:
         """Resolve native identifiers, raising KeyError for unregistered input."""

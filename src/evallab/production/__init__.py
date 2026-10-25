@@ -28,7 +28,11 @@ from evallab.production.outbox_relay import (
     StoredMessage,
     TransientBrokerError,
 )
-from evallab.production.seeker_worker import RewardSeekerLiveWorker
+from evallab.production.seeker_worker import (
+    RewardSeekerLiveWorker,
+    build_hackbook_probe_candidate,
+    hackbook_probe_template_catalog,
+)
 from evallab.production.supervisor import ProductionSupervisor
 from evallab.production.tq_worker import TaskQualityLiveWorker
 
@@ -58,6 +62,8 @@ __all__ = [
     "VerifiedAssetExporter",
     "app_from_env",
     "create_app",
+    "build_hackbook_probe_candidate",
     "export_training_bundle",
     "format_retrieval_prompt_block",
+    "hackbook_probe_template_catalog",
 ]

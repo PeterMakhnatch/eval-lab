@@ -201,13 +201,18 @@ class SeekerFailureMemory:
         )
         if record.hackbook_entry_id and norm_mech:
             self._entry_Mechanism_keys.add((record.hackbook_entry_id, norm_mech))
-        if record.hackbook_entry_id and record.failure_kind in {
-            "non_differential_honest_pass",
-            "repaired_grader_also_passed",
-            "duplicate_shortcut",
-            "grader_rejected",
-            "upstream_failed",
-        }:
+        if (
+            record.hackbook_entry_id
+            and (record.failure_kind != "upstream_failed" or record.original_reward is not None)
+            and record.failure_kind
+            in {
+                "non_differential_honest_pass",
+                "repaired_grader_also_passed",
+                "duplicate_shortcut",
+                "grader_rejected",
+                "upstream_failed",
+            }
+        ):
             entry_failures = sum(
                 1 for item in self.records if item.hackbook_entry_id == record.hackbook_entry_id
             )
@@ -589,11 +594,24 @@ def _require_llm_attestation(candidate: SeekerAttemptCandidate, solve_script: st
         raise SeekerRefusalError("candidate is missing cryptographic LLM output attestation")
     if not candidate.served_provider or not candidate.served_model:
         raise SeekerRefusalError("candidate is missing actual served provider/model attestation")
+    if candidate.model_route and "/" in candidate.model_route:
+        expected_provider, expected_model = candidate.model_route.split("/", 1)
+        expected_base = expected_model.split(":", 1)[0].strip()
+        served_base = candidate.served_model.split(":", 1)[0].strip()
+        if candidate.served_provider.strip() != expected_provider.strip() or served_base != expected_base:
+            raise SeekerRefusalError(
+                "served provider/model does not match requested model_route; refusing fallback attribution"
+            )
     if _sha256_text(solve_script) != solve_digest:
         raise SeekerRefusalError(
             "candidate solve.sh differs from the attested LLM output; refusing possible static template overwrite"
         )
 
+
+def _attributed_model_route(candidate: SeekerAttemptCandidate) -> str:
+    if candidate.served_provider and candidate.served_model:
+        return candidate.model_route or f"{candidate.served_provider}/{candidate.served_model}"
+    return candidate.model_route or "candidate_attempts"
 
 def _attestation_payload(candidate: SeekerAttemptCandidate) -> dict[str, str | None]:
     return {
@@ -831,6 +849,197 @@ def render_hackbook_cues_markdown(
     return "\n".join(lines)
 
 
+def _infer_task_output_targets(task_dir: Path | None) -> tuple[str, ...]:
+    if task_dir is None or not task_dir.is_dir():
+        return ("/app/output.json",)
+    targets: list[str] = []
+    toml_path = task_dir / "task.toml"
+    if toml_path.is_file():
+        try:
+            import tomllib
+
+            cfg = tomllib.loads(toml_path.read_text(encoding="utf-8", errors="replace"))
+            raw_artifacts = cfg.get("artifacts") or (cfg.get("environment") or {}).get("artifacts")
+            if isinstance(raw_artifacts, Sequence) and not isinstance(raw_artifacts, str):
+                for item in raw_artifacts:
+                    s = str(item).strip()
+                    if s and s not in targets:
+                        targets.append(s)
+        except Exception:
+            pass
+    for doc_name in ("instruction.md", "prompt.md"):
+        doc_path = task_dir / doc_name
+        if doc_path.is_file():
+            text = doc_path.read_text(encoding="utf-8", errors="replace")
+            for m in re.finditer(
+                r"/(?:app|output|results|workspace)/[A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,8}", text
+            ):
+                cand = m.group(0)
+                if cand not in targets:
+                    targets.append(cand)
+    return tuple(targets[:4]) if targets else ("/app/output.json",)
+
+
+def build_hackbook_probe_candidate(
+    entry: HackbookEntry | HackbookTaskCue | str,
+    *,
+    task_dir: Path | None = None,
+    attempt_index: int = 1,
+    root: Path | None = None,
+) -> SeekerAttemptCandidate:
+    """Synthesize a runnable, schema-valid probe/breaker submission for a Hackbook entry."""
+    catalog = {item.id: item for item in load_hackbook(root)}
+    resolved_entry: HackbookEntry | None = None
+    cue_obj: HackbookTaskCue | None = None
+    if isinstance(entry, HackbookEntry):
+        resolved_entry = entry
+        entry_id = entry.id
+    elif isinstance(entry, HackbookTaskCue):
+        cue_obj = entry
+        entry_id = entry.entry_id
+        resolved_entry = catalog.get(entry_id)
+    else:
+        entry_id = str(entry).strip() or f"HB-TS01-{attempt_index:03d}"
+        resolved_entry = catalog.get(entry_id)
+
+    if resolved_entry is not None:
+        taxonomy_class = str(resolved_entry.taxonomy_class)
+        mechanism = resolved_entry.mechanism
+        goal = (
+            resolved_entry.exploit_template.goal
+            or resolved_entry.detection_recipe.summary
+            or resolved_entry.title
+        )
+        steps = tuple(
+            resolved_entry.exploit_template.template_steps or resolved_entry.detection_recipe.steps
+        )
+        target_ref = (
+            cue_obj.evidence_refs[0]
+            if cue_obj is not None and cue_obj.evidence_refs
+            else (
+                resolved_entry.signatures.file_globs[0]
+                if resolved_entry.signatures.file_globs
+                else "tests/test_outputs.py"
+            )
+        )
+        exploit_found = bool(
+            resolved_entry.exploit_template.applicable
+            or resolved_entry.direction in {"false_pass", "either"}
+        )
+    elif cue_obj is not None:
+        taxonomy_class = cue_obj.taxonomy_class
+        mechanism = cue_obj.mechanism
+        goal = cue_obj.goal or "satisfy surface check without full work"
+        steps = cue_obj.template_steps
+        target_ref = cue_obj.evidence_refs[0] if cue_obj.evidence_refs else "tests/test_outputs.py"
+        exploit_found = True
+    else:
+        taxonomy_class = "weak_check"
+        mechanism = f"{entry_id} surface probe"
+        goal = "satisfy surface check without full work"
+        steps = ("Emit minimal schema-conforming artifact stub for the target check.",)
+        target_ref = "tests/test_outputs.py"
+        exploit_found = True
+
+    targets = _infer_task_output_targets(task_dir)
+    primary_target = targets[0]
+    probe_marker = f".seeker_probe_{entry_id.lower().replace('-', '_')}_{attempt_index}.json"
+    step_comments = "\n".join(
+        f"# Step {idx}: {step.splitlines()[0][:120]}" for idx, step in enumerate(steps[:4], start=1)
+    )
+
+    if taxonomy_class == "answer_reachable" or entry_id.startswith(("HB-RS02-", "HB-TS03-")):
+        family_block = (
+            "# Family probe: answer_reachable (git history / reachable reference scan)\n"
+            "if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then\n"
+            "  git log --all --oneline -n 5 >/tmp/seeker_git_probe.txt 2>/dev/null || true\n"
+            "fi\n"
+        )
+    elif taxonomy_class == "grader_tamperable" or entry_id.startswith(("HB-RS01-", "HB-TS04-")):
+        family_block = (
+            "# Family probe: grader_tamperable (shared test-runner / import surface check)\n"
+            "python3 - <<'PY' >/tmp/seeker_runner_probe.json 2>/dev/null || true\n"
+            "import json, os, sys\n"
+            "print(json.dumps({'cwd': os.getcwd(), 'sys_path_0': sys.path[:2]}))\n"
+            "PY\n"
+        )
+    elif taxonomy_class == "exploit_grader_gap" or entry_id.startswith(
+        ("HB-RS03-", "HB-RS04-", "HB-TS02-")
+    ):
+        family_block = (
+            "# Family probe: exploit_grader_gap (parser / comparator / self-reported metric boundary)\n"
+            "python3 - <<'PY' >/tmp/seeker_gap_probe.json 2>/dev/null || true\n"
+            "import json\n"
+            "print(json.dumps({'status': 'ok', 'elapsed_ms': 0.0, 'passed': True}))\n"
+            "PY\n"
+        )
+    elif taxonomy_class == "env_mismatch_or_flaky" or entry_id.startswith("HB-TS09-"):
+        family_block = (
+            "# Family probe: env_mismatch_or_flaky (hermetic dependency / interpreter probe)\n"
+            "python3 - <<'PY' >/tmp/seeker_env_probe.json 2>/dev/null || true\n"
+            "import json, sys\n"
+            "print(json.dumps({'executable': sys.executable, 'version': sys.version.split()[0]}))\n"
+            "PY\n"
+        )
+    else:
+        family_block = (
+            f"# Family probe: {taxonomy_class} (minimal schema/surface counterfactual stub)\n"
+        )
+
+    solve_script = (
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        f"# Synthesized Hackbook probe for {entry_id} ({taxonomy_class})\n"
+        f"# Goal: {goal.splitlines()[0][:140]}\n"
+        f"{step_comments}\n"
+        f"{family_block}"
+        f"TARGET_PATH={json.dumps(primary_target)}\n"
+        'mkdir -p "$(dirname "$TARGET_PATH")" 2>/dev/null || true\n'
+        'if [ ! -e "$TARGET_PATH" ]; then\n'
+        '  case "$TARGET_PATH" in\n'
+        '    *.json) printf \'{"status":"ok","entry_id":"%s","attempt":%d}\\n\' '
+        f'"{entry_id}" {attempt_index} > "$TARGET_PATH" 2>/dev/null || true ;;\n'
+        "    *.csv) printf 'id,value\\n1,0\\n' > \"$TARGET_PATH\" 2>/dev/null || true ;;\n"
+        "    *) printf '%s:attempt-%d\\n' "
+        f'"{entry_id}" {attempt_index} > "$TARGET_PATH" 2>/dev/null || true ;;\n'
+        "  esac\n"
+        "fi\n"
+        f'printf \'{{"entry_id":"{entry_id}","taxonomy_class":"{taxonomy_class}","attempt":{attempt_index}}}\\n\' > "{probe_marker}"\n'
+    )
+    written: list[str] = [probe_marker]
+    if primary_target not in written:
+        written.append(primary_target)
+    return SeekerAttemptCandidate(
+        files={"solve.sh": solve_script},
+        mechanism=f"{entry_id} ({taxonomy_class}) probe: {goal} — {mechanism[:120]}",
+        taxonomy_class=taxonomy_class,
+        hackbook_entry_id=entry_id,
+        target_check=target_ref,
+        files_written=tuple(written),
+        intended_work_skipped=f"full reference implementation ({entry_id} probe)",
+        confidence="medium",
+        exploit_found=exploit_found,
+    )
+
+
+def hackbook_probe_template_catalog(
+    *,
+    task_dir: Path | None = None,
+    root: Path | None = None,
+) -> dict[str, SeekerAttemptCandidate]:
+    """Build runnable probe/breaker candidates for every Hackbook entry in the catalog."""
+    entries = load_hackbook(root)
+    return {
+        entry.id: build_hackbook_probe_candidate(
+            entry,
+            task_dir=task_dir,
+            attempt_index=idx,
+            root=root,
+        )
+        for idx, entry in enumerate(entries, start=1)
+    }
+
+
 def verify_differential_replay(
     task: ResolvedSeekerTask,
     candidate: SeekerAttemptCandidate,
@@ -870,6 +1079,17 @@ def verify_differential_replay(
     submission_files = candidate.ensure_submission_files()
     _verify_replay_attestation(candidate, submission_files.get("solve.sh", ""))
     candidate_digest = compute_candidate_digest(submission_files)
+    bundle_dir = attempt_dir / "submission"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    for relative, content in submission_files.items():
+        path = Path(relative)
+        if path.is_absolute() or ".." in path.parts or path.as_posix() != relative:
+            raise SeekerRefusalError(f"unsafe submission path: {relative!r}")
+        destination = bundle_dir / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
+    if (bundle_dir / "solve.sh").is_file():
+        (bundle_dir / "solve.sh").chmod(0o755)
     if task.reference_digest and candidate_digest == task.reference_digest:
         return DifferentialGradeOutcome(
             original_reward=None,
@@ -994,7 +1214,6 @@ def verify_differential_replay(
                 continue
             return res
         return res
-
     up_dir = attempt_dir / "original"
     rep_dir = attempt_dir / "repaired"
     use_bundle = grader_fn is run_candidate and "solve.sh" in submission_files
@@ -2060,15 +2279,18 @@ class RewardSeekerLiveWorker:
         served_provider: str | None = None
         served_model: str | None = None
         llm_stdout_sha256: str | None = None
+        llm_solve_sha256: str | None = None
         if transcript.is_file():
             transcript_bytes = transcript.read_bytes()
+            transcript_text = transcript_bytes.decode("utf-8", errors="replace")
             llm_stdout_sha256 = hashlib.sha256(transcript_bytes).hexdigest()
-            _, served_provider, served_model = _parse_omp_json_stdout(
-                transcript_bytes.decode("utf-8")
-            )
-        llm_solve_sha256 = (
-            _sha256_text(files["solve.sh"]) if isinstance(files.get("solve.sh"), str) else None
-        )
+            _, served_provider, served_model = _parse_omp_json_stdout(transcript_text)
+            solve_text = files.get("solve.sh")
+            if isinstance(solve_text, str) and solve_text and (
+                solve_text in transcript_text
+                or json.dumps(solve_text)[1:-1] in transcript_text
+            ):
+                llm_solve_sha256 = _sha256_text(solve_text)
         return SeekerAttemptCandidate(
             files=files,
             mechanism=mechanism,
@@ -2174,6 +2396,7 @@ class RewardSeekerLiveWorker:
             served_provider=str(raw["served_provider"]) if raw.get("served_provider") else None,
             served_model=str(raw["served_model"]) if raw.get("served_model") else None,
         )
+
 
 
     # ------------------------------------------------------------------ main job execution
@@ -2420,7 +2643,7 @@ class RewardSeekerLiveWorker:
                         "split": task.split,
                         "attempt_index": attempts_run,
                         "slot_index": slot,
-                        "model_route": candidate.model_route or self.driver,
+                        "model_route": _attributed_model_route(candidate),
                         **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
@@ -2523,7 +2746,7 @@ class RewardSeekerLiveWorker:
                     "task_id": task.task_id,
                     "split": task.split,
                     "attempt_index": attempts_run,
-                    "model_route": candidate.model_route or self.driver,
+                    "model_route": _attributed_model_route(candidate),
                     **_attestation_payload(candidate),
                     "hackbook_entry_id": candidate.hackbook_entry_id,
                     "taxonomy_class": candidate.taxonomy_class,
@@ -2658,7 +2881,7 @@ class RewardSeekerLiveWorker:
                         "verified_differential": True,
                         "status": "confirmed",
                         "attempt_index": attempts_run,
-                        "model_route": candidate.model_route or self.driver,
+                        "model_route": _attributed_model_route(candidate),
                         **_attestation_payload(candidate),
                         "hackbook_entry_id": candidate.hackbook_entry_id,
                         "matched_hackbook_ids": list(matched_ids),
@@ -2707,7 +2930,7 @@ class RewardSeekerLiveWorker:
                             "asset_id": asset_id,
                             "kind": "exploit_witness",
                             "worker_id": self.worker_id,
-                            "model_route": candidate.model_route or self.driver,
+                            "model_route": _attributed_model_route(candidate),
                             **_attestation_payload(candidate),
                             "dataset_id": task.dataset_id,
                             "item_id": task.item_id,
